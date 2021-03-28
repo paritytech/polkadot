@@ -30,7 +30,7 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 
 ```rust
 struct ActiveLeavesUpdate {
-    activated: [Hash], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
@@ -328,7 +328,9 @@ enum PeerSet {
 
 enum NetworkBridgeMessage {
     /// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-    ReportPeer(PeerSet, PeerId, cost_benefit: i32),
+    ReportPeer(PeerId, cost_benefit: i32),
+    /// Disconnect a peer from the given peer-set without affecting their reputation.
+    DisconnectPeer(PeerId, PeerSet),
     /// Send a message to one or more peers on the validation peerset.
     SendValidationMessage([PeerId], ValidationProtocolV1),
     /// Send a message to one or more peers on the collation peerset.

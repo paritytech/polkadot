@@ -551,9 +551,9 @@ where
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
-					for (activated, _span) in activated.into_iter() {
+					for activated in activated.into_iter() {
 						let _timer = subsystem.metrics.time_block_activated();
-						process_block_activated(ctx, subsystem, activated).await?;
+						process_block_activated(ctx, subsystem, activated.hash).await?;
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {

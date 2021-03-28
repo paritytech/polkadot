@@ -150,20 +150,36 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, _role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
 				// insert a blank view if none already present
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					?role,
+					"Peer connected",
+				);
 				self.peer_views.entry(peer_id).or_default();
 			}
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					"Peer disconnected",
+				);
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
-				self.handle_peer_view_change(ctx, peer_id, view).await;
+				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
 			}
 			NetworkBridgeEvent::OurViewChange(view) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?view,
+					"Own view change",
+				);
 				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
@@ -213,6 +229,8 @@ impl State {
 		);
 
 		{
+			let _timer = metrics.time_import_pending_now_known();
+
 			let pending_now_known = self.pending_known.keys()
 				.filter(|k| self.blocks.contains_key(k))
 				.copied()
@@ -253,8 +271,9 @@ impl State {
 				view.finalized_number,
 			);
 			Self::unify_with_peer(
-				&mut self.blocks,
 				ctx,
+				metrics,
+				&mut self.blocks,
 				peer_id.clone(),
 				view_intersection,
 			).await;
@@ -326,10 +345,22 @@ impl State {
 	async fn handle_peer_view_change(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
 	) {
-		Self::unify_with_peer(&mut self.blocks, ctx, peer_id.clone(), view.clone()).await;
+		tracing::trace!(
+			target: LOG_TARGET,
+			?view,
+			"Peer view change",
+		);
+		Self::unify_with_peer(
+			ctx,
+			metrics,
+			&mut self.blocks,
+			peer_id.clone(),
+			view.clone(),
+		).await;
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view);
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
@@ -389,6 +420,13 @@ impl State {
 			Some(entry) => entry,
 			None => {
 				if let Some(peer_id) = source.peer_id() {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						?block_hash,
+						?validator_index,
+						"Unexpected assignment",
+					);
 					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				}
 				return;
@@ -407,11 +445,23 @@ impl State {
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
 					if knowledge.get().known_messages.contains(&fingerprint) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?peer_id,
+							?fingerprint,
+							"Duplicate assignment",
+						);
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
 				}
 				hash_map::Entry::Vacant(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						?fingerprint,
+						"Assignment from a peer is out of view",
+					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				}
 			}
@@ -420,6 +470,12 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?peer_id,
+						?fingerprint,
+						"Known assignment",
+					);
 					peer_knowledge.known_messages.insert(fingerprint.clone());
 				}
 				return;
@@ -444,6 +500,13 @@ impl State {
 				}
 			};
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?source,
+				?fingerprint,
+				?result,
+				"Checked assignment",
+			);
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -467,18 +530,24 @@ impl State {
 				}
 				AssignmentCheckResult::Bad => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
-					tracing::info!(
-						target: LOG_TARGET,
-						peer = ?peer_id,
-						"Got a bad assignment from peer",
-					);
 					return;
 				}
 			}
 		} else {
 			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
 				// if we already imported an assignment, there is no need to distribute it again
+				tracing::warn!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally an already known assignment",
+				);
 				return;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally a new assignment",
+				);
 			}
 		}
 
@@ -527,7 +596,7 @@ impl State {
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Sending assignment (block={}, index={})to {} peers",
+				"Sending assignment (block={}, index={}) to {} peers",
 				block_hash,
 				claimed_candidate_index,
 				peers.len(),
@@ -578,6 +647,12 @@ impl State {
 			);
 
 			if !entry.knowledge.known_messages.contains(&assignment_fingerprint) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?peer_id,
+					?fingerprint,
+					"Unknown approval assignment",
+				);
 				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return;
 			}
@@ -586,17 +661,36 @@ impl State {
 			match entry.known_by.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(knowledge) => {
 					if knowledge.get().known_messages.contains(&fingerprint) {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?peer_id,
+							?fingerprint,
+							"Duplicate approval",
+						);
+
 						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						return;
 					}
 				}
 				hash_map::Entry::Vacant(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						?fingerprint,
+						"Approval from a peer is out of view",
+					);
 					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				}
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.known_messages.contains(&fingerprint) {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					?fingerprint,
+					"Known approval",
+				);
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.known_messages.insert(fingerprint.clone());
@@ -611,6 +705,7 @@ impl State {
 				tx,
 			))).await;
 
+			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
@@ -621,7 +716,15 @@ impl State {
 					return;
 				}
 			};
+			drop(timer);
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				?fingerprint,
+				?result,
+				"Checked approval",
+			);
 			match result {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
@@ -635,7 +738,7 @@ impl State {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
-						peer = ?peer_id,
+						?peer_id,
 						"Got a bad approval from peer",
 					);
 					return;
@@ -644,7 +747,18 @@ impl State {
 		} else {
 			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
 				// if we already imported an approval, there is no need to distribute it again
+				tracing::warn!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally an already known approval",
+				);
 				return;
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?fingerprint,
+					"Importing locally a new approval",
+				);
 			}
 		}
 
@@ -705,7 +819,7 @@ impl State {
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
-				"Sending approval (block={}, index={})to {} peers",
+				"Sending approval (block={}, index={}) to {} peers",
 				block_hash,
 				candidate_index,
 				peers.len(),
@@ -721,11 +835,14 @@ impl State {
 	}
 
 	async fn unify_with_peer(
-		entries: &mut HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		metrics: &Metrics,
+		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
 		view: View,
 	) {
+		metrics.on_unify_with_peer();
+		let _timer = metrics.time_unify_with_peer();
 		let mut to_send = HashSet::new();
 
 		let view_finalized_number = view.finalized_number;
@@ -881,7 +998,6 @@ impl ApprovalDistribution {
 				FromOverseer::Communication {
 					msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
-					tracing::debug!(target: LOG_TARGET, "Processing network message");
 					state.handle_network_msg(&mut ctx, &self.metrics, event).await;
 				}
 				FromOverseer::Communication {
@@ -966,6 +1082,11 @@ pub struct Metrics(Option<MetricsInner>);
 struct MetricsInner {
 	assignments_imported_total: prometheus::Counter<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
+	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
+
+	time_unify_with_peer: prometheus::Histogram,
+	time_import_pending_now_known: prometheus::Histogram,
+	time_awaiting_approval_voting: prometheus::Histogram,
 }
 
 impl Metrics {
@@ -979,6 +1100,24 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_imported_total.inc();
 		}
+	}
+
+	fn on_unify_with_peer(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.unified_with_peer_total.inc();
+		}
+	}
+
+	fn time_unify_with_peer(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_unify_with_peer.start_timer())
+	}
+
+	fn time_import_pending_now_known(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_import_pending_now_known.start_timer())
+	}
+
+	fn time_awaiting_approval_voting(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_awaiting_approval_voting.start_timer())
 	}
 }
 
@@ -996,6 +1135,40 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_approvals_imported_total",
 					"Number of valid approvals imported locally or from other peers.",
+				)?,
+				registry,
+			)?,
+			unified_with_peer_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_unified_with_peer_total",
+					"Number of times `unify_with_peer` is called.",
+				)?,
+				registry,
+			)?,
+			time_unify_with_peer: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_unify_with_peer",
+						"Time spent within fn `unify_with_peer`.",
+					)
+				)?,
+				registry,
+			)?,
+			time_import_pending_now_known: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_import_pending_now_known",
+						"Time spent on importing pending assignments and approvals.",
+					)
+				)?,
+				registry,
+			)?,
+			time_awaiting_approval_voting: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_awaiting_approval_voting",
+						"Time spent awaiting a reply from the Approval Voting Subsystem.",
+					)
 				)?,
 				registry,
 			)?,

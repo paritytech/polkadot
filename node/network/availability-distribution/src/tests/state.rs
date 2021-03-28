@@ -32,9 +32,11 @@ use sc_network as network;
 use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, messages::{AllMessages,
-	AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage, RuntimeApiMessage,
-	RuntimeApiRequest}
+use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+	messages::{
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
+	}
 };
 use polkadot_primitives::v1::{CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash, Id
 	as ParaId, ScheduledCore, SessionInfo, ValidatorId,
@@ -96,7 +98,7 @@ impl Default for TestState {
 			let mut cores = HashMap::new();
 			let mut chunks = HashMap::new();
 
-			cores.insert(relay_chain[0], 
+			cores.insert(relay_chain[0],
 				vec![
 					CoreState::Scheduled(ScheduledCore {
 						para_id: chain_ids[0],
@@ -148,7 +150,7 @@ impl Default for TestState {
 }
 
 impl TestState {
-	
+
 	/// Run, but fail after some timeout.
 	pub async fn run(self, harness: TestHarness) {
 		// Make sure test won't run forever.
@@ -169,7 +171,11 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![(new.clone(), Arc::new(jaeger::Span::Disabled))],
+				activated: smallvec![ActivatedLeaf {
+					hash: new.clone(),
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}],
 				deactivated: smallvec![old.clone()],
 			}).collect::<Vec<_>>()
 		};
@@ -178,7 +184,7 @@ impl TestState {
 		//
 		// Test will fail if this does not happen until timeout.
 		let mut remaining_stores = self.valid_chunks.len();
-		
+
 		let TestSubsystemContextHandle { tx, mut rx } = virtual_overseer;
 
 		// Spawning necessary as incoming queue can only hold a single item, we don't want to dead
@@ -210,7 +216,7 @@ impl TestState {
 						executor.spawn("Request forwarding",
 									overseer_send(
 										tx.clone(),
-										AvailabilityDistributionMessage::AvailabilityFetchingRequest(in_req)
+										AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
 									).boxed()
 						);
 					}
@@ -294,9 +300,9 @@ async fn overseer_recv(
 fn to_incoming_req(
 	executor: &TaskExecutor,
 	outgoing: Requests
-) -> IncomingRequest<v1::AvailabilityFetchingRequest> {
+) -> IncomingRequest<v1::ChunkFetchingRequest> {
 	match outgoing {
-		Requests::AvailabilityFetching(OutgoingRequest { payload, pending_response, .. }) => {
+		Requests::ChunkFetching(OutgoingRequest { payload, pending_response, .. }) => {
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>)
 			   = oneshot::channel();
 			executor.spawn("Message forwarding", async {
