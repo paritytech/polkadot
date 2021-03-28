@@ -191,7 +191,6 @@ mod select_availability_bitfields {
 }
 
 mod select_candidates {
-	use futures_timer::Delay;
 	use super::super::*;
 	use super::{build_occupied_core, occupied_core, scheduled_core, default_bitvec};
 	use polkadot_node_subsystem::messages::{
@@ -201,6 +200,7 @@ mod select_candidates {
 	use polkadot_primitives::v1::{
 		BlockNumber, CandidateDescriptor, PersistedValidationData, CommittedCandidateReceipt, CandidateCommitments,
 	};
+	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -208,12 +208,12 @@ mod select_candidates {
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
-		OverseerFactory: FnOnce(mpsc::Receiver<FromJobCommand>) -> Overseer,
+		OverseerFactory: FnOnce(mpsc::UnboundedReceiver<AllMessages>) -> Overseer,
 		Overseer: Future<Output = ()>,
-		TestFactory: FnOnce(mpsc::Sender<FromJobCommand>) -> Test,
+		TestFactory: FnOnce(TestSubsystemSender) -> Test,
 		Test: Future<Output = ()>,
 	{
-		let (tx, rx) = mpsc::channel(64);
+		let (tx, rx) = polkadot_node_subsystem_test_helpers::sender_receiver();
 		let overseer = overseer_factory(rx);
 		let test = test_factory(tx);
 
@@ -298,24 +298,27 @@ mod select_candidates {
 		]
 	}
 
-	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJobCommand>, expected: Vec<BackedCandidate>) {
+	async fn mock_overseer(
+		mut receiver: mpsc::UnboundedReceiver<AllMessages>,
+		expected: Vec<BackedCandidate>,
+	) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
-				FromJobCommand::SendMessage(AllMessages::ChainApi(BlockNumber(_relay_parent, tx))) => {
+				AllMessages::ChainApi(BlockNumber(_relay_parent, tx)) => {
 					tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 				}
-				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(
+				AllMessages::RuntimeApi(Request(
 					_parent_hash,
 					PersistedValidationDataReq(_para_id, _assumption, tx),
-				))) => tx.send(Ok(Some(Default::default()))).unwrap(),
-				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx)))) => {
+				)) => tx.send(Ok(Some(Default::default()))).unwrap(),
+				AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx))) => {
 					tx.send(Ok(mock_availability_cores())).unwrap()
 				}
-				FromJobCommand::SendMessage(
-					AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(_, _, sender))
+				AllMessages::CandidateBacking(
+					CandidateBackingMessage::GetBackedCandidates(_, _, sender)
 				) => {
 					let _ = sender.send(expected.clone());
 				}
@@ -325,28 +328,8 @@ mod select_candidates {
 	}
 
 	#[test]
-	fn handles_overseer_failure() {
-		let overseer = |rx: mpsc::Receiver<FromJobCommand>| async move {
-			// drop the receiver so it closes and the sender can't send, then just sleep long enough that
-			// this is almost certainly not the first of the two futures to complete
-			std::mem::drop(rx);
-			Delay::new(std::time::Duration::from_secs(1)).await;
-		};
-
-		let test = |mut tx: mpsc::Sender<FromJobCommand>| async move {
-			// wait so that the overseer can drop the rx before we attempt to send
-			Delay::new(std::time::Duration::from_millis(50)).await;
-			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
-			println!("{:?}", result);
-			assert!(std::matches!(result, Err(Error::ChainApiMessageSend(_))));
-		};
-
-		test_harness(overseer, test);
-	}
-
-	#[test]
 	fn can_succeed() {
-		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: TestSubsystemSender| async move {
 			select_candidates(&[], &[], &[], Default::default(), &mut tx).await.unwrap();
 		})
 	}
@@ -411,7 +394,7 @@ mod select_candidates {
 			})
 			.collect();
 
-		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: TestSubsystemSender| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
 					.await.unwrap();
@@ -470,7 +453,7 @@ mod select_candidates {
 			})
 			.collect();
 
-		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: TestSubsystemSender| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
 					.await.unwrap();

@@ -103,7 +103,7 @@ pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
 /// Request some data from the `RuntimeApi`.
 pub async fn request_from_runtime<RequestBuilder, Response, Sender>(
 	parent: Hash,
-	sender: &mut JobSender<Sender>,
+	sender: &mut Sender,
 	request_builder: RequestBuilder,
 ) -> RuntimeApiReceiver<Response>
 where
@@ -138,7 +138,7 @@ macro_rules! specialize_requests {
 			$(
 				$param_name: $param_ty,
 			)*
-			sender: &mut JobSender<impl SubsystemSender>,
+			sender: &mut impl SubsystemSender,
 		) -> RuntimeApiReceiver<$return_ty> {
 			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
@@ -468,6 +468,23 @@ impl<S: SubsystemSender> JobSender<S> {
 	/// Send a command to the subsystem, to be relayed onwards to the overseer.
 	pub async fn send_command(&mut self, msg: FromJobCommand) -> Result<(), mpsc::SendError> {
 		self.from_job.send(msg).await
+	}
+}
+
+#[async_trait::async_trait]
+impl<S: SubsystemSender> SubsystemSender for JobSender<S> {
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.sender.send_message(msg).await
+	}
+
+	async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		self.sender.send_messages(msgs).await
+	}
+
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.sender.send_unbounded_message(msg)
 	}
 }
 
