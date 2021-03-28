@@ -564,10 +564,10 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
-				ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,
-				).into()).await;
+				).into());
 
 				launch_approval(
 					ctx,
@@ -712,7 +712,7 @@ async fn handle_background_request(
 ) -> SubsystemResult<Vec<Action>> {
 	match request {
 		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, metrics, vote_request).await
+			issue_approval(ctx, state, metrics, vote_request)
 		}
 		BackgroundRequest::CandidateValidation(
 			validation_data,
@@ -1724,7 +1724,7 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
+fn issue_approval(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
@@ -1830,12 +1830,14 @@ async fn issue_approval(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
-		block_hash,
-		candidate_index: candidate_index as _,
-		validator: validator_index,
-		signature: sig,
-	}).into()).await;
+	ctx.send_unbounded_message(
+		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+			block_hash,
+			candidate_index: candidate_index as _,
+			validator: validator_index,
+			signature: sig,
+		}
+	).into());
 
 	Ok(actions)
 }

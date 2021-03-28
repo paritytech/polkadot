@@ -99,7 +99,7 @@ pub enum NetworkAction {
 
 /// An abstraction over networking for the purposes of this subsystem.
 #[async_trait]
-pub trait Network: Send + 'static {
+pub trait Network: Clone + Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
 	/// to the [`VALIDATION_PROTOCOL_NAME`](VALIDATION_PROTOCOL_NAME)

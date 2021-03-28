@@ -147,6 +147,9 @@ decl_event!(
 		/// A new bid has been accepted as the current winner.
 		/// \[who, para_id, amount, first_slot, last_slot\]
 		BidAccepted(AccountId, ParaId, Balance, LeasePeriod, LeasePeriod),
+		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
+		/// \[auction_index, block_number\]
+		WinningOffset(AuctionIndex, BlockNumber),
 	}
 );
 
@@ -496,6 +499,8 @@ impl<T: Config> Module<T> {
 						.expect("secure hashes should always be bigger than the block number; qed");
 					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
 
+					let auction_counter = AuctionCounter::get();
+					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
