@@ -229,7 +229,6 @@ where
 					// we don't send the view updates here, but delay them until the next `ActiveLeaves`
 					// otherwise it might break assumptions of some of the subsystems
 					// that we never send the same `ActiveLeavesUpdate`
-					// this is fine, we will get `ActiveLeaves` on block finalization anyway
 					finalized_number = number;
 				}
 				Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
