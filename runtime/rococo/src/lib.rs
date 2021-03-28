@@ -589,6 +589,7 @@ impl parachains_scheduler::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = EnsureRoot<AccountId>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -627,7 +628,7 @@ impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 }
 
 parameter_types! {
-	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
+	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
 }
 
