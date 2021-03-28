@@ -109,6 +109,7 @@ struct MetricsInner {
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
+	time_db_transaction: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -156,6 +157,10 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.block_approval_time_ticks.observe(ticks as f64);
 		}
+	}
+
+	fn time_db_transaction(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
 	}
 }
 
@@ -214,6 +219,15 @@ impl metrics::Metrics for Metrics {
 						"parachain_approvals_blockapproval_time_ticks",
 						"Number of ticks (500ms) to approve blocks.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
+				)?,
+				registry,
+			)?,
+			time_db_transaction: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_approval_db_transaction",
+						"Time spent writing an approval db transaction.",
+					)
 				)?,
 				registry,
 			)?,
@@ -570,8 +584,12 @@ async fn handle_actions(
 		}
 	}
 
-	transaction.write(db)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	if !transaction.is_empty() {
+		let _timer = metrics.time_db_transaction();
+
+		transaction.write(db)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	}
 
 	Ok(conclude)
 }
@@ -1609,6 +1627,11 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let background = async move {
+		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
+			.with_relay_parent(block_hash)
+			.with_candidate(candidate_hash)
+			.with_stage(jaeger::Stage::ApprovalChecking);
+
 		let available_data = match a_rx.await {
 			Err(_) => return,
 			Ok(Ok(a)) => a,
