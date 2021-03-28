@@ -25,10 +25,9 @@ use super::Meter;
 
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
-pub fn channel<T>(capacity: usize, name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
+pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
-	let mut shared_meter = Meter::default();
-	shared_meter.name = name;
+	let shared_meter = Meter::default();
 	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx };
 	let rx = MeteredReceiver { meter: shared_meter, inner: rx };
 	(tx, rx)

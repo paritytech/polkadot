@@ -18,7 +18,7 @@ Output:
 - [`RuntimeApiMessage`][RAM]
 - [`CandidateSelectionMessage`][CSM]
 - [`ProvisionerMessage`][PM]
-- [`PoVDistributionMessage`][PDM]
+- [`AvailabilityDistributionMessage`][ADM]
 - [`StatementDistributionMessage`][SDM]
 
 ## Functionality
@@ -39,8 +39,11 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 ### On Receiving `CandidateBackingMessage`
 
 * If the message is a [`CandidateBackingMessage`][CBM]`::GetBackedCandidates`, get all backable candidates from the statement table and send them back.
-* If the message is a [`CandidateBackingMessage`][CBM]`::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request. After successfully dispatching the `Seconded` statement we have to distribute the PoV.
-* If the message is a [`CandidateBackingMessage`][CBM]`::Statement`, count the statement to the quorum. If the statement in the message is `Seconded` and it contains a candidate that belongs to our assignment, request the corresponding `PoV` from the `PoVDistribution` and launch validation. Issue our own `Valid` or `Invalid` statement as a result.
+* If the message is a [`CandidateBackingMessage`][CBM]`::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
+* If the message is a [`CandidateBackingMessage`][CBM]`::Statement`, count the statement to the quorum. If the statement in the message is `Seconded` and it contains a candidate that belongs to our assignment, request the corresponding `PoV` from the backing node via `AvailabilityDistribution` and launch validation. Issue our own `Valid` or `Invalid` statement as a result.
+
+If the seconding node did not provide us with the `PoV` we will retry fetching from other backing validators.
+
 
 > big TODO: "contextual execution"
 >
@@ -112,11 +115,8 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 ### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a [`PoVDistributionMessage`][PDM]`::FetchPoV(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
+Dispatch a [`AvailabilityDistributionMessage`][PDM]`::FetchPoV{ validator_index, pov_hash, candidate_hash, tx, } and listen on the passed receiver for a response. Availability distribution will send the request to the validator specified by `validator_index`, which might not be serving it for whatever reasons, therefore we need to retry with other backing validators in that case.
 
-### Distribute Pov Block
-
-Dispatch a [`PoVDistributionMessage`][PDM]`::DistributePoV(relay_parent, candidate_descriptor, pov)`.
 
 ### Validate PoV Block
 
@@ -135,7 +135,7 @@ Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFul
 [CVM]: ../../types/overseer-protocol.md#validation-request-type
 [PM]: ../../types/overseer-protocol.md#provisioner-message
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-message
-[PDM]: ../../types/overseer-protocol.md#pov-distribution-message
+[ADM]: ../../types/overseer-protocol.md#availability-distribution-message
 [SDM]: ../../types/overseer-protocol.md#statement-distribution-message
 
 [CS]: candidate-selection.md

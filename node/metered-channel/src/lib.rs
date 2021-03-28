@@ -30,8 +30,6 @@ pub use self::unbounded::*;
 /// A peek into the inner state of a meter.
 #[derive(Debug, Clone, Default)]
 pub struct Meter {
-	/// Name of the receiver and sender pair.
-	name: &'static str,
 	// Number of sends on this channel.
 	sent: Arc<AtomicUsize>,
 	// Number of receives on this channel.
@@ -58,11 +56,6 @@ impl Meter {
 			sent: self.sent.load(Ordering::Relaxed),
 			received: self.received.load(Ordering::Relaxed),
 		}
-	}
-
-	/// Obtain the name of the channel `Sender` and `Receiver` pair.
-	pub fn name(&self) -> &'static str {
-		self.name
 	}
 
 	fn note_sent(&self) {
@@ -92,7 +85,7 @@ mod tests {
 	#[test]
 	fn try_send_try_next() {
 		block_on(async move {
-			let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+			let (mut tx, mut rx) = channel::<Msg>(5);
 			let msg = Msg::default();
 			assert_eq!(rx.meter().read(), Readout { sent: 0, received: 0 });
 			tx.try_send(msg).unwrap();
@@ -116,7 +109,7 @@ mod tests {
 	fn with_tasks() {
 		let (ready, go) = futures::channel::oneshot::channel();
 
-		let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+		let (mut tx, mut rx) = channel::<Msg>(5);
 		block_on(async move {
 			futures::join!(
 				async move {
@@ -149,7 +142,7 @@ mod tests {
 
 	#[test]
 	fn stream_and_sink() {
-		let (mut tx, mut rx) = channel::<Msg>(5, "goofy");
+		let (mut tx, mut rx) = channel::<Msg>(5);
 
 		block_on(async move {
 			futures::join!(
@@ -175,8 +168,8 @@ mod tests {
 
 	#[test]
 	fn failed_send_does_not_inc_sent() {
-		let (mut bounded, _) = channel::<Msg>(5, "pluto");
-		let (mut unbounded, _) = unbounded::<Msg>("pluto");
+		let (mut bounded, _) = channel::<Msg>(5);
+		let (mut unbounded, _) = unbounded::<Msg>();
 
 		block_on(async move {
 			assert!(bounded.send(Msg::default()).await.is_err());

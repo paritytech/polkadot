@@ -4237,12 +4237,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oorandom"
-version = "11.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
-
-[[package]]
 name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5627,6 +5621,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -5778,6 +5773,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "strum",
+ "thiserror",
 ]
 
 [[package]]
@@ -5884,12 +5880,12 @@ dependencies = [
 name = "polkadot-overseer"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "femme",
  "futures 0.3.13",
  "futures-timer 3.0.2",
  "kv-log-macro",
- "oorandom",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5924,25 +5920,6 @@ dependencies = [
  "sp-wasm-interface",
  "static_assertions",
  "thiserror",
-]
-
-[[package]]
-name = "polkadot-pov-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.13",
- "log",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keyring",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -6231,7 +6208,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-parachain",
- "polkadot-pov-distribution",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
