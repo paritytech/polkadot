@@ -288,8 +288,8 @@ pub trait SubsystemContext: Send + Sized + 'static {
 	/// sent with it. Otherwise, it risks a memory leak.
 	///
 	/// Generally, for this method to be used, these conditions should be met:
-    /// * There is a communication cycle between subsystems
-    /// * One of the parts of the cycle has a clear bound on the number of messages produced.
+	/// * There is a communication cycle between subsystems
+	/// * One of the parts of the cycle has a clear bound on the number of messages produced.
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
 		self.sender().send_unbounded_message(msg)
 	}
