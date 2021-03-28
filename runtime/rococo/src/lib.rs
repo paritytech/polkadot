@@ -675,6 +675,7 @@ impl crowdloan::Config for Runtime {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type Leaser = Slots;
 	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crowdloan::TestWeightInfo;
 }
