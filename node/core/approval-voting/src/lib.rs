@@ -694,7 +694,7 @@ async fn handle_background_request(
 ) -> SubsystemResult<Vec<Action>> {
 	match request {
 		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, metrics, vote_request).await
+			issue_approval(ctx, state, metrics, vote_request)
 		}
 		BackgroundRequest::CandidateValidation(
 			validation_data,
@@ -1701,7 +1701,7 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
+fn issue_approval(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
