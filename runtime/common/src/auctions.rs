@@ -121,7 +121,6 @@ decl_event!(
 		LeasePeriod = LeasePeriodOf<T>,
 		ParaId = ParaId,
 		Balance = BalanceOf<T>,
-		WinningData = WinningData<T>,
 	{
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
