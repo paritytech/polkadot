@@ -1029,7 +1029,7 @@ mod tests {
 				((23.into(), 2), LeaseData { leaser: 23, amount: 4 }),
 				((23.into(), 3), LeaseData { leaser: 23, amount: 4 }),
 			]);
-			// 5 didnt win
+			// 5 didn't win
 			assert_eq!(TestLeaser::deposit_held(5.into(), &5), 0);
 			// 1, 23, and 4 did.
 			assert_eq!(TestLeaser::deposit_held(1.into(), &1), 1);
