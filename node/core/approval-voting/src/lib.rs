@@ -225,8 +225,8 @@ impl metrics::Metrics for Metrics {
 			time_db_transaction: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"parachain_time_db_transaction",
-						"Time spent writing a db transaction.",
+						"parachain_time_approval_db_transaction",
+						"Time spent writing an approval db transaction.",
 					)
 				)?,
 				registry,
