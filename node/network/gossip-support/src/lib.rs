@@ -109,7 +109,7 @@ fn choose_random_subset<T>(mut v: Vec<T>) -> Vec<T> {
 	v.shuffle(&mut rng);
 
 	let sqrt = (v.len() as f64).sqrt() as usize;
-	let len = std::cmp::max(25, sqrt);
+	let len = std::cmp::max(4, sqrt);
 	v.truncate(len);
 	v
 }
