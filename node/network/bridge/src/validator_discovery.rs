@@ -24,7 +24,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 
-use sc_network::{config::parse_addr, multiaddr::{Multiaddr, Protocol}};
+use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
@@ -359,6 +359,7 @@ mod tests {
 	use super::*;
 
 	use futures::stream::StreamExt as _;
+	use sc_network::multiaddr::Protocol;
 
 	use sp_keyring::Sr25519Keyring;
 
