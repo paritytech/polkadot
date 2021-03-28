@@ -995,7 +995,19 @@ fn gap_bids_work() {
 			lease_period_index_start + 3, // Last slot
 			400, // Amount
 		));
-		// Slot 2 for 800 from 20
+
+		// A bid for another para is counted separately.
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(2),
+			1, // Auction Index
+			lease_period_index_start + 1, // First Slot
+			lease_period_index_start + 1, // Last slot
+			555, // Amount
+		));
+		assert_eq!(Balances::reserved_balance(&10), 400 + 555);
+
+		// Slot 2 for 800 from 20, overtaking 10's bid
 		assert_ok!(Auctions::bid(
 			Origin::signed(20),
 			ParaId::from(1),
