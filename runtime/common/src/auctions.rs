@@ -413,8 +413,8 @@ impl<T: Config> Module<T> {
 			// This must overlap with all existing ranges that we're winning on or it's invalid.
 			ensure!(current_winning.iter()
 				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
-					w != &bidder || range.intersects(i.try_into()
+				.all(|(i, x)| x.as_ref().map_or(true, |(_, w, _)|
+					w != &para || range.intersects(i.try_into()
 						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
 					)
 				)),
@@ -789,15 +789,14 @@ mod tests {
 	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		pallet_balances::GenesisConfig::<Test>{
-			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
+			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60), (23, 230)],
 		}.assimilate_storage(&mut t).unwrap();
 		let mut ext: sp_io::TestExternalities = t.into();
 		ext.execute_with(|| {
-			// Register para 0, 1, 2, and 3 for tests
-			assert_ok!(TestRegistrar::<Test>::register(1, 0.into(), Default::default(), Default::default()));
-			assert_ok!(TestRegistrar::<Test>::register(1, 1.into(), Default::default(), Default::default()));
-			assert_ok!(TestRegistrar::<Test>::register(1, 2.into(), Default::default(), Default::default()));
-			assert_ok!(TestRegistrar::<Test>::register(1, 3.into(), Default::default(), Default::default()));
+			// Register paras for tests
+			for i in vec![0u32, 1, 2, 3, 4, 5, 23] {
+				assert_ok!(TestRegistrar::<Test>::register(1, i.into(), Default::default(), Default::default()));
+			}
 		});
 		ext
 	}
@@ -1018,22 +1017,24 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
-			assert_ok!(Auctions::bid(Origin::signed(2), 0.into(), 1, 2, 3, 4));
-			assert_ok!(Auctions::bid(Origin::signed(3), 0.into(), 1, 4, 4, 2));
-			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 1, 1, 4, 2));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 1, 1, 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(23), 23.into(), 1, 2, 3, 4));
+			assert_ok!(Auctions::bid(Origin::signed(4), 4.into(), 1, 4, 4, 2));
+			assert_ok!(Auctions::bid(Origin::signed(5), 5.into(), 1, 1, 4, 2));
 			run_to_block(9);
 
 			assert_eq!(leases(), vec![
-				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
-				((0.into(), 2), LeaseData { leaser: 2, amount: 4 }),
-				((0.into(), 3), LeaseData { leaser: 2, amount: 4 }),
-				((0.into(), 4), LeaseData { leaser: 3, amount: 2 }),
+				((1.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((4.into(), 4), LeaseData { leaser: 4, amount: 2 }),
+				((23.into(), 2), LeaseData { leaser: 23, amount: 4 }),
+				((23.into(), 3), LeaseData { leaser: 23, amount: 4 }),
 			]);
-			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
-			assert_eq!(TestLeaser::deposit_held(1.into(), &1), 0);
-			assert_eq!(TestLeaser::deposit_held(0.into(), &2), 4);
-			assert_eq!(TestLeaser::deposit_held(0.into(), &3), 2);
+			// 5 didnt win
+			assert_eq!(TestLeaser::deposit_held(5.into(), &5), 0);
+			// 1, 23, and 4 did.
+			assert_eq!(TestLeaser::deposit_held(1.into(), &1), 1);
+			assert_eq!(TestLeaser::deposit_held(23.into(), &23), 4);
+			assert_eq!(TestLeaser::deposit_held(4.into(), &4), 2);
 		});
 	}
 
@@ -1049,6 +1050,7 @@ mod tests {
 				Auctions::bid(Origin::signed(1), 0.into(), 1, 3, 3, 1),
 				Error::<Test>::NonIntersectingRange
 			);
+			assert_ok!(Auctions::bid(Origin::signed(1), 1.into(), 1, 3, 3, 1));
 		});
 	}
 
