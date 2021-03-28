@@ -154,8 +154,8 @@ impl From<SubsystemError> for UnexpectedAbort {
 	}
 }
 
-// notifications to be passed through to the validation worker.
-enum ValidationWorkerNotification {
+// notifications to be passed through to the validator discovery worker.
+enum ValidatorDiscoveryNotification {
 	PeerConnected(PeerId, PeerSet),
 	PeerDisconnected(PeerId, PeerSet),
 }
@@ -174,7 +174,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
 	mut authority_discovery_service: AD,
-	validation_worker_notifications: mpsc::Receiver<ValidationWorkerNotification>,
+	validator_discovery_notifications: mpsc::Receiver<ValidatorDiscoveryNotification>,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort>
 where
@@ -187,7 +187,7 @@ where
 	let mut finalized_number = 0;
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
 
-	let mut validation_worker_notifications = validation_worker_notifications.fuse();
+	let mut validator_discovery_notifications = validator_discovery_notifications.fuse();
 
 	loop {
 		futures::select! {
@@ -351,16 +351,16 @@ where
 				}
 				Err(e) => return Err(e.into()),
 			},
-			notification = validation_worker_notifications.next().fuse() => match notification {
+			notification = validator_discovery_notifications.next().fuse() => match notification {
 				None => return Ok(()),
-				Some(ValidationWorkerNotification::PeerConnected(peer, peer_set)) => {
+				Some(ValidatorDiscoveryNotification::PeerConnected(peer, peer_set)) => {
 					validator_discovery.on_peer_connected(
 						peer.clone(),
 						peer_set,
 						&mut authority_discovery_service,
 					).await;
 				}
-				Some(ValidationWorkerNotification::PeerDisconnected(peer, peer_set)) => {
+				Some(ValidatorDiscoveryNotification::PeerDisconnected(peer, peer_set)) => {
 					validator_discovery.on_peer_disconnected(&peer, peer_set);
 				}
 			},
@@ -372,7 +372,7 @@ async fn handle_network_messages(
 	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
 	mut request_multiplexer: RequestMultiplexer,
-	mut validation_worker_notifications: mpsc::Sender<ValidationWorkerNotification>,
+	mut validator_discovery_notifications: mpsc::Sender<ValidatorDiscoveryNotification>,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
 	let mut network_stream = network_service.event_stream();
@@ -418,8 +418,8 @@ async fn handle_network_messages(
 
 					// Failure here means that the other side of the network bridge
 					// has concluded and this future will be dropped in due course.
-					let _ = validation_worker_notifications.send(
-						ValidationWorkerNotification::PeerConnected(peer.clone(), peer_set)
+					let _ = validator_discovery_notifications.send(
+						ValidatorDiscoveryNotification::PeerConnected(peer.clone(), peer_set)
 					).await;
 
 
@@ -493,8 +493,8 @@ async fn handle_network_messages(
 
 					// Failure here means that the other side of the network bridge
 					// has concluded and this future will be dropped in due course.
-					let _ = validation_worker_notifications.send(
-						ValidationWorkerNotification::PeerDisconnected(peer.clone(), peer_set)
+					let _ = validator_discovery_notifications.send(
+						ValidatorDiscoveryNotification::PeerDisconnected(peer.clone(), peer_set)
 					).await;
 
 					if was_connected {
