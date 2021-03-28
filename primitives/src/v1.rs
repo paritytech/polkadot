@@ -1064,6 +1064,43 @@ pub struct AbridgedHrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
+/// Consensus engine id for polkadot v1 consensus engine.
+pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
+
+/// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
+#[derive(Decode, Encode, Clone, PartialEq, Eq)]
+pub enum ConsensusLog {
+	/// A parachain or parathread upgraded its code.
+	#[codec(index = 1)]
+	ParaUpgradeCode(Id, Hash),
+	/// A parachain or parathread scheduled a code ugprade.
+	#[codec(index = 2)]
+	ParaScheduleUpgradeCode(Id, Hash, BlockNumber),
+	/// Governance requests to auto-approve every candidate included up to the given block
+	/// number in the current chain, inclusive.
+	#[codec(index = 3)]
+	ForceApprove(BlockNumber),
+}
+
+impl ConsensusLog {
+	/// Attempt to convert a reference to a generic digest item into a consensus log.
+	pub fn from_digest_item<H>(digest_item: &runtime_primitives::DigestItem<H>)
+		-> Result<Option<Self>, parity_scale_codec::Error>
+	{
+		match digest_item {
+			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
+				Ok(Some(Self::decode(&mut &encoded[..])?)),
+			_ => Ok(None),
+		}
+	}
+}
+
+impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
