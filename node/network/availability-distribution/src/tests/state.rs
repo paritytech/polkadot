@@ -23,10 +23,7 @@ use smallvec::smallvec;
 use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
 use futures_timer::Delay;
 
-use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use sp_keyring::Sr25519Keyring;
+use sp_keystore::SyncCryptoStorePtr;
 use sp_core::{traits::SpawnNamed, testing::TaskExecutor};
 use sc_network as network;
 use sc_network::IfDisconnected;
@@ -39,7 +36,7 @@ use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, Activ
 	}
 };
 use polkadot_primitives::v1::{CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash, Id
-	as ParaId, ScheduledCore, SessionInfo, ValidatorId,
+	as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex
 };
 use polkadot_node_network_protocol::{jaeger,
@@ -48,7 +45,7 @@ use polkadot_node_network_protocol::{jaeger,
 use polkadot_subsystem_testhelpers as test_helpers;
 use test_helpers::SingleItemSink;
 
-use super::mock::{make_session_info, OccupiedCoreBuilder, };
+use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
 use crate::LOG_TARGET;
 
 pub struct TestHarness {
@@ -83,16 +80,9 @@ impl Default for TestState {
 
 		let chain_ids = vec![chain_a, chain_b];
 
-		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let keystore = make_ferdie_keystore();
 
 		let session_info = make_session_info();
-
-		SyncCryptoStore::sr25519_generate_new(
-			&*keystore,
-			ValidatorId::ID,
-			Some(&Sr25519Keyring::Ferdie.to_seed()),
-		)
-		.expect("Insert key into keystore");
 
 		let (cores, chunks) = {
 			let mut cores = HashMap::new();
@@ -163,6 +153,9 @@ impl TestState {
 	/// This will simply advance through the simulated chain and examines whether the subsystem
 	/// behaves as expected: It will succeed if all valid chunks of other backing groups get stored
 	/// and no other.
+	///
+	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
+	/// should not be a matter to this test suite.
 	async fn run_inner(self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
@@ -258,14 +251,11 @@ impl TestState {
 					}
 				}
 				_ => {
-					panic!("Unexpected message received: {:?}", msg);
 				}
 			}
 		}
 	}
 }
-
-
 
 async fn overseer_signal(
 	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,

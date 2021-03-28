@@ -5627,6 +5627,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -5778,6 +5779,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "strum",
+ "thiserror",
 ]
 
 [[package]]
@@ -5924,25 +5926,6 @@ dependencies = [
  "sp-wasm-interface",
  "static_assertions",
  "thiserror",
-]
-
-[[package]]
-name = "polkadot-pov-distribution"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "env_logger 0.8.2",
- "futures 0.3.13",
- "log",
- "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keyring",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -6231,7 +6214,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-parachain",
- "polkadot-pov-distribution",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",
