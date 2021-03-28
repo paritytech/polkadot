@@ -450,7 +450,6 @@ where
 	use polkadot_node_collation_generation::CollationGenerationSubsystem;
 	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
 	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
@@ -517,9 +516,6 @@ where
 			network_service,
 			authority_discovery,
 			request_multiplexer,
-		),
-		pov_distribution: PoVDistributionSubsystem::new(
-			Metrics::register(registry)?,
 		),
 		provisioner: ProvisionerSubsystem::new(
 			spawner.clone(),

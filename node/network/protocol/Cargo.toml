@@ -13,3 +13,4 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 strum = { version = "0.20", features = ["derive"] }
 futures = "0.3.12"
+thiserror = "1.0.23"
