@@ -1432,7 +1432,16 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 			let pending_incoming = &mut self.pending_incoming;
 
 			// Otherwise, wait for the next signal or incoming message.
-			let from_overseer = futures::select! {
+			let from_overseer = futures::select_biased! {
+				signal = await_signal => {
+					let signal = signal
+						.ok_or(SubsystemError::Context(
+							"No more messages in rx queue to process"
+							.to_owned()
+						))?;
+
+					FromOverseer::Signal(signal)
+				}
 				msg = await_message => {
 					let packet = msg
 						.ok_or(SubsystemError::Context(
@@ -1448,15 +1457,6 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 						// we know enough to return this message.
 						FromOverseer::Communication { msg: packet.message}
 					}
-				}
-				signal = await_signal => {
-					let signal = signal
-						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
-							.to_owned()
-						))?;
-
-					FromOverseer::Signal(signal)
 				}
 			};
 
