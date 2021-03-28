@@ -1355,12 +1355,6 @@ pub struct OverseerSubsystemContext<M>{
 
 impl<M> OverseerSubsystemContext<M> {
 	/// Create a new `OverseerSubsystemContext`.
-	///
-	/// `increment` determines the initial increment of the internal RNG.
-	/// The internal RNG is used to determine which messages are timed.
-	///
-	/// `capture_rate` determines what fraction of messages are timed. Its value is clamped
-	/// to the range `0.0..=1.0`.
 	fn new(
 		signals: metered::MeteredReceiver<OverseerSignal>,
 		messages: SubsystemIncomingMessages<M>,
