@@ -162,6 +162,15 @@ pub struct TestSubsystemSender {
 	tx: mpsc::UnboundedSender<AllMessages>,
 }
 
+/// Construct a sender/receiver pair.
+pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMessages>) {
+	let (tx, rx) = mpsc::unbounded();
+	(
+		TestSubsystemSender { tx },
+		rx,
+	)
+}
+
 #[async_trait::async_trait]
 impl SubsystemSender for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
