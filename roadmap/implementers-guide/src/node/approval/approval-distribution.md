@@ -245,4 +245,4 @@ For each block in the view:
 
 6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
 
-The reason we're limit the block depth when unifying with a peer is to avoid DoS attacks and it also helps when a node starts with high difference between finalized and the highest block.
+The reason we limit the block depth when unifying with a peer is to avoid DoS attacks. It also helps when a node starts with high difference between finalized and the highest block.
