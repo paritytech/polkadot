@@ -26,6 +26,7 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure};
+use sc_network::config::parse_addr;
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
@@ -35,7 +36,7 @@ use polkadot_node_network_protocol::{
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
-use crate::validator_discovery::{peer_id_from_multiaddr, AuthorityDiscovery};
+use crate::validator_discovery::AuthorityDiscovery;
 
 use super::LOG_TARGET;
 
@@ -235,15 +236,27 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 		let peer_id = match peer {
 			Recipient::Peer(peer_id) =>  Some(peer_id),
-			Recipient::Authority(authority) =>
-				authority_discovery
-					.get_addresses_by_authority_id(authority)
-					.await
-					.and_then(|addrs| {
-						addrs
-							.into_iter()
-							.find_map(|addr| peer_id_from_multiaddr(&addr))
-					}),
+			Recipient::Authority(authority) => {
+				let mut found_peer_id = None;
+				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
+				// to be very quick.
+				for addr in authority_discovery
+					.get_addresses_by_authority_id(authority).await
+					.into_iter().flat_map(|list| list.into_iter())
+				{
+					let (peer_id, addr) = match parse_addr(addr) {
+						Ok(v) => v,
+						Err(_) => continue,
+					};
+					NetworkService::add_known_address(
+						&*self,
+						peer_id.clone(),
+						addr,
+					);
+					found_peer_id = Some(peer_id);
+				}
+				found_peer_id
+			}
 		};
 
 		let peer_id = match peer_id {
