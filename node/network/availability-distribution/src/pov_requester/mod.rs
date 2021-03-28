@@ -215,9 +215,9 @@ where
 {
 	let info = runtime.get_session_info_by_index(ctx, parent, session).await?;
 	if let ValidatorInfo {
-            our_index: Some(our_index),
-            our_group: Some(our_group)
-        } = &info.validator_info {
+			our_index: Some(our_index),
+			our_group: Some(our_group)
+	} = &info.validator_info {
 
 		let indeces = info.session_info.validator_groups.get(our_group.0 as usize)
 			.expect("Our group got retrieved from that session info, it must exist. qed.")
@@ -236,7 +236,7 @@ where
 #[cfg(test)]
 mod tests {
 	use assert_matches::assert_matches;
-    use futures::{executor, future};
+	use futures::{executor, future};
 
 	use parity_scale_codec::Encode;
 	use sp_core::testing::TaskExecutor;
