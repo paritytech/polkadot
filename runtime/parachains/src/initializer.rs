@@ -83,7 +83,7 @@ pub trait Config:
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-	/// An origin which is allowed to force updates to parachains.'
+	/// An origin which is allowed to force updates to parachains.
 	type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 }
 
