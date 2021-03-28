@@ -3537,8 +3537,11 @@ mod tests {
 	// Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 	#[test]
 	fn overseer_all_subsystems_receive_signals_and_messages() {
-		let spawner = sp_core::testing::TaskExecutor::new();
+		const NUM_SUBSYSTEMS: usize = 19;
+		// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
+		const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
 
+		let spawner = sp_core::testing::TaskExecutor::new();
 		executor::block_on(async move {
 			let stop_signals_received = Arc::new(atomic::AtomicUsize::new(0));
 			let signals_received = Arc::new(atomic::AtomicUsize::new(0));
@@ -3609,22 +3612,33 @@ mod tests {
 			handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
 			handler.send_msg(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
 
+			// Wait until all subsystems have received. Otherwise the messages might race against
+			// the conclude signal.
+			loop {
+				match (&mut overseer_fut).timeout(Duration::from_millis(100)).await {
+					None => {
+						let r = msgs_received.load(atomic::Ordering::SeqCst);
+						if r < NUM_SUBSYSTEMS_MESSAGED {
+							Delay::new(Duration::from_millis(100)).await;
+						} else if r > NUM_SUBSYSTEMS_MESSAGED {
+							panic!("too many messages received??");
+						} else {
+							break
+						}
+					}
+					Some(_) => panic!("exited too early"),
+				}
+			}
+
 			// send a stop signal to each subsystems
 			handler.stop().await;
 
-			select! {
-				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 19;
+			let res = overseer_fut.await;
+			assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
+			assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
+			assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
 
-					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-					// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
-					assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS - 3);
-
-					assert!(res.is_ok());
-				},
-				complete => (),
-			}
+			assert!(res.is_ok());
 		});
 	}
 

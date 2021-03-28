@@ -19,7 +19,6 @@ tracing = "0.1.25"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
-futures-timer = "3.0.2"
 femme = "2.1.1"
 kv-log-macro = "1.0.7"
 assert_matches = "1.4.0"
