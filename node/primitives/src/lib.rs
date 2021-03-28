@@ -185,11 +185,19 @@ pub enum CompressedPoVError {
 
 impl CompressedPoV {
 	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+	#[cfg(not(target_os = "unknown"))]
 	pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
 		zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
 	}
 
+	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
+	#[cfg(target_os = "unknown")]
+	pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
+		Err(CompressedPoVError::NotSupported)
+	}
+
 	/// Decompress `self` and returns the [`PoV`] on success.
+	#[cfg(not(target_os = "unknown"))]
 	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
 		use std::io::Read;
 
@@ -211,6 +219,12 @@ impl CompressedPoV {
 		PoV::decode(&mut InputDecoder(&mut decoder, 0)).map_err(|_| CompressedPoVError::Decode)
 	}
 
+	/// Decompress `self` and returns the [`PoV`] on success.
+	#[cfg(target_os = "unknown")]
+	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
+		Err(CompressedPoVError::NotSupported)
+	}
+
 	/// Get compressed data size.
 	pub fn len(&self) -> usize {
 		self.0.len()
@@ -222,7 +236,6 @@ impl std::fmt::Debug for CompressedPoV {
 		write!(f, "CompressedPoV({} bytes)", self.0.len())
 	}
 }
-
 
 /// The output of a collator.
 ///

@@ -5958,7 +5958,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
- "zstd",
 ]
 
 [[package]]
