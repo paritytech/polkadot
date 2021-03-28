@@ -242,7 +242,8 @@ mod tests {
 	use parity_scale_codec::Encode;
 	use sp_core::testing::TaskExecutor;
 
-	use polkadot_primitives::v1::{BlockData, CandidateHash, CompressedPoV, Hash, ValidatorIndex};
+	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 

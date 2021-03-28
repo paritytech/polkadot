@@ -368,7 +368,7 @@ impl<'a, I: Iterator<Item=&'a [u8]>> parity_scale_codec::Input for ShardInput<'a
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::v0::{AvailableData, BlockData, PoVBlock};
+	use polkadot_primitives::v0::{AvailableData, BlockData, PoVBlock};
 
 	#[test]
 	fn field_order_is_right_size() {

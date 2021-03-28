@@ -949,9 +949,10 @@ mod tests {
 	};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_primitives::v1::{
-		AuthorityDiscoveryId, BlockData, CandidateDescriptor, CollatorPair, GroupRotationInfo,
+		AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo,
 		ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex,
 	};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem::{
 		jaeger,
 		messages::{RuntimeApiMessage, RuntimeApiRequest},

@@ -568,7 +568,8 @@ impl metrics::Metrics for Metrics {
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v1::{HeadData, BlockData, UpwardMessage};
+	use polkadot_primitives::v1::{HeadData, UpwardMessage};
+	use polkadot_node_primitives::BlockData;
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;

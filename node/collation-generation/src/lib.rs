@@ -465,7 +465,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::{Collation, CollationResult};
+		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
@@ -473,8 +473,8 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockData, BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, PoV, ScheduledCore,
+			BlockNumber, CollatorPair, Id as ParaId,
+			PersistedValidationData, ScheduledCore,
 		};
 		use std::pin::Pin;
 

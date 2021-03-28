@@ -317,9 +317,7 @@ pub struct ErasureChunk {
 
 #[cfg(test)]
 mod test {
-	use super::*;
 	use super::{CompressedPoV, CompressedPoVError, PoV};
-
 
 	#[test]
 	fn decompress_huge_pov_block_fails() {

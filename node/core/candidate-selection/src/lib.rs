@@ -544,7 +544,7 @@ delegated_subsystem!(CandidateSelectionJob(SyncCryptoStorePtr, Metrics) <- Candi
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_primitives::v1::BlockData;
+	use polkadot_node_primitives::BlockData;
 	use sp_core::crypto::Public;
 	use std::sync::Arc;
 
