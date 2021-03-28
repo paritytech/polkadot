@@ -26,7 +26,7 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use polkadot_node_primitives::CollationGenerationConfig;
+use polkadot_node_primitives::{CollationGenerationConfig, AvailableData, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
@@ -37,9 +37,9 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, AvailableData, CandidateCommitments,
+	collator_signature_payload, CandidateCommitments,
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
-	PersistedValidationData, PoV,
+	PersistedValidationData,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;

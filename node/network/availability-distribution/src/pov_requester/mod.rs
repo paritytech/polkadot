@@ -26,8 +26,9 @@ use polkadot_node_network_protocol::{
 	v1::{PoVFetchingRequest, PoVFetchingResponse}}
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, Hash, PoV, SessionIndex, ValidatorIndex
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex
 };
+use polkadot_node_primitives::PoV;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}

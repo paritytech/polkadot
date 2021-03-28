@@ -32,9 +32,9 @@ use polkadot_node_network_protocol::{
 	},
 	OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{

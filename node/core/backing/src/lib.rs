@@ -27,12 +27,12 @@ use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
+	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
-	Statement, SignedFullStatement, ValidationResult,
+	Statement, SignedFullStatement, ValidationResult, PoV, AvailableData,
 };
 use polkadot_subsystem::{
 	PerLeafSpan, Stage, jaeger,

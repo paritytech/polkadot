@@ -34,14 +34,14 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch,
+	BabeEpoch, AvailableData, PoV, ErasureChunk
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
 	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	CollatorId, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex,

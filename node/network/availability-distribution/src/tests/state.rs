@@ -35,11 +35,13 @@ use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, Activ
 		RuntimeApiMessage, RuntimeApiRequest,
 	}
 };
-use polkadot_primitives::v1::{CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash, Id
+use polkadot_primitives::v1::{CandidateHash, CoreState, GroupIndex, Hash, Id
 	as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex
 };
-use polkadot_node_network_protocol::{jaeger,
+use polkadot_node_primitives::ErasureChunk;
+use polkadot_node_network_protocol::{
+	jaeger,
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;

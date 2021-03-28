@@ -33,9 +33,9 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
+use polkadot_node_primitives::{ValidationResult, InvalidCandidate, PoV};
 use polkadot_primitives::v1::{
-	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
+	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
 use polkadot_parachain::wasm_executor::{
