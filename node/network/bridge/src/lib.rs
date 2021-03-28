@@ -25,7 +25,7 @@ use futures::prelude::*;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult,
+	SubsystemResult, SubsystemSender, OverseerSignal, FromOverseer,
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
@@ -139,6 +139,189 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 struct PeerData {
 	/// Latest view sent by the peer.
 	view: View,
+}
+
+async fn handle_subsystem_messages<Context, N, AD>(
+	mut ctx: Context,
+	mut network_service: N,
+	mut authority_discovery_service: AD,
+)
+where
+	Context: SubsystemContext<Message = NetworkBridgeMessage>,
+	N: Network + validator_discovery::Network,
+	AD: validator_discovery::AuthorityDiscovery,
+{
+	loop {
+		match ctx.recv().await {
+			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
+				// update our view
+			}
+			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number))) => {
+				// update our view
+			}
+			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+				break
+			}
+			Ok(FromOverseer::Communication { msg }} => match msg {
+				NetworkBridgeMessage::ReportPeer(peer, rep) => {
+					// report peer
+				}
+				NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
+					// disconnect peer
+				}
+				NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
+
+				}
+				NetworkBridgeMessage::SendValidationMessages(msgs) => {
+
+				}
+				NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
+
+				}
+				NetworkBridgeMessage::SendCollationMessages(msgs) => {
+
+				}
+				NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
+
+				}
+				NetworkBridgeMessage::ConnectToValidators {
+					validator_ids,
+					peer_set,
+					connected
+				} => {
+
+				}
+				Err(e) => {
+					break;
+				}
+			}
+		}
+	}
+}
+
+async fn handle_network_messages(
+	mut sender: impl SubsystemSender,
+	mut network_stream: BoxStream<'static, NetworkEvent>,
+	mut request_multiplexer: RequestMultiplexer,
+) {
+	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
+	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
+
+	loop {
+		futures::select! {
+			network_event = network_stream.next().fuse() => match network_event {
+				None => break,
+				Some(NetworkEvent::Dht(_))
+				| Some(NetworkEvent::SyncConnected { .. })
+				| Some(NetworkEvent::SyncDisconnected { .. }) => {}
+				Some(NetworkEvent::NotificationStreamOpened { remote, protocol, role }) => {
+					let role = ObservedRole::from(role);
+					let peer_set = match PeerSet::try_from_protocol_name(&protocol) {
+						None => continue,
+						Some(peer_set) => peer_set,
+					};
+
+					// handle connect
+				}
+				Some(NetworkEvent::NotificationStreamClosed { remote, protocol }) => {
+					let role = ObservedRole::from(role);
+					let peer_set = match PeerSet::try_from_protocol_name(&protocol) {
+						None => continue,
+						Some(peer_set) => peer_set,
+					};
+
+					// handle disconnect
+				}
+				Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
+					let v_messages: Result<Vec<_>, _> = messages
+						.iter()
+						.filter(|(protocol, _)| {
+							protocol == &PeerSet::Validation.into_protocol_name()
+						})
+						.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+						.collect();
+
+					let v_messages = match v_messages {
+						Err(_) => {
+							sender.send_message(NetworkBridgeMessage::ReportPeer(
+								remote,
+								MALFORMED_MESSAGE_COST,
+							).into()).await;
+
+							continue;
+						}
+						Ok(v) => v,
+					};
+
+					let c_messages: Result<Vec<_>, _> = messages
+						.iter()
+						.filter(|(protocol, _)| {
+							protocol == &PeerSet::Collation.into_protocol_name()
+						})
+						.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+						.collect();
+
+					match c_messages {
+						Err(_) => {
+							sender.send_message(NetworkBridgeMessage::ReportPeer(
+								remote,
+								MALFORMED_MESSAGE_COST,
+							).into()).await;
+
+							continue;
+						}
+						Ok(c_messages) => {
+							if v_messages.is_empty() && c_messages.is_empty() {
+								continue;
+							} else {
+								tracing::trace!(
+									target: LOG_TARGET,
+									action = "PeerMessages",
+									peer = ?remote,
+									num_validation_messages = %v_messages.len(),
+									num_collation_messages = %c_messages.len()
+								);
+
+								if !v_messages.is_empty() {
+									let events = handle_peer_messages(
+										remote.clone(),
+										&mut validation_peers,
+										v_messages,
+										&mut bridge.network_service,
+									).await?;
+
+									dispatch_validation_events_to_all(events, ctx.sender()).await;
+								}
+
+								if !c_messages.is_empty() {
+									let events = handle_peer_messages(
+										remote.clone(),
+										&mut collation_peers,
+										c_messages,
+										&mut bridge.network_service,
+									).await?;
+
+									dispatch_collation_events_to_all(events, ctx.sender()).await;
+								}
+							}
+						}
+					}
+				}
+			}
+			req_res_event = request_multiplexer.next().fuse() => match req_res_event {
+				None => break,
+				Some(Err(err)) => {
+					sender.send_message(NetworkBridgeMessage::ReportPeer(
+						err.peer,
+						MALFORMED_MESSAGE,
+					).into()).await;
+				}
+				Some(Ok(msg)) => {
+					sender.send_message(msg).await;
+				}
+			}
+		}
+	}
 }
 
 /// Main driver, processing network events and messages from other subsystems.
@@ -386,7 +569,7 @@ where
 											View::default(),
 										),
 									],
-									&mut ctx,
+									ctx.sender()
 								).await;
 
 								send_message(
@@ -407,7 +590,7 @@ where
 											View::default(),
 										),
 									],
-									&mut ctx,
+									ctx.sender()
 								).await;
 
 								send_message(
@@ -442,11 +625,11 @@ where
 					match peer_set {
 						PeerSet::Validation => dispatch_validation_event_to_all(
 							NetworkBridgeEvent::PeerDisconnected(peer),
-							&mut ctx,
+							ctx.sender(),
 						).await,
 						PeerSet::Collation => dispatch_collation_event_to_all(
 							NetworkBridgeEvent::PeerDisconnected(peer),
-							&mut ctx,
+							ctx.sender(),
 						).await,
 					}
 				}
@@ -468,7 +651,7 @@ where
 						&mut bridge.network_service,
 					).await?;
 
-					dispatch_validation_events_to_all(events, &mut ctx).await;
+					dispatch_validation_events_to_all(events, ctx.sender()).await;
 				}
 
 				if !c_messages.is_empty() {
@@ -479,7 +662,7 @@ where
 						&mut bridge.network_service,
 					).await?;
 
-					dispatch_collation_events_to_all(events, &mut ctx).await;
+					dispatch_collation_events_to_all(events, ctx.sender()).await;
 				}
 			},
 			Action::SendMessage(msg) => ctx.send_message(msg).await,
@@ -631,14 +814,14 @@ async fn send_collation_message<I>(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemSender
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemSender
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
@@ -646,7 +829,7 @@ async fn dispatch_collation_event_to_all(
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemSender
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
@@ -658,7 +841,7 @@ async fn dispatch_validation_events_to_all<I>(
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemSender
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,
