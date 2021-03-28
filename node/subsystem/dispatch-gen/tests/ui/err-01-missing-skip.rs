@@ -28,10 +28,10 @@ enum AllMessages {
 	/// Foo
 	Vvvvvv(Inner),
 
-	/// Missing a `#[skip]` annotation
-	Uuuuu,
+    /// Missing a `#[skip]` annotation
+    Uuuuu,
 }
 
 fn main() {
-	let _x = AllMessages::dispatch_iter(Event::Else);
+    let _x = AllMessages::dispatch_iter(Event::Else);
 }
