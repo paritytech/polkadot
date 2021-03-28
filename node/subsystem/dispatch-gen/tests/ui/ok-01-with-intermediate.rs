@@ -39,10 +39,10 @@ enum AllMessages {
 	/// Foo
 	Vvvvvv(Inner),
 
-    #[skip]
-    Uuuuu,
+	#[skip]
+	Uuuuu,
 }
 
 fn main() {
-    let _x = AllMessages::dispatch_iter(Event::Else);
+	let _x = AllMessages::dispatch_iter(Event::Else);
 }

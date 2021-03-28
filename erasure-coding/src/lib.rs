@@ -375,7 +375,7 @@ mod tests {
 		assert_eq!(MAX_VALIDATORS, 65536);
 	}
 
-    #[test]
+	#[test]
 	fn round_trip_works() {
 		let pov_block = PoVBlock {
 			block_data: BlockData((0..255).collect()),
