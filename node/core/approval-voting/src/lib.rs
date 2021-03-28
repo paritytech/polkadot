@@ -550,10 +550,10 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
-				ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,
-				).into()).await;
+				).into());
 
 				launch_approval(
 					ctx,
@@ -1807,12 +1807,14 @@ async fn issue_approval(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
-		block_hash,
-		candidate_index: candidate_index as _,
-		validator: validator_index,
-		signature: sig,
-	}).into()).await;
+	ctx.send_unbounded_message(
+		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+			block_hash,
+			candidate_index: candidate_index as _,
+			validator: validator_index,
+			signature: sig,
+		}
+	).into());
 
 	Ok(actions)
 }
