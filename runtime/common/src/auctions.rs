@@ -18,7 +18,7 @@
 //! auctioning mechanism and for reserving balance as part of the "payment". Unreserving the balance
 //! happens elsewhere.
 
-use sp_std::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap};
 use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
@@ -173,8 +173,6 @@ decl_error! {
 		InvalidCode,
 		/// Deployment data has not been set for this parachain.
 		UnsetDeployData,
-		/// The bid must overlap all intersecting ranges.
-		NonIntersectingRange,
 		/// Not a current auction.
 		NotCurrentAuction,
 		/// Not an auction.
@@ -413,17 +411,6 @@ impl<T: Config> Module<T> {
 
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
-			// This must overlap with all existing ranges that we're winning on or it's invalid.
-			ensure!(current_winning.iter()
-				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
-					w != &bidder || range.intersects(i.try_into()
-						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
-					)
-				)),
-				Error::<T>::NonIntersectingRange,
-			);
-
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
 
 			// Get the amount already held on deposit if this is a renewal bid (i.e. there's
@@ -1043,17 +1030,38 @@ mod tests {
 	}
 
 	#[test]
-	fn independent_bids_should_fail() {
+	fn gap_bid_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 2, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 4, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 2, 1));
-			assert_noop!(
-				Auctions::bid(Origin::signed(1), 0.into(), 1, 3, 3, 1),
-				Error::<Test>::NonIntersectingRange
-			);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+
+			// User 1 will make a bid for period 1 and 4 for the same Para 0
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 4, 4, 4));
+
+			// User 2 and 3 will make a bid for para 1 on period 2 and 3 respectively
+			assert_ok!(Auctions::bid(Origin::signed(2), 1.into(), 1, 2, 2, 2));
+			assert_ok!(Auctions::bid(Origin::signed(3), 1.into(), 1, 3, 3, 3));
+
+			// Total reserved should be the max of the two
+			assert_eq!(Balances::reserved_balance(1), 4);
+
+			// Other people are reserved correctly too
+			assert_eq!(Balances::reserved_balance(2), 2);
+			assert_eq!(Balances::reserved_balance(3), 3);
+
+			// End the auction.
+			run_to_block(9);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 4), LeaseData { leaser: 1, amount: 4 }),
+				((1.into(), 2), LeaseData { leaser: 2, amount: 2 }),
+				((1.into(), 3), LeaseData { leaser: 3, amount: 3 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 4);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &2), 2);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &3), 3);
 		});
 	}
 
