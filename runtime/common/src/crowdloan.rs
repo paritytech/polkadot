@@ -1518,7 +1518,7 @@ mod benchmarking {
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
-			let end = T::Leaser::lease_period();
+			let end = T::Auctioneer::lease_period();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
@@ -1594,7 +1594,7 @@ mod benchmarking {
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
-			let end = T::Leaser::lease_period();
+			let end = T::Auctioneer::lease_period();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
