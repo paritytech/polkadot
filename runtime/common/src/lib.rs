@@ -123,10 +123,10 @@ parameter_types! {
 	/// A limit for off-chain phragmen unsigned solution length.
 	///
 	/// We allow up to 90% of the block's size to be consumed by the solution.
-	pub OffchainSolutionLengthLimit: u32 = BlockLength::get()
+	pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
+		*BlockLength::get()
 		.max
-		.get(DispatchClass::Normal)
-		.saturating_mul(9) / 10;
+		.get(DispatchClass::Normal);
 }
 
 /// Parameterized slow adjusting fee updated based on
