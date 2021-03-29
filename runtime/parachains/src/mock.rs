@@ -102,6 +102,7 @@ impl pallet_balances::Config for Test {
 
 impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness<Self>;
+	type ForceOrigin = frame_system::EnsureRoot<u64>;
 }
 
 impl crate::configuration::Config for Test { }

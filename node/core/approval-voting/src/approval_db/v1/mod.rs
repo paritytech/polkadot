@@ -92,6 +92,8 @@ pub struct CandidateEntry {
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct BlockEntry {
 	pub block_hash: Hash,
+	pub block_number: BlockNumber,
+	pub parent_hash: Hash,
 	pub session: SessionIndex,
 	pub slot: Slot,
 	/// Random bytes derived from the VRF submitted within the block by the block
@@ -348,14 +350,14 @@ pub(crate) struct NewCandidateInfo {
 /// no information about new candidates will be referred to by this function.
 pub(crate) fn add_block_entry(
 	store: &dyn KeyValueDB,
-	parent_hash: Hash,
-	number: BlockNumber,
 	entry: BlockEntry,
 	n_validators: usize,
 	candidate_info: impl Fn(&CandidateHash) -> Option<NewCandidateInfo>,
 ) -> Result<Vec<(CandidateHash, CandidateEntry)>> {
 	let mut transaction = DBTransaction::new();
 	let session = entry.session;
+	let parent_hash = entry.parent_hash;
+	let number = entry.block_number;
 
 	// Update the stored block range.
 	{
@@ -439,6 +441,45 @@ pub(crate) fn add_block_entry(
 	Ok(candidate_entries)
 }
 
+/// Forcibly approve all candidates included at up to the given relay-chain height in the indicated
+/// chain.
+pub fn force_approve(
+	store: &dyn KeyValueDB,
+	chain_head: Hash,
+	up_to: BlockNumber,
+) -> Result<()> {
+	enum State {
+		WalkTo,
+		Approving,
+	}
+
+	let mut cur_hash = chain_head;
+	let mut state = State::WalkTo;
+
+	let mut tx = Transaction::default();
+
+	// iterate back to the `up_to` block, and then iterate backwards until all blocks
+	// are updated.
+	while let Some(mut entry) = load_block_entry(store, &cur_hash)? {
+
+		if entry.block_number <= up_to {
+			state = State::Approving;
+		}
+
+		cur_hash = entry.parent_hash;
+
+		match state {
+			State::WalkTo => {},
+			State::Approving => {
+				entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
+				tx.put_block_entry(entry);
+			}
+		}
+	}
+
+	tx.write(store)
+}
+
 // An atomic transaction of multiple candidate or block entries.
 #[derive(Default)]
 #[must_use = "Transactions do nothing unless written to a DB"]
@@ -461,9 +502,14 @@ impl Transaction {
 		let _ = self.candidate_entries.insert(hash, entry);
 	}
 
+	/// Returns true if the transaction contains no actions
+	pub(crate) fn is_empty(&self) -> bool {
+		self.block_entries.is_empty() && self.candidate_entries.is_empty()
+	}
+
 	/// Write the contents of the transaction, atomically, to the DB.
 	pub(crate) fn write(self, db: &dyn KeyValueDB) -> Result<()> {
-		if self.block_entries.is_empty() && self.candidate_entries.is_empty() {
+		if self.is_empty() {
 			return Ok(())
 		}
 

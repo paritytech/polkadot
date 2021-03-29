@@ -32,8 +32,11 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
+	Hash, BlockNumber, CandidateEvent, ValidatorIndex, CandidateHash,
 	CandidateReceipt,
+};
+use polkadot_node_primitives::{
+	ErasureChunk, AvailableData,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,

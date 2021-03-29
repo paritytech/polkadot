@@ -17,19 +17,26 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use polkadot_node_network_protocol::request_response::request::RequestError;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
 use polkadot_primitives::v1::SessionIndex;
+use polkadot_node_primitives::CompressedPoVError;
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
+
+use crate::LOG_TARGET;
 
 /// Errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Error {
-	#[error("Response channel to obtain QueryChunk failed")]
+	#[error("Response channel to obtain chunk failed")]
 	QueryChunkResponseChannel(#[source] oneshot::Canceled),
+
+	#[error("Response channel to obtain available data failed")]
+	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
 
 	#[error("Receive channel closed")]
 	IncomingMessageChannel(#[source] SubsystemError),
@@ -53,24 +60,43 @@ pub enum Error {
 	/// Sending response failed.
 	#[error("Sending a request's response failed.")]
 	SendResponse,
-}
 
-/// Error that we should handle gracefully by logging it.
-#[derive(Debug)]
-pub enum NonFatalError {
 	/// Some request to utility functions failed.
 	/// This can be either `RuntimeRequestCanceled` or `RuntimeApiError`.
+	#[error("Utility request failed")]
 	UtilRequest(UtilError),
 
 	/// Runtime API subsystem is down, which means we're shutting down.
+	#[error("Runtime request canceled")]
 	RuntimeRequestCanceled(oneshot::Canceled),
 
 	/// Some request to the runtime failed.
 	/// For example if we prune a block we're requesting info about.
+	#[error("Runtime API error")]
 	RuntimeRequest(RuntimeApiError),
 
 	/// We tried fetching a session info which was not available.
+	#[error("There was no session with the given index")]
 	NoSuchSession(SessionIndex),
+
+	/// Decompressing PoV failed.
+	#[error("PoV could not be decompressed")]
+	PoVDecompression(CompressedPoVError),
+
+	/// Fetching PoV failed with `RequestError`.
+	#[error("FetchPoV request error")]
+	FetchPoV(#[source] RequestError),
+
+	/// Fetching PoV failed as the received PoV did not match the expected hash.
+	#[error("Fetched PoV does not match expected hash")]
+	UnexpectedPoV,
+
+	#[error("Remote responded with `NoSuchPoV`")]
+	NoSuchPoV,
+
+	/// No validator with the index could be found in current session.
+	#[error("Given validator index could not be found")]
+	InvalidValidatorIndex,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -87,9 +113,20 @@ pub(crate) async fn recv_runtime<V>(
 		oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 		UtilError,
 	>,
-) -> std::result::Result<V, NonFatalError> {
-	r.map_err(NonFatalError::UtilRequest)?
+) -> std::result::Result<V, Error> {
+	r.map_err(Error::UtilRequest)?
 		.await
-		.map_err(NonFatalError::RuntimeRequestCanceled)?
-		.map_err(NonFatalError::RuntimeRequest)
+		.map_err(Error::RuntimeRequestCanceled)?
+		.map_err(Error::RuntimeRequest)
+}
+
+
+/// Utility for eating top level errors and log them.
+///
+/// We basically always want to try and continue on error. This utility function is meant to
+/// consume top-level errors by simply logging them
+pub fn log_error(result: Result<()>, ctx: &'static str) {
+	if let Err(error) = result {
+		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+	}
 }

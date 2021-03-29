@@ -26,15 +26,23 @@ use polkadot_subsystem::{
 /// Error and [`Result`] type for this subsystem.
 mod error;
 pub use error::Error;
-use error::Result;
+use error::{Result, log_error};
+
+/// Runtime requests.
+mod runtime;
+use runtime::Runtime;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;
 use requester::Requester;
 
+/// Handing requests for PoVs during backing.
+mod pov_requester;
+use pov_requester::PoVRequester;
+
 /// Responding to erasure chunk requests:
 mod responder;
-use responder::answer_request_log;
+use responder::{answer_chunk_request_log, answer_pov_request_log};
 
 /// Cache for session information.
 mod session_cache;
@@ -52,6 +60,8 @@ const LOG_TARGET: &'static str = "parachain::availability-distribution";
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
+	/// Easy and efficient runtime access for this subsystem.
+	runtime: Runtime,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -74,17 +84,20 @@ where
 }
 
 impl AvailabilityDistributionSubsystem {
+
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		Self { keystore, metrics }
+		let runtime = Runtime::new(keystore.clone());
+		Self { keystore, runtime,  metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> Result<()>
+	async fn run<Context>(mut self, mut ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
 		let mut requester = Requester::new(self.keystore.clone(), self.metrics.clone()).fuse();
+		let mut pov_requester = PoVRequester::new();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -107,14 +120,14 @@ impl AvailabilityDistributionSubsystem {
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					// Update the relay chain heads we are fetching our pieces for:
-					if let Some(e) = requester
-						.get_mut()
-						.update_fetching_heads(&mut ctx, update)
-						.await?
-					{
-						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {:?}", e);
-					}
+					log_error(
+						pov_requester.update_connected_validators(&mut ctx, &mut self.runtime, &update).await,
+						"PoVRequester::update_connected_validators"
+					);
+					log_error(
+						requester.get_mut().update_fetching_heads(&mut ctx, update).await,
+						"Error in Requester::update_fetching_heads"
+					);
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
@@ -123,7 +136,34 @@ impl AvailabilityDistributionSubsystem {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
 				} => {
-					answer_request_log(&mut ctx, req, &self.metrics).await
+					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::PoVFetchingRequest(req),
+				} => {
+					answer_pov_request_log(&mut ctx, req, &self.metrics).await
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						from_validator,
+						candidate_hash,
+						pov_hash,
+						tx,
+					},
+				} => {
+					log_error(
+						pov_requester.fetch_pov(
+							&mut ctx,
+							&mut self.runtime,
+							relay_parent,
+							from_validator,
+							candidate_hash,
+							pov_hash,
+							tx,
+						).await,
+						"PoVRequester::fetch_pov"
+					);
 				}
 			}
 		}
