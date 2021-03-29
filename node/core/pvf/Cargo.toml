@@ -8,9 +8,6 @@ edition = "2018"
 name = "puppet_worker"
 path = "bin/puppet_worker.rs"
 
-[[test]]
-name = "it"
-
 [dependencies]
 always-assert = "0.1"
 async-std = { version = "1.8.0", features = ["attributes"] }
