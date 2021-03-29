@@ -495,9 +495,25 @@ async fn imported_block_info(
 		}
 	};
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		n_assignments = assignments.len(),
+		"Produced assignments"
+	);
+
 	let force_approve =
 		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item(l) {
-			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => Some(num),
+			Ok(Some(ConsensusLog::ForceApprove(num))) if num < block_header.number => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					current_number = block_header.number,
+					approved_number = num,
+					"Force-approving based on header digest"
+				);
+
+				Some(num)
+			}
 			Ok(Some(_)) => None,
 			Ok(None) => None,
 			Err(err) => {
@@ -635,6 +651,12 @@ pub(crate) async fn handle_new_head(
 		imported_blocks_and_info
 	};
 
+	tracing::trace!(
+		target: LOG_TARGET,
+		imported_blocks = imported_blocks_and_info.len(),
+		"Inserting imported blocks into database"
+	);
+
 	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
 		let ImportedBlockInfo {
 			included_candidates,
@@ -708,9 +730,23 @@ pub(crate) async fn handle_new_head(
 		};
 
 		if let Some(up_to) = force_approve {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?block_hash,
+				up_to,
+				"Enacting force-approve",
+			);
+
 			approval_db::v1::force_approve(db_writer, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		}
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			?block_hash,
+			block_number = block_header.number,
+			"Writing BlockEntry",
+		);
 
 		let candidate_entries = approval_db::v1::add_block_entry(
 			db_writer,
@@ -746,6 +782,13 @@ pub(crate) async fn handle_new_head(
 			}
 		);
 	}
+
+	tracing::trace!(
+		target: LOG_TARGET,
+		head = ?head,
+		chain_length = approval_meta.len(),
+		"Informing distribution of newly imported chain",
+	);
 
 	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
 
