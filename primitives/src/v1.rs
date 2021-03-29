@@ -62,7 +62,7 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub mod well_known_keys {
 	use super::{Id, HrmpChannelId};
 	use hex_literal::hex;
-	use sp_io::hashing::twox_64;
+	use sp_io::hashing::blake2_128;
 	use sp_std::prelude::*;
 	use parity_scale_codec::Encode as _;
 
@@ -96,7 +96,7 @@ pub mod well_known_keys {
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
+				.chain(blake2_128(para_id).iter())
 				.chain(para_id.iter())
 				.cloned()
 				.collect()
@@ -112,7 +112,7 @@ pub mod well_known_keys {
 		channel.using_encoded(|channel: &[u8]| {
 			prefix.as_ref()
 				.iter()
-				.chain(twox_64(channel).iter())
+				.chain(blake2_128(channel).iter())
 				.chain(channel.iter())
 				.cloned()
 				.collect()
@@ -128,7 +128,7 @@ pub mod well_known_keys {
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
+				.chain(blake2_128(para_id).iter())
 				.chain(para_id.iter())
 				.cloned()
 				.collect()
@@ -144,7 +144,7 @@ pub mod well_known_keys {
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
+				.chain(blake2_128(para_id).iter())
 				.chain(para_id.iter())
 				.cloned()
 				.collect()
@@ -161,7 +161,7 @@ pub mod well_known_keys {
 		para_id.using_encoded(|para_id: &[u8]| {
 			prefix.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
+				.chain(blake2_128(para_id).iter())
 				.chain(para_id.iter())
 				.cloned()
 				.collect()
