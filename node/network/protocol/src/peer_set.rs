@@ -57,7 +57,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					in_peers: 25,
+					in_peers: 4,
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
