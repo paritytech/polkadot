@@ -444,7 +444,7 @@ impl RunningTask {
 		if let Err(err) = self.sender.send(FromFetchTask::Failed(self.request.candidate_hash)).await {
 			tracing::warn!(
 				target: LOG_TARGET,
-				err= ?err,
+				?err,
 				"Sending `Failed` message for task failed"
 			);
 		}
