@@ -82,7 +82,7 @@ struct RequestChunksPhase {
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 	requesting_chunks: FuturesUnordered<BoxFuture<
 		'static,
-		Result<Option<ErasureChunk>, RequestError>>,
+		Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 	>,
 }
 
@@ -242,7 +242,7 @@ impl RequestChunksPhase {
 						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk))
 							=> Ok(Some(chunk.recombine_into_chunk(&raw_request))),
 						Ok(req_res::v1::ChunkFetchingResponse::NoSuchChunk) => Ok(None),
-						Err(e) => Err(e),
+						Err(e) => Err((validator_index, e)),
 					}
 				}));
 			} else {
@@ -256,7 +256,9 @@ impl RequestChunksPhase {
 		params: &InteractionParams,
 	) {
 		// Poll for new updates from requesting_chunks.
-		while let Some(request_result) = self.requesting_chunks.next().await {
+		while let Poll::Ready(Some(request_result))
+			= futures::poll!(self.requesting_chunks.next())
+		{
 			match request_result {
 				Ok(Some(chunk)) => {
 					// Check merkle proofs of any received chunks.
@@ -293,12 +295,20 @@ impl RequestChunksPhase {
 					}
 				}
 				Ok(None) => {}
-				Err(e) => {
+				Err((validator_index, e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						err = ?e,
+						?validator_index,
 						"Failure requesting chunk",
 					);
+
+					match e {
+						RequestError::InvalidResponse(_) => {}
+						RequestError::NetworkError(_) | RequestError::Canceled(_) => {
+							self.shuffling.push(validator_index);
+						}
+					}
 				}
 			}
 		}
@@ -427,8 +437,7 @@ impl<S: SubsystemSender> Interaction<S> {
 					}
 				}
 				InteractionPhase::RequestChunks(ref mut from_all) => {
-					// TODO [now] retry.
-					return from_all.run(&self.params, &mut self.sender).await;
+					break from_all.run(&self.params, &mut self.sender).await;
 				}
 			}
 		}

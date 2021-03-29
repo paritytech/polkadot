@@ -66,7 +66,6 @@ enum InteractionPhase {
         // a random shuffling of the validators which indicates the order in which we connect to the validators and
         // request the chunk from them.
         shuffling: Vec<ValidatorIndex>, 
-        next_shuffling: Vec<ValidatorIndex>,
         received_chunks: Map<ValidatorIndex, ErasureChunk>,
         requesting_chunks: FuturesUnordered<Receiver<ErasureChunkRequestResponse>>,
     }
@@ -114,7 +113,7 @@ On `Conclude`, shut down the subsystem.
 
 Launch the interaction as a background task running `interaction_loop(interaction)`.
 
-#### `interaction_loop(interaction) -> Concluded`
+#### `interaction_loop(interaction) -> Result<AvailableData, RecoeryError>`
 
 ```rust
 // How many parallel requests to have going at once.
@@ -128,14 +127,14 @@ Loop:
         * If the backer is `Some`, issue a `FromInteraction::NetworkRequest` with a network request for the `AvailableData` and wait for the response.
         * If it concludes with a `None` result, return to beginning. 
         * If it concludes with available data, attempt a re-encoding. 
-            * If it has the correct erasure-root, break and issue a `Concluded(Ok(available_data))`. 
+            * If it has the correct erasure-root, break and issue a `Ok(available_data)`. 
             * If it has an incorrect erasure-root, issue a `FromInteraction::ReportPeer` message and return to beginning.
         * If the backer is `None`, set the phase to `InteractionPhase::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks`.
 
   * If the phase is `InteractionPhase::RequestChunks`:
-    * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Concluded(Err(Unavailable))`.
-    * Poll for new updates from `requesting_chunks`. Check merkle proofs of any received chunks. If the request simply fails due to network issues, push onto `next_shuffling`.
-    * If `received_chunks` has more than `threshold` entries, attempt to recover the data. If that fails, or a re-encoding produces an incorrect erasure-root, break and issue a `Concluded(RecoveryError::Invalid)`. If correct, break and issue `Concluded(Ok(available_data))`.
+    * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Err(Unavailable)`.
+    * Poll for new updates from `requesting_chunks`. Check merkle proofs of any received chunks. If the request simply fails due to network issues, push onto the back of `shuffling` to be retried.
+    * If `received_chunks` has more than `threshold` entries, attempt to recover the data. If that fails, or a re-encoding produces an incorrect erasure-root, break and issue a `Err(RecoveryError::Invalid)`. If correct, break and issue `Ok(available_data)`.
     * While there are fewer than `N_PARALLEL` entries in `requesting_chunks`,
-        * Pop the next item from `shuffling`. If it's empty and `requesting_chunks` is empty, wait for a small amount of time, and then break and set the phase to `RequestChunks`, passing through `received_chunks` and setting `shuffling` to the current `next_shuffling`. The new `next_shuffling` should be empty.
+        * Pop the next item from `shuffling`. If it's empty and `requesting_chunks` is empty, return `Err(RecoveryError::Unavailable)`.
         * Issue a `FromInteraction::NetworkRequest` and wait for the response in `requesting_chunks`.
