@@ -61,3 +61,18 @@ fn check_basic() {
 		state.run(harness)
 	});
 }
+
+/// Check whether requester tries all validators in group.
+#[test]
+fn check_fetch_tries_all() {
+	let mut state = TestState::default();
+	for (_, v) in state.chunks.iter_mut() {
+		// 4 validators in group, so this should still succeed:
+		v.push(None);
+		v.push(None);
+		v.push(None);
+	}
+	test_harness(state.keystore.clone(), move |harness| {
+		state.run(harness)
+	});
+}
