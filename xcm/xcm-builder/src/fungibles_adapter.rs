@@ -143,7 +143,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn reverse_ref(value: impl Borrow<T>) -> result::Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
 }
 
-/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must by TryFrom/TryInto<u128>)
+/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be TryFrom/TryInto<u128>)
 /// into a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will
 /// typically be a `PalletInstance` junction.
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(PhantomData<(Prefix, AssetId, ConvertAssetId)>);
