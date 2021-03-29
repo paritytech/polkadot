@@ -944,3 +944,149 @@ fn auction_bid_requires_registered_para() {
 		));
 	});
 }
+
+#[test]
+fn gap_bids_work() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+
+		// Start a new auction in the future
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		Balances::make_free_balance_be(&1, 1_000);
+		Balances::make_free_balance_be(&2, 1_000);
+
+		// Now register 2 paras
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+		assert_ok!(Registrar::register(
+			Origin::signed(2),
+			ParaId::from(2),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Onboarded on Session 2
+		run_to_session(2);
+
+		// Make bids
+		Balances::make_free_balance_be(&10, 1_000);
+		Balances::make_free_balance_be(&20, 1_000);
+		// Slot 1 for 100 from 10
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 0, // Last slot
+			100, // Amount
+		));
+		// Slot 4 for 400 from 10
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 3, // First Slot
+			lease_period_index_start + 3, // Last slot
+			400, // Amount
+		));
+
+		// A bid for another para is counted separately.
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(2),
+			1, // Auction Index
+			lease_period_index_start + 1, // First Slot
+			lease_period_index_start + 1, // Last slot
+			555, // Amount
+		));
+		assert_eq!(Balances::reserved_balance(&10), 400 + 555);
+
+		// Slot 2 for 800 from 20, overtaking 10's bid
+		assert_ok!(Auctions::bid(
+			Origin::signed(20),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 1, // First Slot
+			lease_period_index_start + 1, // Last slot
+			800, // Amount
+		));
+		// Slot 3 for 200 from 20
+		assert_ok!(Auctions::bid(
+			Origin::signed(20),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 2, // First Slot
+			lease_period_index_start + 2, // Last slot
+			200, // Amount
+		));
+
+		// Finish the auction
+		run_to_block(110);
+
+		// Should have won the lease periods
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// -- 1 --- 2 --- 3 ---------- 4 -------------- 5 -------------- 6 -------------- 7 -------
+			vec![None, None, None, Some((10, 100)), Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Appropriate amount is reserved (largest of the values)
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		// Appropriate amount is reserved (largest of the values)
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Progress through the leases and note the correct amount of balance is reserved.
+
+		run_to_block(400);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
+			vec![Some((10, 100)), Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Nothing changed.
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Lease period 4 is done, but nothing is unreserved since user 1 has a debt on lease 7
+		run_to_block(500);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 5 -------------- 6 -------------- 7 -------
+			vec![Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Nothing changed.
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Lease period 5 is done, and 20 will unreserve down to 200.
+		run_to_block(600);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 6 -------------- 7 -------
+			vec![Some((20, 200)), Some((10, 400))],
+		);
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 200);
+
+		// Lease period 6 is done, and 20 will unreserve everything.
+		run_to_block(700);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 7 -------
+			vec![Some((10, 400))],
+		);
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 0);
+
+		// All leases are done. Everything is unreserved.
+		run_to_block(800);
+		assert_eq!(slots::Leases::<Test>::get(ParaId::from(1)), vec![]);
+		assert_eq!(Balances::reserved_balance(&10), 0);
+		assert_eq!(Balances::reserved_balance(&20), 0);
+	});
+}
