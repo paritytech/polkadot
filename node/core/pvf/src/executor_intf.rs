@@ -220,7 +220,10 @@ pub(crate) struct TaskExecutor(futures::executor::ThreadPool);
 
 impl TaskExecutor {
 	pub(crate) fn new() -> Result<Self, String> {
-		futures::executor::ThreadPool::new()
+		futures::executor::ThreadPoolBuilder::new()
+			.pool_size(4)
+			.name_prefix("pvf-task-executor")
+			.create()
 			.map_err(|e| e.to_string())
 			.map(Self)
 	}
