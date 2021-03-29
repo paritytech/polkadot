@@ -122,12 +122,12 @@ impl<T> Index<PeerSet> for PerPeerSet<T> {
 }
 
 impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
-    fn index_mut(&mut self, index: PeerSet) -> &mut T {
-        match index {
+	fn index_mut(&mut self, index: PeerSet) -> &mut T {
+		match index {
 			PeerSet::Validation => &mut self.validation,
 			PeerSet::Collation => &mut self.collation,
 		}
-    }
+	}
 }
 
 /// Get `NonDefaultSetConfig`s for all available peer sets.

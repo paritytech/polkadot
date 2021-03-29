@@ -30,7 +30,7 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 
 ```rust
 struct ActiveLeavesUpdate {
-    activated: [Hash], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
@@ -136,13 +136,27 @@ This is a network protocol that receives messages of type [`AvailabilityDistribu
 
 ```rust
 enum AvailabilityDistributionMessage {
-    /// Distribute an availability chunk to other validators.
-    DistributeChunk(Hash, ErasureChunk),
-    /// Fetch an erasure chunk from network by candidate hash and chunk index.
-    FetchChunk(Hash, u32),
-    /// Event from the network.
-    /// An update on network state from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
+      /// Incoming network request for an availability chunk.
+      ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
+      /// Incoming network request for a seconded PoV.
+      PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
+      /// Instruct availability distribution to fetch a remote PoV.
+      ///
+      /// NOTE: The result of this fetch is not yet locally validated and could be bogus.
+      FetchPoV {
+	      /// The relay parent giving the necessary context.
+	      relay_parent: Hash,
+	      /// Validator to fetch the PoV from.
+	      from_validator: ValidatorIndex,
+	      /// Candidate hash to fetch the PoV for.
+	      candidate_hash: CandidateHash,
+	      /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+	      pov_hash: Hash,
+	      /// Sender for getting back the result of this fetch.
+	      ///
+	      /// The sender will be canceled if the fetching failed for some reason.
+	      tx: oneshot::Sender<PoV>,
+      },
 }
 ```
 

@@ -37,10 +37,10 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
+	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex,
 };
-use polkadot_node_primitives::ValidationResult;
+use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
 };
@@ -109,6 +109,7 @@ struct MetricsInner {
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
+	time_db_transaction: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -156,6 +157,10 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.block_approval_time_ticks.observe(ticks as f64);
 		}
+	}
+
+	fn time_db_transaction(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
 	}
 }
 
@@ -214,6 +219,15 @@ impl metrics::Metrics for Metrics {
 						"parachain_approvals_blockapproval_time_ticks",
 						"Number of ticks (500ms) to approve blocks.",
 					).buckets(vec![6.0, 12.0, 18.0, 24.0, 30.0, 36.0, 72.0, 100.0, 144.0]),
+				)?,
+				registry,
+			)?,
+			time_db_transaction: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_approval_db_transaction",
+						"Time spent writing an approval db transaction.",
+					)
 				)?,
 				registry,
 			)?,
@@ -550,10 +564,10 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
-				ctx.send_message(ApprovalDistributionMessage::DistributeAssignment(
+				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,
-				).into()).await;
+				).into());
 
 				launch_approval(
 					ctx,
@@ -570,8 +584,12 @@ async fn handle_actions(
 		}
 	}
 
-	transaction.write(db)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	if !transaction.is_empty() {
+		let _timer = metrics.time_db_transaction();
+
+		transaction.write(db)
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+	}
 
 	Ok(conclude)
 }
@@ -591,7 +609,8 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
-			for (head, _span) in update.activated {
+			for activated in update.activated {
+				let head = activated.hash;
 				match import::handle_new_head(
 					ctx,
 					state,
@@ -693,7 +712,7 @@ async fn handle_background_request(
 ) -> SubsystemResult<Vec<Action>> {
 	match request {
 		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, metrics, vote_request).await
+			issue_approval(ctx, state, metrics, vote_request)
 		}
 		BackgroundRequest::CandidateValidation(
 			validation_data,
@@ -1608,6 +1627,11 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let background = async move {
+		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
+			.with_relay_parent(block_hash)
+			.with_candidate(candidate_hash)
+			.with_stage(jaeger::Stage::ApprovalChecking);
+
 		let available_data = match a_rx.await {
 			Err(_) => return,
 			Ok(Ok(a)) => a,
@@ -1700,7 +1724,7 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
+fn issue_approval(
 	ctx: &mut impl SubsystemContext,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
@@ -1791,6 +1815,8 @@ async fn issue_approval(
 	tracing::debug!(
 		target: LOG_TARGET,
 		?candidate_hash,
+		?block_hash,
+		validator_index = validator_index.0,
 		"Issuing approval vote",
 	);
 
@@ -1806,12 +1832,14 @@ async fn issue_approval(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_message(ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
-		block_hash,
-		candidate_index: candidate_index as _,
-		validator: validator_index,
-		signature: sig,
-	}).into()).await;
+	ctx.send_unbounded_message(
+		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+			block_hash,
+			candidate_index: candidate_index as _,
+			validator: validator_index,
+			signature: sig,
+		}
+	).into());
 
 	Ok(actions)
 }

@@ -18,7 +18,7 @@
 //! auctioning mechanism and for reserving balance as part of the "payment". Unreserving the balance
 //! happens elsewhere.
 
-use sp_std::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap};
 use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
@@ -28,7 +28,7 @@ use frame_support::{
 use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::traits::{Leaser, LeaseError, Auctioneer};
+use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
@@ -54,8 +54,11 @@ pub trait Config: frame_system::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
-	/// The number of blocks over which a single period lasts.
+	/// The type representing the leasing system.
 	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
+
+	/// The parachain registrar type.
+	type Registrar: Registrar<AccountId=Self::AccountId>;
 
 	/// The number of blocks over which an auction may be retroactively ended.
 	type EndingPeriod: Get<Self::BlockNumber>;
@@ -144,6 +147,9 @@ decl_event!(
 		/// A new bid has been accepted as the current winner.
 		/// \[who, para_id, amount, first_slot, last_slot\]
 		BidAccepted(AccountId, ParaId, Balance, LeasePeriod, LeasePeriod),
+		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
+		/// \[auction_index, block_number\]
+		WinningOffset(AuctionIndex, BlockNumber),
 	}
 );
 
@@ -155,6 +161,8 @@ decl_error! {
 		LeasePeriodInPast,
 		/// The origin for this call must be a parachain.
 		NotParaOrigin,
+		/// Para is not registered
+		ParaNotRegistered,
 		/// The parachain ID is not on-boarding.
 		ParaNotOnboarding,
 		/// The origin for this call must be the origin who registered the parachain.
@@ -165,8 +173,6 @@ decl_error! {
 		InvalidCode,
 		/// Deployment data has not been set for this parachain.
 		UnsetDeployData,
-		/// The bid must overlap all intersecting ranges.
-		NonIntersectingRange,
 		/// Not a current auction.
 		NotCurrentAuction,
 		/// Not an auction.
@@ -326,6 +332,14 @@ impl<T: Config> Auctioneer for Module<T> {
 	fn lease_period_index() -> Self::LeasePeriod {
 		T::Leaser::lease_period_index()
 	}
+
+	fn lease_period() -> Self::LeasePeriod {
+		T::Leaser::lease_period()
+	}
+
+	fn has_won_an_auction(para: ParaId, bidder: &T::AccountId) -> bool {
+		!T::Leaser::deposit_held(para, bidder).is_zero()
+	}
 }
 
 impl<T: Config> Module<T> {
@@ -379,6 +393,8 @@ impl<T: Config> Module<T> {
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>,
 	) -> DispatchResult {
+		// Ensure para is registered before placing a bid on it.
+		ensure!(T::Registrar::is_registered(para), Error::<T>::ParaNotRegistered);
 		// Bidding on latest auction.
 		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
@@ -403,17 +419,6 @@ impl<T: Config> Module<T> {
 
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
-			// This must overlap with all existing ranges that we're winning on or it's invalid.
-			ensure!(current_winning.iter()
-				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
-					w != &bidder || range.intersects(i.try_into()
-						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
-					)
-				)),
-				Error::<T>::NonIntersectingRange,
-			);
-
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
 
 			// Get the amount already held on deposit if this is a renewal bid (i.e. there's
@@ -489,6 +494,8 @@ impl<T: Config> Module<T> {
 						.expect("secure hashes should always be bigger than the block number; qed");
 					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
 
+					let auction_counter = AuctionCounter::get();
+					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
 					let res = Winning::<T>::get(offset).unwrap_or_default();
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
@@ -611,7 +618,7 @@ mod tests {
 	};
 	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
 	use pallet_balances;
-	use crate::auctions;
+	use crate::{auctions, mock::TestRegistrar};
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -769,6 +776,7 @@ mod tests {
 	impl Config for Test {
 		type Event = Event;
 		type Leaser = TestLeaser;
+		type Registrar = TestRegistrar<Self>;
 		type EndingPeriod = EndingPeriod;
 		type SampleLength = SampleLength;
 		type Randomness = TestPastRandomness;
@@ -783,7 +791,15 @@ mod tests {
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}.assimilate_storage(&mut t).unwrap();
-		t.into()
+		let mut ext: sp_io::TestExternalities = t.into();
+		ext.execute_with(|| {
+			// Register para 0, 1, 2, and 3 for tests
+			assert_ok!(TestRegistrar::<Test>::register(1, 0.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 1.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 2.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 3.into(), Default::default(), Default::default()));
+		});
+		ext
 	}
 
 	fn run_to_block(n: BlockNumber) {
@@ -1022,17 +1038,38 @@ mod tests {
 	}
 
 	#[test]
-	fn independent_bids_should_fail() {
+	fn gap_bid_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 2, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 4, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 2, 1));
-			assert_noop!(
-				Auctions::bid(Origin::signed(1), 0.into(), 1, 3, 3, 1),
-				Error::<Test>::NonIntersectingRange
-			);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+
+			// User 1 will make a bid for period 1 and 4 for the same Para 0
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 4, 4, 4));
+
+			// User 2 and 3 will make a bid for para 1 on period 2 and 3 respectively
+			assert_ok!(Auctions::bid(Origin::signed(2), 1.into(), 1, 2, 2, 2));
+			assert_ok!(Auctions::bid(Origin::signed(3), 1.into(), 1, 3, 3, 3));
+
+			// Total reserved should be the max of the two
+			assert_eq!(Balances::reserved_balance(1), 4);
+
+			// Other people are reserved correctly too
+			assert_eq!(Balances::reserved_balance(2), 2);
+			assert_eq!(Balances::reserved_balance(3), 3);
+
+			// End the auction.
+			run_to_block(9);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 4), LeaseData { leaser: 1, amount: 4 }),
+				((1.into(), 2), LeaseData { leaser: 2, amount: 2 }),
+				((1.into(), 3), LeaseData { leaser: 3, amount: 3 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 4);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &2), 2);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &3), 3);
 		});
 	}
 
@@ -1336,6 +1373,17 @@ mod tests {
 		});
 	}
 
+	#[test]
+	fn handle_bid_requires_registered_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_noop!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1), Error::<Test>::ParaNotRegistered);
+			assert_ok!(TestRegistrar::<Test>::register(1, 1337.into(), Default::default(), Default::default()));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1));
+		});
+	}
+
 	// Here we will test that taking only 10 samples during the ending period works as expected.
 	#[test]
 	fn less_winning_samples_work() {
@@ -1498,6 +1546,22 @@ mod benchmarking {
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
 		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+			let owner = account("owner", n, 0);
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			let worst_head_data = T::Registrar::worst_head_data();
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+
+			assert!(T::Registrar::register(
+				owner,
+				ParaId::from(n),
+				worst_head_data,
+				worst_validation_code
+			).is_ok());
+		}
+
+		T::Registrar::execute_pending_transitions();
+
+		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
 			let bidder = account("bidder", n, 0);
 			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
 
@@ -1549,8 +1613,19 @@ mod benchmarking {
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 
-			// Make an existing bid
 			let para = ParaId::from(0);
+			let new_para = ParaId::from(1);
+
+			// Register the paras
+			let owner = account("owner", 0, 0);
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+			let worst_head_data = T::Registrar::worst_head_data();
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			T::Registrar::register(owner.clone(), para, worst_head_data.clone(), worst_validation_code.clone())?;
+			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code)?;
+			T::Registrar::execute_pending_transitions();
+
+			// Make an existing bid
 			let auction_index = AuctionCounter::get();
 			let first_slot = AuctionInfo::<T>::get().unwrap().0;
 			let last_slot = first_slot + 3u32.into();
@@ -1568,7 +1643,6 @@ mod benchmarking {
 
 			let caller: T::AccountId = whitelisted_caller();
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			let new_para = ParaId::from(1);
 			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
 			assert_eq!(CurrencyOf::<T>::reserved_balance(&first_bidder), first_amount);
 		}: _(RawOrigin::Signed(caller.clone()), new_para, auction_index, first_slot, last_slot, bigger_amount)

@@ -24,7 +24,7 @@ pub const SUCCEEDED: &'static str = "succeeded";
 /// Label for fail counters.
 pub const FAILED: &'static str = "failed";
 
-/// Label for chunks that could not be served, because they were not available.
+/// Label for chunks/PoVs that could not be served, because they were not available.
 pub const NOT_FOUND: &'static str = "not-found";
 
 /// Availability Distribution metrics.
@@ -47,6 +47,12 @@ struct MetricsInner {
 	/// to a chunk request. This includes `NoSuchChunk` responses.
 	served_chunks: CounterVec<U64>,
 
+	/// Number of PoVs served.
+	///
+	/// Note: Right now, `Succeeded` gets incremented whenever we were able to successfully respond
+	/// to a PoV request. This includes `NoSuchPoV` responses.
+	served_povs: CounterVec<U64>,
+
 	/// Number of times our first set of validators did not provide the needed chunk and we had to
 	/// query further validators.
 	retries: Counter<U64>,
@@ -66,9 +72,16 @@ impl Metrics {
 	}
 
 	/// Increment counter on served chunks.
-	pub fn on_served(&self, label: &'static str) {
+	pub fn on_served_chunk(&self, label: &'static str) {
 		if let Some(metrics) = &self.0 {
 			metrics.served_chunks.with_label_values(&[label]).inc()
+		}
+	}
+
+	/// Increment counter on served PoVs.
+	pub fn on_served_pov(&self, label: &'static str) {
+		if let Some(metrics) = &self.0 {
+			metrics.served_povs.with_label_values(&[label]).inc()
 		}
 	}
 
@@ -98,6 +111,16 @@ impl metrics::Metrics for Metrics {
 					Opts::new(
 						"parachain_served_chunks_total",
 						"Total number of chunks served by this backer.",
+					),
+					&["success"]
+				)?,
+				registry,
+			)?,
+			served_povs: prometheus::register(
+				CounterVec::new(
+					Opts::new(
+						"parachain_served_povs_total",
+						"Total number of povs served by this backer.",
 					),
 					&["success"]
 				)?,

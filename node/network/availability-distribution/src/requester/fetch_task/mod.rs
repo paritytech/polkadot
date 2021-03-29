@@ -24,12 +24,13 @@ use futures::{FutureExt, SinkExt};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests, Recipient},
-	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
+	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
+	AuthorityDiscoveryId, BlakeTwo256, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };
+use polkadot_node_primitives::ErasureChunk; 
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
@@ -106,7 +107,7 @@ struct RunningTask {
 	group: Vec<AuthorityDiscoveryId>,
 
 	/// The request to send.
-	request: AvailabilityFetchingRequest,
+	request: ChunkFetchingRequest,
 
 	/// Root hash, for verifying the chunks validity.
 	erasure_root: Hash,
@@ -138,7 +139,7 @@ impl FetchTaskConfig {
 		let live_in = vec![leaf].into_iter().collect();
 
 		// Don't run tasks for our backing group:
-		if session_info.our_group == core.group_responsible {
+		if session_info.our_group == Some(core.group_responsible) {
 			return FetchTaskConfig {
 				live_in,
 				prepared_running: None,
@@ -154,7 +155,7 @@ impl FetchTaskConfig {
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize)
 				.expect("The responsible group of a candidate should be available in the corresponding session. qed.")
 				.clone(),
-			request: AvailabilityFetchingRequest {
+			request: ChunkFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
 			},
@@ -292,10 +293,10 @@ impl RunningTask {
 				}
 			};
 			let chunk = match resp {
-				AvailabilityFetchingResponse::Chunk(resp) => {
+				ChunkFetchingResponse::Chunk(resp) => {
 					resp.recombine_into_chunk(&self.request)
 				}
-				AvailabilityFetchingResponse::NoSuchChunk => {
+				ChunkFetchingResponse::NoSuchChunk => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
@@ -327,10 +328,10 @@ impl RunningTask {
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
+	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
-		let requests = Requests::AvailabilityFetching(full_request);
+		let requests = Requests::ChunkFetching(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
