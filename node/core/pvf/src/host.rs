@@ -14,6 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Validation host - is the primary interface for this crate. It allows the clients to enqueue
+//! jobs for PVF execution or preparation.
+//!
+//! The validation host is represented by a future/task that runs an event-loop and by a handle,
+//! [`ValidationHost`], that allows communication with that event-loop.
+
 use crate::{
 	Priority, Pvf, ValidationError,
 	artifacts::{Artifacts, ArtifactState, ArtifactId},
@@ -143,6 +149,10 @@ impl Config {
 ///
 /// Returns a [handle][`ValidationHost`] to the started validation host and the future. The future
 /// must be polled in order for validation host to function.
+///
+/// The future should not return normally but if it does then that indicates an unrecoverable error.
+/// In that case all pending requests will be cancelled, dropping the result senders and new ones
+/// will be rejected.
 pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
@@ -206,12 +216,16 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	(validation_host, run)
 }
 
+/// An execution request that should execute the PVF (known in the context) and send the results
+/// to the given result sender.
 #[derive(Debug)]
 struct PendingExecutionRequest {
 	params: Vec<u8>,
 	result_tx: ResultSender,
 }
 
+/// A mapping from an artifact ID which is in preparation state to the list of pending exeuction
+/// requests that should be executed once the artifact's prepration is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
@@ -311,6 +325,11 @@ async fn run(
 				break;
 			},
 			() = cleanup_pulse.select_next_some() => {
+				// `select_next_some` because we don't expect this to fail, but if it does, we
+				// still don't fail. The tradeoff is that the compiled cache will start growing
+				// in size. That is, however, rather a slow process and hopefully the operator
+				// will notice it.
+
 				break_if_fatal!(handle_cleanup_pulse(
 					&cache_path,
 					&mut to_sweeper_tx,

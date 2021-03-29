@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Preparation part of pipeline
+//!
+//! The validation host spins up two processes: the queue (by running [`start_queue`]) and the pool
+//! (by running [`start_pool`]).
+//!
+//! The pool will spawn workers in new processes and those should execute pass control to
+//! [`worker_entrypoint`].
+
 mod queue;
 mod worker;
 mod pool;

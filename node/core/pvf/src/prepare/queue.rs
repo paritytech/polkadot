@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! A queue that handles requests for PVF preparation.
+
 use super::{
 	pool::{self, Worker},
 };
@@ -23,18 +25,26 @@ use std::collections::{HashMap, VecDeque};
 use async_std::path::PathBuf;
 use always_assert::{always, never};
 
+/// A request to pool.
 #[derive(Debug)]
 pub enum ToQueue {
+	/// This schedules preparation of the given PVF.
+	///
+	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
+	/// [`FromQueue::Prepared`] response. In case there is a need to bump the priority, use
+	/// [`ToQueue::Amend`].
 	Enqueue {
 		priority: Priority,
 		pvf: Pvf,
 	},
+	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
 	Amend {
 		priority: Priority,
 		artifact_id: ArtifactId,
 	},
 }
 
+/// A response from queue.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FromQueue {
 	Prepared(ArtifactId),

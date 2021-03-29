@@ -68,6 +68,7 @@ pub enum ToPool {
 	},
 }
 
+/// A message sent from pool to its client.
 #[derive(Debug)]
 pub enum FromPool {
 	/// The given worker was just spawned and is ready to be used.
@@ -305,6 +306,7 @@ fn reply(from_pool: &mut mpsc::UnboundedSender<FromPool>, m: FromPool) -> Result
 	from_pool.unbounded_send(m).map_err(|_| Fatal)
 }
 
+/// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	program_path: PathBuf,
 	spawn_timeout_secs: u64,

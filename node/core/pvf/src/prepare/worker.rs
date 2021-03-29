@@ -36,6 +36,9 @@ const NICENESS_FOREGROUND: i32 = 0;
 
 const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
+///
+/// The program should be able to handle `<program-path> prepare-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout_secs: u64,

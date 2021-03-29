@@ -117,6 +117,7 @@ pub enum ArtifactState {
 	Preparing,
 }
 
+/// A container of all known artifact ids.
 pub struct Artifacts {
 	artifacts: HashMap<ArtifactId, ArtifactState>,
 }
@@ -197,10 +198,15 @@ impl Artifacts {
 	}
 }
 
+/// Goes over all files in the given directory, collecting all recognizable artifacts. All files
+/// that do not look like artifacts are removed.
+///
+/// All recognized artifacts will be created with the current datetime.
 async fn scan_for_known_artifacts(
 	cache_path: &Path,
 ) -> io::Result<HashMap<ArtifactId, ArtifactState>> {
 	let mut result = HashMap::new();
+	let now = SystemTime::now();
 
 	let mut dir = async_std::fs::read_dir(cache_path).await?;
 	while let Some(res) = dir.next().await {
@@ -255,7 +261,7 @@ async fn scan_for_known_artifacts(
 			result.insert(
 				artifact_id,
 				ArtifactState::Prepared {
-					last_time_needed: SystemTime::now(),
+					last_time_needed: now,
 				},
 			);
 		}

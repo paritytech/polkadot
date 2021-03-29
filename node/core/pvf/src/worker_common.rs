@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Common logic for implementation of worker processes.
+
 use crate::LOG_TARGET;
 use async_std::{
 	io,
@@ -126,6 +128,10 @@ where
 	);
 }
 
+/// A struct that represents an idle worker.
+///
+/// This struct is supposed to be used as a token that is passed by move into a subroutine that
+/// initiates a job. If the worker dies on the duty, then the token is not returned back.
 #[derive(Debug)]
 pub struct IdleWorker {
 	/// The stream to which the child process is connected.
@@ -151,7 +157,8 @@ pub enum SpawnErr {
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
 ///
 /// A worker's handle is also a future that resolves when it's detected that the worker's process
-/// has been terminated.
+/// has been terminated. Since the worker is running in another process it is obviously not necessarily
+///  to poll this future to make the worker run, it's only for termination detection.
 ///
 /// This future relies on the fact that a child process's stdout fd is closed upon it's termination.
 #[pin_project]

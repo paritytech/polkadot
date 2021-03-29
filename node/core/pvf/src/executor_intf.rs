@@ -41,7 +41,10 @@ const CONFIG: Config = Config {
 /// Runs the prevaldation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
 pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
 	let blob = RuntimeBlob::new(code)?;
-	// TODO: prevalidation
+	// It's assumed this function will take care of any prevalidation logic
+	// that needs to be done.
+	//
+	// Do nothing for now.
 	Ok(blob)
 }
 

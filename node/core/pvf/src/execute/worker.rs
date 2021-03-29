@@ -29,6 +29,9 @@ use futures_timer::Delay;
 use polkadot_parachain::primitives::ValidationResult;
 use parity_scale_codec::{Encode, Decode};
 
+/// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
+///
+/// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout_secs: u64,
@@ -43,17 +46,25 @@ pub async fn spawn(
 	.await
 }
 
+/// Outcome of PVF execution.
 pub enum Outcome {
+	/// PVF execution completed successfully and the result is returned. The worker is ready for
+	/// another job.
 	Ok {
 		result_descriptor: ValidationResult,
 		duration_ms: u64,
 		idle_worker: IdleWorker,
 	},
+	/// The candidate validation failed. It may be for example because the preparation processe
+	/// produced an error or the wasm execution triggered a trap.
 	InvalidCandidate {
 		err: String,
 		idle_worker: IdleWorker,
 	},
+	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
+	/// An I/O error happened during communication with the worker. This may mean that the worker
+	/// process already died. The token is not returned in any case.
 	IoErr,
 }
 
