@@ -210,7 +210,7 @@ publish-polkadot-image:
   #     artifacts:                   true
 
 publish-real-overseer-image:
-  # image to be tested with Simnet
+#   image to be tested with Simnet
   stage:                           build
   <<:                              *build-push-image
   variables:
@@ -222,10 +222,10 @@ publish-real-overseer-image:
   #   - if: $CI_COMMIT_REF_NAME == "master"
   #   - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   #   - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      variables:
-        IMAGE_NAME:                docker.io/parity/rococo
-        DOCKER_USER:               ${Docker_Hub_User_Parity}
-        DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
+    #   variables:
+    #     IMAGE_NAME:                docker.io/parity/rococo
+    #     DOCKER_USER:               ${Docker_Hub_User_Parity}
+    #     DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
   # needs:
   #   - job:                         build-real-overseer
   #     artifacts:                   true
