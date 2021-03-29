@@ -1553,9 +1553,9 @@ pub fn rococo_testnet_genesis(
 		pallet_sudo: rococo_runtime::SudoConfig { key: root_key },
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 600u32,
-				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				validation_upgrade_frequency: 20u32,
+				validation_upgrade_delay: 10,
+				acceptance_period: 15,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,
