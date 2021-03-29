@@ -790,7 +790,7 @@ pub(crate) async fn handle_new_head(
 		"Informing distribution of newly imported chain",
 	);
 
-	ctx.send_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into()).await;
+	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into());
 
 	Ok(imported_candidates)
 }
