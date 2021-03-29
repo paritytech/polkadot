@@ -276,16 +276,16 @@ trigger-simnet:
   # on commits. And parity/rococo:rococo-v1 for runs not launched by this job. 
   trigger:
     project:                       tripleight/simnet
-    branch:                        master
+    # branch:                        master
     strategy:                      depend
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
 
-dummy:
-  stage:                           next
-  needs:
-    - job:                         trigger-simnet
-  when: on_failure
-  script:
-    - echo "hi there" && exit 1
+# dummy:
+#   stage:                           next
+#   needs:
+#     - job:                         trigger-simnet
+#   when:                            on_failure
+#   script:
+#     - echo "hi there" && exit 1
