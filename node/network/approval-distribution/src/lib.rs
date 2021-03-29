@@ -206,6 +206,7 @@ impl State {
 					if !live {
 						tracing::trace!(
 							target: LOG_TARGET,
+							block_hash = ?h,
 							"Cleaning up stale pending messages",
 						);
 					}
