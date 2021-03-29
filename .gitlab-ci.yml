@@ -18,10 +18,10 @@ stages:
 
 image:                             paritytech/ci-linux:production
 
-workflow:
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH
+# workflow:
+#   rules:
+#     - if: $CI_COMMIT_TAG
+#     - if: $CI_COMMIT_BRANCH
 
 variables:
   GIT_STRATEGY:                    fetch
@@ -63,21 +63,21 @@ default:
     - cargo --version
     - sccache -s
 
-.rules-test:                       &rules-test
-  # these jobs run always*
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
-    - when: always
+# .rules-test:                       &rules-test
+#   # these jobs run always*
+#   rules:
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#       when: never
+#     - when: always
 
-.pr-only:                          &rules-pr-only
-  # these jobs run only on PRs
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+# .pr-only:                          &rules-pr-only
+#   # these jobs run only on PRs
+#   rules:
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#       when: never
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#       when: never
+#     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
 .pack-artifacts:                   &pack-artifacts
   - mkdir -p ./artifacts
@@ -102,10 +102,10 @@ build-linux-release:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "schedule"
+  #   - if: $CI_COMMIT_REF_NAME == "master"
+  #   - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   script:
     # - time cargo build --release --verbose
     # - sccache -s
@@ -116,11 +116,11 @@ build-real-overseer:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "schedule"
+  #   - if: $CI_COMMIT_REF_NAME == "master"
+  #   - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  #   - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
     # - time cargo build --release --verbose --features=real-overseer
     # - sccache -s
@@ -131,10 +131,10 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "schedule"
+  #   - if: $CI_COMMIT_REF_NAME == "master"
+  #   - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     # - time cargo build --release --verbose --features=real-overseer -p test-parachain-adder-collator
     # - sccache -s
@@ -198,13 +198,13 @@ build-adder-collator:
 publish-polkadot-image:
   stage:                           build
   <<:                              *build-push-image
-  rules:
-  # Don't run on releases - this is handled by the Github Action here:
-  # .github/workflows/publish-docker-release.yml
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
+  # rules:
+  # # Don't run on releases - this is handled by the Github Action here:
+  # # .github/workflows/publish-docker-release.yml
+  #   - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+  #     when: never
+  #   - if: $CI_PIPELINE_SOURCE == "schedule"
+  #   - if: $CI_COMMIT_REF_NAME == "master"
   # needs:
   #   - job:                         build-linux-release
   #     artifacts:                   true
@@ -217,11 +217,11 @@ publish-real-overseer-image:
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  # rules:
+  #   - if: $CI_PIPELINE_SOURCE == "schedule"
+  #   - if: $CI_COMMIT_REF_NAME == "master"
+  #   - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  #   - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         IMAGE_NAME:                docker.io/parity/rococo
         DOCKER_USER:               ${Docker_Hub_User_Parity}
