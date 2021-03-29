@@ -139,6 +139,7 @@ impl TestCandidateBuilder {
 	}
 }
 
+// Get chunk for index 0
 pub fn get_valid_chunk_data(pov: PoV) -> (Hash, ErasureChunk) {
 	let fake_validator_count = 10;
 	let persisted = PersistedValidationData {
