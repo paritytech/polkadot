@@ -664,7 +664,7 @@ impl<T: Config> Module<T> {
 		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
-				log::info!("note new head with new code for {}", execution_context);
+				log::info!("note new head with new code for {:?}", execution_context);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
 				let new_code = FutureCode::take(&id).unwrap_or_default();
