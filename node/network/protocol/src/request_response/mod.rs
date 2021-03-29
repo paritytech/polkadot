@@ -36,7 +36,7 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use polkadot_primitives::v1::MAX_COMPRESSED_POV_SIZE;
+use polkadot_node_primitives::MAX_COMPRESSED_POV_SIZE;
 use strum::EnumIter;
 
 pub use sc_network::config as network;
@@ -56,10 +56,14 @@ pub mod v1;
 /// within protocols.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, EnumIter)]
 pub enum Protocol {
-	/// Protocol for availability fetching, used by availability distribution.
-	AvailabilityFetching,
+	/// Protocol for chunk fetching, used by availability distribution and availability recovery.
+	ChunkFetching,
 	/// Protocol for fetching collations from collators.
 	CollationFetching,
+	/// Protocol for fetching seconded PoVs from validators of the same group.
+	PoVFetching,
+	/// Protocol for fetching available data.
+	AvailableDataFetching,
 }
 
 /// Default request timeout in seconds.
@@ -67,7 +71,7 @@ pub enum Protocol {
 /// When decreasing this value, take into account that the very first request might need to open a
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
-const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3); 
+const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
 /// peer set as well).
@@ -90,7 +94,7 @@ impl Protocol {
 		let p_name = self.into_protocol_name();
 		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
-			Protocol::AvailabilityFetching => RequestResponseConfig {
+			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 10_000,
 				max_response_size: 10_000_000,
@@ -105,6 +109,21 @@ impl Protocol {
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
+			Protocol::PoVFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				inbound_queue: Some(tx),
+			},
+			Protocol::AvailableDataFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				// Available data size is dominated by the PoV size.
+				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				inbound_queue: Some(tx),
+			},
 		};
 		(rx, cfg)
 	}
@@ -117,9 +136,14 @@ impl Protocol {
 			// times (due to network delays), 100 seems big enough to accomodate for "bursts",
 			// assuming we can service requests relatively quickly, which would need to be measured
 			// as well.
-			Protocol::AvailabilityFetching => 100,
+			Protocol::ChunkFetching => 100,
 			// 10 seems reasonable, considering group sizes of max 10 validators.
 			Protocol::CollationFetching => 10,
+			// 10 seems reasonable, considering group sizes of max 10 validators.
+			Protocol::PoVFetching => 10,
+			// Validators are constantly self-selecting to request available data which may lead
+			// to constant load and occasional burstiness.
+			Protocol::AvailableDataFetching => 100,
 		}
 	}
 
@@ -131,8 +155,10 @@ impl Protocol {
 	/// Get the protocol name associated with each peer set as static str.
 	pub const fn get_protocol_name_static(self) -> &'static str {
 		match self {
-			Protocol::AvailabilityFetching => "/polkadot/req_availability/1",
+			Protocol::ChunkFetching => "/polkadot/req_chunk/1",
 			Protocol::CollationFetching => "/polkadot/req_collation/1",
+			Protocol::PoVFetching => "/polkadot/req_pov/1",
+			Protocol::AvailableDataFetching => "/polkadot/req_available_data/1",
 		}
 	}
 }

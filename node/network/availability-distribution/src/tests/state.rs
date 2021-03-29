@@ -23,30 +23,31 @@ use smallvec::smallvec;
 use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
 use futures_timer::Delay;
 
-use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use sp_keyring::Sr25519Keyring;
+use sp_keystore::SyncCryptoStorePtr;
 use sp_core::{traits::SpawnNamed, testing::TaskExecutor};
 use sc_network as network;
 use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, messages::{AllMessages,
-	AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage, RuntimeApiMessage,
-	RuntimeApiRequest}
+use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+	messages::{
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
+	}
 };
-use polkadot_primitives::v1::{CandidateHash, CoreState, ErasureChunk, GroupIndex, Hash, Id
-	as ParaId, ScheduledCore, SessionInfo, ValidatorId,
+use polkadot_primitives::v1::{CandidateHash, CoreState, GroupIndex, Hash, Id
+	as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex
 };
-use polkadot_node_network_protocol::{jaeger,
+use polkadot_node_primitives::ErasureChunk;
+use polkadot_node_network_protocol::{
+	jaeger,
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;
 use test_helpers::SingleItemSink;
 
-use super::mock::{make_session_info, OccupiedCoreBuilder, };
+use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
 use crate::LOG_TARGET;
 
 pub struct TestHarness {
@@ -81,22 +82,15 @@ impl Default for TestState {
 
 		let chain_ids = vec![chain_a, chain_b];
 
-		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let keystore = make_ferdie_keystore();
 
 		let session_info = make_session_info();
-
-		SyncCryptoStore::sr25519_generate_new(
-			&*keystore,
-			ValidatorId::ID,
-			Some(&Sr25519Keyring::Ferdie.to_seed()),
-		)
-		.expect("Insert key into keystore");
 
 		let (cores, chunks) = {
 			let mut cores = HashMap::new();
 			let mut chunks = HashMap::new();
 
-			cores.insert(relay_chain[0], 
+			cores.insert(relay_chain[0],
 				vec![
 					CoreState::Scheduled(ScheduledCore {
 						para_id: chain_ids[0],
@@ -148,7 +142,7 @@ impl Default for TestState {
 }
 
 impl TestState {
-	
+
 	/// Run, but fail after some timeout.
 	pub async fn run(self, harness: TestHarness) {
 		// Make sure test won't run forever.
@@ -161,6 +155,9 @@ impl TestState {
 	/// This will simply advance through the simulated chain and examines whether the subsystem
 	/// behaves as expected: It will succeed if all valid chunks of other backing groups get stored
 	/// and no other.
+	///
+	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
+	/// should not be a matter to this test suite.
 	async fn run_inner(self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
@@ -169,7 +166,11 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![(new.clone(), Arc::new(jaeger::Span::Disabled))],
+				activated: smallvec![ActivatedLeaf {
+					hash: new.clone(),
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}],
 				deactivated: smallvec![old.clone()],
 			}).collect::<Vec<_>>()
 		};
@@ -178,7 +179,7 @@ impl TestState {
 		//
 		// Test will fail if this does not happen until timeout.
 		let mut remaining_stores = self.valid_chunks.len();
-		
+
 		let TestSubsystemContextHandle { tx, mut rx } = virtual_overseer;
 
 		// Spawning necessary as incoming queue can only hold a single item, we don't want to dead
@@ -210,7 +211,7 @@ impl TestState {
 						executor.spawn("Request forwarding",
 									overseer_send(
 										tx.clone(),
-										AvailabilityDistributionMessage::AvailabilityFetchingRequest(in_req)
+										AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
 									).boxed()
 						);
 					}
@@ -252,14 +253,11 @@ impl TestState {
 					}
 				}
 				_ => {
-					panic!("Unexpected message received: {:?}", msg);
 				}
 			}
 		}
 	}
 }
-
-
 
 async fn overseer_signal(
 	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
@@ -294,9 +292,9 @@ async fn overseer_recv(
 fn to_incoming_req(
 	executor: &TaskExecutor,
 	outgoing: Requests
-) -> IncomingRequest<v1::AvailabilityFetchingRequest> {
+) -> IncomingRequest<v1::ChunkFetchingRequest> {
 	match outgoing {
-		Requests::AvailabilityFetching(OutgoingRequest { payload, pending_response, .. }) => {
+		Requests::ChunkFetching(OutgoingRequest { payload, pending_response, .. }) => {
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>)
 			   = oneshot::channel();
 			executor.spawn("Message forwarding", async {

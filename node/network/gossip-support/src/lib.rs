@@ -80,7 +80,7 @@ impl GossipSupport {
 				})) => {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
-					let leaves = activated.into_iter().map(|(h, _)| h);
+					let leaves = activated.into_iter().map(|a| a.hash);
 					if let Err(e) = state.handle_active_leaves(&mut ctx, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}

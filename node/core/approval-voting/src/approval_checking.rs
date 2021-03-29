@@ -52,7 +52,7 @@ pub enum RequiredTranches {
 		needed: DelayTranche,
 		/// The amount of missing votes that should be tolerated.
 		tolerated_missing: usize,
- 		/// When the next no-show would be, if any. This is used to schedule the next wakeup in the
+		/// When the next no-show would be, if any. This is used to schedule the next wakeup in the
 		/// event that there are some assignments that don't have corresponding approval votes. If this
 		/// is `None`, all assignments have approvals.
 		next_no_show: Option<Tick>,

@@ -645,6 +645,7 @@ impl parachains_scheduler::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = EnsureRoot<AccountId>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -706,13 +707,14 @@ impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 }
 
 parameter_types! {
-	pub const EndingPeriod: BlockNumber = 15 * MINUTES;
+	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
 }
 
 impl auctions::Config for Runtime {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = ParentHashRandomness;
@@ -738,6 +740,8 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
 	pub const RemoveKeysLimit: u32 = 500;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
 }
 
 impl crowdloan::Config for Runtime {
@@ -750,6 +754,7 @@ impl crowdloan::Config for Runtime {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crowdloan::TestWeightInfo;
 }
 

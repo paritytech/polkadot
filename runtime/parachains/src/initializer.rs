@@ -20,8 +20,9 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use sp_std::prelude::*;
-use frame_support::weights::Weight;
-use primitives::v1::{ValidatorId, SessionIndex};
+use frame_support::weights::{Weight, DispatchClass};
+use frame_support::traits::EnsureOrigin;
+use primitives::v1::{ValidatorId, SessionIndex, ConsensusLog, BlockNumber};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
@@ -82,6 +83,8 @@ pub trait Config:
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+	/// An origin which is allowed to force updates to parachains.
+	type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 }
 
 decl_storage! {
@@ -167,6 +170,16 @@ decl_module! {
 			}
 
 			HasInitialized::take();
+		}
+
+		/// Issue a signal to the consensus engine to forcibly act as though all parachain
+		/// blocks in all relay chain blocks up to and including the given number in the current
+		/// chain are valid and should be finalized.
+		#[weight = (0, DispatchClass::Operational)]
+		fn force_approve(origin, up_to: BlockNumber) {
+			T::ForceOrigin::ensure_origin(origin)?;
+
+			frame_system::Pallet::<T>::deposit_log(ConsensusLog::ForceApprove(up_to).into());
 		}
 	}
 }

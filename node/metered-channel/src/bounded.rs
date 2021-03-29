@@ -16,13 +16,18 @@
 
 //! Metered variant of bounded mpsc channels to be able to extract metrics.
 
-use super::*;
+use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
+
+use std::result;
+use std::pin::Pin;
+
+use super::Meter;
+
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
-pub fn channel<T>(capacity: usize, name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
+pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
-	let mut shared_meter = Meter::default();
-	shared_meter.name = name;
+	let shared_meter = Meter::default();
 	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx };
 	let rx = MeteredReceiver { meter: shared_meter, inner: rx };
 	(tx, rx)
@@ -54,8 +59,7 @@ impl<T> Stream for MeteredReceiver<T> {
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match mpsc::Receiver::poll_next(Pin::new(&mut self.inner), cx) {
 			Poll::Ready(x) => {
-				// always use Ordering::SeqCst to avoid underflows
-				self.meter.fill.fetch_sub(1, Ordering::SeqCst);
+				self.meter.note_received();
 				Poll::Ready(x)
 			}
 			other => other,
@@ -78,7 +82,7 @@ impl<T> MeteredReceiver<T> {
 	pub fn try_next(&mut self) -> Result<Option<T>, mpsc::TryRecvError> {
 		match self.inner.try_next()? {
 			Some(x) => {
-				self.meter.fill.fetch_sub(1, Ordering::SeqCst);
+				self.meter.note_received();
 				Ok(Some(x))
 			}
 			None => Ok(None),
@@ -87,9 +91,9 @@ impl<T> MeteredReceiver<T> {
 }
 
 impl<T> futures::stream::FusedStream for MeteredReceiver<T> {
-    fn is_terminated(&self) -> bool {
-        self.inner.is_terminated()
-    }
+	fn is_terminated(&self) -> bool {
+		self.inner.is_terminated()
+	}
 }
 
 
@@ -131,48 +135,52 @@ impl<T> MeteredSender<T> {
 	where
 		Self: Unpin,
 	{
-		self.meter.fill.fetch_add(1, Ordering::SeqCst);
+		self.meter.note_sent();
 		let fut = self.inner.send(item);
 		futures::pin_mut!(fut);
-		fut.await
+		fut.await.map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
 	}
 
 	/// Attempt to send message or fail immediately.
 	pub fn try_send(&mut self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
-		self.inner.try_send(msg)?;
-		self.meter.fill.fetch_add(1, Ordering::SeqCst);
-		Ok(())
+		self.meter.note_sent();
+		self.inner.try_send(msg).map_err(|e| {
+			self.meter.retract_sent();
+			e
+		})
 	}
 }
 
 impl<T> futures::sink::Sink<T> for MeteredSender<T> {
-    type Error = mpsc::SendError;
+	type Error = mpsc::SendError;
 
-    fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-        Pin::new(&mut self.inner).start_send(item)
-    }
+	fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
+		Pin::new(&mut self.inner).start_send(item)
+	}
 
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Pin::new(&mut self.inner).poll_ready(cx)
-    }
+	fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.inner).poll_ready(cx)
+	}
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match Pin::new(&mut self.inner).poll_close(cx) {
-            val @ Poll::Ready(_)=> {
-                self.meter.fill.store(0, Ordering::SeqCst);
-                val
-            }
-            other => other,
-        }
-    }
+	fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		match Pin::new(&mut self.inner).poll_close(cx) {
+			val @ Poll::Ready(_)=> {
+				val
+			}
+			other => other,
+		}
+	}
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match Pin::new(&mut self.inner).poll_flush(cx) {
-            val @ Poll::Ready(_)=> {
-                self.meter.fill.fetch_add(1, Ordering::SeqCst);
-                val
-            }
-            other => other,
-        }
-    }
+	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		match Pin::new(&mut self.inner).poll_flush(cx) {
+			val @ Poll::Ready(_)=> {
+				self.meter.note_sent();
+				val
+			}
+			other => other,
+		}
+	}
 }
