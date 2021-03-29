@@ -840,3 +840,47 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
 	});
 }
+
+#[test]
+fn task_canceled_when_receivers_dropped() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![ActivatedLeaf {
+					hash: test_state.current.clone(),
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		let (tx, _) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				None,
+				tx,
+			)
+		).await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		for _ in 0..test_state.validators.len() {
+			match virtual_overseer.recv().timeout(TIMEOUT).await {
+				None => return,
+				Some(_) => continue,
+			}
+		}
+
+		panic!("task requested all validators without concluding")
+	});
+}
