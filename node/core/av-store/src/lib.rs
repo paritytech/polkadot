@@ -32,8 +32,11 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
+	Hash, BlockNumber, CandidateEvent, ValidatorIndex, CandidateHash,
 	CandidateReceipt,
+};
+use polkadot_node_primitives::{
+	ErasureChunk, AvailableData,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -551,9 +554,9 @@ where
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
-					for (activated, _span) in activated.into_iter() {
+					for activated in activated.into_iter() {
 						let _timer = subsystem.metrics.time_block_activated();
-						process_block_activated(ctx, subsystem, activated).await?;
+						process_block_activated(ctx, subsystem, activated.hash).await?;
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {

@@ -193,7 +193,7 @@ pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.
 	fn into_account(&self) -> AccountId;
 
- 	/// Try to convert an account ID into this type. Might not succeed.
+	/// Try to convert an account ID into this type. Might not succeed.
 	fn try_from_account(a: &AccountId) -> Option<Self>;
 }
 
@@ -225,7 +225,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 		).unwrap_or_default()
 	}
 
- 	fn try_from_account(x: &T) -> Option<Self> {
+	fn try_from_account(x: &T) -> Option<Self> {
 		x.using_encoded(|d| {
 			if &d[0..4] != b"para" { return None }
 			let mut cursor = &d[4..];

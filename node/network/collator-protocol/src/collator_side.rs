@@ -22,8 +22,8 @@ use futures::{select, FutureExt, channel::oneshot};
 use sp_core::Pair;
 
 use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, CollatorPair, CompressedPoV, CoreIndex, CoreState, Hash,
-	Id as ParaId, PoV, ValidatorId
+	CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, Hash,
+	Id as ParaId, ValidatorId
 };
 use polkadot_subsystem::{
 	jaeger, PerLeafSpan,
@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, Statement, PoV, CompressedPoV};
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -949,13 +949,14 @@ mod tests {
 	};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_primitives::v1::{
-		AuthorityDiscoveryId, BlockData, CandidateDescriptor, CollatorPair, GroupRotationInfo,
+		AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo,
 		ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex,
 	};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem::{
 		jaeger,
 		messages::{RuntimeApiMessage, RuntimeApiRequest},
-		ActiveLeavesUpdate,
+		ActiveLeavesUpdate, ActivatedLeaf,
 	};
 	use polkadot_subsystem_testhelpers as test_helpers;
 
@@ -1215,7 +1216,11 @@ mod tests {
 		overseer_signal(
 			virtual_overseer,
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [(test_state.relay_parent, Arc::new(jaeger::Span::Disabled))][..].into(),
+				activated: vec![ActivatedLeaf {
+					hash: test_state.relay_parent,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
 				deactivated: [][..].into(),
 			}),
 		).await;
