@@ -201,7 +201,18 @@ impl State {
 					}
 				}
 
-				self.pending_known.retain(|h, _| view.contains(h));
+				self.pending_known.retain(|h, _| {
+					let live = view.contains(h);
+					if !live {
+						tracing::trace!(
+							target: LOG_TARGET,
+							block_hash = ?h,
+							"Cleaning up stale pending messages",
+						);
+					}
+
+					live
+				});
 			}
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg).await;
@@ -250,6 +261,11 @@ impl State {
 				.collect::<Vec<_>>();
 
 			let to_import = pending_now_known.into_iter()
+				.inspect(|h| tracing::trace!(
+					target: LOG_TARGET,
+					block_hash = ?h,
+					"Extracting pending messages for new block"
+				))
 				.filter_map(|k| self.pending_known.remove(&k))
 				.flatten()
 				.collect::<Vec<_>>();
@@ -320,6 +336,19 @@ impl State {
 				);
 				for (assignment, claimed_index) in assignments.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
+						let fingerprint = MessageFingerprint::Assignment(
+							assignment.block_hash,
+							claimed_index,
+							assignment.validator,
+						);
+
+						tracing::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?fingerprint,
+							"Pending assignment",
+						);
+
 						pending.push((
 							peer_id.clone(),
 							PendingMessage::Assignment(assignment, claimed_index),
@@ -346,6 +375,19 @@ impl State {
 				);
 				for approval_vote in approvals.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
+						let fingerprint = MessageFingerprint::Approval(
+							approval_vote.block_hash,
+							approval_vote.candidate_index,
+							approval_vote.validator,
+						);
+
+						tracing::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?fingerprint,
+							"Pending approval",
+						);
+
 						pending.push((
 							peer_id.clone(),
 							PendingMessage::Approval(approval_vote),
