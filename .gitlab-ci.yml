@@ -283,7 +283,9 @@ trigger-simnet:
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
 
 dummy:
+  stage:                           next
   needs:
-  - job:                           trigger-simnet
+    - job:                         trigger-simnet
+  # when: on_failure
   script:
     - echo "hi there"
