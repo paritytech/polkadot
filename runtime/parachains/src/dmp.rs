@@ -76,7 +76,7 @@ pub trait Config: frame_system::Config + configuration::Config {}
 decl_storage! {
 	trait Store for Module<T: Config> as Dmp {
 		/// The downward messages addressed for a certain para.
-		DownwardMessageQueues: map hasher(twox_64_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
+		DownwardMessageQueues: map hasher(blake2_128_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
 		/// A mapping that stores the downward message queue MQC head for each para.
 		///
 		/// Each link in this chain has a form:
@@ -84,7 +84,7 @@ decl_storage! {
 		/// - `prev_head`: is the previous head hash or zero if none.
 		/// - `B`: is the relay-chain block number in which a message was appended.
 		/// - `H(M)`: is the hash of the message being appended.
-		DownwardMessageQueueHeads: map hasher(twox_64_concat) ParaId => Hash;
+		DownwardMessageQueueHeads: map hasher(blake2_128_concat) ParaId => Hash;
 	}
 }
 

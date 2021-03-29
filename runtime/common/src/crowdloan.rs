@@ -197,7 +197,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as Crowdloan {
 		/// Info on all of the funds.
 		Funds get(fn funds):
-			map hasher(twox_64_concat) ParaId
+			map hasher(blake2_128_concat) ParaId
 			=> Option<FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>>;
 
 		/// The funds that have had additional contributions during the last block. This is used

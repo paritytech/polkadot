@@ -101,13 +101,13 @@ pub trait Config: paras::Config {
 decl_storage! {
 	trait Store for Module<T: Config> as Registrar {
 		/// Pending swap operations.
-		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
+		PendingSwap: map hasher(blake2_128_concat) ParaId => Option<ParaId>;
 
 		/// Amount held on deposit for each para and the original depositor.
 		///
 		/// The given account ID is responsible for registering the code and initial head data, but may only do
 		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
-		pub Paras: map hasher(twox_64_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
+		pub Paras: map hasher(blake2_128_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
 	}
 }
 

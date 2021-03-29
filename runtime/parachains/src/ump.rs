@@ -156,7 +156,7 @@ decl_storage! {
 		/// channel management messages.
 		///
 		/// The messages are processed in FIFO order.
-		RelayDispatchQueues: map hasher(twox_64_concat) ParaId => VecDeque<UpwardMessage>;
+		RelayDispatchQueues: map hasher(blake2_128_concat) ParaId => VecDeque<UpwardMessage>;
 		/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 		///
 		/// First item in the tuple is the count of messages and second
@@ -170,7 +170,7 @@ decl_storage! {
 		/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
 		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 		// the format will require migration of parachains.
-		RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
+		RelayDispatchQueueSize: map hasher(blake2_128_concat) ParaId => (u32, u32);
 		/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 		///
 		/// Invariant:

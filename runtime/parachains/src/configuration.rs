@@ -244,7 +244,7 @@ decl_storage! {
 		/// The active configuration for the current session.
 		ActiveConfig get(fn config) config(): HostConfiguration<T::BlockNumber>;
 		/// Pending configuration (if any) for the next session.
-		PendingConfig: map hasher(twox_64_concat) SessionIndex => Option<HostConfiguration<T::BlockNumber>>;
+		PendingConfig: map hasher(blake2_128_concat) SessionIndex => Option<HostConfiguration<T::BlockNumber>>;
 	}
 	add_extra_genesis {
 		build(|config: &Self| {
