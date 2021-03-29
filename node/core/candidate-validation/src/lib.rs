@@ -381,8 +381,10 @@ fn perform_basic_checks(
 	}
 
 	if validation_code_hash != candidate.validation_code_hash {
+		tracing::info!("!!!!!!!!!!!!!!!!!!! code mismatch {}, {}", validation_code_hash, canddiate.validation_code_hash);
 		return Err(InvalidCandidate::CodeHashMismatch);
 	}
+	tracing::info!("!!!!!!!!!!!!!!!!!!! code not mismatch");
 
 	if let Err(()) = candidate.check_collator_signature() {
 		return Err(InvalidCandidate::BadSignature);
