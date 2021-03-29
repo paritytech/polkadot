@@ -336,7 +336,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
+	type MinerMaxWeight = OffchainSolutionWeightLimit;
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
