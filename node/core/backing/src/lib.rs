@@ -27,12 +27,12 @@ use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
+	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
-	Statement, SignedFullStatement, ValidationResult,
+	Statement, SignedFullStatement, ValidationResult, PoV, AvailableData,
 };
 use polkadot_subsystem::{
 	PerLeafSpan, Stage, SubsystemSender,
@@ -1348,12 +1348,12 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use futures::{future, Future};
-	use polkadot_primitives::v1::{BlockData, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
+	use polkadot_primitives::v1::{GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
 	};
-	use polkadot_node_primitives::InvalidCandidate;
+	use polkadot_node_primitives::{InvalidCandidate, BlockData};
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
@@ -2763,7 +2763,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
 			// Not deterministic which message comes first:
-			for _ in 0..2 {
+			for _ in 0u32..2 {
 				match virtual_overseer.recv().await {
 					AllMessages::Provisioner(
 						ProvisionerMessage::ProvisionableData(

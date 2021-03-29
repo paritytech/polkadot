@@ -27,9 +27,10 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
+	AuthorityDiscoveryId, BlakeTwo256, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };
+use polkadot_node_primitives::ErasureChunk; 
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };

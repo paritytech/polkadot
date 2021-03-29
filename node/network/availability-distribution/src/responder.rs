@@ -19,7 +19,8 @@
 use futures::channel::oneshot;
 
 use polkadot_node_network_protocol::request_response::{request::IncomingRequest, v1};
-use polkadot_primitives::v1::{AvailableData, CandidateHash, CompressedPoV, ErasureChunk, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
+use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
 use polkadot_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
 	SubsystemContext, jaeger,

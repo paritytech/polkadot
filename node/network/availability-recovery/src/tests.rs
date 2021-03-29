@@ -27,8 +27,9 @@ use parity_scale_codec::Encode;
 use super::*;
 
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, PersistedValidationData, PoV, BlockData, HeadData,
+	AuthorityDiscoveryId, PersistedValidationData, HeadData,
 };
+use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers as test_helpers;

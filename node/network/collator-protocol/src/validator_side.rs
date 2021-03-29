@@ -32,9 +32,9 @@ use polkadot_node_network_protocol::{
 	},
 	OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
@@ -896,7 +896,8 @@ mod tests {
 	use sp_core::{crypto::Pair, Encode};
 	use assert_matches::assert_matches;
 
-	use polkadot_primitives::v1::{BlockData, CollatorPair, CompressedPoV};
+	use polkadot_primitives::v1::CollatorPair;
+	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::{our_view, ObservedRole,
 		request_response::Requests

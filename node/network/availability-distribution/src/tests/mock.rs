@@ -25,10 +25,11 @@ use sp_application_crypto::AppKey;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
-	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, CandidateHash,
-	CommittedCandidateReceipt, ErasureChunk, GroupIndex, Hash, HeadData, Id as ParaId,
-	OccupiedCore, PersistedValidationData, PoV, SessionInfo, ValidatorId, ValidatorIndex
+	CandidateCommitments, CandidateDescriptor, CandidateHash,
+	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId,
+	OccupiedCore, PersistedValidationData, SessionInfo, ValidatorId, ValidatorIndex
 };
+use polkadot_node_primitives::{PoV, ErasureChunk, AvailableData, BlockData};
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 /// Get mock keystore with `Ferdie` key.
