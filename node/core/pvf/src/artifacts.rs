@@ -105,7 +105,7 @@ pub enum ArtifactState {
 	/// The artifact is ready to be used by the executor.
 	///
 	/// That means that the artifact should be accessible through the path obtained by the artifact
-	/// id under (unless, it was removed externally).
+	/// id (unless, it was removed externally).
 	Prepared {
 		/// The time when the artifact was the last time needed.
 		///

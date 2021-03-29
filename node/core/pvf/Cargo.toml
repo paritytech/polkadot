@@ -12,7 +12,7 @@ path = "bin/puppet_worker.rs"
 name = "it"
 
 [dependencies]
-always-assert = { version = "0.1" }
+always-assert = "0.1"
 async-std = { version = "1.8.0", features = ["attributes"] }
 async-process = "1.0.1"
 assert_matches = "1.4.0"

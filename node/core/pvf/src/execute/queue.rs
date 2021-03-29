@@ -154,7 +154,7 @@ impl Queue {
 async fn purge_dead(workers: &mut Workers) {
 	let mut to_remove = vec![];
 	for (worker, data) in workers.running.iter_mut() {
-		if let Poll::Ready(()) = futures::poll!(&mut data.handle) {
+		if futures::poll!(&mut data.handle).is_ready() {
 			// a resolved future means that the worker has terminated. Weed it out.
 			to_remove.push(worker);
 		}
