@@ -286,6 +286,6 @@ dummy:
   stage:                           next
   needs:
     - job:                         trigger-simnet
-  # when: on_failure
+  when: on_failure
   script:
     - echo "hi there"
