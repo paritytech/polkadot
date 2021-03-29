@@ -435,7 +435,7 @@ trigger-simnet:
 trigger-fail-guard:
   stage:                           verify
   needs:
-    - job:                         trigger-downstream
+    - job:                         trigger-simnet
   when:                            on_failure
   script:
     - echo "This is a friend, he's a bit off, he will live with us until
