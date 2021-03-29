@@ -202,15 +202,15 @@ impl State {
 				}
 
 				self.pending_known.retain(|h, _| {
-					let stale = !view.contains(h);
-					if stale {
+					let live = view.contains(h);
+					if !live {
 						tracing::trace!(
 							target: LOG_TARGET,
 							"Cleaning up stale pending messages",
 						);
 					}
 
-					stale
+					live
 				});
 			}
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
