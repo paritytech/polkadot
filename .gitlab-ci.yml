@@ -272,7 +272,7 @@ trigger-simnet:
   # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
   # can be called by `master` tag.
   # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
+  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job. 
   trigger:
     project:                       tripleight/simnet
     branch:                        master
