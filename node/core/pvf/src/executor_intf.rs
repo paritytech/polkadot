@@ -81,8 +81,7 @@ pub fn execute(
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
 
-/// The validation externalities that will panic on any storage related access. They just provide
-/// access to the parachain extension.
+/// The validation externalities that will panic on any storage related access.
 struct ValidationExternalities(sp_externalities::Extensions);
 
 impl sp_externalities::Externalities for ValidationExternalities {
