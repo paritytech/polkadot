@@ -66,7 +66,7 @@ use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 
-use futures::channel::{oneshot};
+use futures::channel::oneshot;
 use futures::{
 	poll, select,
 	future::BoxFuture,
@@ -2680,9 +2680,9 @@ mod tests {
 	use std::collections::HashMap;
 	use futures::{executor, pin_mut, select, FutureExt, pending};
 
-	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
+	use polkadot_primitives::v1::{CollatorPair, CandidateHash};
 	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, jaeger};
-	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig};
+	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, BlockData};
 	use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 	use polkadot_node_subsystem_util::metered;
 

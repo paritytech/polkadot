@@ -5373,6 +5373,7 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-core-runtime-api",
  "polkadot-node-network-protocol",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
@@ -5403,6 +5404,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
@@ -5478,6 +5480,7 @@ name = "polkadot-erasure-coding"
 version = "0.8.30"
 dependencies = [
  "parity-scale-codec",
+ "polkadot-node-primitives",
  "polkadot-primitives",
  "reed-solomon-novelpoly",
  "sp-core",
@@ -5590,6 +5593,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "polkadot-erasure-coding",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
@@ -5759,6 +5763,7 @@ dependencies = [
  "mick-jaeger",
  "parity-scale-codec",
  "parking_lot 0.11.1",
+ "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
  "sp-core",
@@ -5785,15 +5790,18 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.13",
  "parity-scale-codec",
+ "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-statement-table",
  "schnorrkel",
+ "serde",
  "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
  "sp-runtime",
  "thiserror",
+ "zstd",
 ]
 
 [[package]]
@@ -5953,7 +5961,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
- "zstd",
 ]
 
 [[package]]
@@ -6207,6 +6214,7 @@ dependencies = [
  "polkadot-node-core-proposer",
  "polkadot-node-core-provisioner",
  "polkadot-node-core-runtime-api",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
