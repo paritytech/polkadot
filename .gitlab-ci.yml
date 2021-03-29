@@ -205,9 +205,9 @@ publish-polkadot-image:
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-  needs:
-    - job:                         build-linux-release
-      artifacts:                   true
+  # needs:
+  #   - job:                         build-linux-release
+  #     artifacts:                   true
 
 publish-real-overseer-image:
   # image to be tested with Simnet
@@ -226,9 +226,9 @@ publish-real-overseer-image:
         IMAGE_NAME:                docker.io/parity/rococo
         DOCKER_USER:               ${Docker_Hub_User_Parity}
         DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
-  needs:
-    - job:                         build-real-overseer
-      artifacts:                   true
+  # needs:
+  #   - job:                         build-real-overseer
+  #     artifacts:                   true
 
 publish-adder-collator-image:
     # service image for Simnet
@@ -240,9 +240,9 @@ publish-adder-collator-image:
     IMAGE_NAME:                    docker.io/paritypr/colander
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
-  needs:
-    - job:                         build-adder-collator
-      artifacts:                   true
+  # needs:
+  #   - job:                         build-adder-collator
+  #     artifacts:                   true
   after_script:
     # - buildah logout "$IMAGE_NAME"
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
@@ -265,9 +265,9 @@ trigger-simnet:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-  needs:
-    - job:                         publish-real-overseer-image
-    - job:                         publish-adder-collator-image
+  # needs:
+  #   - job:                         publish-real-overseer-image
+  #   - job:                         publish-adder-collator-image
   # `build.env` is taken by the triggered job from `publish-polkadot-image` job with
   # an exact `$IMAGE_TAG` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
@@ -278,9 +278,9 @@ trigger-simnet:
     project:                       tripleight/simnet
     # branch:                        master
     strategy:                      depend
-  variables:
-    TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-    TRGR_REF:                      ${CI_COMMIT_REF_NAME}
+  # variables:
+  #   TRGR_PROJECT:                  ${CI_PROJECT_NAME}
+  #   TRGR_REF:                      ${CI_COMMIT_REF_NAME}
 
 # dummy:
 #   stage:                           next
