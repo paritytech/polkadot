@@ -81,7 +81,7 @@ use sp_runtime::{
 		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
 	},
 };
-use crate::traits::{Registrar, Auctioneer, Leaser};
+use crate::traits::{Registrar, Auctioneer};
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::Id as ParaId;
@@ -149,9 +149,6 @@ pub trait Config: frame_system::Config {
 		BlockNumber=Self::BlockNumber,
 		LeasePeriod=Self::BlockNumber,
 	>;
-
-	/// The type representing the leasing system.
-	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
 
 	/// The maximum length for the memo attached to a crowdloan contribution.
 	type MaxMemoLength: Get<u8>;
@@ -333,7 +330,7 @@ decl_module! {
 			let last_slot_limit = first_slot.checked_add(&3u32.into()).ok_or(Error::<T>::FirstSlotTooFarInFuture)?;
 			ensure!(last_slot <= last_slot_limit, Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
-			let last_possible_win_date = (first_slot.saturating_add(One::one())).saturating_mul(T::Leaser::lease_period());
+			let last_possible_win_date = (first_slot.saturating_add(One::one())).saturating_mul(T::Auctioneer::lease_period());
 			ensure!(end <= last_possible_win_date, Error::<T>::EndTooFarInFuture);
 			ensure!(first_slot >= T::Auctioneer::lease_period_index(), Error::<T>::FirstSlotInPast);
 
@@ -395,7 +392,7 @@ decl_module! {
 
 			// Make sure crowdloan has not already won.
 			let fund_account = Self::fund_account_id(index);
-			ensure!(T::Leaser::deposit_held(index, &fund_account).is_zero(), Error::<T>::BidOrLeaseActive);
+			ensure!(!T::Auctioneer::has_won_an_auction(index, &fund_account), Error::<T>::BidOrLeaseActive);
 
 			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
 
@@ -710,7 +707,7 @@ mod tests {
 	};
 	use crate::{
 		mock::TestRegistrar,
-		traits::{OnSwap, LeaseError},
+		traits::OnSwap,
 		crowdloan,
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
@@ -788,7 +785,9 @@ mod tests {
 		static AUCTION: RefCell<Option<(u64, u64)>> = RefCell::new(None);
 		static ENDING_PERIOD: RefCell<u64> = RefCell::new(5);
 		static BIDS_PLACED: RefCell<Vec<BidPlaced>> = RefCell::new(Vec::new());
+		static HAS_WON: RefCell<BTreeMap<(ParaId, u64), bool>> = RefCell::new(BTreeMap::new());
 	}
+
 	#[allow(unused)]
 	fn set_ending_period(ending_period: u64) {
 		ENDING_PERIOD.with(|p| *p.borrow_mut() = ending_period);
@@ -801,6 +800,9 @@ mod tests {
 	}
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
+	}
+	fn make_winner(para: ParaId, who: u64) {
+		HAS_WON.with(|p| p.borrow_mut().insert((para, who), true));
 	}
 
 	pub struct TestAuctioneer;
@@ -842,42 +844,15 @@ mod tests {
 		}
 
 		fn lease_period_index() -> u64 {
-			System::block_number() / 20
-		}
-	}
-
-	thread_local! {
-		pub static DEPOSITS:
-			RefCell<BTreeMap<(ParaId, u64), u64>> = RefCell::new(BTreeMap::new());
-	}
-
-	pub struct TestLeaser;
-	impl Leaser for TestLeaser {
-		type AccountId = u64;
-		type LeasePeriod = BlockNumber;
-		type Currency = Balances;
-
-		fn lease_out(
-			para: ParaId,
-			leaser: &Self::AccountId,
-			amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
-			_period_begin: Self::LeasePeriod,
-			_period_count: Self::LeasePeriod,
-		) -> Result<(), LeaseError> {
-			DEPOSITS.with(|p| p.borrow_mut().insert((para, *leaser), amount));
-			Ok(())
+			System::block_number() / Self::lease_period()
 		}
 
-		fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
-			DEPOSITS.with(|p| *p.borrow().get(&(para, *leaser)).unwrap_or(&0))
-		}
-
-		fn lease_period() -> Self::LeasePeriod {
+		fn lease_period() -> u64 {
 			20
 		}
 
-		fn lease_period_index() -> Self::LeasePeriod {
-			(System::block_number() / Self::lease_period()).into()
+		fn has_won_an_auction(para: ParaId, bidder: &u64) -> bool {
+			HAS_WON.with(|p| *p.borrow().get(&(para, *bidder)).unwrap_or(&false))
 		}
 	}
 
@@ -899,7 +874,6 @@ mod tests {
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
-		type Leaser = TestLeaser;
 		type Auctioneer = TestAuctioneer;
 		type MaxMemoLength = MaxMemoLength;
 		type WeightInfo = crate::crowdloan::TestWeightInfo;
@@ -1159,7 +1133,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
 			let crowdloan_account = Crowdloan::fund_account_id(para_2);
-			assert_ok!(TestLeaser::lease_out(para_2, &crowdloan_account, 40, 1, 4));
+			make_winner(para_2, crowdloan_account);
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), para_2, 49, None), Error::<Test>::BidOrLeaseActive);
 
 			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan

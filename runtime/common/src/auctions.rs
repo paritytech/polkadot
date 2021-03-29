@@ -331,6 +331,14 @@ impl<T: Config> Auctioneer for Module<T> {
 	fn lease_period_index() -> Self::LeasePeriod {
 		T::Leaser::lease_period_index()
 	}
+
+	fn lease_period() -> Self::LeasePeriod {
+		T::Leaser::lease_period()
+	}
+
+	fn has_won_an_auction(para: ParaId, bidder: &T::AccountId) -> bool {
+		!T::Leaser::deposit_held(para, bidder).is_zero()
+	}
 }
 
 impl<T: Config> Module<T> {

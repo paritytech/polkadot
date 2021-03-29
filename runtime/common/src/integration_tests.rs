@@ -229,7 +229,6 @@ impl crowdloan::Config for Test {
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
-	type Leaser = Slots;
 	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
