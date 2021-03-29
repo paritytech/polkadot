@@ -288,4 +288,4 @@ dummy:
     - job:                         trigger-simnet
   when: on_failure
   script:
-    - echo "hi there"
+    - echo "hi there" && exit 1
