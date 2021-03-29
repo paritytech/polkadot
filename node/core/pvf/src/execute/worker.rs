@@ -40,10 +40,9 @@ pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout_secs: u64,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let program_path = program_path.to_string_lossy();
 	spawn_with_program_path(
 		"execute",
-		&program_path,
+		program_path,
 		&["execute-worker"],
 		spawn_timeout_secs,
 	)

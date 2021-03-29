@@ -40,19 +40,19 @@ use pin_project::pin_project;
 #[doc(hidden)]
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
-	program_path: &str,
+	program_path: impl Into<PathBuf>,
 	extra_args: &'static [&'static str],
 	spawn_timeout_secs: u64,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
+	let program_path = program_path.into();
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
-		let program_path = PathBuf::from(program_path);
 		async move {
 			let listener = UnixListener::bind(&socket_path)
 				.await
 				.map_err(|_| SpawnErr::Bind)?;
 
-			let handle = WorkerHandle::spawn(&program_path, extra_args, socket_path)
+			let handle = WorkerHandle::spawn(program_path, extra_args, socket_path)
 				.map_err(|_| SpawnErr::ProcessSpawn)?;
 
 			futures::select! {
