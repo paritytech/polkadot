@@ -40,9 +40,7 @@ pub enum Artifact {
 	/// or were killed. This state is reported by the validation host (not by the worker).
 	DidntMakeIt,
 	/// The PVF passed all the checks and is ready for execution.
-	Compiled {
-		compiled_artifact: Vec<u8>,
-	},
+	Compiled { compiled_artifact: Vec<u8> },
 }
 
 impl Artifact {

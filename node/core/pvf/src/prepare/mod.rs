@@ -22,9 +22,9 @@
 //! The pool will spawn workers in new processes and those should execute pass control to
 //! [`worker_entrypoint`].
 
+mod pool;
 mod queue;
 mod worker;
-mod pool;
 
 pub use queue::{ToQueue, FromQueue, start as start_queue};
 pub use pool::start as start_pool;

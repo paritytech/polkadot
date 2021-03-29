@@ -19,7 +19,7 @@
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
 	InvalidCandidate(InvalidCandidate),
-	/// This error is raised due to inability to serve the request. 
+	/// This error is raised due to inability to serve the request.
 	InternalError(String),
 }
 

@@ -14,10 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{artifacts::Artifact, executor_intf::TaskExecutor, worker_common::{
+use crate::{
+	artifacts::Artifact,
+	executor_intf::TaskExecutor,
+	worker_common::{
 		IdleWorker, SpawnErr, WorkerHandle, bytes_to_path, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, worker_event_loop,
-	}};
+	},
+};
 use std::time::{Duration, Instant};
 use async_std::{
 	io,

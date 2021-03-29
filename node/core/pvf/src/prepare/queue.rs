@@ -33,10 +33,7 @@ pub enum ToQueue {
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue::Prepared`] response. In case there is a need to bump the priority, use
 	/// [`ToQueue::Amend`].
-	Enqueue {
-		priority: Priority,
-		pvf: Pvf,
-	},
+	Enqueue { priority: Priority, pvf: Pvf },
 	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
 	Amend {
 		priority: Priority,
@@ -382,10 +379,14 @@ async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fata
 	if let Some(WorkerData { job: Some(job), .. }) = worker_data {
 		// This is an edge case where the worker ripped after we send assignment but before it
 		// was received by the pool.
-		let priority = queue.jobs.get(job).map(|data| data.priority).unwrap_or_else(|| {
-			never!();
-			Priority::Normal
-		});
+		let priority = queue
+			.jobs
+			.get(job)
+			.map(|data| data.priority)
+			.unwrap_or_else(|| {
+				never!();
+				Priority::Normal
+			});
 		queue.unscheduled.readd(priority, job);
 	}
 
@@ -604,7 +605,8 @@ mod tests {
 							panic!("to pool supposed to be empty")
 						}
 					}
-				}.boxed(),
+				}
+				.boxed(),
 			)
 			.await
 		}
@@ -789,7 +791,10 @@ mod tests {
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(test.poll_and_recv_from_queue().await, FromQueue::Prepared(pvf(1).as_artifact_id()));
+		assert_eq!(
+			test.poll_and_recv_from_queue().await,
+			FromQueue::Prepared(pvf(1).as_artifact_id())
+		);
 	}
 
 	#[async_std::test]
