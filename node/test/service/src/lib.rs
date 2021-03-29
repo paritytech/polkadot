@@ -53,7 +53,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::sync::Arc;
+use std::{sync::Arc, env, path::PathBuf};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -83,7 +83,30 @@ pub fn new_full(
 		None,
 		None,
 		None,
+		Some(guess_puppet_worker_path()),
 	)
+}
+
+fn guess_puppet_worker_path() -> PathBuf {
+	// This is wholly inspired by `cargo`
+	//
+	// https://github.com/rust-lang/cargo/blob/a4f0988ef87c1dedbeef3d39a85f3caf9241d6e7/crates/cargo-test-support/src/lib.rs#L429-L429
+	let bin_path = env::var_os("CARGO_BIN_PATH")
+        .map(PathBuf::from)
+        .or_else(|| {
+            env::current_exe().ok().map(|mut path| {
+                path.pop();
+                if path.ends_with("deps") {
+                    path.pop();
+                }
+                path
+            })
+        })
+        .unwrap_or_else(|| panic!("CARGO_BIN_PATH wasn't set. Cannot continue running test"));
+
+	let puppet_worker_path = bin_path.join(format!("puppet_worker{}", env::consts::EXE_SUFFIX));
+	assert!(puppet_worker_path.exists());
+	puppet_worker_path
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.

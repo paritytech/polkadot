@@ -654,6 +654,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	grandpa_pause: Option<(u32, u32)>,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	program_path: Option<std::path::PathBuf>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -813,7 +814,10 @@ pub fn new_full<RuntimeApi, Executor>(
 			.path()
 			.ok_or(Error::DatabasePathRequired)?
 			.join("pvf-artifacts"),
-		program_path: std::env::current_exe()?,
+		program_path: match program_path {
+			None => std::env::current_exe()?,
+			Some(p) => p,
+		},
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1230,6 +1234,7 @@ pub fn build_full(
 			grandpa_pause,
 			jaeger_agent,
 			telemetry_worker_handle,
+			None,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
@@ -1238,6 +1243,7 @@ pub fn build_full(
 			grandpa_pause,
 			jaeger_agent,
 			telemetry_worker_handle,
+			None,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
@@ -1246,6 +1252,7 @@ pub fn build_full(
 			grandpa_pause,
 			jaeger_agent,
 			telemetry_worker_handle,
+			None,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
@@ -1254,6 +1261,7 @@ pub fn build_full(
 			grandpa_pause,
 			jaeger_agent,
 			telemetry_worker_handle,
+			None,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }
