@@ -1,5 +1,3 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -386,6 +384,8 @@ struct ActiveHeadData {
 	/// These are iterable in insertion order, and `Seconded` statements are always
 	/// accepted before dependent statements.
 	statements: IndexSet<StoredStatement>,
+	/// Large statements we are waiting for an peers we can fetch the payload from.
+	waiting_large_statements: HashMap<(Hash, ValidatorIndex, CandidateHash), Vec<PeerId>>,
 	/// The validators at this head.
 	validators: Vec<ValidatorId>,
 	/// The session index this head is at.
@@ -405,6 +405,7 @@ impl ActiveHeadData {
 		ActiveHeadData {
 			candidates: Default::default(),
 			statements: Default::default(),
+			waiting_large_statements: Default::default(),
 			validators,
 			session_index,
 			seconded_counts: Default::default(),
@@ -746,6 +747,9 @@ async fn handle_incoming_message<'a>(
 ) -> Option<(Hash, &'a StoredStatement)> {
 	let (relay_parent, statement) = match message {
 		protocol_v1::StatementDistributionMessage::Statement(r, s) => (r, s),
+		protocol_v1::StatementDistributionMessage::LargeStatement(parent, v_index, candidate_Hash) => {
+			ctx
+		}
 	};
 
 	if !our_view.contains(&relay_parent) {

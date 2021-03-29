@@ -288,10 +288,7 @@ pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{
-		CandidateIndex, CollatorId, Hash, Id as ParaId, SignedAvailabilityBitfield,
-		CollatorSignature,
-	};
+	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
 	use polkadot_node_primitives::{
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		SignedFullStatement,
@@ -310,7 +307,13 @@ pub mod v1 {
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
-		Statement(Hash, SignedFullStatement)
+		Statement(Hash, SignedFullStatement),
+		/// Statement with large payload (e.g. containing a runtime upgrade).
+		///
+		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
+		/// via req/response.
+		#[codec(index = 1)]
+		LargeStatement(Hash, ValidatorIndex, CandidateHash),
 	}
 
 	/// Network messages used by the approval distribution subsystem.
