@@ -34,14 +34,14 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch,
+	BabeEpoch, AvailableData, PoV, ErasureChunk
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, SessionInfo,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
 	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	CollatorId, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex,
@@ -264,10 +264,29 @@ impl NetworkBridgeMessage {
 }
 
 /// Availability Distribution Message.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
 	/// Incoming network request for an availability chunk.
-	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>)
+	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
+	/// Incoming network request for a seconded PoV.
+	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
+	/// Instruct availability distribution to fetch a remote PoV.
+	///
+	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
+	FetchPoV {
+		/// The relay parent giving the necessary context.
+		relay_parent: Hash,
+		/// Validator to fetch the PoV from.
+		from_validator: ValidatorIndex,
+		/// Candidate hash to fetch the PoV for.
+		candidate_hash: CandidateHash,
+		/// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+		pov_hash: Hash,
+		/// Sender for getting back the result of this fetch.
+		///
+		/// The sender will be canceled if the fetching failed for some reason.
+		tx: oneshot::Sender<PoV>,
+	},
 }
 
 /// Availability Recovery Message.
@@ -283,15 +302,6 @@ pub enum AvailabilityRecoveryMessage {
 	/// Incoming network request for available data.
 	#[from]
 	AvailableDataFetchingRequest(IncomingRequest<req_res_v1::AvailableDataFetchingRequest>),
-}
-
-impl AvailabilityDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::ChunkFetchingRequest(_) => None,
-		}
-	}
 }
 
 /// Bitfield distribution message.
@@ -568,33 +578,6 @@ impl BoundToRelayParent for ProvisionerMessage {
 	}
 }
 
-/// Message to the PoV Distribution subsystem.
-#[derive(Debug, derive_more::From)]
-pub enum PoVDistributionMessage {
-	/// Fetch a PoV from the network.
-	///
-	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
-	/// relay-parent hash.
-	FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoV>>),
-	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
-	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
-	/// An update from the network bridge.
-	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
-}
-
-impl PoVDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::FetchPoV(hash, _, _) => Some(*hash),
-			Self::DistributePoV(hash, _, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
-}
-
 /// Message to the Collation Generation subsystem.
 #[derive(Debug)]
 pub enum CollationGenerationMessage {
@@ -717,8 +700,6 @@ pub enum AllMessages {
 	/// Message for the Provisioner subsystem.
 	#[skip]
 	Provisioner(ProvisionerMessage),
-	/// Message for the PoV Distribution subsystem.
-	PoVDistribution(PoVDistributionMessage),
 	/// Message for the Runtime API subsystem.
 	#[skip]
 	RuntimeApi(RuntimeApiMessage),
@@ -741,6 +722,28 @@ pub enum AllMessages {
 	GossipSupport(GossipSupportMessage),
 }
 
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		Self::PoVFetchingRequest(req)
+	}
+}
+impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
+		Self::ChunkFetchingRequest(req)
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		Self::CollationFetchingRequest(req)
+	}
+}
+
+
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
 impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
 		From::<AvailabilityDistributionMessage>::from(From::from(req))
@@ -749,11 +752,6 @@ impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AllMessages {
 impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
 		From::<CollatorProtocolMessage>::from(From::from(req))
-	}
-}
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		Self::CollationFetchingRequest(req)
 	}
 }
 impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {

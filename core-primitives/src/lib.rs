@@ -72,9 +72,9 @@ impl std::fmt::Display for CandidateHash {
 }
 
 impl sp_std::fmt::Debug for CandidateHash {
-    fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
-        write!(f, "{:?}", self.0)
-    }
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		write!(f, "{:?}", self.0)
+	}
 }
 
 /// Index of a transaction in the relay chain. 32-bit should be plenty.

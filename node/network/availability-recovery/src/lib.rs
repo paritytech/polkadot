@@ -26,10 +26,11 @@ use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, CandidateReceipt, CandidateHash,
-	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
-	SessionInfo, SessionIndex, BlakeTwo256, HashT, GroupIndex,
+	AuthorityDiscoveryId, CandidateReceipt, CandidateHash,
+	Hash, ValidatorId, ValidatorIndex,
+	SessionInfo, SessionIndex, BlakeTwo256, HashT, GroupIndex, BlockNumber,
 };
+use polkadot_node_primitives::{ErasureChunk, AvailableData};
 use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
 	OverseerSignal, ActiveLeavesUpdate,
@@ -473,7 +474,7 @@ struct State {
 	interactions: HashMap<CandidateHash, InteractionHandle>,
 
 	/// A recent block hash for which state should be available.
-	live_block_hash: Hash,
+	live_block: (BlockNumber, Hash),
 
 	/// interaction communication. This is cloned and given to interactions that are spun up.
 	from_interaction_tx: mpsc::Sender<FromInteraction>,
@@ -491,7 +492,7 @@ impl Default for State {
 
 		Self {
 			interactions: HashMap::new(),
-			live_block_hash: Hash::default(),
+			live_block: (0, Hash::default()),
 			from_interaction_tx,
 			from_interaction_rx,
 			availability_lru: LruCache::new(LRU_SIZE),
@@ -521,9 +522,11 @@ async fn handle_signal(
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
-			// if activated is non-empty, set state.live_block_hash to the first block in Activated.
-			if let Some(hash) = activated.get(0) {
-				state.live_block_hash = hash.0;
+			// if activated is non-empty, set state.live_block to the highest block in `activated`
+			for activated in activated {
+				if activated.number > state.live_block.0 {
+					state.live_block = (activated.number, activated.hash)
+				}
 			}
 
 			Ok(false)
@@ -630,7 +633,7 @@ async fn handle_recover(
 
 	let _span = span.child("not-cached");
 	let session_info = request_session_info_ctx(
-		state.live_block_hash,
+		state.live_block.1,
 		session_index,
 		ctx,
 	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
@@ -651,7 +654,7 @@ async fn handle_recover(
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
-				"SessionInfo is `None` at {}", state.live_block_hash,
+				"SessionInfo is `None` at {:?}", state.live_block,
 			);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
