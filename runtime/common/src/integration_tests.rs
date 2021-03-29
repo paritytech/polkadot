@@ -360,7 +360,7 @@ fn basic_end_to_end_works() {
 			910, // Amount
 		));
 
-		// User 2 will be a contribute to crowdfund for parachain 2
+		// User 2 will be a contribute to crowdloan for parachain 2
 		Balances::make_free_balance_be(&2, 1_000);
 		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920, None));
 
@@ -387,6 +387,10 @@ fn basic_end_to_end_works() {
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
 			vec![None, None, None, None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
 		);
+
+		// Should not be able to contribute to a winning crowdloan
+		Balances::make_free_balance_be(&3, 1_000);
+		assert_noop!(Crowdloan::contribute(Origin::signed(3), ParaId::from(2), 10, None), CrowdloanError::<Test>::BidOrLeaseActive);
 
 		// New leases will start on block 400
 		let lease_start_block = 400;
@@ -616,7 +620,7 @@ fn competing_bids() {
 					n * 900, // Amount
 				));
 			} else {
-				// User 20 will be a contribute to crowdfund for parachain 2
+				// User 20 will be a contribute to crowdloan for parachain 2
 				assert_ok!(Crowdloan::contribute(
 					Origin::signed(n * 10),
 					ParaId::from(para),
