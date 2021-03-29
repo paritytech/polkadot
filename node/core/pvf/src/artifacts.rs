@@ -194,6 +194,10 @@ impl Artifacts {
 			}
 		}
 
+		for artifact in &to_remove {
+			self.artifacts.remove(artifact);
+		}
+
 		to_remove
 	}
 }

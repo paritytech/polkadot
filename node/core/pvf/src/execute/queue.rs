@@ -22,7 +22,7 @@ use crate::{
 	LOG_TARGET, InvalidCandidate, ValidationError,
 };
 use super::worker::Outcome;
-use std::{collections::VecDeque, fmt, task::Poll};
+use std::{collections::VecDeque, fmt};
 use futures::{
 	Future, FutureExt,
 	channel::mpsc,

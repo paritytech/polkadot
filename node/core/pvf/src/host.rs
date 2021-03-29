@@ -761,6 +761,24 @@ mod tests {
 			)
 			.await
 		}
+
+		async fn poll_ensure_to_sweeper_is_empty(&mut self) {
+			use futures_timer::Delay;
+
+			let to_sweeper_rx = &mut self.to_sweeper_rx;
+			run_until(
+				&mut self.run,
+				async {
+					futures::select! {
+						_ = Delay::new(Duration::from_millis(500)).fuse() => (),
+						msg = to_sweeper_rx.next().fuse() => {
+							panic!("the sweeper supposed to be empty, but received: {:?}", msg)
+						}
+					}
+				}.boxed(),
+			)
+			.await
+		}
 	}
 
 	async fn run_until<R>(
@@ -813,8 +831,7 @@ mod tests {
 		let host = test.host_handle();
 
 		host.heads_up(vec![Pvf::from_discriminator(1)])
-			.now_or_never()
-			.unwrap()
+			.await
 			.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
@@ -826,6 +843,13 @@ mod tests {
 			.boxed(),
 		)
 		.await;
+
+		// Extend TTL for the first artifact and make sure we don't receive another file removal
+		// request.
+		host.heads_up(vec![Pvf::from_discriminator(1)])
+			.await
+			.unwrap();
+		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
 	#[async_std::test]
