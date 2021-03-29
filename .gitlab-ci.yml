@@ -14,6 +14,7 @@ stages:
   - build
   - publish
   - deploy
+  - verify
 
 image:                             paritytech/ci-linux:production
 
@@ -413,11 +414,7 @@ deploy-polkasync-kusama:
 
 trigger-simnet:
   stage:                           deploy
-  rules:
-  # no need running it on tags and rococo
-  #   - if: $CI_PIPELINE_SOURCE == "schedule"
-  #   - if: $CI_COMMIT_REF_NAME == "master"
-  #   - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  # DAG from `build-adder-collator` job
   needs:
     - job:                         publish-real-overseer-image
     - job:                         publish-adder-collator-image
@@ -434,3 +431,13 @@ trigger-simnet:
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
+
+trigger-fail-guard:
+  stage:                           verify
+  needs:
+    - job:                         trigger-downstream
+  when:                            on_failure
+  script:
+    - echo "This is a friend, he's a bit off, he will live with us until
+            https://gitlab.com/gitlab-org/gitlab/-/issues/326137 gets fixed."
+    - exit 1
