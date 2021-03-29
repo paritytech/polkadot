@@ -183,8 +183,8 @@ impl Queue {
 			cache_path,
 			spawn_inflight: 0,
 			limits: Limits {
-				soft_capacity,
 				hard_capacity,
+				soft_capacity,
 			},
 			jobs: slotmap::SlotMap::with_key(),
 			unscheduled: Unscheduled::default(),

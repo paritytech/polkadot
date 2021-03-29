@@ -73,7 +73,7 @@ impl ValidationHost {
 				result_tx,
 			})
 			.await
-			.map_err(|_| format!("the inner loop hung up"))
+			.map_err(|_| "the inner loop hung up".to_string())
 	}
 
 	/// Sends a signal to the validation host requesting to prepare a list of the given PVFs.
@@ -88,7 +88,7 @@ impl ValidationHost {
 			.await
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
-			.map_err(|_| format!("the inner loop hung up"))
+			.map_err(|_| "the inner loop hung up".to_string())
 	}
 }
 
@@ -480,7 +480,7 @@ async fn handle_heads_up(
 				ArtifactState::Prepared {
 					last_time_needed, ..
 				} => {
-					*last_time_needed = now.clone();
+					*last_time_needed = now;
 				}
 				ArtifactState::Preparing => {
 					// Already preparing. We don't need to send a priority amend either because

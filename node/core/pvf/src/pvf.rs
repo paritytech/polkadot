@@ -51,6 +51,6 @@ impl Pvf {
 
 	/// Returns the artifact ID that corresponds to this PVF.
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
-		ArtifactId::new(self.code_hash.clone())
+		ArtifactId::new(self.code_hash)
 	}
 }

@@ -67,18 +67,16 @@ pub fn execute(
 
 	let mut ext = ValidationExternalities(extensions);
 
-	let result = sc_executor::with_externalities_safe(&mut ext, || {
+	sc_executor::with_externalities_safe(&mut ext, || {
 		let runtime = sc_executor_wasmtime::create_runtime(
 			sc_executor_wasmtime::CodeSupplyMode::Artifact { compiled_artifact },
 			CONFIG,
 			HostFunctions::host_functions(),
 		)?;
-		Ok(runtime
+		runtime
 			.new_instance()?
-			.call(InvokeMethod::Export("validate_block"), params)?)
-	})?;
-
-	result
+			.call(InvokeMethod::Export("validate_block"), params)
+	})?
 }
 
 type HostFunctions = sp_io::SubstrateHostFunctions;
