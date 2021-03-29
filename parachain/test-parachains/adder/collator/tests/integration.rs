@@ -60,7 +60,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 		Charlie,
 		|| {},
 		vec![alice.addr.clone(), bob.addr.clone()],
-		collator.collator_id(),
+		collator.collator_key(),
 	);
 
 	charlie.register_collator(

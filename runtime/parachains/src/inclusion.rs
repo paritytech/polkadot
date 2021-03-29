@@ -2081,7 +2081,7 @@ mod tests {
 		let thread_a = ParaId::from(3);
 
 		// The block number of the relay-parent for testing.
-        const RELAY_PARENT_NUM: BlockNumber = 4;
+		const RELAY_PARENT_NUM: BlockNumber = 4;
 
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![

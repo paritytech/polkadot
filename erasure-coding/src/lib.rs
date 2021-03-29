@@ -25,8 +25,8 @@
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
 use parity_scale_codec::{Encode, Decode};
-use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
-use primitives::v1;
+use polkadot_primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
+use polkadot_node_primitives::AvailableData;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 use thiserror::Error;
@@ -122,7 +122,7 @@ pub fn obtain_chunks_v0(n_validators: usize, data: &v0::AvailableData)
 /// Obtain erasure-coded chunks for v1 `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks_v1(n_validators: usize, data: &v1::AvailableData)
+pub fn obtain_chunks_v1(n_validators: usize, data: &AvailableData)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	obtain_chunks(n_validators, data)
@@ -169,7 +169,7 @@ pub fn reconstruct_v0<'a, I: 'a>(n_validators: usize, chunks: I)
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn reconstruct_v1<'a, I: 'a>(n_validators: usize, chunks: I)
-	-> Result<v1::AvailableData, Error>
+	-> Result<AvailableData, Error>
 	where I: IntoIterator<Item=(&'a [u8], usize)>
 {
 	reconstruct(n_validators, chunks)
@@ -368,14 +368,14 @@ impl<'a, I: Iterator<Item=&'a [u8]>> parity_scale_codec::Input for ShardInput<'a
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::v0::{AvailableData, BlockData, PoVBlock};
+	use polkadot_primitives::v0::{AvailableData, BlockData, PoVBlock};
 
 	#[test]
 	fn field_order_is_right_size() {
 		assert_eq!(MAX_VALIDATORS, 65536);
 	}
 
-    #[test]
+	#[test]
 	fn round_trip_works() {
 		let pov_block = PoVBlock {
 			block_data: BlockData((0..255).collect()),
