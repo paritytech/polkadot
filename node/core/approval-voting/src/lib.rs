@@ -1815,6 +1815,8 @@ fn issue_approval(
 	tracing::debug!(
 		target: LOG_TARGET,
 		?candidate_hash,
+		?block_hash,
+		validator_index = validator_index.0,
 		"Issuing approval vote",
 	);
 
