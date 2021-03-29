@@ -944,13 +944,24 @@ impl State {
 					}
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
-							assignments.push((IndirectAssignmentCert {
-								block_hash: block.clone(),
-								validator: validator_index.clone(),
-								cert: cert.clone(),
-							}, candidate_index.clone()));
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: cert.clone(),
+								},
+								candidate_index.clone(),
+							));
 						}
-						ApprovalState::Approved(_, signature) => {
+						ApprovalState::Approved(assignment_cert, signature) => {
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: assignment_cert.clone(),
+								},
+								candidate_index.clone(),
+							));
 							approvals.push(IndirectSignedApprovalVote {
 								block_hash: block.clone(),
 								validator: validator_index.clone(),
