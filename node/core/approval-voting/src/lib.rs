@@ -53,6 +53,7 @@ use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
 use futures::prelude::*;
+use futures::future::RemoteHandle;
 use futures::channel::{mpsc, oneshot};
 
 use std::collections::{BTreeMap, HashMap};
@@ -444,6 +445,7 @@ enum Action {
 	WriteCandidateEntry(CandidateHash, CandidateEntry),
 	LaunchApproval {
 		indirect_cert: IndirectAssignmentCert,
+		relay_block_number: BlockNumber,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
@@ -451,6 +453,8 @@ enum Action {
 	},
 	Conclude,
 }
+
+type BackgroundTaskMap = BTreeMap<BlockNumber, Vec<RemoteHandle<()>>>;
 
 async fn run<C>(
 	mut ctx: C,
@@ -472,6 +476,9 @@ async fn run<C>(
 
 	let mut wakeups = Wakeups::default();
 
+	// map block numbers to background work.
+	let mut background_tasks = BTreeMap::new();
+
 	let mut last_finalized_height: Option<BlockNumber> = None;
 	let mut background_rx = background_rx.fuse();
 
@@ -489,7 +496,7 @@ async fn run<C>(
 				)?
 			}
 			next_msg = ctx.recv().fuse() => {
-				handle_from_overseer(
+				let actions = handle_from_overseer(
 					&mut ctx,
 					&mut state,
 					&subsystem.metrics,
@@ -497,7 +504,13 @@ async fn run<C>(
 					next_msg?,
 					&mut last_finalized_height,
 					&wakeups,
-				).await?
+				).await?;
+
+				if let Some(finalized_height) = last_finalized_height {
+					cleanup_background_tasks(finalized_height, &mut background_tasks);
+				}
+
+				actions
 			}
 			background_request = background_rx.next().fuse() => {
 				if let Some(req) = background_request {
@@ -519,6 +532,7 @@ async fn run<C>(
 			&mut wakeups,
 			db_writer,
 			&background_tx,
+			&mut background_tasks,
 			actions,
 		).await? {
 			break;
@@ -535,6 +549,7 @@ async fn handle_actions(
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
+	background_tasks: &mut BackgroundTaskMap,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
 	let mut transaction = approval_db::v1::Transaction::default();
@@ -555,6 +570,7 @@ async fn handle_actions(
 			}
 			Action::LaunchApproval {
 				indirect_cert,
+				relay_block_number,
 				candidate_index,
 				session,
 				candidate,
@@ -569,7 +585,7 @@ async fn handle_actions(
 					candidate_index,
 				).into());
 
-				launch_approval(
+				let handle = launch_approval(
 					ctx,
 					background_tx.clone(),
 					session,
@@ -578,7 +594,11 @@ async fn handle_actions(
 					block_hash,
 					candidate_index as _,
 					backing_group,
-				).await?
+				).await?;
+
+				if let Some(handle) = handle {
+					background_tasks.entry(relay_block_number).or_default().push(handle);
+				}
 			}
 			Action::Conclude => { conclude = true; }
 		}
@@ -592,6 +612,19 @@ async fn handle_actions(
 	}
 
 	Ok(conclude)
+}
+
+// Clean up all background tasks which are no longer needed as they correspond to a
+// finalized block.
+fn cleanup_background_tasks(
+	current_finalized_block: BlockNumber,
+	tasks: &mut BackgroundTaskMap,
+) {
+	let after = tasks.split_off(&(current_finalized_block + 1));
+	*tasks = after;
+
+	// tasks up to the finalized block are dropped, and `RemoteHandle` cancels
+	// the task on drop.
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
@@ -1533,6 +1566,7 @@ fn process_wakeup(
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				indirect_cert,
+				relay_block_number: block_entry.block_number(),
 				candidate_index: i as _,
 				session: block_entry.session(),
 				candidate: candidate_entry.candidate_receipt().clone(),
@@ -1566,6 +1600,9 @@ fn process_wakeup(
 	Ok(actions)
 }
 
+// Launch approval work, returning an `AbortHandle` which corresponds to the background task
+// spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
+// to cancel the background work and any requests it has spawned.
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
@@ -1575,7 +1612,7 @@ async fn launch_approval(
 	block_hash: Hash,
 	candidate_index: usize,
 	backing_group: GroupIndex,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Option<RemoteHandle<()>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 	let (context_num_tx, context_num_rx) = oneshot::channel();
@@ -1610,7 +1647,7 @@ async fn launch_approval(
 				candidate.descriptor.relay_parent,
 			);
 
-			return Ok(());
+			return Ok(None);
 		}
 	};
 
@@ -1719,7 +1756,10 @@ async fn launch_approval(
 		}
 	};
 
-	ctx.spawn("approval-checks", Box::pin(background)).await
+	let (background, remote_handle) = background.remote_handle();
+	ctx.spawn("approval-checks", Box::pin(background))
+		.await
+		.map(move |()| Some(remote_handle))
 }
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
