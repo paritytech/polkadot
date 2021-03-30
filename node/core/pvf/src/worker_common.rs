@@ -30,7 +30,6 @@ use rand::Rng;
 use std::{
 	fmt, mem,
 	pin::Pin,
-	str::FromStr,
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -253,14 +252,7 @@ pub fn path_to_bytes(path: &Path) -> &[u8] {
 /// a proper utf-8 string.
 pub fn bytes_to_path(bytes: &[u8]) -> Option<PathBuf> {
 	let str_buf = std::str::from_utf8(bytes).ok()?;
-
-	match PathBuf::from_str(&str_buf) {
-		Ok(path) => Some(path),
-		Err(never) => {
-			// std::convert::Infallible doesn't allow for irrefutable patterns for some reason.
-			match never {}
-		}
-	}
+	Some(PathBuf::from(str_buf))
 }
 
 pub async fn framed_send(w: &mut (impl AsyncWrite + Unpin), buf: &[u8]) -> io::Result<()> {
