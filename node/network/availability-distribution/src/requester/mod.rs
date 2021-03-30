@@ -54,6 +54,8 @@ pub struct Requester {
 	///
 	/// We keep those around as long as a candidate is pending availability on some leaf, so we
 	/// won't fetch chunks multiple times.
+	///
+	/// We remove them on failure, so we get retries on the next block still pending availability.
 	fetches: HashMap<CandidateHash, FetchTask>,
 
 	/// Localized information about sessions we are currently interested in.
@@ -76,10 +78,7 @@ impl Requester {
 	/// by advancing the stream.
 	#[tracing::instrument(level = "trace", skip(keystore, metrics), fields(subsystem = LOG_TARGET))]
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		// All we do is forwarding messages, no need to make this big.
-		// Each sender will get one slot, see
-		// [here](https://docs.rs/futures/0.3.13/futures/channel/mpsc/fn.channel.html).
-		let (tx, rx) = mpsc::channel(0);
+		let (tx, rx) = mpsc::channel(1);
 		Requester {
 			fetches: HashMap::new(),
 			session_cache: SessionCache::new(keystore),
@@ -214,6 +213,10 @@ impl Stream for Requester {
 				}
 				Poll::Ready(Some(FromFetchTask::Concluded(None))) =>
 					continue,
+				Poll::Ready(Some(FromFetchTask::Failed(candidate_hash))) => {
+					// Make sure we retry on next block still pending availability.
+					self.fetches.remove(&candidate_hash);
+				}
 				Poll::Ready(None) =>
 					return Poll::Ready(None),
 				Poll::Pending =>

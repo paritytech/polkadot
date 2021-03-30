@@ -201,7 +201,18 @@ impl State {
 					}
 				}
 
-				self.pending_known.retain(|h, _| view.contains(h));
+				self.pending_known.retain(|h, _| {
+					let live = view.contains(h);
+					if !live {
+						tracing::trace!(
+							target: LOG_TARGET,
+							block_hash = ?h,
+							"Cleaning up stale pending messages",
+						);
+					}
+
+					live
+				});
 			}
 			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg).await;
@@ -250,6 +261,11 @@ impl State {
 				.collect::<Vec<_>>();
 
 			let to_import = pending_now_known.into_iter()
+				.inspect(|h| tracing::trace!(
+					target: LOG_TARGET,
+					block_hash = ?h,
+					"Extracting pending messages for new block"
+				))
 				.filter_map(|k| self.pending_known.remove(&k))
 				.flatten()
 				.collect::<Vec<_>>();
@@ -320,6 +336,19 @@ impl State {
 				);
 				for (assignment, claimed_index) in assignments.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
+						let fingerprint = MessageFingerprint::Assignment(
+							assignment.block_hash,
+							claimed_index,
+							assignment.validator,
+						);
+
+						tracing::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?fingerprint,
+							"Pending assignment",
+						);
+
 						pending.push((
 							peer_id.clone(),
 							PendingMessage::Assignment(assignment, claimed_index),
@@ -346,6 +375,19 @@ impl State {
 				);
 				for approval_vote in approvals.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&approval_vote.block_hash) {
+						let fingerprint = MessageFingerprint::Approval(
+							approval_vote.block_hash,
+							approval_vote.candidate_index,
+							approval_vote.validator,
+						);
+
+						tracing::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?fingerprint,
+							"Pending approval",
+						);
+
 						pending.push((
 							peer_id.clone(),
 							PendingMessage::Approval(approval_vote),
@@ -806,12 +848,19 @@ impl State {
 							(ApprovalState::Approved(cert, vote.signature.clone()), local_source),
 						);
 					}
-					_ => {
+					Some((ApprovalState::Approved(..), _)) => {
+						unreachable!(
+							"we only insert it after the fingerprint, checked the fingerprint above; qed"
+						);
+					}
+					None => {
+						// this would indicate a bug in approval-voting
 						tracing::warn!(
 							target: LOG_TARGET,
 							hash = ?block_hash,
 							?candidate_index,
-							"Expected a candidate entry with `ApprovalState::Assigned`",
+							?validator_index,
+							"Importing an approval we don't have an assignment for",
 						);
 					}
 				}
@@ -821,6 +870,7 @@ impl State {
 					target: LOG_TARGET,
 					hash = ?block_hash,
 					?candidate_index,
+					?validator_index,
 					"Expected a candidate entry on import_and_circulate_approval",
 				);
 			}
@@ -944,13 +994,24 @@ impl State {
 					}
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
-							assignments.push((IndirectAssignmentCert {
-								block_hash: block.clone(),
-								validator: validator_index.clone(),
-								cert: cert.clone(),
-							}, candidate_index.clone()));
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: cert.clone(),
+								},
+								candidate_index.clone(),
+							));
 						}
-						ApprovalState::Approved(_, signature) => {
+						ApprovalState::Approved(assignment_cert, signature) => {
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: assignment_cert.clone(),
+								},
+								candidate_index.clone(),
+							));
 							approvals.push(IndirectSignedApprovalVote {
 								block_hash: block.clone(),
 								validator: validator_index.clone(),
