@@ -71,6 +71,7 @@ pub enum Protocol {
 /// When decreasing this value, take into account that the very first request might need to open a
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
+#[allow(dead_code)]
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
