@@ -319,6 +319,15 @@ parameter_types! {
 	pub const MinerMaxIterations: u32 = 10;
 }
 
+sp_npos_elections::generate_solution_type!(
+	#[compact]
+	pub struct NposCompactSolution16::<
+		VoterIndex = u32,
+		TargetIndex = u16,
+		Accuracy = sp_runtime::PerU16,
+	>(16)
+);
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -330,7 +339,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
-	type CompactSolution = pallet_staking::CompactAssignments;
+	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = ();
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
@@ -370,6 +379,7 @@ type SlashCancelOrigin = EnsureOneOf<
 >;
 
 impl pallet_staking::Config for Runtime {
+	const MAX_NOMINATIONS: u32 = <NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -613,10 +623,6 @@ impl pallet_offences::Config for Runtime {
 impl pallet_authority_discovery::Config for Runtime {}
 
 parameter_types! {
-	pub const SessionDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS as _;
-}
-
-parameter_types! {
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
@@ -791,10 +797,11 @@ parameter_types! {
 	pub const CandidateDeposit: Balance = 10 * DOLLARS;
 	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
 	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
+	pub const RotationPeriod: BlockNumber = 7 * DAYS;
 	pub const PeriodSpend: Balance = 500 * DOLLARS;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
+	pub const MaxCandidateIntake: u32 = 1;
 	pub const SocietyModuleId: ModuleId = ModuleId(*b"py/socie");
 }
 
@@ -812,6 +819,7 @@ impl pallet_society::Config for Runtime {
 	type FounderSetOrigin = pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
+	type MaxCandidateIntake = MaxCandidateIntake;
 	type ModuleId = SocietyModuleId;
 }
 

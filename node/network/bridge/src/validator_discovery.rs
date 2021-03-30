@@ -24,7 +24,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 
-use sc_network::multiaddr::{Multiaddr, Protocol};
+use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
@@ -131,14 +131,6 @@ fn on_revoke(map: &mut HashMap<AuthorityDiscoveryId, u64>, id: AuthorityDiscover
 	None
 }
 
-pub(crate) fn peer_id_from_multiaddr(addr: &Multiaddr) -> Option<PeerId> {
-	addr.iter().last().and_then(|protocol| if let Protocol::P2p(multihash) = protocol {
-		PeerId::from_multihash(multihash).ok()
-	} else {
-		None
-	})
-}
-
 
 pub(super) struct Service<N, AD> {
 	state: PerPeerSet<StatePerPeerSet>,
@@ -197,7 +189,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 			// If not ask the authority discovery
 			if let Some(addresses) = authority_discovery_service.get_addresses_by_authority_id(id.clone()).await {
-				for peer_id in addresses.iter().filter_map(peer_id_from_multiaddr) {
+				for (peer_id, _) in addresses.into_iter().filter_map(|a| parse_addr(a).ok()) {
 					if let Some(ids) = state.connected_peers.get_mut(&peer_id) {
 						ids.insert(id.clone());
 						result.insert(id.clone(), peer_id);
@@ -367,6 +359,7 @@ mod tests {
 	use super::*;
 
 	use futures::stream::StreamExt as _;
+	use sc_network::multiaddr::Protocol;
 
 	use sp_keyring::Sr25519Keyring;
 

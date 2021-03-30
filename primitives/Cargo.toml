@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-primitives"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -27,9 +27,6 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 hex-literal = "0.3.1"
 parity-util-mem = { version = "0.9.0", default-features = false, optional = true }
 thiserror = "1.0.23"
-
-[target.'cfg(not(target_os = "unknown"))'.dependencies]
-zstd = "0.5.0"
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }

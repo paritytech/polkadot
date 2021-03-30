@@ -26,7 +26,7 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use polkadot_node_primitives::CollationGenerationConfig;
+use polkadot_node_primitives::{CollationGenerationConfig, AvailableData, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
@@ -37,9 +37,9 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, AvailableData, CandidateCommitments,
+	collator_signature_payload, CandidateCommitments,
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
-	PersistedValidationData, PoV,
+	PersistedValidationData,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -128,7 +128,7 @@ impl CollationGenerationSubsystem {
 					let metrics = self.metrics.clone();
 					if let Err(err) = handle_new_activations(
 						config.clone(),
-						activated.into_iter().map(|v| v.0),
+						activated.into_iter().map(|v| v.hash),
 						ctx,
 						metrics,
 						sender,
@@ -465,7 +465,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::{Collation, CollationResult};
+		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
@@ -473,8 +473,8 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockData, BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, PoV, ScheduledCore,
+			BlockNumber, CollatorPair, Id as ParaId,
+			PersistedValidationData, ScheduledCore,
 		};
 		use std::pin::Pin;
 

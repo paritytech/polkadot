@@ -315,6 +315,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
+	const MAX_NOMINATIONS: u32 = 16;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -458,6 +459,7 @@ impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl parachains_session_info::Config for Runtime {}

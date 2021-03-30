@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.8.3"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -66,6 +66,7 @@ polkadot-node-core-proposer = { path = "../core/proposer" }
 polkadot-overseer = { path = "../overseer" }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-node-primitives = { path = "../primitives" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
@@ -93,7 +94,6 @@ polkadot-node-core-candidate-validation = { path = "../core/candidate-validation
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
-polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
 polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
@@ -139,7 +139,6 @@ real-overseer = [
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
-	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
 ]
