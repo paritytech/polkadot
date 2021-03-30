@@ -20,7 +20,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate",  branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", bramch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -67,6 +67,7 @@ libsecp256k1 = "0.3.5"
 default = ["std"]
 no_std = []
 std = [
+	"beefy-primitives/std",
 	"bitvec/std",
 	"parity-scale-codec/std",
 	"log/std",
@@ -83,6 +84,7 @@ std = [
 	"pallet-authorship/std",
 	"pallet-balances/std",
 	"pallet-beefy/std",
+	"pallet-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",

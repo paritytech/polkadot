@@ -823,6 +823,8 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
+	// will be used to decide, how to start the BEEFY gadget
+	let beefy_chain_spec = config.chain_spec.cloned_box();
 
 	let approval_voting_config = ApprovalVotingConfig {
 		path: config.database.path()
@@ -969,11 +971,11 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	// Start BEEFY.
 	// 
-	// On Rococo we start the BEEFY gadget as a normal (non-essential) taks for now.
+	// On Rococo we start the BEEFY gadget as a normal (non-essential) task for now.
 	// Reason is that we don't want to allow a failing BEEFY gadget to bring down
-	// the whole node. On Westend redploying a new client and restarting the network
-	// is much for straightforward. 
-	if config.chain_spec.is_westend() {
+	// the whole node. On Westend redeploying a new client and restarting the network
+	// is much more straightforward. 
+	if beefy_chain_spec.is_westend() {
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"beefy-gadget",
 			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
@@ -985,7 +987,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				prometheus_registry.clone()
 			),
 		);
-	} else if config.chain_spec.is_rococo() {
+	} else if beefy_chain_spec.is_rococo() {
 		task_manager.spawn_handle().spawn_blocking(
 			"beefy-gadget",
 			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
