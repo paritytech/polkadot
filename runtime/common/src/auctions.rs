@@ -54,7 +54,7 @@ pub trait Config: frame_system::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
-	/// The number of blocks over which a single period lasts.
+	/// The type representing the leasing system.
 	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
 
 	/// The parachain registrar type.
@@ -331,6 +331,14 @@ impl<T: Config> Auctioneer for Module<T> {
 
 	fn lease_period_index() -> Self::LeasePeriod {
 		T::Leaser::lease_period_index()
+	}
+
+	fn lease_period() -> Self::LeasePeriod {
+		T::Leaser::lease_period()
+	}
+
+	fn has_won_an_auction(para: ParaId, bidder: &T::AccountId) -> bool {
+		!T::Leaser::deposit_held(para, bidder).is_zero()
 	}
 }
 

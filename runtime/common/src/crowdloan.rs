@@ -53,18 +53,9 @@
 //! contains all expected functionality. However, this is not enforced and deploy data may happen
 //! at any point, even after a slot has been successfully won or, indeed, never.
 //!
-//! Funds that are successful winners of a slot may have their slot claimed through the `onboard`
-//! call. This may only be done once and must be after the deploy data has been fixed. Successful
-//! funds remain tracked (in the `Funds` storage item and the associated child trie) as long as
-//! the parachain remains active. Once it does not, it is up to the parachain to ensure that the
-//! funds are returned to this module's fund sub-account in order that they be redistributed back to
-//! contributors. *Retirement* may be initiated by any account (using the `begin_retirement` call)
-//! once the parachain is removed from the its slot.
-//!
-//! @WARNING: For funds to be returned, it is imperative that this module's account is provided as
-//! the offboarding account for the slot. In the case that a parachain supplemented these funds in
-//! order to win a later auction, then it is the parachain's duty to ensure that the right amount of
-//! funds ultimately end up in module's fund sub-account.
+//! Successful funds remain tracked (in the `Funds` storage item and the associated child trie) as long as
+//! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
+//! returned to the crowdloan account.
 
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
@@ -78,7 +69,7 @@ use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Hash, Saturating, Zero, CheckedAdd, Bounded, Verify, IdentifyAccount,
+		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
@@ -170,7 +161,7 @@ pub enum LastContribution<BlockNumber> {
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// True if the fund is being retired. This can only be set once and only when the current
-	/// lease period is greater than the `last_slot`.
+	/// lease period is greater than the `last_period`.
 	retiring: bool,
 	/// The owning account who placed the deposit.
 	depositor: AccountId,
@@ -192,12 +183,12 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
 	last_contribution: LastContribution<BlockNumber>,
-	/// First slot in range to bid on; it's actually a LeasePeriod, but that's the same type as
-	/// BlockNumber.
-	first_slot: LeasePeriod,
-	/// Last slot in range to bid on; it's actually a LeasePeriod, but that's the same type as
-	/// BlockNumber.
-	last_slot: LeasePeriod,
+	/// First lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
+	/// as BlockNumber.
+	first_period: LeasePeriod,
+	/// Last lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
+	/// as BlockNumber.
+	last_period: LeasePeriod,
 	/// Index used for the child trie of this fund
 	trie_index: TrieIndex,
 }
@@ -254,14 +245,18 @@ decl_event! {
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
-		/// The first slot needs to at least be less than 3 `max_value`.
-		FirstSlotTooFarInFuture,
-		/// Last slot must be greater than first slot.
-		LastSlotBeforeFirstSlot,
-		/// The last slot cannot be more then 3 slots after the first slot.
-		LastSlotTooFarInFuture,
+		/// The current lease period is more than the first lease period.
+		FirstPeriodInPast,
+		/// The first lease period needs to at least be less than 3 `max_value`.
+		FirstPeriodTooFarInFuture,
+		/// Last lease period must be greater than first lease period.
+		LastPeriodBeforeFirstPeriod,
+		/// The last lease period cannot be more then 3 periods after the first period.
+		LastPeriodTooFarInFuture,
 		/// The campaign ends before the current block number. The end must be in the future.
 		CannotEndInPast,
+		/// The end date for this crowdloan is not sensible.
+		EndTooFarInFuture,
 		/// There was an overflow.
 		Overflow,
 		/// The contribution was below the minimum, `MinContribution`.
@@ -310,22 +305,25 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		/// Create a new crowdloaning campaign for a parachain slot deposit for the current auction.
+		/// Create a new crowdloaning campaign for a parachain slot with the given lease period range.
 		#[weight = T::WeightInfo::create()]
 		pub fn create(origin,
 			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
-			#[compact] first_slot: LeasePeriodOf<T>,
-			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] first_period: LeasePeriodOf<T>,
+			#[compact] last_period: LeasePeriodOf<T>,
 			#[compact] end: T::BlockNumber,
 			verifier: Option<MultiSigner>,
 		) {
 			let depositor = ensure_signed(origin)?;
 
-			ensure!(first_slot <= last_slot, Error::<T>::LastSlotBeforeFirstSlot);
-			let last_slot_limit = first_slot.checked_add(&3u32.into()).ok_or(Error::<T>::FirstSlotTooFarInFuture)?;
-			ensure!(last_slot <= last_slot_limit, Error::<T>::LastSlotTooFarInFuture);
+			ensure!(first_period <= last_period, Error::<T>::LastPeriodBeforeFirstPeriod);
+			let last_period_limit = first_period.checked_add(&3u32.into()).ok_or(Error::<T>::FirstPeriodTooFarInFuture)?;
+			ensure!(last_period <= last_period_limit, Error::<T>::LastPeriodTooFarInFuture);
 			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
+			let last_possible_win_date = (first_period.saturating_add(One::one())).saturating_mul(T::Auctioneer::lease_period());
+			ensure!(end <= last_possible_win_date, Error::<T>::EndTooFarInFuture);
+			ensure!(first_period >= T::Auctioneer::lease_period_index(), Error::<T>::FirstPeriodInPast);
 
 			// There should not be an existing fund.
 			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
@@ -349,8 +347,8 @@ decl_module! {
 				end,
 				cap,
 				last_contribution: LastContribution::Never,
-				first_slot,
-				last_slot,
+				first_period,
+				last_period,
 				trie_index,
 			});
 
@@ -379,6 +377,14 @@ decl_module! {
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < fund.end, Error::<T>::ContributionPeriodOver);
 
+			// Make sure crowdloan is in a valid lease period
+			let current_lease_period = T::Auctioneer::lease_period_index();
+			ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
+
+			// Make sure crowdloan has not already won.
+			let fund_account = Self::fund_account_id(index);
+			ensure!(!T::Auctioneer::has_won_an_auction(index, &fund_account), Error::<T>::BidOrLeaseActive);
+
 			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
 
 			if let Some(ref verifier) = fund.verifier {
@@ -388,7 +394,7 @@ decl_module! {
 				ensure!(valid, Error::<T>::InvalidSignature);
 			}
 
-			CurrencyOf::<T>::transfer(&who, &Self::fund_account_id(index), value, AllowDeath)?;
+			CurrencyOf::<T>::transfer(&who, &fund_account, value, AllowDeath)?;
 
 			let balance = old_balance.saturating_add(value);
 			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
@@ -436,7 +442,7 @@ decl_module! {
 		/// - the amount of raised funds must be bigger than the _free_ balance of the account;
 		/// - and either:
 		///   - the block number must be at least `end`; or
-		///   - the current lease period must be greater than the fund's `last_slot`.
+		///   - the current lease period must be greater than the fund's `last_period`.
 		///
 		/// In this case, the fund's retirement flag is set and its `end` is reset to the current block
 		/// number.
@@ -514,8 +520,8 @@ decl_module! {
 		pub fn edit(origin,
 			#[compact] index: ParaId,
 			#[compact] cap: BalanceOf<T>,
-			#[compact] first_slot: LeasePeriodOf<T>,
-			#[compact] last_slot: LeasePeriodOf<T>,
+			#[compact] first_period: LeasePeriodOf<T>,
+			#[compact] last_period: LeasePeriodOf<T>,
 			#[compact] end: T::BlockNumber,
 			verifier: Option<MultiSigner>,
 		) {
@@ -532,8 +538,8 @@ decl_module! {
 				end,
 				cap,
 				last_contribution: fund.last_contribution,
-				first_slot,
-				last_slot,
+				first_period,
+				last_period,
 				trie_index: fund.trie_index,
 			});
 
@@ -571,8 +577,8 @@ decl_module! {
 					let result = T::Auctioneer::place_bid(
 						Self::fund_account_id(para_id),
 						para_id,
-						fund.first_slot,
-						fund.last_slot,
+						fund.first_period,
+						fund.last_period,
 						fund.raised,
 					);
 
@@ -630,11 +636,11 @@ impl<T: Config> Module<T> {
 		fund_account: &T::AccountId,
 		fund: &FundInfo<T::AccountId, BalanceOf<T>, T::BlockNumber, LeasePeriodOf<T>>
 	) -> DispatchResult {
-			// `fund.end` can represent the end of a failed crowdsale or the beginning of retirement
-			// If the current lease period is past the first slot they are trying to bid for, then it is already too late
-			// to win the bid.
+			// `fund.end` can represent the end of a failed crowdloan or the beginning of retirement
+			// If the current lease period is past the first period they are trying to bid for, then
+			// it is already too late to win the bid.
 			let current_lease_period = T::Auctioneer::lease_period_index();
-			ensure!(now >= fund.end || current_lease_period > fund.first_slot, Error::<T>::FundNotEnded);
+			ensure!(now >= fund.end || current_lease_period > fund.first_period, Error::<T>::FundNotEnded);
 			// free balance must greater than or equal amount raised, otherwise funds are being used
 			// and a bid or lease must be active.
 			ensure!(CurrencyOf::<T>::free_balance(&fund_account) >= fund.raised, Error::<T>::BidOrLeaseActive);
@@ -678,7 +684,7 @@ mod crypto {
 mod tests {
 	use super::*;
 
-	use std::{cell::RefCell, sync::Arc};
+	use std::{cell::RefCell, sync::Arc, collections::BTreeMap};
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
@@ -716,6 +722,8 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 
+	type BlockNumber = u64;
+
 	impl frame_system::Config for Test {
 		type BaseCallFilter = ();
 		type BlockWeights = ();
@@ -724,7 +732,7 @@ mod tests {
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = u64;
@@ -760,15 +768,17 @@ mod tests {
 		height: u64,
 		bidder: u64,
 		para: ParaId,
-		first_slot: u64,
-		last_slot: u64,
+		first_period: u64,
+		last_period: u64,
 		amount: u64
 	}
 	thread_local! {
 		static AUCTION: RefCell<Option<(u64, u64)>> = RefCell::new(None);
 		static ENDING_PERIOD: RefCell<u64> = RefCell::new(5);
 		static BIDS_PLACED: RefCell<Vec<BidPlaced>> = RefCell::new(Vec::new());
+		static HAS_WON: RefCell<BTreeMap<(ParaId, u64), bool>> = RefCell::new(BTreeMap::new());
 	}
+
 	#[allow(unused)]
 	fn set_ending_period(ending_period: u64) {
 		ENDING_PERIOD.with(|p| *p.borrow_mut() = ending_period);
@@ -782,11 +792,14 @@ mod tests {
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
 	}
+	fn make_winner(para: ParaId, who: u64) {
+		HAS_WON.with(|p| p.borrow_mut().insert((para, who), true));
+	}
 
 	pub struct TestAuctioneer;
 	impl Auctioneer for TestAuctioneer {
 		type AccountId = u64;
-		type BlockNumber = u64;
+		type BlockNumber = BlockNumber;
 		type LeasePeriod = u64;
 		type Currency = Balances;
 
@@ -812,17 +825,25 @@ mod tests {
 		fn place_bid(
 			bidder: u64,
 			para: ParaId,
-			first_slot: u64,
-			last_slot: u64,
+			first_period: u64,
+			last_period: u64,
 			amount: u64
 		) -> DispatchResult {
 			let height = System::block_number();
-			BIDS_PLACED.with(|p| p.borrow_mut().push(BidPlaced { height, bidder, para, first_slot, last_slot, amount }));
+			BIDS_PLACED.with(|p| p.borrow_mut().push(BidPlaced { height, bidder, para, first_period, last_period, amount }));
 			Ok(())
 		}
 
 		fn lease_period_index() -> u64 {
-			System::block_number() / 20
+			System::block_number() / Self::lease_period()
+		}
+
+		fn lease_period() -> u64 {
+			20
+		}
+
+		fn has_won_an_auction(para: ParaId, bidder: &u64) -> bool {
+			HAS_WON.with(|p| *p.borrow().get(&(para, *bidder)).unwrap_or(&false))
 		}
 	}
 
@@ -900,7 +921,7 @@ mod tests {
 
 			assert_eq!(bids(), vec![]);
 			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
-			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_slot: 0, last_slot: 3, amount: 6 };
+			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_period: 0, last_period: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
 			assert_eq!(TestAuctioneer::is_ending(4), None);
 			assert_eq!(TestAuctioneer::is_ending(5), Some(0));
@@ -926,8 +947,8 @@ mod tests {
 				end: 9,
 				cap: 1000,
 				last_contribution: LastContribution::Never,
-				first_slot: 1,
-				last_slot: 4,
+				first_period: 1,
+				last_period: 4,
 				trie_index: 0,
 			};
 			assert_eq!(Crowdloan::funds(para), Some(fund_info));
@@ -959,8 +980,8 @@ mod tests {
 				end: 9,
 				cap: 1000,
 				last_contribution: LastContribution::Never,
-				first_slot: 1,
-				last_slot: 4,
+				first_period: 1,
+				last_period: 4,
 				trie_index: 0,
 			};
 			assert_eq!(Crowdloan::funds(ParaId::from(0)), Some(fund_info));
@@ -982,16 +1003,20 @@ mod tests {
 
 			let e = Error::<Test>::InvalidParaId;
 			assert_noop!(Crowdloan::create(Origin::signed(1), 1.into(), 1000, 1, 4, 9, None), e);
-			// Cannot create a crowdloan with bad slots
-			let e = Error::<Test>::LastSlotBeforeFirstSlot;
+			// Cannot create a crowdloan with bad lease periods
+			let e = Error::<Test>::LastPeriodBeforeFirstPeriod;
 			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 4, 1, 9, None), e);
-			let e = Error::<Test>::LastSlotTooFarInFuture;
+			let e = Error::<Test>::LastPeriodTooFarInFuture;
 			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 5, 9, None), e);
 
 			// Cannot create a crowdloan without some deposit funds
 			assert_ok!(TestRegistrar::<Test>::register(1337, ParaId::from(1234), Default::default(), Default::default()));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
 			assert_noop!(Crowdloan::create(Origin::signed(1337), ParaId::from(1234), 1000, 1, 3, 9, None), e);
+
+			// Cannot create a crowdloan with nonsense end date
+			// This crowdloan would end in lease period 2, but is bidding for some slot that starts in lease period 1.
+			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 41, None), Error::<Test>::EndTooFarInFuture);
 		});
 	}
 
@@ -1093,6 +1118,22 @@ mod tests {
 
 			// Cannot contribute to ended fund
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), para, 49, None), Error::<Test>::ContributionPeriodOver);
+
+			// If a crowdloan has already won, it should not allow contributions.
+			let para_2 = new_para();
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
+			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
+			let crowdloan_account = Crowdloan::fund_account_id(para_2);
+			make_winner(para_2, crowdloan_account);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), para_2, 49, None), Error::<Test>::BidOrLeaseActive);
+
+			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
+			// that has starting period 1.
+			let para_3 = new_para();
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 40, None));
+			run_to_block(40);
+			assert_eq!(TestAuctioneer::lease_period_index(), 2);
+			assert_noop!(Crowdloan::contribute(Origin::signed(1), para_3, 49, None), Error::<Test>::ContributionPeriodOver);
 		});
 	}
 
@@ -1101,13 +1142,13 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 
-			let first_slot = 1;
-			let last_slot = 4;
+			let first_period = 1;
+			let last_period = 4;
 
 			assert_ok!(TestAuctioneer::new_auction(5, 0));
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, first_slot, last_slot, 9, None));
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, first_period, last_period, 9, None));
 			let bidder = Crowdloan::fund_account_id(para);
 
 			// Fund crowdloan
@@ -1122,9 +1163,9 @@ mod tests {
 			run_to_block(10);
 
 			assert_eq!(bids(), vec![
-				BidPlaced { height: 5, amount: 250, bidder, para, first_slot, last_slot },
-				BidPlaced { height: 6, amount: 450, bidder, para, first_slot, last_slot },
-				BidPlaced { height: 9, amount: 700, bidder, para, first_slot, last_slot },
+				BidPlaced { height: 5, amount: 250, bidder, para, first_period, last_period },
+				BidPlaced { height: 6, amount: 450, bidder, para, first_period, last_period },
+				BidPlaced { height: 9, amount: 700, bidder, para, first_period, last_period },
 			]);
 
 			// Endings count incremented
@@ -1244,8 +1285,7 @@ mod tests {
 			// Fund crowdloans.
 			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
-			// simulate the reserving of para's funds. this actually
-			// happens in the Slots pallet.
+			// simulate the reserving of para's funds. this actually happens in the Slots pallet.
 			assert_ok!(Balances::reserve(&account_id, 150));
 
 			run_to_block(19);
@@ -1375,8 +1415,8 @@ mod tests {
 
 			// Some things change
 			assert!(old_crowdloan.cap != new_crowdloan.cap);
-			assert!(old_crowdloan.first_slot != new_crowdloan.first_slot);
-			assert!(old_crowdloan.last_slot != new_crowdloan.last_slot);
+			assert!(old_crowdloan.first_period != new_crowdloan.first_period);
+			assert!(old_crowdloan.last_period != new_crowdloan.last_period);
 		});
 	}
 
@@ -1433,8 +1473,8 @@ mod benchmarking {
 	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let lease_period_index = T::Auctioneer::lease_period_index();
-		let first_slot = lease_period_index;
-		let last_slot = lease_period_index + 3u32.into();
+		let first_period = lease_period_index;
+		let last_period = lease_period_index + 3u32.into();
 		let para_id = id.into();
 
 		let caller = account("fund_creator", id, 0);
@@ -1452,8 +1492,8 @@ mod benchmarking {
 			RawOrigin::Signed(caller).into(),
 			para_id,
 			cap,
-			first_slot,
-			last_slot,
+			first_period,
+			last_period,
 			end,
 			Some(pubkey)
 		));
@@ -1476,9 +1516,9 @@ mod benchmarking {
 		create {
 			let para_id = ParaId::from(1);
 			let cap = BalanceOf::<T>::max_value();
-			let first_slot = 0u32.into();
-			let last_slot = 3u32.into();
-			let end = T::BlockNumber::max_value();
+			let first_period = 0u32.into();
+			let last_period = 3u32.into();
+			let end = T::Auctioneer::lease_period();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
@@ -1489,7 +1529,7 @@ mod benchmarking {
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
 
-		}: _(RawOrigin::Signed(caller), para_id, cap, first_slot, last_slot, end, Some(verifier))
+		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
 			assert_last_event::<T>(RawEvent::Created(para_id).into())
 		}
@@ -1552,9 +1592,9 @@ mod benchmarking {
 		edit {
 			let para_id = ParaId::from(1);
 			let cap = BalanceOf::<T>::max_value();
-			let first_slot = 0u32.into();
-			let last_slot = 3u32.into();
-			let end = T::BlockNumber::max_value();
+			let first_period = 0u32.into();
+			let last_period = 3u32.into();
+			let end = T::Auctioneer::lease_period();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
@@ -1567,11 +1607,11 @@ mod benchmarking {
 
 			Crowdloan::<T>::create(
 				RawOrigin::Signed(caller).into(),
-				para_id, cap, first_slot, last_slot, end, Some(verifier.clone()),
+				para_id, cap, first_period, last_period, end, Some(verifier.clone()),
 			)?;
 
 			// Doesn't matter what we edit to, so use the same values.
-		}: _(RawOrigin::Root, para_id, cap, first_slot, last_slot, end, Some(verifier))
+		}: _(RawOrigin::Root, para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
 			assert_last_event::<T>(RawEvent::Edited(para_id).into())
 		}
@@ -1592,7 +1632,7 @@ mod benchmarking {
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
 		// in the beginning of the ending period, and each fund outbids the next
-		// over the same slot.
+		// over the same periods.
 		on_initialize {
 			// We test the complexity over different number of new raise
 			let n in 2 .. 100;

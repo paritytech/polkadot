@@ -63,9 +63,12 @@ pub struct TestHarness {
 /// `valid_chunks`.
 #[derive(Clone)]
 pub struct TestState {
-	// Simulated relay chain heads:
+	/// Simulated relay chain heads:
 	pub relay_chain: Vec<Hash>,
-	pub chunks: HashMap<(CandidateHash, ValidatorIndex), ErasureChunk>,
+	/// Whenever the subsystem tries to fetch an erasure chunk one item of the given vec will be
+	/// popped. So you can experiment with serving invalid chunks or no chunks on request and see
+	/// whether the subystem still succeds with its goal. 
+	pub chunks: HashMap<(CandidateHash, ValidatorIndex), Vec<Option<ErasureChunk>>>,
 	/// All chunks that are valid and should be accepted.
 	pub valid_chunks: HashSet<(CandidateHash, ValidatorIndex)>,
 	pub session_info: SessionInfo,
@@ -125,7 +128,7 @@ impl Default for TestState {
 				let mut chunks_other_groups = p_chunks.into_iter();
 				chunks_other_groups.next();
 				for (validator_index, chunk) in chunks_other_groups {
-					chunks.insert((validator_index, chunk.index), chunk);
+					chunks.insert((validator_index, chunk.index), vec![Some(chunk)]);
 				}
 			}
 			(cores, chunks)
@@ -158,7 +161,7 @@ impl TestState {
 	///
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
-	async fn run_inner(self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
+	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
@@ -217,8 +220,8 @@ impl TestState {
 					}
 				}
 				AllMessages::AvailabilityStore(AvailabilityStoreMessage::QueryChunk(candidate_hash,	validator_index, tx)) => {
-					let chunk = self.chunks.get(&(candidate_hash, validator_index));
-					tx.send(chunk.map(Clone::clone))
+					let chunk = self.chunks.get_mut(&(candidate_hash, validator_index)).map(Vec::pop).flatten().flatten();
+					tx.send(chunk)
 						.expect("Receiver is expected to be alive");
 				}
 				AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreChunk{candidate_hash,	chunk, tx, ..}) => {
