@@ -201,7 +201,7 @@ construct_runtime! {
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage},
@@ -526,6 +526,7 @@ impl parachains_inclusion::Config for Runtime {
 
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 parameter_types! {

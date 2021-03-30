@@ -161,6 +161,7 @@ impl shared::Config for Test { }
 
 impl paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 parameter_types! {

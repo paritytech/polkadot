@@ -486,6 +486,7 @@ mod tests {
 
 	impl paras::Config for Test {
 		type Origin = Origin;
+		type Event = Event;
 	}
 
 	impl configuration::Config for Test { }

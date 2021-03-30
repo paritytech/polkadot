@@ -31,8 +31,9 @@ use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex,
 };
 use sp_runtime::{traits::One, DispatchResult};
+use frame_system::ensure_root;
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure,
+	decl_storage, decl_module, decl_error, decl_event, ensure,
 	traits::Get,
 	weights::Weight,
 };
@@ -54,6 +55,8 @@ pub trait Config:
 	type Origin: From<Origin>
 		+ From<<Self as frame_system::Config>::Origin>
 		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+
+	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
 }
 
 // the two key times necessary to track for every code replacement.
@@ -332,10 +335,58 @@ decl_error! {
 	}
 }
 
+decl_event! {
+	pub enum Event {
+		/// Current code has been updated for a Para. \[para_id\]
+		CurrentCodeUpdated(ParaId),
+		/// Current head has been updated for a Para. \[para_id\]
+		CurrentHeadUpdated(ParaId),
+		/// A code upgrade has been scheduled for a Para. \[para_id\]
+		CodeUpgradeScheduled(ParaId),
+		/// A new head has been noted for a Para. \[para_id\]
+		NewHeadNoted(ParaId),
+	}
+}
+
 decl_module! {
 	/// The parachains configuration module.
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
+
+		fn deposit_event() = default;
+
+		#[weight = 0]
+		fn force_set_current_code(origin, para: ParaId, new_code: Vec<u8>) {
+			ensure_root(origin)?;
+			let validation_code = ValidationCode(new_code);
+			<Self as Store>::CurrentCode::insert(&para, validation_code);
+			Self::deposit_event(Event::CurrentCodeUpdated(para));
+		}
+
+		#[weight = 0]
+		fn force_set_current_head(origin, para: ParaId, new_head: Vec<u8>) {
+			ensure_root(origin)?;
+			let head_data = HeadData(new_head);
+			<Self as Store>::Heads::insert(&para, head_data);
+			Self::deposit_event(Event::CurrentHeadUpdated(para));
+		}
+
+		#[weight = 0]
+		fn force_schedule_code_upgrade(origin, para: ParaId, new_code: Vec<u8>, expected_at: T::BlockNumber) {
+			ensure_root(origin)?;
+			let validation_code = ValidationCode(new_code);
+			Self::schedule_code_upgrade(para, validation_code, expected_at);
+			Self::deposit_event(Event::CodeUpgradeScheduled(para));
+		}
+
+		#[weight = 0]
+		fn force_note_new_head(origin, para: ParaId, new_head: Vec<u8>) {
+			ensure_root(origin)?;
+			let now = frame_system::Pallet::<T>::block_number();
+			let head_data = HeadData(new_head);
+			Self::note_new_head(para, head_data, now);
+			Self::deposit_event(Event::NewHeadNoted(para));
+		}
 	}
 }
 
