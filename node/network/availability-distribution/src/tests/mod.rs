@@ -14,8 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::HashSet;
+
 use futures::{executor, future, Future};
 
+use polkadot_primitives::v1::CoreState;
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem_testhelpers as test_helpers;
@@ -57,6 +60,67 @@ fn test_harness<T: Future<Output = ()>>(
 #[test]
 fn check_basic() {
 	let state = TestState::default();
+	test_harness(state.keystore.clone(), move |harness| {
+		state.run(harness)
+	});
+}
+
+/// Check whether requester tries all validators in group.
+#[test]
+fn check_fetch_tries_all() {
+	let mut state = TestState::default();
+	for (_, v) in state.chunks.iter_mut() {
+		// 4 validators in group, so this should still succeed:
+		v.push(None);
+		v.push(None);
+		v.push(None);
+	}
+	test_harness(state.keystore.clone(), move |harness| {
+		state.run(harness)
+	});
+}
+
+/// Check whether requester tries all validators in group
+///
+/// Check that requester will retry the fetch on error on the next block still pending
+/// availability.
+#[test]
+fn check_fetch_retry() {
+	let mut state = TestState::default();
+	state.cores.insert(
+		state.relay_chain[2],
+		state.cores.get(&state.relay_chain[1]).unwrap().clone(),
+	);
+	// We only care about the first three blocks.
+	// 1. scheduled
+	// 2. occupied
+	// 3. still occupied
+	state.relay_chain.truncate(3);
+
+	// Get rid of unused valid chunks:
+	let valid_candidate_hashes: HashSet<_> = state.cores
+		.get(&state.relay_chain[1])
+		.iter()
+		.map(|v| v.iter())
+		.flatten()
+		.filter_map(|c| {
+			match c {
+				CoreState::Occupied(core) => Some(core.candidate_hash),
+				_ => None,
+			}
+		})
+		.collect();
+	state.valid_chunks.retain(|(ch, _)| valid_candidate_hashes.contains(ch));
+			
+
+	for (_, v) in state.chunks.iter_mut() {
+		// This should still succeed as cores are still pending availability on next block.
+		v.push(None);
+		v.push(None);
+		v.push(None);
+		v.push(None);
+		v.push(None);
+	}
 	test_harness(state.keystore.clone(), move |harness| {
 		state.run(harness)
 	});

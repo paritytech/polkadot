@@ -26,10 +26,8 @@ use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests, Recipient},
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
-	SessionIndex,
-};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore, SessionIndex};
+use polkadot_node_primitives::ErasureChunk; 
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
@@ -88,6 +86,9 @@ pub enum FromFetchTask {
 	/// In case of `None` everything was fine, in case of `Some`, some validators in the group
 	/// did not serve us our chunk as expected.
 	Concluded(Option<BadValidators>),
+
+	/// We were not able to fetch the desired chunk for the given `CandidateHash`.
+	Failed(CandidateHash),
 }
 
 /// Information a running task needs.
@@ -138,7 +139,7 @@ impl FetchTaskConfig {
 		let live_in = vec![leaf].into_iter().collect();
 
 		// Don't run tasks for our backing group:
-		if session_info.our_group == core.group_responsible {
+		if session_info.our_group == Some(core.group_responsible) {
 			return FetchTaskConfig {
 				live_in,
 				prepared_running: None,
@@ -261,7 +262,7 @@ impl RunningTask {
 	/// Try validators in backing group in order.
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
-		let mut label = FAILED;
+		let mut succeeded = false;
 		let mut count: u32 = 0;
 		let mut _span = self.span.child("fetch-task")
 			.with_chunk_index(self.request.index.0)
@@ -314,13 +315,18 @@ impl RunningTask {
 
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
-			label = SUCCEEDED;
+			succeeded = true;
 			_span.add_string_tag("success", "true");
 			break;
 		}
 		_span.add_int_tag("tries", count as _);
-		self.metrics.on_fetch(label);
-		self.conclude(bad_validators).await;
+		if succeeded {
+			self.metrics.on_fetch(SUCCEEDED);
+			self.conclude(bad_validators).await;
+		} else {
+			self.metrics.on_fetch(FAILED);
+			self.conclude_fail().await
+		}
 	}
 
 	/// Do request and return response, if successful.
@@ -430,6 +436,16 @@ impl RunningTask {
 				target: LOG_TARGET,
 				err= ?err,
 				"Sending concluded message for task failed"
+			);
+		}
+	}
+
+	async fn conclude_fail(&mut self) {
+		if let Err(err) = self.sender.send(FromFetchTask::Failed(self.request.candidate_hash)).await {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?err,
+				"Sending `Failed` message for task failed"
 			);
 		}
 	}

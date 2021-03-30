@@ -289,7 +289,7 @@ pub mod v1 {
 	use std::convert::TryFrom;
 
 	use polkadot_primitives::v1::{
-		CandidateIndex, CollatorId, CompressedPoV, Hash, Id as ParaId, SignedAvailabilityBitfield,
+		CandidateIndex, CollatorId, Hash, Id as ParaId, SignedAvailabilityBitfield,
 		CollatorSignature,
 	};
 	use polkadot_node_primitives::{
@@ -303,19 +303,6 @@ pub mod v1 {
 		/// A signed availability bitfield for a given relay-parent hash.
 		#[codec(index = 0)]
 		Bitfield(Hash, SignedAvailabilityBitfield),
-	}
-
-	/// Network messages used by the PoV distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum PoVDistributionMessage {
-		/// Notification that we are awaiting the given PoVs (by hash) against a
-		/// specific relay-parent hash.
-		#[codec(index = 0)]
-		Awaiting(Hash, Vec<Hash>),
-		/// Notification of an awaited PoV, in a given relay-parent context.
-		/// (relay_parent, pov_hash, compressed_pov)
-		#[codec(index = 1)]
-		SendPoV(Hash, Hash, CompressedPoV),
 	}
 
 	/// Network messages used by the statement distribution subsystem.
@@ -361,9 +348,6 @@ pub mod v1 {
 		/// Bitfield distribution messages
 		#[codec(index = 1)]
 		BitfieldDistribution(BitfieldDistributionMessage),
-		/// PoV Distribution messages
-		#[codec(index = 2)]
-		PoVDistribution(PoVDistributionMessage),
 		/// Statement distribution messages
 		#[codec(index = 3)]
 		StatementDistribution(StatementDistributionMessage),
@@ -373,7 +357,6 @@ pub mod v1 {
 	}
 
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
-	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
 

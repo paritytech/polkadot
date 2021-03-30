@@ -26,10 +26,11 @@ use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, CandidateReceipt, CandidateHash,
-	Hash, ErasureChunk, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CandidateReceipt, CandidateHash,
+	Hash, ValidatorId, ValidatorIndex,
 	SessionInfo, SessionIndex, BlakeTwo256, HashT, GroupIndex, BlockNumber,
 };
+use polkadot_node_primitives::{ErasureChunk, AvailableData};
 use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
 	OverseerSignal, ActiveLeavesUpdate,

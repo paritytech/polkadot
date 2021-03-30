@@ -25,10 +25,11 @@ use futures::{
 };
 
 use polkadot_primitives::v1::{
-	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
-	PersistedValidationData, PoV, Id as ParaId, CandidateHash, Header, ValidatorId,
+	CandidateDescriptor, CandidateReceipt, HeadData,
+	PersistedValidationData, Id as ParaId, CandidateHash, Header, ValidatorId,
 	CoreIndex, GroupIndex,
 };
+use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages, ActivatedLeaf,
