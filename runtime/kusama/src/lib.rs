@@ -1096,7 +1096,7 @@ impl frame_support::traits::OnRuntimeUpgrade for MigrateElectionsPhragmenToV4 {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_elections_phragmen::migrations::v4::pre_migrate::<
+		pallet_elections_phragmen::migrations::v4::pre_migration::<
 			ElectionsPhragmen,
 			_,
 		>(
