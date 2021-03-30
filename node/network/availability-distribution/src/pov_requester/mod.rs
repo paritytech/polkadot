@@ -122,7 +122,8 @@ impl PoVRequester {
 		let span = jaeger::Span::new(candidate_hash, "fetch-pov")
 			.with_validator_index(from_validator)
 			.with_relay_parent(parent)
-			.with_candidate(candidate_hash);
+			.with_candidate(candidate_hash)
+			.with_stage(jaeger::Stage::PoVDistribution);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))
