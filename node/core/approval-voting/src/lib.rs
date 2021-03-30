@@ -72,6 +72,8 @@ mod import;
 mod time;
 mod persisted_entries;
 
+use crate::approval_db::v1::Config as DatabaseConfig;
+
 #[cfg(test)]
 mod tests;
 
@@ -79,12 +81,10 @@ const APPROVAL_SESSIONS: SessionIndex = 6;
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
+#[derive(Debug, Clone)]
 pub struct Config {
-	/// The path where the approval-voting DB should be kept. This directory is completely removed when starting
-	/// the service.
-	pub path: std::path::PathBuf,
-	/// The cache size, in bytes, to spend on approval checking metadata.
-	pub cache_size: Option<usize>,
+	/// The column family in the DB where approval-voting data is stored.
+	pub col_data: u32,
 	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
 	/// divisible by 500.
 	pub slot_duration_millis: u64,
@@ -96,6 +96,7 @@ pub struct ApprovalVotingSubsystem {
 	///
 	/// We do a lot of VRF signing and need the keys to have low latency.
 	keystore: Arc<LocalKeystore>,
+	db_config: DatabaseConfig,
 	slot_duration_millis: u64,
 	db: Arc<dyn KeyValueDB>,
 	metrics: Metrics,
@@ -239,27 +240,22 @@ impl metrics::Metrics for Metrics {
 }
 
 impl ApprovalVotingSubsystem {
-	/// Create a new approval voting subsystem with the given keystore and config,
-	/// which creates a DB at the given path. This function will delete the directory
-	/// at the given path if it already exists.
+	/// Create a new approval voting subsystem with the given keystore, config, and database.
 	pub fn with_config(
 		config: Config,
+		db: Arc<dyn KeyValueDB>,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
-	) -> std::io::Result<Self> {
-		const DEFAULT_CACHE_SIZE: usize = 100 * 1024 * 1024; // 100MiB default should be fine unless finality stalls.
-
-		let db = approval_db::v1::clear_and_recreate(
-			&config.path,
-			config.cache_size.unwrap_or(DEFAULT_CACHE_SIZE),
-		)?;
-
-		Ok(ApprovalVotingSubsystem {
+	) -> Self {
+		ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
+			db_config: DatabaseConfig {
+				col_data: config.col_data,
+			},
 			metrics,
-		})
+		}
 	}
 }
 
@@ -385,15 +381,21 @@ trait DBReader {
 mod approval_db_v1_reader {
 	use super::{
 		DBReader, KeyValueDB, Hash, CandidateHash, BlockEntry, CandidateEntry,
-		Arc, SubsystemResult, SubsystemError, approval_db,
+		Arc, SubsystemResult, SubsystemError, DatabaseConfig, approval_db,
 	};
 
 	/// A DB reader that uses the approval-db V1 under the hood.
-	pub(super) struct ApprovalDBV1Reader<T: ?Sized>(Arc<T>);
+	pub(super) struct ApprovalDBV1Reader<T: ?Sized> {
+		inner: Arc<T>,
+		config: DatabaseConfig,
+	}
 
-	impl<T: ?Sized> From<Arc<T>> for ApprovalDBV1Reader<T> {
-		fn from(a: Arc<T>) -> Self {
-			ApprovalDBV1Reader(a)
+	impl<T: ?Sized> ApprovalDBV1Reader<T> {
+		pub(super) fn new(inner: Arc<T>, config: DatabaseConfig) -> Self {
+			ApprovalDBV1Reader {
+				inner,
+				config,
+			}
 		}
 	}
 
@@ -402,7 +404,7 @@ mod approval_db_v1_reader {
 			&self,
 			block_hash: &Hash,
 		) -> SubsystemResult<Option<BlockEntry>> {
-			approval_db::v1::load_block_entry(&*self.0, block_hash)
+			approval_db::v1::load_block_entry(&*self.inner, &self.config, block_hash)
 				.map(|e| e.map(Into::into))
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
@@ -411,7 +413,7 @@ mod approval_db_v1_reader {
 			&self,
 			candidate_hash: &CandidateHash,
 		) -> SubsystemResult<Option<CandidateEntry>> {
-			approval_db::v1::load_candidate_entry(&*self.0, candidate_hash)
+			approval_db::v1::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
 				.map(|e| e.map(Into::into))
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
@@ -469,7 +471,7 @@ async fn run<C>(
 		session_window: Default::default(),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
-		db: ApprovalDBV1Reader::from(subsystem.db.clone()),
+		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
 		clock,
 		assignment_criteria,
 	};
@@ -501,6 +503,7 @@ async fn run<C>(
 					&mut state,
 					&subsystem.metrics,
 					db_writer,
+					subsystem.db_config,
 					next_msg?,
 					&mut last_finalized_height,
 					&wakeups,
@@ -531,6 +534,7 @@ async fn run<C>(
 			&subsystem.metrics,
 			&mut wakeups,
 			db_writer,
+			subsystem.db_config,
 			&background_tx,
 			&mut background_tasks,
 			actions,
@@ -548,11 +552,12 @@ async fn handle_actions(
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
+	db_config: DatabaseConfig,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
 	background_tasks: &mut BackgroundTaskMap,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
-	let mut transaction = approval_db::v1::Transaction::default();
+	let mut transaction = approval_db::v1::Transaction::new(db_config);
 	let mut conclude = false;
 
 	for action in actions {
@@ -633,6 +638,7 @@ async fn handle_from_overseer(
 	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	db_writer: &dyn KeyValueDB,
+	db_config: DatabaseConfig,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &Wakeups,
@@ -648,6 +654,7 @@ async fn handle_from_overseer(
 					ctx,
 					state,
 					db_writer,
+					db_config,
 					head,
 					&*last_finalized_height,
 				).await {
@@ -700,7 +707,7 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			*last_finalized_height = Some(block_number);
 
-			approval_db::v1::canonicalize(db_writer, block_number, block_hash)
+			approval_db::v1::canonicalize(db_writer, &db_config, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			Vec::new()

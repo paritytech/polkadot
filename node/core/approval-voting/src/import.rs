@@ -53,7 +53,7 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use crate::approval_db;
+use crate::approval_db::{self, v1::Config as DatabaseConfig};
 use crate::persisted_entries::CandidateEntry;
 use crate::criteria::{AssignmentCriteria, OurAssignment};
 use crate::time::{slot_number_to_tick, Tick};
@@ -561,6 +561,7 @@ pub(crate) async fn handle_new_head(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State<impl DBReader>,
 	db_writer: &dyn KeyValueDB,
+	db_config: DatabaseConfig,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -737,7 +738,7 @@ pub(crate) async fn handle_new_head(
 				"Enacting force-approve",
 			);
 
-			approval_db::v1::force_approve(db_writer, block_hash, up_to)
+			approval_db::v1::force_approve(db_writer, db_config, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		}
 
@@ -750,6 +751,7 @@ pub(crate) async fn handle_new_head(
 
 		let candidate_entries = approval_db::v1::add_block_entry(
 			db_writer,
+			&db_config,
 			block_entry,
 			n_validators,
 			|candidate_hash| {
@@ -814,6 +816,13 @@ mod tests {
 	use std::{pin::Pin, sync::Arc};
 
 	use crate::{criteria, BlockEntry};
+
+	const DATA_COL: u32 = 0;
+	const NUM_COLUMNS: u32 = 1;
+
+	const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
+		col_data: DATA_COL,
+	};
 
 	#[derive(Default)]
 	struct TestDB {
@@ -1876,7 +1885,7 @@ mod tests {
 			}.into(),
 		);
 
-		let db_writer = kvdb_memorydb::create(1);
+		let db_writer = kvdb_memorydb::create(NUM_COLUMNS);
 
 		let test_fut = {
 			Box::pin(async move {
@@ -1884,6 +1893,7 @@ mod tests {
 					&mut ctx,
 					&mut state,
 					&db_writer,
+					TEST_CONFIG,
 					hash,
 					&Some(1),
 				).await.unwrap();
@@ -1895,7 +1905,11 @@ mod tests {
 				assert_eq!(candidates[1].1.approvals().len(), 6);
 				// the first candidate should be insta-approved
 				// the second should not
-				let entry: BlockEntry = crate::approval_db::v1::load_block_entry(&db_writer, &hash)
+				let entry: BlockEntry = crate::approval_db::v1::load_block_entry(
+					&db_writer,
+					&TEST_CONFIG,
+					&hash,
+				)
 					.unwrap()
 					.unwrap()
 					.into();
