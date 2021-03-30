@@ -9346,9 +9346,9 @@ dependencies = [
 
 [[package]]
 name = "streamunordered"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9394ee1338fee8370bee649f8a7170b3a56917903a0956467ad192dcf8699ca"
+checksum = "e68576e37c8a37f5372796df15202190349dd80e7ed6a79544c0232213e90e35"
 dependencies = [
  "futures-core",
  "futures-sink",
