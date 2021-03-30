@@ -414,7 +414,7 @@ deploy-polkasync-kusama:
 
 trigger-simnet:
   stage:                           deploy
-  # DAG from `build-adder-collator` job
+  # runs when `build-adder-collator` job does
   needs:
     - job:                         publish-real-overseer-image
     - job:                         publish-adder-collator-image
@@ -438,6 +438,8 @@ trigger-fail-guard:
     - job:                         trigger-simnet
   when:                            on_failure
   script:
-    - echo "This is a friend, he's a bit off, he will live with us until
+    - echo "This job runs and returns the failed status to Github when the 
+            `trigger-simnet` job has failed.
+            This is a workaround for a Gitlab's bug, waits here until
             https://gitlab.com/gitlab-org/gitlab/-/issues/326137 gets fixed."
     - exit 1
