@@ -45,6 +45,8 @@ frame-executive = { git = "https://github.com/paritytech/substrate", default-fea
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
 frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
