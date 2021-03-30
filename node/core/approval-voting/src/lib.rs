@@ -47,6 +47,7 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_jaeger as jaeger;
 use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
+use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
 use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
@@ -56,7 +57,7 @@ use futures::prelude::*;
 use futures::future::RemoteHandle;
 use futures::channel::{mpsc, oneshot};
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
 use std::sync::Arc;
 
@@ -90,6 +91,20 @@ pub struct Config {
 	pub slot_duration_millis: u64,
 }
 
+// The mode of the approval voting subsystem. It should start in a `Syncing` mode when it first
+// starts, and then once it's reached the head of the chain it should move into the `Active` mode.
+//
+// In `Active` mode, the node is an active participant in the approvals protocol. When syncing,
+// the node follows the new incoming blocks and finalized number, but does not yet participate.
+//
+// When transitioning from `Syncing` to `Active`, the node notifies the `ApprovalDistribution`
+// subsystem of all unfinalized blocks and the candidates included within them, as well as all
+// votes that the local node itself has cast on candidates within those blocks.
+enum Mode {
+	Active,
+	Syncing(Box<dyn SyncOracle + Send>),
+}
+
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
 	/// LocalKeystore is needed for assignment keys, but not necessarily approval keys.
@@ -99,6 +114,7 @@ pub struct ApprovalVotingSubsystem {
 	db_config: DatabaseConfig,
 	slot_duration_millis: u64,
 	db: Arc<dyn KeyValueDB>,
+	mode: Mode,
 	metrics: Metrics,
 }
 
@@ -245,6 +261,7 @@ impl ApprovalVotingSubsystem {
 		config: Config,
 		db: Arc<dyn KeyValueDB>,
 		keystore: Arc<LocalKeystore>,
+		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
 	) -> Self {
 		ApprovalVotingSubsystem {
@@ -254,6 +271,7 @@ impl ApprovalVotingSubsystem {
 			db_config: DatabaseConfig {
 				col_data: config.col_data,
 			},
+			mode: Mode::Syncing(sync_oracle),
 			metrics,
 		}
 	}
@@ -301,6 +319,7 @@ struct Wakeups {
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
+	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
 }
 
 impl Wakeups {
@@ -309,9 +328,19 @@ impl Wakeups {
 		self.wakeups.keys().next().map(|t| *t)
 	}
 
+	fn note_block(&mut self, block_hash: Hash, block_number: BlockNumber) {
+		self.block_numbers.entry(block_number).or_default().insert(block_hash);
+	}
+
 	// Schedules a wakeup at the given tick. no-op if there is already an earlier or equal wake-up
 	// for these values. replaces any later wakeup.
-	fn schedule(&mut self, block_hash: Hash, candidate_hash: CandidateHash, tick: Tick) {
+	fn schedule(
+		&mut self,
+		block_hash: Hash,
+		block_number: BlockNumber,
+		candidate_hash: CandidateHash,
+		tick: Tick,
+	) {
 		if let Some(prev) = self.reverse_wakeups.get(&(block_hash, candidate_hash)) {
 			if prev <= &tick { return }
 
@@ -327,10 +356,40 @@ impl Wakeups {
 					let _ = entry.remove_entry();
 				}
 			}
+		} else {
+			self.note_block(block_hash, block_number);
 		}
 
 		self.reverse_wakeups.insert((block_hash, candidate_hash), tick);
 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
+	}
+
+	fn prune_finalized_wakeups(&mut self, finalized_number: BlockNumber) {
+		let after = self.block_numbers.split_off(&(finalized_number + 1));
+		let pruned_blocks: HashSet<_> = std::mem::replace(&mut self.block_numbers, after)
+			.into_iter()
+			.flat_map(|(_number, hashes)| hashes)
+			.collect();
+
+		let mut pruned_wakeups = BTreeMap::new();
+		self.reverse_wakeups.retain(|&(ref h, ref c_h), tick| {
+			let live = !pruned_blocks.contains(h);
+			if !live {
+				pruned_wakeups.entry(*tick)
+					.or_insert_with(HashSet::new)
+					.insert((*h, *c_h));
+			}
+			live
+		});
+
+		for (tick, pruned) in pruned_wakeups {
+			if let Entry::Occupied(mut entry) = self.wakeups.entry(tick) {
+				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
+				if entry.get().is_empty() {
+					let _ = entry.remove();
+				}
+			}
+		}
 	}
 
 	// Get the wakeup for a particular block/candidate combo, if any.
@@ -440,6 +499,7 @@ impl<T> State<T> {
 enum Action {
 	ScheduleWakeup {
 		block_hash: Hash,
+		block_number: BlockNumber,
 		candidate_hash: CandidateHash,
 		tick: Tick,
 	},
@@ -453,6 +513,7 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
+	BecomeActive,
 	Conclude,
 }
 
@@ -460,7 +521,7 @@ type BackgroundTaskMap = BTreeMap<BlockNumber, Vec<RemoteHandle<()>>>;
 
 async fn run<C>(
 	mut ctx: C,
-	subsystem: ApprovalVotingSubsystem,
+	mut subsystem: ApprovalVotingSubsystem,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 ) -> SubsystemResult<()>
@@ -498,7 +559,7 @@ async fn run<C>(
 				)?
 			}
 			next_msg = ctx.recv().fuse() => {
-				let actions = handle_from_overseer(
+				let mut actions = handle_from_overseer(
 					&mut ctx,
 					&mut state,
 					&subsystem.metrics,
@@ -506,11 +567,18 @@ async fn run<C>(
 					subsystem.db_config,
 					next_msg?,
 					&mut last_finalized_height,
-					&wakeups,
+					&mut wakeups,
 				).await?;
 
 				if let Some(finalized_height) = last_finalized_height {
 					cleanup_background_tasks(finalized_height, &mut background_tasks);
+				}
+
+				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
+					if !oracle.is_major_syncing() {
+						// note that we're active before processing other actions.
+						actions.insert(0, Action::BecomeActive)
+					}
 				}
 
 				actions
@@ -537,6 +605,7 @@ async fn run<C>(
 			subsystem.db_config,
 			&background_tx,
 			&mut background_tasks,
+			&mut subsystem.mode,
 			actions,
 		).await? {
 			break;
@@ -555,6 +624,7 @@ async fn handle_actions(
 	db_config: DatabaseConfig,
 	background_tx: &mpsc::Sender<BackgroundRequest>,
 	background_tasks: &mut BackgroundTaskMap,
+	mode: &mut Mode,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
 	let mut transaction = approval_db::v1::Transaction::new(db_config);
@@ -564,9 +634,12 @@ async fn handle_actions(
 		match action {
 			Action::ScheduleWakeup {
 				block_hash,
+				block_number,
 				candidate_hash,
 				tick,
-			} => wakeups.schedule(block_hash, candidate_hash, tick),
+			} => {
+				wakeups.schedule(block_hash, block_number, candidate_hash, tick)
+			}
 			Action::WriteBlockEntry(block_entry) => {
 				transaction.put_block_entry(block_entry.into());
 			}
@@ -581,6 +654,9 @@ async fn handle_actions(
 				candidate,
 				backing_group,
 			} => {
+				// Don't launch approval work if the ndoe is syncing.
+				if let Mode::Syncing(_) = *mode { continue }
+
 				metrics.on_assignment_produced();
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
@@ -604,6 +680,10 @@ async fn handle_actions(
 				if let Some(handle) = handle {
 					background_tasks.entry(relay_block_number).or_default().push(handle);
 				}
+			}
+			Action::BecomeActive => {
+				// TODO [now]: update mode, send `NewBlocks` for all unfinalized blocks,
+				// and broadcast all local assignments/approvals.
 			}
 			Action::Conclude => { conclude = true; }
 		}
@@ -641,7 +721,7 @@ async fn handle_from_overseer(
 	db_config: DatabaseConfig,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
-	wakeups: &Wakeups,
+	wakeups: &mut Wakeups,
 ) -> SubsystemResult<Vec<Action>> {
 
 	let actions = match x {
@@ -692,6 +772,7 @@ async fn handle_from_overseer(
 									// and approvals which trigger rescheduling.
 									actions.push(Action::ScheduleWakeup {
 										block_hash: block_batch.block_hash,
+										block_number: block_batch.block_number,
 										candidate_hash: c_hash,
 										tick,
 									});
@@ -709,6 +790,8 @@ async fn handle_from_overseer(
 
 			approval_db::v1::canonicalize(db_writer, &db_config, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
+
+			wakeups.prune_finalized_wakeups(block_number);
 
 			Vec::new()
 		}
@@ -1003,6 +1086,7 @@ fn min_prefer_some<T: std::cmp::Ord>(
 fn schedule_wakeup_action(
 	approval_entry: &ApprovalEntry,
 	block_hash: Hash,
+	block_number: BlockNumber,
 	candidate_hash: CandidateHash,
 	block_tick: Tick,
 	required_tranches: RequiredTranches,
@@ -1012,6 +1096,7 @@ fn schedule_wakeup_action(
 		RequiredTranches::All => None,
 		RequiredTranches::Exact { next_no_show, .. } => next_no_show.map(|tick| Action::ScheduleWakeup {
 			block_hash,
+			block_number,
 			candidate_hash,
 			tick,
 		}),
@@ -1039,7 +1124,12 @@ fn schedule_wakeup_action(
 			};
 
 			min_prefer_some(next_non_empty_tranche, next_no_show)
-				.map(|tick| Action::ScheduleWakeup { block_hash, candidate_hash, tick })
+				.map(|tick| Action::ScheduleWakeup {
+					block_hash,
+					block_number,
+					candidate_hash,
+					tick,
+				})
 		}
 	};
 
@@ -1344,6 +1434,7 @@ fn check_and_apply_full_approval(
 			}
 			Some(b) => b,
 		};
+		let block_number = block_entry.block_number();
 
 		let session_info = match state.session_info(block_entry.session()) {
 			Some(s) => s,
@@ -1407,6 +1498,7 @@ fn check_and_apply_full_approval(
 		actions.extend(schedule_wakeup_action(
 			&approval_entry,
 			*block_hash,
+			block_number,
 			candidate_hash,
 			block_tick,
 			required_tranches,
@@ -1599,6 +1691,7 @@ fn process_wakeup(
 	actions.extend(schedule_wakeup_action(
 		&approval_entry,
 		relay_block,
+		block_entry.block_number(),
 		candidate_hash,
 		block_tick,
 		tranches_to_approve,

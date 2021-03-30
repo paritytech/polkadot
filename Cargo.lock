@@ -5568,6 +5568,7 @@ dependencies = [
  "schnorrkel",
  "sp-application-crypto",
  "sp-blockchain",
+ "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-core",
