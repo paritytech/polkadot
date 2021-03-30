@@ -827,3 +827,88 @@ fn import_remotely_then_locally() {
 		);
 	});
 }
+
+#[test]
+fn sends_assignments_even_when_state_is_approved() {
+	let peer_a = PeerId::random();
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let hash = Hash::repeat_byte(0xAA);
+	let peer = &peer_a;
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+
+		// new block `hash_a` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+
+		// import an assignment and approval locally.
+		let cert = fake_assignment_cert(hash, validator_index);
+		let approval = IndirectSignedApprovalVote {
+			block_hash: hash,
+			candidate_index,
+			validator: validator_index,
+			signature: Default::default(),
+		};
+
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index)
+		).await;
+
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeApproval(approval.clone()),
+		).await;
+
+		// connect the peer.
+		setup_peer_with_view(overseer, peer, view![hash]).await;
+
+		let assignments = vec![(cert.clone(), candidate_index)];
+		let approvals = vec![approval.clone()];
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+				)
+			)) => {
+				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(sent_assignments, assignments);
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+				)
+			)) => {
+				assert_eq!(peers, vec![peer.clone()]);
+				assert_eq!(sent_approvals, approvals);
+			}
+		);
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"no message should be sent",
+		);
+	});
+}

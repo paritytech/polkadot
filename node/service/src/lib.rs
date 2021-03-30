@@ -967,18 +967,37 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
-	// Start BEEFY
-	task_manager.spawn_essential_handle().spawn_blocking(
-		"beefy-gadget",
-		beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
-			client.clone(),
-			keystore_container.sync_keystore(),
-			network.clone(),
-			beefy_link,
-			network.clone(),
-			prometheus_registry.clone()
-		),
-	);
+	// Start BEEFY.
+	// 
+	// On Rococo we start the BEEFY gadget as a normal (non-essential) taks for now.
+	// Reason is that we don't want to allow a failing BEEFY gadget to bring down
+	// the whole node. On Westend redploying a new client and restarting the network
+	// is much for straightforward. 
+	if config.chain_spec.is_westend() {
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"beefy-gadget",
+			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+				client.clone(),
+				keystore_container.sync_keystore(),
+				network.clone(),
+				beefy_link,
+				network.clone(),
+				prometheus_registry.clone()
+			),
+		);
+	} else if config.chain_spec.is_rococo() {
+		task_manager.spawn_handle().spawn_blocking(
+			"beefy-gadget",
+			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+				client.clone(),
+				keystore_container.sync_keystore(),
+				network.clone(),
+				beefy_link,
+				network.clone(),
+				prometheus_registry.clone()
+			),
+		);
+	}
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.

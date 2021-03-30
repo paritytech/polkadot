@@ -409,7 +409,7 @@ mod tests {
 			move |n| {
 				for _ in 0..n {
 					let block = client.init_polkadot_block_builder().build().unwrap().block;
-					client.import(BlockOrigin::Own, block).unwrap();
+					futures::executor::block_on(client.import(BlockOrigin::Own, block)).unwrap();
 				}
 			}
 		};
