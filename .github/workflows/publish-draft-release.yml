@@ -13,12 +13,12 @@ jobs:
       matrix:
         runtime: ['polkadot', 'kusama']
     container:
-      image: paritytech/srtool:nightly-2020-10-27
+      image: paritytech/srtool:nightly-2021-03-15
       volumes:
         - ${{ github.workspace }}:/build
       env:
         PACKAGE: ${{ matrix.runtime }}-runtime
-        RUSTC_VERSION: nightly-2020-10-27
+        RUSTC_VERSION: nightly-2021-03-15
     steps:
       - uses: actions/checkout@v2
       - name: Cache target dir
@@ -126,7 +126,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
-          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_path: ./runtime/${{ matrix.runtime }}/target/srtool/release/wbuild/${{ matrix.runtime }}-runtime/${{ matrix.runtime }}_runtime.compact.wasm
           asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
           asset_content_type: application/wasm
 
