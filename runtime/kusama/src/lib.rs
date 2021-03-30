@@ -1076,21 +1076,34 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
+	(BabeEpochConfigMigrations, MigrateElectionsPhragmenToV4),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
-pub struct KillOffchainPhragmenStorageTest;
-impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorageTest {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v6::pre_migrate::<Runtime>()
+pub struct MigrateElectionsPhragmenToV4;
+impl frame_support::traits::OnRuntimeUpgrade for MigrateElectionsPhragmenToV4 {
+	fn on_runtime_upgrade() -> Weight {
+		pallet_elections_phragmen::migrations::v4::migrate::<
+			Runtime,
+			ElectionsPhragmen,
+			_,
+		>(
+			<PalletInfo as frame_support::traits::PalletInfo>::name::<ElectionsPhragmen>()
+				.unwrap_or("ElectionsPhragmen")
+		)
 	}
 
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_elections_phragmen::migrations::v4::pre_migrate::<
+			ElectionsPhragmen,
+			_,
+		>(
+			<PalletInfo as frame_support::traits::PalletInfo>::name::<ElectionsPhragmen>()
+				.unwrap_or("ElectionsPhragmen")
+		);
+		Ok(())
 	}
 }
 
