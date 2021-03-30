@@ -96,6 +96,9 @@ use polkadot_node_primitives::SpawnNamed;
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
+// The capacity of signal channels to subsystems.
+const SIGNAL_CHANNEL_CAPACITY: usize = 64;
+
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
 // Target for logs.
@@ -2629,7 +2632,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 	task_kind: TaskKind,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
+	let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
 	let ctx = OverseerSubsystemContext::new(
 		signal_rx,
 		message_rx,

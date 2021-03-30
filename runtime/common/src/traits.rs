@@ -174,6 +174,12 @@ pub trait Auctioneer {
 
 	/// Returns the current lease period.
 	fn lease_period_index() -> Self::LeasePeriod;
+
+	/// Returns the length of a lease period.
+	fn lease_period() -> Self::LeasePeriod;
+
+	/// Check if the para and user combination has won an auction in the past.
+	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
 }
 
 /// Runtime hook for when we swap a parachain and parathread.

@@ -94,7 +94,7 @@ mod tests{
 		let block_builder = client.init_polkadot_block_builder();
 		let block = block_builder.build().expect("Finalizes the block").block;
 
-		client.import(BlockOrigin::Own, block).expect("Imports the block");
+		futures::executor::block_on(client.import(BlockOrigin::Own, block)).expect("Imports the block");
 	}
 
 	#[test]
@@ -112,6 +112,6 @@ mod tests{
 
 		let block = block_builder.build().expect("Finalizes the block").block;
 
-		client.import(BlockOrigin::Own, block).expect("Imports the block");
+		futures::executor::block_on(client.import(BlockOrigin::Own, block)).expect("Imports the block");
 	}
 }
