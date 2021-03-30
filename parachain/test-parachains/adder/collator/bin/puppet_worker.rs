@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![cfg(feature = "real-overseer")]
-
+#[cfg(feature = "real-overseer")]
 polkadot_node_core_pvf::decl_puppet_worker_main!();
+
+#[cfg(not(feature = "real-overseer"))]
+fn main() {}
