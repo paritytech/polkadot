@@ -80,7 +80,7 @@ const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 /// Minimum bandwidth we expect for validators - 1Gbit/s, so approximately 100Meg bytes:
 const MIN_BANDWIDTH_BYTES: u64  = 100 * 1024 * 1024;
 /// Timeout for PoV like data, 4 times what it should take, assuming we can fully utilize the
-/// bandwidth. This amounts two two seconds right now.
+/// bandwidth. This amounts to two seconds right now.
 const POV_REQUEST_TIMEOUT_CONNECTED: Duration =
 	Duration::from_millis(4 * 1000 * (MAX_COMPRESSED_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
 
