@@ -17,7 +17,7 @@
 //! # Parachain Crowdloaning module
 //!
 //! The point of this module is to allow parachain projects to offer the ability to help fund a
-//! deposit for the parachain. When the parachain is retired, the funds may be returned.
+//! deposit for the parachain. When the crowdloan has ended, the funds may be returned.
 //!
 //! Contributing funds is permissionless. Each fund has a child-trie which stores all
 //! contributors account IDs together with the amount they contributed; the root of this can then be
@@ -32,13 +32,13 @@
 //! the main trie in tracking a fund and this accounts for that.
 //!
 //! Funds may be set up during an auction period; their closing time is fixed at creation (as a
-//! block number) and if the fund is not successful by the closing time, then it will become *retired*.
+//! block number) and if the fund is not successful by the closing time, then it can be dissolved.
 //! Funds may span multiple auctions, and even auctions that sell differing periods. However, for a
 //! fund to be active in bidding for an auction, it *must* have had *at least one bid* since the end
 //! of the last auction. Until a fund takes a further bid following the end of an auction, then it
 //! will be inactive.
 //!
-//! Contributors may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
+//! Contributors may get a refund of their contributions from completed funds. After a period (`RetirementPeriod`)
 //! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
 //! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
 //! into the treasury).
@@ -120,10 +120,6 @@ pub trait Config: frame_system::Config {
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
 
-	/// The period of time (in blocks) after an unsuccessful crowdloan ending when
-	/// contributors are able to withdraw their funds. After this period, their funds are lost.
-	type RetirementPeriod: Get<Self::BlockNumber>;
-
 	/// What to do with funds that were not withdrawn.
 	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
@@ -160,9 +156,6 @@ pub enum LastContribution<BlockNumber> {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
-	/// True if the fund is being retired. This can only be set once and only when the current
-	/// lease period is greater than the `last_period`.
-	retiring: bool,
 	/// The owning account who placed the deposit.
 	depositor: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
@@ -223,8 +216,6 @@ decl_event! {
 		Contributed(AccountId, ParaId, Balance),
 		/// Withdrew full balance of a contributor. [who, fund_index, amount]
 		Withdrew(AccountId, ParaId, Balance),
-		/// Fund is placed into retirement. [fund_index]
-		Retiring(ParaId),
 		/// Fund is partially dissolved, i.e. there are some left over child
 		/// keys that still need to be killed. [fund_index]
 		PartiallyDissolved(ParaId),
@@ -277,8 +268,6 @@ decl_error! {
 		BidOrLeaseActive,
 		/// Funds have not yet been returned.
 		FundsNotReturned,
-		/// Fund has not yet retired.
-		FundNotRetired,
 		/// The crowdloan has not yet ended.
 		FundNotEnded,
 		/// There are no contributions stored in this crowdloan.
@@ -301,7 +290,6 @@ decl_module! {
 		const ModuleId: ModuleId = T::ModuleId::get();
 		const MinContribution: BalanceOf<T> = T::MinContribution::get();
 		const RemoveKeysLimit: u32 = T::RemoveKeysLimit::get();
-		const RetirementPeriod: T::BlockNumber = T::RetirementPeriod::get();
 
 		fn deposit_event() = default;
 
@@ -358,8 +346,7 @@ decl_module! {
 		}
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
-		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
-		/// slot is unable to be purchased and the timeout expires.
+		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
 		#[weight = T::WeightInfo::contribute()]
 		pub fn contribute(origin,
 			#[compact] index: ParaId,
@@ -465,14 +452,41 @@ decl_module! {
 
 			Self::contribution_kill(fund.trie_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
-			if !fund.retiring {
-				fund.retiring = true;
-				fund.end = now;
-			}
 
 			Funds::<T>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
+		}
+
+		/// Automatically refund contributors of an ended crowdloan.
+		/// Due to weight restrictions, this function may need to be called multiple
+		/// times to fully refund all users. We will refund `RemoveKeysLimit` users at a time.
+		///
+		/// Origin must be signed, but can come from anyone.
+		#[weight = 0]
+		pub fn refund(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
+			ensure_signed(origin)?;
+
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+			let now = frame_system::Pallet::<T>::block_number();
+			let fund_account = Self::fund_account_id(index);
+			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
+
+			let mut refund_count = 0u32;
+			// Try killing the crowdloan child trie
+			for (who, (balance, _)) child(fund.trie_index).iter(){
+				if refund_count >= T::RemoveKeysLimit::get() { break; }
+				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+				Self::contribution_kill(fund.trie_index, &who);
+				fund.raised = fund.raised.saturating_sub(balance);
+				refund_count += 1;
+			}
+
+			// Save the changes.
+			Funds::<T>::insert(index, &fund);
+
+			// TODO: Refund for unused refund count.
+			Ok(().into())
 		}
 
 		/// Remove a fund after the retirement period has ended and all funds have been returned.
@@ -484,13 +498,15 @@ decl_module! {
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let dissolution = fund.end.saturating_add(T::RetirementPeriod::get());
 
-			let can_dissolve = (fund.retiring && now >= dissolution) ||
-				(fund.raised.is_zero() && who == fund.depositor);
+			// Only allow dissolution when the raised funds goes to zero,
+			// and the caller is the fund creator or we are past the end date.
+			let can_dissolve = fund.raised.is_zero()
+				&& (who == fund.depositor || now >= fund.end);
 			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
-			// Try killing the crowdloan child trie
+			// Try killing anything left in the crowdloan child trie,
+			// although it should be empty since `fund.raised.is_zero()`
 			match Self::crowdloan_kill(fund.trie_index) {
 				child::KillChildStorageResult::AllRemoved(num_removed) => {
 					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
@@ -850,7 +866,6 @@ mod tests {
 	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
-		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
 		pub const RemoveKeysLimit: u32 = 10;
 		pub const MaxMemoLength: u8 = 32;
@@ -860,7 +875,6 @@ mod tests {
 		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
-		type RetirementPeriod = RetirementPeriod;
 		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
