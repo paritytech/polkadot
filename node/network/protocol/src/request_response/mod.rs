@@ -77,12 +77,13 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 /// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
-/// Minimum bandwidth we expect for validators - 1Gbit/s, so approximately 100Meg bytes:
-const MIN_BANDWIDTH_BYTES: u64  = 100 * 1024 * 1024;
-/// Timeout for PoV like data, 4 times what it should take, assuming we can fully utilize the
+/// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
+/// 50Meg bytes per second:
+const MIN_BANDWIDTH_BYTES: u64  = 50 * 1024 * 1024;
+/// Timeout for PoV like data, 2 times what it should take, assuming we can fully utilize the
 /// bandwidth. This amounts to two seconds right now.
 const POV_REQUEST_TIMEOUT_CONNECTED: Duration =
-	Duration::from_millis(4 * 1000 * (MAX_COMPRESSED_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
+	Duration::from_millis(2 * 1000 * (MAX_COMPRESSED_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
