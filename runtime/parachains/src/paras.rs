@@ -345,6 +345,8 @@ decl_event! {
 		CodeUpgradeScheduled(ParaId),
 		/// A new head has been noted for a Para. \[para_id\]
 		NewHeadNoted(ParaId),
+		/// A para has been queued to execute pending actions. \[para_id\]
+		ActionQueued(ParaId, SessionIndex),
 	}
 }
 
@@ -355,41 +357,56 @@ decl_module! {
 
 		fn deposit_event() = default;
 
+		/// Set the storage for the parachain validation code immediately.
 		#[weight = 0]
-		fn force_set_current_code(origin, para: ParaId, new_code: Vec<u8>) {
+		fn force_set_current_code(origin, para: ParaId, new_code: ValidationCode) {
 			ensure_root(origin)?;
-			let validation_code = ValidationCode(new_code);
 			let prior_code = <Self as Store>::CurrentCode::get(&para).unwrap_or_default();
-			<Self as Store>::CurrentCode::insert(&para, validation_code);
+			<Self as Store>::CurrentCode::insert(&para, new_code);
 
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_past_code(para, now, now, prior_code);
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
 		}
 
+		/// Set the storage for the current parachain head data immediately.
 		#[weight = 0]
-		fn force_set_current_head(origin, para: ParaId, new_head: Vec<u8>) {
+		fn force_set_current_head(origin, para: ParaId, new_head: HeadData) {
 			ensure_root(origin)?;
-			let head_data = HeadData(new_head);
-			<Self as Store>::Heads::insert(&para, head_data);
+			<Self as Store>::Heads::insert(&para, new_head);
 			Self::deposit_event(Event::CurrentHeadUpdated(para));
 		}
 
+		/// Schedule a code upgrade for block `expected_at`.
 		#[weight = 0]
-		fn force_schedule_code_upgrade(origin, para: ParaId, new_code: Vec<u8>, expected_at: T::BlockNumber) {
+		fn force_schedule_code_upgrade(origin, para: ParaId, new_code: ValidationCode, expected_at: T::BlockNumber) {
 			ensure_root(origin)?;
-			let validation_code = ValidationCode(new_code);
-			Self::schedule_code_upgrade(para, validation_code, expected_at);
+			Self::schedule_code_upgrade(para, new_code, expected_at);
 			Self::deposit_event(Event::CodeUpgradeScheduled(para));
 		}
 
+		/// Note a new block head for para within the context of the current block.
 		#[weight = 0]
-		fn force_note_new_head(origin, para: ParaId, new_head: Vec<u8>) {
+		fn force_note_new_head(origin, para: ParaId, new_head: HeadData) {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let head_data = HeadData(new_head);
-			Self::note_new_head(para, head_data, now);
+			Self::note_new_head(para, new_head, now);
 			Self::deposit_event(Event::NewHeadNoted(para));
+		}
+
+		/// Put a parachain directly into the next session's action queue.
+		/// We can't queue it any sooner than this without going into the
+		/// initializer...
+		#[weight = 0]
+		fn force_queue_action(origin, para: ParaId) {
+			ensure_root(origin)?;
+			let next_session = shared::Module::<T>::session_index().saturating_add(One::one());
+			ActionsQueue::mutate(next_session, |v| {
+				if let Err(i) = v.binary_search(&para) {
+					v.insert(i, para);
+				}
+			});
+			Self::deposit_event(Event::ActionQueued(para, next_session));
 		}
 	}
 }

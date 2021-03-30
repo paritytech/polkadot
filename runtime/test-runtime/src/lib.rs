@@ -523,7 +523,7 @@ construct_runtime! {
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Origin},
+		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
