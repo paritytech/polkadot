@@ -36,7 +36,7 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use polkadot_primitives::v1::MAX_COMPRESSED_POV_SIZE;
+use polkadot_node_primitives::MAX_COMPRESSED_POV_SIZE;
 use strum::EnumIter;
 
 pub use sc_network::config as network;
@@ -60,6 +60,8 @@ pub enum Protocol {
 	ChunkFetching,
 	/// Protocol for fetching collations from collators.
 	CollationFetching,
+	/// Protocol for fetching seconded PoVs from validators of the same group.
+	PoVFetching,
 	/// Protocol for fetching available data.
 	AvailableDataFetching,
 }
@@ -107,11 +109,18 @@ impl Protocol {
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
+			Protocol::PoVFetching => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				inbound_queue: Some(tx),
+			},
 			Protocol::AvailableDataFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
-				max_response_size: 30_000_000,
+				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
 				request_timeout: DEFAULT_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
@@ -130,6 +139,8 @@ impl Protocol {
 			Protocol::ChunkFetching => 100,
 			// 10 seems reasonable, considering group sizes of max 10 validators.
 			Protocol::CollationFetching => 10,
+			// 10 seems reasonable, considering group sizes of max 10 validators.
+			Protocol::PoVFetching => 10,
 			// Validators are constantly self-selecting to request available data which may lead
 			// to constant load and occasional burstiness.
 			Protocol::AvailableDataFetching => 100,
@@ -146,6 +157,7 @@ impl Protocol {
 		match self {
 			Protocol::ChunkFetching => "/polkadot/req_chunk/1",
 			Protocol::CollationFetching => "/polkadot/req_collation/1",
+			Protocol::PoVFetching => "/polkadot/req_pov/1",
 			Protocol::AvailableDataFetching => "/polkadot/req_available_data/1",
 		}
 	}

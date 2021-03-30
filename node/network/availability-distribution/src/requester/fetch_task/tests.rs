@@ -26,7 +26,8 @@ use futures::task::{Poll, Context, noop_waker};
 use sc_network as network;
 use sp_keyring::Sr25519Keyring;
 
-use polkadot_primitives::v1::{BlockData, CandidateHash, PoV, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
+use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_network_protocol::request_response::v1;
 use polkadot_node_network_protocol::request_response::Recipient;
 use polkadot_subsystem::messages::AllMessages;
@@ -227,6 +228,7 @@ impl TestRun {
 				);
 				match msg {
 					FromFetchTask::Concluded(_) => break,
+					FromFetchTask::Failed(_) => break,
 					FromFetchTask::Message(msg) =>
 						end_ok = self.handle_message(msg).await,
 				}

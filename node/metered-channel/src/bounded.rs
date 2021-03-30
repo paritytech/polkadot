@@ -25,10 +25,9 @@ use super::Meter;
 
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
-pub fn channel<T>(capacity: usize, name: &'static str) -> (MeteredSender<T>, MeteredReceiver<T>) {
+pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
 	let (tx, rx) = mpsc::channel(capacity);
-	let mut shared_meter = Meter::default();
-	shared_meter.name = name;
+	let shared_meter = Meter::default();
 	let tx = MeteredSender { meter: shared_meter.clone(), inner: tx };
 	let rx = MeteredReceiver { meter: shared_meter, inner: rx };
 	(tx, rx)
@@ -92,9 +91,9 @@ impl<T> MeteredReceiver<T> {
 }
 
 impl<T> futures::stream::FusedStream for MeteredReceiver<T> {
-    fn is_terminated(&self) -> bool {
-        self.inner.is_terminated()
-    }
+	fn is_terminated(&self) -> bool {
+		self.inner.is_terminated()
+	}
 }
 
 
@@ -156,32 +155,32 @@ impl<T> MeteredSender<T> {
 }
 
 impl<T> futures::sink::Sink<T> for MeteredSender<T> {
-    type Error = mpsc::SendError;
+	type Error = mpsc::SendError;
 
-    fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-        Pin::new(&mut self.inner).start_send(item)
-    }
+	fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
+		Pin::new(&mut self.inner).start_send(item)
+	}
 
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Pin::new(&mut self.inner).poll_ready(cx)
-    }
+	fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		Pin::new(&mut self.inner).poll_ready(cx)
+	}
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match Pin::new(&mut self.inner).poll_close(cx) {
-            val @ Poll::Ready(_)=> {
-                val
-            }
-            other => other,
-        }
-    }
+	fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		match Pin::new(&mut self.inner).poll_close(cx) {
+			val @ Poll::Ready(_)=> {
+				val
+			}
+			other => other,
+		}
+	}
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        match Pin::new(&mut self.inner).poll_flush(cx) {
-            val @ Poll::Ready(_)=> {
-                self.meter.note_sent();
-                val
-            }
-            other => other,
-        }
-    }
+	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+		match Pin::new(&mut self.inner).poll_flush(cx) {
+			val @ Poll::Ready(_)=> {
+				self.meter.note_sent();
+				val
+			}
+			other => other,
+		}
+	}
 }

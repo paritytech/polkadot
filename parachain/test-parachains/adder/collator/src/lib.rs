@@ -18,7 +18,8 @@
 
 use futures_timer::Delay;
 use polkadot_node_primitives::{Collation, CollatorFn, CollationResult, Statement, SignedFullStatement};
-use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV, ValidationCode};
+use polkadot_primitives::v1::{CollatorId, CollatorPair, ValidationCode};
+use polkadot_node_primitives::PoV;
 use parity_scale_codec::{Encode, Decode};
 use sp_core::{Pair, traits::SpawnNamed};
 use std::{

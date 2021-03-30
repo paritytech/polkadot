@@ -459,6 +459,7 @@ impl parachains_inclusion_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl parachains_session_info::Config for Runtime {}
