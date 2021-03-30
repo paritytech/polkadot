@@ -1487,6 +1487,7 @@ mod test_fees {
 
 	#[test]
 	fn nominator_limit() {
+		use pallet_election_provider_multi_phase::WeightInfo;
 		// starting point of the nominators.
 		let all_voters: u32 = 10_000;
 
