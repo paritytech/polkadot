@@ -13,7 +13,7 @@ jobs:
       matrix:
         runtime: ['polkadot', 'kusama']
     container:
-      image: paritytech/srtool:nightly-2021-03-15
+      image: chevdor/srtool:nightly-2021-03-15
       volumes:
         - ${{ github.workspace }}:/build
       env:
