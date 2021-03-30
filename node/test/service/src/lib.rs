@@ -53,7 +53,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{sync::Arc, env, path::PathBuf};
+use std::{sync::Arc, path::PathBuf};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -73,6 +73,7 @@ pub use polkadot_service::FullBackend;
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
+	worker_program_path: Option<PathBuf>,
 ) -> Result<
 	NewFull<Arc<Client>>,
 	Error,
@@ -83,30 +84,8 @@ pub fn new_full(
 		None,
 		None,
 		None,
-		Some(guess_puppet_worker_path()),
+		worker_program_path,
 	)
-}
-
-fn guess_puppet_worker_path() -> PathBuf {
-	// This is wholly inspired by `cargo`
-	//
-	// https://github.com/rust-lang/cargo/blob/a4f0988ef87c1dedbeef3d39a85f3caf9241d6e7/crates/cargo-test-support/src/lib.rs#L429-L429
-	let bin_path = env::var_os("CARGO_BIN_PATH")
-        .map(PathBuf::from)
-        .or_else(|| {
-            env::current_exe().ok().map(|mut path| {
-                path.pop();
-                if path.ends_with("deps") {
-                    path.pop();
-                }
-                path
-            })
-        })
-        .unwrap_or_else(|| panic!("CARGO_BIN_PATH wasn't set. Cannot continue running test"));
-
-	let puppet_worker_path = bin_path.join(format!("puppet_worker{}", env::consts::EXE_SUFFIX));
-	assert!(puppet_worker_path.exists());
-	puppet_worker_path
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
@@ -236,11 +215,12 @@ pub fn run_validator_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
+	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::No).expect("could not create Polkadot test service");
+		new_full(config, IsCollator::No, worker_program_path).expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
@@ -277,7 +257,7 @@ pub fn run_collator_node(
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::Yes(collator_id)).expect("could not create Polkadot test service");
+		new_full(config, IsCollator::Yes(collator_id), None).expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
