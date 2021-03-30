@@ -18,7 +18,7 @@
 //! blocks of the adder parachain.
 
 #[cfg(feature = "real-overseer")]
-const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
+const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
