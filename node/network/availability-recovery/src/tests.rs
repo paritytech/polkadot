@@ -141,19 +141,11 @@ async fn overseer_recv(
 
 use sp_keyring::Sr25519Keyring;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Has {
 	No,
 	Yes,
-	NetworkError(sc_network::RequestFailure),
-}
-
-impl Has {
-	fn timeout() -> Self {
-		Has::NetworkError(sc_network::RequestFailure::Network(
-			sc_network::OutboundFailure::Timeout
-		))
-	}
+	Timeout,
 }
 
 #[derive(Clone)]
@@ -178,6 +170,18 @@ impl TestState {
 
 	fn impossibility_threshold(&self) -> usize {
 		self.validators.len() - self.threshold() + 1
+	}
+
+	fn all_have(&self) -> Vec<Has> {
+		(0..self.validators.len()).map(|_| Has::Yes).collect()
+	}
+
+	fn all_dont_have(&self) -> Vec<Has> {
+		(0..self.validators.len()).map(|_| Has::Yes).collect()
+	}
+
+	fn all_timeout(&self) -> Vec<Has> {
+		(0..self.validators.len()).map(|_| Has::Timeout).collect()
 	}
 
 	async fn test_runtime_api(
@@ -212,7 +216,7 @@ impl TestState {
 		candidate_hash: CandidateHash,
 		virtual_overseer: &mut VirtualOverseer,
 		n: usize,
-		who_has: impl Fn(usize) -> Has,
+		who_has: &[Has],
 	) {
 		// arbitrary order.
 		for _ in 0..n {
@@ -233,10 +237,14 @@ impl TestState {
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 							let validator_index = req.payload.index.0 as usize;
-							let available_data = match who_has(validator_index) {
+							let available_data = match who_has[validator_index] {
 								Has::No => Ok(None),
 								Has::Yes => Ok(Some(self.chunks[validator_index].clone().into())),
-								Has::NetworkError(e) => Err(e),
+								Has::Timeout => {
+									Err(sc_network::RequestFailure::Network(
+										sc_network::OutboundFailure::Timeout
+									))
+								}
 							};
 
 							let _ = req.pending_response.send(
@@ -255,7 +263,7 @@ impl TestState {
 		&self,
 		candidate_hash: CandidateHash,
 		virtual_overseer: &mut VirtualOverseer,
-		who_has: impl Fn(usize) -> Has,
+		who_has: &[Has],
 	) {
 		for _ in 0..self.validators.len() {
 			// Receive a request for a chunk.
@@ -278,13 +286,15 @@ impl TestState {
 								.position(|a| Recipient::Authority(a.clone()) == req.peer)
 								.unwrap();
 
-							let available_data = match who_has(validator_index) {
+							let available_data = match who_has[validator_index] {
 								Has::No => Ok(None),
 								Has::Yes => Ok(Some(self.available_data.clone())),
-								Has::NetworkError(e) => Err(e),
+								Has::Timeout => {
+									Err(sc_network::RequestFailure::Network(
+										sc_network::OutboundFailure::Timeout
+									))
+								}
 							};
-
-							let done = available_data.as_ref().ok().map_or(false, |x| x.is_some());
 
 							let _ = req.pending_response.send(
 								available_data.map(|r|
@@ -292,7 +302,11 @@ impl TestState {
 								)
 							);
 
-							if done { break }
+							match who_has[validator_index].clone() {
+								Has::Yes => break, // done
+								Has::No => {}
+								Has::Timeout => {}
+							}
 						}
 					)
 				}
@@ -434,7 +448,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.threshold(),
-			|_| Has::Yes,
+			&test_state.all_have(),
 		).await;
 
 		// Recovered data should match the original one.
@@ -463,7 +477,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 			new_candidate.hash(),
 			&mut virtual_overseer,
 			test_state.impossibility_threshold(),
-			|_| Has::No,
+			&test_state.all_dont_have(),
 		).await;
 
 		// A request times out with `Unavailable` error.
@@ -510,7 +524,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.threshold(),
-			|_| Has::Yes,
+			&test_state.all_have(),
 		).await;
 
 		// Recovered data should match the original one.
@@ -539,7 +553,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 			new_candidate.hash(),
 			&mut virtual_overseer,
 			test_state.impossibility_threshold(),
-			|_| Has::No,
+			&test_state.all_dont_have(),
 		).await;
 
 		// A request times out with `Unavailable` error.
@@ -593,7 +607,7 @@ fn bad_merkle_path_leads_to_recovery_error() {
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.impossibility_threshold(),
-			|_| Has::Yes,
+			&test_state.all_have(),
 		).await;
 
 		// A request times out with `Unavailable` error.
@@ -642,11 +656,14 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 		test_state.chunks[3] = test_state.chunks[0].clone();
 		test_state.chunks[4] = test_state.chunks[0].clone();
 
+		let mut have = test_state.all_dont_have();
+		have[0] = Has::No;
+
 		test_state.test_chunk_requests(
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.impossibility_threshold(),
-			|_| Has::No,
+			&have,
 		).await;
 
 		// A request times out with `Unavailable` error as there are no good peers.
@@ -709,7 +726,7 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.threshold(),
-			|_| Has::Yes,
+			&test_state.all_have(),
 		).await;
 
 		// f+1 'valid' chunks can't produce correct data.
@@ -752,15 +769,13 @@ fn fast_path_backing_group_recovers() {
 
 		let candidate_hash = test_state.candidate.hash();
 
-		let who_has = |i| match i {
-			3 => Has::Yes,
-			_ => Has::No,
-		};
+		let mut who_has = test_state.all_dont_have();
+		who_has[3] = Has::Yes;
 
 		test_state.test_full_data_requests(
 			candidate_hash,
 			&mut virtual_overseer,
-			who_has,
+			&who_has,
 		).await;
 
 		// Recovered data should match the original one.
@@ -804,124 +819,24 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 		let candidate_hash = test_state.candidate.hash();
 
 		// mix of timeout and no.
-		let who_has = |i| match i {
-			0 | 3 => Has::No,
-			_ => Has::timeout(),
-		};
+		let mut who_has = test_state.all_timeout();
+		who_has[0] = Has::No;
+		who_has[3] = Has::No;
+
 		test_state.test_full_data_requests(
 			candidate_hash,
 			&mut virtual_overseer,
-			who_has,
+			&who_has,
 		).await;
 
 		test_state.test_chunk_requests(
 			candidate_hash,
 			&mut virtual_overseer,
 			test_state.threshold(),
-			|_| Has::Yes,
+			&test_state.all_have(),
 		).await;
 
 		// Recovered data should match the original one.
 		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
-	});
-}
-
-#[test]
-fn task_canceled_when_receivers_dropped() {
-	let test_state = TestState::default();
-
-	test_harness_chunks_only(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
-
-		overseer_signal(
-			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
-		).await;
-
-		let (tx, _) = oneshot::channel();
-
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityRecoveryMessage::RecoverAvailableData(
-				test_state.candidate.clone(),
-				test_state.session_index,
-				None,
-				tx,
-			)
-		).await;
-
-		test_state.test_runtime_api(&mut virtual_overseer).await;
-
-		for _ in 0..test_state.validators.len() {
-			match virtual_overseer.recv().timeout(TIMEOUT).await {
-				None => return,
-				Some(_) => continue,
-			}
-		}
-
-		panic!("task requested all validators without concluding")
-	});
-}
-
-#[test]
-fn chunks_retry_until_all_nodes_respond() {
-	let test_state = TestState::default();
-
-	test_harness_chunks_only(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
-
-		overseer_signal(
-			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
-		).await;
-
-		let (tx, rx) = oneshot::channel();
-
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityRecoveryMessage::RecoverAvailableData(
-				test_state.candidate.clone(),
-				test_state.session_index,
-				Some(GroupIndex(0)),
-				tx,
-			)
-		).await;
-
-		test_state.test_runtime_api(&mut virtual_overseer).await;
-
-		let candidate_hash = test_state.candidate.hash();
-
-		test_state.test_chunk_requests(
-			candidate_hash,
-			&mut virtual_overseer,
-			test_state.validators.len(),
-			|_| Has::timeout(),
-		).await;
-
-		// we get to go another round!
-
-		test_state.test_chunk_requests(
-			candidate_hash,
-			&mut virtual_overseer,
-			test_state.impossibility_threshold(),
-			|_| Has::No,
-		).await;
-
-		// Recovered data should match the original one.
-		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
 	});
 }
