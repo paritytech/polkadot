@@ -281,7 +281,7 @@ decl_storage! {
 		/// The actual future code of a para.
 		FutureCode: map hasher(blake2_128_concat) ParaId => Option<ValidationCode>;
 		/// The actions to perform during the start of a specific session index.
-		ActionsQueue get(fn actions_queue): map hasher(blake2_128_concat) SessionIndex => Vec<ParaId>;
+		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(blake2_128_concat) ParaId => Option<ParaGenesisArgs>;
 	}

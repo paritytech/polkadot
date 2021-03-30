@@ -148,7 +148,7 @@ decl_error! {
 decl_storage! {
 	trait Store for Module<T: Config> as Purchase {
 		// A map of all participants in the DOT purchase process.
-		Accounts: map hasher(blake2_128_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
+		Accounts: map hasher(twox_64_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
 		// The account that will be used to payout participants of the DOT purchase process.
 		PaymentAccount: T::AccountId;
 		// The statement purchasers will need to sign to participate.

@@ -124,7 +124,7 @@ pub trait Config:
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInclusion {
 		/// The latest bitfield for each validator, referred to by their index in the validator set.
-		AvailabilityBitfields: map hasher(blake2_128_concat) ValidatorIndex
+		AvailabilityBitfields: map hasher(twox_64_concat) ValidatorIndex
 			=> Option<AvailabilityBitfieldRecord<T::BlockNumber>>;
 
 		/// Candidates pending availability by `ParaId`.
