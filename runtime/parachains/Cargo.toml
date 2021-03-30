@@ -12,27 +12,27 @@ rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", features = [ "derive" ], optional = true }
 derive_more = "0.99.11"
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "gui-ease-wip" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -45,18 +45,18 @@ rand_chacha = { version = "0.3.0", default-features = false }
 [dev-dependencies]
 futures = "0.3.12"
 hex-literal = "0.3.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 
 [features]

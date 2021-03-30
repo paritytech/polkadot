@@ -6,53 +6,53 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 # External Crates
 futures = "0.3.12"

@@ -24,19 +24,19 @@ futures = "0.3.12"
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", optional = true , branch = "gui-ease-wip" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "gui-ease-wip" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]

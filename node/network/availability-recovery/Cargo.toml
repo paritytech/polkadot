@@ -26,9 +26,9 @@ futures-timer = "3.0.2"
 log = "0.4.11"
 smallvec = "1.5.1"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

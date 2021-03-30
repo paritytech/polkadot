@@ -23,15 +23,15 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 #[dev-dependencies]
 futures = "0.3.7"

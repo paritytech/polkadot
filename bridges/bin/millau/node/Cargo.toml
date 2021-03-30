@@ -24,31 +24,31 @@ pallet-message-lane-rpc = { path = "../../../modules/message-lane/rpc" }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "gui-ease-wip" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 [build-dependencies]
 build-script-utils = { package = "substrate-build-script-utils", version = "2.0" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 vergen = "3.1.0"
 
 [features]

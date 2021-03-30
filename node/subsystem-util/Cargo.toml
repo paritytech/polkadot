@@ -23,11 +23,11 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "gui-ease-wip" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
