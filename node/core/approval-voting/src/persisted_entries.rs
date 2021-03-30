@@ -397,6 +397,11 @@ impl BlockEntry {
 	pub fn candidates(&self) -> &[(CoreIndex, CandidateHash)] {
 		&self.candidates
 	}
+
+	/// Access the block number of the block entry.
+	pub fn block_number(&self) -> BlockNumber {
+		self.block_number
+	}
 }
 
 impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
