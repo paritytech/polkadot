@@ -42,7 +42,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: shared::{Pallet, Call, Storage},
 		Inclusion: inclusion::{Pallet, Call, Storage, Event<T>},
@@ -111,6 +111,7 @@ impl crate::shared::Config for Test { }
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 impl crate::dmp::Config for Test { }
