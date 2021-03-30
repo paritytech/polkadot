@@ -5411,7 +5411,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "rand 0.8.3",
  "tracing",
 ]
 
@@ -5791,6 +5790,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
+ "rand 0.8.3",
  "sc-network",
  "sp-application-crypto",
  "sp-core",
