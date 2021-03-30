@@ -470,7 +470,7 @@ impl Future for InteractionHandle {
 				"Receiver for available data dropped.",
 			);
 
-			self.awaiting.remove(index);
+			self.awaiting.swap_remove(index);
 		}
 
 		if self.awaiting.is_empty() {
