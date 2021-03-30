@@ -28,7 +28,9 @@ pub use origin_conversion::{
 };
 
 mod currency_adapter;
+mod fungibles_adapter;
 pub use currency_adapter::CurrencyAdapter;
+pub use fungibles_adapter::FungiblesAdapter;
 
 use sp_std::marker::PhantomData;
 use xcm_executor::traits::InvertLocation;
