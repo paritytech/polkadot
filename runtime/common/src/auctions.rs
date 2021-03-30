@@ -127,7 +127,7 @@ decl_event!(
 		/// [auction_index, lease_period, ending]
 		AuctionStarted(AuctionIndex, LeasePeriod, BlockNumber),
 		/// An auction ended. All funds become unreserved. [auction_index]
-		AuctionClosed(AuctionIndex),
+		AuctionClosed(AuctionIndex,BlockNumber),
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
 		/// [bidder, range, parachain_id, amount]
 		WonDeploy(AccountId, SlotRange, ParaId, Balance),
@@ -214,12 +214,13 @@ decl_module! {
 			}
 
 			// Check to see if an auction just ended.
-			if let Some((winning_ranges, auction_lease_period_index)) = Self::check_auction_end(n) {
+			if let Some((winning_ranges, auction_lease_period_index, offset)) = Self::check_auction_end(n) {
 				// Auction is ended now. We have the winning ranges and the lease period index which
 				// acts as the offset. Handle it.
 				Self::manage_auction_end(
 					auction_lease_period_index,
 					winning_ranges,
+					offset,
 				);
 				weight = weight.saturating_add(T::WeightInfo::on_initialize());
 			}
@@ -483,7 +484,7 @@ impl<T: Config> Module<T> {
 	///
 	/// This mutates the state, cleaning up `AuctionInfo` and `Winning` in the case of an auction
 	/// ending. An immediately subsequent call with the same argument will always return `None`.
-	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>)> {
+	fn check_auction_end(now: T::BlockNumber) -> Option<(WinningData<T>, LeasePeriodOf<T>, T::BlockNumber)> {
 		if let Some((lease_period_index, early_end)) = AuctionInfo::<T>::get() {
 			let ending_period = T::EndingPeriod::get();
 			let late_end = early_end.saturating_add(ending_period);
@@ -508,7 +509,7 @@ impl<T: Config> Module<T> {
 						i += One::one();
 					}
 					AuctionInfo::<T>::kill();
-					return Some((res, lease_period_index))
+					return Some((res, lease_period_index,offset.clone()))
 				}
 			}
 		}
@@ -521,6 +522,7 @@ impl<T: Config> Module<T> {
 	fn manage_auction_end(
 		auction_lease_period_index: LeasePeriodOf<T>,
 		winning_ranges: WinningData<T>,
+		offset: T::BlockNumber,
 	) {
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
@@ -556,7 +558,7 @@ impl<T: Config> Module<T> {
 			}
 		}
 
-		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
+		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get(),offset));
 	}
 
 	/// Calculate the final winners from the winning slots.
