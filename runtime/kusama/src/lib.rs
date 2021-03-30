@@ -1033,18 +1033,6 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			babe_primitives::BabeEpochConfiguration {
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
-				..BABE_GENESIS_EPOCH_CONFIG
-			}
-		)
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1076,7 +1064,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
+	(KillOffchainPhragmenStorageTest),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
