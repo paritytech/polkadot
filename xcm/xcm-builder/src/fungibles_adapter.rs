@@ -248,7 +248,7 @@ impl<
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::from_location(who)
 			.ok_or(Error::AccountIdConversionFailed)?;
-		Assets::deposit(asset_id, &who, amount)
+		Assets::mint_into(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
 
@@ -260,7 +260,7 @@ impl<
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::from_location(who)
 			.ok_or(Error::AccountIdConversionFailed)?;
-		Assets::withdraw(asset_id, &who, amount)
+		Assets::burn_from(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone())
 	}
