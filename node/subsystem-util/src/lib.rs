@@ -269,7 +269,7 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 }
 
 /// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
-pub fn choose_random_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
 	let mut rng = rand::thread_rng();
 	v.shuffle(&mut rng);

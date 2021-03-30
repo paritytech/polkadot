@@ -361,7 +361,7 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
-	let interested_peers = util::choose_random_subset(interested_peers, MIN_GOSSIP_PEERS);
+	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
 	drop(_span);
 
 	if interested_peers.is_empty() {
