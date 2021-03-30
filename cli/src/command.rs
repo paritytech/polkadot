@@ -268,13 +268,27 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
-
 			set_default_ss58_version(chain_spec);
+			let spec_name = runner.config().impl_name.to_lowercase();
 
-			Ok(runner.sync_run(|config| {
-				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-				.map_err(|e| Error::SubstrateCli(e))
-			})?)
+			if spec_name.contains("polkadot") {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else if spec_name.contains("kusama") {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else if spec_name.contains("westend") {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else {
+				panic!("can only use benchmarks with --chain value of [polkadot, kusama, westend], got {}", spec_name);
+			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
@@ -283,24 +297,38 @@ pub fn run() -> Result<()> {
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|config| {
-				use sc_service::TaskManager;
-				let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
-				let task_manager = TaskManager::new(
-					config.task_executor.clone(),
-					registry,
-				).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
+			use sc_service::TaskManager;
+			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
+			let task_manager = TaskManager::new(
+				runner.config().task_executor.clone(),
+				*registry,
+			).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
-				Ok((
-					cmd.run::<
+			let spec_name = runner.config().impl_name.to_lowercase();
+			if spec_name.contains("polkadot") {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::polkadot_runtime::Block,
+						service::PolkadotExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else if spec_name.contains("kusama") {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
 						service::kusama_runtime::Block,
 						service::KusamaExecutor,
-					>(config).map_err(Error::SubstrateCli),
-					task_manager
-				))
-				// NOTE: we fetch only the block number from the block type, the chance of disparity
-				// between kusama's and polkadot's block number is small enough to overlook this.
-			})
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else if spec_name.contains("westend") {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::westend_runtime::Block,
+						service::WestendExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else {
+				panic!("can only use try-runtime with --chain value of [polkadot, kusama, westend], got {}", spec_name);
+			}
 		}
 	}?;
 	Ok(())
