@@ -38,3 +38,33 @@ pub fn validate_candidate(
 
 	Ok(result)
 }
+
+/// Use this macro to declare a `fn main() {}` that will check the arguments and dispatch them to
+/// the appropriate worker, making the executable that can be used for spawning workers.
+#[macro_export]
+macro_rules! decl_puppet_worker_main {
+	() => {
+		fn main() {
+			let args = std::env::args().collect::<Vec<_>>();
+			if args.len() < 2 {
+				panic!("wrong number of arguments");
+			}
+
+			let subcommand = &args[1];
+			match subcommand.as_ref() {
+				"sleep" => {
+					std::thread::sleep(std::time::Duration::from_secs(5));
+				}
+				"prepare-worker" => {
+					let socket_path = &args[2];
+					$crate::prepare_worker_entrypoint(socket_path);
+				}
+				"execute-worker" => {
+					let socket_path = &args[2];
+					$crate::execute_worker_entrypoint(socket_path);
+				}
+				other => panic!("unknown subcommand: {}", other),
+			}
+		}
+	};
+}
