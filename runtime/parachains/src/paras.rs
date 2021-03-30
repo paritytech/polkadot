@@ -359,7 +359,7 @@ decl_module! {
 		fn force_set_current_code(origin, para: ParaId, new_code: Vec<u8>) {
 			ensure_root(origin)?;
 			let validation_code = ValidationCode(new_code);
-			let prior_code = <Self as Store>::CurrentCode::get(&para);
+			let prior_code = <Self as Store>::CurrentCode::get(&para).unwrap_or_default();
 			<Self as Store>::CurrentCode::insert(&para, validation_code);
 
 			let now = frame_system::Pallet::<T>::block_number();
