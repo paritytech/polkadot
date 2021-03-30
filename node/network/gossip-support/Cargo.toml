@@ -12,4 +12,3 @@ polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.8"
 tracing = "0.1.25"
-rand = "0.8.3"

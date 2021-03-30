@@ -57,7 +57,8 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					in_peers: 25,
+					// we want our gossip subset to always include reserved peers
+					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2,
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
