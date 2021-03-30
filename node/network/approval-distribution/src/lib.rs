@@ -848,12 +848,19 @@ impl State {
 							(ApprovalState::Approved(cert, vote.signature.clone()), local_source),
 						);
 					}
-					_ => {
+					Some((ApprovalState::Approved(..), _)) => {
+						unreachable!(
+							"we only insert it after the fingerprint, checked the fingerprint above; qed"
+						);
+					}
+					None => {
+						// this would indicate a bug in approval-voting
 						tracing::warn!(
 							target: LOG_TARGET,
 							hash = ?block_hash,
 							?candidate_index,
-							"Expected a candidate entry with `ApprovalState::Assigned`",
+							?validator_index,
+							"Importing an approval we don't have an assignment for",
 						);
 					}
 				}
@@ -863,6 +870,7 @@ impl State {
 					target: LOG_TARGET,
 					hash = ?block_hash,
 					?candidate_index,
+					?validator_index,
 					"Expected a candidate entry on import_and_circulate_approval",
 				);
 			}

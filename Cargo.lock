@@ -11134,6 +11134,7 @@ name = "xcm-builder"
 version = "0.8.30"
 dependencies = [
  "frame-support",
+ "impl-trait-for-tuples",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",
