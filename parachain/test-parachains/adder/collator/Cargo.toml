@@ -10,7 +10,7 @@ name = "adder-collator"
 path = "src/main.rs"
 
 [[bin]]
-name = "adder-collator-puppet-worker"
+name = "adder_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
