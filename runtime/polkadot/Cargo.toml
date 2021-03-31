@@ -152,8 +152,8 @@ std = [
 	"runtime-common/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-	"beefy-primitives",
-	"pallet-mmr-primitives",
+	"beefy-primitives/std",
+	"pallet-mmr-primitives/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
