@@ -31,7 +31,10 @@ use polkadot_subsystem::{
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
 	},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	MIN_GOSSIP_PEERS,
+};
 use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
@@ -109,8 +112,12 @@ impl VcPerPeerTracker {
 	/// based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: CandidateHash) {
 		if !note_hash(&mut self.local_observed, h) {
-			tracing::warn!("Statement distribution is erroneously attempting to distribute more \
-				than {} candidate(s) per validator index. Ignoring", VC_THRESHOLD);
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Statement distribution is erroneously attempting to distribute more \
+				than {} candidate(s) per validator index. Ignoring",
+				VC_THRESHOLD,
+			);
 		}
 	}
 
@@ -440,6 +447,12 @@ impl ActiveHeadData {
 			CompactStatement::Seconded(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= VC_THRESHOLD {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Extra statement is ignored"
+					);
 					return NotedStatement::NotUseful;
 				}
 
@@ -447,23 +460,55 @@ impl ActiveHeadData {
 				if self.statements.insert(stored) {
 					*seconded_so_far += 1;
 
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?self.statements.last().expect("Just inserted").statement,
+						"Noted new statement"
+					);
 					// This will always return `Some` because it was just inserted.
 					NotedStatement::Fresh(self.statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?self.statements.get(&comparator)
+							.expect("Existence was just checked; qed").statement,
+						"Known statement"
+					);
 					NotedStatement::UsefulButKnown
 				}
 			}
 			CompactStatement::Valid(h) => {
 				if !self.candidates.contains(&h) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Statement for unknown candidate"
+					);
 					return NotedStatement::NotUseful;
 				}
 
 				if self.statements.insert(stored) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?self.statements.last().expect("Just inserted").statement,
+						"Noted new statement"
+					);
 					// This will always return `Some` because it was just inserted.
 					NotedStatement::Fresh(self.statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?self.statements.get(&comparator)
+							.expect("Existence was just checked; qed").statement,
+						"Known statement"
+					);
 					NotedStatement::UsefulButKnown
 				}
 			}
@@ -517,19 +562,21 @@ async fn circulate_statement_and_dependents(
 		None => return,
 	};
 
-	let _span = active_head.span.child_builder("circulate-statement")
-		.with_candidate(&statement.payload().candidate_hash())
-		.with_stage(jaeger::Stage::StatementDistribution)
-		.build();
+	let _span = active_head.span.child("circulate-statement")
+		.with_candidate(statement.payload().candidate_hash())
+		.with_stage(jaeger::Stage::StatementDistribution);
 
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
 		match active_head.note_statement(statement) {
-			NotedStatement::Fresh(stored) => Some((
-				*stored.compact().candidate_hash(),
-				circulate_statement(peers, ctx, relay_parent, stored).await,
-			)),
+			NotedStatement::Fresh(stored) =>
+			{
+				Some((
+					*stored.compact().candidate_hash(),
+					circulate_statement(peers, ctx, relay_parent, stored).await,
+				))
+			},
 			_ => None,
 		}
 	};
@@ -539,9 +586,8 @@ async fn circulate_statement_and_dependents(
 	if let Some((candidate_hash, peers_needing_dependents)) = outputs {
 		for peer in peers_needing_dependents {
 			if let Some(peer_data) = peers.get_mut(&peer) {
-				let _span_loop = _span.child_builder("to-peer")
-					.with_peer_id(&peer)
-					.build();
+				let _span_loop = _span.child("to-peer")
+					.with_peer_id(&peer);
 				// defensive: the peer data should always be some because the iterator
 				// of peers is derived from the set of peers.
 				send_statements_about(
@@ -577,17 +623,23 @@ async fn circulate_statement(
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
-	let mut peers_to_send = HashMap::new();
+	let len_sqrt = (peers.len() as f64).sqrt() as usize;
+	let cap = std::cmp::max(MIN_GOSSIP_PEERS, len_sqrt);
 
-	for (peer, data) in peers.iter_mut() {
-		if let Some(new_known) = data.send(&relay_parent, &fingerprint) {
-			peers_to_send.insert(peer.clone(), new_known);
-		}
-	}
+	let peers_to_send: HashMap<PeerId, bool> = peers.iter_mut().filter_map(|(peer, data)| {
+		data.send(&relay_parent, &fingerprint).map(|new| (peer.clone(), new))
+	}).take(cap).collect();
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
 		let payload = statement_message(relay_parent, stored.statement.clone());
+		tracing::trace!(
+			target: LOG_TARGET,
+			?peers_to_send,
+			?relay_parent,
+			statement = ?stored.statement,
+			"Sending statement"
+		);
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.keys().cloned().collect(),
 			payload,
@@ -619,6 +671,14 @@ async fn send_statements_about(
 				statement.statement.clone(),
 			);
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				?candidate_hash,
+				statement = ?statement.statement,
+				"Sending statement"
+			);
 			ctx.send_message(AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 			)).await;
@@ -645,6 +705,13 @@ async fn send_statements(
 				statement.statement.clone(),
 			);
 
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?relay_parent,
+				statement = ?statement.statement,
+				"Sending statement"
+			);
 			ctx.send_message(AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 			)).await;
@@ -684,6 +751,12 @@ async fn handle_incoming_message<'a>(
 	};
 
 	if !our_view.contains(&relay_parent) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer,
+			?statement,
+			"Unexpected statement"
+		);
 		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
 		return None;
 	}
@@ -694,6 +767,7 @@ async fn handle_incoming_message<'a>(
 			// This should never be out-of-sync with our view if the view updates
 			// correspond to actual `StartWork` messages. So we just log and ignore.
 			tracing::warn!(
+				target: LOG_TARGET,
 				requested_relay_parent = %relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
@@ -702,13 +776,18 @@ async fn handle_incoming_message<'a>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash();
-	let handle_incoming_span = active_head.span.child_builder("handle-incoming")
-		.with_candidate(&candidate_hash)
-		.with_peer_id(&peer)
-		.build();
+	let handle_incoming_span = active_head.span.child("handle-incoming")
+		.with_candidate(candidate_hash)
+		.with_peer_id(&peer);
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer,
+			?statement,
+			"Invalid statement signature"
+		);
 		report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
 		return None;
 	}
@@ -721,10 +800,23 @@ async fn handle_incoming_message<'a>(
 	let max_message_count = active_head.validators.len() * 2;
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
 		Err(rep) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?statement,
+				?rep,
+				"Error inserting received statement"
+			);
 			report_peer(ctx, peer, rep).await;
 			return None;
 		}
 		Ok(true) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?statement,
+				"Statement accepted"
+			);
 			// Send the peer all statements concerning the candidate that we have,
 			// since it appears to have just learned about the candidate.
 			send_statements_about(
@@ -811,13 +903,24 @@ async fn handle_network_update(
 	metrics: &Metrics,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, _role) => {
+		NetworkBridgeEvent::PeerConnected(peer, role) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?role,
+				"Peer connected",
+			);
 			peers.insert(peer, PeerData {
 				view: Default::default(),
 				view_knowledge: Default::default(),
 			});
 		}
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				"Peer disconnected",
+			);
 			peers.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
@@ -854,6 +957,12 @@ async fn handle_network_update(
 			}
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?view,
+				"Peer view change",
+			);
 			match peers.get_mut(&peer) {
 				Some(data) => {
 					update_peer_view_and_send_unlocked(
@@ -869,6 +978,10 @@ async fn handle_network_update(
 			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"Own view change",
+			);
 			let old_view = std::mem::replace(our_view, view);
 			active_heads.retain(|head, _| our_view.contains(head));
 
@@ -905,8 +1018,9 @@ impl StatementDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
 					let _timer = metrics.time_active_leaves_update();
 
-					for (relay_parent, span) in activated {
-						let span = PerLeafSpan::new(span, "statement-distribution");
+					for activated in activated {
+						let relay_parent = activated.hash;
+						let span = PerLeafSpan::new(activated.span, "statement-distribution");
 
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
@@ -1076,7 +1190,7 @@ mod tests {
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
-	use polkadot_subsystem::jaeger;
+	use polkadot_subsystem::{jaeger, ActivatedLeaf};
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1632,7 +1746,11 @@ mod tests {
 		let test_fut = async move {
 			// register our active heads.
 			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![(hash_a, Arc::new(jaeger::Span::Disabled))].into(),
+				activated: vec![ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
 				deactivated: vec![].into(),
 			}))).await;
 

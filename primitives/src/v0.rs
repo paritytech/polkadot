@@ -665,18 +665,6 @@ pub struct AvailableData {
 	// In the future, outgoing messages as well.
 }
 
-/// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
-pub struct ErasureChunk {
-	/// The erasure-encoded chunk of data belonging to the candidate block.
-	pub chunk: Vec<u8>,
-	/// The index of this erasure-encoded chunk of data.
-	pub index: ValidatorIndex,
-	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
-}
-
 const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
 
 /// Statements that can be made about parachain candidates. These are the

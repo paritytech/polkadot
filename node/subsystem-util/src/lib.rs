@@ -27,7 +27,8 @@
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemSender,
+	ActiveLeavesUpdate, OverseerSignal,
 };
 use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
@@ -51,6 +52,7 @@ use thiserror::Error;
 
 pub mod validator_discovery;
 pub use metered_channel as metered;
+pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -100,20 +102,20 @@ pub enum Error {
 pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response, FromJob>(
+pub async fn request_from_runtime<RequestBuilder, Response, Sender>(
 	parent: Hash,
-	sender: &mut mpsc::Sender<FromJob>,
+	sender: &mut Sender,
 	request_builder: RequestBuilder,
-) -> Result<RuntimeApiReceiver<Response>, Error>
+) -> RuntimeApiReceiver<Response>
 where
 	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	FromJob: From<AllMessages>,
+	Sender: SubsystemSender,
 {
 	let (tx, rx) = oneshot::channel();
 
-	sender.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx))).into()).await?;
+	sender.send_message(RuntimeApiMessage::Request(parent, request_builder(tx)).into()).await;
 
-	Ok(rx)
+	rx
 }
 
 /// Construct specialized request functions for the runtime.
@@ -132,16 +134,13 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name<FromJob>(
+		pub async fn $func_name(
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
 			)*
-			sender: &mut mpsc::Sender<FromJob>,
-		) -> Result<RuntimeApiReceiver<$return_ty>, Error>
-		where
-			FromJob: From<AllMessages>,
-		{
+			sender: &mut impl SubsystemSender,
+		) -> RuntimeApiReceiver<$return_ty> {
 			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
@@ -269,6 +268,18 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 	None
 }
 
+/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
+pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+	use rand::seq::SliceRandom as _;
+	let mut rng = rand::thread_rng();
+	v.shuffle(&mut rng);
+
+	let len_sqrt = (v.len() as f64).sqrt() as usize;
+	let len = std::cmp::max(min, len_sqrt);
+	v.truncate(len);
+	v
+}
+
 /// Local validator information
 ///
 /// It can be created if the local node is a validator in the context of a particular
@@ -282,20 +293,17 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new<FromJob>(
+	pub async fn new(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		mut sender: mpsc::Sender<FromJob>,
-	) -> Result<Self, Error>
-	where
-		FromJob: From<AllMessages>,
-	{
+		sender: &mut JobSender<impl SubsystemSender>,
+	) -> Result<Self, Error> {
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
 		let (validators, session_index) = futures::try_join!(
-			request_validators(parent, &mut sender).await?,
-			request_session_index_for_child(parent, &mut sender).await?,
+			request_validators(parent, sender).await,
+			request_session_index_for_child(parent, sender).await,
 		)?;
 
 		let signing_context = SigningContext {
@@ -429,27 +437,76 @@ pub mod metrics {
 
 /// Commands from a job to the broader subsystem.
 pub enum FromJobCommand {
-	/// Send a message to another subsystem.
-	SendMessage(AllMessages),
 	/// Spawn a child task on the executor.
 	Spawn(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
 	SpawnBlocking(&'static str, Pin<Box<dyn Future<Output = ()> + Send>>),
 }
 
-impl fmt::Debug for FromJobCommand {
-	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			Self::SendMessage(msg) => write!(fmt, "FromJobCommand::SendMessage({:?})", msg),
-			Self::Spawn(name, _) => write!(fmt, "FromJobCommand::Spawn({})", name),
-			Self::SpawnBlocking(name, _) => write!(fmt, "FromJobCommand::SpawnBlocking({})", name),
-		}
+/// A sender for messages from jobs, as well as commands to the overseer.
+#[derive(Clone)]
+pub struct JobSender<S> {
+	sender: S,
+	from_job: mpsc::Sender<FromJobCommand>,
+}
+
+impl<S: SubsystemSender> JobSender<S> {
+	/// Get access to the underlying subsystem sender.
+	pub fn subsystem_sender(&mut self) -> &mut S {
+		&mut self.sender
+	}
+
+	/// Send a direct message to some other `Subsystem`, routed based on message type.
+	pub async fn send_message(&mut self, msg: AllMessages) {
+		self.sender.send_message(msg).await
+	}
+
+	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	pub async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		self.sender.send_messages(msgs).await
+	}
+
+
+	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
+	/// type.
+	///
+	/// This function should be used only when there is some other bounding factor on the messages
+	/// sent with it. Otherwise, it risks a memory leak.
+	pub fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.sender.send_unbounded_message(msg)
+	}
+
+	/// Send a command to the subsystem, to be relayed onwards to the overseer.
+	pub async fn send_command(&mut self, msg: FromJobCommand) -> Result<(), mpsc::SendError> {
+		self.from_job.send(msg).await
 	}
 }
 
-impl From<AllMessages> for FromJobCommand {
-	fn from(msg: AllMessages) -> Self {
-		Self::SendMessage(msg)
+#[async_trait::async_trait]
+impl<S: SubsystemSender> SubsystemSender for JobSender<S> {
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.sender.send_message(msg).await
+	}
+
+	async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		self.sender.send_messages(msgs).await
+	}
+
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.sender.send_unbounded_message(msg)
+	}
+}
+
+impl fmt::Debug for FromJobCommand {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::Spawn(name, _) => write!(fmt, "FromJobCommand::Spawn({})", name),
+			Self::SpawnBlocking(name, _) => write!(fmt, "FromJobCommand::SpawnBlocking({})", name),
+		}
 	}
 }
 
@@ -457,7 +514,7 @@ impl From<AllMessages> for FromJobCommand {
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
 /// Other messages are passed along to and from the job via the overseer to other subsystems.
-pub trait JobTrait: Unpin {
+pub trait JobTrait: Unpin + Sized {
 	/// Message type used to send messages to the job.
 	type ToJob: 'static + BoundToRelayParent + Send;
 	/// Job runtime error.
@@ -479,13 +536,13 @@ pub trait JobTrait: Unpin {
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run(
+	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: mpsc::Sender<FromJobCommand>,
+		sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -493,7 +550,7 @@ pub trait JobTrait: Unpin {
 ///
 /// Wraps the utility error type and the job-specific error
 #[derive(Debug, Error)]
-pub enum JobsError<JobError: 'static + std::error::Error> {
+pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 	/// utility error
 	#[error("Utility")]
 	Utility(#[source] Error),
@@ -508,61 +565,50 @@ pub enum JobsError<JobError: 'static + std::error::Error> {
 /// - Closes old jobs for a given relay-parent on demand.
 /// - Dispatches messages to the appropriate job for a given relay-parent.
 /// - When dropped, aborts all remaining jobs.
-/// - implements `Stream<Item=Job::FromJob>`, collecting all messages from subordinate jobs.
+/// - implements `Stream<Item=FromJobCommand>`, collecting all messages from subordinate jobs.
 #[pin_project]
-pub struct Jobs<Spawner, Job: JobTrait> {
+struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
-	running: HashMap<Hash, JobHandle<Job::ToJob>>,
+	running: HashMap<Hash, JobHandle<ToJob>>,
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
-	#[pin]
-	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 }
 
-impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
+impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
 		Self {
 			spawner,
 			running: HashMap::new(),
 			outgoing_msgs: StreamUnordered::new(),
-			job: std::marker::PhantomData,
-			errors: None,
 		}
-	}
-
-	/// Monitor errors which may occur during handling of a spawned job.
-	///
-	/// By default, an error in a job is simply logged. Once this is called,
-	/// the error is forwarded onto the provided channel.
-	///
-	/// Errors if the error channel already exists.
-	pub fn forward_errors(
-		&mut self,
-		tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>,
-	) -> Result<(), Error> {
-		if self.errors.is_some() {
-			return Err(Error::AlreadyForwarding);
-		}
-		self.errors = Some(tx);
-		Ok(())
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job(
+	fn spawn_job<Job, Sender>(
 		&mut self,
 		parent_hash: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
-	) -> Result<(), Error> {
+		sender: Sender,
+	)
+		where Job: JobTrait<ToJob = ToJob>, Sender: SubsystemSender,
+	{
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 
-		let err_tx = self.errors.clone();
-
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = Job::run(parent_hash, span, run_args, metrics, to_job_rx, from_job_tx).await {
+			if let Err(e) = Job::run(
+				parent_hash,
+				span,
+				run_args,
+				metrics,
+				to_job_rx,
+				JobSender {
+					sender,
+					from_job: from_job_tx,
+				},
+			).await {
 				tracing::error!(
 					job = Job::NAME,
 					parent_hash = %parent_hash,
@@ -570,19 +616,13 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 					"job finished with an error",
 				);
 
-				if let Some(mut err_tx) = err_tx {
-					// if we can't send the notification of error on the error channel, then
-					// there's no point trying to propagate this error onto the channel too
-					// all we can do is warn that error propagation has failed
-					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
-						tracing::warn!(err = ?e, "failed to forward error");
-					}
-				}
+				return Err(e);
 			}
+
+			Ok(())
 		});
 
 		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
-
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle {
@@ -591,8 +631,6 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		};
 
 		self.running.insert(parent_hash, handle);
-
-		Ok(())
 	}
 
 	/// Stop the job associated with this `parent_hash`.
@@ -601,7 +639,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
-	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
+	async fn send_msg(&mut self, parent_hash: Hash, msg: ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
 				job.remove();
@@ -610,10 +648,9 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 }
 
-impl<Spawner, Job> Stream for Jobs<Spawner, Job>
+impl<Spawner, ToJob> Stream for Jobs<Spawner, ToJob>
 where
 	Spawner: SpawnNamed,
-	Job: JobTrait,
 {
 	type Item = FromJobCommand;
 
@@ -633,107 +670,123 @@ where
 	}
 }
 
-impl<Spawner, Job> stream::FusedStream for Jobs<Spawner, Job>
+impl<Spawner, ToJob> stream::FusedStream for Jobs<Spawner, ToJob>
 where
 	Spawner: SpawnNamed,
-	Job: JobTrait,
 {
 	fn is_terminated(&self) -> bool {
 		false
 	}
 }
 
-
-/// A basic implementation of a subsystem.
-///
-/// This struct is responsible for handling message traffic between
-/// this subsystem and the overseer. It spawns and kills jobs on the
-/// appropriate Overseer messages, and dispatches standard traffic to
-/// the appropriate job the rest of the time.
-pub struct JobManager<Spawner, Context, Job: JobTrait> {
+/// Parameters to a job subsystem.
+struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
+	/// A spawner for sub-tasks.
 	spawner: Spawner,
-	run_args: Job::RunArgs,
-	metrics: Job::Metrics,
-	context: std::marker::PhantomData<Context>,
-	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
+	/// Arguments to each job.
+	run_args: RunArgs,
+	/// Metrics for the subsystem.
+	metrics: Metrics,
 }
 
-impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
-where
-	Spawner: SpawnNamed + Clone + Send + Unpin,
-	Context: SubsystemContext,
-	Job: 'static + JobTrait,
-	Job::RunArgs: Clone,
-	Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
-{
-	/// Creates a new `Subsystem`.
+/// A subsystem which wraps jobs.
+///
+/// Conceptually, this is very simple: it just loops forever.
+///
+/// - On incoming overseer messages, it starts or stops jobs as appropriate.
+/// - On other incoming messages, if they can be converted into Job::ToJob and
+///   include a hash, then they're forwarded to the appropriate individual job.
+/// - On outgoing messages from the jobs, it forwards them to the overseer.
+pub struct JobSubsystem<Job: JobTrait, Spawner> {
+	params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
+	_marker: std::marker::PhantomData<Job>,
+}
+
+impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
+	/// Create a new `JobSubsystem`.
 	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
-		Self {
-			spawner,
-			run_args,
-			metrics,
-			context: std::marker::PhantomData,
-			job: std::marker::PhantomData,
-			errors: None,
+		JobSubsystem {
+			params: JobSubsystemParams {
+				spawner,
+				run_args,
+				metrics,
+			},
+			_marker: std::marker::PhantomData,
 		}
 	}
 
-	/// Monitor errors which may occur during handling of a spawned job.
-	///
-	/// By default, an error in a job is simply logged. Once this is called,
-	/// the error is forwarded onto the provided channel.
-	///
-	/// Errors if the error channel already exists.
-	pub fn forward_errors(
-		&mut self,
-		tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>,
-	) -> Result<(), Error> {
-		if self.errors.is_some() {
-			return Err(Error::AlreadyForwarding);
-		}
-		self.errors = Some(tx);
-		Ok(())
-	}
+	/// Run the subsystem to completion.
+	pub async fn run<Context>(self, mut ctx: Context)
+		where
+			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
+			Context: SubsystemContext,
+			Job: 'static + JobTrait + Send,
+			Job::RunArgs: Clone + Sync,
+			Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
+			Job::Metrics: Sync,
+	{
+		let JobSubsystem {
+			params: JobSubsystemParams {
+				spawner,
+				run_args,
+				metrics,
+			},
+			..
+		} = self;
 
-	/// Run this subsystem
-	///
-	/// Conceptually, this is very simple: it just loops forever.
-	///
-	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
-	/// - On other incoming messages, if they can be converted into Job::ToJob and
-	///   include a hash, then they're forwarded to the appropriate individual job.
-	/// - On outgoing messages from the jobs, it forwards them to the overseer.
-	///
-	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
-	/// Otherwise, most are logged and then discarded.
-	pub async fn run(
-		mut ctx: Context,
-		run_args: Job::RunArgs,
-		metrics: Job::Metrics,
-		spawner: Spawner,
-		mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) {
-		let mut jobs = Jobs::new(spawner.clone());
-		if let Some(ref err_tx) = err_tx {
-			jobs.forward_errors(err_tx.clone())
-				.expect("we never call this twice in this context; qed");
-		}
+		let mut jobs = Jobs::new(spawner);
 
 		loop {
 			select! {
-				incoming = ctx.recv().fuse() =>
-					if Self::handle_incoming(
-						incoming,
-						&mut jobs,
-						&run_args,
-						&metrics,
-						&mut err_tx,
-					).await {
-						break
-					},
+				incoming = ctx.recv().fuse() => {
+					match incoming {
+						Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							activated,
+							deactivated,
+						}))) => {
+							for activated in activated {
+								let sender: Context::Sender = ctx.sender().clone();
+								jobs.spawn_job::<Job, _>(
+									activated.hash,
+									activated.span,
+									run_args.clone(),
+									metrics.clone(),
+									sender,
+								)
+							}
+
+							for hash in deactivated {
+								jobs.stop_job(hash).await;
+							}
+						}
+						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+							jobs.running.clear();
+							break;
+						}
+						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
+						Ok(FromOverseer::Communication { msg }) => {
+							if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
+								jobs.send_msg(to_job.relay_parent(), to_job).await;
+							}
+						}
+						Err(err) => {
+							tracing::error!(
+								job = Job::NAME,
+								err = ?err,
+								"error receiving message from subsystem context for job",
+							);
+							break;
+						}
+					}
+				}
 				outgoing = jobs.next() => {
-					if let Err(e) = Self::handle_from_job(outgoing, &mut ctx).await {
+					let res = match outgoing.expect("the Jobs stream never ends; qed") {
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::SpawnBlocking(name, task)
+							=> ctx.spawn_blocking(name, task).await,
+					};
+
+					if let Err(e) = res {
 						tracing::warn!(err = ?e, "failed to handle command from job");
 					}
 				}
@@ -741,97 +794,9 @@ where
 			}
 		}
 	}
-
-	/// Forward a given error to the higher context using the given error channel.
-	async fn fwd_err(
-		hash: Option<Hash>,
-		err: JobsError<Job::Error>,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) {
-		if let Some(err_tx) = err_tx {
-			// if we can't send on the error transmission channel, we can't do anything useful about it
-			// still, we can at least log the failure
-			if let Err(e) = err_tx.send((hash, err)).await {
-				tracing::warn!(err = ?e, "failed to forward error");
-			}
-		}
-	}
-
-	/// Handle an incoming message.
-	///
-	/// Returns `true` when this job manager should shutdown.
-	async fn handle_incoming(
-		incoming: SubsystemResult<FromOverseer<Context::Message>>,
-		jobs: &mut Jobs<Spawner, Job>,
-		run_args: &Job::RunArgs,
-		metrics: &Job::Metrics,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) -> bool {
-		use polkadot_node_subsystem::ActiveLeavesUpdate;
-		use polkadot_node_subsystem::FromOverseer::{Communication, Signal};
-		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
-
-		match incoming {
-			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate {
-				activated,
-				deactivated,
-			}))) => {
-				for (hash, span) in activated {
-					let metrics = metrics.clone();
-					if let Err(e) = jobs.spawn_job(hash, span, run_args.clone(), metrics) {
-						tracing::error!(
-							job = Job::NAME,
-							err = ?e,
-							"failed to spawn a job",
-						);
-						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
-						return true;
-					}
-				}
-
-				for hash in deactivated {
-					jobs.stop_job(hash).await;
-				}
-			}
-			Ok(Signal(Conclude)) => {
-				jobs.running.clear();
-				return true;
-			}
-			Ok(Communication { msg }) => {
-				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
-					jobs.send_msg(to_job.relay_parent(), to_job).await;
-				}
-			}
-			Ok(Signal(BlockFinalized(..))) => {}
-			Err(err) => {
-				tracing::error!(
-					job = Job::NAME,
-					err = ?err,
-					"error receiving message from subsystem context for job",
-				);
-				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
-				return true;
-			}
-		}
-		false
-	}
-
-	// handle a command from a job.
-	async fn handle_from_job(
-		outgoing: Option<FromJobCommand>,
-		ctx: &mut Context,
-	) -> SubsystemResult<()> {
-		match outgoing.expect("the Jobs stream never ends; qed") {
-			FromJobCommand::SendMessage(msg) => ctx.send_message(msg).await,
-			FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await?,
-			FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task).await?,
-		}
-
-		Ok(())
-	}
 }
 
-impl<Spawner, Context, Job> Subsystem<Context> for JobManager<Spawner, Context, Job>
+impl<Context, Job, Spawner> Subsystem<Context> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
@@ -841,13 +806,8 @@ where
 	Job::Metrics: Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let spawner = self.spawner.clone();
-		let run_args = self.run_args.clone();
-		let metrics = self.metrics.clone();
-		let errors = self.errors;
-
 		let future = Box::pin(async move {
-			Self::run(ctx, run_args, metrics, spawner, errors).await;
+			self.run(ctx).await;
 			Ok(())
 		});
 
@@ -856,90 +816,6 @@ where
 			future,
 		}
 	}
-}
-
-/// Create a delegated subsystem
-///
-/// It is possible to create a type which implements `Subsystem` by simply doing:
-///
-/// ```ignore
-/// pub type ExampleSubsystem<Spawner, Context> = JobManager<Spawner, Context, ExampleJob>;
-/// ```
-///
-/// However, doing this requires that job itself and all types which comprise it (i.e. `ToJob`, `FromJob`, `Error`, `RunArgs`)
-/// are public, to avoid exposing private types in public interfaces. It's possible to delegate instead, which
-/// can reduce the total number of public types exposed, i.e.
-///
-/// ```ignore
-/// type Manager<Spawner, Context> = JobManager<Spawner, Context, ExampleJob>;
-/// pub struct ExampleSubsystem {
-/// 	manager: Manager<Spawner, Context>,
-/// }
-///
-/// impl<Spawner, Context> Subsystem<Context> for ExampleSubsystem<Spawner, Context> { ... }
-/// ```
-///
-/// This dramatically reduces the number of public types in the crate; the only things which must be public are now
-///
-/// - `struct ExampleSubsystem` (defined by this macro)
-/// - `type ToJob` (because it appears in a trait bound)
-/// - `type RunArgs` (because it appears in a function signature)
-///
-/// Implementing this all manually is of course possible, but it's tedious; why bother? This macro exists for
-/// the purpose of doing it automatically:
-///
-/// ```ignore
-/// delegated_subsystem!(ExampleJob(ExampleRunArgs) <- ExampleToJob as ExampleSubsystem);
-/// ```
-#[macro_export]
-macro_rules! delegated_subsystem {
-	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident) => {
-		delegated_subsystem!($job($run_args, $metrics) <- $to_job as $subsystem; stringify!($subsystem));
-	};
-
-	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
-		#[doc = "Manager type for the "]
-		#[doc = $subsystem_name]
-		type Manager<Spawner, Context> = $crate::JobManager<Spawner, Context, $job>;
-
-		#[doc = "An implementation of the "]
-		#[doc = $subsystem_name]
-		pub struct $subsystem<Spawner, Context> {
-			manager: Manager<Spawner, Context>,
-		}
-
-		impl<Spawner, Context> $subsystem<Spawner, Context>
-		where
-			Spawner: Clone + $crate::reexports::SpawnNamed + Send + Unpin,
-			Context: $crate::reexports::SubsystemContext,
-			$to_job: From<<Context as $crate::reexports::SubsystemContext>::Message>,
-		{
-			#[doc = "Creates a new "]
-			#[doc = $subsystem_name]
-			pub fn new(spawner: Spawner, run_args: $run_args, metrics: $metrics) -> Self {
-				$subsystem {
-					manager: $crate::JobManager::new(spawner, run_args, metrics)
-				}
-			}
-
-			/// Run this subsystem
-			#[tracing::instrument(skip(ctx, run_args, metrics, spawner), fields(subsystem = $subsystem_name))]
-			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
-				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
-			}
-		}
-
-		impl<Spawner, Context> $crate::reexports::Subsystem<Context> for $subsystem<Spawner, Context>
-		where
-			Spawner: $crate::reexports::SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: $crate::reexports::SubsystemContext,
-			$to_job: From<<Context as $crate::reexports::SubsystemContext>::Message>,
-		{
-			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
-				self.manager.start(ctx)
-			}
-		}
-	};
 }
 
 /// A future that wraps another future with a `Delay` allowing for time-limited futures.
@@ -1048,7 +924,7 @@ mod tests {
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem,
+		SpawnedSubsystem, ActivatedLeaf,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -1088,24 +964,22 @@ mod tests {
 		/// Run a job for the parent block indicated
 		//
 		// this function is in charge of creating and executing the job's main loop
-		fn run(
+		fn run<S: SubsystemSender>(
 			_: Hash,
 			_: Arc<jaeger::Span>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
-			mut sender: mpsc::Sender<FromJobCommand>,
+			mut sender: JobSender<S>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
 				let job = FakeCandidateSelectionJob { receiver };
 
 				if run_args {
-					sender.send(FromJobCommand::SendMessage(
-						CandidateSelectionMessage::Invalid(
-							Default::default(),
-							Default::default(),
-						).into(),
-					)).await?;
+					sender.send_message(CandidateSelectionMessage::Invalid(
+						Default::default(),
+						Default::default(),
+					).into()).await;
 				}
 
 				// it isn't necessary to break run_loop into its own function,
@@ -1132,15 +1006,15 @@ mod tests {
 	}
 
 	// with the job defined, it's straightforward to get a subsystem implementation.
-	type FakeCandidateSelectionSubsystem<Spawner, Context> =
-		JobManager<Spawner, Context, FakeCandidateSelectionJob>;
+	type FakeCandidateSelectionSubsystem<Spawner> =
+		JobSubsystem<FakeCandidateSelectionJob, Spawner>;
 
 	// this type lets us pretend to be the overseer
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output = ()>>(
 		run_args: bool,
-		test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T,
+		test: impl FnOnce(OverseerHandle) -> T,
 	) {
 		let _ = env_logger::builder()
 			.is_test(true)
@@ -1152,10 +1026,13 @@ mod tests {
 
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
-		let (err_tx, err_rx) = mpsc::channel(16);
 
-		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, (), pool, Some(err_tx));
-		let test_future = test(overseer_handle, err_rx);
+		let subsystem = FakeCandidateSelectionSubsystem::new(
+			pool,
+			run_args,
+			(),
+		).run(context);
+		let test_future = test(overseer_handle);
 
 		futures::pin_mut!(subsystem, test_future);
 
@@ -1171,10 +1048,14 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 
-		test_harness(true, |mut overseer_handle, err_rx| async move {
+		test_harness(true, |mut overseer_handle| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 			assert_matches!(
@@ -1190,9 +1071,6 @@ mod tests {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::Conclude))
 				.await;
-
-			let errs: Vec<_> = err_rx.collect().await;
-			assert_eq!(errs.len(), 0);
 		});
 	}
 
@@ -1200,10 +1078,14 @@ mod tests {
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
 
-		test_harness(true, |mut overseer_handle, err_rx| async move {
+		test_harness(true, |mut overseer_handle| async move {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(relay_parent, Arc::new(jaeger::Span::Disabled)),
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: relay_parent,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					}),
 				)))
 				.await;
 
@@ -1223,9 +1105,6 @@ mod tests {
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::Conclude))
 				.await;
-
-			let errs: Vec<_> = err_rx.collect().await;
-			assert_eq!(errs.len(), 0);
 		});
 	}
 

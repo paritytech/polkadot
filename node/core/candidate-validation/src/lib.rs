@@ -33,9 +33,9 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
+use polkadot_node_primitives::{ValidationResult, InvalidCandidate, PoV};
 use polkadot_primitives::v1::{
-	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
+	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
 use polkadot_parachain::wasm_executor::{
@@ -568,7 +568,8 @@ impl metrics::Metrics for Metrics {
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v1::{HeadData, BlockData, UpwardMessage};
+	use polkadot_primitives::v1::{HeadData, UpwardMessage};
+	use polkadot_node_primitives::BlockData;
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;

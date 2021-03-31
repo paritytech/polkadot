@@ -38,14 +38,14 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, BlockData, ValidationCode,
+	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
 pub use crate::v0::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
 	ValidatorSignature, SigningContext, Signed, ValidityAttestation,
-	CompactStatement, SignedStatement, ErasureChunk, EncodeAs,
+	CompactStatement, SignedStatement, EncodeAs,
 };
 
 #[cfg(feature = "std")]
@@ -438,21 +438,6 @@ impl CandidateCommitments {
 	}
 }
 
-/// A Proof-of-Validity
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct PoV {
-	/// The block witness data.
-	pub block_data: BlockData,
-}
-
-impl PoV {
-	/// Get the blake2-256 hash of the PoV.
-	#[cfg(feature = "std")]
-	pub fn hash(&self) -> Hash {
-		BlakeTwo256::hash_of(self)
-	}
-}
 
 /// A bitfield concerning availability of backed candidates.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
@@ -596,16 +581,6 @@ pub enum CoreOccupied {
 	Parachain,
 }
 
-/// This is the data we keep available for each candidate included in the relay chain.
-#[cfg(feature = "std")]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug)]
-pub struct AvailableData {
-	/// The Proof-of-Validation of the candidate.
-	pub pov: std::sync::Arc<PoV>,
-	/// The persisted validation data needed for secondary checks.
-	pub validation_data: PersistedValidationData,
-}
-
 /// A helper data-type for tracking validator-group rotations.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
@@ -659,7 +634,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
-    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
@@ -977,6 +952,43 @@ pub struct AbridgedHrmpChannel {
 	/// This value is initialized to a special value that consists of all zeroes which indicates
 	/// that no messages were previously added.
 	pub mqc_head: Option<Hash>,
+}
+
+/// Consensus engine id for polkadot v1 consensus engine.
+pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
+
+/// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].
+#[derive(Decode, Encode, Clone, PartialEq, Eq)]
+pub enum ConsensusLog {
+	/// A parachain or parathread upgraded its code.
+	#[codec(index = 1)]
+	ParaUpgradeCode(Id, Hash),
+	/// A parachain or parathread scheduled a code ugprade.
+	#[codec(index = 2)]
+	ParaScheduleUpgradeCode(Id, Hash, BlockNumber),
+	/// Governance requests to auto-approve every candidate included up to the given block
+	/// number in the current chain, inclusive.
+	#[codec(index = 3)]
+	ForceApprove(BlockNumber),
+}
+
+impl ConsensusLog {
+	/// Attempt to convert a reference to a generic digest item into a consensus log.
+	pub fn from_digest_item<H>(digest_item: &runtime_primitives::DigestItem<H>)
+		-> Result<Option<Self>, parity_scale_codec::Error>
+	{
+		match digest_item {
+			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
+				Ok(Some(Self::decode(&mut &encoded[..])?)),
+			_ => Ok(None),
+		}
+	}
+}
+
+impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
+	}
 }
 
 #[cfg(test)]

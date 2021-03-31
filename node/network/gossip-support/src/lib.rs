@@ -19,7 +19,6 @@
 //! the gossiping subsystems on every new session.
 
 use futures::FutureExt as _;
-use rand::seq::SliceRandom as _;
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage,
@@ -45,7 +44,7 @@ pub struct GossipSupport {}
 struct State {
 	last_session_index: Option<SessionIndex>,
 	/// when we overwrite this, it automatically drops the previous request
-	last_connection_request: Option<ConnectionRequest>,
+	_last_connection_request: Option<ConnectionRequest>,
 }
 
 impl GossipSupport {
@@ -80,9 +79,9 @@ impl GossipSupport {
 				})) => {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
-					let leaves = activated.into_iter().map(|(h, _)| h);
+					let leaves = activated.into_iter().map(|a| a.hash);
 					if let Err(e) = state.handle_active_leaves(&mut ctx, leaves).await {
-						tracing::debug!(target: LOG_TARGET, "Error {}", e);
+						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
@@ -103,17 +102,6 @@ async fn determine_relevant_validators(
 	Ok(validators)
 }
 
-// chooses a random subset of sqrt(v.len()), but at least 25 elements
-fn choose_random_subset<T>(mut v: Vec<T>) -> Vec<T> {
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
-
-	let sqrt = (v.len() as f64).sqrt() as usize;
-	let len = std::cmp::max(25, sqrt);
-	v.truncate(len);
-	v
-}
-
 impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
@@ -131,10 +119,9 @@ impl State {
 			};
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
-				tracing::debug!(target: LOG_TARGET, "New session detected {}", new_session);
+				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
 				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
-				let validators = choose_random_subset(validators);
-				tracing::debug!(target: LOG_TARGET, "Issuing a connection request to {:?}", validators);
+				tracing::debug!(target: LOG_TARGET, num = ?validators.len(), "Issuing a connection request");
 
 				let request = validator_discovery::connect_to_validators_in_session(
 					ctx,
@@ -145,7 +132,7 @@ impl State {
 				).await?;
 
 				self.last_session_index = Some(new_session);
-				self.last_connection_request = Some(request);
+				self._last_connection_request = Some(request);
 			}
 		}
 

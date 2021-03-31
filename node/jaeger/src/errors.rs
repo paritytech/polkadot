@@ -14,20 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The `Error` and `Result` types used by the subsystem.
+//! Polkadot Jaeger error definitions.
 
-use thiserror::Error;
+/// A description of an error during jaeger initialization.
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum JaegerError {
+	#[error("Already launched the collector thread")]
+	AlreadyLaunched,
 
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error(transparent)]
-	Subsystem(#[from] polkadot_subsystem::SubsystemError),
-	#[error(transparent)]
-	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
-	#[error(transparent)]
-	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
-	#[error(transparent)]
-	Util(#[from] polkadot_node_subsystem_util::Error),
+	#[error("Missing jaeger configuration")]
+	MissingConfiguration,
 }
-
-pub type Result<T> = std::result::Result<T, Error>;
