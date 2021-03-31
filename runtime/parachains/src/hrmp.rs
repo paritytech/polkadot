@@ -409,6 +409,14 @@ decl_module! {
 			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
 			Ok(())
 		}
+
+		/// Force process hrmp open and close requests.
+
+		/// This extrinsic triggers the cleanup of all the HRMP storage items that
+		/// a para may have. Normally this happens once per session, but this allows
+		/// you to trigger the cleanup immediately for a specific parachain.
+		#[weight = 0]
+		pub fn force_clean_hrmp()
 	}
 }
 
