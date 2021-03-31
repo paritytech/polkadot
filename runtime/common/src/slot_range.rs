@@ -24,26 +24,6 @@ use parity_scale_codec::{Encode, Decode};
 /// Total number of possible sub ranges of slots.
 pub const SLOT_RANGE_COUNT: usize = 10;
 
-macro_rules! generate_slot_range {
-	( $( $x:ident),* ) => {
-		as_item! {
-			pub enum SlotRange2 { $( $x ),* }
-		}
-	}
-}
-
-macro_rules! as_item {
-    ($i:item) => { $i };
-}
-
-generate_slot_range!(Zero, One, Two, Three);
-
-#[test]
-fn test_generate() {
-	println!("{:?}", SlotRange2);
-	assert!(false);
-}
-
 /// A macro for generating an enum of slot ranges over arbitrary range sizes.
 macro_rules! generate_slot_range {
 	// Entry point
