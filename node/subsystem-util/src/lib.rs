@@ -52,6 +52,7 @@ use thiserror::Error;
 
 pub mod validator_discovery;
 pub use metered_channel as metered;
+pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -265,6 +266,18 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 		}
 	}
 	None
+}
+
+/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
+pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+	use rand::seq::SliceRandom as _;
+	let mut rng = rand::thread_rng();
+	v.shuffle(&mut rng);
+
+	let len_sqrt = (v.len() as f64).sqrt() as usize;
+	let len = std::cmp::max(min, len_sqrt);
+	v.truncate(len);
+	v
 }
 
 /// Local validator information

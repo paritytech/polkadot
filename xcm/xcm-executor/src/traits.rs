@@ -117,15 +117,22 @@ impl<T: Get<&'static [u8]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<
 		}
 	}
 }
+// TODO: impl for tuples
 impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungible<B> for (X, Y) {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		X::matches_fungible(a).or_else(|| Y::matches_fungible(a))
 	}
 }
 
-pub trait LocationConversion<AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId>;
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId>;
+// TODO: change to use Convert trait.
+/// Attempt to convert a location into some value of type `T`, or vice-versa.
+pub trait LocationConversion<T> {
+	/// Convert `location` into `Some` value of `T`, or `None` if not possible.
+	// TODO: consider returning Result<T, ()> instead.
+	fn from_location(location: &MultiLocation) -> Option<T>;
+	/// Convert some value `value` into a `location`, `Err`oring with the original `value` if not possible.
+	// TODO: consider renaming `into_location`
+	fn try_into_location(value: T) -> Result<MultiLocation, T>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]

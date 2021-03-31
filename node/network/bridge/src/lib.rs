@@ -420,7 +420,7 @@ async fn handle_network_messages(
 						Some(peer_set) => peer_set,
 					};
 
-					tracing::trace!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						action = "PeerConnected",
 						peer_set = ?peer_set,
@@ -503,7 +503,7 @@ async fn handle_network_messages(
 						Some(peer_set) => peer_set,
 					};
 
-					tracing::trace!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						action = "PeerDisconnected",
 						peer_set = ?peer_set,
