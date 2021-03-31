@@ -31,7 +31,10 @@ use polkadot_subsystem::{
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
 	},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	MIN_GOSSIP_PEERS,
+};
 use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
@@ -620,13 +623,12 @@ async fn circulate_statement(
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
-	let mut peers_to_send = HashMap::new();
+	let len_sqrt = (peers.len() as f64).sqrt() as usize;
+	let cap = std::cmp::max(MIN_GOSSIP_PEERS, len_sqrt);
 
-	for (peer, data) in peers.iter_mut() {
-		if let Some(new_known) = data.send(&relay_parent, &fingerprint) {
-			peers_to_send.insert(peer.clone(), new_known);
-		}
-	}
+	let peers_to_send: HashMap<PeerId, bool> = peers.iter_mut().filter_map(|(peer, data)| {
+		data.send(&relay_parent, &fingerprint).map(|new| (peer.clone(), new))
+	}).take(cap).collect();
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {

@@ -466,6 +466,7 @@ impl parachains_session_info::Config for Runtime {}
 
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -522,7 +523,7 @@ construct_runtime! {
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Origin},
+		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
