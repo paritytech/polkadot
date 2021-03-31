@@ -1522,7 +1522,7 @@ mod test_fees {
 		let desired: u32 = 1_000;
 		let weight_with = |active| {
 			<Runtime as pallet_election_provider_multi_phase::Config>::WeightInfo::submit_unsigned(
-				target_voters.max(active),
+				active,
 				all_targets,
 				active,
 				desired,
