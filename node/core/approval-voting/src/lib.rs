@@ -1538,7 +1538,9 @@ fn import_checked_approval(
 			approval_entry.mark_approved();
 		}
 
-		// TODO [now]: on local source, record the local signature.
+		if let ApprovalSource::Local(_, ref sig) = source {
+			approval_entry.import_approval_sig(sig.clone());
+		}
 
 		actions.extend(schedule_wakeup_action(
 			&approval_entry,

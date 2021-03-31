@@ -109,6 +109,11 @@ impl ApprovalEntry {
 		})
 	}
 
+	/// Import our local approval vote signature for this candidate.
+	pub fn import_approval_sig(&mut self, approval_sig: ValidatorSignature) {
+		self.our_approval_sig = Some(approval_sig);
+	}
+
 	/// Whether a validator is already assigned.
 	pub fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
 		self.assignments.get(validator_index.0 as usize).map(|b| *b).unwrap_or(false)
@@ -189,6 +194,18 @@ impl ApprovalEntry {
 	/// Get the backing group index of the approval entry.
 	pub fn backing_group(&self) -> GroupIndex {
 		self.backing_group
+	}
+
+	/// Get the assignment cert & approval signature.
+	///
+	/// The approval signature will only be `Some` if the assignment is too.
+	pub fn local_statements(&self) -> (Option<OurAssignment>, Option<ValidatorSignature>) {
+		let approval_sig = self.our_approval_sig.clone();
+		if let Some(our_assignment) = self.our_assignment.as_ref().filter(|a| a.triggered()) {
+			(Some(our_assignment.clone()), approval_sig)
+		} else {
+			(None, None)
+		}
 	}
 
 	/// For tests: set our assignment.
