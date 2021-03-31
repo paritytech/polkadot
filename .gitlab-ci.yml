@@ -89,7 +89,7 @@ check-runtime:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
-    - ./scripts/gitlab/check_runtime.sh
+    - echo "./scripts/gitlab/check_runtime.sh"
   allow_failure:                   true
 
 check-line-width:
@@ -98,7 +98,7 @@ check-line-width:
   <<:                              *kubernetes-env
   <<:                              *rules-pr-only
   script:
-    - ./scripts/gitlab/check_line_width.sh
+    - echo "./scripts/gitlab/check_line_width.sh"
   allow_failure:                   true
 
 test-deterministic-wasm:
@@ -107,7 +107,7 @@ test-deterministic-wasm:
   <<:                              *docker-env
   <<:                              *compiler-info
   script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+    - echo "./scripts/gitlab/test_deterministic_wasm.sh"
 
 test-linux-stable:
   stage:                           test
@@ -120,12 +120,11 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
-  artifacts:
-    paths:
-      - ./target/release/polkadot
+  # artifacts:
+  #   paths:
+  #     - ./target/release/polkadot
   script:
-    - ./scripts/gitlab/test_linux_stable.sh
-    - sccache -s
+    - echo "./scripts/gitlab/test_linux_stable.sh"
 
 check-web-wasm:
   stage:                           test
@@ -135,8 +134,7 @@ check-web-wasm:
   script:
     # WASM support is in progress. As more and more crates support WASM, we should
     # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
+    - echo "./scripts/gitlab/check_web_wasm.sh"
 
 check-runtime-benchmarks:
   stage:                           test
@@ -145,21 +143,21 @@ check-runtime-benchmarks:
   <<:                              *compiler-info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
-    - sccache -s
+    - echo "./scripts/gitlab/check_runtime_benchmarks.sh"
 
 .pack-artifacts:                   &pack-artifacts
   - mkdir -p ./artifacts
   - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
   - mv ./target/release/polkadot ./artifacts/.
   - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-  - if [ "${CI_COMMIT_TAG}" ]; then
-      EXTRATAG="latest";
-    else
-      EXTRATAG="$(./artifacts/polkadot --version |
-        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-      EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-    fi
+  # - if [ "${CI_COMMIT_TAG}" ]; then
+  #     EXTRATAG="latest";
+  #   else
+  #     EXTRATAG="$(./artifacts/polkadot --version |
+  #       sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+      # EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+    # fi
+  - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}
   - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
   - echo -n ${VERSION} > ./artifacts/VERSION
   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
@@ -183,8 +181,7 @@ build-linux-release:
         EXTRA_FLAGS:               "--features=real-overseer"
     - when:                        always
   script:
-    - time cargo build --release --verbose ${EXTRA_FLAGS}
-    - sccache -s
+    - echo "time cargo build --release --verbose ${EXTRA_FLAGS}"
     - *pack-artifacts
 
 #### stage:                        build
@@ -198,11 +195,11 @@ check-transaction-versions:
     - job:                         test-linux-stable
       artifacts:                   true
   before_script:
-    - apt-get -y update; apt-get -y install jq lsof
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    - git fetch origin release
+    # - apt-get -y update; apt-get -y install jq lsof
+    # - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    # - git fetch origin release
   script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
+    - echo "scripts/gitlab/check_extrinsics_ordering.sh"
 
 generate-impl-guide:
   stage:                           build
@@ -212,7 +209,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementers-guide
+    - echo "mdbook build roadmap/implementers-guide"
 
 .build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
@@ -230,27 +227,27 @@ generate-impl-guide:
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
   script:
-    - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
-        ( echo "no docker credentials provided"; exit 1 )
+    # - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
+    #     ( echo "no docker credentials provided"; exit 1 )
     - cd ./artifacts
-    - buildah bud
-        --format=docker
-        --build-arg VCS_REF="${CI_COMMIT_SHA}"
-        --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-        --tag "$IMAGE_NAME:$VERSION"
-        --tag "$IMAGE_NAME:$EXTRATAG" .
-    # The job will success only on the protected branch
-    - echo "$DOCKER_PASS" |
-        buildah login --username "$DOCKER_USER" --password-stdin docker.io
-    - buildah info
-    - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
-    - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
+    - echo "buildah bud"
+    #     --format=docker
+    #     --build-arg VCS_REF="${CI_COMMIT_SHA}"
+    #     --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    #     --tag "$IMAGE_NAME:$VERSION"
+    #     --tag "$IMAGE_NAME:$EXTRATAG" .
+    # # The job will success only on the protected branch
+    # - echo "$DOCKER_PASS" |
+    #     buildah login --username "$DOCKER_USER" --password-stdin docker.io
+    # - buildah info
+    # - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
+    # - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
     # pass artifacts to the trigget-simnet job
     # this twist is to match the similar logic in substrate
     - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env 
     - echo "VERSION=${EXTRATAG}" >> build.env
-  after_script:
-    - buildah logout "$IMAGE_NAME"
+  # after_script:
+  #   - buildah logout "$IMAGE_NAME"
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
@@ -307,44 +304,44 @@ publish-s3-release:
     - *check-versions
   script:
     - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
-    - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects at https://${BUCKET}/${PREFIX}/${EXTRATAG}"
-    - find ./artifacts -type f | while read file; do
-      name="${file#./artifacts/}";
-      aws s3api copy-object
-        --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
-        --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
-      done
-    - |
-      cat <<-EOM
-      |
-      |  polkadot binary paths:
-      |
-      |  - https://${BUCKET}/${PREFIX}/${EXTRATAG}/polkadot
-      |  - https://${BUCKET}/${PREFIX}/${VERSION}/polkadot
-      |
-      EOM
-  after_script:
-    - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
-        --recursive --human-readable --summarize
+  #   - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
+  #   - echo "update objects at https://${BUCKET}/${PREFIX}/${EXTRATAG}"
+  #   - find ./artifacts -type f | while read file; do
+  #     name="${file#./artifacts/}";
+  #     aws s3api copy-object
+  #       --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
+  #       --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
+  #     done
+  #   - |
+  #     cat <<-EOM
+  #     |
+  #     |  polkadot binary paths:
+  #     |
+  #     |  - https://${BUCKET}/${PREFIX}/${EXTRATAG}/polkadot
+  #     |  - https://${BUCKET}/${PREFIX}/${VERSION}/polkadot
+  #     |
+  #     EOM
+  # after_script:
+  #   - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
+  #       --recursive --human-readable --summarize
 
 #### stage:                        deploy
 
-deploy-polkasync-kusama:
-  stage:                           deploy
-  rules:
-    # former .rules-build
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
-  variables:
-    POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
-    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
-  allow_failure:                   true
-  trigger:                         "parity/infrastructure/parity-testnet"
+# deploy-polkasync-kusama:
+#   stage:                           deploy
+#   rules:
+#     # former .rules-build
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#       when: never
+#     - if: $CI_PIPELINE_SOURCE == "web"
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+#   variables:
+#     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
+#     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
+#   allow_failure:                   true
+#   trigger:                         "parity/infrastructure/parity-testnet"
 
 trigger-simnet:
   stage:                           deploy
@@ -356,7 +353,7 @@ trigger-simnet:
   # Simnet uses an image published on PRs with this exact version for triggered runs
   # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
   trigger:
-    project:                       parity/simnet
+    project:                       tripleight/simnet
     branch:                        master
     strategy:                      depend
   variables:
