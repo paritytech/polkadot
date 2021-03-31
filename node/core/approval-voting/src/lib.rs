@@ -480,6 +480,12 @@ mod approval_db_v1_reader {
 }
 use approval_db_v1_reader::ApprovalDBV1Reader;
 
+struct ApprovalStatus {
+	required_tranches: RequiredTranches,
+	tranche_now: DelayTranche,
+	block_tick: Tick,
+}
+
 struct State<T> {
 	session_window: import::RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
@@ -492,6 +498,52 @@ struct State<T> {
 impl<T> State<T> {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
 		self.session_window.session_info(i)
+	}
+
+	// Compute the required tranches for approval for this block and candidate combo.
+	// Fails if there is no approval entry for the block under the candidate or no candidate entry
+	// under the block, or if the session is out of bounds.
+	fn approval_status<'a, 'b>(
+		&'a self,
+		block_entry: &'a BlockEntry,
+		candidate_entry: &'b CandidateEntry,
+	) -> Option<(&'b ApprovalEntry, ApprovalStatus)> {
+		let session_info = match self.session_info(block_entry.session()) {
+			Some(s) => s,
+			None => {
+				tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
+				return None;
+			}
+		};
+		let block_hash = block_entry.block_hash();
+
+		let tranche_now = self.clock.tranche_now(self.slot_duration_millis, block_entry.slot());
+		let block_tick = slot_number_to_tick(self.slot_duration_millis, block_entry.slot());
+		let no_show_duration = slot_number_to_tick(
+			self.slot_duration_millis,
+			Slot::from(u64::from(session_info.no_show_slots)),
+		);
+
+		if let Some(approval_entry) = candidate_entry.approval_entry(&block_hash) {
+			let required_tranches = approval_checking::tranches_to_approve(
+				approval_entry,
+				candidate_entry.approvals(),
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				session_info.needed_approvals as _
+			);
+
+			let status = ApprovalStatus {
+				required_tranches,
+				block_tick,
+				tranche_now,
+			};
+
+			Some((approval_entry, status))
+		} else {
+			None
+		}
 	}
 }
 
@@ -801,7 +853,7 @@ async fn handle_from_overseer(
 		FromOverseer::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
 				let (check_outcome, actions)
-					= check_and_import_assignment(state, metrics, a, claimed_core)?;
+					= check_and_import_assignment(state, a, claimed_core)?;
 				let _ = res.send(check_outcome);
 				actions
 			}
@@ -1157,7 +1209,6 @@ fn schedule_wakeup_action(
 
 fn check_and_import_assignment(
 	state: &State<impl DBReader>,
-	metrics: &Metrics,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
@@ -1252,24 +1303,22 @@ fn check_and_import_assignment(
 		}
 	};
 
-	// We check for approvals here because we may be late in seeing a block containing a
-	// candidate for which we have already seen approvals by the same validator.
-	//
-	// For these candidates, we will receive the assignments potentially after a corresponding
-	// approval, and so we must check for approval here.
-	//
-	// Note that this already produces actions for writing
-	// the candidate entry and any modified block entries to disk.
-	//
-	// It also produces actions to schedule wakeups for the candidate.
-	let actions = check_and_apply_full_approval(
-		state,
-		&metrics,
-		Some((assignment.block_hash, block_entry)),
-		assigned_candidate_hash,
-		candidate_entry,
-		|h, _| h == &assignment.block_hash,
-	)?;
+	let mut actions = Vec::new();
+
+	// We've imported a new approval, so we need to schedule a wake-up for when that might no-show.
+	if let Some((approval_entry, status)) = state.approval_status(&block_entry, &candidate_entry) {
+		actions.extend(schedule_wakeup_action(
+			approval_entry,
+			block_entry.block_hash(),
+			block_entry.block_number(),
+			assigned_candidate_hash,
+			status.block_tick,
+			status.required_tranches,
+		));
+	}
+
+	// We also write the candidate entry as it now contains the new candidate.
+	actions.push(Action::WriteCandidateEntry(assigned_candidate_hash, candidate_entry));
 
 	Ok((res, actions))
 }
@@ -1356,117 +1405,89 @@ fn check_and_import_approval<T>(
 	let actions = import_checked_approval(
 		state,
 		&metrics,
-		Some((approval.block_hash, block_entry)),
+		block_entry,
 		approved_candidate_hash,
 		candidate_entry,
-		approval.validator,
-	)?;
+		ApprovalSource::Remote(approval.validator),
+	);
 
 	Ok((actions, t))
 }
 
+enum ApprovalSource {
+	Remote(ValidatorIndex),
+	Local(ValidatorIndex, ValidatorSignature),
+}
+
+impl ApprovalSource {
+	fn validator_index(&self) -> ValidatorIndex {
+		match *self {
+			ApprovalSource::Remote(v) | ApprovalSource::Local(v, _) => v,
+		}
+	}
+
+	fn is_remote(&self) -> bool {
+		match *self {
+			ApprovalSource::Remote(_) => true,
+			ApprovalSource::Local(_, _) => false,
+		}
+	}
+}
+
+// Import an approval vote which is already checked to be valid and corresponding to an assigned
+// validator on the candidate and block. This updates the block entry and candidate entry as
+// necessary and schedules any further wakeups.
 fn import_checked_approval(
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
-	already_loaded: Option<(Hash, BlockEntry)>,
+	mut block_entry: BlockEntry,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
-	validator: ValidatorIndex,
-) -> SubsystemResult<Vec<Action>> {
-	if candidate_entry.mark_approval(validator) {
-		// already approved - nothing to do here.
-		return Ok(Vec::new());
+	source: ApprovalSource,
+) -> Vec<Action> {
+	let validator_index = source.validator_index();
+
+	let already_approved_by = candidate_entry.mark_approval(validator_index);
+	let candidate_approved_in_block = block_entry.is_candidate_approved(&candidate_hash);
+
+	// Check for early exits.
+	//
+	// If the candidate was approved
+	// but not the block, it means that we still need more approvals for the candidate under the
+	// block.
+	//
+	// If the block was approved, but the validator hadn't approved it yet, we should still hold
+	// onto the approval vote on-disk in case we restart and rebroadcast votes. Otherwise, our
+	// assignment might manifest as a no-show.
+	match source {
+		ApprovalSource::Remote(_) => {
+			// We don't store remote votes, so we can early exit as long at the candidate is
+			// already concluded under the block i.e. we don't need more approvals.
+			if candidate_approved_in_block {
+				return Vec::new();
+			}
+		}
+		ApprovalSource::Local(_, _) => {
+			// We never early return on the local validator.
+		}
 	}
 
-	// Check if this approval vote alters the approval state of any blocks.
-	//
-	// This may include blocks beyond the already loaded block.
-	let actions = check_and_apply_full_approval(
-		state,
-		metrics,
-		already_loaded,
-		candidate_hash,
-		candidate_entry,
-		|_, a| a.is_assigned(validator),
-	)?;
-
-	Ok(actions)
-}
-
-// Checks the candidate for full approval under all blocks matching the given filter.
-//
-// If returning without error, is guaranteed to have produced actions
-// to write all modified block entries. It also schedules wakeups for
-// the candidate under any blocks filtered.
-fn check_and_apply_full_approval(
-	state: &State<impl DBReader>,
-	metrics: &Metrics,
-	mut already_loaded: Option<(Hash, BlockEntry)>,
-	candidate_hash: CandidateHash,
-	mut candidate_entry: CandidateEntry,
-	filter: impl Fn(&Hash, &ApprovalEntry) -> bool,
-) -> SubsystemResult<Vec<Action>> {
-	// We only query this max once per hash.
-	let db = &state.db;
-	let mut load_block_entry = move |block_hash| -> SubsystemResult<Option<BlockEntry>> {
-		if already_loaded.as_ref().map_or(false, |(h, _)| h == block_hash) {
-			Ok(already_loaded.take().map(|(_, c)| c))
-		} else {
-			db.load_block_entry(block_hash)
-		}
-	};
-
-	let mut newly_approved = Vec::new();
 	let mut actions = Vec::new();
-	for (block_hash, approval_entry) in candidate_entry.iter_approval_entries()
-		.into_iter()
-		.filter(|(h, a)| !a.is_approved() && filter(h, a))
+	let block_hash = block_entry.block_hash();
+	let block_number = block_entry.block_number();
+
+	let (is_approved, status) = if let Some((approval_entry, status))
+		= state.approval_status(&block_entry, &candidate_entry)
 	{
-		let mut block_entry = match load_block_entry(block_hash)? {
-			None => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Missing block entry {} referenced by candidate {}",
-					block_hash,
-					candidate_hash,
-				);
-				continue
-			}
-			Some(b) => b,
-		};
-		let block_number = block_entry.block_number();
-
-		let session_info = match state.session_info(block_entry.session()) {
-			Some(s) => s,
-			None => {
-				tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-				continue
-			}
-		};
-
-		let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
-		let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
-		let no_show_duration = slot_number_to_tick(
-			state.slot_duration_millis,
-			Slot::from(u64::from(session_info.no_show_slots)),
-		);
-
-		let required_tranches = approval_checking::tranches_to_approve(
-			approval_entry,
-			candidate_entry.approvals(),
-			tranche_now,
-			block_tick,
-			no_show_duration,
-			session_info.needed_approvals as _
-		);
-
 		let check = approval_checking::check_approval(
 			&candidate_entry,
 			approval_entry,
-			required_tranches.clone(),
+			status.required_tranches.clone(),
 		);
 
-		if check.is_approved() {
+		let is_approved = check.is_approved();
+
+		if is_approved {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
@@ -1476,43 +1497,73 @@ fn check_and_apply_full_approval(
 
 			let no_shows = check.known_no_shows();
 
-			let was_approved = block_entry.is_fully_approved();
-
-			newly_approved.push(*block_hash);
+			let was_block_approved = block_entry.is_fully_approved();
 			block_entry.mark_approved_by_hash(&candidate_hash);
-			let is_approved = block_entry.is_fully_approved();
+			let is_block_approved = block_entry.is_fully_approved();
 
 			if no_shows != 0 {
 				metrics.on_no_shows(no_shows);
 			}
 
-			metrics.on_candidate_approved(tranche_now as _);
+			metrics.on_candidate_approved(status.tranche_now as _);
 
-			if is_approved && !was_approved {
-				metrics.on_block_approved(tranche_now as _)
+			if is_block_approved && !was_block_approved {
+				metrics.on_block_approved(status.tranche_now as _);
 			}
 
 			actions.push(Action::WriteBlockEntry(block_entry));
 		}
 
+		(is_approved, status)
+	} else {
+		tracing::warn!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?block_hash,
+			?validator_index,
+			"No approval entry for approval under block",
+		);
+
+		return Vec::new();
+	};
+
+	{
+		let approval_entry = candidate_entry.approval_entry_mut(&block_hash)
+			.expect("Approval entry just fetched; qed");
+
+		let was_approved = approval_entry.is_approved();
+		let newly_approved = is_approved && !was_approved;
+
+		if is_approved {
+			approval_entry.mark_approved();
+		}
+
+		// TODO [now]: on local source, record the local signature.
+
 		actions.extend(schedule_wakeup_action(
 			&approval_entry,
-			*block_hash,
+			block_hash,
 			block_number,
 			candidate_hash,
-			block_tick,
-			required_tranches,
+			status.block_tick,
+			status.required_tranches,
 		));
-	}
 
-	for b in &newly_approved {
-		if let Some(a) = candidate_entry.approval_entry_mut(b) {
-			a.mark_approved();
+
+		// We have no need to write the candidate entry if
+		//
+		// 1. The source is remote, as we don't store anything new in the approval entry.
+		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
+		//    approved flag with `mark_approved` above.
+		// 3. The source had already approved the candidate, as we haven't altered the bitfield.
+		if !source.is_remote() || newly_approved || !already_approved_by {
+			// In all other cases, we need to write the candidate entry.
+			actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry));
 		}
+
 	}
 
-	actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry));
-	Ok(actions)
+	actions
 }
 
 fn should_trigger_assignment(
@@ -1963,11 +2014,11 @@ fn issue_approval(
 	let actions = import_checked_approval(
 		state,
 		metrics,
-		Some((block_hash, block_entry)),
+		block_entry,
 		candidate_hash,
 		candidate_entry,
-		validator_index as _,
-	)?;
+		ApprovalSource::Local(validator_index as _, sig.clone()),
+	);
 
 	metrics.on_approval_produced();
 

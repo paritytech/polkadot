@@ -260,11 +260,6 @@ impl CandidateEntry {
 		self.block_assignments.get(block_hash)
 	}
 
-	/// Iterate over approval entries.
-	pub fn iter_approval_entries(&self) -> impl IntoIterator<Item = (&Hash, &ApprovalEntry)> {
-		self.block_assignments.iter()
-	}
-
 	#[cfg(test)]
 	pub fn add_approval_entry(
 		&mut self,
@@ -325,6 +320,13 @@ impl BlockEntry {
 		}
 	}
 
+	/// Whether a candidate is approved in the bitfield.
+	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
+		self.candidates.iter().position(|(_, h)| h == candidate_hash)
+			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
+			.unwrap_or(false)
+	}
+
 	/// Whether the block entry is fully approved.
 	pub fn is_fully_approved(&self) -> bool {
 		self.approved_bitfield.all()
@@ -337,18 +339,6 @@ impl BlockEntry {
 		} else {
 			None
 		})
-	}
-
-	#[cfg(test)]
-	pub fn block_hash(&self) -> Hash {
-		self.block_hash
-	}
-
-	#[cfg(test)]
-	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
-		self.candidates.iter().position(|(_, h)| h == candidate_hash)
-			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
-			.unwrap_or(false)
 	}
 
 	/// For tests: Add a candidate to the block entry. Returns the
@@ -401,6 +391,11 @@ impl BlockEntry {
 	/// Access the block number of the block entry.
 	pub fn block_number(&self) -> BlockNumber {
 		self.block_number
+	}
+
+	/// Access the block hash of the block entry.
+	pub fn block_hash(&self) -> Hash {
+		self.block_hash
 	}
 }
 
