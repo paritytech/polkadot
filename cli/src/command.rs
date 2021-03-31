@@ -276,25 +276,25 @@ pub fn run() -> Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
-			let spec_name = runner.config().impl_name.to_lowercase();
 
-			if spec_name.contains("polkadot") {
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+			if chain_spec.is_polkadot() {
 				Ok(runner.sync_run(|config| {
 					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
-			} else if spec_name.contains("kusama") {
+			} else if chain_spec.is_kusama() {
 				Ok(runner.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
-			} else if spec_name.contains("westend") {
+			} else if chain_spec.is_westend() {
 				Ok(runner.sync_run(|config| {
 					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
 			} else {
-				panic!("can only use benchmarks with --chain value of [polkadot, kusama, westend], got {}", spec_name);
+				Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, chain_spec.id()).into())
 			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
