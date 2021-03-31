@@ -24,31 +24,68 @@ use parity_scale_codec::{Encode, Decode};
 /// Total number of possible sub ranges of slots.
 pub const SLOT_RANGE_COUNT: usize = 10;
 
-/// A compactly represented sub-range from the series (0, 1, 2, 3).
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
-#[repr(u8)]
-pub enum SlotRange {
-	/// Sub range from index 0 to index 0 inclusive.
-	ZeroZero = 0,
-	/// Sub range from index 0 to index 1 inclusive.
-	ZeroOne = 1,
-	/// Sub range from index 0 to index 2 inclusive.
-	ZeroTwo = 2,
-	/// Sub range from index 0 to index 3 inclusive.
-	ZeroThree = 3,
-	/// Sub range from index 1 to index 1 inclusive.
-	OneOne = 4,
-	/// Sub range from index 1 to index 2 inclusive.
-	OneTwo = 5,
-	/// Sub range from index 1 to index 3 inclusive.
-	OneThree = 6,
-	/// Sub range from index 2 to index 2 inclusive.
-	TwoTwo = 7,
-	/// Sub range from index 2 to index 3 inclusive.
-	TwoThree = 8,
-	/// Sub range from index 3 to index 3 inclusive.
-	ThreeThree = 9,     // == SLOT_RANGE_COUNT - 1
+macro_rules! generate_slot_range {
+	( $( $x:ident),* ) => {
+		as_item! {
+			pub enum SlotRange2 { $( $x ),* }
+		}
+	}
 }
+
+macro_rules! as_item {
+    ($i:item) => { $i };
+}
+
+generate_slot_range!(Zero, One, Two, Three);
+
+#[test]
+fn test_generate() {
+	println!("{:?}", SlotRange2);
+	assert!(false);
+}
+
+/// A macro for generating an enum of slot ranges over arbitrary range sizes.
+macro_rules! generate_slot_range {
+	// Entry point
+	($( $x:ident ),*) => {
+		generate_slot_range!(@
+			{ }
+			$( $x )*
+		);
+	};
+	// Does the magic...
+	(@
+		{ $( $parsed:ident )* }
+		$current:ident
+		$( $remaining:ident)*
+	) => {
+		paste::paste! {
+			generate_slot_range!(@
+				{
+					$( $parsed )*
+					[< $current $current >]
+					$( [< $current $remaining >] )*
+				}
+				$( $remaining )*
+			);
+		}
+	};
+	// Done!
+	(@
+		{ $( $parsed:ident )* }
+	) => {
+		generate_slot_range! {
+			/// A compactly represented sub-range from the series.
+			#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
+			#[repr(u8)]
+			pub enum SlotRange { $( $parsed ),* }
+		}
+	};
+	// A trick from StackOverflow to generate the final Enum object.
+	($i:item) => { $i };
+}
+
+generate_slot_range!(Zero, One, Two, Three);
 
 #[cfg(feature = "std")]
 impl std::fmt::Debug for SlotRange {
