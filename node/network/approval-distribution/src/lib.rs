@@ -39,10 +39,12 @@ use polkadot_node_subsystem::{
 	},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	self as util, MIN_GOSSIP_PEERS,
+};
 use polkadot_node_network_protocol::{
 	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
-
 };
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
@@ -653,6 +655,7 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
+		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -886,6 +889,7 @@ impl State {
 			.cloned()
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
+		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {

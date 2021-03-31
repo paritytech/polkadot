@@ -5636,7 +5636,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "rand 0.8.3",
  "tracing",
 ]
 
@@ -6016,6 +6015,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
+ "rand 0.8.3",
  "sc-network",
  "sp-application-crypto",
  "sp-core",
@@ -7288,6 +7288,7 @@ dependencies = [
  "pallet-mmr",
  "pallet-mmr-primitives",
  "pallet-offences",
+ "pallet-proxy",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
@@ -7295,6 +7296,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-utility",
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-primitives",
@@ -11294,6 +11296,7 @@ name = "xcm-builder"
 version = "0.8.30"
 dependencies = [
  "frame-support",
+ "impl-trait-for-tuples",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",
