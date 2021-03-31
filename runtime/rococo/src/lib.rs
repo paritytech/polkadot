@@ -693,11 +693,6 @@ impl mmr_common::Config for Runtime {
 	type ParachainHeads = Paras;
 }
 
-/// Priviledged origin used by propose parachain.
-pub struct PriviledgedOrigin;
-// A wrapper around `babe::CurrentBlockRandomness` that does not return `Option<Random>`.
-pub struct CurrentBlockRandomness;
-
 impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
 		(
