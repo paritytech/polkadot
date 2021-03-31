@@ -27,7 +27,7 @@ use frame_support::{
 };
 use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use polkadot_common_slot_range::{SlotRange, SLOT_RANGE_COUNT};
 use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 

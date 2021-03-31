@@ -6113,6 +6113,7 @@ dependencies = [
  "paste 1.0.4",
  "polkadot-primitives",
  "polkadot-runtime-parachains",
+ "polkadot_common_slot_range",
  "rustc-hex",
  "serde",
  "serde_derive",
@@ -6440,6 +6441,16 @@ dependencies = [
  "tempfile",
  "tokio 0.2.21",
  "tracing",
+]
+
+[[package]]
+name = "polkadot_common_slot_range"
+version = "0.8.30"
+dependencies = [
+ "parity-scale-codec",
+ "paste 1.0.4",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
