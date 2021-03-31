@@ -798,10 +798,6 @@ sp_api::decl_runtime_apis! {
 		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initialize`.
 		// At the moment of writing, this is `candidate_events`.
 
-		/// Get the next, current and some previous authority keys deduplicated.
-		#[skip_initialize_block]
-		fn authorities() -> Vec<AuthorityDiscoveryId>;
-
 		/// Get the current validators.
 		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;

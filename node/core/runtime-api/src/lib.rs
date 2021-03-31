@@ -102,8 +102,6 @@ impl<Client> RuntimeApiSubsystem<Client> where
 		use RequestResult::*;
 
 		match result {
-			Authorities(relay_parent, authorities) =>
-				self.requests_cache.cache_authorities(relay_parent, authorities),
 			Validators(relay_parent, validators) =>
 				self.requests_cache.cache_validators(relay_parent, validators),
 			ValidatorGroups(relay_parent, groups) =>
@@ -162,8 +160,6 @@ impl<Client> RuntimeApiSubsystem<Client> where
 		}
 
 		match request {
-			Request::Authorities(sender) => query!(authorities(), sender)
-				.map(|sender| Request::Authorities(sender)),
 			Request::Validators(sender) => query!(validators(), sender)
 				.map(|sender| Request::Validators(sender)),
 			Request::ValidatorGroups(sender) => query!(validator_groups(), sender)
@@ -331,7 +327,6 @@ where
 	}
 
 	match request {
-		Request::Authorities(sender) => query!(Authorities, authorities(), sender),
 		Request::Validators(sender) => query!(Validators, validators(), sender),
 		Request::ValidatorGroups(sender) => query!(ValidatorGroups, validator_groups(), sender),
 		Request::AvailabilityCores(sender) => query!(AvailabilityCores, availability_cores(), sender),
@@ -421,7 +416,7 @@ mod tests {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
-		BlockNumber, InboundHrmpMessage, SessionInfo, AuthorityDiscoveryId,
+		BlockNumber, InboundHrmpMessage, SessionInfo,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -433,7 +428,6 @@ mod tests {
 
 	#[derive(Default, Clone)]
 	struct MockRuntimeApi {
-		authorities: Vec<AuthorityDiscoveryId>,
 		validators: Vec<ValidatorId>,
 		validator_groups: Vec<Vec<ValidatorIndex>>,
 		availability_cores: Vec<CoreState>,
@@ -461,10 +455,6 @@ mod tests {
 
 	sp_api::mock_impl_runtime_apis! {
 		impl ParachainHost<Block> for MockRuntimeApi {
-			fn authorities(&self) -> Vec<AuthorityDiscoveryId> {
-				self.authorities.clone()
-			}
-
 			fn validators(&self) -> Vec<ValidatorId> {
 				self.validators.clone()
 			}
@@ -592,30 +582,6 @@ mod tests {
 				None
 			}
 		}
-	}
-
-	#[test]
-	fn requests_authorities() {
-		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = Arc::new(MockRuntimeApi::default());
-		let relay_parent = [1; 32].into();
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
-		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
-		let test_task = async move {
-			let (tx, rx) = oneshot::channel();
-
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(relay_parent, Request::Authorities(tx))
-			}).await;
-
-			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.authorities);
-
-			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-		};
-
-		futures::executor::block_on(future::join(subsystem_task, test_task));
 	}
 
 	#[test]

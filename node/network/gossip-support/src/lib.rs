@@ -20,6 +20,9 @@
 //! are a validator in the current session.
 
 use futures::{channel::mpsc, FutureExt as _};
+use std::sync::Arc;
+use sp_api::ProvideRuntimeApi;
+use sp_authority_discovery::AuthorityDiscoveryApi;
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage,
@@ -32,7 +35,7 @@ use polkadot_node_subsystem_util::{
 	self as util,
 };
 use polkadot_primitives::v1::{
-	Hash, SessionIndex, AuthorityDiscoveryId,
+	Hash, SessionIndex, AuthorityDiscoveryId, Block, BlockId,
 };
 use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
@@ -41,7 +44,8 @@ use sp_application_crypto::{Public, AppKey};
 const LOG_TARGET: &str = "parachain::gossip-support";
 
 /// The Gossip Support subsystem.
-pub struct GossipSupport {
+pub struct GossipSupport<Client> {
+	client: Arc<Client>,
 	keystore: SyncCryptoStorePtr,
 }
 
@@ -52,11 +56,16 @@ struct State {
 	_last_connection_request: Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
 }
 
-impl GossipSupport {
+impl<Client> GossipSupport<Client>
+where
+	Client: ProvideRuntimeApi<Block>,
+	Client::Api: AuthorityDiscoveryApi<Block>,
+{
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, client: Arc<Client>) -> Self {
 		Self {
-			keystore
+			client,
+			keystore,
 		}
 	}
 
@@ -66,7 +75,7 @@ impl GossipSupport {
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
-		let Self { keystore } = self;
+		let Self { client, keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -88,7 +97,7 @@ impl GossipSupport {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
+					if let Err(e) = state.handle_active_leaves(&mut ctx, client.clone(), &keystore, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				}
@@ -101,12 +110,18 @@ impl GossipSupport {
 	}
 }
 
-async fn determine_relevant_authorities(
-	ctx: &mut impl SubsystemContext,
+async fn determine_relevant_authorities<Client>(
+	client: Arc<Client>,
 	relay_parent: Hash,
-) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
-	let authorities = util::request_authorities_ctx(relay_parent, ctx).await?.await??;
-	Ok(authorities)
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error>
+where
+	Client: ProvideRuntimeApi<Block>,
+	Client::Api: AuthorityDiscoveryApi<Block>,
+{
+	let api = client.runtime_api();
+	let result = api.authorities(&BlockId::Hash(relay_parent))
+		.map_err(|e| util::Error::RuntimeApi(format!("{:?}", e).into()));
+	result
 }
 
 /// Return an error if we're not a validator in the given set (do not have keys).
@@ -129,12 +144,17 @@ impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
 	///    and issue a connection request.
-	async fn handle_active_leaves(
+	async fn handle_active_leaves<Client>(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
+		client: Arc<Client>,
 		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
-	) -> Result<(), util::Error> {
+	) -> Result<(), util::Error>
+	where
+		Client: ProvideRuntimeApi<Block>,
+		Client::Api: AuthorityDiscoveryApi<Block>,
+	{
 		for leaf in leaves {
 			let current_index = util::request_session_index_for_child_ctx(leaf, ctx).await?.await??;
 			let maybe_new_session = match self.last_session_index {
@@ -144,7 +164,7 @@ impl State {
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
 				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
-				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				let authorities = determine_relevant_authorities(client.clone(), relay_parent).await?;
 				ensure_i_am_an_authority(keystore, &authorities).await?;
 				tracing::debug!(target: LOG_TARGET, num = ?authorities.len(), "Issuing a connection request");
 
@@ -163,11 +183,13 @@ impl State {
 	}
 }
 
-impl<C> Subsystem<C> for GossipSupport
+impl<Client, Context> Subsystem<Context> for GossipSupport<Client>
 where
-	C: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
+	Context: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
+	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
+	Client::Api: AuthorityDiscoveryApi<Block>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)
 			.map(|_| Ok(()))
 			.boxed();

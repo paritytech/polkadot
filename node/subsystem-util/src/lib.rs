@@ -39,7 +39,6 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId,
 };
 use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
@@ -167,7 +166,6 @@ macro_rules! specialize_requests {
 }
 
 specialize_requests! {
-	fn request_authorities() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
@@ -249,7 +247,6 @@ macro_rules! specialize_requests_ctx {
 }
 
 specialize_requests_ctx! {
-	fn request_authorities_ctx() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
