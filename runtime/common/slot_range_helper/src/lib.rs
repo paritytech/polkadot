@@ -14,23 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The SlotRange struct which succinctly handles the ten values that
-//! represent all sub ranges between 0 and 3 inclusive.
+//! A helper macro for generating SlotRange enum.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{result, ops::Add, convert::TryInto};
-use sp_runtime::traits::CheckedSub;
-use parity_scale_codec::{Encode, Decode};
+pub use sp_std::{result, ops::Add, convert::TryInto};
+pub use sp_runtime::traits::CheckedSub;
+pub use parity_scale_codec::{Encode, Decode};
 
-/// Total number of possible sub ranges of slots.
-pub const SLOT_RANGE_COUNT: usize = 10;
-
-/// A macro for generating an enum of slot ranges over arbitrary range sizes.
+#[macro_export]
 macro_rules! generate_slot_range{
 	// Entry point
 	($( $x:ident ( $e:expr ) ),*) => {
-		generate_slot_range!(@
+		$crate::generate_slot_range!(@
 			{ }
 			$( $x ( $e ) )*
 		);
@@ -42,7 +38,7 @@ macro_rules! generate_slot_range{
 		$( $remaining:ident ( $re:expr ) )*
 	) => {
 		paste::paste! {
-			generate_slot_range!(@
+			$crate::generate_slot_range!(@
 				{
 					$( $parsed ( $t1, $t2 ) )*
 					[< $current $current >] ( $ce, $ce )
@@ -55,7 +51,9 @@ macro_rules! generate_slot_range{
 	(@
 		{ $( $parsed:ident ( $t1:expr, $t2:expr ) )* }
 	) => {
-		generate_slot_range_enum!(@ $( $parsed )* );
+		$crate::generate_slot_range_enum!(@ $( $parsed )* );
+
+		$crate::generate_slot_range_count!(@ $( $parsed )* );
 
 		#[cfg(feature = "std")]
 		impl std::fmt::Debug for SlotRange {
@@ -66,22 +64,23 @@ macro_rules! generate_slot_range{
 		}
 
 		impl SlotRange {
-			generate_slot_range_as_pair!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_as_pair!(@ $( $parsed ( $t1, $t2 ) )* );
 
-			generate_slot_range_len!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_len!(@ $( $parsed ( $t1, $t2 ) )* );
 
-			generate_slot_range_new_bounded!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_new_bounded!(@ $( $parsed ( $t1, $t2 ) )* );
 		}
 	};
 }
 
+#[macro_export]
 macro_rules! generate_slot_range_enum {
 	(@
 		$( $parsed:ident )*
 	) => {
-		generate_slot_range_enum! {
+		$crate::generate_slot_range_enum! {
 			/// A compactly represented sub-range from the series.
-			#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
+			#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, $crate::Encode, $crate::Decode)]
 			#[repr(u8)]
 			pub enum SlotRange { $( $parsed ),* }
 		}
@@ -90,6 +89,7 @@ macro_rules! generate_slot_range_enum {
 	($i:item) => { $i };
 }
 
+#[macro_export]
 macro_rules! generate_slot_range_as_pair {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
@@ -109,6 +109,7 @@ macro_rules! generate_slot_range_as_pair {
 	};
 }
 
+#[macro_export]
 macro_rules! generate_slot_range_len {
 	// Use evaluated length in function.
 	(@
@@ -123,17 +124,18 @@ macro_rules! generate_slot_range_len {
 	};
 }
 
+#[macro_export]
 macro_rules! generate_slot_range_new_bounded {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
 		pub fn new_bounded<
-			Index: Add<Output=Index> + CheckedSub + Copy + Ord + From<u32> + TryInto<u32>
+			Index: $crate::Add<Output=Index> + $crate::CheckedSub + Copy + Ord + From<u32> + $crate::TryInto<u32>
 		>(
 			initial: Index,
 			first: Index,
 			last: Index
-		) -> result::Result<Self, &'static str> {
+		) -> $crate::result::Result<Self, &'static str> {
 			if first > last || first < initial || last > initial + 3.into() {
 				return Err("Invalid range for this auction")
 			}
@@ -153,4 +155,13 @@ macro_rules! generate_slot_range_new_bounded {
 	};
 }
 
-generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
+#[macro_export]
+macro_rules! generate_slot_range_count {
+	(@
+		$( $idents:ident )*
+	) => {
+		#[allow(dead_code, non_camel_case_types)]
+		enum __SlotRangeTemp { $($idents,)* __SlotRangeCountLast }
+		pub const SLOT_RANGE_COUNT: usize = __SlotRangeTemp::__SlotRangeCountLast as usize;
+	};
+}

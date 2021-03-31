@@ -34,7 +34,7 @@ members = [
 	"erasure-coding",
 	"primitives",
 	"runtime/common",
-	"runtime/common/slot_range",
+	"runtime/common/slot_range_helper",
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",

@@ -26,6 +26,7 @@ pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
+pub mod slot_range;
 pub mod traits;
 #[cfg(test)]
 mod mock;
