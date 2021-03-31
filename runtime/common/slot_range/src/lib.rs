@@ -19,7 +19,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{result, ops::Add, convert::{TryFrom, TryInto}};
+use sp_std::{result, ops::Add, convert::TryInto};
 use sp_runtime::traits::CheckedSub;
 use parity_scale_codec::{Encode, Decode};
 
@@ -27,36 +27,59 @@ use parity_scale_codec::{Encode, Decode};
 pub const SLOT_RANGE_COUNT: usize = 10;
 
 /// A macro for generating an enum of slot ranges over arbitrary range sizes.
-macro_rules! generate_slot_range {
+macro_rules! generate_slot_range{
 	// Entry point
-	($( $x:ident ),*) => {
+	($( $x:ident ( $e:expr ) ),*) => {
 		generate_slot_range!(@
 			{ }
-			$( $x )*
+			$( $x ( $e ) )*
 		);
 	};
 	// Does the magic...
 	(@
-		{ $( $parsed:ident )* }
-		$current:ident
-		$( $remaining:ident)*
+		{ $( $parsed:ident ( $t1:expr, $t2:expr ) )* }
+		$current:ident ( $ce:expr )
+		$( $remaining:ident ( $re:expr ) )*
 	) => {
 		paste::paste! {
 			generate_slot_range!(@
 				{
-					$( $parsed )*
-					[< $current $current >]
-					$( [< $current $remaining >] )*
+					$( $parsed ( $t1, $t2 ) )*
+					[< $current $current >] ( $ce, $ce )
+					$( [< $current $remaining >] ($ce, $re) )*
 				}
-				$( $remaining )*
+				$( $remaining ( $re ) )*
 			);
 		}
 	};
-	// Done!
 	(@
-		{ $( $parsed:ident )* }
+		{ $( $parsed:ident ( $t1:expr, $t2:expr ) )* }
 	) => {
-		generate_slot_range! {
+		generate_slot_range_enum!(@ $( $parsed )* );
+
+		#[cfg(feature = "std")]
+		impl std::fmt::Debug for SlotRange {
+			fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+				let p = self.as_pair();
+				write!(fmt, "[{}..{}]", p.0, p.1)
+			}
+		}
+
+		impl SlotRange {
+			generate_slot_range_as_pair!(@ $( $parsed ( $t1, $t2 ) )* );
+
+			generate_slot_range_len!(@ $( $parsed ( $t1, $t2 ) )* );
+
+			generate_slot_range_new_bounded!(@ $( $parsed ( $t1, $t2 ) )* );
+		}
+	};
+}
+
+macro_rules! generate_slot_range_enum {
+	(@
+		$( $parsed:ident )*
+	) => {
+		generate_slot_range_enum! {
 			/// A compactly represented sub-range from the series.
 			#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
 			#[repr(u8)]
@@ -67,108 +90,67 @@ macro_rules! generate_slot_range {
 	($i:item) => { $i };
 }
 
-generate_slot_range!(Zero, One, Two, Three);
+macro_rules! generate_slot_range_as_pair {
+	(@
+		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
+	) => {
+		pub fn intersects(&self, other: SlotRange) -> bool {
+			let a = self.as_pair();
+			let b = other.as_pair();
+			b.0 <= a.1 && a.0 <= b.1
+		//		== !(b.0 > a.1 || a.0 > b.1)
+		}
 
-#[cfg(feature = "std")]
-impl std::fmt::Debug for SlotRange {
-	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-		let p = self.as_pair();
-		write!(fmt, "[{}..{}]", p.0, p.1)
-	}
+		pub fn as_pair(&self) -> (u8, u8) {
+			match self {
+				$( SlotRange::$parsed => { ($t1, $t2) } )*
+			}
+		}
+	};
 }
 
-impl SlotRange {
-	pub fn new_bounded<
-		Index: Add<Output=Index> + CheckedSub + Copy + Ord + From<u32> + TryInto<u32>
-	>(
-		initial: Index,
-		first: Index,
-		last: Index
-	) -> result::Result<Self, &'static str> {
-		if first > last || first < initial || last > initial + 3.into() {
-			return Err("Invalid range for this auction")
+macro_rules! generate_slot_range_len {
+	// Use evaluated length in function.
+	(@
+		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
+	) => {
+			pub fn len(&self) -> usize {
+			match self {
+				// len (0, 2) = 2 - 0 + 1 = 3
+				$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
+			}
 		}
-		let count: u32 = last.checked_sub(&first)
-			.ok_or("range ends before it begins")?
-			.try_into()
-			.map_err(|_| "range too big")?;
-		let first: u32 = first.checked_sub(&initial)
-			.ok_or("range begins too early")?
-			.try_into()
-			.map_err(|_| "start too far")?;
-		match first {
-			0 => match count {
-				0 => Some(SlotRange::ZeroZero),
-				1 => Some(SlotRange::ZeroOne),
-				2 => Some(SlotRange::ZeroTwo),
-				3 => Some(SlotRange::ZeroThree),
-				_ => None,
-			},
-			1 => match count {
-				0 => Some(SlotRange::OneOne),
-				1 => Some(SlotRange::OneTwo),
-				2 => Some(SlotRange::OneThree),
-				_ => None
-			},
-			2 => match count { 0 => Some(SlotRange::TwoTwo), 1 => Some(SlotRange::TwoThree), _ => None },
-			3 => match count { 0 => Some(SlotRange::ThreeThree), _ => None },
-			_ => return Err("range begins too late"),
-		}.ok_or("range ends too late")
-	}
-
-	pub fn as_pair(&self) -> (u8, u8) {
-		match self {
-			SlotRange::ZeroZero => (0, 0),
-			SlotRange::ZeroOne => (0, 1),
-			SlotRange::ZeroTwo => (0, 2),
-			SlotRange::ZeroThree => (0, 3),
-			SlotRange::OneOne => (1, 1),
-			SlotRange::OneTwo => (1, 2),
-			SlotRange::OneThree => (1, 3),
-			SlotRange::TwoTwo => (2, 2),
-			SlotRange::TwoThree => (2, 3),
-			SlotRange::ThreeThree => (3, 3),
-		}
-	}
-
-	pub fn intersects(&self, other: SlotRange) -> bool {
-		let a = self.as_pair();
-		let b = other.as_pair();
-		b.0 <= a.1 && a.0 <= b.1
-//		== !(b.0 > a.1 || a.0 > b.1)
-	}
-
-	pub fn len(&self) -> usize {
-		match self {
-			SlotRange::ZeroZero => 1,
-			SlotRange::ZeroOne => 2,
-			SlotRange::ZeroTwo => 3,
-			SlotRange::ZeroThree => 4,
-			SlotRange::OneOne => 1,
-			SlotRange::OneTwo => 2,
-			SlotRange::OneThree => 3,
-			SlotRange::TwoTwo => 1,
-			SlotRange::TwoThree => 2,
-			SlotRange::ThreeThree => 1,
-		}
-	}
+	};
 }
 
-impl TryFrom<usize> for SlotRange {
-	type Error = ();
-	fn try_from(x: usize) -> Result<SlotRange, ()> {
-		Ok(match x {
-			0 => SlotRange::ZeroZero,
-			1 => SlotRange::ZeroOne,
-			2 => SlotRange::ZeroTwo,
-			3 => SlotRange::ZeroThree,
-			4 => SlotRange::OneOne,
-			5 => SlotRange::OneTwo,
-			6 => SlotRange::OneThree,
-			7 => SlotRange::TwoTwo,
-			8 => SlotRange::TwoThree,
-			9 => SlotRange::ThreeThree,
-			_ => return Err(()),
-		})
-	}
+macro_rules! generate_slot_range_new_bounded {
+	(@
+		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
+	) => {
+		pub fn new_bounded<
+			Index: Add<Output=Index> + CheckedSub + Copy + Ord + From<u32> + TryInto<u32>
+		>(
+			initial: Index,
+			first: Index,
+			last: Index
+		) -> result::Result<Self, &'static str> {
+			if first > last || first < initial || last > initial + 3.into() {
+				return Err("Invalid range for this auction")
+			}
+			let count: u32 = last.checked_sub(&first)
+				.ok_or("range ends before it begins")?
+				.try_into()
+				.map_err(|_| "range too big")?;
+			let first: u32 = first.checked_sub(&initial)
+				.ok_or("range begins too early")?
+				.try_into()
+				.map_err(|_| "start too far")?;
+			match (first, first + count) {
+				$( ($t1, $t2) => { Ok(SlotRange::$parsed) })*
+				_ => Err("bad range"),
+			}
+		}
+	};
 }
+
+generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
