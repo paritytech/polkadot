@@ -5517,6 +5517,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
+ "sp-consensus",
  "sp-core",
  "sp-keyring",
  "strum",

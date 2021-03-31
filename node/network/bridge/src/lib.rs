@@ -25,6 +25,7 @@ use parking_lot::Mutex;
 use futures::prelude::*;
 use futures::channel::mpsc;
 use sc_network::Event as NetworkEvent;
+use sp_consensus::SyncOracle;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
@@ -96,6 +97,7 @@ pub struct NetworkBridge<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	request_multiplexer: RequestMultiplexer,
+	sync_oracle: Box<dyn SyncOracle + Send>,
 }
 
 impl<N, AD> NetworkBridge<N, AD> {
@@ -103,11 +105,17 @@ impl<N, AD> NetworkBridge<N, AD> {
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
-	pub fn new(network_service: N, authority_discovery_service: AD, request_multiplexer: RequestMultiplexer) -> Self {
+	pub fn new(
+		network_service: N,
+		authority_discovery_service: AD,
+		request_multiplexer: RequestMultiplexer,
+		sync_oracle: Box<dyn SyncOracle + Send>,
+	) -> Self {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
 			request_multiplexer,
+			sync_oracle,
 		}
 	}
 }
@@ -165,9 +173,14 @@ struct Shared(Arc<Mutex<SharedInner>>);
 
 #[derive(Default)]
 struct SharedInner {
-	local_view: View,
+	local_view: Option<View>,
 	validation_peers: HashMap<PeerId, PeerData>,
 	collation_peers: HashMap<PeerId, PeerData>,
+}
+
+enum Mode {
+	Syncing(Box<dyn SyncOracle + Send>),
+	Active,
 }
 
 async fn handle_subsystem_messages<Context, N, AD>(
@@ -176,6 +189,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	validator_discovery_notifications: mpsc::Receiver<ValidatorDiscoveryNotification>,
 	shared: Shared,
+	sync_oracle: Box<dyn SyncOracle + Send>,
 ) -> Result<(), UnexpectedAbort>
 where
 	Context: SubsystemContext<Message = NetworkBridgeMessage>,
@@ -186,6 +200,8 @@ where
 	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut finalized_number = 0;
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
+
+	let mut mode = Mode::Syncing(sync_oracle);
 
 	let mut validator_discovery_notifications = validator_discovery_notifications.fuse();
 
@@ -210,13 +226,26 @@ where
 					}
 					live_heads.retain(|h| !deactivated.contains(&h.hash));
 
-					update_our_view(
-						&mut network_service,
-						&mut ctx,
-						&live_heads,
-						&shared,
-						finalized_number,
-					).await?;
+					// if we're done syncing, set the mode to `Mode::Active`.
+					// Otherwise, we don't need to send view updates.
+					{
+						let is_done_syncing = match mode {
+							Mode::Active => true,
+							Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
+						};
+
+						if is_done_syncing {
+							mode = Mode::Active;
+
+							update_our_view(
+								&mut network_service,
+								&mut ctx,
+								&live_heads,
+								&shared,
+								finalized_number,
+							).await?;
+						}
+					}
 				}
 				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
 					tracing::trace!(
@@ -436,14 +465,16 @@ async fn handle_network_messages(
 								&mut sender,
 							).await;
 
-							send_message(
-								&mut network_service,
-								vec![peer],
-								PeerSet::Validation,
-								WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
-									local_view,
-								),
-							).await?;
+							if let Some(local_view) = local_view {
+								send_message(
+									&mut network_service,
+									vec![peer],
+									PeerSet::Validation,
+									WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+										local_view,
+									),
+								).await?;
+							}
 						}
 						PeerSet::Collation => {
 							dispatch_collation_events_to_all(
@@ -457,14 +488,16 @@ async fn handle_network_messages(
 								&mut sender,
 							).await;
 
-							send_message(
-								&mut network_service,
-								vec![peer],
-								PeerSet::Collation,
-								WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(
-									local_view,
-								),
-							).await?;
+							if let Some(local_view) = local_view {
+								send_message(
+									&mut network_service,
+									vec![peer],
+									PeerSet::Collation,
+									WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(
+										local_view,
+									),
+								).await?;
+							}
 						}
 					}
 				}
@@ -637,6 +670,7 @@ where
 		network_service,
 		request_multiplexer,
 		authority_discovery_service,
+		sync_oracle,
 	 } = bridge;
 
 	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
@@ -657,6 +691,7 @@ where
 		authority_discovery_service,
 		validation_worker_rx,
 		shared,
+		sync_oracle,
 	);
 
 	futures::pin_mut!(subsystem_event_handler);
@@ -722,11 +757,11 @@ async fn update_our_view(
 
 		// We only want to send a view update when the heads changed.
 		// A change in finalized block number only is _not_ sufficient.
-		if shared.local_view.check_heads_eq(&new_view) {
+		if shared.local_view.as_ref().map_or(false, |v| v.check_heads_eq(&new_view)) {
 			return Ok(())
 		}
 
-		shared.local_view = new_view.clone();
+		shared.local_view = Some(new_view.clone());
 
 		(
 			shared.validation_peers.keys().cloned().collect::<Vec<_>>(),
