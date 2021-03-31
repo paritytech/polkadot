@@ -60,6 +60,8 @@ hex-literal = "0.3.1"
 tracing = "0.1.25"
 serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
+kvdb = "0.9.0"
+kvdb-rocksdb = "0.11.0"
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
