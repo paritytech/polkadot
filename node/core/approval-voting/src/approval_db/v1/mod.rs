@@ -74,6 +74,7 @@ pub struct ApprovalEntry {
 	pub tranches: Vec<TrancheEntry>,
 	pub backing_group: GroupIndex,
 	pub our_assignment: Option<OurAssignment>,
+	pub our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
 	pub assignments: Bitfield,
 	pub approved: bool,
@@ -391,6 +392,7 @@ pub(crate) fn add_block_entry(
 					tranches: Vec::new(),
 					backing_group,
 					our_assignment,
+					our_approval_sig: None,
 					assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 					approved: false,
 				}
@@ -458,6 +460,8 @@ pub fn force_approve(
 
 	tx.write(store)
 }
+
+// TODO [now]: Function for loading all unfinalized block hashes.
 
 // An atomic transaction of multiple candidate or block entries.
 #[must_use = "Transactions do nothing unless written to a DB"]

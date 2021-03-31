@@ -353,6 +353,7 @@ fn add_candidate_to_block(
 			tranches: Vec::new(),
 			backing_group,
 			our_assignment: None,
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 			approved: false,
 		}.into(),
@@ -871,6 +872,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -916,6 +918,7 @@ fn assignment_not_triggered_by_all_with_threshold() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -967,6 +970,7 @@ fn assignment_not_triggered_if_already_triggered() {
 				validator_index: ValidatorIndex(4),
 				triggered: true,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1004,6 +1008,7 @@ fn assignment_not_triggered_by_exact() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1042,6 +1047,7 @@ fn assignment_not_triggered_more_than_maximum() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1085,6 +1091,7 @@ fn assignment_triggered_if_at_maximum() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1128,6 +1135,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1171,6 +1179,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};

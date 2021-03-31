@@ -23,7 +23,7 @@
 use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, CandidateReceipt, SessionIndex, GroupIndex, CoreIndex,
-	Hash, CandidateHash, BlockNumber,
+	Hash, CandidateHash, BlockNumber, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
@@ -79,6 +79,7 @@ pub struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
 	our_assignment: Option<OurAssignment>,
+	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
 	assignments: BitVec<BitOrderLsb0, u8>,
 	approved: bool,
@@ -203,6 +204,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}
@@ -215,6 +217,7 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}

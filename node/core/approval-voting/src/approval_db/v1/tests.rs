@@ -116,6 +116,7 @@ fn read_write() {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
 				our_assignment: None,
+				our_approval_sig: None,
 				assignments: Default::default(),
 				approved: false,
 			})
