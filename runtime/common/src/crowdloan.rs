@@ -156,6 +156,9 @@ pub enum LastContribution<BlockNumber> {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
+	/// TODO: retiring is currently unused, but we want to leave it in for Rococo compatibility.
+	/// Just need to delete this first item.
+	retiring: bool,
 	/// The owning account who placed the deposit.
 	depositor: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
