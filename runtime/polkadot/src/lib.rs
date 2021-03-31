@@ -1510,4 +1510,31 @@ mod test_fees {
 		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000u128));
 		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000_000u128));
 	}
+
+	#[test]
+	fn nominator_limit() {
+		use pallet_election_provider_multi_phase::WeightInfo;
+		// starting point of the nominators.
+		let target_voters: u32 = 50_000;
+
+		// assuming we want around 5k candidates and 1k active validators. (March 31, 2021)
+		let all_targets: u32 = 5_000;
+		let desired: u32 = 1_000;
+		let weight_with = |active| {
+			<Runtime as pallet_election_provider_multi_phase::Config>::WeightInfo::submit_unsigned(
+				active,
+				all_targets,
+				active,
+				desired,
+			)
+		};
+
+		let mut active = target_voters;
+		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == target_voters {
+			active += 1;
+		}
+
+		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
+		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
+	}
 }
