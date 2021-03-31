@@ -1513,6 +1513,7 @@ mod test_fees {
 
 	#[test]
 	fn nominator_limit() {
+		use pallet_election_provider_multi_phase::WeightInfo;
 		// starting point of the nominators.
 		let target_voters: u32 = 50_000;
 
@@ -1532,7 +1533,7 @@ mod test_fees {
 		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == target_voters {
 			active += 1;
 		}
-		
+
 		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
 		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
 	}
