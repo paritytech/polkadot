@@ -1666,7 +1666,7 @@ mod benchmarking {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
 			let auction_index = AuctionCounter::get();
-			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index).into());
+			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index,T::BlockNumber::from(0u32)).into());
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and winning data is full.
