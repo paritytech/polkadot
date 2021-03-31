@@ -844,6 +844,14 @@ mod tests {
 		) -> SubsystemResult<Option<CandidateEntry>> {
 			Ok(self.candidate_entries.get(candidate_hash).map(|c| c.clone()))
 		}
+
+		fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+			let mut hashes: Vec<_> = self.block_entries.keys().cloned().collect();
+
+			hashes.sort_by_key(|k| self.block_entries.get(k).unwrap().block_number());
+
+			Ok(hashes)
+		}
 	}
 
 	#[derive(Default)]

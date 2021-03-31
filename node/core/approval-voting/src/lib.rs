@@ -60,6 +60,7 @@ use futures::channel::{mpsc, oneshot};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
+use std::sync::Arc;
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
@@ -1661,7 +1662,6 @@ fn import_checked_approval(
 			status.block_tick,
 			status.required_tranches,
 		));
-
 
 		// We have no need to write the candidate entry if
 		//

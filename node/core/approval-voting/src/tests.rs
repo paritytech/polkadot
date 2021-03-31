@@ -179,6 +179,14 @@ impl DBReader for TestStore {
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
 	}
+
+	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+		let mut hashes: Vec<_> = self.block_entries.keys().cloned().collect();
+
+		hashes.sort_by_key(|k| self.block_entries.get(k).unwrap().block_number());
+
+		Ok(hashes)
+	}
 }
 
 fn blank_state() -> State<TestStore> {
@@ -226,6 +234,7 @@ fn sign_approval(
 	key.sign(&super::approval_signing_payload(ApprovalVote(candidate_hash), session_index)).into()
 }
 
+#[derive(Clone)]
 struct StateConfig {
 	session_index: SessionIndex,
 	slot: Slot,
@@ -1716,4 +1725,123 @@ fn finalization_event_prunes() {
 
 }
 
-// TODO [now]: local approval source always saves signatures.
+#[test]
+fn local_approval_import_always_updates_approval_entry() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let block_hash_2 = Hash::repeat_byte(0x02);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index = ValidatorIndex(0);
+
+	let candidate_index = 0;
+	let state_config = StateConfig {
+		validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
+		validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
+		needed_approvals: 2,
+		..Default::default()
+	};
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(0)
+		})),
+		..some_state(state_config.clone())
+	};
+
+	add_block(
+		&mut state.db,
+		block_hash_2,
+		state_config.session_index,
+		state_config.slot,
+	);
+
+	add_candidate_to_block(
+		&mut state.db,
+		block_hash_2,
+		candidate_hash,
+		state_config.validators.len(),
+		1.into(),
+		GroupIndex(1),
+	);
+
+	let sig_a = sign_approval(Sr25519Keyring::Alice, candidate_hash, 1);
+	let sig_b = sign_approval(Sr25519Keyring::Alice, candidate_hash, 1);
+
+	{
+		let mut import_local_assignment = |block_hash: Hash| {
+			let approval_entry = state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+				.approval_entry_mut(&block_hash)
+				.unwrap();
+
+			approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 0,
+				validator_index,
+				triggered: false,
+			}.into());
+
+			assert!(approval_entry.trigger_our_assignment(0).is_some());
+			assert!(approval_entry.local_statements().0.is_some());
+		};
+
+		import_local_assignment(block_hash);
+		import_local_assignment(block_hash_2);
+	}
+
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Local(validator_index, sig_a.clone()),
+		);
+
+		assert_eq!(actions.len(), 1);
+
+		assert_matches!(
+			actions.get_mut(0).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert_eq!(
+					c_entry.approval_entry(&block_hash).unwrap().local_statements().1,
+					Some(sig_a),
+				);
+				assert!(c_entry.mark_approval(validator_index));
+
+				state.db.candidate_entries.insert(candidate_hash, c_entry.clone());
+			}
+		);
+	}
+
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash_2).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Local(validator_index, sig_b.clone()),
+		);
+
+		assert_eq!(actions.len(), 1);
+
+		assert_matches!(
+			actions.get_mut(0).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert_eq!(
+					c_entry.approval_entry(&block_hash_2).unwrap().local_statements().1,
+					Some(sig_b),
+				);
+				assert!(c_entry.mark_approval(validator_index));
+
+				state.db.candidate_entries.insert(candidate_hash, c_entry.clone());
+			}
+		);
+	}
+}
+
+// TODO [now]: handling `BecomeActive` action broadcasts everything.
