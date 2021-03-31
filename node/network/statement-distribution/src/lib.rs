@@ -989,6 +989,11 @@ impl StatementDistribution {
 					for activated in activated {
 						let relay_parent = activated.hash;
 						let span = PerLeafSpan::new(activated.span, "statement-distribution");
+						tracing::trace!(
+							target: LOG_TARGET,
+							hash = ?relay_parent,
+							"New active leaf",
+						);
 
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
@@ -1032,7 +1037,17 @@ impl StatementDistribution {
 							.or_insert(ActiveHeadData::new(validators, session_index, span));
 					}
 
-					active_heads.retain(|h, _| !deactivated.contains(h));
+					active_heads.retain(|h, _| {
+						let live = !deactivated.contains(h);
+						if !live {
+							tracing::trace!(
+								target: LOG_TARGET,
+								hash = ?h,
+								"Deactivating leaf",
+							);
+						}
+						live
+					});
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
 					// do nothing
