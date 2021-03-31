@@ -1076,7 +1076,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, MigrateElectionsPhragmenToV4),
+	MigrateElectionsPhragmenToV4,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1103,6 +1103,12 @@ impl frame_support::traits::OnRuntimeUpgrade for MigrateElectionsPhragmenToV4 {
 			<PalletInfo as frame_support::traits::PalletInfo>::name::<ElectionsPhragmen>()
 				.unwrap_or("ElectionsPhragmen")
 		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_elections_phragmen::migrations::v4::post_migration::<ElectionsPhragmen,>();
 		Ok(())
 	}
 }

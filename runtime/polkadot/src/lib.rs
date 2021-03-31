@@ -1068,7 +1068,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, FixPolkadotCouncilVotersDeposit, MigrateElectionsPhragmenToV4),
+	(BabeEpochConfigMigrations, MigrateElectionsPhragmenToV4),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1076,18 +1076,31 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct MigrateElectionsPhragmenToV4;
 impl frame_support::traits::OnRuntimeUpgrade for MigrateElectionsPhragmenToV4 {
 	fn on_runtime_upgrade() -> Weight {
-		pallet_elections_phragmen::migrations::v4::migrate::<Runtime, ElectionsPhragmen, _>(
+		pallet_elections_phragmen::migrations::v4::migrate::<
+			Runtime,
+			ElectionsPhragmen,
+			_,
+		>(
 			<PalletInfo as frame_support::traits::PalletInfo>::name::<ElectionsPhragmen>()
-				.unwrap_or("ElectionsPhragmen"),
+				.unwrap_or("ElectionsPhragmen")
 		)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_elections_phragmen::migrations::v4::pre_migration::<ElectionsPhragmen, _>(
+		pallet_elections_phragmen::migrations::v4::pre_migration::<
+			ElectionsPhragmen,
+			_,
+		>(
 			<PalletInfo as frame_support::traits::PalletInfo>::name::<ElectionsPhragmen>()
-				.unwrap_or("ElectionsPhragmen"),
+				.unwrap_or("ElectionsPhragmen")
 		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_elections_phragmen::migrations::v4::post_migration::<ElectionsPhragmen,>();
 		Ok(())
 	}
 }
