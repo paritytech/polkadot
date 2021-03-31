@@ -6,53 +6,53 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "ao-update-wasmtime" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
 futures = "0.3.12"

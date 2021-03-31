@@ -24,31 +24,31 @@ pallet-message-lane-rpc = { path = "../../../modules/message-lane/rpc" }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "ao-update-wasmtime" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [build-dependencies]
 build-script-utils = { package = "substrate-build-script-utils", version = "2.0" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 vergen = "3.1.0"
 
 [features]

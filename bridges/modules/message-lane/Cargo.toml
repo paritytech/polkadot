@@ -19,17 +19,17 @@ bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "ao-update-wasmtime" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "ao-update-wasmtime" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3"
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]
