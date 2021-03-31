@@ -1514,25 +1514,26 @@ mod test_fees {
 	#[test]
 	fn nominator_limit() {
 		// starting point of the nominators.
-		let all_voters: u32 = 10_000;
+		let target_voters: u32 = 50_000;
 
-		// assuming we want around 5k candidates and 1k active validators.
+		// assuming we want around 5k candidates and 1k active validators. (March 31, 2021)
 		let all_targets: u32 = 5_000;
 		let desired: u32 = 1_000;
 		let weight_with = |active| {
 			<Runtime as pallet_election_provider_multi_phase::Config>::WeightInfo::submit_unsigned(
-				all_voters.max(active),
+				target_voters.max(active),
 				all_targets,
 				active,
 				desired,
 			)
 		};
 
-		let mut active = 1;
-		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == all_voters {
+		let mut active = target_voters;
+		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == target_voters {
 			active += 1;
 		}
-
+		
 		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
+		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
 	}
 }
