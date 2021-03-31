@@ -462,7 +462,7 @@ pub fn force_approve(
 }
 
 /// Return all blocks which have entries in the DB, ascending, by height.
-pub(crate) fn all_blocks(store: &dyn KeyValueDB, config: &Config) -> Result<Vec<Hash>> {
+pub(crate) fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> Result<Vec<Hash>> {
 	let stored_blocks = load_stored_blocks(store, config)?;
 
 	let mut hashes = Vec::new();

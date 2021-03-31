@@ -43,6 +43,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
+	BlockApprovalMeta,
 };
 use polkadot_node_jaeger as jaeger;
 use parity_scale_codec::Encode;
@@ -59,7 +60,6 @@ use futures::channel::{mpsc, oneshot};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
-use std::sync::Arc;
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
@@ -434,6 +434,8 @@ trait DBReader {
 		&self,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>>;
+
+	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>>;
 }
 
 // This is a submodule to enforce opacity of the inner DB type.
@@ -444,13 +446,13 @@ mod approval_db_v1_reader {
 	};
 
 	/// A DB reader that uses the approval-db V1 under the hood.
-	pub(super) struct ApprovalDBV1Reader<T: ?Sized> {
-		inner: Arc<T>,
+	pub(super) struct ApprovalDBV1Reader<T> {
+		inner: T,
 		config: DatabaseConfig,
 	}
 
-	impl<T: ?Sized> ApprovalDBV1Reader<T> {
-		pub(super) fn new(inner: Arc<T>, config: DatabaseConfig) -> Self {
+	impl<T> ApprovalDBV1Reader<T> {
+		pub(super) fn new(inner: T, config: DatabaseConfig) -> Self {
 			ApprovalDBV1Reader {
 				inner,
 				config,
@@ -458,7 +460,9 @@ mod approval_db_v1_reader {
 		}
 	}
 
-	impl DBReader for ApprovalDBV1Reader<dyn KeyValueDB> {
+	impl<'a, T: 'a> DBReader for ApprovalDBV1Reader<T>
+		where T: std::ops::Deref<Target=(dyn KeyValueDB + 'a)>
+	{
 		fn load_block_entry(
 			&self,
 			block_hash: &Hash,
@@ -474,6 +478,11 @@ mod approval_db_v1_reader {
 		) -> SubsystemResult<Option<CandidateEntry>> {
 			approval_db::v1::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
 				.map(|e| e.map(Into::into))
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+		}
+
+		fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+			approval_db::v1::load_all_blocks(&*self.inner, &self.config)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
 	}
@@ -734,8 +743,13 @@ async fn handle_actions(
 				}
 			}
 			Action::BecomeActive => {
-				// TODO [now]: update mode, send `NewBlocks` for all unfinalized blocks,
-				// and broadcast all local assignments/approvals.
+				*mode = Mode::Active;
+
+				let messages = distribution_messages_for_activation(
+					ApprovalDBV1Reader::new(db, db_config)
+				)?;
+
+				ctx.send_messages(messages.into_iter().map(Into::into)).await;
 			}
 			Action::Conclude => { conclude = true; }
 		}
@@ -762,6 +776,103 @@ fn cleanup_background_tasks(
 
 	// tasks up to the finalized block are dropped, and `RemoteHandle` cancels
 	// the task on drop.
+}
+
+fn distribution_messages_for_activation<'a>(
+	db: impl DBReader + 'a,
+) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
+	let all_blocks = db.load_all_blocks()?;
+
+	let mut approval_meta = Vec::with_capacity(all_blocks.len());
+	let mut messages = Vec::new();
+
+	messages.push(ApprovalDistributionMessage::NewBlocks(Vec::new())); // dummy value.
+
+	for block_hash in all_blocks {
+		let block_entry = match db.load_block_entry(&block_hash)? {
+			Some(b) => b,
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					?block_hash,
+					"Missing block entry",
+				);
+
+				continue
+			}
+		};
+		approval_meta.push(BlockApprovalMeta {
+			hash: block_hash,
+			number: block_entry.block_number(),
+			parent_hash: block_entry.parent_hash(),
+			candidates: block_entry.candidates().iter().map(|(_, c_hash)| *c_hash).collect(),
+			slot: block_entry.slot(),
+		});
+
+		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
+			let candidate_entry = match db.load_candidate_entry(&candidate_hash)? {
+				Some(c) => c,
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						?block_hash,
+						?candidate_hash,
+						"Missing candidate entry",
+					);
+
+					continue
+				}
+			};
+
+			match candidate_entry.approval_entry(&block_hash) {
+				Some(approval_entry) => {
+					match approval_entry.local_statements() {
+						(None, None) | (None, Some(_)) => {}, // second is impossible case.
+						(Some(assignment), None) => {
+							messages.push(ApprovalDistributionMessage::DistributeAssignment(
+								IndirectAssignmentCert {
+									block_hash,
+									validator: assignment.validator_index(),
+									cert: assignment.cert().clone(),
+								},
+								i as _,
+							));
+						}
+						(Some(assignment), Some(approval_sig)) => {
+							messages.push(ApprovalDistributionMessage::DistributeAssignment(
+								IndirectAssignmentCert {
+									block_hash,
+									validator: assignment.validator_index(),
+									cert: assignment.cert().clone(),
+								},
+								i as _,
+							));
+
+							messages.push(ApprovalDistributionMessage::DistributeApproval(
+								IndirectSignedApprovalVote {
+									block_hash,
+									candidate_index: i as _,
+									validator: assignment.validator_index(),
+									signature: approval_sig,
+								}
+							))
+						}
+					}
+				}
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						?block_hash,
+						?candidate_hash,
+						"Missing approval entry",
+					);
+				}
+			}
+		}
+	}
+
+	messages[0] = ApprovalDistributionMessage::NewBlocks(approval_meta);
+	Ok(messages)
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.

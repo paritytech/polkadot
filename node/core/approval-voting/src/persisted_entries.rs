@@ -417,6 +417,11 @@ impl BlockEntry {
 	pub fn block_hash(&self) -> Hash {
 		self.block_hash
 	}
+
+	/// Access the parent hash of the block entry.
+	pub fn parent_hash(&self) -> Hash {
+		self.parent_hash
+	}
 }
 
 impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
