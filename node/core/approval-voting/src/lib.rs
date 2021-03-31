@@ -443,7 +443,7 @@ trait DBReader {
 mod approval_db_v1_reader {
 	use super::{
 		DBReader, KeyValueDB, Hash, CandidateHash, BlockEntry, CandidateEntry,
-		Arc, SubsystemResult, SubsystemError, DatabaseConfig, approval_db,
+		SubsystemResult, SubsystemError, DatabaseConfig, approval_db,
 	};
 
 	/// A DB reader that uses the approval-db V1 under the hood.

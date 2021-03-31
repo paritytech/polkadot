@@ -1732,7 +1732,6 @@ fn local_approval_import_always_updates_approval_entry() {
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let validator_index = ValidatorIndex(0);
 
-	let candidate_index = 0;
 	let state_config = StateConfig {
 		validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
 		validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
