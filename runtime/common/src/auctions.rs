@@ -27,7 +27,7 @@ use frame_support::{
 };
 use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT, LEASE_PERIODS_PER_SLOT};
 use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 
@@ -563,19 +563,19 @@ impl<T: Config> Module<T> {
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
-				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+				[(Vec<SlotRange>, BalanceOf<T>); LEASE_PERIODS_PER_SLOT] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
-			for i in 0..4 {
+			for i in 0..LEASE_PERIODS_PER_SLOT {
 				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
 					let r = SlotRange::new_bounded(0, j as u32 + 1, i as u32)
-						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+						.expect("`i < LPPS`; `j < i`; `j + 1 < LPPS`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
 						if bid > best_winners_ending_at[i].1 {
@@ -590,8 +590,7 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
-			let [_, _, _, (winning_ranges, _)] = best_winners_ending_at;
-			winning_ranges
+			best_winners_ending_at[LEASE_PERIODS_PER_SLOT - 1].0.clone()
 		};
 
 		winning_ranges.into_iter().map(|range| {
