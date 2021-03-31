@@ -19,7 +19,7 @@
 //! the gossiping subsystems on every new session. But only if we
 //! are a validator in the current session.
 
-use futures::FutureExt as _;
+use futures::{channel::mpsc, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage,
@@ -28,13 +28,13 @@ use polkadot_node_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemContext,
 };
 use polkadot_node_subsystem_util::{
-	validator_discovery::{ConnectionRequest, self},
+	validator_discovery,
 	self as util,
 };
 use polkadot_primitives::v1::{
-	Hash, ValidatorId, SessionIndex,
+	Hash, SessionIndex, AuthorityDiscoveryId,
 };
-use polkadot_node_network_protocol::peer_set::PeerSet;
+use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use sp_application_crypto::{Public, AppKey};
 
@@ -49,7 +49,7 @@ pub struct GossipSupport {
 struct State {
 	last_session_index: Option<SessionIndex>,
 	/// when we overwrite this, it automatically drops the previous request
-	_last_connection_request: Option<ConnectionRequest>,
+	_last_connection_request: Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
 }
 
 impl GossipSupport {
@@ -101,22 +101,21 @@ impl GossipSupport {
 	}
 }
 
-async fn determine_relevant_validators(
+async fn determine_relevant_authorities(
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
-	_session: SessionIndex,
-) -> Result<Vec<ValidatorId>, util::Error> {
-	let validators = util::request_validators_ctx(relay_parent, ctx).await?.await??;
-	Ok(validators)
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
+	let authorities = util::request_authorities_ctx(relay_parent, ctx).await?.await??;
+	Ok(authorities)
 }
 
 /// Return an error if we're not a validator in the given set (do not have keys).
-async fn ensure_i_am_a_validator(
+async fn ensure_i_am_an_authority(
 	keystore: &SyncCryptoStorePtr,
-	validators: &[ValidatorId],
+	authorities: &[AuthorityDiscoveryId],
 ) -> Result<(), util::Error> {
-	for v in validators.iter() {
-		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
+	for v in authorities {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)])
 			.await
 		{
 			return Ok(());
@@ -145,17 +144,15 @@ impl State {
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
 				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
-				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
-				ensure_i_am_a_validator(keystore, &validators).await?;
-				tracing::debug!(target: LOG_TARGET, num = ?validators.len(), "Issuing a connection request");
+				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				ensure_i_am_an_authority(keystore, &authorities).await?;
+				tracing::debug!(target: LOG_TARGET, num = ?authorities.len(), "Issuing a connection request");
 
-				let request = validator_discovery::connect_to_validators_in_session(
+				let request = validator_discovery::connect_to_authorities(
 					ctx,
-					relay_parent,
-					validators,
+					authorities,
 					PeerSet::Validation,
-					new_session,
-				).await?;
+				).await;
 
 				self.last_session_index = Some(new_session);
 				self._last_connection_request = Some(request);

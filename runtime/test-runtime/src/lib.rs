@@ -633,6 +633,10 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			runtime_impl::relevant_authority_ids::<Runtime>()
+		}
+
 		fn validators() -> Vec<ValidatorId> {
 			runtime_impl::validators::<Runtime>()
 		}
