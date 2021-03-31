@@ -756,14 +756,19 @@ async fn update_our_view(
 		//
 		// If this is the first view update since becoming active, but our view is empty,
 		// there is no need to send anything.
-		if shared.local_view.as_ref().map_or(
-			live_heads.is_empty(),
-			|v| v.check_heads_eq(&new_view),
-		) {
-			return Ok(())
-		}
+		match shared.local_view {
+			Some(ref v) if v.check_heads_eq(&new_view) => {
+				return Ok(())
+			}
+			None if live_heads.is_empty() => {
+				shared.local_view = Some(new_view);
+				return Ok(())
+			}
+			_ => {
+				shared.local_view = Some(new_view.clone());
+			}
 
-		shared.local_view = Some(new_view.clone());
+		}
 
 		(
 			shared.validation_peers.keys().cloned().collect::<Vec<_>>(),
@@ -1385,7 +1390,7 @@ mod tests {
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer_b,
-					PeerSet::Validation,
+					PeerSet::Collation,
 					wire_message.clone(),
 				),
 			);
