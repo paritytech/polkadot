@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
@@ -38,11 +38,7 @@ use runtime_parachains::{
 	self,
 	runtime_api_impl::v1 as runtime_api_impl,
 };
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness},
-	weights::Weight,
-};
+use frame_support::{construct_runtime, parameter_types, traits::{Filter, KeyOwnerProofSystem, Randomness}, weights::Weight};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
@@ -59,7 +55,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use sp_core::OpaqueMetadata;
+use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
@@ -89,6 +85,7 @@ use xcm_builder::{
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 };
 use constants::{time::*, currency::*, fee::*};
+use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -103,7 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 215,
+	spec_version: 227,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -220,6 +217,9 @@ construct_runtime! {
 
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
+
+		Utility: pallet_utility::{Pallet, Call, Event} = 90,
+		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
 	}
 }
 
@@ -688,6 +688,62 @@ impl pallet_sudo::Config for Runtime {
 impl validator_manager::Config for Runtime {
 	type Event = Event;
 	type PrivilegedOrigin = EnsureRoot<AccountId>;
+}
+
+impl pallet_utility::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	// One storage item; key size 32, value size 8; .
+	pub const ProxyDepositBase: Balance = 10;
+	// Additional storage item size of 33 bytes.
+	pub const ProxyDepositFactor: Balance = 10;
+	pub const MaxProxies: u16 = 32;
+	pub const AnnouncementDepositBase: Balance = 10;
+	pub const AnnouncementDepositFactor: Balance = 10;
+	pub const MaxPending: u16 = 32;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+pub enum ProxyType {
+	Any,
+	CancelProxy,
+}
+impl Default for ProxyType { fn default() -> Self { Self::Any } }
+impl InstanceFilter<Call> for ProxyType {
+	fn filter(&self, c: &Call) -> bool {
+		match self {
+			ProxyType::Any => true,
+			ProxyType::CancelProxy => matches!(c,
+				Call::Proxy(pallet_proxy::Call::reject_announcement(..))
+			)
+		}
+	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(ProxyType::Any, _) => true,
+			_ => false,
+		}
+	}
+}
+
+impl pallet_proxy::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type ProxyType = ProxyType;
+	type ProxyDepositBase = ProxyDepositBase;
+	type ProxyDepositFactor = ProxyDepositFactor;
+	type MaxProxies = MaxProxies;
+	type WeightInfo = ();
+	type MaxPending = MaxPending;
+	type CallHasher = BlakeTwo256;
+	type AnnouncementDepositBase = AnnouncementDepositBase;
+	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
