@@ -538,7 +538,9 @@ where
 			keystore.clone(),
 			Metrics::register(registry)?,
 		)?,
-		gossip_support: GossipSupportSubsystem::new(),
+		gossip_support: GossipSupportSubsystem::new(
+			keystore.clone(),
+		),
 	};
 
 	Overseer::new(

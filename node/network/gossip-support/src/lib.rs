@@ -34,11 +34,15 @@ use polkadot_primitives::v1::{
 	Hash, ValidatorId, SessionIndex,
 };
 use polkadot_node_network_protocol::peer_set::PeerSet;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+use sp_application_crypto::{Public, AppKey};
 
 const LOG_TARGET: &str = "parachain::gossip-support";
 
 /// The Gossip Support subsystem.
-pub struct GossipSupport {}
+pub struct GossipSupport {
+	keystore: SyncCryptoStorePtr,
+}
 
 #[derive(Default)]
 struct State {
@@ -49,8 +53,10 @@ struct State {
 
 impl GossipSupport {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new() -> Self {
-		Self {}
+	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+		Self {
+			keystore
+		}
 	}
 
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
@@ -59,6 +65,7 @@ impl GossipSupport {
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
+		let Self { keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -80,7 +87,7 @@ impl GossipSupport {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, leaves).await {
+					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				}
@@ -102,6 +109,22 @@ async fn determine_relevant_validators(
 	Ok(validators)
 }
 
+/// Return an error if we're not a validator in the given set (do not have keys).
+async fn ensure_i_am_a_validator(
+	keystore: &SyncCryptoStorePtr,
+	validators: &[ValidatorId],
+) -> Result<(), util::Error> {
+	for v in validators.iter() {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
+			.await
+		{
+			return Ok(());
+		}
+	}
+	Err(util::Error::NotAValidator)
+}
+
+
 impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
@@ -109,6 +132,7 @@ impl State {
 	async fn handle_active_leaves(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
+		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
@@ -121,6 +145,7 @@ impl State {
 			if let Some((new_session, relay_parent)) = maybe_new_session {
 				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
 				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
+				ensure_i_am_a_validator(keystore, &validators).await?;
 				tracing::debug!(target: LOG_TARGET, num = ?validators.len(), "Issuing a connection request");
 
 				let request = validator_discovery::connect_to_validators_in_session(
