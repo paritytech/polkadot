@@ -182,7 +182,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 		self.id().starts_with("polkadot") || self.id().starts_with("dot")
 	}
 	fn is_dev(&self) -> bool {
-		dbg!(self.id());
 		self.id().ends_with("dev")
 	}
 }
