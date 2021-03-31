@@ -356,7 +356,8 @@ fn new_partial<RuntimeApi, Executor>(
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		move |deny_unsafe, subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|-> polkadot_rpc::RpcExtension
+		move |deny_unsafe, subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
+			-> polkadot_rpc::RpcExtension
 		{
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
@@ -729,7 +730,11 @@ pub fn new_full<RuntimeApi, Executor>(
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
-	config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+
+	if config.chain_spec.is_westend() || config.chain_spec.is_rococo() {
+		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+	}
+
 	#[cfg(feature = "real-overseer")]
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
@@ -823,8 +828,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
-	// will be used to decide, how to start the BEEFY gadget
-	let beefy_chain_spec = config.chain_spec.cloned_box();
+	let chain_spec = config.chain_spec.cloned_box();
 
 	let approval_voting_config = ApprovalVotingConfig {
 		path: config.database.path()
@@ -935,7 +939,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		Some(overseer_handler)
 	} else { None };
 
-	// Start Babe
 	if role.is_authority() {
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
@@ -969,36 +972,27 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
-	// Start BEEFY.
-	// 
-	// On Rococo we start the BEEFY gadget as a normal (non-essential) task for now.
-	// Reason is that we don't want to allow a failing BEEFY gadget to bring down
-	// the whole node. On Westend redeploying a new client and restarting the network
-	// is much more straightforward. 
-	if beefy_chain_spec.is_westend() {
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"beefy-gadget",
-			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
-				client.clone(),
-				keystore_container.sync_keystore(),
-				network.clone(),
-				beefy_link,
-				network.clone(),
-				prometheus_registry.clone()
-			),
+	// We currently only run the BEEFY gadget on Rococo and Westend test
+	// networks. On Rococo we start the BEEFY gadget as a normal (non-essential)
+	// task for now, since BEEFY is still experimental and we don't want a
+	// failure to bring down the whole node. Westend test network is less used
+	// than Rococo and therefore a failure there will be less problematic, this
+	// will be the main testing target for BEEFY for now.
+	if chain_spec.is_westend() || chain_spec.is_rococo() {
+		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+			client.clone(),
+			keystore_container.sync_keystore(),
+			network.clone(),
+			beefy_link,
+			network.clone(),
+			prometheus_registry.clone()
 		);
-	} else if beefy_chain_spec.is_rococo() {
-		task_manager.spawn_handle().spawn_blocking(
-			"beefy-gadget",
-			beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
-				client.clone(),
-				keystore_container.sync_keystore(),
-				network.clone(),
-				beefy_link,
-				network.clone(),
-				prometheus_registry.clone()
-			),
-		);
+
+		if chain_spec.is_westend() {
+			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		} else {
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
