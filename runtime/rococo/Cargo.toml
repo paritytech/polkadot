@@ -42,7 +42,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
