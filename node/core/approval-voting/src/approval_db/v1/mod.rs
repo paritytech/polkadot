@@ -461,7 +461,17 @@ pub fn force_approve(
 	tx.write(store)
 }
 
-// TODO [now]: Function for loading all unfinalized block hashes.
+/// Return all blocks which have entries in the DB, ascending, by height.
+pub(crate) fn all_blocks(store: &dyn KeyValueDB, config: &Config) -> Result<Vec<Hash>> {
+	let stored_blocks = load_stored_blocks(store, config)?;
+
+	let mut hashes = Vec::new();
+	for height in stored_blocks.into_iter().flat_map(|s| s.0..s.1) {
+		hashes.extend(load_blocks_at_height(store, config, height)?);
+	}
+
+	Ok(hashes)
+}
 
 // An atomic transaction of multiple candidate or block entries.
 #[must_use = "Transactions do nothing unless written to a DB"]
