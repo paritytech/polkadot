@@ -16,7 +16,8 @@
 
 //! This subsystem is responsible for keeping track of session changes
 //! and issuing a connection request to the validators relevant to
-//! the gossiping subsystems on every new session.
+//! the gossiping subsystems on every new session. But only if we
+//! are a validator in the current session.
 
 use futures::FutureExt as _;
 use polkadot_node_subsystem::{
