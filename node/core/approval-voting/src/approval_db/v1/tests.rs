@@ -557,3 +557,71 @@ fn force_approve_works() {
 		&block_hash_d,
 	).unwrap().unwrap().approved_bitfield.not_any());
 }
+
+#[test]
+fn load_all_blocks_works() {
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
+
+	let parent_hash = Hash::repeat_byte(1);
+	let block_hash_a = Hash::repeat_byte(2);
+	let block_hash_b = Hash::repeat_byte(69);
+	let block_hash_c = Hash::repeat_byte(42);
+
+	let block_number = 10;
+
+	let block_entry_a = make_block_entry(
+		block_hash_a,
+		parent_hash,
+		block_number,
+		vec![],
+	);
+
+	let block_entry_b = make_block_entry(
+		block_hash_b,
+		parent_hash,
+		block_number,
+		vec![],
+	);
+
+	let block_entry_c = make_block_entry(
+		block_hash_c,
+		block_hash_a,
+		block_number + 1,
+		vec![],
+	);
+
+	let n_validators = 10;
+
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_a.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	// add C before B to test sorting.
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_c.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_b.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	assert_eq!(
+		load_all_blocks(
+			&store,
+			&TEST_CONFIG
+		).unwrap(),
+		vec![block_hash_a, block_hash_b, block_hash_c],
+	)
+}
