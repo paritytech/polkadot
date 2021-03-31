@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.42"
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
 futures = "0.3.12"
 futures-timer = "3.0.2"
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
@@ -16,7 +16,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem
 tracing = "0.1.25"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ao-update-wasmtime" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
 femme = "2.1.1"
