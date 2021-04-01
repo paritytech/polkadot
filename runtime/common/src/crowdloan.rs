@@ -59,17 +59,18 @@
 
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure,
-	storage::child,
+	storage::{child, ChildTriePrefixIterator},
 	traits::{
 		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
+	StorageHasher, ReversibleStorageHasher,
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
 use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
+		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
@@ -139,6 +140,8 @@ pub trait Config: frame_system::Config {
 
 	/// The maximum length for the memo attached to a crowdloan contribution.
 	type MaxMemoLength: Get<u8>;
+
+	type ChildTrieHasher: StorageHasher + ReversibleStorageHasher;
 
 	/// Weight Information for the Extrinsics in the Pallet
 	type WeightInfo: WeightInfo;
@@ -477,7 +480,8 @@ decl_module! {
 
 			let mut refund_count = 0u32;
 			// Try killing the crowdloan child trie
-			for (who, (balance, _)) child(fund.trie_index).iter(){
+			let contributions = Self::contribution_iterator(fund.trie_index);
+			for (who, (balance, _)) in contributions {
 				if refund_count >= T::RemoveKeysLimit::get() { break; }
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 				Self::contribution_kill(fund.trie_index, &who);
@@ -624,7 +628,7 @@ impl<T: Config> Module<T> {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdloan");
 		buf.extend_from_slice(&index.encode()[..]);
-		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
+		child::ChildInfo::new_default(T::ChildTrieHasher::hash(&buf[..]).as_ref())
 	}
 
 	pub fn contribution_put(index: TrieIndex, who: &T::AccountId, balance: &BalanceOf<T>, memo: &[u8]) {
@@ -644,6 +648,12 @@ impl<T: Config> Module<T> {
 
 	pub fn crowdloan_kill(index: TrieIndex) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
+	}
+
+	pub fn contribution_iterator(
+		index: TrieIndex
+	) -> ChildTriePrefixIterator<(T::AccountId, (BalanceOf<T>, Vec<u8>))> {
+		ChildTriePrefixIterator::<_>::with_prefix_over_key::<T::ChildTrieHasher>(&Self::id_from_index(index), &[])
 	}
 
 	/// This function checks all conditions which would qualify a crowdloan has ended.
@@ -707,6 +717,7 @@ mod tests {
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
+		pallet_prelude::Blake2_128Concat,
 	};
 	use sp_core::H256;
 	use primitives::v1::Id as ParaId;
@@ -885,6 +896,7 @@ mod tests {
 		type Registrar = TestRegistrar<Test>;
 		type Auctioneer = TestAuctioneer;
 		type MaxMemoLength = MaxMemoLength;
+		type ChildTrieHasher = Blake2_128Concat;
 		type WeightInfo = crate::crowdloan::TestWeightInfo;
 	}
 
@@ -1268,7 +1280,7 @@ mod tests {
 	}
 
 	#[test]
-	fn dissolving_failed_with_contributions_works() {
+	fn refund_and_dissolve_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 			let issuance = Balances::total_issuance();
@@ -1279,15 +1291,15 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
 
 			run_to_block(10);
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
 
-			run_to_block(14);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+			println!("{:?}", Crowdloan::funds(para));
 
-			run_to_block(15);
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
-			assert_eq!(Balances::total_issuance(), issuance - 50);
+			assert_eq!(Balances::free_balance(2), 1000);
+			assert_eq!(Balances::free_balance(3), 1000);
+			assert_eq!(Balances::total_issuance(), issuance);
 		});
 	}
 
@@ -1463,6 +1475,21 @@ mod tests {
 			// Can contribute again and data persists
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (200, b"hello, world".to_vec()));
+		});
+	}
+
+	#[test]
+	fn basic_child_trie_ops() {
+		new_test_ext().execute_with(|| {
+			let child_id = 1;
+			Crowdloan::contribution_put(child_id, &1, &100, b"one".as_ref());
+			Crowdloan::contribution_put(child_id, &2, &200, b"two".as_ref());
+			Crowdloan::contribution_put(child_id, &3, &300, b"three".as_ref());
+
+			let contributions = Crowdloan::contribution_iterator(child_id).collect::<Vec<_>>();
+
+			println!("{:?}", contributions);
+			assert!(false);
 		});
 	}
 }

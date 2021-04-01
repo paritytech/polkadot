@@ -31,6 +31,7 @@ use frame_support::{
 	parameter_types, assert_ok, assert_noop,
 	storage::StorageMap,
 	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
+	pallet_prelude::Blake2_128Concat,
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
@@ -226,12 +227,12 @@ impl crowdloan::Config for Test {
 	type ModuleId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
-	type RetirementPeriod = RetirementPeriod;
 	type OrphanedFunds = ();
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
 	type MaxMemoLength = MaxMemoLength;
+	type ChildTrieHasher = Blake2_128Concat;
 	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
 
