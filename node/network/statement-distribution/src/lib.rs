@@ -38,11 +38,11 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
 };
 
-use futures::prelude::*;
+use futures::{future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -376,6 +376,49 @@ enum NotedStatement<'a> {
 	UsefulButKnown
 }
 
+/// Large statement fetching status.
+enum LargeStatementStatus {
+	/// We are currently fetching the statement from a remote peer. We keep a list of other nodes
+	/// claiming to have that statement and will fallback on them.
+	Fetching(FetchingInfo),
+	/// Statement is fetched
+	Fetched(SignedFullStatement),
+}
+
+/// Info about a fetch in progress.
+struct FetchingInfo {
+	/// All peers that send us a `LargeStatement` for that fingerprint.
+	available_peers: Vec<PeerId>,
+	/// Peers left to try in case the background task needs it.
+	peers_to_try: Vec<PeerId>,
+	/// Sender for sending fresh peers to the fetching task in case of failure.
+	peer_sender: Option<oneshot::Sender<Vec<PeerId>>>,
+	/// Task taking care of the request.
+	fetching_task: RemoteHandle<()>,
+}
+
+/// Messages to be handled in this subsystem.
+enum Message {
+	/// Messages from other subsystems.
+	Subsystem(StatementDistributionMessage),
+	/// Messages from spawned background tasks.
+	BackgroundTask(BackgroundTaskMessage),
+}
+
+/// Messages coming from a background task.
+enum BackgroundTaskMessage {
+	/// Get an update of availble peers to try for fetching a given statement.
+	FetchingGetMorePeers(Hash, ValidatorIndex, CandidateHash, oneshot::Sender<Vec<PeerId>>),
+	/// Fetching finished.
+	FetchingSucceeded {
+		/// Response in case we got any together with the peer who provided us with it.
+		response: Option<(PeerId, SignedFullStatement)>,
+		/// Peers which failed providing the data - they should get punished badly in terms of
+		/// reputation as they just told us a moment ago to have the data.
+		bad_peers: Vec<PeerId>,
+	}
+}
+
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<CandidateHash>,
@@ -385,7 +428,7 @@ struct ActiveHeadData {
 	/// accepted before dependent statements.
 	statements: IndexSet<StoredStatement>,
 	/// Large statements we are waiting for an peers we can fetch the payload from.
-	waiting_large_statements: HashMap<(Hash, ValidatorIndex, CandidateHash), Vec<PeerId>>,
+	waiting_large_statements: HashMap<(ValidatorIndex, CandidateHash), LargeStatementStatus>,
 	/// The validators at this head.
 	validators: Vec<ValidatorId>,
 	/// The session index this head is at.
@@ -745,35 +788,72 @@ async fn handle_incoming_message<'a>(
 	message: protocol_v1::StatementDistributionMessage,
 	metrics: &Metrics,
 ) -> Option<(Hash, &'a StoredStatement)> {
-	let (relay_parent, statement) = match message {
-		protocol_v1::StatementDistributionMessage::Statement(r, s) => (r, s),
-		protocol_v1::StatementDistributionMessage::LargeStatement(parent, v_index, candidate_Hash) => {
-			ctx
-		}
-	};
+	let fingerprint = message.get_finger_print();
 
-	if !our_view.contains(&relay_parent) {
+	if !our_view.contains(&fingerprint.relay_parent) {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
-			?statement,
+			?fingerprint,
 			"Unexpected statement"
 		);
 		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
 		return None;
 	}
 
-	let active_head = match active_heads.get_mut(&relay_parent) {
+	let active_head = match active_heads.get_mut(&fingerprint.relay_parent) {
 		Some(h) => h,
 		None => {
 			// This should never be out-of-sync with our view if the view updates
 			// correspond to actual `StartWork` messages. So we just log and ignore.
 			tracing::warn!(
 				target: LOG_TARGET,
-				requested_relay_parent = %relay_parent,
+				requested_relay_parent = %fingerprint.relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
 			return None;
+		}
+	};
+
+	let statement = match message {
+		protocol_v1::StatementDistributionMessage::Statement(_, statement) => statement,
+		protocol_v1::StatementDistributionMessage::LargeStatement(fingerprint) => {
+				match active_head.waiting_large_statements
+					.entry((fingerprint.signed_by, fingerprint.candidate_hash)) {
+					Entry::Occupied(occupied) => {
+						match occupied.get_mut() {
+							LargeStatementStatus::Fetching(info) => {
+								info.available_peers.push(peer);
+								info.peers_to_try.push(peer);
+								if let Some(sender) = info.peer_sender {
+									let to_send = std::mem::take(&mut info.peers_to_try);
+									sender.send(to_send);
+									info.peer_sender = None;
+								}
+								return None
+							}
+							LargeStatementStatus::Fetched(statement) => {
+								statement
+							}
+						}
+					}
+					Entry::Vacant(vacant) => {
+						let (task, handle) = get_fetcher().remote_handle();
+						let result = ctx.spawn("large-statement-fetcher", task.boxed())
+							.await;
+						if let Err(err) = result {
+							tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
+							return None
+						}
+						vacant.insert(LargeStatementStatus::Fetching(FetchingInfo {
+							available_peers: vec![peer],
+							peers_to_try: Vec::new(),
+							peer_sender: None,
+							fetching_task: handle,
+						}));
+						return None
+					}
+			}
 		}
 	};
 
@@ -783,7 +863,7 @@ async fn handle_incoming_message<'a>(
 		.with_peer_id(&peer);
 
 	// check the signature on the statement.
-	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
+	if let Err(()) = check_statement_signature(&active_head, fingerprint.relay_parent, &statement) {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
@@ -800,7 +880,7 @@ async fn handle_incoming_message<'a>(
 	// it will not be kept within their log.
 	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
 	let max_message_count = active_head.validators.len() * 2;
-	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
+	match peer_data.receive(&fingerprint.relay_parent, &fingerprint, max_message_count) {
 		Err(rep) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -825,7 +905,7 @@ async fn handle_incoming_message<'a>(
 				peer.clone(),
 				peer_data,
 				ctx,
-				relay_parent,
+				fingerprint.relay_parent,
 				candidate_hash,
 				&*active_head,
 				metrics,
@@ -850,11 +930,11 @@ async fn handle_incoming_message<'a>(
 			// When we receive a new message from a peer, we forward it to the
 			// candidate backing subsystem.
 			let message = AllMessages::CandidateBacking(
-				CandidateBackingMessage::Statement(relay_parent, statement.statement.clone())
+				CandidateBackingMessage::Statement(fingerprint.relay_parent, statement.statement.clone())
 			);
 			ctx.send_message(message).await;
 
-			Some((relay_parent, statement))
+			Some((fingerprint.relay_parent, statement))
 		}
 	}
 }

@@ -308,12 +308,37 @@ pub mod v1 {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
 		Statement(Hash, SignedFullStatement),
-		/// Statement with large payload (e.g. containing a runtime upgrade).
+		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
 		/// via req/response.
 		#[codec(index = 1)]
-		LargeStatement(Hash, ValidatorIndex, CandidateHash),
+		LargeStatement(StatementFingerprint),
+	}
+
+	/// Data that maes a statement unique.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct StatementFingerprint {
+		/// Relayt parent this statement is relevant under.
+		pub relay_parent: Hash,
+		/// Hash of the candidate that got validated.
+		pub candidate_hash: CandidateHash,
+		/// Validator that attested the valididty.
+		pub signed_by: ValidatorIndex,
+	}
+
+	impl StatementDistributionMessage {
+		/// Get the relay parent of the given `StatementDistributionMessage`.
+		pub fn get_finger_print(&self) -> StatementFingerprint {
+			match self {
+				Self::Statement(relay_parent, statement) => StatementFingerprint {
+					relay_parent: *relay_parent,
+					candidate_hash: statement.payload().candidate_hash(),
+					signed_by: statement.validator_index(),
+				},
+				Self::LargeStatement(fingerprint) => fingerprint.clone(),
+			}
+		}
 	}
 
 	/// Network messages used by the approval distribution subsystem.
