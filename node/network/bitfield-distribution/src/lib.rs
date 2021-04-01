@@ -31,7 +31,10 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult,
 	jaeger,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	self as util, MIN_GOSSIP_PEERS,
+};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
@@ -358,6 +361,7 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
+	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
 	drop(_span);
 
 	if interested_peers.is_empty() {

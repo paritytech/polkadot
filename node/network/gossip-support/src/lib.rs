@@ -19,7 +19,6 @@
 //! the gossiping subsystems on every new session.
 
 use futures::FutureExt as _;
-use rand::seq::SliceRandom as _;
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage,
@@ -103,17 +102,6 @@ async fn determine_relevant_validators(
 	Ok(validators)
 }
 
-// chooses a random subset of sqrt(v.len()), but at least 25 elements
-fn choose_random_subset<T>(mut v: Vec<T>) -> Vec<T> {
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
-
-	let sqrt = (v.len() as f64).sqrt() as usize;
-	let len = std::cmp::max(25, sqrt);
-	v.truncate(len);
-	v
-}
-
 impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
@@ -133,8 +121,7 @@ impl State {
 			if let Some((new_session, relay_parent)) = maybe_new_session {
 				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
 				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
-				let validators = choose_random_subset(validators);
-				tracing::debug!(target: LOG_TARGET, targets = ?validators, "Issuing a connection request");
+				tracing::debug!(target: LOG_TARGET, num = ?validators.len(), "Issuing a connection request");
 
 				let request = validator_discovery::connect_to_validators_in_session(
 					ctx,
