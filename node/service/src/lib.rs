@@ -1062,7 +1062,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
-			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
+			builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
 				overseer.clone(),
 				prometheus_registry.as_ref(),
 			)?)
