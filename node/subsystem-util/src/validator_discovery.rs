@@ -115,7 +115,8 @@ pub async fn connect_to_validators_in_session<Context: SubsystemContext>(
 	})
 }
 
-async fn connect_to_authorities<Context: SubsystemContext>(
+/// A helper function for making a `ConnectToValidators` request.
+pub async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,

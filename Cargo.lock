@@ -5636,6 +5636,10 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-authority-discovery",
+ "sp-keystore",
  "tracing",
 ]
 
