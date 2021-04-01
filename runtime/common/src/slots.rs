@@ -503,7 +503,6 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
-
 	}
 
 	parameter_types! {
