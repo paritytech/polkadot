@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx, request_persisted_validation_data_ctx,
-	request_validators_ctx,
+	request_validators_ctx, request_validation_code_ctx,
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
@@ -244,9 +244,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				continue;
 			}
 
-			// we get validation data synchronously for each core instead of
+			// we get validation data and validation code synchronously for each core instead of
 			// within the subtask loop, because we have only a single mutable handle to the
 			// context, so the work can't really be distributed
+
 			let validation_data = match request_persisted_validation_data_ctx(
 				relay_parent,
 				scheduled_core.para_id,
@@ -269,6 +270,30 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					continue
 				}
 			};
+
+			let validation_code = match request_validation_code_ctx(
+				relay_parent,
+				scheduled_core.para_id,
+				assumption,
+				ctx,
+			)
+			.await?
+			.await??
+			{
+				Some(v) => v,
+				None => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						our_para = %config.para_id,
+						their_para = %scheduled_core.para_id,
+						"validation code is not available",
+					);
+					continue
+				}
+			};
+			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
@@ -295,7 +320,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					&scheduled_core.para_id,
 					&persisted_validation_data_hash,
 					&pov_hash,
-					&collation.validation_code_hash,
+					&validation_code_hash,
 				);
 
 				let erasure_root = match erasure_root(
@@ -335,7 +360,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						pov_hash,
 						erasure_root,
 						para_head: commitments.head_data.hash(),
-						validation_code_hash: collation.validation_code_hash,
+						validation_code_hash: validation_code_hash,
 					},
 				};
 
@@ -476,7 +501,7 @@ mod tests {
 		};
 		use polkadot_primitives::v1::{
 			BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, ScheduledCore,
+			PersistedValidationData, ScheduledCore, ValidationCode,
 		};
 		use std::pin::Pin;
 
@@ -491,7 +516,6 @@ mod tests {
 				},
 				processed_downward_messages: Default::default(),
 				hrmp_watermark: Default::default(),
-				validation_code_hash: Default::default(),
 			}
 		}
 
@@ -736,7 +760,7 @@ mod tests {
 			let expect_validation_data_hash
 				= PersistedValidationData::<BlockNumber>::default().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
-			let expect_validation_code_hash = test_collation().validation_code_hash;
+			let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,
 				&config.para_id,
@@ -753,7 +777,7 @@ mod tests {
 				pov_hash: expect_pov_hash,
 				erasure_root: Default::default(), // this isn't something we're checking right now
 				para_head: test_collation().head_data.hash(),
-				validation_code_hash: test_collation().validation_code_hash,
+				validation_code_hash: expect_validation_code_hash,
 			};
 
 			assert_eq!(sent_messages.len(), 1);
