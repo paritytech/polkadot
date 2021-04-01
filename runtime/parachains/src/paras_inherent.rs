@@ -44,14 +44,14 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
-// we assume that 75% of an inclusion inherent's weight is used processing backed candidates
+// we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
 pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
-		/// Whether the inclusion inherent was included within this block.
+		/// Whether the paras inherent was included within this block.
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
 		/// due to the guarantees of FRAME's storage APIs.
@@ -72,7 +72,7 @@ decl_error! {
 }
 
 decl_module! {
-	/// The inclusion inherent module.
+	/// The paras inherent module.
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
@@ -201,7 +201,7 @@ fn limit_backed_candidates<T: Config>(
 		});
 	}
 
-	// the weight of the inclusion inherent is already included in the current block weight,
+	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Pallet::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
 		Vec::new()
@@ -242,7 +242,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 				log::warn!(
 					target: LOG_TARGET,
 					"dropping signed_bitfields and backed_candidates because they produced \
-					an invalid inclusion inherent: {:?}",
+					an invalid paras inherent: {:?}",
 					err,
 				);
 
@@ -353,7 +353,7 @@ mod tests {
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
 
-				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
 				let backed_candidates = vec![BackedCandidate::default(); 10];
@@ -367,7 +367,7 @@ mod tests {
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				// execute the inclusion inherent
+				// execute the paras inherent
 				let post_info = Call::<Test>::enter(ParachainsInherentData {
 					bitfields: signed_bitfields,
 					backed_candidates,
@@ -389,7 +389,7 @@ mod tests {
 			});
 		}
 
-		/// We expect the weight of the inclusion inherent to change when truncation occurs: its
+		/// We expect the weight of the paras inherent to change when truncation occurs: its
 		/// weight was initially dynamically computed from the size of the backed candidates list,
 		/// but was reduced by truncation.
 		#[test]
@@ -399,7 +399,7 @@ mod tests {
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
 
-				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
 				let backed_candidates = vec![BackedCandidate::default(); 10];
@@ -412,7 +412,7 @@ mod tests {
 				let used_block_weight = max_block_weight + 1;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				// execute the inclusion inherent
+				// execute the paras inherent
 				let post_info = Call::<Test>::enter(ParachainsInherentData {
 					bitfields: signed_bitfields,
 					backed_candidates,

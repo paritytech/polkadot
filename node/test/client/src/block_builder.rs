@@ -113,7 +113,7 @@ impl InitPolkadotBlockBuilder for Client {
 				polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER,
 				&parachains_inherent_data,
 			)
-			.expect("Put inclusion inherent data");
+			.expect("Put parachains inherent data");
 
 		let inherents = block_builder.create_inherents(inherent_data).expect("Creates inherents");
 
