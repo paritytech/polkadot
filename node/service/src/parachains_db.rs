@@ -37,9 +37,6 @@ mod columns {
 	pub const COL_APPROVAL_DATA: u32 = 3;
 }
 
-const VERSION_KEY: &[u8] = b"version";
-const CURRENT_VERSION: u32 = 1;
-
 /// Columns used by different subsystems.
 #[derive(Debug, Clone)]
 pub struct ColumnsConfig {
@@ -86,6 +83,9 @@ pub fn open_creating(
 	cache_sizes: CacheSizes,
 ) -> io::Result<Arc<dyn KeyValueDB>> {
 	use kvdb_rocksdb::{DatabaseConfig, Database};
+
+	const VERSION_KEY: &[u8] = b"version";
+	const CURRENT_VERSION: u32 = 1;
 
 	let path = root.join("parachains").join("db");
 
