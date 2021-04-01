@@ -822,7 +822,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
+			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 

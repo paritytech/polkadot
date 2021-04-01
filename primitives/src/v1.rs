@@ -820,7 +820,7 @@ sp_api::decl_runtime_apis! {
 		/// and the para already occupies a core.
 		#[skip_initialize_block]
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<N>>;
+			-> Option<PersistedValidationData<H, N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		#[skip_initialize_block]
