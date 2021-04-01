@@ -23,6 +23,24 @@ pub use sp_runtime::traits::CheckedSub;
 pub use parity_scale_codec::{Encode, Decode};
 pub use paste;
 
+/// This macro generates a `SlotRange` enum of arbitrary length for use in the Slot Auction
+/// mechanism on Polkadot.
+///
+/// Usage: `generate_slot_range!(Zero(0), One(1), Two(2), Three(3))`
+///
+/// To extend the usage, continue to add `Identifier(value)` items to the macro.
+///
+/// This will generate an enum `SlotRange` with the following properties:
+///
+/// * Enum variants will range from all consecutive combinations of inputs, i.e.
+///   `ZeroZero`, `ZeroOne`, `ZeroTwo`, `ZeroThree`, `OneOne`, `OneTwo`, `OneThree`...
+/// * A constant `LEASE_PERIODS_PER_SLOT` will count the number of lease periods.
+/// * A constant `SLOT_RANGE_COUNT` will count the total number of enum variants.
+/// * A function `as_pair` will return a tuple representation of the `SlotRange`.
+/// * A function `intersects` will tell you if two slot ranges intersect with one another.
+/// * A function `len` will tell you the length of occupying a `SlotRange`.
+/// * A function `new_bounded` will generate a `SlotRange` from an input of the current
+///   lease period, the starting lease period, and the final lease period.
 #[macro_export]
 macro_rules! generate_slot_range{
 	// Entry point
@@ -97,6 +115,7 @@ macro_rules! generate_slot_range_as_pair {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
+		/// Return true if two `SlotRange` intersect in their lease periods.
 		pub fn intersects(&self, other: SlotRange) -> bool {
 			let a = self.as_pair();
 			let b = other.as_pair();
@@ -104,6 +123,9 @@ macro_rules! generate_slot_range_as_pair {
 			// == !(b.0 > a.1 || a.0 > b.1)
 		}
 
+		/// Return a tuple representation of the `SlotRange`.
+		///
+		/// Example:`SlotRange::OneTwo.as_pair() == (1, 2)`
 		pub fn as_pair(&self) -> (u8, u8) {
 			match self {
 				$( SlotRange::$parsed => { ($t1, $t2) } )*
@@ -119,6 +141,9 @@ macro_rules! generate_slot_range_len {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
+			/// Return the length of occupying a `SlotRange`.
+			///
+			/// Example:`SlotRange::OneTwo.len() == 2`
 			pub fn len(&self) -> usize {
 			match self {
 				// len (0, 2) = 2 - 0 + 1 = 3
@@ -134,21 +159,25 @@ macro_rules! generate_slot_range_new_bounded {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
+		/// Construct a `SlotRange` from the current lease period, the first lease period of the range,
+		/// and the last lease period of the range.
+		///
+		/// For example: `SlotRange::new_bounded(1, 2, 3) == SlotRange::OneTwo`.
 		pub fn new_bounded<
 			Index: $crate::Add<Output=Index> + $crate::CheckedSub + Copy + Ord + From<u32> + $crate::TryInto<u32>
 		>(
-			initial: Index,
+			current: Index,
 			first: Index,
 			last: Index
 		) -> $crate::result::Result<Self, &'static str> {
-			if first > last || first < initial || last >= initial + (LEASE_PERIODS_PER_SLOT as u32).into() {
+			if first > last || first < current || last >= current + (LEASE_PERIODS_PER_SLOT as u32).into() {
 				return Err("Invalid range for this auction")
 			}
 			let count: u32 = last.checked_sub(&first)
 				.ok_or("range ends before it begins")?
 				.try_into()
 				.map_err(|_| "range too big")?;
-			let first: u32 = first.checked_sub(&initial)
+			let first: u32 = first.checked_sub(&current)
 				.ok_or("range begins too early")?
 				.try_into()
 				.map_err(|_| "start too far")?;
