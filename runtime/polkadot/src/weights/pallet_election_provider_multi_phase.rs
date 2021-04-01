@@ -43,53 +43,68 @@ use sp_std::marker::PhantomData;
 /// Weight functions for pallet_election_provider_multi_phase.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo for WeightInfo<T> {
-	fn on_initialize_nothing() -> Weight {
-		(21_084_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-	}
-	fn on_initialize_open_signed() -> Weight {
-		(103_231_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
-	}
-	fn on_initialize_open_unsigned_with_snapshot() -> Weight {
-		(101_898_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
-	}
 	fn on_initialize_open_unsigned_without_snapshot() -> Weight {
-		(19_074_000 as Weight)
+		(21_039_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn elect_queued() -> Weight {
-		(7_945_295_000 as Weight)
+		(7_362_949_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
-	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn submit(c: u32, ) -> Weight {
+		(84_430_000 as Weight)
+			// Standard Error: 146_000
+			.saturating_add((2_758_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(T::DbWeight::get().reads(3 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	fn submit_unsigned(v: u32, _t: u32, a: u32, d: u32, ) -> Weight {
 		(0 as Weight)
-			// Standard Error: 20_000
-			.saturating_add((4_102_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 68_000
-			.saturating_add((69_000 as Weight).saturating_mul(t as Weight))
-			// Standard Error: 20_000
-			.saturating_add((14_129_000 as Weight).saturating_mul(a as Weight))
-			// Standard Error: 103_000
-			.saturating_add((3_684_000 as Weight).saturating_mul(d as Weight))
+			// Standard Error: 21_000
+			.saturating_add((3_933_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 21_000
+			.saturating_add((13_520_000 as Weight).saturating_mul(a as Weight))
+			// Standard Error: 107_000
+			.saturating_add((2_880_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		(0 as Weight)
-			// Standard Error: 11_000
-			.saturating_add((4_199_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 38_000
-			.saturating_add((591_000 as Weight).saturating_mul(t as Weight))
-			// Standard Error: 11_000
-			.saturating_add((10_479_000 as Weight).saturating_mul(a as Weight))
-			// Standard Error: 58_000
-			.saturating_add((4_108_000 as Weight).saturating_mul(d as Weight))
+			// Standard Error: 10_000
+			.saturating_add((4_069_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 36_000
+			.saturating_add((503_000 as Weight).saturating_mul(t as Weight))
+			// Standard Error: 10_000
+			.saturating_add((10_000_000 as Weight).saturating_mul(a as Weight))
+			// Standard Error: 54_000
+			.saturating_add((3_734_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
+	}
+	fn on_initialize_nothing() -> Weight {
+		(24_128_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+	}
+	fn on_initialize_open_signed() -> Weight {
+		(80_951_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+	}
+	fn on_initialize_open_unsigned_with_snapshot() -> Weight {
+		(79_888_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+	}
+	fn finalize_signed_phase_accept_solution() -> Weight {
+		(47_783_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
+	fn finalize_signed_phase_reject_solution() -> Weight {
+		(21_277_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 }
