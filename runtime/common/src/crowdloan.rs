@@ -17,13 +17,13 @@
 //! # Parachain Crowdloaning module
 //!
 //! The point of this module is to allow parachain projects to offer the ability to help fund a
-//! deposit for the parachain. When the crowdloan has ended, the funds may be returned.
+//! deposit for the parachain. When the crowdloan has ended, the funds are returned.
 //!
-//! Contributing funds is permissionless. Each fund has a child-trie which stores all
-//! contributors account IDs together with the amount they contributed; the root of this can then be
-//! used by the parachain to allow contributors to prove that they made some particular contribution
-//! to the project (e.g. to be rewarded through some token or badge). The trie is retained for later
-//! (efficient) redistribution back to the contributors.
+//! Each fund has a child-trie which stores all contributors account IDs together with the amount
+//! they contributed; the root of this can then be used by the parachain to allow contributors to
+//! prove that they made some particular contribution to the project (e.g. to be rewarded through
+//! some token or badge). The trie is retained for later (efficient) redistribution back to the
+//! contributors.
 //!
 //! Contributions must be of at least `MinContribution` (to account for the resources taken in
 //! tracking contributions), and may never tally greater than the fund's `cap`, set and fixed at the
@@ -38,20 +38,12 @@
 //! of the last auction. Until a fund takes a further bid following the end of an auction, then it
 //! will be inactive.
 //!
-//! Contributors may get a refund of their contributions from completed funds. After a period (`RetirementPeriod`)
-//! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
-//! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
-//! into the treasury).
+//! Contributors will get a refund of their contributions from completed funds before the crowdloan
+//! can be dissolved.
 //!
-//! Funds may accept contributions at any point before their success or retirement. When a parachain
+//! Funds may accept contributions at any point before their success. When a parachain
 //! slot auction enters its ending period, then parachains will each place a bid; the bid will be
 //! raised once per block if the parachain had additional funds contributed since the last bid.
-//!
-//! Funds may set their deploy data (the code hash and head data of their parachain) at any point.
-//! It may only be done once and once set cannot be changed. Good procedure would be to set them
-//! ahead of receiving any contributions in order that contributors may verify that their parachain
-//! contains all expected functionality. However, this is not enforced and deploy data may happen
-//! at any point, even after a slot has been successfully won or, indeed, never.
 //!
 //! Successful funds remain tracked (in the `Funds` storage item and the associated child trie) as long as
 //! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
@@ -123,9 +115,6 @@ pub trait Config: frame_system::Config {
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
 
-	/// What to do with funds that were not withdrawn.
-	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
-
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
 
@@ -142,8 +131,6 @@ pub trait Config: frame_system::Config {
 
 	/// The maximum length for the memo attached to a crowdloan contribution.
 	type MaxMemoLength: Get<u8>;
-
-	type ChildTrieHasher: StorageHasher + ReversibleStorageHasher;
 
 	/// Weight Information for the Extrinsics in the Pallet
 	type WeightInfo: WeightInfo;
