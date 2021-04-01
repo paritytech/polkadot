@@ -215,9 +215,6 @@ decl_event! {
 		PartiallyRefunded(ParaId),
 		/// All loans in a fund have been refunded. [fund_index]
 		AllRefunded(ParaId),
-		/// Fund is partially dissolved, i.e. there are some left over child
-		/// keys that still need to be killed. [fund_index]
-		PartiallyDissolved(ParaId),
 		/// Fund is dissolved. [fund_index]
 		Dissolved(ParaId),
 		/// The deploy data of the funded parachain is set. [fund_index]
