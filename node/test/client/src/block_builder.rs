@@ -100,12 +100,12 @@ impl InitPolkadotBlockBuilder for Client {
 		let parent_header = self.header(at)
 			.expect("Get the parent block header")
 			.expect("The target block header must exist");
-		let provisioner_data = polkadot_node_subsystem::messages::ProvisionerInherentData::default();
+
 		let parachains_inherent_data = ParachainsInherentData {
-			bitfields: provisioner_data.bitfields,
-			backed_candidates: provisioner_data.backed_candidates,
-			disputes: provisioner_data.disputes,
-			parent_header: self.parent_header,
+			bitfields: Vec::new(),
+			backed_candidates: Vec::new(),
+			disputes: Vec::new(),
+			parent_header: parent_header,
 		};
 
 		inherent_data
