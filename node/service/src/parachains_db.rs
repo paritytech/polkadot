@@ -13,12 +13,15 @@
 
 //! A RocksDB instance for storing parachain data; availability data, and approvals.
 
-use std::io;
-use std::path::PathBuf;
-use std::sync::Arc;
+#[cfg(feature = "real-overseer")]
+use {
+	std::io,
+	std::path::PathBuf,
+	std::sync::Arc,
 
-use kvdb_rocksdb::{DatabaseConfig, Database};
-use kvdb::KeyValueDB;
+	kvdb::KeyValueDB,
+};
+
 
 mod columns {
 	#[cfg(feature = "real-overseer")]
@@ -74,6 +77,8 @@ pub fn open_creating(
 	root: PathBuf,
 	cache_sizes: CacheSizes,
 ) -> io::Result<Arc<dyn KeyValueDB>> {
+	use kvdb_rocksdb::{DatabaseConfig, Database};
+
 	let path = root.join("parachains").join("db");
 
 	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
