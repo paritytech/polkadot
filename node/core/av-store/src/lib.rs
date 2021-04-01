@@ -984,6 +984,33 @@ fn process_message(
 			let _timer = subsystem.metrics.time_get_chunk();
 			let _ = tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
 		}
+		AvailabilityStoreMessage::QueryAllChunks(candidate, tx) => {
+			match load_meta(&subsystem.db, &candidate)? {
+				None => {
+					let _ = tx.send(Vec::new());
+				}
+				Some(meta) => {
+					let mut chunks = Vec::new();
+
+					for (index, _) in meta.chunks_stored.iter().enumerate().filter(|(_, b)| **b) {
+						let _timer = subsystem.metrics.time_get_chunk();
+						match load_chunk(&subsystem.db, &candidate, ValidatorIndex(index as _))? {
+							Some(c) => chunks.push(c),
+							None => {
+								tracing::warn!(
+									target: LOG_TARGET,
+									?candidate,
+									index,
+									"No chunk found for set bit in meta"
+								);
+							}
+						}
+					}
+
+					let _ = tx.send(chunks);
+				}
+			}
+		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
 			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?
 				.map_or(false, |m|
@@ -993,7 +1020,6 @@ fn process_message(
 		}
 		AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
-			relay_parent: _,
 			chunk,
 			tx,
 		} => {

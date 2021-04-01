@@ -40,7 +40,7 @@ use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
+	v1 as protocol_v1, View, PeerId, UnifiedReputationChange as Rep,
 };
 
 use futures::prelude::*;
@@ -740,7 +740,6 @@ async fn report_peer(
 async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	our_view: &View,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	message: protocol_v1::StatementDistributionMessage,
@@ -750,27 +749,16 @@ async fn handle_incoming_message<'a>(
 		protocol_v1::StatementDistributionMessage::Statement(r, s) => (r, s),
 	};
 
-	if !our_view.contains(&relay_parent) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer,
-			?statement,
-			"Unexpected statement"
-		);
-		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
-		return None;
-	}
-
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
 		None => {
-			// This should never be out-of-sync with our view if the view updates
-			// correspond to actual `StartWork` messages. So we just log and ignore.
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
-				requested_relay_parent = %relay_parent,
-				"our view out-of-sync with active heads; head not found",
+				?peer,
+				?relay_parent,
+				"Unknown (or outdated) relay parent"
 			);
+			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
 			return None;
 		}
 	};
@@ -898,7 +886,6 @@ async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-	our_view: &mut OurView,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
 ) {
@@ -929,7 +916,6 @@ async fn handle_network_update(
 					handle_incoming_message(
 						peer,
 						data,
-						&*our_view,
 						active_heads,
 						ctx,
 						message,
@@ -977,25 +963,8 @@ async fn handle_network_update(
 				None => (),
 			}
 		}
-		NetworkBridgeEvent::OurViewChange(view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				"Own view change",
-			);
-			let old_view = std::mem::replace(our_view, view);
-			active_heads.retain(|head, _| our_view.contains(head));
-
-			for new in our_view.difference(&old_view) {
-				if !active_heads.contains_key(&new) {
-					tracing::warn!(
-						target: LOG_TARGET,
-						unknown_hash = %new,
-						"Our network bridge view update \
-						inconsistent with `StartWork` messages we have received from overseer. \
-						Contains unknown hash.",
-					);
-				}
-			}
+		NetworkBridgeEvent::OurViewChange(_view) => {
+			// handled by `ActiveLeavesUpdate`
 		}
 	}
 
@@ -1008,19 +977,23 @@ impl StatementDistribution {
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> SubsystemResult<()> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut our_view = OurView::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		let metrics = self.metrics;
 
 		loop {
 			let message = ctx.recv().await?;
 			match message {
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					let _timer = metrics.time_active_leaves_update();
 
 					for activated in activated {
 						let relay_parent = activated.hash;
 						let span = PerLeafSpan::new(activated.span, "statement-distribution");
+						tracing::trace!(
+							target: LOG_TARGET,
+							hash = ?relay_parent,
+							"New active leaf",
+						);
 
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
@@ -1063,6 +1036,18 @@ impl StatementDistribution {
 						active_heads.entry(relay_parent)
 							.or_insert(ActiveHeadData::new(validators, session_index, span));
 					}
+
+					active_heads.retain(|h, _| {
+						let live = !deactivated.contains(h);
+						if !live {
+							tracing::trace!(
+								target: LOG_TARGET,
+								hash = ?h,
+								"Deactivating leaf",
+							);
+						}
+						live
+					});
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
 					// do nothing
@@ -1088,7 +1073,6 @@ impl StatementDistribution {
 							&mut peers,
 							&mut active_heads,
 							&mut ctx,
-							&mut our_view,
 							event,
 							&metrics,
 						).await;
@@ -1189,7 +1173,7 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
-	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use polkadot_node_network_protocol::{view, ObservedRole};
 	use polkadot_subsystem::{jaeger, ActivatedLeaf};
 
 	#[test]
@@ -1798,12 +1782,6 @@ mod tests {
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a])
-				)
-			}).await;
-
-			handle.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(our_view![hash_a])
 				)
 			}).await;
 

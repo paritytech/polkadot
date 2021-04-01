@@ -25,7 +25,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, Hash, AuthorityDiscoveryId
+	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -200,10 +200,10 @@ fn with_assumption<Config, T, F>(
 pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<PersistedValidationData<T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(

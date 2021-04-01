@@ -342,7 +342,7 @@ mod select_candidates {
 		let mock_cores = mock_availability_cores();
 		let n_cores = mock_cores.len();
 
-		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
+		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
 		let candidate_template = CandidateReceipt {
 			descriptor: CandidateDescriptor {
@@ -415,7 +415,7 @@ mod select_candidates {
 		let mock_cores = mock_availability_cores();
 		let n_cores = mock_cores.len();
 
-		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
+		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
 		// why those particular indices? see the comments on mock_availability_cores()
 		// the first candidate with code is included out of [1, 4, 7, 8, 10].

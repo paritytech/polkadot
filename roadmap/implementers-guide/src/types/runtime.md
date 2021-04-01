@@ -40,6 +40,12 @@ struct HostConfiguration {
 	pub max_validators: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
+	/// How long after dispute conclusion to accept statements.
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
+	/// The maximum number of dispute spam slots 
+	pub dispute_max_spam_slots: u32,
+	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
+	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	/// Must be at least 1.

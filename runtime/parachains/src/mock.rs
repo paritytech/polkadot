@@ -84,6 +84,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -133,7 +134,7 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::inclusion_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 

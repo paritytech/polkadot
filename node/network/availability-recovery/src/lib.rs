@@ -334,6 +334,34 @@ impl RequestChunksPhase {
 		params: &InteractionParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
+		// First query the store for any chunks we've got.
+		{
+			let (tx, rx) = oneshot::channel();
+			sender.send_message(
+				AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx).into()
+			).await;
+
+			match rx.await {
+				Ok(chunks) => {
+					// This should either be length 1 or 0. If we had the whole data,
+					// we wouldn't have reached this stage.
+					let chunk_indices: Vec<_> = chunks.iter().map(|c| c.index).collect();
+					self.shuffling.retain(|i| !chunk_indices.contains(i));
+
+					for chunk in chunks {
+						self.received_chunks.insert(chunk.index, chunk);
+					}
+				}
+				Err(oneshot::Canceled) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						candidate_hash = ?params.candidate_hash,
+						"Failed to reach the availability store"
+					);
+				}
+			}
+		}
+
 		loop {
 			if self.is_unavailable(&params) {
 				tracing::debug!(
@@ -431,6 +459,26 @@ fn reconstructed_data_matches_root(
 
 impl<S: SubsystemSender> Interaction<S> {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
+		// First just see if we have the data available locally.
+		{
+			let (tx, rx) = oneshot::channel();
+			self.sender.send_message(
+				AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx).into()
+			).await;
+
+			match rx.await {
+				Ok(Some(data)) => return Ok(data),
+				Ok(None) => {}
+				Err(oneshot::Canceled) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						candidate_hash = ?self.params.candidate_hash,
+						"Failed to reach the availability store",
+					)
+				}
+			}
+		}
+
 		loop {
 			// These only fail if we cannot reach the underlying subsystem, which case there is nothing
 			// meaningful we can do.
