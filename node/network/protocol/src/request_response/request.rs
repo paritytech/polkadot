@@ -228,6 +228,7 @@ where
 			.send(netconfig::OutgoingResponse {
 				result: Ok(resp.encode()),
 				reputation_changes: Vec::new(),
+				sent_feedback: None,
 			})
 			.map_err(|_| resp)
 	}
