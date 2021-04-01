@@ -369,8 +369,6 @@ pub enum AvailabilityStoreMessage {
 	StoreChunk {
 		/// A hash of the candidate this chunk belongs to.
 		candidate_hash: CandidateHash,
-		/// A relevant relay parent.
-		relay_parent: Hash,
 		/// The chunk itself.
 		chunk: ErasureChunk,
 		/// Sending side of the channel to send result to.

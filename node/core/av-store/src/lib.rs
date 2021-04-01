@@ -1016,7 +1016,6 @@ fn process_message(
 		}
 		AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
-			relay_parent: _,
 			chunk,
 			tx,
 		} => {
