@@ -261,10 +261,15 @@ decl_storage! {
 		ParaLifecycles: map hasher(twox_64_concat) ParaId => Option<ParaLifecycle>;
 		/// The head-data of every registered para.
 		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
-		/// The validation code of every live para.
-		CurrentCode get(fn current_code): map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
-		/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
-		PastCode: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<ValidationCode>;
+		/// The validation code hash of every live para.
+		///
+		/// Corresponding code can be retrieved with [`CodeByHash`].
+		CurrentCode: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		/// Actual past code hash, indicated by the para id as well as the block number at which it
+		/// became outdated.
+		///
+		/// Corresponding code can be retrieved with [`CodeByHash`].
+		PastCode: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<Hash>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to keep it available for secondary checkers.
@@ -281,19 +286,19 @@ decl_storage! {
 		/// The change will be applied after the first parablock for this ID included which executes
 		/// in the context of a relay chain block with a number >= `expected_at`.
 		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
-		/// The actual future code of a para.
-		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
+		/// The actual future code hash of a para.
+		///
+		/// Corresponding code can be retrieved with [`CodeByHash`].
+		FutureCode: map hasher(twox_64_concat) ParaId => Option<Hash>;
 		/// The actions to perform during the start of a specific session index.
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// The number of reference on the validation code in `CodeByHash` storage.
+		/// The number of reference on the validation code in [`CodeByHash`] storage.
 		CodeByHashRefs: map hasher(identity) Hash => u32;
 		/// Validation code stored by its hash.
 		///
-		/// Validation code is stored when a new para is initialized, and when a para schedule a
-		/// code upgrade. Code is pruned when outdated after some blocks, see `PastCodePruning`,
-		/// and an offboarded para instantly remove its scheduled code.
+		/// This storage is consistent with [`FutureCode`], [`CurrentCode`] and [`PastCode`].
 		CodeByHash get(fn code_by_hash): map hasher(identity) Hash => Option<ValidationCode>;
 	}
 	add_extra_genesis {
@@ -318,8 +323,9 @@ fn build<T: Config>(config: &GenesisConfig<T>) {
 	Parachains::put(&parachains);
 
 	for (id, genesis_args) in &config.paras {
-		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
-		<Module<T>>::increase_code_ref(&genesis_args.validation_code);
+		let code_hash = genesis_args.validation_code.hash();
+		<Module<T>>::increase_code_ref(&code_hash, &genesis_args.validation_code);
+		<Module<T> as Store>::CurrentCode::insert(&id, &code_hash);
 		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
 		if genesis_args.parachain {
 			ParaLifecycles::insert(&id, ParaLifecycle::Parachain);
@@ -370,11 +376,13 @@ decl_module! {
 		#[weight = 0]
 		fn force_set_current_code(origin, para: ParaId, new_code: ValidationCode) {
 			ensure_root(origin)?;
-			let prior_code = <Self as Store>::CurrentCode::get(&para).unwrap_or_default();
-			<Self as Store>::CurrentCode::insert(&para, new_code);
+			let prior_code_hash = <Self as Store>::CurrentCode::get(&para).unwrap_or_default();
+			let new_code_hash = new_code.hash();
+			Self::increase_code_ref(&new_code_hash, &new_code);
+			<Self as Store>::CurrentCode::insert(&para, new_code_hash);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			Self::note_past_code(para, now, now, prior_code);
+			Self::note_past_code(para, now, now, prior_code_hash);
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
 		}
 
@@ -437,6 +445,20 @@ impl<T: Config> Module<T> {
 		outgoing_paras
 	}
 
+	/// The validation code of live para.
+	pub(crate) fn current_code(para_id: &ParaId) -> Option<ValidationCode> {
+		CurrentCode::get(para_id).and_then(|code_hash| {
+			let code = CodeByHash::get(&code_hash);
+			if code.is_none() {
+				log::error!(
+					"Pallet paras storage is inconsistent, code not found for hash {}",
+					code_hash,
+				);
+			}
+			code
+		})
+	}
+
 	// Apply all para actions queued for the given session index.
 	//
 	// The actions to take are based on the lifecycle of of the paras.
@@ -467,8 +489,10 @@ impl<T: Config> Module<T> {
 							ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
 						}
 
+						let code_hash = genesis_data.validation_code.hash();
 						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
-						<Self as Store>::CurrentCode::insert(&para, genesis_data.validation_code);
+						Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
+						<Self as Store>::CurrentCode::insert(&para, code_hash);
 					}
 				},
 				// Upgrade a parathread to a parachain
@@ -494,14 +518,14 @@ impl<T: Config> Module<T> {
 					<Self as Store>::Heads::remove(&para);
 					<Self as Store>::FutureCodeUpgrades::remove(&para);
 					ParaLifecycles::remove(&para);
-					let removed_future_code = <Self as Store>::FutureCode::take(&para);
-					if let Some(removed_future_code) = removed_future_code {
-						Self::decrease_code_ref(&removed_future_code);
+					let removed_future_code_hash = <Self as Store>::FutureCode::take(&para);
+					if let Some(removed_future_code_hash) = removed_future_code_hash {
+						Self::decrease_code_ref(&removed_future_code_hash);
 					}
 
-					let removed_code = <Self as Store>::CurrentCode::take(&para);
-					if let Some(removed_code) = removed_code {
-						Self::note_past_code(para, now, now, removed_code);
+					let removed_code_hash = <Self as Store>::CurrentCode::take(&para);
+					if let Some(removed_code_hash) = removed_code_hash {
+						Self::note_past_code(para, now, now, removed_code_hash);
 					}
 
 					outgoing.push(para);
@@ -525,14 +549,14 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 		at: T::BlockNumber,
 		now: T::BlockNumber,
-		old_code: ValidationCode,
+		old_code_hash: Hash,
 	) -> Weight {
 
 		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
 			past_meta.note_replacement(at, now);
 		});
 
-		<Self as Store>::PastCode::insert(&(id, at), old_code);
+		<Self as Store>::PastCode::insert(&(id, at), old_code_hash);
 
 		// Schedule pruning for this past-code to be removed as soon as it
 		// exits the slashing window.
@@ -571,11 +595,11 @@ impl<T: Config> Module<T> {
 				for (para_id, _) in pruning_tasks_to_do {
 					let full_deactivate = <Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
 						for pruned_repl_at in meta.prune_up_to(pruning_height) {
-							let removed_code =
+							let removed_code_hash =
 								<Self as Store>::PastCode::take(&(para_id, pruned_repl_at));
 
-							if let Some(removed_code) = removed_code {
-								Self::decrease_code_ref(&removed_code);
+							if let Some(removed_code_hash) = removed_code_hash {
+								Self::decrease_code_ref(&removed_code_hash);
 							} else {
 								todo!("log error");
 							}
@@ -617,8 +641,6 @@ impl<T: Config> Module<T> {
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
-
-		Self::increase_code_ref(&genesis.validation_code);
 
 		UpcomingParasGenesis::insert(&id, genesis);
 		ActionsQueue::mutate(scheduled_session, |v| {
@@ -712,12 +734,13 @@ impl<T: Config> Module<T> {
 			} else {
 				*up = Some(expected_at);
 
-				let (hash, reads, writes) = Self::increase_code_ref(&new_code);
+				let new_code_hash = new_code.hash();
 				let expected_at_u32 = expected_at.saturated_into();
-				let log = ConsensusLog::ParaScheduleUpgradeCode(id, hash, expected_at_u32);
+				let log = ConsensusLog::ParaScheduleUpgradeCode(id, new_code_hash, expected_at_u32);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
-				FutureCode::insert(&id, new_code);
+				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
+				FutureCode::insert(&id, new_code_hash);
 				T::DbWeight::get().reads_writes(1 + reads, 2 + writes)
 			}
 		})
@@ -738,11 +761,10 @@ impl<T: Config> Module<T> {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
-				let new_code = FutureCode::take(&id).unwrap_or_default();
-				let prior_code = CurrentCode::get(&id).unwrap_or_default();
-				CurrentCode::insert(&id, &new_code);
+				let new_code_hash = FutureCode::take(&id).unwrap_or_default();
+				let prior_code_hash = CurrentCode::get(&id).unwrap_or_default();
+				CurrentCode::insert(&id, &new_code_hash);
 
-				let new_code_hash = new_code.hash();
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
@@ -753,7 +775,7 @@ impl<T: Config> Module<T> {
 					id,
 					expected_at,
 					now,
-					prior_code,
+					prior_code_hash,
 				);
 
 				// add 1 to writes due to heads update.
@@ -792,15 +814,26 @@ impl<T: Config> Module<T> {
 			None => false,
 		};
 
-		if upgrade_applied_intermediate {
+		let code_hash = if upgrade_applied_intermediate {
 			FutureCode::get(&id)
 		} else {
 			match Self::past_code_meta(&id).code_at(at) {
 				None => None,
 				Some(UseCodeAt::Current) => CurrentCode::get(&id),
-				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCode::get(&(id, replaced))
+				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCode::get(&(id, replaced)),
 			}
-		}
+		};
+
+		code_hash.and_then(|code_hash| {
+			let code = CodeByHash::get(&code_hash);
+			if code.is_none() {
+				log::error!(
+					"Pallet paras storage is inconsistent, code not found for hash {}",
+					code_hash,
+				);
+			}
+			code
+		})
 	}
 
 	/// Returns the current lifecycle state of the para.
@@ -860,31 +893,29 @@ impl<T: Config> Module<T> {
 
 	/// Store the validation code if not already stored, and increase the number of reference.
 	///
-	/// Returns the hash, number of storage reads and number of storage writes.
-	fn increase_code_ref(validation_code: &ValidationCode) -> (Hash, u64, u64) {
-		let hash = validation_code.hash();
+	/// Returns the number of storage reads and number of storage writes.
+	fn increase_code_ref(code_hash: &Hash, code: &ValidationCode) -> (u64, u64) {
 		let reads = 1;
 		let mut writes = 1;
-		<Self as Store>::CodeByHashRefs::mutate(hash, |refs| {
+		<Self as Store>::CodeByHashRefs::mutate(code_hash, |refs| {
 			if *refs == 0 {
 				writes += 1;
-				<Self as Store>::CodeByHash::insert(hash, &validation_code);
+				<Self as Store>::CodeByHash::insert(code_hash, code);
 			}
 			*refs += 1;
 		});
-		(hash, reads, writes)
+		(reads, writes)
 	}
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
 	/// is reached.
-	fn decrease_code_ref(validation_code: &ValidationCode) {
-		let hash = validation_code.hash();
-		let refs = <Self as Store>::CodeByHashRefs::get(hash);
+	fn decrease_code_ref(code_hash: &Hash) {
+		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
 		if refs <= 1 {
-			<Self as Store>::CodeByHash::remove(hash);
-			<Self as Store>::CodeByHashRefs::remove(hash);
+			<Self as Store>::CodeByHash::remove(code_hash);
+			<Self as Store>::CodeByHashRefs::remove(code_hash);
 		} else {
-			<Self as Store>::CodeByHashRefs::insert(hash, refs - 1);
+			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
 		}
 	}
 
@@ -1055,8 +1086,8 @@ mod tests {
 			let included_block: BlockNumber = 12;
 			let validation_code = ValidationCode(vec![1, 2, 3]);
 
-			Paras::increase_code_ref(&validation_code);
-			<Paras as Store>::PastCode::insert(&(id, at_block), &validation_code);
+			Paras::increase_code_ref(&validation_code.hash(), &validation_code);
+			<Paras as Store>::PastCode::insert(&(id, at_block), &validation_code.hash());
 			<Paras as Store>::PastCodePruning::put(&vec![(id, included_block)]);
 
 			{
@@ -1066,11 +1097,11 @@ mod tests {
 			}
 
 			let pruned_at: BlockNumber = included_block + acceptance_period + 1;
-			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.clone()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.hash()));
 			check_code_is_stored(&validation_code);
 
 			run_to_block(pruned_at - 1, None);
-			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.clone()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(id, at_block)), Some(validation_code.hash()));
 			assert_eq!(Paras::past_code_meta(&id).most_recent_change(), Some(at_block));
 			check_code_is_stored(&validation_code);
 
@@ -1147,8 +1178,8 @@ mod tests {
 			let id_a = ParaId::from(0u32);
 			let id_b = ParaId::from(1u32);
 
-			Paras::note_past_code(id_a, 10, 12, vec![1, 2, 3].into());
-			Paras::note_past_code(id_b, 20, 23, vec![4, 5, 6].into());
+			Paras::note_past_code(id_a, 10, 12, ValidationCode(vec![1, 2, 3]).hash());
+			Paras::note_past_code(id_b, 20, 23, ValidationCode(vec![4, 5, 6]).hash());
 
 			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 12), (id_b, 23)]);
 			assert_eq!(
@@ -1212,7 +1243,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1229,7 +1260,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1248,7 +1279,7 @@ mod tests {
 				);
 				assert_eq!(
 					<Paras as Store>::PastCode::get(&(para_id, expected_at)),
-					Some(original_code.clone()),
+					Some(original_code.hash()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 				assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
@@ -1264,11 +1295,12 @@ mod tests {
 		let acceptance_period = 10;
 		let validation_upgrade_delay = 5;
 
+		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
 				genesis_head: Default::default(),
-				validation_code: vec![1, 2, 3].into(),
+				validation_code: original_code.clone(),
 			}),
 		];
 
@@ -1290,7 +1322,7 @@ mod tests {
 			let new_code = ValidationCode(vec![4, 5, 6]);
 
 			run_to_block(2, None);
-			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
 				// this parablock is in the context of block 1.
@@ -1300,8 +1332,8 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
-				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
+				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 				expected_at
 			};
@@ -1319,11 +1351,11 @@ mod tests {
 				);
 				assert_eq!(
 					<Paras as Store>::PastCode::get(&(para_id, expected_at)),
-					Some(vec![1, 2, 3,].into()),
+					Some(original_code.hash()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 				assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
-				assert_eq!(Paras::current_code(&para_id), Some(new_code));
+				assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 			}
 		});
 	}
@@ -1361,12 +1393,12 @@ mod tests {
 
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 8);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
-			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
 			check_code_is_stored(&new_code);
 
 			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 10);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
-			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
 			check_code_is_not_stored(&newer_code);
 		});
 	}
@@ -1414,8 +1446,8 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
-				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
+				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
 
@@ -1434,7 +1466,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.hash()));
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1448,7 +1480,7 @@ mod tests {
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
-			assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 3)), Some(original_code.clone()));
+			assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 3)), Some(original_code.hash()));
 			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
 			check_code_is_stored(&original_code);
 
@@ -1668,18 +1700,18 @@ mod tests {
 	fn code_ref_is_cleaned_correctly() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let code: ValidationCode = vec![1, 2, 3].into();
-			Paras::increase_code_ref(&code);
-			Paras::increase_code_ref(&code);
+			Paras::increase_code_ref(&code.hash(), &code);
+			Paras::increase_code_ref(&code.hash(), &code);
 
 			assert!(CodeByHash::contains_key(code.hash()));
 			assert_eq!(CodeByHashRefs::get(code.hash()), 2);
 
-			Paras::decrease_code_ref(&code);
+			Paras::decrease_code_ref(&code.hash());
 
 			assert!(CodeByHash::contains_key(code.hash()));
 			assert_eq!(CodeByHashRefs::get(code.hash()), 1);
 
-			Paras::decrease_code_ref(&code);
+			Paras::decrease_code_ref(&code.hash());
 
 			assert!(!CodeByHash::contains_key(code.hash()));
 			assert!(!CodeByHashRefs::contains_key(code.hash()));
