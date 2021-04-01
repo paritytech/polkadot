@@ -288,7 +288,7 @@ pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
+	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature};
 	use polkadot_node_primitives::{
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		SignedFullStatement,
@@ -313,25 +313,27 @@ pub mod v1 {
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
 		/// via req/response.
 		#[codec(index = 1)]
-		LargeStatement(StatementFingerprint),
+		LargeStatement(StatementMetadata),
 	}
 
 	/// Data that maes a statement unique.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct StatementFingerprint {
+	pub struct StatementMetadata {
 		/// Relayt parent this statement is relevant under.
 		pub relay_parent: Hash,
 		/// Hash of the candidate that got validated.
 		pub candidate_hash: CandidateHash,
 		/// Validator that attested the valididty.
 		pub signed_by: ValidatorIndex,
+		/// Signature of seconding validator.
+		pub signature: ValidatorSignature,
 	}
 
 	impl StatementDistributionMessage {
 		/// Get the relay parent of the given `StatementDistributionMessage`.
-		pub fn get_finger_print(&self) -> StatementFingerprint {
+		pub fn get_finger_print(&self) -> StatementMetadata {
 			match self {
-				Self::Statement(relay_parent, statement) => StatementFingerprint {
+				Self::Statement(relay_parent, statement) => StatementMetadata {
 					relay_parent: *relay_parent,
 					candidate_hash: statement.payload().candidate_hash(),
 					signed_by: statement.validator_index(),

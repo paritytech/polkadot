@@ -18,14 +18,11 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, ValidatorIndex,
-	Hash,
-};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
 use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk, SignedFullStatement};
 
-use crate::v1::StatementFingerprint;
+use crate::v1::StatementMetadata;
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -176,7 +173,9 @@ impl IsRequest for AvailableDataFetchingRequest {
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct StatementFetchingRequest {
 	/// Data needed to locate and identify the needed statement.
-	pub fingerprint: StatementFingerprint,
+	pub relay_parent: Hash,
+	/// Hash of candidate that was used create the CommitedCandidateRecept.
+	pub candidate_hash: CandidateHash,
 }
 
 /// Respond with found full statement.
@@ -186,8 +185,8 @@ pub struct StatementFetchingRequest {
 /// `RequestFailure`.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum StatementFetchingResponse {
-	/// The fetched statement.
-	Statement(SignedFullStatement),
+	/// Data missing to reconstruct the full signed statement.
+	Statement(CommittedCandidateReceipt),
 }
 
 impl IsRequest for StatementFetchingRequest {

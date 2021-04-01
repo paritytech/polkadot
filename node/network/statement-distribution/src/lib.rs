@@ -1,4 +1,3 @@
-
 // Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -31,16 +30,21 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_primitives::{SignedFullStatement};
-use polkadot_primitives::v1::{
-	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
-};
-use polkadot_node_network_protocol::{OurView, PeerId, UnifiedReputationChange as Rep, View, v1::{self as protocol_v1, StatementFingerprint}};
+use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
+use polkadot_node_network_protocol::{IfDisconnected, OurView, PeerId, UnifiedReputationChange as Rep, View, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::{self as protocol_v1, StatementMetadata}};
 
 use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
+
+/// Background task logic for requesting of large statements.
+mod requester;
+use requester::{
+	fetch,
+	RequesterMessage,
+};
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -376,11 +380,11 @@ enum NotedStatement<'a> {
 
 /// Large statement fetching status.
 enum LargeStatementStatus {
-	/// We are currently fetching the statement from a remote peer. We keep a list of other nodes
-	/// claiming to have that statement and will fallback on them.
+	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
+	/// claiming to have that data and will fallback on them.
 	Fetching(FetchingInfo),
-	/// Statement is fetched
-	Fetched(SignedFullStatement),
+	/// Statement data is fetched
+	Fetched(CommittedCandidateReceipt),
 }
 
 /// Info about a fetch in progress.
@@ -400,22 +404,9 @@ enum Message {
 	/// Messages from other subsystems.
 	Subsystem(StatementDistributionMessage),
 	/// Messages from spawned background tasks.
-	BackgroundTask(BackgroundTaskMessage),
+	Requester(RequesterMessage),
 }
 
-/// Messages coming from a background task.
-enum BackgroundTaskMessage {
-	/// Get an update of availble peers to try for fetching a given statement.
-	FetchingGetMorePeers(Hash, ValidatorIndex, CandidateHash, oneshot::Sender<Vec<PeerId>>),
-	/// Fetching finished.
-	FetchingSucceeded {
-		/// Response in case we got any together with the peer who provided us with it.
-		response: Option<(PeerId, SignedFullStatement)>,
-		/// Peers which failed providing the data - they should get punished badly in terms of
-		/// reputation as they just told us a moment ago to have the data.
-		bad_peers: Vec<PeerId>,
-	}
-}
 
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
@@ -425,8 +416,8 @@ struct ActiveHeadData {
 	/// These are iterable in insertion order, and `Seconded` statements are always
 	/// accepted before dependent statements.
 	statements: IndexSet<StoredStatement>,
-	/// Large statements we are waiting for an peers we can fetch the payload from.
-	waiting_large_statements: HashMap<(ValidatorIndex, CandidateHash), LargeStatementStatus>,
+	/// Large statements we are waiting for with associated meta data.
+	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The validators at this head.
 	validators: Vec<ValidatorId>,
 	/// The session index this head is at.
@@ -435,6 +426,10 @@ struct ActiveHeadData {
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
 	span: PerLeafSpan,
+	/// Receiver for getting news from our statement fetching tasks.
+	req_receiver: mpsc::Receiver<RequesterMessage>,
+	/// Sender to be cloned and passed to forked jobs.
+	req_sender: mpsc::Sender<RequesterMessage>,
 }
 
 impl ActiveHeadData {
@@ -771,21 +766,21 @@ async fn report_peer(
 	)).await
 }
 
-// Handle an incoming wire message. Returns a reference to a newly-stored statement
-// if we were not already aware of it, along with the corresponding relay-parent.
-//
-// This function checks the signature and ensures the statement is compatible with our
-// view. It also notifies candidate backing if the statement was previously unknown.
-#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
-async fn handle_incoming_message<'a>(
+/// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
+///
+/// This function will also return `None` if the message did not pass some basic checks, in that
+/// case no statement will be requested, on the flipside you get `ActiveHeadData` in addition to
+/// your statement.
+///
+/// If the message was large, but the result has been fetched already that one is returned.
+async fn get_statement_from_message<'a>(
 	peer: PeerId,
-	peer_data: &mut PeerData,
+	message: protocol_v1::StatementDistributionMessage,
 	our_view: &View,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-	message: protocol_v1::StatementDistributionMessage,
-	metrics: &Metrics,
-) -> Option<(Hash, &'a StoredStatement)> {
+	) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
+
 	let fingerprint = message.get_finger_print();
 
 	if !our_view.contains(&fingerprint.relay_parent) {
@@ -794,9 +789,9 @@ async fn handle_incoming_message<'a>(
 			?peer,
 			?fingerprint,
 			"Unexpected statement"
-		);
+			);
 		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
-		return None;
+		return None
 	}
 
 	let active_head = match active_heads.get_mut(&fingerprint.relay_parent) {
@@ -808,60 +803,164 @@ async fn handle_incoming_message<'a>(
 				target: LOG_TARGET,
 				requested_relay_parent = %fingerprint.relay_parent,
 				"our view out-of-sync with active heads; head not found",
-			);
-			return None;
+				);
+			return None
 		}
 	};
 
-	let statement = match message {
-		protocol_v1::StatementDistributionMessage::Statement(_, statement) => statement,
+	match message {
+		protocol_v1::StatementDistributionMessage::Statement(_, statement) => 
+			return Some((active_head, statement)),
+
 		protocol_v1::StatementDistributionMessage::LargeStatement(fingerprint) => {
-				match active_head.waiting_large_statements
-					.entry((fingerprint.signed_by, fingerprint.candidate_hash)) {
-					Entry::Occupied(occupied) => {
-						match occupied.get_mut() {
-							LargeStatementStatus::Fetching(info) => {
-								info.available_peers.push(peer);
-								info.peers_to_try.push(peer);
-								if let Some(sender) = info.peer_sender {
-									let to_send = std::mem::take(&mut info.peers_to_try);
-									sender.send(to_send);
-									info.peer_sender = None;
-								}
-								return None
+			match active_head.waiting_large_statements
+				.entry((fingerprint.signed_by, fingerprint.candidate_hash)) {
+
+				Entry::Occupied(occupied) => {
+					match occupied.get_mut() {
+						LargeStatementStatus::Fetching(info) => {
+							info.available_peers.push(peer);
+							info.peers_to_try.push(peer);
+							if let Some(sender) = info.peer_sender {
+								let to_send = std::mem::take(&mut info.peers_to_try);
+								sender.send(to_send);
+								info.peer_sender = None;
 							}
-							LargeStatementStatus::Fetched(statement) => {
-								statement
-							}
-						}
-					}
-					Entry::Vacant(vacant) => {
-						let (task, handle) = get_fetcher().remote_handle();
-						let result = ctx.spawn("large-statement-fetcher", task.boxed())
-							.await;
-						if let Err(err) = result {
-							tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
 							return None
 						}
-						vacant.insert(LargeStatementStatus::Fetching(FetchingInfo {
-							available_peers: vec![peer],
-							peers_to_try: Vec::new(),
-							peer_sender: None,
-							fetching_task: handle,
-						}));
+						LargeStatementStatus::Fetched(statement) => {
+
+							let signing_context = SigningContext {
+								session_index: active_head.session_index,
+								parent_hash: relay_parent,
+							};
+
+							let validator_id = 
+								active_head.validators.get(fingerprint.signed_by.0 as usize);
+
+							if let Some(validator_id) = validator_id {
+
+								let statement = SignedFullStatement::new(
+										statement.clone(),
+										fingerprint.signed_by,
+										fingerprint.signature,
+										&signing_context,
+										validator_id,
+								);
+								if let Some(statement) = statement {
+									return (active_head, statement)
+								} else {
+									// Cached data did not match signature, some backer wants to
+									// get slashed. At this point, we have to clear the cache and
+									// fetch the data again from the current peer. (We don't know
+									// which one is correct and it does not really matter, we leave
+									// that up for disputes. We should just try our best to make
+									// sure all valid and invalid data is available so it can be
+									// disputed and the offenders can be slashed.)
+								}
+
+							} else {
+
+								tracing::debug!(
+									target: LOG_TARGET,
+									?validator_index,
+									"Error loading statement, could not find key for validator."
+								);
+								return None
+							}
+						}
+					}
+				}
+				Entry::Vacant(vacant) => {
+					let (task, handle) = fetch(fingerprint, vec![peer], active_head.req_sender.clone()).remote_handle();
+					let result = ctx.spawn("large-statement-fetcher", task.boxed())
+						.await;
+					if let Err(err) = result {
+						tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
 						return None
 					}
+					vacant.insert(LargeStatementStatus::Fetching(FetchingInfo {
+						available_peers: vec![peer],
+						peers_to_try: Vec::new(),
+						peer_sender: None,
+						fetching_task: handle,
+					}));
+					return None
+				}
 			}
 		}
+	}
+}
+
+/// Handle incoming message and circulate it to peers, if we did not know it already.
+///
+async fn handle_incoming_statement_and_circulate<'a>(
+	peer: PeerId,
+	peers: &mut HashMap<PeerId, PeerData>,
+	our_view: &View,
+	active_head: &'a mut ActiveHeadData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+	metrics: &Metrics,
+) {
+	let handled_incoming = match peers.get_mut(&peer) {
+		Some(data) => {
+			handle_incoming_statement(
+				peer,
+				data,
+				&*our_view,
+				active_head,
+				ctx,
+				relay_parent,
+				statement,
+				metrics,
+			).await
+		}
+		None => None,
 	};
 
+	// if we got a fresh message, we need to circulate it to all peers.
+	if let Some(statement) = handled_incoming {
+		// we can ignore the set of peers who this function returns as now expecting
+		// dependent statements.
+		//
+		// we have the invariant in this subsystem that we never store a `Valid` or `Invalid`
+		// statement before a `Seconded` statement. `Seconded` statements are the only ones
+		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
+		// were not aware of before, we cannot have any dependent statements from the candidate.
+		let _ = circulate_statement(
+			peers,
+			ctx,
+			relay_parent,
+			statement,
+		).await;
+	}
+}
+
+// Handle an statement. Returns a reference to a newly-stored statement
+// if we were not already aware of it, along with the corresponding relay-parent.
+//
+// This function checks the signature and ensures the statement is compatible with our
+// view. It also notifies candidate backing if the statement was previously unknown.
+#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
+async fn handle_incoming_statement<'a>(
+	peer: PeerId,
+	peer_data: &mut PeerData,
+	our_view: &View,
+	active_head: &'a mut ActiveHeadData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+	metrics: &Metrics,
+) -> Option<&'a StoredStatement> {
 	let candidate_hash = statement.payload().candidate_hash();
 	let handle_incoming_span = active_head.span.child("handle-incoming")
 		.with_candidate(candidate_hash)
 		.with_peer_id(&peer);
 
 	// check the signature on the statement.
-	if let Err(()) = check_statement_signature(&active_head, fingerprint.relay_parent, &statement) {
+	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
@@ -878,7 +977,7 @@ async fn handle_incoming_message<'a>(
 	// it will not be kept within their log.
 	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
 	let max_message_count = active_head.validators.len() * 2;
-	match peer_data.receive(&fingerprint.relay_parent, &fingerprint, max_message_count) {
+	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
 		Err(rep) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -903,7 +1002,7 @@ async fn handle_incoming_message<'a>(
 				peer.clone(),
 				peer_data,
 				ctx,
-				fingerprint.relay_parent,
+				relay_parent,
 				candidate_hash,
 				&*active_head,
 				metrics,
@@ -928,35 +1027,13 @@ async fn handle_incoming_message<'a>(
 			// When we receive a new message from a peer, we forward it to the
 			// candidate backing subsystem.
 			let message = AllMessages::CandidateBacking(
-				CandidateBackingMessage::Statement(fingerprint.relay_parent, statement.statement.clone())
+				CandidateBackingMessage::Statement(relay_parent, statement.statement.clone())
 			);
 			ctx.send_message(message).await;
 
-			Some((fingerprint.relay_parent, statement))
+			Some(statement)
 		}
 	}
-}
-
-/// A fetching task, taking care of fetching large statements via request/response.
-///
-/// Takes metadata of a statement to fetch and a list of peer ids to try for fetching. It will
-/// communicate back via the given mpsc sender.
-///
-/// The `OverseerSubsystemSender` will be used for issuing network requests.
-async fn statement_fetcher(
-    fingerprint: StatementFingerprint,
-    peers: Vec<PeerId>,
-    tx: mpsc::Sender<BackgroundTaskMessage>,
-    subsystem_sender: OverseerSubsystemSender,
-) {
-    // Peers we already tried (and failed).
-    let mut tried_peers = Vec::new();
-    // Peers left for trying out.
-    let mut new_peers = peers;
-
-    for peer in new_peers {
-    }
-
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
@@ -1026,37 +1103,15 @@ async fn handle_network_update(
 			peers.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
-			let handled_incoming = match peers.get_mut(&peer) {
-				Some(data) => {
-					handle_incoming_message(
-						peer,
-						data,
-						&*our_view,
-						active_heads,
-						ctx,
-						message,
-						metrics,
-					).await
-				}
-				None => None,
-			};
-
-			// if we got a fresh message, we need to circulate it to all peers.
-			if let Some((relay_parent, statement)) = handled_incoming {
-				// we can ignore the set of peers who this function returns as now expecting
-				// dependent statements.
-				//
-				// we have the invariant in this subsystem that we never store a `Valid` or `Invalid`
-				// statement before a `Seconded` statement. `Seconded` statements are the only ones
-				// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
-				// were not aware of before, we cannot have any dependent statements from the candidate.
-				let _ = circulate_statement(
-					peers,
-					ctx,
-					relay_parent,
-					statement,
-				).await;
-			}
+			handle_incoming_message_and_circulate(
+				peer,
+				peers,
+				&*our_view,
+				active_heads,
+				ctx,
+				message,
+				metrics,
+			).await;
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
 			tracing::trace!(
