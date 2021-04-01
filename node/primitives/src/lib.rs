@@ -36,7 +36,6 @@ pub use sp_consensus_babe::{
 use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
 pub use polkadot_parachain::primitives::BlockData;
 
-
 pub mod approval;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
@@ -142,7 +141,7 @@ pub enum ValidationResult {
 }
 
 /// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
+pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
 
 /// Very conservative (compression ratio of 1).
 ///

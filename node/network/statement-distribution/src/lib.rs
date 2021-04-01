@@ -34,11 +34,9 @@ use polkadot_node_primitives::{SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
-use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, OurView, UnifiedReputationChange as Rep,
-};
+use polkadot_node_network_protocol::{OurView, PeerId, UnifiedReputationChange as Rep, View, v1::{self as protocol_v1, StatementFingerprint}};
 
-use futures::{future::RemoteHandle, prelude::*};
+use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
@@ -937,6 +935,28 @@ async fn handle_incoming_message<'a>(
 			Some((fingerprint.relay_parent, statement))
 		}
 	}
+}
+
+/// A fetching task, taking care of fetching large statements via request/response.
+///
+/// Takes metadata of a statement to fetch and a list of peer ids to try for fetching. It will
+/// communicate back via the given mpsc sender.
+///
+/// The `OverseerSubsystemSender` will be used for issuing network requests.
+async fn statement_fetcher(
+    fingerprint: StatementFingerprint,
+    peers: Vec<PeerId>,
+    tx: mpsc::Sender<BackgroundTaskMessage>,
+    subsystem_sender: OverseerSubsystemSender,
+) {
+    // Peers we already tried (and failed).
+    let mut tried_peers = Vec::new();
+    // Peers left for trying out.
+    let mut new_peers = peers;
+
+    for peer in new_peers {
+    }
+
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous

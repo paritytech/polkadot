@@ -88,7 +88,7 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 };
-use constants::{time::*, currency::*, fee::*};
+use constants::{time::*, currency::*, fee::*, size::*};
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -597,7 +597,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxCodeSize: u32 = sizes::MAX_CODE_SIZE;
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
