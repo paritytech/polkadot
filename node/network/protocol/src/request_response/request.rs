@@ -47,6 +47,8 @@ pub enum Requests {
 	PoVFetching(OutgoingRequest<v1::PoVFetchingRequest>),
 	/// Request full available data from a node.
 	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
+	/// Requests for fetching large statements as part of statement distribution.
+	StatementFetching(OutgoingRequest<v1::StatementFetchingRequest>),
 }
 
 impl Requests {
@@ -57,6 +59,7 @@ impl Requests {
 			Self::CollationFetching(_) => Protocol::CollationFetching,
 			Self::PoVFetching(_) => Protocol::PoVFetching,
 			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
+			Self::StatementFetching(_) => Protocol::StatementFetching,
 		}
 	}
 
@@ -73,6 +76,7 @@ impl Requests {
 			Self::CollationFetching(r) => r.encode_request(),
 			Self::PoVFetching(r) => r.encode_request(),
 			Self::AvailableDataFetching(r) => r.encode_request(),
+			Self::StatementFetching(r) => r.encode_request(),
 		}
 	}
 }

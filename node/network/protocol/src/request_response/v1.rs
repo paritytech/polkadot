@@ -23,7 +23,9 @@ use polkadot_primitives::v1::{
 	Hash,
 };
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk, SignedFullStatement};
+
+use crate::v1::StatementFingerprint;
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -168,4 +170,27 @@ impl From<Option<AvailableData>> for AvailableDataFetchingResponse {
 impl IsRequest for AvailableDataFetchingRequest {
 	type Response = AvailableDataFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;
+}
+
+/// Request for fetching a large statement via request/response.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct StatementFetchingRequest {
+	/// Data needed to locate and identify the needed statement.
+	pub fingerprint: StatementFingerprint,
+}
+
+/// Respond with found full statement.
+///
+/// In this protocol the requester will only request data it was previously notified about,
+/// therefore not having the data is not really an option and would just result in a
+/// `RequestFailure`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum StatementFetchingResponse {
+	/// The fetched statement.
+	Statement(SignedFullStatement),
+}
+
+impl IsRequest for StatementFetchingRequest {
+	type Response = StatementFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::StatementFetching;
 }

@@ -151,6 +151,11 @@ fn multiplex_single(
 			decode_with_peer::<v1::AvailableDataFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
+		Protocol::StatementFetching => From::from(IncomingRequest::new(
+			peer,
+			decode_with_peer::<v1::StatementFetchingRequest>(peer, payload)?,
+			pending_response,
+		)),
 	};
 	Ok(r)
 }

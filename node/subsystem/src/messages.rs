@@ -28,8 +28,11 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
-	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
+	PeerId, UnifiedReputationChange, peer_set::PeerSet,
+	request_response::{
+		Requests, request::IncomingRequest, v1 as req_res_v1
+	},
+	v1 as protocol_v1,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -523,16 +526,8 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-}
-
-impl StatementDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
+	/// Incoming request from the network
+	StatementFetchingRequest(IncomingRequest<req_res_v1::StatementFetchingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -737,6 +732,11 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorPro
 		Self::CollationFetchingRequest(req)
 	}
 }
+impl From<IncomingRequest<req_res_v1::StatementFetchingRequest>> for StatementDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::StatementFetchingRequest>) -> Self {
+		Self::StatementFetchingRequest(req)
+	}
+}
 
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
@@ -757,5 +757,10 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages
 impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
 		From::<AvailabilityRecoveryMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::StatementFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::StatementFetchingRequest>) -> Self {
+		From::<StatementDistributionMessage>::from(From::from(req))
 	}
 }
