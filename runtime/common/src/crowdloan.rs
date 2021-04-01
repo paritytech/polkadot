@@ -50,12 +50,11 @@
 //! returned to the crowdloan account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, ensure,
+	decl_module, decl_storage, decl_event, decl_error, ensure, Identity,
 	storage::{child, ChildTriePrefixIterator},
 	traits::{
-		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
+		Currency, ReservableCurrency, Get, ExistenceRequirement::AllowDeath
 	},
-	Identity, StorageHasher, ReversibleStorageHasher,
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
 use frame_system::{ensure_signed, ensure_root};
@@ -708,7 +707,6 @@ mod tests {
 	use frame_support::{
 		assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
-		pallet_prelude::Blake2_128Concat,
 	};
 	use sp_core::H256;
 	use primitives::v1::Id as ParaId;

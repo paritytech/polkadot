@@ -31,7 +31,6 @@ use frame_support::{
 	parameter_types, assert_ok, assert_noop,
 	storage::StorageMap,
 	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
-	pallet_prelude::Blake2_128Concat,
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
