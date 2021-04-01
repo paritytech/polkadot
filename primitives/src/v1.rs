@@ -22,7 +22,7 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::AppVerify;
+use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 use application_crypto::KeyTypeId;
@@ -169,8 +169,8 @@ pub mod well_known_keys {
 	}
 }
 
-/// Unique identifier for the Inclusion Inherent
-pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+/// Unique identifier for the Parachains Inherent
+pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
 
 /// The key type ID for parachain assignment key.
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
@@ -316,7 +316,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// point. The hash of the persisted validation data should
 	/// match the `persisted_validation_data_hash` in the descriptor
 	/// of the receipt.
-	pub validation_data: PersistedValidationData<N>,
+	pub validation_data: PersistedValidationData<H, N>,
 }
 
 /// A candidate-receipt with commitments directly included.
@@ -395,18 +395,18 @@ impl Ord for CommittedCandidateReceipt {
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
-pub struct PersistedValidationData<N = BlockNumber> {
+pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The relay-chain block number this is in the context of.
 	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
-	pub relay_parent_storage_root: Hash,
+	pub relay_parent_storage_root: H,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }
 
-impl<N: Encode> PersistedValidationData<N> {
+impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 	/// Compute the blake2-256 hash of the persisted validation data.
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
@@ -820,7 +820,7 @@ sp_api::decl_runtime_apis! {
 		/// and the para already occupies a core.
 		#[skip_initialize_block]
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<N>>;
+			-> Option<PersistedValidationData<H, N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		#[skip_initialize_block]
@@ -989,6 +989,95 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
 		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
 	}
+}
+
+/// A statement about a candidate, to be used within the dispute resolution process.
+///
+/// Statements are either in favor of the candidate's validity or against it.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub enum DisputeStatement {
+	/// A valid statement, of the given kind.
+	#[codec(index = 0)]
+	Valid(ValidDisputeStatementKind),
+	/// An invalid statement, of the given kind.
+	#[codec(index = 1)]
+	Invalid(InvalidDisputeStatementKind),
+}
+
+/// Different kinds of statements of validity on  a candidate.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub enum ValidDisputeStatementKind {
+	/// An explicit statement issued as part of a dispute.
+	#[codec(index = 0)]
+	Explicit,
+	/// A seconded statement on a candidate from the backing phase.
+	#[codec(index = 1)]
+	BackingSeconded,
+	/// A valid statement on a candidate from the backing phase.
+	#[codec(index = 2)]
+	BackingValid,
+	/// An approval vote from the approval checking phase.
+	#[codec(index = 3)]
+	ApprovalChecking,
+}
+
+/// Different kinds of statements of invalidity on a candidate.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub enum InvalidDisputeStatementKind {
+	/// An explicit statement issued as part of a dispute.
+	#[codec(index = 0)]
+	Explicit,
+}
+
+/// An explicit statement on a candidate issued as part of a dispute.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub struct ExplicitDisputeStatement {
+	/// Whether the candidate is valid
+	pub valid: bool,
+	/// The candidate hash.
+	pub candidate_hash: CandidateHash,
+	/// The session index of the candidate.
+	pub session: SessionIndex,
+}
+
+/// A set of statements about a specific candidate.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub struct DisputeStatementSet {
+	/// The candidate referenced by this set.
+	pub candidate_hash: CandidateHash,
+	/// The session index of the candidate.
+	pub session: SessionIndex,
+	/// Statements about the candidate.
+	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+}
+
+/// A set of dispute statements.
+pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
+
+/// The entire state of a dispute.
+#[derive(Encode, Decode, Clone, RuntimeDebug)]
+pub struct DisputeState<N = BlockNumber> {
+	/// A bitfield indicating all validators for the candidate.
+	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	/// A bitfield indicating all validators against the candidate.
+	pub validators_against: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	/// The block number at which the dispute started on-chain.
+	pub start: N,
+	/// The block number at which the dispute concluded on-chain.
+	pub concluded_at: Option<N>,
+}
+
+/// Parachains inherent-data passed into the runtime by a block author
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+pub struct InherentData<HDR: HeaderT = Header> {
+	/// Signed bitfields by validators about availability.
+	pub bitfields: SignedAvailabilityBitfields,
+	/// Backed candidates for inclusion in the block.
+	pub backed_candidates: Vec<BackedCandidate<HDR::Hash>>,
+	/// Sets of dispute votes for inclusion,
+	pub disputes: MultiDisputeStatementSet,
+	/// The parent block header. Used for checking state proofs.
+	pub parent_header: HDR,
 }
 
 #[cfg(test)]

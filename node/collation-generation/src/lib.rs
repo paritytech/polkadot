@@ -731,7 +731,7 @@ mod tests {
 			// correct descriptor
 			let expect_pov_hash = test_collation().proof_of_validity.hash();
 			let expect_validation_data_hash
-				= PersistedValidationData::<BlockNumber>::default().hash();
+				= PersistedValidationData::<Hash, BlockNumber>::default().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,

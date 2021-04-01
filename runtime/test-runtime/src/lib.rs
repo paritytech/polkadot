@@ -28,7 +28,7 @@ use parity_scale_codec::Encode;
 use polkadot_runtime_parachains::configuration as parachains_configuration;
 use polkadot_runtime_parachains::shared as parachains_shared;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
-use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use polkadot_runtime_parachains::paras_inherent as parachains_paras_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
 use polkadot_runtime_parachains::session_info as parachains_session_info;
 use polkadot_runtime_parachains::paras as parachains_paras;
@@ -458,7 +458,7 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
-impl parachains_inclusion_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -524,7 +524,7 @@ construct_runtime! {
 		// Parachains runtime modules
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
@@ -649,7 +649,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>>
+			-> Option<PersistedValidationData<Hash, BlockNumber>>
 		{
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}

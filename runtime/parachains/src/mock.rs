@@ -134,7 +134,7 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::inclusion_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 
