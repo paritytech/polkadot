@@ -455,6 +455,7 @@ impl<T: Config> Module<T> {
 					"Pallet paras storage is inconsistent, code not found for hash {}",
 					code_hash,
 				);
+				debug_assert!(false, "inconsistent paras storages");
 			}
 			code
 		})
@@ -642,7 +643,6 @@ impl<T: Config> Module<T> {
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
 		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
-
 		UpcomingParasGenesis::insert(&id, genesis);
 		ActionsQueue::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
@@ -843,6 +843,7 @@ impl<T: Config> Module<T> {
 					"Pallet paras storage is inconsistent, code not found for hash {}",
 					code_hash,
 				);
+				debug_assert!(false, "inconsistent paras storages");
 			}
 			code
 		})
