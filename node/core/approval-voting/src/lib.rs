@@ -716,7 +716,7 @@ async fn handle_actions(
 				candidate,
 				backing_group,
 			} => {
-				// Don't launch approval work if the ndoe is syncing.
+				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode { continue }
 
 				metrics.on_assignment_produced();
