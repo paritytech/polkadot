@@ -991,6 +991,84 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 	}
 }
 
+/// TODO [now]: codec indices
+
+/// A statement about a candidate, to be used within the dispute resolution process.
+///
+/// Statements are either in favor of the candidate's validity or against it.
+#[derive(Encode, Decode, Clone)]
+pub enum DisputeStatement {
+	/// A valid statement, of the given kind.
+	#[codec(index = 0)]
+	Valid(ValidDisputeStatementKind),
+	/// An invalid statement, of the given kind.
+	#[codec(index = 1)]
+	Invalid(InvalidDisputeStatementKind),
+}
+
+/// Different kinds of statements of validity on  a candidate.
+#[derive(Encode, Decode, Clone)]
+pub enum ValidDisputeStatementKind {
+	/// An explicit statement issued as part of a dispute.
+	#[codec(index = 0)]
+	Explicit,
+	/// A seconded statement on a candidate from the backing phase.
+	#[codec(index = 1)]
+	BackingSeconded,
+	/// A valid statement on a candidate from the backing phase.
+	#[codec(index = 2)]
+	BackingValid,
+	/// An approval vote from the approval checking phase.
+	#[codec(index = 3)]
+	ApprovalChecking,
+}
+
+/// Different kinds of statements of invalidity on a candidate.
+#[derive(Encode, Decode, Clone)]
+pub enum InvalidDisputeStatementKind {
+	/// An explicit statement issued as part of a dispute.
+	#[codec(index = 0)]
+	Explicit,
+}
+
+/// An explicit statement on a candidate issued as part of a dispute.
+#[derive(Encode, Decode, Clone)]
+pub struct ExplicitDisputeStatement {
+	/// Whether the candidate is valid
+	pub valid: bool,
+	/// The candidate hash.
+	pub candidate_hash: CandidateHash,
+	/// The session index of the candidate.
+	pub session: SessionIndex,
+}
+
+/// A set of statements about a specific candidate.
+#[derive(Encode, Decode, Clone)]
+pub struct DisputeStatementSet {
+	/// The candidate referenced by this set.
+    pub candidate_hash: CandidateHash,
+	/// The session index of the candidate.
+    pub session: SessionIndex,
+	/// Statements about the candidate.
+    pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+}
+
+/// A set of dispute statements.
+pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
+
+/// The entire state of a dispute.
+#[derive(Encode, Decode, Clone)]
+pub struct DisputeState {
+	/// A bitfield indicating all validators for the candidate.
+	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	/// A bitfield indicating all validators against the candidate.
+	pub validators_against: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
+	/// The block number at which the dispute started on-chain.
+	pub start: BlockNumber,
+	/// The block number at which the dispute concluded on-chain.
+	pub concluded_at: Option<BlockNumber>,
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
