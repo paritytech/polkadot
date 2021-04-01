@@ -22,7 +22,7 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::AppVerify;
+use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 use application_crypto::KeyTypeId;
@@ -316,7 +316,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// point. The hash of the persisted validation data should
 	/// match the `persisted_validation_data_hash` in the descriptor
 	/// of the receipt.
-	pub validation_data: PersistedValidationData<N>,
+	pub validation_data: PersistedValidationData<H, N>,
 }
 
 /// A candidate-receipt with commitments directly included.
@@ -395,18 +395,18 @@ impl Ord for CommittedCandidateReceipt {
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
-pub struct PersistedValidationData<N = BlockNumber> {
+pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The relay-chain block number this is in the context of.
 	pub relay_parent_number: N,
 	/// The relay-chain block storage root this is in the context of.
-	pub relay_parent_storage_root: Hash,
+	pub relay_parent_storage_root: H,
 	/// The maximum legal size of a POV block, in bytes.
 	pub max_pov_size: u32,
 }
 
-impl<N: Encode> PersistedValidationData<N> {
+impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 	/// Compute the blake2-256 hash of the persisted validation data.
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
@@ -994,7 +994,7 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 /// A statement about a candidate, to be used within the dispute resolution process.
 ///
 /// Statements are either in favor of the candidate's validity or against it.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum DisputeStatement {
 	/// A valid statement, of the given kind.
@@ -1006,7 +1006,7 @@ pub enum DisputeStatement {
 }
 
 /// Different kinds of statements of validity on  a candidate.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
@@ -1024,7 +1024,7 @@ pub enum ValidDisputeStatementKind {
 }
 
 /// Different kinds of statements of invalidity on a candidate.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
@@ -1033,7 +1033,7 @@ pub enum InvalidDisputeStatementKind {
 }
 
 /// An explicit statement on a candidate issued as part of a dispute.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct ExplicitDisputeStatement {
 	/// Whether the candidate is valid
@@ -1045,7 +1045,7 @@ pub struct ExplicitDisputeStatement {
 }
 
 /// A set of statements about a specific candidate.
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
@@ -1062,29 +1062,29 @@ pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 /// The entire state of a dispute.
 #[derive(Encode, Decode, Clone)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct DisputeState {
+pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
 	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
 	/// A bitfield indicating all validators against the candidate.
 	pub validators_against: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
 	/// The block number at which the dispute started on-chain.
-	pub start: BlockNumber,
+	pub start: N,
 	/// The block number at which the dispute concluded on-chain.
-	pub concluded_at: Option<BlockNumber>,
+	pub concluded_at: Option<N>,
 }
 
 /// Parachains inherent-data passed into the runtime by a block author
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, PartialEq)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct InherentData {
+pub struct InherentData<HDR: HeaderT = Header> {
 	/// Signed bitfields by validators about availability.
 	pub bitfields: SignedAvailabilityBitfields,
 	/// Backed candidates for inclusion in the block.
-	pub backed_candidates: Vec<BackedCandidate>,
+	pub backed_candidates: Vec<BackedCandidate<HDR::Hash>>,
 	/// Sets of dispute votes for inclusion,
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
-	pub parent_header: Header,
+	pub parent_header: HDR,
 }
 
 #[cfg(test)]

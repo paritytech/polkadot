@@ -22,8 +22,9 @@
 //! this module.
 
 use sp_std::prelude::*;
+use sp_runtime::traits::Header as HeaderT;
 use primitives::v1::{
-	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER, Header,
+	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
@@ -49,7 +50,7 @@ const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEI
 pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
-	trait Store for Module<T: Config> as ParaInclusionInherent {
+	trait Store for Module<T: Config> as ParaInherent {
 		/// Whether the inclusion inherent was included within this block.
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
@@ -85,17 +86,22 @@ decl_module! {
 			}
 		}
 
-		/// Include backed candidates and bitfields.
+		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[weight = (
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
 		)]
-		pub fn inclusion(
+		pub fn enter(
 			origin,
-			signed_bitfields: SignedAvailabilityBitfields,
-			backed_candidates: Vec<BackedCandidate<T::Hash>>,
-			parent_header: Header,
+			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
+			let ParachainsInherentData {
+				bitfields: signed_bitfields,
+				backed_candidates,
+				parent_header,
+				disputes: _,
+			} = data;
+
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
 
@@ -137,7 +143,7 @@ decl_module! {
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Process backed candidates according to scheduled cores.
-			let parent_storage_root = parent_header.state_root;
+			let parent_storage_root = parent_header.state_root().clone();
 			let occupied = <inclusion::Module<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
@@ -207,39 +213,49 @@ fn limit_backed_candidates<T: Config>(
 impl<T: Config> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;
+	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		data.get_data(&Self::INHERENT_IDENTIFIER)
-			.expect("inclusion inherent data failed to decode")
-			.map(
-				|(signed_bitfields, backed_candidates, parent_header): (
-					SignedAvailabilityBitfields,
-					Vec<BackedCandidate<T::Hash>>,
-					Header,
-				)| {
-					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-					// See github.com/paritytech/polkadot/issues/1327
-					let (signed_bitfields, backed_candidates) = match Self::inclusion(
-						frame_system::RawOrigin::None.into(),
-						signed_bitfields.clone(),
-						backed_candidates.clone(),
-						parent_header.clone(),
-					) {
-						Ok(_) => (signed_bitfields, backed_candidates),
-						Err(err) => {
-							log::warn!(
-								target: LOG_TARGET,
-								"dropping signed_bitfields and backed_candidates because they produced \
-								an invalid inclusion inherent: {:?}",
-								err,
-							);
-							(Vec::new().into(), Vec::new())
-						}
-					};
-					Call::inclusion(signed_bitfields, backed_candidates, parent_header)
+		let inherent_data: ParachainsInherentData<T::Header>
+			= match data.get_data(&Self::INHERENT_IDENTIFIER)
+		{
+			Ok(Some(d)) => d,
+			Ok(None) => return None,
+			Err(_) => {
+				log::warn!(
+					target: LOG_TARGET,
+					"ParachainsInherentData failed to decode",
+				);
+
+				return None;
+			}
+		};
+
+		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+		// See github.com/paritytech/polkadot/issues/1327
+		let inherent_data = match Self::enter(
+			frame_system::RawOrigin::None.into(),
+			inherent_data.clone(),
+		) {
+			Ok(_) => inherent_data,
+			Err(err) => {
+				log::warn!(
+					target: LOG_TARGET,
+					"dropping signed_bitfields and backed_candidates because they produced \
+					an invalid inclusion inherent: {:?}",
+					err,
+				);
+
+				ParachainsInherentData {
+					bitfields: Vec::new(),
+					backed_candidates: Vec::new(),
+					disputes: Vec::new(),
+					parent_header: inherent_data.parent_header,
 				}
-			)
+			}
+		};
+
+		Some(Call::enter(inherent_data))
 	}
 }
 
@@ -313,6 +329,7 @@ mod tests {
 		use crate::mock::{
 			new_test_ext, System, MockGenesisConfig, Test
 		};
+		use primitives::v1::Header;
 
 		use frame_support::traits::UnfilteredDispatchable;
 
@@ -351,7 +368,12 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, default_header())
+				let post_info = Call::<Test>::enter(ParachainsInherentData {
+					bitfields: signed_bitfields,
+					backed_candidates,
+					disputes: Vec::new(),
+					parent_header: default_header(),
+				})
 					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
@@ -391,7 +413,12 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, header)
+				let post_info = Call::<Test>::enter(ParachainsInherentData {
+					bitfields: signed_bitfields,
+					backed_candidates,
+					disputes: Vec::new(),
+					parent_header: header,
+				})
 					.dispatch_bypass_filter(None.into()).unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
