@@ -21,10 +21,10 @@
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
+mod parachains_db;
 
 #[cfg(feature = "full-node")]
 use {
-	std::convert::TryInto,
 	std::time::Duration,
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -418,7 +418,9 @@ fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	_: Arc<LocalKeystore>,
 	_: Arc<RuntimeClient>,
+	_parachains_db: (),
 	_: AvailabilityConfig,
+	_: ApprovalVotingConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
 	_request_multiplexer: (),
@@ -426,7 +428,6 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	_: IsCollator,
 	_: IsolationStrategy,
-	_: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -446,7 +447,9 @@ fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: Arc<LocalKeystore>,
 	runtime_client: Arc<RuntimeClient>,
+	parachains_db: Arc<dyn kvdb::KeyValueDB>,
 	availability_config: AvailabilityConfig,
+	approval_voting_config: ApprovalVotingConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
 	request_multiplexer: RequestMultiplexer,
@@ -454,7 +457,6 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
-	approval_voting_config: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -489,10 +491,11 @@ where
 		),
 		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
 		),
-		availability_store: AvailabilityStoreSubsystem::new_on_disk(
+		availability_store: AvailabilityStoreSubsystem::new(
+			parachains_db.clone(),
 			availability_config,
 			Metrics::register(registry)?,
-		)?,
+		),
 		bitfield_distribution: BitfieldDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
@@ -537,9 +540,10 @@ where
 			)
 		},
 		network_bridge: NetworkBridgeSubsystem::new(
-			network_service,
+			network_service.clone(),
 			authority_discovery,
 			request_multiplexer,
+			Box::new(network_service.clone()),
 		),
 		provisioner: ProvisionerSubsystem::new(
 			spawner.clone(),
@@ -559,9 +563,11 @@ where
 		),
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
+			parachains_db,
 			keystore.clone(),
+			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
-		)?,
+		),
 		gossip_support: GossipSupportSubsystem::new(
 			keystore.clone(),
 			runtime_client.clone(),
@@ -843,17 +849,26 @@ pub fn new_full<RuntimeApi, Executor>(
 		);
 	}
 
-	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
-	let chain_spec = config.chain_spec.cloned_box();
+	#[cfg(feature = "real-overseer")]
+	let parachains_db = crate::parachains_db::open_creating(
+		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
+		crate::parachains_db::CacheSizes::default(),
+	)?;
 
-	let approval_voting_config = ApprovalVotingConfig {
-		path: config.database.path()
-			.ok_or(Error::DatabasePathRequired)?
-			.join("parachains").join("approval-voting"),
-		slot_duration_millis: slot_duration.as_millis() as u64,
-		cache_size: None, // default is fine.
+	#[cfg(not(feature = "real-overseer"))]
+	let parachains_db = ();
+
+	let availability_config = AvailabilityConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
+		col_meta: crate::parachains_db::REAL_COLUMNS.col_availability_meta,
 	};
 
+	let approval_voting_config = ApprovalVotingConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
+		slot_duration_millis: slot_duration.as_millis() as u64,
+	};
+
+	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -922,7 +937,9 @@ pub fn new_full<RuntimeApi, Executor>(
 			active_leaves,
 			keystore,
 			overseer_client.clone(),
+			parachains_db,
 			availability_config,
+			approval_voting_config,
 			network.clone(),
 			authority_discovery_service,
 			request_multiplexer,
@@ -930,7 +947,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			spawner,
 			is_collator,
 			isolation_strategy,
-			approval_voting_config,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
