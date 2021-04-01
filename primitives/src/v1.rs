@@ -1044,11 +1044,11 @@ pub struct ExplicitDisputeStatement {
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
-    pub candidate_hash: CandidateHash,
+	pub candidate_hash: CandidateHash,
 	/// The session index of the candidate.
-    pub session: SessionIndex,
+	pub session: SessionIndex,
 	/// Statements about the candidate.
-    pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 
 /// A set of dispute statements.
