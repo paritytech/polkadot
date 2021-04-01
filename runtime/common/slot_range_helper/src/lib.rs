@@ -74,22 +74,20 @@ macro_rules! generate_slot_range{
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! generate_slot_range_enum {
 	(@
 		$( $parsed:ident )*
 	) => {
-		$crate::generate_slot_range_enum! {
-			/// A compactly represented sub-range from the series.
-			#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, $crate::Encode, $crate::Decode)]
-			#[repr(u8)]
-			pub enum SlotRange { $( $parsed ),* }
-		}
+		/// A compactly represented sub-range from the series.
+		#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, $crate::Encode, $crate::Decode)]
+		#[repr(u8)]
+		pub enum SlotRange { $( $parsed ),* }
 	};
-	// A trick from StackOverflow to generate the final Enum object.
-	($i:item) => { $i };
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! generate_slot_range_as_pair {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
@@ -110,6 +108,7 @@ macro_rules! generate_slot_range_as_pair {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! generate_slot_range_len {
 	// Use evaluated length in function.
 	(@
@@ -125,6 +124,7 @@ macro_rules! generate_slot_range_len {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! generate_slot_range_new_bounded {
 	(@
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
@@ -156,10 +156,12 @@ macro_rules! generate_slot_range_new_bounded {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! generate_slot_range_count {
 	(@
 		$( $idents:ident )*
 	) => {
+		#[doc(hidden)]
 		#[allow(dead_code, non_camel_case_types)]
 		enum __SlotRangeTemp { $($idents,)* __SlotRangeCountLast }
 		pub const SLOT_RANGE_COUNT: usize = __SlotRangeTemp::__SlotRangeCountLast as usize;
