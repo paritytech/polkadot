@@ -40,7 +40,8 @@ use super::*;
 fn task_can_be_canceled() {
 	let (task, _rx) = get_test_running_task();
 	let (handle, kill) = oneshot::channel();
-	std::mem::drop(handle);
+	drop(handle);
+
 	let running_task = task.run(kill);
 	futures::pin_mut!(running_task);
 	let waker = noop_waker();
