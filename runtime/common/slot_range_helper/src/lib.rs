@@ -21,6 +21,7 @@
 pub use sp_std::{result, ops::Add, convert::TryInto};
 pub use sp_runtime::traits::CheckedSub;
 pub use parity_scale_codec::{Encode, Decode};
+pub use paste;
 
 #[macro_export]
 macro_rules! generate_slot_range{
@@ -37,7 +38,7 @@ macro_rules! generate_slot_range{
 		$current:ident ( $ce:expr )
 		$( $remaining:ident ( $re:expr ) )*
 	) => {
-		paste::paste! {
+		$crate::paste::paste! {
 			$crate::generate_slot_range!(@
 				{
 					$( $parsed ( $t1, $t2 ) )*
@@ -136,7 +137,7 @@ macro_rules! generate_slot_range_new_bounded {
 			first: Index,
 			last: Index
 		) -> $crate::result::Result<Self, &'static str> {
-			if first > last || first < initial || last > initial + (LEASE_PERIODS_PER_SLOT - 1).into() {
+			if first > last || first < initial || last >= initial + (LEASE_PERIODS_PER_SLOT as u32).into() {
 				return Err("Invalid range for this auction")
 			}
 			let count: u32 = last.checked_sub(&first)
