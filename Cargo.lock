@@ -6198,6 +6198,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
+ "parity-scale-codec",
  "polkadot-approval-distribution",
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",

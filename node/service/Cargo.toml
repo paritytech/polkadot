@@ -62,6 +62,7 @@ serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
 kvdb = "0.9.0"
 kvdb-rocksdb = { version = "0.11.0", optional = true }
+parity-scale-codec = "2"
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
