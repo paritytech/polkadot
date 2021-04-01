@@ -16,12 +16,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
-use frame_support::{ensure, dispatch::Dispatchable};
+use sp_std::{prelude::*, marker::PhantomData};
+use frame_support::dispatch::Dispatchable;
 use parity_scale_codec::Decode;
 use xcm::v0::{
 	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
-	MultiLocation, MultiAsset, Junction,
+	MultiLocation, MultiAsset,
 };
 
 pub mod traits;
