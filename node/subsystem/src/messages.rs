@@ -353,6 +353,9 @@ pub enum AvailabilityStoreMessage {
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
+	/// Query all chunks that we have for the given candidate hash.
+	QueryAllChunks(CandidateHash, oneshot::Sender<Vec<ErasureChunk>>),
+
 	/// Query whether an `ErasureChunk` exists within the AV Store.
 	///
 	/// This is useful in cases like bitfield signing, when existence
@@ -366,8 +369,6 @@ pub enum AvailabilityStoreMessage {
 	StoreChunk {
 		/// A hash of the candidate this chunk belongs to.
 		candidate_hash: CandidateHash,
-		/// A relevant relay parent.
-		relay_parent: Hash,
 		/// The chunk itself.
 		chunk: ErasureChunk,
 		/// Sending side of the channel to send result to.

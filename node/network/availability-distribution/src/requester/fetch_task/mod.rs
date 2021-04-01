@@ -27,7 +27,7 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore, SessionIndex};
-use polkadot_node_primitives::ErasureChunk; 
+use polkadot_node_primitives::ErasureChunk;
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
@@ -405,7 +405,6 @@ impl RunningTask {
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
-					relay_parent: self.relay_parent,
 					chunk,
 					tx,
 				},
