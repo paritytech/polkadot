@@ -25,7 +25,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId
+	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 

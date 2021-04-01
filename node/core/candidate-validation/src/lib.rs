@@ -377,7 +377,7 @@ fn perform_basic_checks(
 	}
 
 	if pov_hash != candidate.pov_hash {
-		return Err(InvalidCandidate::HashMismatch);
+		return Err(InvalidCandidate::PoVHashMismatch);
 	}
 
 	if validation_code_hash != candidate.validation_code_hash {

@@ -124,7 +124,7 @@ pub enum InvalidCandidate {
 	/// Invalid relay chain parent.
 	BadParent,
 	/// POV hash does not match.
-	HashMismatch,
+	PoVHashMismatch,
 	/// Bad collator signature.
 	BadSignature,
 	/// Para head hash does not match.
