@@ -17,7 +17,7 @@
 //! Version 0 of the Cross-Consensus Message format data structures.
 
 use core::{result, convert::TryFrom};
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 use parity_scale_codec::{self, Encode, Decode};
 use super::{VersionedXcm, VersionedMultiAsset};
@@ -131,33 +131,11 @@ pub enum Xcm {
 	/// Errors:
 	Transact { origin_type: OriginKind, call: Vec<u8> },
 
-	/// Relay an inner message (`inner`) to a locally reachable destination ID `dest`.
-	///
-	/// The message sent to the destination will be wrapped into a `RelayedFrom` message, with the
-	/// `superorigin` being this location.
-	///
-	/// - `dest: MultiLocation`: The location of the to be relayed into. This may never contain `Parent`, and
-	///   it must be immediately reachable from the interpreting context.
-	/// - `inner: VersionedXcm`: The message to be wrapped and relayed.
-	///
-	/// Safety: No concerns.
-	///
-	/// Kind: *Instruction*.
-	///
-	/// Errors:
-	RelayTo { dest: MultiLocation, inner: Box<VersionedXcm> },
+	/// Unused
+	Unused5,
 
-	/// A message (`inner`) was sent to `origin` from `superorigin` with the intention of being relayed.
-	///
-	/// - `superorigin`: The location of the `inner` message origin, **relative to `origin`**.
-	/// - `inner`: The message sent by the super origin.
-	///
-	/// Safety: `superorigin` must express a sub-consensus only; it may *NEVER* contain a `Parent` junction.
-	///
-	/// Kind: *Trusted Indication*.
-	///
-	/// Errors:
-	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
+	/// Unused
+	Unused6,
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.

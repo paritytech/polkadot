@@ -37,18 +37,6 @@ pub struct XcmExecutor<Config>(PhantomData<Config>);
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
 		let (mut holding, effects) = match (origin.clone(), msg) {
-			(origin, Xcm::RelayedFrom { superorigin, inner }) => {
-				// We ensure that it doesn't contain any `Parent` Junctions which would imply a privilege escalation.
-				let mut new_origin = origin;
-				for j in superorigin.into_iter() {
-					ensure!(j.is_sub_consensus(), XcmError::EscalationOfPrivilege);
-					new_origin.push(j).map_err(|_| XcmError::MultiLocationFull)?;
-				}
-				return Self::execute_xcm(
-					new_origin,
-					(*inner).try_into().map_err(|_| XcmError::UnhandledXcmVersion)?
-				)
-			}
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
@@ -95,10 +83,6 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// message makes sense.
 				return Ok(());
 			}
-			(origin, Xcm::RelayTo { dest: MultiLocation::X1(Junction::Parachain { id }), inner }) => {
-				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
-				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
-			},
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
 		};
 
