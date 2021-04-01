@@ -19,22 +19,18 @@ use {
 	std::path::PathBuf,
 	std::sync::Arc,
 
-	kvdb::{DBTransaction, KeyValueDB},
-	parity_scale_codec::{Encode, Decode},
+	kvdb::KeyValueDB,
 };
 
 
 mod columns {
 	#[cfg(feature = "real-overseer")]
-	pub const NUM_COLUMNS: u32 = 4;
+	pub const NUM_COLUMNS: u32 = 3;
 
-	// meta column for the database.
-	#[cfg(feature = "real-overseer")]
-	pub const COL_META: u32 = 0;
 
-	pub const COL_AVAILABILITY_DATA: u32 = 1;
-	pub const COL_AVAILABILITY_META: u32 = 2;
-	pub const COL_APPROVAL_DATA: u32 = 3;
+	pub const COL_AVAILABILITY_DATA: u32 = 0;
+	pub const COL_AVAILABILITY_META: u32 = 1;
+	pub const COL_APPROVAL_DATA: u32 = 2;
 }
 
 /// Columns used by different subsystems.
@@ -84,9 +80,6 @@ pub fn open_creating(
 ) -> io::Result<Arc<dyn KeyValueDB>> {
 	use kvdb_rocksdb::{DatabaseConfig, Database};
 
-	const VERSION_KEY: &[u8] = b"version";
-	const CURRENT_VERSION: u32 = 1;
-
 	let path = root.join("parachains").join("db");
 
 	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
@@ -105,30 +98,6 @@ pub fn open_creating(
 
 	std::fs::create_dir_all(&path)?;
 	let db = Database::open(&db_config, &path)?;
-
-	match db.get(columns::COL_META, VERSION_KEY)? {
-		None => {
-			db.write({
-				let mut tx = DBTransaction::new();
-				tx.put_vec(columns::COL_META, VERSION_KEY, CURRENT_VERSION.encode());
-				tx
-			})?;
-		}
-		Some(val) => match u32::decode(&mut &val[..]) {
-			Ok(val) => if val != CURRENT_VERSION {
-				return Err(io::Error::new(
-					io::ErrorKind::Other,
-					format!("Unsupprted parachains_db version {}", val),
-				));
-			},
-			Err(e) => {
-				return Err(io::Error::new(
-					io::ErrorKind::Other,
-					format!("Corrupt version for parachains_db: {:?}", e),
-				));
-			}
-		}
-	}
 
 	Ok(Arc::new(db))
 }
