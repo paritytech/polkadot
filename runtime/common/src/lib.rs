@@ -250,6 +250,7 @@ mod multiplier_tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	fn run_with_system_weight<F>(w: Weight, mut assertions: F) where F: FnMut() -> () {
