@@ -8,12 +8,13 @@ edition = "2018"
 impl-trait-for-tuples = "0.2.0"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.13", optional = true }
+log = { version = "0.4.13", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -35,11 +36,14 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
+libsecp256k1 = { version = "0.3.5", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
 xcm = { path = "../../xcm", default-features = false }
@@ -63,9 +67,10 @@ libsecp256k1 = "0.3.5"
 default = ["std"]
 no_std = []
 std = [
+	"beefy-primitives/std",
 	"bitvec/std",
 	"parity-scale-codec/std",
-	"log",
+	"log/std",
 	"rustc-hex/std",
 	"serde_derive",
 	"serde/std",
@@ -78,6 +83,8 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-beefy/std",
+	"pallet-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
@@ -88,6 +95,7 @@ std = [
 	"sp-session/std",
 	"sp-staking/std",
 	"frame-system/std",
+	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
 ]

@@ -40,6 +40,7 @@ use {
 	sc_keystore::LocalKeystore,
 	babe_primitives::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
 };
 #[cfg(feature = "real-overseer")]
@@ -243,7 +244,8 @@ fn new_partial<RuntimeApi, Executor>(
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-				babe::BabeLink<Block>
+				babe::BabeLink<Block>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block, BeefySignature>,
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -342,6 +344,9 @@ fn new_partial<RuntimeApi, Executor>(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
+	let (beefy_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
@@ -350,7 +355,7 @@ fn new_partial<RuntimeApi, Executor>(
 		Some(shared_authority_set.clone()),
 	);
 
-	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
+	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone(), beefy_link);
 	let rpc_setup = shared_voter_state.clone();
 
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
@@ -363,7 +368,9 @@ fn new_partial<RuntimeApi, Executor>(
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
+			-> polkadot_rpc::RpcExtension
+		{
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -379,8 +386,12 @@ fn new_partial<RuntimeApi, Executor>(
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscription_executor,
+					subscription_executor: subscription_executor.clone(),
 					finality_provider: finality_proof_provider.clone(),
+				},
+				beefy: polkadot_rpc::BeefyDeps {
+					beefy_commitment_stream: beefy_commitment_stream.clone(),
+					subscription_executor,
 				},
 			};
 
@@ -731,6 +742,11 @@ pub fn new_full<RuntimeApi, Executor>(
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+
+	if config.chain_spec.is_westend() || config.chain_spec.is_rococo() {
+		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+	}
+
 	#[cfg(feature = "real-overseer")]
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
@@ -824,6 +840,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
+	let chain_spec = config.chain_spec.cloned_box();
 
 	let approval_voting_config = ApprovalVotingConfig {
 		path: config.database.path()
@@ -849,7 +866,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_link) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -965,6 +982,29 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		let babe = babe::start_babe(babe_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+	}
+
+	// We currently only run the BEEFY gadget on Rococo and Westend test
+	// networks. On Rococo we start the BEEFY gadget as a normal (non-essential)
+	// task for now, since BEEFY is still experimental and we don't want a
+	// failure to bring down the whole node. Westend test network is less used
+	// than Rococo and therefore a failure there will be less problematic, this
+	// will be the main testing target for BEEFY for now.
+	if chain_spec.is_westend() || chain_spec.is_rococo() {
+		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+			client.clone(),
+			keystore_container.sync_keystore(),
+			network.clone(),
+			beefy_link,
+			network.clone(),
+			prometheus_registry.clone()
+		);
+
+		if chain_spec.is_westend() {
+			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		} else {
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
