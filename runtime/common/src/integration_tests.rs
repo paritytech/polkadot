@@ -65,7 +65,7 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -107,6 +107,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -161,6 +162,7 @@ impl shared::Config for Test { }
 
 impl paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 parameter_types! {

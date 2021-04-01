@@ -8,6 +8,8 @@ edition = "2018"
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -48,6 +50,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
