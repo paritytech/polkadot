@@ -446,10 +446,10 @@ impl<T: Config> Module<T> {
 					Error::<T>::NotCollatorSigned,
 				);
 
-				let validation_code = <paras::Module<T>>::validation_code_at(para_id, now, None)
+				let validation_code_hash =
+					<paras::Module<T>>::validation_code_hash_at(para_id, now, None)
 					// A candidate for a parachain without current validation code is not scheduled.
 					.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
-				let validation_code_hash = validation_code.hash();
 				ensure!(
 					candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,

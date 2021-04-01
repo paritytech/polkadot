@@ -789,19 +789,22 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Fetches the validation code to be used when validating a block in the context of the given
-	/// relay-chain height. A second block number parameter may be used to tell the lookup to proceed
-	/// as if an intermediate parablock has been with the given relay-chain height as its context.
-	/// This may return past, current, or (with certain choices of `assume_intermediate`) future code.
+	/// Fetches the validation code hash for the validation code to be used when validating a block
+	/// in the context of the given relay-chain height. A second block number parameter may be used
+	/// to tell the lookup to proceed as if an intermediate parablock has been with the given
+	/// relay-chain height as its context. This may return the hash for the past, current, or
+	/// (with certain choices of `assume_intermediate`) future code.
 	///
 	/// `assume_intermediate`, if provided, must be before `at`. This will return `None` if the validation
 	/// code has been pruned.
+	///
+	/// To get associated code see [`Self::validation_code_at`].
 	#[allow(unused)]
-	pub(crate) fn validation_code_at(
+	pub(crate) fn validation_code_hash_at(
 		id: ParaId,
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
-	) -> Option<ValidationCode> {
+	) -> Option<Hash> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
@@ -815,7 +818,7 @@ impl<T: Config> Module<T> {
 			None => false,
 		};
 
-		let code_hash = if upgrade_applied_intermediate {
+		if upgrade_applied_intermediate {
 			FutureCodeHash::get(&id)
 		} else {
 			match Self::past_code_meta(&id).code_at(at) {
@@ -823,9 +826,17 @@ impl<T: Config> Module<T> {
 				Some(UseCodeAt::Current) => CurrentCodeHash::get(&id),
 				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCodeHash::get(&(id, replaced)),
 			}
-		};
+		}
+	}
 
-		code_hash.and_then(|code_hash| {
+	/// Fetch validation code of para in specific context, see [`Self::validation_code_hash_at`].
+	#[allow(unused)]
+	pub(crate) fn validation_code_at(
+		id: ParaId,
+		at: T::BlockNumber,
+		assume_intermediate: Option<T::BlockNumber>,
+	) -> Option<ValidationCode> {
+		Self::validation_code_hash_at(id, at, assume_intermediate).and_then(|code_hash| {
 			let code = CodeByHash::get(&code_hash);
 			if code.is_none() {
 				log::error!(
