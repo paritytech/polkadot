@@ -63,14 +63,14 @@ use frame_support::{
 	traits::{
 		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
 	},
-	StorageHasher, ReversibleStorageHasher,
+	Identity, StorageHasher, ReversibleStorageHasher,
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
 use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
+		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount, Hash,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
@@ -628,7 +628,7 @@ impl<T: Config> Module<T> {
 		let mut buf = Vec::new();
 		buf.extend_from_slice(b"crowdloan");
 		buf.extend_from_slice(&index.encode()[..]);
-		child::ChildInfo::new_default(T::ChildTrieHasher::hash(&buf[..]).as_ref())
+		child::ChildInfo::new_default(T::Hashing::hash(&buf[..]).as_ref())
 	}
 
 	pub fn contribution_put(index: TrieIndex, who: &T::AccountId, balance: &BalanceOf<T>, memo: &[u8]) {
@@ -653,7 +653,7 @@ impl<T: Config> Module<T> {
 	pub fn contribution_iterator(
 		index: TrieIndex
 	) -> ChildTriePrefixIterator<(T::AccountId, (BalanceOf<T>, Vec<u8>))> {
-		ChildTriePrefixIterator::<_>::with_prefix_over_key::<T::ChildTrieHasher>(&Self::id_from_index(index), &[])
+		ChildTriePrefixIterator::<_>::with_prefix_over_key::<Identity>(&Self::id_from_index(index), &[])
 	}
 
 	/// This function checks all conditions which would qualify a crowdloan has ended.
@@ -823,8 +823,18 @@ mod tests {
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
 	}
-	fn make_winner(para: ParaId, who: u64) {
-		HAS_WON.with(|p| p.borrow_mut().insert((para, who), true));
+	// Emulate what would happen if we won an auction:
+	// balance is reserved and a deposit_held is recorded
+	fn set_winner(para: ParaId, who: u64, winner: bool) {
+		let account_id = Crowdloan::fund_account_id(para);
+		if winner {
+			let free_balance = Balances::free_balance(&account_id);
+			Balances::reserve(&account_id, free_balance).expect("should be able to reserve free balance");
+		} else {
+			let reserved_balance = Balances::reserved_balance(&account_id);
+			Balances::unreserve(&account_id, reserved_balance);
+		}
+		HAS_WON.with(|p| p.borrow_mut().insert((para, who), winner));
 	}
 
 	pub struct TestAuctioneer;
@@ -1154,7 +1164,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
 			let crowdloan_account = Crowdloan::fund_account_id(para_2);
-			make_winner(para_2, crowdloan_account);
+			set_winner(para_2, crowdloan_account, true);
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), para_2, 49, None), Error::<Test>::BidOrLeaseActive);
 
 			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
@@ -1263,19 +1273,71 @@ mod tests {
 	}
 
 	#[test]
-	fn dissolving_failed_without_contributions_works() {
+	fn refund_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let account_id = Crowdloan::fund_account_id(para);
 
-			// Set up a crowdloan
+			// Set up a crowdloan ending on 9
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			run_to_block(10);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
+			// Make some contributions
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 200, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 300, None));
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
+			assert_eq!(Balances::free_balance(account_id), 600);
+
+			// Can't refund before the crowdloan it has ended
+			assert_noop!(
+				Crowdloan::refund(Origin::signed(1337), para),
+				Error::<Test>::FundNotEnded,
+			);
+
+			// Move to the end of the crowdloan
+			run_to_block(10);
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+
+			// Funds are returned
+			assert_eq!(Balances::free_balance(account_id), 0);
+			// 1 deposit for the crowdloan which hasn't dissolved yet.
+			assert_eq!(Balances::free_balance(1), 1000 - 1);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
+		});
+	}
+
+	#[test]
+	fn multiple_refund_works() {
+		new_test_ext().execute_with(|| {
+			let para = new_para();
+			let account_id = Crowdloan::fund_account_id(para);
+
+			// Set up a crowdloan ending on 9
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 100000, 1, 1, 9, None));
+			// Make more contributions than our limit
+			for i in 1 ..= RemoveKeysLimit::get() * 2 {
+				Balances::make_free_balance_be(&i.into(), (1000 * i).into());
+				assert_ok!(Crowdloan::contribute(Origin::signed(i.into()), para, (i * 100).into(), None));
+			}
+
+			assert_eq!(Balances::free_balance(account_id), 21000);
+
+			// Move to the end of the crowdloan
+			run_to_block(10);
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+
+			// Funds still left over
+			assert!(!Balances::free_balance(account_id).is_zero());
+
+			// Call again
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+
+			// Funds are returned
+			assert_eq!(Balances::free_balance(account_id), 0);
+			// 1 deposit for the crowdloan which hasn't dissolved yet.
+			for i in 1 ..= RemoveKeysLimit::get() * 2 {
+				assert_eq!(Balances::free_balance(&i.into()), i as u64 * 1000);
+			}
 		});
 	}
 
@@ -1291,14 +1353,49 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
 
 			run_to_block(10);
+			// All funds are refunded
 			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
 
-			println!("{:?}", Crowdloan::funds(para));
-
+			// Now that `fund.raised` is zero, it can be dissolved.
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
-			assert_eq!(Balances::free_balance(2), 1000);
-			assert_eq!(Balances::free_balance(3), 1000);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
+			assert_eq!(Balances::total_issuance(), issuance);
+		});
+	}
+
+	#[test]
+	fn dissolve_works() {
+		new_test_ext().execute_with(|| {
+			let para = new_para();
+			let issuance = Balances::total_issuance();
+
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+
+			// Can't dissolve before it ends
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+
+			run_to_block(10);
+			set_winner(para, 1, true);
+			// Can't dissolve when it won.
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+			set_winner(para, 1, false);
+
+			// Can't dissolve while it still has user funds
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+
+			// All funds are refunded
+			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
+
+			// Now that `fund.raised` is zero, it can be dissolved.
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_eq!(Balances::free_balance(1), 1000);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
 			assert_eq!(Balances::total_issuance(), issuance);
 		});
 	}
@@ -1340,50 +1437,6 @@ mod tests {
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 3, para));
 			assert_eq!(Balances::free_balance(&account_id), 0);
 			assert_eq!(Balances::free_balance(3), 3000);
-		});
-	}
-
-	#[test]
-	fn dissolving_finished_without_contributions_works() {
-		new_test_ext().execute_with(|| {
-			let para = new_para();
-
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			// Fund crowdloans.
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			// during this time the funds get reserved and unreserved.
-			run_to_block(20);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
-
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-			// Only crowdloan creator can dissolve when raised is zero.
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
-		});
-	}
-
-	#[test]
-	fn dissolving_finished_with_contributions_works() {
-		new_test_ext().execute_with(|| {
-			let para = new_para();
-			let issuance = Balances::total_issuance();
-
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
-			run_to_block(20);
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-
-			run_to_block(24);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
-
-			run_to_block(25);
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
-			assert_eq!(Balances::total_issuance(), issuance - 50);
 		});
 	}
 
@@ -1475,21 +1528,6 @@ mod tests {
 			// Can contribute again and data persists
 			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (200, b"hello, world".to_vec()));
-		});
-	}
-
-	#[test]
-	fn basic_child_trie_ops() {
-		new_test_ext().execute_with(|| {
-			let child_id = 1;
-			Crowdloan::contribution_put(child_id, &1, &100, b"one".as_ref());
-			Crowdloan::contribution_put(child_id, &2, &200, b"two".as_ref());
-			Crowdloan::contribution_put(child_id, &3, &300, b"three".as_ref());
-
-			let contributions = Crowdloan::contribution_iterator(child_id).collect::<Vec<_>>();
-
-			println!("{:?}", contributions);
-			assert!(false);
 		});
 	}
 }
