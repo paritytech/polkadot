@@ -59,6 +59,8 @@ Each network event is associated with a particular peer-set.
 
 The `activated` and `deactivated` lists determine the evolution of our local view over time. A `ProtocolMessage::ViewUpdate` is issued to each connected peer on each peer-set, and a `NetworkBridgeEvent::OurViewChange` is issued to each event handler for each protocol.
 
+We only send view updates if the node has indicated that it has finished major blockchain synchronization. 
+
 If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
 
 ### Overseer Signal: BlockFinalized
@@ -67,7 +69,7 @@ We update our view's `finalized_number` to the provided one and delay `ProtocolM
 
 ### Network Event: Peer Connected
 
-Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer. Also issue a `NetworkBridgeEvent::PeerViewChange` and send the peer our current view.
+Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer. Also issue a `NetworkBridgeEvent::PeerViewChange` and send the peer our current view, but only if the node has indicated that it has finished major blockchain synchronization. Otherwise, we only send the peer an empty view.
 
 ### Network Event: Peer Disconnected
 

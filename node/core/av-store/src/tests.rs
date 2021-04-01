@@ -38,6 +38,17 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
 use parking_lot::Mutex;
 
+mod columns {
+	pub const DATA: u32 = 0;
+	pub const META: u32 = 1;
+	pub const NUM_COLUMNS: u32 = 2;
+}
+
+const TEST_CONFIG: Config = Config {
+	col_data: columns::DATA,
+	col_meta: columns::META,
+};
+
 struct TestHarness {
 	virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 }
@@ -149,10 +160,12 @@ fn test_harness<T: Future<Output=()>>(
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem = AvailabilityStoreSubsystem::new_in_memory(
+	let subsystem = AvailabilityStoreSubsystem::with_pruning_config_and_clock(
 		store,
+		TEST_CONFIG,
 		state.pruning_config.clone(),
 		Box::new(state.clock),
+		Metrics::default(),
 	);
 
 	let subsystem = run(subsystem, context);
@@ -297,7 +310,7 @@ fn store_chunk_works() {
 		// Ensure an entry already exists. In reality this would come from watching
 		// chain events.
 		with_tx(&store, |tx| {
-			super::write_meta(tx, &candidate_hash, &CandidateMeta {
+			super::write_meta(tx, &TEST_CONFIG, &candidate_hash, &CandidateMeta {
 				data_available: false,
 				chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 				state: State::Unavailable(BETimestamp(0)),
@@ -379,7 +392,7 @@ fn query_chunk_checks_meta() {
 		// Ensure an entry already exists. In reality this would come from watching
 		// chain events.
 		with_tx(&store, |tx| {
-			super::write_meta(tx, &candidate_hash, &CandidateMeta {
+			super::write_meta(tx, &TEST_CONFIG, &candidate_hash, &CandidateMeta {
 				data_available: false,
 				chunks_stored: {
 					let mut v = bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators];
@@ -548,7 +561,7 @@ fn query_all_chunks_works() {
 
 		{
 			with_tx(&store, |tx| {
-				super::write_meta(tx, &candidate_hash_2, &CandidateMeta {
+				super::write_meta(tx, &TEST_CONFIG, &candidate_hash_2, &CandidateMeta {
 					data_available: false,
 					chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators as _],
 					state: State::Unavailable(BETimestamp(0)),
