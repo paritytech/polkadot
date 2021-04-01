@@ -67,7 +67,7 @@ pub struct TestState {
 	pub relay_chain: Vec<Hash>,
 	/// Whenever the subsystem tries to fetch an erasure chunk one item of the given vec will be
 	/// popped. So you can experiment with serving invalid chunks or no chunks on request and see
-	/// whether the subystem still succeds with its goal. 
+	/// whether the subystem still succeds with its goal.
 	pub chunks: HashMap<(CandidateHash, ValidatorIndex), Vec<Option<ErasureChunk>>>,
 	/// All chunks that are valid and should be accepted.
 	pub valid_chunks: HashSet<(CandidateHash, ValidatorIndex)>,
