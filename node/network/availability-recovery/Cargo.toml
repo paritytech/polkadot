@@ -13,6 +13,7 @@ tracing = "0.1.25"
 
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }

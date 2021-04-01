@@ -40,6 +40,9 @@ pub mod request_response;
 
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
+/// The minimum amount of peers to send gossip messages to.
+pub const MIN_GOSSIP_PEERS: usize = 25;
+
 
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -13,6 +13,7 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"]  , branch = "rococo-v1" }

@@ -37,9 +37,9 @@ use polkadot_node_subsystem_util::{
 	JobTrait, JobSender, Validator, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV, BlockNumber,
+	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, BlockNumber,
 };
-use polkadot_node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement, PoV};
 use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
 
@@ -510,7 +510,7 @@ pub type CandidateSelectionSubsystem<Spawner> = JobSubsystem<CandidateSelectionJ
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_primitives::v1::BlockData;
+	use polkadot_node_primitives::BlockData;
 	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::crypto::Public;
 	use std::sync::Arc;

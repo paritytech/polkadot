@@ -19,6 +19,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
 
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 

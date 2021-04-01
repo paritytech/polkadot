@@ -23,7 +23,8 @@ use thiserror::Error;
 use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::v1::{CompressedPoVError, SessionIndex};
+use polkadot_primitives::v1::SessionIndex;
+use polkadot_node_primitives::CompressedPoVError;
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
 use crate::LOG_TARGET;

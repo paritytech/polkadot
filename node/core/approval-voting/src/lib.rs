@@ -37,10 +37,10 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, PoV, ValidatorPair, ValidatorSignature, ValidatorId,
+	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex,
 };
-use polkadot_node_primitives::ValidationResult;
+use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
 };

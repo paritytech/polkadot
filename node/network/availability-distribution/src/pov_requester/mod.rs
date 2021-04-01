@@ -26,8 +26,9 @@ use polkadot_node_network_protocol::{
 	v1::{PoVFetchingRequest, PoVFetchingResponse}}
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, Hash, PoV, SessionIndex, ValidatorIndex
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex
 };
+use polkadot_node_primitives::PoV;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
@@ -119,7 +120,8 @@ impl PoVRequester {
 		)).await;
 
 		let span = jaeger::Span::new(candidate_hash, "fetch-pov")
-			.with_validator_index(from_validator);
+			.with_validator_index(from_validator)
+			.with_relay_parent(parent);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))
@@ -241,7 +243,8 @@ mod tests {
 	use parity_scale_codec::Encode;
 	use sp_core::testing::TaskExecutor;
 
-	use polkadot_primitives::v1::{BlockData, CandidateHash, CompressedPoV, Hash, ValidatorIndex};
+	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 
