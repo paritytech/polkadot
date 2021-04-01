@@ -1477,7 +1477,7 @@ mod benchmarking {
 		let cap = BalanceOf::<T>::max_value();
 		let lease_period_index = T::Auctioneer::lease_period_index();
 		let first_period = lease_period_index;
-		let last_period = lease_period_index + ((LEASE_PERIODS_PER_SLOT as u32) - 1).into();
+		let last_period = lease_period_index + ((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into();
 		let para_id = id.into();
 
 		let caller = account("fund_creator", id, 0);
