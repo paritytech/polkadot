@@ -985,7 +985,7 @@ fn process_message(
 			let _ = tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
 		}
 		AvailabilityStoreMessage::QueryAllChunks(candidate, tx) => {
-			match load_meta(&subsystem.db, &candidate)? {
+			match load_meta(&subsystem.db, &subsystem.config, &candidate)? {
 				None => {
 					let _ = tx.send(Vec::new());
 				}
@@ -994,7 +994,12 @@ fn process_message(
 
 					for (index, _) in meta.chunks_stored.iter().enumerate().filter(|(_, b)| **b) {
 						let _timer = subsystem.metrics.time_get_chunk();
-						match load_chunk(&subsystem.db, &candidate, ValidatorIndex(index as _))? {
+						match load_chunk(
+							&subsystem.db,
+							&subsystem.config,
+							&candidate,
+							ValidatorIndex(index as _),
+						)? {
 							Some(c) => chunks.push(c),
 							None => {
 								tracing::warn!(

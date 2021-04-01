@@ -561,7 +561,7 @@ fn query_all_chunks_works() {
 
 		{
 			with_tx(&store, |tx| {
-				super::write_meta(tx, &candidate_hash_2, &CandidateMeta {
+				super::write_meta(tx, &TEST_CONFIG, &candidate_hash_2, &CandidateMeta {
 					data_available: false,
 					chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators as _],
 					state: State::Unavailable(BETimestamp(0)),

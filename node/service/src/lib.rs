@@ -567,7 +567,7 @@ where
 			keystore.clone(),
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
-		)?,
+		),
 		gossip_support: GossipSupportSubsystem::new(
 			keystore.clone(),
 			runtime_client.clone(),
