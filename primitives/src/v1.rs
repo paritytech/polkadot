@@ -169,8 +169,8 @@ pub mod well_known_keys {
 	}
 }
 
-/// Unique identifier for the Inclusion Inherent
-pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+/// Unique identifier for the Parachains Inherent
+pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
 
 /// The key type ID for parachain assignment key.
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
