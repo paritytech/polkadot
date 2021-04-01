@@ -227,12 +227,10 @@ impl crowdloan::Config for Test {
 	type ModuleId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
-	type OrphanedFunds = ();
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
 	type MaxMemoLength = MaxMemoLength;
-	type ChildTrieHasher = Blake2_128Concat;
 	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
 

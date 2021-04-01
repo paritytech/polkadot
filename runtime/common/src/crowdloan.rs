@@ -891,13 +891,11 @@ mod tests {
 		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
-		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
 		type Auctioneer = TestAuctioneer;
 		type MaxMemoLength = MaxMemoLength;
-		type ChildTrieHasher = Blake2_128Concat;
 		type WeightInfo = crate::crowdloan::TestWeightInfo;
 	}
 
