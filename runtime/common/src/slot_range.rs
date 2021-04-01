@@ -17,9 +17,7 @@
 //! The SlotRange struct which succinctly handles the ten values that
 //! represent all sub ranges between 0 and 3 inclusive.
 
-pub const LEASE_PERIODS_PER_SLOT: usize = 4;
 slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
 
 // An alternative implementation supporting 8 lease periods per slot.
-// pub const LEASE_PERIODS_PER_SLOT: usize = 8;
 // slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3), Four(4), Five(5), Six(6), Seven(7));
