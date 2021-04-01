@@ -70,7 +70,7 @@ use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount, Hash,
+		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Verify, IdentifyAccount, Hash,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
@@ -91,7 +91,8 @@ pub trait WeightInfo {
 	fn create() -> Weight;
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
-	fn dissolve(k: u32, ) -> Weight;
+	fn refund(k: u32, ) -> Weight;
+	fn dissolve() -> Weight;
 	fn edit() -> Weight;
 	fn add_memo() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
@@ -102,7 +103,8 @@ impl WeightInfo for TestWeightInfo {
 	fn create() -> Weight { 0 }
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
-	fn dissolve(_k: u32, ) -> Weight { 0 }
+	fn refund(_k: u32, ) -> Weight { 0 }
+	fn dissolve() -> Weight { 0 }
 	fn edit() -> Weight { 0 }
 	fn add_memo() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
@@ -222,6 +224,11 @@ decl_event! {
 		Contributed(AccountId, ParaId, Balance),
 		/// Withdrew full balance of a contributor. [who, fund_index, amount]
 		Withdrew(AccountId, ParaId, Balance),
+		/// The loans in a fund have been partially dissolved, i.e. there are some left
+		/// over child keys that still need to be killed. [fund_index]
+		PartiallyRefunded(ParaId),
+		/// All loans in a fund have been refunded. [fund_index]
+		AllRefunded(ParaId),
 		/// Fund is partially dissolved, i.e. there are some left over child
 		/// keys that still need to be killed. [fund_index]
 		PartiallyDissolved(ParaId),
@@ -469,7 +476,7 @@ decl_module! {
 		/// times to fully refund all users. We will refund `RemoveKeysLimit` users at a time.
 		///
 		/// Origin must be signed, but can come from anyone.
-		#[weight = 0]
+		#[weight = T::WeightInfo::refund(T::RemoveKeysLimit::get())]
 		pub fn refund(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
 			ensure_signed(origin)?;
 
@@ -481,8 +488,14 @@ decl_module! {
 			let mut refund_count = 0u32;
 			// Try killing the crowdloan child trie
 			let contributions = Self::contribution_iterator(fund.trie_index);
+			// Assume everyone will be refunded.
+			let mut all_refunded = true;
 			for (who, (balance, _)) in contributions {
-				if refund_count >= T::RemoveKeysLimit::get() { break; }
+				if refund_count >= T::RemoveKeysLimit::get() {
+					// Not everyone was able to be refunded this time around.
+					all_refunded = false;
+					break;
+				}
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
 				Self::contribution_kill(fund.trie_index, &who);
 				fund.raised = fund.raised.saturating_sub(balance);
@@ -492,15 +505,20 @@ decl_module! {
 			// Save the changes.
 			Funds::<T>::insert(index, &fund);
 
-			// TODO: Refund for unused refund count.
-			Ok(().into())
+			if all_refunded {
+				Self::deposit_event(RawEvent::AllRefunded(index));
+				// Refund for unused refund count.
+				Ok(Some(T::WeightInfo::refund(refund_count)).into())
+			} else {
+				Self::deposit_event(RawEvent::PartiallyRefunded(index));
+				// No weight to refund since we did not finish the loop.
+				Ok(().into())
+			}
 		}
 
 		/// Remove a fund after the retirement period has ended and all funds have been returned.
-		///
-		/// This places any deposits that were not withdrawn into the treasury.
-		#[weight = T::WeightInfo::dissolve(T::RemoveKeysLimit::get())]
-		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
+		#[weight = T::WeightInfo::dissolve()]
+		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
@@ -512,28 +530,14 @@ decl_module! {
 				&& (who == fund.depositor || now >= fund.end);
 			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
-			// Try killing anything left in the crowdloan child trie,
-			// although it should be empty since `fund.raised.is_zero()`
-			match Self::crowdloan_kill(fund.trie_index) {
-				child::KillChildStorageResult::AllRemoved(num_removed) => {
-					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
+			// Assuming state is not corrupted, the child trie should already be cleaned up
+			// an all funds in the crowdloan account have been returned. If not, governance
+			// can take care of that.
 
-					// Remove all other balance from the account into orphaned funds.
-					let account = Self::fund_account_id(index);
-					let (imbalance, _) = CurrencyOf::<T>::slash(&account, BalanceOf::<T>::max_value());
-					T::OrphanedFunds::on_unbalanced(imbalance);
-
-					Funds::<T>::remove(index);
-
-					Self::deposit_event(RawEvent::Dissolved(index));
-
-					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
-				},
-				child::KillChildStorageResult::SomeRemaining(num_removed) => {
-					Self::deposit_event(RawEvent::PartiallyDissolved(index));
-					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
-				}
-			}
+			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
+			Funds::<T>::remove(index);
+			Self::deposit_event(RawEvent::Dissolved(index));
+			Ok(())
 		}
 
 		/// Edit the configuration for an in-progress crowdloan.
@@ -947,6 +951,10 @@ mod tests {
 		}
 	}
 
+	fn last_event() -> Event {
+		System::events().pop().expect("Event expected").event
+	}
+
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
@@ -1266,9 +1274,9 @@ mod tests {
 
 			// Some funds are left over
 			assert_eq!(Balances::free_balance(&account_id), 10);
-			// They wil be orphaned at the end
+			// They wil be left in the account at the end
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(&account_id), 0);
+			assert_eq!(Balances::free_balance(&account_id), 10);
 		});
 	}
 
@@ -1325,12 +1333,14 @@ mod tests {
 			// Move to the end of the crowdloan
 			run_to_block(10);
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_eq!(last_event(), super::RawEvent::PartiallyRefunded(para).into());
 
 			// Funds still left over
 			assert!(!Balances::free_balance(account_id).is_zero());
 
 			// Call again
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_eq!(last_event(), super::RawEvent::AllRefunded(para).into());
 
 			// Funds are returned
 			assert_eq!(Balances::free_balance(account_id), 0);
@@ -1637,7 +1647,7 @@ mod benchmarking {
 		}
 
 		withdraw {
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
@@ -1647,26 +1657,27 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
 		}
 
-		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
-		dissolve {
+		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
+		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
 			for i in 0 .. k {
 				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
 			}
 
-			// One extra contributor so we can trigger withdraw
-			contribute_fund::<T>(&account("last_contributor", 0, 0), fund_index);
+			let caller: T::AccountId = whitelisted_caller();
+			frame_system::Pallet::<T>::set_block_number(200u32.into());
+		}: _(RawOrigin::Signed(caller), fund_index)
+		verify {
+			assert_last_event::<T>(RawEvent::AllRefunded(fund_index).into());
+		}
 
+		dissolve {
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
-			Crowdloan::<T>::withdraw(
-				RawOrigin::Signed(caller.clone()).into(),
-				account("last_contributor", 0, 0),
-				fund_index,
-			)?;
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
