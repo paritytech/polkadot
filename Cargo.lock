@@ -6110,7 +6110,6 @@ dependencies = [
  "pallet-treasury",
  "pallet-vesting",
  "parity-scale-codec",
- "paste 1.0.4",
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",

@@ -96,7 +96,7 @@ macro_rules! generate_slot_range_as_pair {
 			let a = self.as_pair();
 			let b = other.as_pair();
 			b.0 <= a.1 && a.0 <= b.1
-		//		== !(b.0 > a.1 || a.0 > b.1)
+			// == !(b.0 > a.1 || a.0 > b.1)
 		}
 
 		pub fn as_pair(&self) -> (u8, u8) {
@@ -136,7 +136,7 @@ macro_rules! generate_slot_range_new_bounded {
 			first: Index,
 			last: Index
 		) -> $crate::result::Result<Self, &'static str> {
-			if first > last || first < initial || last > initial + 3.into() {
+			if first > last || first < initial || last > initial + (LEASE_PERIODS_PER_SLOT - 1).into() {
 				return Err("Invalid range for this auction")
 			}
 			let count: u32 = last.checked_sub(&first)
