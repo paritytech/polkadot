@@ -21,14 +21,12 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use parity_scale_codec::{Encode, Decode, Input, Error as CodecError};
 use futures::{select, channel::oneshot, future, FutureExt};
 use futures_timer::Delay;
-use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
@@ -53,12 +51,6 @@ use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 mod tests;
 
 const LOG_TARGET: &str = "parachain::availability";
-
-mod columns {
-	pub const DATA: u32 = 0;
-	pub const META: u32 = 1;
-	pub const NUM_COLUMNS: u32 = 2;
-}
 
 /// The following constants are used under normal conditions:
 
@@ -177,97 +169,107 @@ fn query_inner<D: Decode>(
 
 fn write_available_data(
 	tx: &mut DBTransaction,
+	config: &Config,
 	hash: &CandidateHash,
 	available_data: &AvailableData,
 ) {
 	let key = (AVAILABLE_PREFIX, hash).encode();
 
-	tx.put_vec(columns::DATA, &key[..], available_data.encode());
+	tx.put_vec(config.col_data, &key[..], available_data.encode());
 }
 
 fn load_available_data(
 	db: &Arc<dyn KeyValueDB>,
+	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<AvailableData>, Error> {
 	let key = (AVAILABLE_PREFIX, hash).encode();
 
-	query_inner(db, columns::DATA, &key)
+	query_inner(db, config.col_data, &key)
 }
 
 fn delete_available_data(
 	tx: &mut DBTransaction,
+	config: &Config,
 	hash: &CandidateHash,
 ) {
 	let key = (AVAILABLE_PREFIX, hash).encode();
 
-	tx.delete(columns::DATA, &key[..])
+	tx.delete(config.col_data, &key[..])
 }
 
 fn load_chunk(
 	db: &Arc<dyn KeyValueDB>,
+	config: &Config,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
 ) -> Result<Option<ErasureChunk>, Error> {
 	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
-	query_inner(db, columns::DATA, &key)
+	query_inner(db, config.col_data, &key)
 }
 
 fn write_chunk(
 	tx: &mut DBTransaction,
+	config: &Config,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
 	erasure_chunk: &ErasureChunk,
 ) {
 	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
-	tx.put_vec(columns::DATA, &key, erasure_chunk.encode());
+	tx.put_vec(config.col_data, &key, erasure_chunk.encode());
 }
 
 fn delete_chunk(
 	tx: &mut DBTransaction,
+	config: &Config,
 	candidate_hash: &CandidateHash,
 	chunk_index: ValidatorIndex,
 ) {
 	let key = (CHUNK_PREFIX, candidate_hash, chunk_index).encode();
 
-	tx.delete(columns::DATA, &key[..]);
+	tx.delete(config.col_data, &key[..]);
 }
 
 fn load_meta(
 	db: &Arc<dyn KeyValueDB>,
+	config: &Config,
 	hash: &CandidateHash,
 ) -> Result<Option<CandidateMeta>, Error> {
 	let key = (META_PREFIX, hash).encode();
 
-	query_inner(db, columns::META, &key)
+	query_inner(db, config.col_meta, &key)
 }
 
 fn write_meta(
 	tx: &mut DBTransaction,
+	config: &Config,
 	hash: &CandidateHash,
 	meta: &CandidateMeta,
 ) {
 	let key = (META_PREFIX, hash).encode();
 
-	tx.put_vec(columns::META, &key, meta.encode());
+	tx.put_vec(config.col_meta, &key, meta.encode());
 }
 
-fn delete_meta(tx: &mut DBTransaction, hash: &CandidateHash) {
+fn delete_meta(tx: &mut DBTransaction, config: &Config, hash: &CandidateHash) {
 	let key = (META_PREFIX, hash).encode();
-	tx.delete(columns::META, &key[..])
+	tx.delete(config.col_meta, &key[..])
 }
 
 fn delete_unfinalized_height(
 	tx: &mut DBTransaction,
+	config: &Config,
 	block_number: BlockNumber,
 ) {
 	let prefix = (UNFINALIZED_PREFIX, BEBlockNumber(block_number)).encode();
-	tx.delete_prefix(columns::META, &prefix);
+	tx.delete_prefix(config.col_meta, &prefix);
 }
 
 fn delete_unfinalized_inclusion(
 	tx: &mut DBTransaction,
+	config: &Config,
 	block_number: BlockNumber,
 	block_hash: &Hash,
 	candidate_hash: &CandidateHash,
@@ -279,18 +281,28 @@ fn delete_unfinalized_inclusion(
 		candidate_hash,
 	).encode();
 
-	tx.delete(columns::META, &key[..]);
+	tx.delete(config.col_meta, &key[..]);
 }
 
-fn delete_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+fn delete_pruning_key(
+	tx: &mut DBTransaction,
+	config: &Config,
+	t: impl Into<BETimestamp>,
+	h: &CandidateHash,
+) {
 	let key = (PRUNE_BY_TIME_PREFIX, t.into(), h).encode();
-	tx.delete(columns::META, &key);
+	tx.delete(config.col_meta, &key);
 }
 
-fn write_pruning_key(tx: &mut DBTransaction, t: impl Into<BETimestamp>, h: &CandidateHash) {
+fn write_pruning_key(
+	tx: &mut DBTransaction,
+	config: &Config,
+	t: impl Into<BETimestamp>,
+	h: &CandidateHash,
+) {
 	let t = t.into();
 	let key = (PRUNE_BY_TIME_PREFIX, t, h).encode();
-	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+	tx.put(config.col_meta, &key, TOMBSTONE_VALUE);
 }
 
 fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
@@ -303,12 +315,13 @@ fn finalized_block_range(finalized: BlockNumber) -> (Vec<u8>, Vec<u8>) {
 
 fn write_unfinalized_block_contains(
 	tx: &mut DBTransaction,
+	config: &Config,
 	n: BlockNumber,
 	h: &Hash,
 	ch: &CandidateHash,
 ) {
 	let key = (UNFINALIZED_PREFIX, BEBlockNumber(n), h, ch).encode();
-	tx.put(columns::META, &key, TOMBSTONE_VALUE);
+	tx.put(config.col_meta, &key, TOMBSTONE_VALUE);
 }
 
 fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
@@ -405,28 +418,12 @@ impl Default for PruningConfig {
 }
 
 /// Configuration for the availability store.
+#[derive(Debug, Clone, Copy)]
 pub struct Config {
-	/// Total cache size in megabytes. If `None` the default (128 MiB per column) is used.
-	pub cache_size: Option<usize>,
-	/// Path to the database.
-	pub path: PathBuf,
-}
-
-impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
-	type Error = Error;
-
-	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
-		let path = config.path().ok_or(Error::CustomDatabase)?;
-
-		Ok(Self {
-			// substrate cache size is improper here; just use the default
-			cache_size: None,
-			// DB path is a sub-directory of substrate db path to give two properties:
-			// 1: column numbers don't conflict with substrate
-			// 2: commands like purge-chain work without further changes
-			path: path.join("parachains").join("av-store"),
-		})
-	}
+	/// The column family for availability data and chunks.
+	pub col_data: u32,
+	/// The column family for availability store meta information.
+	pub col_meta: u32,
 }
 
 trait Clock: Send + Sync {
@@ -445,6 +442,7 @@ impl Clock for SystemClock {
 /// An implementation of the Availability Store subsystem.
 pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
+	config: Config,
 	db: Arc<dyn KeyValueDB>,
 	metrics: Metrics,
 	clock: Box<dyn Clock>,
@@ -452,44 +450,33 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
-		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
-
-		if let Some(cache_size) = config.cache_size {
-			let mut memory_budget = HashMap::new();
-
-			for i in 0..columns::NUM_COLUMNS {
-				memory_budget.insert(i, cache_size / columns::NUM_COLUMNS as usize);
-			}
-			db_config.memory_budget = memory_budget;
-		}
-
-		let path = config.path.to_str().ok_or_else(|| io::Error::new(
-			io::ErrorKind::Other,
-			format!("Bad database path: {:?}", config.path),
-		))?;
-
-		std::fs::create_dir_all(&path)?;
-		let db = Database::open(&db_config, &path)?;
-
-		Ok(Self {
-			pruning_config: PruningConfig::default(),
-			db: Arc::new(db),
+	pub fn new(
+		db: Arc<dyn KeyValueDB>,
+		config: Config,
+		metrics: Metrics,
+	) -> Self {
+		Self::with_pruning_config_and_clock(
+			db,
+			config,
+			PruningConfig::default(),
+			Box::new(SystemClock),
 			metrics,
-			clock: Box::new(SystemClock),
-		})
+		)
 	}
 
-	#[cfg(test)]
-	fn new_in_memory(
+	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
+	fn with_pruning_config_and_clock(
 		db: Arc<dyn KeyValueDB>,
+		config: Config,
 		pruning_config: PruningConfig,
 		clock: Box<dyn Clock>,
+		metrics: Metrics,
 	) -> Self {
 		Self {
 			pruning_config,
+			config,
 			db,
-			metrics: Metrics(None),
+			metrics,
 			clock,
 		}
 	}
@@ -581,7 +568,7 @@ where
 			*next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 			let _timer = subsystem.metrics.time_pruning();
-			prune_all(&subsystem.db, &*subsystem.clock)?;
+			prune_all(&subsystem.db, &subsystem.config, &*subsystem.clock)?;
 		}
 	}
 
@@ -648,6 +635,7 @@ async fn process_block_activated(
 				note_block_backed(
 					&subsystem.db,
 					&mut tx,
+					&subsystem.config,
 					&subsystem.pruning_config,
 					now,
 					n_validators,
@@ -658,6 +646,7 @@ async fn process_block_activated(
 				note_block_included(
 					&subsystem.db,
 					&mut tx,
+					&subsystem.config,
 					&subsystem.pruning_config,
 					(block_number, activated),
 					receipt,
@@ -675,6 +664,7 @@ async fn process_block_activated(
 fn note_block_backed(
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
+	config: &Config,
 	pruning_config: &PruningConfig,
 	now: Duration,
 	n_validators: usize,
@@ -688,7 +678,7 @@ fn note_block_backed(
 		"Candidate backed",
 	);
 
-	if load_meta(db, &candidate_hash)?.is_none() {
+	if load_meta(db, config, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
 			state: State::Unavailable(now.into()),
 			data_available: false,
@@ -697,8 +687,8 @@ fn note_block_backed(
 
 		let prune_at = now + pruning_config.keep_unavailable_for;
 
-		write_pruning_key(db_transaction, prune_at, &candidate_hash);
-		write_meta(db_transaction, &candidate_hash, &meta);
+		write_pruning_key(db_transaction, config, prune_at, &candidate_hash);
+		write_meta(db_transaction, config, &candidate_hash, &meta);
 	}
 
 	Ok(())
@@ -707,13 +697,14 @@ fn note_block_backed(
 fn note_block_included(
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
+	config: &Config,
 	pruning_config:&PruningConfig,
 	block: (BlockNumber, Hash),
 	candidate: CandidateReceipt,
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	match load_meta(db, &candidate_hash)? {
+	match load_meta(db, config, &candidate_hash)? {
 		None => {
 			// This is alarming. We've observed a block being included without ever seeing it backed.
 			// Warn and ignore.
@@ -736,7 +727,7 @@ fn note_block_included(
 				State::Unavailable(at) => {
 					let at_d: Duration = at.into();
 					let prune_at = at_d + pruning_config.keep_unavailable_for;
-					delete_pruning_key(db_transaction, prune_at, &candidate_hash);
+					delete_pruning_key(db_transaction, config, prune_at, &candidate_hash);
 
 					State::Unfinalized(at, vec![be_block])
 				}
@@ -754,8 +745,14 @@ fn note_block_included(
 				}
 			};
 
-			write_unfinalized_block_contains(db_transaction, block.0, &block.1, &candidate_hash);
-			write_meta(db_transaction, &candidate_hash, &meta);
+			write_unfinalized_block_contains(
+				db_transaction,
+				config,
+				block.0,
+				&block.1,
+				&candidate_hash,
+			);
+			write_meta(db_transaction, config, &candidate_hash, &meta);
 		}
 	}
 
@@ -788,7 +785,7 @@ async fn process_block_finalized(
 		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
 		// do an asynchronous request, and then instantiate the exact same iterator again.
 		let batch_num = {
-			let mut iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
+			let mut iter = subsystem.db.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
 				.take_while(|(k, _)| &k[..] < &end_prefix[..])
 				.peekable();
 
@@ -821,7 +818,7 @@ async fn process_block_finalized(
 			}
 		};
 
-		let iter = subsystem.db.iter_with_prefix(columns::META, &start_prefix)
+		let iter = subsystem.db.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
 			.take_while(|(k, _)| &k[..] < &end_prefix[..])
 			.peekable();
 
@@ -830,7 +827,7 @@ async fn process_block_finalized(
 		// Now that we've iterated over the entire batch at this finalized height,
 		// update the meta.
 
-		delete_unfinalized_height(&mut db_transaction, batch_num);
+		delete_unfinalized_height(&mut db_transaction, &subsystem.config, batch_num);
 
 		update_blocks_at_finalized_height(
 			&subsystem,
@@ -888,7 +885,7 @@ fn update_blocks_at_finalized_height(
 	now: Duration,
 ) -> Result<(), Error> {
 	for (candidate_hash, is_finalized) in candidates {
-		let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
+		let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
 			None => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -909,7 +906,7 @@ fn update_blocks_at_finalized_height(
 					// This is also not going to happen; the very fact that we are
 					// iterating over the candidate here indicates that `State` should
 					// be `Unfinalized`.
-					delete_pruning_key(db_transaction, at, &candidate_hash);
+					delete_pruning_key(db_transaction, &subsystem.config, at, &candidate_hash);
 				}
 				State::Unfinalized(_, blocks) => {
 					for (block_num, block_hash) in blocks.iter().cloned() {
@@ -917,6 +914,7 @@ fn update_blocks_at_finalized_height(
 						if block_num.0 != block_number {
 							delete_unfinalized_inclusion(
 								db_transaction,
+								&subsystem.config,
 								block_num.0,
 								&block_hash,
 								&candidate_hash,
@@ -929,9 +927,10 @@ fn update_blocks_at_finalized_height(
 			meta.state = State::Finalized(now.into());
 
 			// Write the meta and a pruning record.
-			write_meta(db_transaction, &candidate_hash, &meta);
+			write_meta(db_transaction, &subsystem.config, &candidate_hash, &meta);
 			write_pruning_key(
 				db_transaction,
+				&subsystem.config,
 				now + subsystem.pruning_config.keep_finalized_for,
 				&candidate_hash,
 			);
@@ -948,7 +947,12 @@ fn update_blocks_at_finalized_height(
 					if blocks.is_empty() {
 						let at_d: Duration = at.into();
 						let prune_at = at_d + subsystem.pruning_config.keep_unavailable_for;
-						write_pruning_key(db_transaction, prune_at, &candidate_hash);
+						write_pruning_key(
+							db_transaction,
+							&subsystem.config,
+							prune_at,
+							&candidate_hash,
+						);
 						State::Unavailable(at)
 					} else {
 						State::Unfinalized(at, blocks)
@@ -957,7 +961,7 @@ fn update_blocks_at_finalized_height(
 			};
 
 			// Update the meta entry.
-			write_meta(db_transaction, &candidate_hash, &meta)
+			write_meta(db_transaction, &subsystem.config, &candidate_hash, &meta)
 		}
 	}
 
@@ -970,18 +974,18 @@ fn process_message(
 ) -> Result<(), Error> {
 	match msg {
 		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
-			let _ = tx.send(load_available_data(&subsystem.db, &candidate)?);
+			let _ = tx.send(load_available_data(&subsystem.db, &subsystem.config, &candidate)?);
 		}
 		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
-			let a = load_meta(&subsystem.db, &candidate)?.map_or(false, |m| m.data_available);
+			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?.map_or(false, |m| m.data_available);
 			let _ = tx.send(a);
 		}
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
 			let _timer = subsystem.metrics.time_get_chunk();
-			let _ = tx.send(load_chunk(&subsystem.db, &candidate, validator_index)?);
+			let _ = tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
 		}
 		AvailabilityStoreMessage::QueryAllChunks(candidate, tx) => {
-			match load_meta(&subsystem.db, &candidate)? {
+			match load_meta(&subsystem.db, &subsystem.config, &candidate)? {
 				None => {
 					let _ = tx.send(Vec::new());
 				}
@@ -990,7 +994,12 @@ fn process_message(
 
 					for (index, _) in meta.chunks_stored.iter().enumerate().filter(|(_, b)| **b) {
 						let _timer = subsystem.metrics.time_get_chunk();
-						match load_chunk(&subsystem.db, &candidate, ValidatorIndex(index as _))? {
+						match load_chunk(
+							&subsystem.db,
+							&subsystem.config,
+							&candidate,
+							ValidatorIndex(index as _),
+						)? {
 							Some(c) => chunks.push(c),
 							None => {
 								tracing::warn!(
@@ -1008,7 +1017,7 @@ fn process_message(
 			}
 		}
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
-			let a = load_meta(&subsystem.db, &candidate)?
+			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?
 				.map_or(false, |m|
 					*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
 				);
@@ -1022,7 +1031,7 @@ fn process_message(
 			subsystem.metrics.on_chunks_received(1);
 			let _timer = subsystem.metrics.time_store_chunk();
 
-			match store_chunk(&subsystem.db, candidate_hash, chunk) {
+			match store_chunk(&subsystem.db, &subsystem.config, candidate_hash, chunk) {
 				Ok(true) => {
 					let _ = tx.send(Ok(()));
 				}
@@ -1065,12 +1074,13 @@ fn process_message(
 // Ok(true) on success, Ok(false) on failure, and Err on internal error.
 fn store_chunk(
 	db: &Arc<dyn KeyValueDB>,
+	config: &Config,
 	candidate_hash: CandidateHash,
 	chunk: ErasureChunk,
 ) -> Result<bool, Error> {
 	let mut tx = DBTransaction::new();
 
-	let mut meta = match load_meta(db, &candidate_hash)? {
+	let mut meta = match load_meta(db, config, &candidate_hash)? {
 		Some(m) => m,
 		None => return Ok(false), // we weren't informed of this candidate by import events.
 	};
@@ -1080,8 +1090,8 @@ fn store_chunk(
 		Some(false) => {
 			meta.chunks_stored.set(chunk.index.0 as usize, true);
 
-			write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
-			write_meta(&mut tx, &candidate_hash, &meta);
+			write_chunk(&mut tx, config, &candidate_hash, chunk.index, &chunk);
+			write_meta(&mut tx, config, &candidate_hash, &meta);
 		}
 		None => return Ok(false), // out of bounds.
 	}
@@ -1106,7 +1116,7 @@ fn store_available_data(
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
-	let mut meta = match load_meta(&subsystem.db, &candidate_hash)? {
+	let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
 		Some(m) => {
 			if m.data_available {
 				return Ok(()); // already stored.
@@ -1119,7 +1129,7 @@ fn store_available_data(
 
 			// Write a pruning record.
 			let prune_at = now + subsystem.pruning_config.keep_unavailable_for;
-			write_pruning_key(&mut tx, prune_at, &candidate_hash);
+			write_pruning_key(&mut tx, &subsystem.config, prune_at, &candidate_hash);
 
 			CandidateMeta {
 				state: State::Unavailable(now.into()),
@@ -1142,14 +1152,14 @@ fn store_available_data(
 		});
 
 	for chunk in erasure_chunks {
-		write_chunk(&mut tx, &candidate_hash, chunk.index, &chunk);
+		write_chunk(&mut tx, &subsystem.config, &candidate_hash, chunk.index, &chunk);
 	}
 
 	meta.data_available = true;
 	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
 
-	write_meta(&mut tx, &candidate_hash, &meta);
-	write_available_data(&mut tx, &candidate_hash, &available_data);
+	write_meta(&mut tx, &subsystem.config,  &candidate_hash, &meta);
+	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);
 
 	subsystem.db.write(tx)?;
 
@@ -1162,35 +1172,35 @@ fn store_available_data(
 	Ok(())
 }
 
-fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
+fn prune_all(db: &Arc<dyn KeyValueDB>, config: &Config, clock: &dyn Clock) -> Result<(), Error> {
 	let now = clock.now()?;
 	let (range_start, range_end) = pruning_range(now);
 
 	let mut tx = DBTransaction::new();
-	let iter = db.iter_with_prefix(columns::META, &range_start[..])
+	let iter = db.iter_with_prefix(config.col_meta, &range_start[..])
 		.take_while(|(k, _)| &k[..] < &range_end[..]);
 
 	for (k, _v) in iter {
-		tx.delete(columns::META, &k[..]);
+		tx.delete(config.col_meta, &k[..]);
 
 		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {
 			Ok(m) => m,
 			Err(_) => continue, // sanity
 		};
 
-		delete_meta(&mut tx, &candidate_hash);
+		delete_meta(&mut tx, config, &candidate_hash);
 
 		// Clean up all attached data of the candidate.
-		if let Some(meta) = load_meta(db, &candidate_hash)? {
+		if let Some(meta) = load_meta(db, config, &candidate_hash)? {
 			// delete available data.
 			if meta.data_available {
-				delete_available_data(&mut tx, &candidate_hash)
+				delete_available_data(&mut tx, config, &candidate_hash)
 			}
 
 			// delete chunks.
 			for (i, b) in meta.chunks_stored.iter().enumerate() {
 				if *b {
-					delete_chunk(&mut tx, &candidate_hash, ValidatorIndex(i as _));
+					delete_chunk(&mut tx, config, &candidate_hash, ValidatorIndex(i as _));
 				}
 			}
 
@@ -1200,6 +1210,7 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, clock: &dyn Clock) -> Result<(), Error> {
 				for (block_number, block_hash) in blocks {
 					delete_unfinalized_inclusion(
 						&mut tx,
+						config,
 						block_number.0,
 						&block_hash,
 						&candidate_hash,

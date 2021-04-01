@@ -63,6 +63,8 @@ hex-literal = "0.3.1"
 tracing = "0.1.25"
 serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
+kvdb = "0.9.0"
+kvdb-rocksdb = { version = "0.11.0", optional = true }
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
@@ -111,7 +113,8 @@ db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
 	"polkadot-node-core-approval-voting",
-	"sc-finality-grandpa-warp-sync"
+	"sc-finality-grandpa-warp-sync",
+	"kvdb-rocksdb"
 ]
 
 runtime-benchmarks = [
@@ -128,6 +131,7 @@ try-runtime = [
 ]
 
 real-overseer = [
+	"full-node",
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",

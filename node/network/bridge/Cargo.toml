@@ -12,6 +12,7 @@ polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../protocol" }
 strum = "0.20.0"
@@ -23,3 +24,4 @@ polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures-timer = "3"

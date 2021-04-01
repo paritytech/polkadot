@@ -61,6 +61,7 @@
     - [Candidate Validation](node/utility/candidate-validation.md)
     - [Provisioner](node/utility/provisioner.md)
     - [Network Bridge](node/utility/network-bridge.md)
+    - [Gossip Support](node/utility/gossip-support.md)
     - [Misbehavior Arbitration](node/utility/misbehavior-arbitration.md)
     - [Peer Set Manager](node/utility/peer-set-manager.md)
     - [Runtime API Requests](node/utility/runtime-api.md)

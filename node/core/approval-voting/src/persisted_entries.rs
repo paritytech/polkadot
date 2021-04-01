@@ -23,7 +23,7 @@
 use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, CandidateReceipt, SessionIndex, GroupIndex, CoreIndex,
-	Hash, CandidateHash, BlockNumber,
+	Hash, CandidateHash, BlockNumber, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
@@ -79,6 +79,7 @@ pub struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
 	our_assignment: Option<OurAssignment>,
+	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
 	assignments: BitVec<BitOrderLsb0, u8>,
 	approved: bool,
@@ -106,6 +107,11 @@ impl ApprovalEntry {
 
 			(a.cert().clone(), a.validator_index())
 		})
+	}
+
+	/// Import our local approval vote signature for this candidate.
+	pub fn import_approval_sig(&mut self, approval_sig: ValidatorSignature) {
+		self.our_approval_sig = Some(approval_sig);
 	}
 
 	/// Whether a validator is already assigned.
@@ -190,6 +196,18 @@ impl ApprovalEntry {
 		self.backing_group
 	}
 
+	/// Get the assignment cert & approval signature.
+	///
+	/// The approval signature will only be `Some` if the assignment is too.
+	pub fn local_statements(&self) -> (Option<OurAssignment>, Option<ValidatorSignature>) {
+		let approval_sig = self.our_approval_sig.clone();
+		if let Some(our_assignment) = self.our_assignment.as_ref().filter(|a| a.triggered()) {
+			(Some(our_assignment.clone()), approval_sig)
+		} else {
+			(None, None)
+		}
+	}
+
 	/// For tests: set our assignment.
 	#[cfg(test)]
 	pub fn set_our_assignment(&mut self, our_assignment: OurAssignment) {
@@ -203,6 +221,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}
@@ -215,6 +234,7 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}
@@ -258,11 +278,6 @@ impl CandidateEntry {
 	/// Get the approval entry for this candidate under a specific block.
 	pub fn approval_entry(&self, block_hash: &Hash) -> Option<&ApprovalEntry> {
 		self.block_assignments.get(block_hash)
-	}
-
-	/// Iterate over approval entries.
-	pub fn iter_approval_entries(&self) -> impl IntoIterator<Item = (&Hash, &ApprovalEntry)> {
-		self.block_assignments.iter()
 	}
 
 	#[cfg(test)]
@@ -325,6 +340,13 @@ impl BlockEntry {
 		}
 	}
 
+	/// Whether a candidate is approved in the bitfield.
+	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
+		self.candidates.iter().position(|(_, h)| h == candidate_hash)
+			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
+			.unwrap_or(false)
+	}
+
 	/// Whether the block entry is fully approved.
 	pub fn is_fully_approved(&self) -> bool {
 		self.approved_bitfield.all()
@@ -337,18 +359,6 @@ impl BlockEntry {
 		} else {
 			None
 		})
-	}
-
-	#[cfg(test)]
-	pub fn block_hash(&self) -> Hash {
-		self.block_hash
-	}
-
-	#[cfg(test)]
-	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
-		self.candidates.iter().position(|(_, h)| h == candidate_hash)
-			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
-			.unwrap_or(false)
 	}
 
 	/// For tests: Add a candidate to the block entry. Returns the
@@ -401,6 +411,16 @@ impl BlockEntry {
 	/// Access the block number of the block entry.
 	pub fn block_number(&self) -> BlockNumber {
 		self.block_number
+	}
+
+	/// Access the block hash of the block entry.
+	pub fn block_hash(&self) -> Hash {
+		self.block_hash
+	}
+
+	/// Access the parent hash of the block entry.
+	pub fn parent_hash(&self) -> Hash {
+		self.parent_hash
 	}
 }
 
