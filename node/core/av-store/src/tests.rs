@@ -284,7 +284,6 @@ fn store_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
@@ -309,7 +308,6 @@ fn store_chunk_works() {
 
 		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
-			relay_parent,
 			chunk: chunk.clone(),
 			tx,
 		};
@@ -336,7 +334,6 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	test_harness(TestState::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let relay_parent = Hash::repeat_byte(32);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = ValidatorIndex(5);
 
@@ -350,7 +347,6 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 
 		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
-			relay_parent,
 			chunk: chunk.clone(),
 			tx,
 		};
@@ -511,6 +507,98 @@ fn store_pov_and_query_chunk_works() {
 }
 
 #[test]
+fn query_all_chunks_works() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+	let test_state = TestState::default();
+
+	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		// all chunks for hash 1.
+		// 1 chunk for hash 2.
+		// 0 chunks for hash 3.
+		let candidate_hash_1 = CandidateHash(Hash::repeat_byte(1));
+		let candidate_hash_2 = CandidateHash(Hash::repeat_byte(2));
+		let candidate_hash_3 = CandidateHash(Hash::repeat_byte(3));
+
+		let n_validators = 10;
+
+		let pov = PoV {
+			block_data: BlockData(vec![4, 5, 6]),
+		};
+
+		let available_data = AvailableData {
+			pov: Arc::new(pov),
+			validation_data: test_state.persisted_validation_data.clone(),
+		};
+
+		{
+			let (tx, rx) = oneshot::channel();
+			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
+				candidate_hash_1,
+				None,
+				n_validators,
+				available_data,
+				tx,
+			);
+
+			virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+			assert_eq!(rx.await.unwrap(), Ok(()));
+		}
+
+		{
+			with_tx(&store, |tx| {
+				super::write_meta(tx, &candidate_hash_2, &CandidateMeta {
+					data_available: false,
+					chunks_stored: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators as _],
+					state: State::Unavailable(BETimestamp(0)),
+				});
+			});
+
+			let chunk = ErasureChunk {
+				chunk: vec![1, 2, 3],
+				index: ValidatorIndex(1),
+				proof: vec![vec![3, 4, 5]],
+			};
+
+			let (tx, rx) = oneshot::channel();
+			let store_chunk_msg = AvailabilityStoreMessage::StoreChunk {
+				candidate_hash: candidate_hash_2,
+				chunk,
+				tx,
+			};
+
+			virtual_overseer.send(FromOverseer::Communication { msg: store_chunk_msg }).await;
+			assert_eq!(rx.await.unwrap(), Ok(()));
+		}
+
+		{
+			let (tx, rx) = oneshot::channel();
+
+			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_1, tx);
+			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			assert_eq!(rx.await.unwrap().len(), n_validators as usize);
+		}
+
+		{
+			let (tx, rx) = oneshot::channel();
+
+			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_2, tx);
+			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			assert_eq!(rx.await.unwrap().len(), 1);
+		}
+
+		{
+			let (tx, rx) = oneshot::channel();
+
+			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_3, tx);
+			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			assert_eq!(rx.await.unwrap().len(), 0);
+		}
+	});
+}
+
+#[test]
 fn stored_but_not_included_data_is_pruned() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
@@ -625,7 +713,7 @@ fn stored_data_kept_until_finalized() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
+			has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
 		);
 
 		overseer_signal(
@@ -644,7 +732,7 @@ fn stored_data_kept_until_finalized() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
+			has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, true).await
 		);
 
 		// Wait until it definitely should be gone.
@@ -657,7 +745,7 @@ fn stored_data_kept_until_finalized() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, false).await
+			has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, false).await
 		);
 	});
 }
@@ -781,11 +869,11 @@ fn forkfullness_works() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,
+			has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await,
+			has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await,
 		);
 
 		// Candidate 2 should now be considered unavailable and will be pruned.
@@ -802,11 +890,11 @@ fn forkfullness_works() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,
+			has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,
+			has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,
 		);
 
 		// Wait for longer than finalized blocks should be kept for
@@ -823,11 +911,11 @@ fn forkfullness_works() {
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await,
+			has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await,
 		);
 
 		assert!(
-			query_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,
+			has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,
 		);
 	});
 }
@@ -857,7 +945,7 @@ async fn query_chunk(
 	rx.await.unwrap()
 }
 
-async fn query_all_chunks(
+async fn has_all_chunks(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 	candidate_hash: CandidateHash,
 	n_validators: u32,
