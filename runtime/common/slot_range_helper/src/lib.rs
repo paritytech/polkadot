@@ -66,6 +66,9 @@ macro_rules! generate_slot_range{
 		}
 
 		impl SlotRange {
+			pub const LEASE_PERIODS_PER_SLOT: usize = LEASE_PERIODS_PER_SLOT;
+			pub const SLOT_RANGE_COUNT: usize = SLOT_RANGE_COUNT;
+
 			$crate::generate_slot_range_as_pair!(@ $( $parsed ( $t1, $t2 ) )* );
 
 			$crate::generate_slot_range_len!(@ $( $parsed ( $t1, $t2 ) )* );
@@ -166,7 +169,7 @@ macro_rules! generate_slot_range_count {
 		#[doc(hidden)]
 		#[allow(dead_code, non_camel_case_types)]
 		enum __SlotRangeTemp { $($idents,)* __SlotRangeCountLast }
-		pub const SLOT_RANGE_COUNT: usize = __SlotRangeTemp::__SlotRangeCountLast as usize;
+		const SLOT_RANGE_COUNT: usize = __SlotRangeTemp::__SlotRangeCountLast as usize;
 	};
 }
 
@@ -179,7 +182,7 @@ macro_rules! generate_lease_period_per_slot {
 		#[doc(hidden)]
 		#[allow(dead_code, non_camel_case_types)]
 		enum __LeasePeriodPerSlotTemp { $($idents,)* __LeasePeriodPerSlotLast }
-		pub const LEASE_PERIODS_PER_SLOT: usize = __LeasePeriodPerSlotTemp::__LeasePeriodPerSlotLast as usize;
+		const LEASE_PERIODS_PER_SLOT: usize = __LeasePeriodPerSlotTemp::__LeasePeriodPerSlotLast as usize;
 	};
 }
 
@@ -191,9 +194,9 @@ mod tests {
 	fn slot_range_4_works() {
 		generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
 
-		assert_eq!(LEASE_PERIODS_PER_SLOT, 4);
+		assert_eq!(SlotRange::LEASE_PERIODS_PER_SLOT, 4);
 		// Sum over n from 0 - 4
-		assert_eq!(SLOT_RANGE_COUNT, 10);
+		assert_eq!(SlotRange::SLOT_RANGE_COUNT, 10);
 		assert_eq!(SlotRange::new_bounded(0u32, 1u32, 2u32).unwrap(), SlotRange::OneTwo);
 		assert_eq!(SlotRange::new_bounded(5u32, 6u32, 7u32).unwrap(), SlotRange::OneTwo);
 		assert!(SlotRange::new_bounded(10u32, 6u32, 7u32).is_err());
@@ -212,9 +215,9 @@ mod tests {
 	fn slot_range_8_works() {
 		generate_slot_range!(Zero(0), One(1), Two(2), Three(3), Four(4), Five(5), Six(6), Seven(7));
 
-		assert_eq!(LEASE_PERIODS_PER_SLOT, 8);
+		assert_eq!(SlotRange::LEASE_PERIODS_PER_SLOT, 8);
 		// Sum over n from 0 to 8
-		assert_eq!(SLOT_RANGE_COUNT, 36);
+		assert_eq!(SlotRange::SLOT_RANGE_COUNT, 36);
 		assert_eq!(SlotRange::new_bounded(0u32, 1u32, 2u32).unwrap(), SlotRange::OneTwo);
 		assert_eq!(SlotRange::new_bounded(5u32, 6u32, 7u32).unwrap(), SlotRange::OneTwo);
 		assert!(SlotRange::new_bounded(10u32, 6u32, 7u32).is_err());

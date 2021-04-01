@@ -73,7 +73,7 @@ use sp_runtime::{
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
-use crate::slot_range::LEASE_PERIODS_PER_SLOT;
+use crate::slot_range::SlotRange;
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::Id as ParaId;
@@ -320,7 +320,7 @@ decl_module! {
 
 			ensure!(first_period <= last_period, Error::<T>::LastPeriodBeforeFirstPeriod);
 			let last_period_limit = first_period
-				.checked_add(&((LEASE_PERIODS_PER_SLOT as u32) - 1).into())
+				.checked_add(&((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into())
 				.ok_or(Error::<T>::FirstPeriodTooFarInFuture)?;
 			ensure!(last_period <= last_period_limit, Error::<T>::LastPeriodTooFarInFuture);
 			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
