@@ -556,6 +556,13 @@ mod tests {
 			) -> BTreeMap<ParaId, Vec<InboundHrmpMessage>> {
 				self.hrmp_channels.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 			}
+
+			fn validation_code_by_hash(
+				&self,
+				_hash: Hash,
+			) -> Option<ValidationCode> {
+				unreachable!("not used in tests");
+			}
 		}
 
 		impl BabeApi<Block> for MockRuntimeApi {

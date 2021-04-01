@@ -185,6 +185,8 @@ decl_error! {
 		HrmpWatermarkMishandling,
 		/// The HRMP messages sent by the candidate is not valid.
 		InvalidOutboundHrmp,
+		/// The validation code hash of the candidate is not valid.
+		InvalidValidationCodeHash,
 	}
 }
 
@@ -442,6 +444,15 @@ impl<T: Config> Module<T> {
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
+				);
+
+				let validation_code_hash =
+					<paras::Module<T>>::validation_code_hash_at(para_id, now, None)
+					// A candidate for a parachain without current validation code is not scheduled.
+					.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
+				ensure!(
+					candidate.descriptor().validation_code_hash == validation_code_hash,
+					Error::<T>::InvalidValidationCodeHash,
 				);
 
 				if let Err(err) = check_cx
@@ -954,6 +965,7 @@ mod tests {
 			&candidate.descriptor.para_id,
 			&candidate.descriptor.persisted_validation_data_hash,
 			&candidate.descriptor.pov_hash,
+			&candidate.descriptor.validation_code_hash,
 		);
 
 		candidate.descriptor.signature = collator.sign(&payload[..]).into();
@@ -1109,6 +1121,7 @@ mod tests {
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
+		validation_code: ValidationCode,
 		hrmp_watermark: BlockNumber,
 	}
 
@@ -1120,6 +1133,7 @@ mod tests {
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
 					persisted_validation_data_hash: self.persisted_validation_data_hash,
+					validation_code_hash: self.validation_code.hash(),
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -2069,6 +2083,43 @@ mod tests {
 						&group_validators,
 					),
 					Err(Error::<Test>::ValidationDataHashMismatch.into()),
+				);
+			}
+
+			// bad validation code hash
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::repeat_byte(1),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
+					validation_code: ValidationCode(vec![1]),
+					..Default::default()
+				}.build();
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = block_on(back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&keystore,
+					&signing_context,
+					BackingKind::Threshold,
+				));
+
+				assert_eq!(
+					Inclusion::process_candidates(
+						Default::default(),
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::InvalidValidationCodeHash.into()),
 				);
 			}
 		});
