@@ -603,7 +603,11 @@ impl<T: Config> Module<T> {
 							if let Some(removed_code_hash) = removed_code_hash {
 								Self::decrease_code_ref(&removed_code_hash);
 							} else {
-								todo!("log error");
+								log::warn!(
+									target: "runtime::paras",
+									"Missing code for removed hash {:?}",
+									removed_code_hash,
+								);
 							}
 						}
 
