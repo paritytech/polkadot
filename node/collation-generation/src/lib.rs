@@ -723,6 +723,16 @@ mod tests {
 						))) => {
 							tx.send(Ok(vec![Default::default(); 3])).unwrap();
 						}
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::ValidationCode(
+								_para_id,
+								OccupiedCoreAssumption::Free,
+								tx,
+							),
+						))) => {
+							tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
+						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)
 						}
