@@ -323,7 +323,7 @@ mod tests {
 		}
 	}
 
-	mod inclusion_inherent_weight {
+	mod paras_inherent_weight {
 		use super::*;
 
 		use crate::mock::{
@@ -343,7 +343,7 @@ mod tests {
 			}
 		}
 
-		/// We expect the weight of the inclusion inherent not to change when no truncation occurs:
+		/// We expect the weight of the paras inherent not to change when no truncation occurs:
 		/// its weight is dynamically computed from the size of the backed candidates list, and is
 		/// already incorporated into the current block weight when it is selected by the provisioner.
 		#[test]

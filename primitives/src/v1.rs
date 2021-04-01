@@ -994,8 +994,7 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 /// A statement about a candidate, to be used within the dispute resolution process.
 ///
 /// Statements are either in favor of the candidate's validity or against it.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum DisputeStatement {
 	/// A valid statement, of the given kind.
 	#[codec(index = 0)]
@@ -1006,8 +1005,7 @@ pub enum DisputeStatement {
 }
 
 /// Different kinds of statements of validity on  a candidate.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1024,8 +1022,7 @@ pub enum ValidDisputeStatementKind {
 }
 
 /// Different kinds of statements of invalidity on a candidate.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1033,8 +1030,7 @@ pub enum InvalidDisputeStatementKind {
 }
 
 /// An explicit statement on a candidate issued as part of a dispute.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct ExplicitDisputeStatement {
 	/// Whether the candidate is valid
 	pub valid: bool,
@@ -1045,8 +1041,7 @@ pub struct ExplicitDisputeStatement {
 }
 
 /// A set of statements about a specific candidate.
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
     pub candidate_hash: CandidateHash,
@@ -1060,8 +1055,7 @@ pub struct DisputeStatementSet {
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// The entire state of a dispute.
-#[derive(Encode, Decode, Clone)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, RuntimeDebug)]
 pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
 	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
@@ -1074,8 +1068,7 @@ pub struct DisputeState<N = BlockNumber> {
 }
 
 /// Parachains inherent-data passed into the runtime by a block author
-#[derive(Encode, Decode, Clone, PartialEq)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct InherentData<HDR: HeaderT = Header> {
 	/// Signed bitfields by validators about availability.
 	pub bitfields: SignedAvailabilityBitfields,

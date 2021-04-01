@@ -65,7 +65,7 @@ use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::shared as parachains_shared;
 use runtime_parachains::inclusion as parachains_inclusion;
-use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use runtime_parachains::paras_inherent as parachains_paras_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::session_info as parachains_session_info;
 use runtime_parachains::paras as parachains_paras;
@@ -196,7 +196,7 @@ construct_runtime! {
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: parachains_shared::{Pallet, Call, Storage},
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Event},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
@@ -584,7 +584,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_inclusion_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_scheduler::Config for Runtime {}
 
