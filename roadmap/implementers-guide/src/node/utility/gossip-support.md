@@ -1,7 +1,7 @@
 # Gossip Support
 
 The Gossip Support Subsystem is responsible for keeping track of session changes
-and issuing a connection request to all validators in the current session and a few past sessions
+and issuing a connection request to all validators in the next, current and a few past sessions
 if we are a validator in these sessions.
 The request will add all validators to a reserved PeerSet, meaning we will not reject a connection request
 from any validator in that set.

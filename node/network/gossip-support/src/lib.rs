@@ -16,8 +16,7 @@
 
 //! This subsystem is responsible for keeping track of session changes
 //! and issuing a connection request to the validators relevant to
-//! the gossiping subsystems on every new session. But only if we
-//! are a validator in the current session.
+//! the gossiping subsystems on every new session.
 
 use futures::{channel::mpsc, FutureExt as _};
 use std::sync::Arc;
