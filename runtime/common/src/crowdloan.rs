@@ -62,7 +62,7 @@ use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Saturating, Zero, One, CheckedAdd, Verify, IdentifyAccount, Hash,
+		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Verify, IdentifyAccount,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
