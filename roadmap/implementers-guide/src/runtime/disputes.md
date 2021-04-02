@@ -65,7 +65,7 @@ Frozen: bool,
 ## Routines
 
 * `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
-  1. Fail if any disputes in the set are duplicate or concluded before the `config.dispute_post_conclusion_code_retention_period` window relative to now.
+  1. Fail if any disputes in the set are duplicate or concluded before the `config.dispute_post_conclusion_acceptance_period` window relative to now.
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
   1. Return a list of all candidates who just had disputes initiated.
 
@@ -73,7 +73,7 @@ Frozen: bool,
   1. All statements must be issued under the correct session for the correct candidate. 
   1. `SessionInfo` is used to check statement signatures and this function should fail if any signatures are invalid.
   1. If there is no dispute under `Disputes`, create a new `DisputeState` with blank bitfields.
-  1. If `concluded_at` is `Some`, and is `concluded_at + config.post_conclusion_code_retention_period < now`, return false.
+  1. If `concluded_at` is `Some`, and is `concluded_at + config.post_conclusion_acceptance_period < now`, return false.
   1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is fewer in number than `byzantine_threshold + 1` and the candidate is not present in the `Included` map
     1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary.
     1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.

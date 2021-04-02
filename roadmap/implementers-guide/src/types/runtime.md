@@ -41,7 +41,7 @@ struct HostConfiguration {
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
-	pub dispute_post_conclusion_code_retention_period: BlockNumber,
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
 	/// The maximum number of dispute spam slots 
 	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
