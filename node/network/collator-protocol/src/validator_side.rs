@@ -174,7 +174,7 @@ impl PeerData {
 	fn new(view: View) -> Self {
 		PeerData {
 			view,
-			state: Connected(Instant::now()),
+			state: PeerState::Connected(Instant::now()),
 		}
 	}
 
@@ -182,9 +182,9 @@ impl PeerData {
 	/// current view.
 	fn update_view(&mut self, new_view: View) {
 		let old_view = std::mem::replace(&mut self.view, new_view);
-		if let Some(PeerState::Collating(ref mut peer_state)) = self.state {
+		if let PeerState::Collating(ref mut peer_state) = self.state {
 			for removed in old_view.difference(&self.view) {
-				let _ = self.advertisements.remove(&removed);
+				let _ = peer_state.advertisements.remove(&removed);
 			}
 		}
 	}
@@ -192,14 +192,16 @@ impl PeerData {
 	/// Note an advertisement by the collator. Returns `true` if the advertisement was imported
 	/// successfully. Fails if the advertisement is duplicate, out of view, or the peer has not
 	/// declared itself a collator.
-	fn insert_advertisement(&mut self, on_relay_parent: Hash) -> Result<CollatorId, AdvertisementError> {
+	fn insert_advertisement(&mut self, on_relay_parent: Hash)
+		-> std::result::Result<(CollatorId, ParaId), AdvertisementError>
+	{
 		match self.state {
 			PeerState::Connected(_) => Err(AdvertisementError::UndeclaredCollator),
 			_ if !self.view.contains(&on_relay_parent) => Err(AdvertisementError::OutOfPeerView),
 			PeerState::Collating(ref mut state) => {
 				if state.advertisements.insert(on_relay_parent) {
 					state.last_active = Instant::now();
-					Ok(state.collator_id.clone())
+					Ok((state.collator_id.clone(), state.para_id.clone()))
 				} else {
 					Err(AdvertisementError::Duplicate)
 				}
@@ -220,7 +222,7 @@ impl PeerData {
 	/// This will overwrite any previous call to `set_collating` and should only be called
 	/// if `is_collating` is false.
 	fn set_collating(&mut self, collator_id: CollatorId, para_id: ParaId) {
-		self.state = PeerStating::Collating(CollatingPeerState {
+		self.state = PeerState::Collating(CollatingPeerState {
 			collator_id,
 			para_id,
 			advertisements: HashSet::new(),
@@ -289,7 +291,7 @@ fn collator_peer_id(
 ) -> Option<PeerId> {
 	peer_data.iter()
 		.find_map(|(peer, data)|
-			data.collator_id.filter(|c| if c == collator_id).map(|_| peer.clone())
+			data.collator_id().filter(|c| c == &collator_id).map(|_| peer.clone())
 		)
 }
 
@@ -317,40 +319,40 @@ where
 }
 
 /// Report a collator for some malicious actions.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn report_collator<Context>(
 	ctx: &mut Context,
-	state: &State,
+	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 )
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	if let Some(peer_id) = collator_peer_id(&state.peer_data, &id) {
+	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, COST_REPORT_BAD).await;
 	}
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn note_good_collation<Context>(
 	ctx: &mut Context,
-	state: &mut State,
+	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 )
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	if let Some(peer_id) = collator_peer_id(&state.peer_data, &id) {
+	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, BENEFIT_NOTIFY_GOOD).await;
 	}
 }
 
 /// Notify a collator that its collation got seconded.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn notify_collation_seconded(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
-	state: &mut State,
+	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 	statement: SignedFullStatement,
 ) {
@@ -363,12 +365,12 @@ async fn notify_collation_seconded(
 		return;
 	}
 
-	if let Some(peer_id) = collator_peer_id(&state.peer_data, &id) {
+	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
 
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(
-				peer_ids,
+				vec![peer_id],
 				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 			)
 		)).await;
@@ -388,7 +390,7 @@ async fn handle_peer_view_change(
 
 	peer_data.update_view(view);
 	state.requested_collations
-		.retain(|(rp, _, pid), _| pid != peer_id || !peer_data.has_advertised(&rp));
+		.retain(|(rp, _, pid), _| pid != &peer_id || !peer_data.has_advertised(&rp));
 
 	Ok(())
 }
@@ -505,7 +507,7 @@ where
 				return
 			}
 
-			let mut peer_data = match state.peer_data.get_mut(&origin) {
+			let peer_data = match state.peer_data.get_mut(&origin) {
 				Some(p) => p,
 				None => {
 					modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
@@ -533,14 +535,13 @@ where
 
 			peer_data.set_collating(collator_id, para_id);
 		}
-		AdvertiseCollation(relay_parent, para_id) => {
+		AdvertiseCollation(relay_parent) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
 
 			if !state.view.contains(&relay_parent) {
 				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
-					%para_id,
 					?relay_parent,
 					"Advertise collation out of view",
 				);
@@ -558,7 +559,7 @@ where
 			};
 
 			match peer_data.insert_advertisement(relay_parent) {
-				Ok(collator_id) => {
+				Ok((collator_id, para_id)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						peer_id = ?origin,
@@ -567,13 +568,12 @@ where
 						"Received advertise collation",
 					);
 
-					notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await;
+					notify_candidate_selection(ctx, collator_id, relay_parent, para_id).await;
 				}
 				Err(e) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						peer_id = ?origin,
-						%para_id,
 						?relay_parent,
 						error = ?e,
 						"Invalid advertisement",
@@ -705,13 +705,13 @@ where
 			fetch_collation(ctx, state, relay_parent, collator_id, para_id, tx).await;
 		}
 		ReportCollator(id) => {
-			report_collator(ctx, state, id).await;
+			report_collator(ctx, &state.peer_data, id).await;
 		}
 		NoteGoodCollation(id) => {
-			note_good_collation(ctx, state, id).await;
+			note_good_collation(ctx, &state.peer_data, id).await;
 		}
 		NotifyCollationSeconded(id, statement) => {
-			notify_collation_seconded(ctx, state, id, statement).await;
+			notify_collation_seconded(ctx, &state.peer_data, id, statement).await;
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
@@ -917,7 +917,7 @@ where
 				modify_reputation(ctx, *peer_id, COST_REQUEST_TIMED_OUT).await;
 			}
 			Ok(CollationFetchingResponse::Collation(receipt, _))
-				if receipt.descriptor().para_id != para_id =>
+				if receipt.descriptor().para_id != *para_id =>
 			{
 				tracing::debug!(
 					target: LOG_TARGET,

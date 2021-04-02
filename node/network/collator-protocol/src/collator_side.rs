@@ -702,14 +702,14 @@ async fn handle_incoming_peer_message(
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-		Declare(_, _) => {
+		Declare(_, _, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				?origin,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
-		AdvertiseCollation(_, _) => {
+		AdvertiseCollation(_) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				?origin,
