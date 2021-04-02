@@ -16,11 +16,10 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryFrom};
+use core::{result, convert::TryFrom, fmt::Debug};
 use alloc::vec::Vec;
-
 use parity_scale_codec::{self, Encode, Decode};
-use super::{VersionedXcm, VersionedMultiAsset};
+use super::{VersionedXcmGeneric, VersionedMultiAsset, DoubleEncoded};
 
 mod junction;
 mod multi_asset;
@@ -61,7 +60,7 @@ pub enum OriginKind {
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Xcm {
+pub enum XcmGeneric<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -71,7 +70,7 @@ pub enum Xcm {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -87,7 +86,7 @@ pub enum Xcm {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -104,7 +103,7 @@ pub enum Xcm {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -118,18 +117,7 @@ pub enum Xcm {
 	/// Errors:
 	Balances { #[codec(compact)] query_id: u64, assets: Vec<MultiAsset> },
 
-	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
-	/// of origin `origin_type`.
-	///
-	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
-	/// - `call`: The encoded transaction to be applied.
-	///
-	/// Safety: No concerns.
-	///
-	/// Kind: *Instruction*.
-	///
-	/// Errors:
-	Transact { origin_type: OriginKind, call: Vec<u8> },
+	Unused4,
 
 	/// Unused
 	Unused5,
@@ -181,19 +169,73 @@ pub enum Xcm {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] recipient: u32,
 	},
+
+	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
+	/// of origin `origin_type`.
+	///
+	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight and will
+	///   be used in the weight determination arithmetic.
+	/// - `call`: The encoded transaction to be applied.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	Transact { origin_type: OriginKind, max_weight: u64, call: DoubleEncoded<Call> },
 }
 
-impl From<Xcm> for VersionedXcm {
-	fn from(x: Xcm) -> Self {
-		VersionedXcm::V0(x)
+/// The basic concrete type of `XcmGeneric`, which doesn't make any assumptions about the format of a
+/// call other than it is pre-encoded.
+pub type Xcm = XcmGeneric<()>;
+
+impl<
+	Call: Clone + Eq + PartialEq + Encode + Decode + Debug
+> From<XcmGeneric<Call>> for VersionedXcmGeneric<Call> {
+	fn from(x: XcmGeneric<Call>) -> Self {
+		VersionedXcmGeneric::V0(x)
 	}
 }
 
-impl TryFrom<VersionedXcm> for Xcm {
+impl<
+	Call: Clone + Eq + PartialEq + Encode + Decode + Debug
+> TryFrom<VersionedXcmGeneric<Call>> for XcmGeneric<Call> {
 	type Error = ();
-	fn try_from(x: VersionedXcm) -> result::Result<Self, ()> {
+	fn try_from(x: VersionedXcmGeneric<Call>) -> result::Result<Self, ()> {
 		match x {
-			VersionedXcm::V0(x) => Ok(x),
+			VersionedXcmGeneric::V0(x) => Ok(x),
+		}
+	}
+}
+
+impl<Call> XcmGeneric<Call> {
+	pub fn into<C>(self) -> XcmGeneric<C> { XcmGeneric::from(self) }
+	pub fn from<C>(xcm: XcmGeneric<C>) -> Self {
+		use XcmGeneric::*;
+		match xcm {
+			WithdrawAsset { assets, effects }
+				=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReserveAssetDeposit { assets, effects }
+				=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(Order::into).collect() },
+			TeleportAsset { assets, effects }
+				=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			Balances { query_id: u64, assets }
+				=> Balances { query_id: u64, assets },
+			Unused4
+				=> Unused4,
+			Unused5
+				=> Unused5,
+			Unused6
+				=> Unused6,
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity}
+				=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
+			HrmpChannelAccepted { recipient}
+				=> HrmpChannelAccepted { recipient},
+			HrmpChannelClosing { initiator, sender, recipient}
+				=> HrmpChannelClosing { initiator, sender, recipient},
+			Transact { origin_type, max_weight, call}
+				=> Transact { origin_type, max_weight, call: call.into() }
 		}
 	}
 }

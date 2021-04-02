@@ -17,26 +17,52 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::{prelude::*, marker::PhantomData};
-use frame_support::dispatch::Dispatchable;
-use parity_scale_codec::Decode;
+use frame_support::{
+	ensure, weights::GetDispatchInfo,
+	dispatch::{Weight, Dispatchable}
+};
+use parity_scale_codec::{self as codec, Encode, Decode};
 use xcm::v0::{
 	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
-	MultiLocation, MultiAsset,
+	MultiLocation, MultiAsset, XcmGeneric,
 };
 
 pub mod traits;
-mod assets;
-mod config;
-
 use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
+
+mod assets;
 pub use assets::{Assets, AssetId};
-pub use config::Config;
+mod config;
+pub use config::{Config, WeightOf, BuyWeight, ShouldExecute};
 
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
+// TODO: Introduce max_weight and return used_weight.
+// TODO: Use XcmGeneric/VersionedXcmGeneric and a new `EncodedCall` type which can decode when needed for weight.
+
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
-		let (mut holding, effects) = match (origin.clone(), msg) {
+		Self::do_execute_xcm(origin, true, msg, &mut 0)
+	}
+}
+
+impl<Config: config::Config> XcmExecutor<Config> {
+	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Vec<MultiAsset> {
+		let inv_dest = Config::LocationInverter::invert_location(&dest);
+		assets.reanchor(&inv_dest);
+		assets.into_assets_iter().collect::<Vec<_>>()
+	}
+
+	fn do_execute_xcm(origin: MultiLocation, top_level: bool, message: Xcm, weight_credit: &mut Weight) -> XcmResult {
+		let message = XcmGeneric::<Config::Call>::from(message);
+
+		let weight = Config::Weigher::weight_of(&mut message)
+			.map_err(|_| XcmError::Undefined)?;
+
+		Config::Barrier::should_execute(&origin, top_level, &message,weight, weight_credit)
+			.map_err(|()| XcmError::Undefined)?;
+
+		let (mut holding, effects) = match (origin.clone(), message) {
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
@@ -68,45 +94,42 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 					Err(XcmError::UntrustedTeleportLocation)?
 				}
 			}
-			(origin, Xcm::Transact { origin_type, call }) => {
+			(origin, Xcm::Transact { origin_type, max_weight,  mut call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
-
-				// TODO: Weight fees should be paid.
 
 				// TODO: allow this to be configurable in the trait.
 				// TODO: allow the trait to issue filters for the relay-chain
-				let message_call = Config::Call::decode(&mut &call[..]).map_err(|_| XcmError::FailedToDecode)?;
+				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
-				let _ok = message_call.dispatch(dispatch_origin).is_ok();
-				// Not much to do with the result as it is. It's up to the parachain to ensure that the
-				// message makes sense.
+				let weight = message_call.get_dispatch_info().weight;
+				ensure!(max_weight >= weight, XcmError::Undefined);
+				let actual_weight = match message_call.dispatch(dispatch_origin) {
+					Ok(post_info) => post_info.actual_weight,
+					Err(error_and_info) => {
+						// Not much to do with the result as it is. It's up to the parachain to ensure that the
+						// message makes sense.
+						error_and_info.post_info.actual_weight
+					}
+				}.unwrap_or(weight);
+				let _surplus_weight = max_weight - actual_weight;
+
+				// TODO: reduce used_weight by surplus_weight.
+				// FUTURE: Here is where we could provide surplus_weight to Config::Barrier if we wanted to
+				// support transact weight surplus crediting.
 				return Ok(());
 			}
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
 		};
 
-		// TODO: stuff that should happen after holding is populated but before effects,
-		//   including depositing fees for effects from holding account.
-
 		for effect in effects.into_iter() {
 			let _ = Self::execute_effects(&origin, &mut holding, effect)?;
 		}
 
-		// TODO: stuff that should happen after effects including refunding unused fees.
-
 		Ok(())
 	}
-}
 
-impl<Config: config::Config> XcmExecutor<Config> {
-	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Vec<MultiAsset> {
-		let inv_dest = Config::LocationInverter::invert_location(&dest);
-		assets.reanchor(&inv_dest);
-		assets.into_assets_iter().collect::<Vec<_>>()
-	}
-
-	fn execute_effects(_origin: &MultiLocation, holding: &mut Assets, effect: Order) -> XcmResult {
+	fn execute_effects(origin: &MultiLocation, holding: &mut Assets, effect: Order) -> XcmResult {
 		match effect {
 			Order::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
@@ -134,6 +157,24 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			Order::QueryHolding { query_id, dest, assets } => {
 				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })
+			}
+			Order::BuyExecution { fees, weight, halt_on_error, xcm } => {
+				// pay for `weight` using up to `fees` of the holding account.
+				let desired_weight = Weight::from(weight);
+				let max_fee = holding.checked_sub_assign(fees).map_err(|()| XcmError::Undefined)?;
+				let surplus = Config::Sale::buy_weight(desired_weight, max_fee)?;
+				holding.saturating_subsume_all(surplus);
+				let mut remaining_weight= desired_weight;
+				for message in xcm.into_iter() {
+					match Self::do_execute_xcm(origin.clone(), false, message, &mut remaining_weight) {
+						Err(e) if halt_on_error => return Err(e),
+						_ => {}
+					}
+				}
+				Ok(())
+
+				// FUTURE: Here is where we would provide surplus_weight to Config::Barrier if we wanted to
+				// support weight refunding
 			}
 			_ => Err(XcmError::UnhandledEffect)?,
 		}

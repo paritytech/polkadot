@@ -26,12 +26,17 @@ extern crate alloc;
 use parity_scale_codec::{Encode, Decode};
 
 pub mod v0;
+mod double_encoded;
+pub use double_encoded::DoubleEncoded;
 
 /// A single XCM message, together with its version code.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum VersionedXcm {
-	V0(v0::Xcm),
+pub enum VersionedXcmGeneric<Call> {
+	V0(v0::XcmGeneric<Call>),
 }
+
+/// The basic VersionedXcm type which just uses the `Vec<u8>` as an encoded call.
+pub type VersionedXcm = VersionedXcmGeneric<()>;
 
 /// A versioned multi-location, a relative location of a cross-consensus system identifier.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]

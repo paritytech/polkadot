@@ -33,12 +33,27 @@ impl AssetId {
 		}
 		Ok(())
 	}
+	pub fn into_fungible_multiasset(self, amount: u128) -> MultiAsset {
+		match self {
+			AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+			AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+		}
+	}
+	pub fn into_non_fungible_multiasset(self, instance: AssetInstance) -> MultiAsset {
+		match self {
+			AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
+			AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
+		}
+	}
 }
 
 /// List of concretely identified fungible and non-fungible assets.
-#[derive(Default, Clone, RuntimeDebug)]
+#[derive(Default, Clone, RuntimeDebug, Eq, PartialEq)]
 pub struct Assets {
 	pub fungible: BTreeMap<AssetId, u128>,
+
+	// OPTIMIZE: Consider BTreeMap<AssetId, BTreeSet<AssetInstance>>
+	//   or even BTreeMap<AssetId, SortedVec<AssetInstance>>
 	pub non_fungible: BTreeSet<(AssetId, AssetInstance)>,
 }
 
@@ -58,7 +73,17 @@ impl From<Assets> for Vec<MultiAsset> {
 	}
 }
 
+impl From<MultiAsset> for Assets {
+	fn from(asset: MultiAsset) -> Assets {
+		let mut result = Self::default();
+		result.saturating_subsume(asset);
+		result
+	}
+}
+
 impl Assets {
+	pub fn new() -> Self { Self::default() }
+
 	/// An iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		self.fungible.iter()
@@ -99,6 +124,14 @@ impl Assets {
 		fungible.chain(non_fungible)
 	}
 
+	pub fn saturating_subsume_all(&mut self, assets: Assets) {
+		// OPTIMIZE: Could be done with a much faster btree entry merge and only sum the entries with the
+		// same key.
+		for asset in assets.into_assets_iter() {
+			self.saturating_subsume(asset)
+		}
+	}
+
 	/// Modify `self` to include a `MultiAsset`, saturating if necessary.
 	/// Only works on concretely identified assets; wildcards will be swallowed without error.
 	pub fn saturating_subsume(&mut self, asset: MultiAsset) {
@@ -116,6 +149,100 @@ impl Assets {
 				self.saturating_subsume_non_fungible(AssetId::Abstract(class), instance);
 			}
 			_ => (),
+		}
+	}
+
+	/// Consumes `self` and returns `Ok` iff it contains at least `asset`.
+	///
+	/// Wildcard assets in `self` are not supported and will result in an error.
+	///
+	/// `asset` may be a wildcard.
+	///
+	/// Returns `Ok` with the `self` minus `asset` and the non-wildcard equivalence of `asset` taken if `self`
+	/// contains `asset`, and `Err` with `self` otherwise.
+	pub fn checked_sub(mut self, asset: MultiAsset) -> Result<(Self, Assets), Self> {
+		match self.checked_sub_assign(asset) {
+			Ok(taken) => Ok((self, taken)),
+			Err(()) => Err(self),
+		}
+	}
+
+	/// Mutates `self` and returns `true` iff it contains at least `asset`.
+	///
+	/// Wildcard assets in `self` are not supported and will result in an error.
+	///
+	/// `asset` may be a wildcard.
+	///
+	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
+	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
+	pub fn checked_sub_assign(&mut self, asset: MultiAsset) -> Result<Assets, ()> {
+		match asset {
+			MultiAsset::None => Ok(Assets::new()),
+			MultiAsset::ConcreteFungible { id, amount } => self.try_take_fungible(AssetId::Concrete(id), amount),
+			MultiAsset::AbstractFungible { id, amount } => self.try_take_fungible(AssetId::Abstract(id), amount),
+			MultiAsset::ConcreteNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Concrete(class), instance),
+			MultiAsset::AbstractNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Abstract(class), instance),
+			MultiAsset::AllAbstractFungible { id } => Ok(self.take_fungible(&AssetId::Abstract(id))),
+			MultiAsset::AllConcreteFungible { id } => Ok(self.take_fungible(&AssetId::Concrete(id))),
+			MultiAsset::AllAbstractNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Abstract(class))),
+			MultiAsset::AllConcreteNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Concrete(class))),
+			MultiAsset::AllFungible => {
+				let mut taken = Assets::new();
+				mem::swap(&mut self.fungible, &mut taken.fungible);
+				Ok(taken)
+			},
+			MultiAsset::AllNonFungible => {
+				let mut taken = Assets::new();
+				mem::swap(&mut self.non_fungible, &mut taken.non_fungible);
+				Ok(taken)
+			},
+			MultiAsset::All => Ok(self.swapped(Assets::new())),
+		}
+	}
+
+	pub fn try_take_fungible(&mut self, id: AssetId, amount: u128) -> Result<Assets, ()> {
+		self.checked_sub_assign_fungible(&id, amount)?;
+		Ok(id.into_fungible_multiasset(amount).into())
+	}
+
+	pub fn try_take_non_fungible(&mut self, id: AssetId, instance: AssetInstance) -> Result<Assets, ()> {
+		let asset_id_instance = (id, instance);
+		self.checked_sub_assign_non_fungible(&asset_id_instance)?;
+		let (asset_id, instance) = asset_id_instance;
+		Ok(asset_id.into_non_fungible_multiasset(instance).into())
+	}
+
+	pub fn take_fungible(&mut self, id: &AssetId) -> Assets {
+		let mut taken = Assets::new();
+		if let Some((id, amount)) = self.fungible.remove_entry(&id) {
+			taken.fungible.insert(id, amount);
+		}
+		taken
+	}
+
+	pub fn take_non_fungible(&mut self, id: &AssetId) -> Assets {
+		let mut taken = Assets::new();
+		let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
+		non_fungible.into_iter().for_each(|(c, instance)| {
+			if &c == id {
+				taken.non_fungible.insert((c, instance));
+			} else {
+				self.non_fungible.insert((c, instance));
+			}
+		});
+		taken
+	}
+
+	pub fn checked_sub_assign_fungible(&mut self, id: &AssetId, amount: u128) -> Result<(), ()> {
+		let self_amount = self.fungible.get_mut(&id).ok_or(())?;
+		*self_amount = self_amount.checked_sub(amount).ok_or(())?;
+		Ok(())
+	}
+
+	pub fn checked_sub_assign_non_fungible(&mut self, class_instance: &(AssetId, AssetInstance)) -> Result<(), ()> {
+		match self.non_fungible.remove(class_instance) {
+			true => Ok(()),
+			false => Err(()),
 		}
 	}
 
