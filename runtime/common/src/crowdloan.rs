@@ -514,8 +514,9 @@ decl_module! {
 			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
 			// Assuming state is not corrupted, the child trie should already be cleaned up
-			// an all funds in the crowdloan account have been returned. If not, governance
+			// and all funds in the crowdloan account have been returned. If not, governance
 			// can take care of that.
+			debug_assert!(Self::contribution_iterator(fund.trie_index).count().is_zero());
 
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
