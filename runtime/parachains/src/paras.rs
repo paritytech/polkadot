@@ -666,7 +666,9 @@ impl<T: Config> Module<T> {
 		let lifecycle = ParaLifecycles::get(&id);
 		match lifecycle {
 			// If para is not registered, nothing to do!
-			None => return Ok(()),
+			None => {
+				return Ok(())
+			},
 			Some(ParaLifecycle::Parathread) => {
 				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParathread);
 			},

@@ -431,7 +431,6 @@ mod tests {
 	use frame_system::limits;
 	use frame_support::{
 		traits::{OnInitialize, OnFinalize},
-		error::BadOrigin,
 		assert_ok, assert_noop, parameter_types,
 	};
 	use runtime_parachains::{configuration, shared};
@@ -748,16 +747,11 @@ mod tests {
 			));
 			run_to_session(2);
 			assert!(Parachains::is_parathread(32.into()));
-			// Origin check
+			// Owner check
 			assert_noop!(Registrar::deregister(
-				Origin::signed(1),
+				Origin::signed(2),
 				32.into(),
-			), BadOrigin);
-			// not registered
-			assert_noop!(Registrar::deregister(
-				Origin::root(),
-				33.into(),
-			), Error::<Test>::NotParathread);
+			), Error::<Test>::NotOwner);
 			assert_ok!(Registrar::make_parachain(32.into()));
 			run_to_session(4);
 			// Cant directly deregister parachain
@@ -800,11 +794,13 @@ mod tests {
 			// Both paras initiate a swap
 			assert_ok!(Registrar::swap(
 				para_origin(23.into()),
-				32.into()
+				23.into(),
+				32.into(),
 			));
 			assert_ok!(Registrar::swap(
 				para_origin(32.into()),
-				23.into()
+				32.into(),
+				23.into(),
 			));
 
 			run_to_session(6);
@@ -947,9 +943,9 @@ mod benchmarking {
 			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
 			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
-			Registrar::<T>::swap(parathread_origin.into(), parachain)?;
+			Registrar::<T>::swap(parathread_origin.into(), parathread, parachain)?;
 		}: {
-			Registrar::<T>::swap(parachain_origin.into(), parathread)?;
+			Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
 		} verify {
 			next_scheduled_session::<T>();
 			// Swapped!
