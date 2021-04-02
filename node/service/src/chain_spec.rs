@@ -387,7 +387,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			//5Fnu4YYBx9V71ihCBkJyFGsKw9Q2jjNzRQL9kRNpKTPNSAhc
 			hex!["03e9393ee30ae95fc2b7864230f53e45409a807949390140ce2bc77756cdb4bb83"].unchecked_into(),
 		),
-			
+
 	];
 
 	const ENDOWMENT: u128 = 1_000_000 * WND;
@@ -839,7 +839,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			hex!["4e262811acdfe94528bfc3c65036080426a0e1301b9ada8d687a70ffcae99c26"].unchecked_into(),
 			//5E41Znrr2YtZu8bZp3nvRuLVHg3jFksfQ3tXuviLku4wsao7
 			hex!["025e84e95ed043e387ddb8668176b42f8e2773ddd84f7f58a6d9bf436a4b527986"].unchecked_into(),
-		),				
+		),
 	];
 
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
@@ -891,7 +891,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				code_retention_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
@@ -1440,7 +1440,7 @@ pub fn rococo_testnet_genesis(
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				code_retention_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,

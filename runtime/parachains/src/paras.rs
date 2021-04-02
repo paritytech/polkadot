@@ -575,14 +575,14 @@ impl<T: Config> Module<T> {
 	// that are too old.
 	fn prune_old_code(now: T::BlockNumber) -> Weight {
 		let config = configuration::Module::<T>::config();
-		let acceptance_period = config.acceptance_period;
-		if now <= acceptance_period {
+		let code_retention_period = config.code_retention_period;
+		if now <= code_retention_period {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
 			return weight;
 		}
 
 		// The height of any changes we no longer should keep around.
-		let pruning_height = now - (acceptance_period + One::one());
+		let pruning_height = now - (code_retention_period + One::one());
 
 		let pruning_tasks_done =
 			<Self as Store>::PastCodePruning::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
@@ -1071,7 +1071,7 @@ mod tests {
 
 	#[test]
 	fn para_past_code_pruning_in_initialize() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
@@ -1089,7 +1089,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1113,7 +1113,7 @@ mod tests {
 				<Paras as Store>::PastCodeMeta::insert(&id, &code_meta);
 			}
 
-			let pruned_at: BlockNumber = included_block + acceptance_period + 1;
+			let pruned_at: BlockNumber = included_block + code_retention_period + 1;
 			assert_eq!(<Paras as Store>::PastCodeHash::get(&(id, at_block)), Some(validation_code.hash()));
 			check_code_is_stored(&validation_code);
 
@@ -1131,7 +1131,7 @@ mod tests {
 
 	#[test]
 	fn note_new_head_sets_head() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
@@ -1144,7 +1144,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1165,7 +1165,7 @@ mod tests {
 
 	#[test]
 	fn note_past_code_sets_up_pruning_correctly() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
@@ -1183,7 +1183,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1218,7 +1218,7 @@ mod tests {
 
 	#[test]
 	fn code_upgrade_applied_after_delay() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
@@ -1234,7 +1234,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					validation_upgrade_delay,
 					..Default::default()
 				},
@@ -1309,7 +1309,7 @@ mod tests {
 
 	#[test]
 	fn code_upgrade_applied_after_delay_even_when_late() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
@@ -1325,7 +1325,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					validation_upgrade_delay,
 					..Default::default()
 				},
@@ -1379,7 +1379,7 @@ mod tests {
 
 	#[test]
 	fn submit_code_change_when_not_allowed_is_err() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1393,7 +1393,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1422,7 +1422,7 @@ mod tests {
 
 	#[test]
 	fn full_parachain_cleanup_storage() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
@@ -1437,7 +1437,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1509,7 +1509,7 @@ mod tests {
 			check_code_is_not_stored(&new_code);
 
 			// run to do the final cleanup
-			let cleaned_up_at = 3 + acceptance_period + 1;
+			let cleaned_up_at = 3 + code_retention_period + 1;
 			run_to_block(cleaned_up_at, None);
 
 			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
@@ -1600,7 +1600,7 @@ mod tests {
 
 	#[test]
 	fn code_at_with_intermediate() {
-		let acceptance_period = 10;
+		let code_retention_period = 10;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1614,7 +1614,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1642,7 +1642,7 @@ mod tests {
 			assert_eq!(Paras::validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
 			assert_eq!(Paras::validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
 
-			run_to_block(acceptance_period + 5, None);
+			run_to_block(code_retention_period + 5, None);
 
 			// at <= intermediate not allowed
 			assert_eq!(Paras::validation_code_at(para_id, 10, Some(10)), None);
@@ -1651,8 +1651,8 @@ mod tests {
 	}
 
 	#[test]
-	fn code_at_returns_up_to_end_of_acceptance_period() {
-		let acceptance_period = 10;
+	fn code_at_returns_up_to_end_of_code_retention_period() {
+		let code_retention_period = 10;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1666,7 +1666,7 @@ mod tests {
 			paras: GenesisConfig { paras, ..Default::default() },
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
-					acceptance_period,
+					code_retention_period,
 					..Default::default()
 				},
 				..Default::default()
@@ -1691,12 +1691,12 @@ mod tests {
 			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
 			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
 
-			run_to_block(10 + acceptance_period, None);
+			run_to_block(10 + code_retention_period, None);
 
 			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
 			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
 
-			run_to_block(10 + acceptance_period + 1, None);
+			run_to_block(10 + code_retention_period + 1, None);
 
 			// code entry should be pruned now.
 
