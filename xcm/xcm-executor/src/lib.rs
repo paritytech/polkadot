@@ -24,7 +24,7 @@ use frame_support::{
 use parity_scale_codec::{self as codec, Encode, Decode};
 use xcm::v0::{
 	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
-	MultiLocation, MultiAsset, XcmGeneric,
+	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric,
 };
 
 pub mod traits;
@@ -41,8 +41,10 @@ pub struct XcmExecutor<Config>(PhantomData<Config>);
 // TODO: Use XcmGeneric/VersionedXcmGeneric and a new `EncodedCall` type which can decode when needed for weight.
 
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
-	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
-		Self::do_execute_xcm(origin, true, msg, &mut 0)
+	fn execute_xcm(origin: MultiLocation, message: Xcm) -> XcmResult {
+		// TODO: We should identify recursive bombs here and bail.
+		let message = XcmGeneric::<Config::Call>::from(message);
+		Self::do_execute_xcm(origin, true, message, &mut 0)
 	}
 }
 
@@ -53,17 +55,22 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		assets.into_assets_iter().collect::<Vec<_>>()
 	}
 
-	fn do_execute_xcm(origin: MultiLocation, top_level: bool, message: Xcm, weight_credit: &mut Weight) -> XcmResult {
-		let message = XcmGeneric::<Config::Call>::from(message);
-
-		let weight = Config::Weigher::weight_of(&mut message)
+	fn do_execute_xcm(
+		origin: MultiLocation,
+		top_level: bool,
+		mut message: XcmGeneric<Config::Call>,
+		weight_credit: &mut Weight,
+	) -> XcmResult {
+		// This is the weight of everything that cannot be paid for. This basically means all computation
+		// except any XCM which is behind an Order::BuyExecution.
+		let unpaid_weight = Config::Weigher::weight_of(&mut message)
 			.map_err(|_| XcmError::Undefined)?;
 
-		Config::Barrier::should_execute(&origin, top_level, &message,weight, weight_credit)
+		Config::Barrier::should_execute(&origin, top_level, &message,unpaid_weight, weight_credit)
 			.map_err(|()| XcmError::Undefined)?;
 
 		let (mut holding, effects) = match (origin.clone(), message) {
-			(origin, Xcm::WithdrawAsset { assets, effects }) => {
+			(origin, XcmGeneric::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
 				for asset in assets {
@@ -72,7 +79,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				(holding, effects)
 			}
-			(origin, Xcm::ReserveAssetDeposit { assets, effects }) => {
+			(origin, XcmGeneric::ReserveAssetDeposit { assets, effects }) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				if assets.iter().all(|asset| Config::IsReserve::filter_asset_location(asset, &origin)) {
 					// We only trust the origin to send us assets that they identify as their
@@ -82,7 +89,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Err(XcmError::UntrustedReserveLocation)?
 				}
 			}
-			(origin, Xcm::TeleportAsset { assets, effects }) => {
+			(origin, XcmGeneric::TeleportAsset { assets, effects }) => {
 				// check whether we trust origin to teleport this asset to us via config trait.
 				// TODO: should de-wildcard `assets` before passing in.
 				log::debug!(target: "runtime::xcm-executor", "Teleport from {:?}", origin);
@@ -94,7 +101,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Err(XcmError::UntrustedTeleportLocation)?
 				}
 			}
-			(origin, Xcm::Transact { origin_type, max_weight,  mut call }) => {
+			(origin, XcmGeneric::Transact { origin_type, max_weight,  mut call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 
 				// TODO: allow this to be configurable in the trait.
@@ -129,16 +136,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(())
 	}
 
-	fn execute_effects(origin: &MultiLocation, holding: &mut Assets, effect: Order) -> XcmResult {
+	fn execute_effects(origin: &MultiLocation, holding: &mut Assets, effect: OrderGeneric<Config::Call>) -> XcmResult {
 		match effect {
-			Order::DepositAsset { assets, dest } => {
+			OrderGeneric::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 				Ok(())
 			},
-			Order::DepositReserveAsset { assets, dest, effects } => {
+			OrderGeneric::DepositReserveAsset { assets, dest, effects } => {
 				let deposited = holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
@@ -146,21 +153,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })
 			},
-			Order::InitiateReserveWithdraw { assets, reserve, effects} => {
+			OrderGeneric::InitiateReserveWithdraw { assets, reserve, effects} => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &reserve);
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })
 			}
-			Order::InitiateTeleport { assets, dest, effects} => {
+			OrderGeneric::InitiateTeleport { assets, dest, effects} => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })
 			}
-			Order::QueryHolding { query_id, dest, assets } => {
+			OrderGeneric::QueryHolding { query_id, dest, assets } => {
 				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })
 			}
-			Order::BuyExecution { fees, weight, halt_on_error, xcm } => {
+			OrderGeneric::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				// pay for `weight` using up to `fees` of the holding account.
-				let desired_weight = Weight::from(weight);
+				let desired_weight = Weight::from(weight + debt);
 				let max_fee = holding.checked_sub_assign(fees).map_err(|()| XcmError::Undefined)?;
 				let surplus = Config::Sale::buy_weight(desired_weight, max_fee)?;
 				holding.saturating_subsume_all(surplus);

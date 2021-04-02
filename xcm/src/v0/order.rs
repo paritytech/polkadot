@@ -22,7 +22,8 @@ use super::{MultiAsset, MultiLocation, XcmGeneric};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Order<Call> {
+#[codec(dumb_trait_bound)]
+pub enum OrderGeneric<Call> {
 	/// Do nothing. Not generally used.
 	Null,
 
@@ -46,7 +47,7 @@ pub enum Order<Call> {
 	///   `dest.
 	///
 	/// Errors:
-	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<Call>> },
+	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
@@ -68,7 +69,7 @@ pub enum Order<Call> {
 	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
 	///
 	/// Errors:
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<Call>> },
+	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -77,7 +78,7 @@ pub enum Order<Call> {
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
 	///
 	/// Errors:
-	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<Call>> },
+	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
 	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
 	///
@@ -94,29 +95,33 @@ pub enum Order<Call> {
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:
-	BuyExecution { fees: MultiAsset, weight: u64, halt_on_error: bool, xcm: Vec<XcmGeneric<Call>> },
+	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<XcmGeneric<Call>> },
 }
 
-impl<Call> Order<Call> {
-	pub fn into<C>(self) -> Order<C> { Order::from(self) }
-	pub fn from<C>(xcm: Order<C>) -> Self {
-		use Order::*;
-		match xcm {
+pub type Order = OrderGeneric<()>;
+
+impl<Call> OrderGeneric<Call> {
+	pub fn into<C>(self) -> OrderGeneric<C> { OrderGeneric::from(self) }
+	pub fn from<C>(order: OrderGeneric<C>) -> Self {
+		use OrderGeneric::*;
+		match order {
 			Null => Null,
 			DepositAsset { assets, dest }
 				=> DepositAsset { assets, dest },
 			DepositReserveAsset { assets, dest, effects }
-				=> DepositReserveAsset { assets, dest, effects: effects.map(Order::from) },
+				=> DepositReserveAsset { assets, dest, effects },
 			ExchangeAsset { give, receive }
 				=> ExchangeAsset { give, receive },
 			InitiateReserveWithdraw { assets, reserve, effects }
-				=> InitiateReserveWithdraw { assets, reserve, effects: effects.map(Order::from) },
+				=> InitiateReserveWithdraw { assets, reserve, effects },
 			InitiateTeleport { assets, dest, effects }
 				=> InitiateTeleport { assets, dest, effects },
 			QueryHolding { query_id, dest, assets }
 				=> QueryHolding { query_id, dest, assets },
-			BuyExecution { fees, weight, halt_on_error, xcm }
-				=> BuyExecution { fees, weight, halt_on_error, xcm: xcm.map(XcmGeneric::from) },
+			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
+				let xcm = xcm.into_iter().map(XcmGeneric::from).collect();
+				BuyExecution { fees, weight, debt, halt_on_error, xcm }
+			},
 		}
 	}
 }

@@ -29,7 +29,7 @@ mod traits;
 pub use junction::{Junction, NetworkId};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
-pub use order::Order;
+pub use order::{Order, OrderGeneric};
 pub use traits::{Error, Result, SendXcm, ExecuteXcm};
 
 // TODO: Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode the number of
@@ -70,7 +70,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -86,7 +86,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -103,7 +103,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -215,11 +215,11 @@ impl<Call> XcmGeneric<Call> {
 		use XcmGeneric::*;
 		match xcm {
 			WithdrawAsset { assets, effects }
-				=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+				=> WithdrawAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
 			ReserveAssetDeposit { assets, effects }
-				=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(Order::into).collect() },
+				=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
 			TeleportAsset { assets, effects }
-				=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+				=> TeleportAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
 			Balances { query_id: u64, assets }
 				=> Balances { query_id: u64, assets },
 			Unused4

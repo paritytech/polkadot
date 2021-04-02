@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::marker::PhantomData;
-use xcm::v0::{Xcm, SendXcm, MultiLocation, MultiAsset, Order, XcmGeneric};
+use parity_scale_codec::Decode;
+use xcm::v0::{Xcm, SendXcm, MultiLocation, MultiAsset, Order, XcmGeneric, OrderGeneric};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}
 };
@@ -30,28 +31,19 @@ pub trait WeightOf<Call> {
 }
 
 pub struct FixedWeightOf<T, C>(PhantomData<(T, C)>);
-impl<T: Get<Weight>, C: GetDispatchInfo> WeightOf<C> for FixedWeightOf<T, C> {
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightOf<C> for FixedWeightOf<T, C> {
 	fn weight_of(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
 		Ok(match message {
 			XcmGeneric::Transact { call, .. } => {
-				call.ensure_decoded()?;
-				call.as_ref().get_dispatch_info().weight + T::get()
+				call.ensure_decoded()?.get_dispatch_info().weight + T::get()
 			}
 			XcmGeneric::WithdrawAsset { effects, .. }
 			| XcmGeneric::ReserveAssetDeposit { effects, .. }
 			| XcmGeneric::TeleportAsset { effects, .. } => {
-				let mut total = 0;
-				for effect in effects.iter_mut() {
-					match effect {
-						Order::BuyExecution { xcm, .. } => {
-							for xcm in xcm.iter_mut() {
-								total = total.checked_add(Self::weight_of(xcm)?).ok_or(())?
-							}
-						}
-						_ => total = total.checked_add(T::get())
-					}
-				}
-				total
+				effects.iter()
+					.map(|effect| match effect {
+						_ => T::get(),
+					}).sum()
 			}
 			_ => T::get(),
 		})
@@ -93,10 +85,10 @@ pub trait ShouldExecute {
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message
 	///   may utilise in its execution. Typically non-zero only because of prior fee payment, but could
 	///   in principle be due to other factors.
-	fn should_execute(
+	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &Xcm,
+		message: &XcmGeneric<Call>,
 		message_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
@@ -104,10 +96,10 @@ pub trait ShouldExecute {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ShouldExecute for Tuple {
-	fn should_execute(
+	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &Xcm,
+		message: &XcmGeneric<Call>,
 		message_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -123,10 +115,10 @@ impl ShouldExecute for Tuple {
 
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
-	fn should_execute(
+	fn should_execute<Call>(
 		_origin: &MultiLocation,
 		_top_level: bool,
-		_message: &Xcm,
+		_message: &XcmGeneric<Call>,
 		message_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -137,22 +129,22 @@ impl ShouldExecute for TakeWeightCredit {
 
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
-	fn should_execute(
+	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &Xcm,
+		message: &XcmGeneric<Call>,
 		message_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		match message {
-			Xcm::TeleportAsset { effects, .. }
-			| Xcm::WithdrawAsset { effects, ..}
-			| Xcm::ReserveAssetDeposit { effects, ..}
+			XcmGeneric::TeleportAsset { effects, .. }
+			| XcmGeneric::WithdrawAsset { effects, ..}
+			| XcmGeneric::ReserveAssetDeposit { effects, ..}
 				if matches!(
 					effects.first(),
-					Some(Order::BuyExecution { weight, ..}) if *weight >= message_weight
+					Some(OrderGeneric::BuyExecution { debt, ..}) if *debt >= message_weight
 				)
 				=> Ok(()),
 			_ => Err(()),
@@ -162,10 +154,10 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
-	fn should_execute(
+	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,
-		_message: &Xcm,
+		_message: &XcmGeneric<Call>,
 		_message_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
