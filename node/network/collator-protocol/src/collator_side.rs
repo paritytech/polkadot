@@ -1385,7 +1385,11 @@ mod tests {
 	}
 
 	/// Check that the next received message is a `Declare` message.
-	async fn expect_declare_msg(virtual_overseer: &mut VirtualOverseer, test_state: &TestState, peer: &PeerId) {
+	async fn expect_declare_msg(
+		virtual_overseer: &mut VirtualOverseer,
+		test_state: &TestState,
+		peer: &PeerId,
+	) {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::NetworkBridge(
@@ -1397,12 +1401,17 @@ mod tests {
 				assert_eq!(to[0], *peer);
 				assert_matches!(
 					wire_message,
-					protocol_v1::CollatorProtocolMessage::Declare(collator_id, signature) => {
+					protocol_v1::CollatorProtocolMessage::Declare(
+						collator_id,
+						para_id,
+						signature,
+					) => {
 						assert!(signature.verify(
 							&*protocol_v1::declare_signature_payload(&test_state.local_peer_id),
 							&collator_id),
 						);
 						assert_eq!(collator_id, test_state.collator_pair.public());
+						assert_eq!(para_id, test_state.para_id);
 					}
 				);
 			}
@@ -1412,7 +1421,6 @@ mod tests {
 	/// Check that the next received message is a collation advertisment message.
 	async fn expect_advertise_collation_msg(
 		virtual_overseer: &mut VirtualOverseer,
-		test_state: &TestState,
 		peer: &PeerId,
 		expected_relay_parent: Hash,
 	) {
@@ -1429,10 +1437,8 @@ mod tests {
 					wire_message,
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 						relay_parent,
-						collating_on,
 					) => {
 						assert_eq!(relay_parent, expected_relay_parent);
-						assert_eq!(collating_on, test_state.para_id);
 					}
 				);
 			}
@@ -1481,7 +1487,7 @@ mod tests {
 
 			// The peer is interested in a leaf that we have a collation for;
 			// advertise it.
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
 
 			// Request a collation.
 			let (tx, rx) = oneshot::channel();
@@ -1559,7 +1565,7 @@ mod tests {
 				)
 			).await;
 
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
 		});
 	}
 
@@ -1622,13 +1628,13 @@ mod tests {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer2).await;
 
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer2, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
 
 			// The other validator announces that it changed its view.
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 
 			// After changing the view we should receive the advertisement
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
 		})
 	}
 
@@ -1672,10 +1678,10 @@ mod tests {
 			connected.try_send((validator_id2, peer2.clone())).unwrap();
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![old_relay_parent]).await;
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, old_relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer, old_relay_parent).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer2, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
 		})
 	}
 
@@ -1701,7 +1707,7 @@ mod tests {
 
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
-			expect_advertise_collation_msg(&mut virtual_overseer, &test_state, &peer, test_state.relay_parent).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
 
 			// Disconnect and reconnect directly
 			disconnect_peer(&mut virtual_overseer, peer.clone()).await;
