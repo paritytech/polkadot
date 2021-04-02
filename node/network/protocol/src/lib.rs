@@ -331,7 +331,7 @@ pub mod v1 {
 
 	impl StatementDistributionMessage {
 		/// Get the relay parent of the given `StatementDistributionMessage`.
-		pub fn get_finger_print(&self) -> StatementMetadata {
+		pub fn get_metadata(&self) -> StatementMetadata {
 			match self {
 				Self::Statement(relay_parent, statement) => StatementMetadata {
 					relay_parent: *relay_parent,

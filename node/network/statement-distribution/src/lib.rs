@@ -773,7 +773,7 @@ async fn report_peer(
 /// your statement.
 ///
 /// If the message was large, but the result has been fetched already that one is returned.
-async fn get_statement_from_message<'a>(
+async fn retrieve_statement_from_message<'a>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
 	our_view: &View,
@@ -781,9 +781,9 @@ async fn get_statement_from_message<'a>(
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
 
-	let fingerprint = message.get_finger_print();
+	let metadata = message.get_metadata();
 
-	if !our_view.contains(&fingerprint.relay_parent) {
+	if !our_view.contains(&metadata.relay_parent) {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
@@ -794,7 +794,7 @@ async fn get_statement_from_message<'a>(
 		return None
 	}
 
-	let active_head = match active_heads.get_mut(&fingerprint.relay_parent) {
+	let active_head = match active_heads.get_mut(&metadata.relay_parent) {
 		Some(h) => h,
 		None => {
 			// This should never be out-of-sync with our view if the view updates
@@ -817,6 +817,7 @@ async fn get_statement_from_message<'a>(
 				.entry((fingerprint.signed_by, fingerprint.candidate_hash)) {
 
 				Entry::Occupied(occupied) => {
+					let mut update = None;
 					match occupied.get_mut() {
 						LargeStatementStatus::Fetching(info) => {
 							info.available_peers.push(peer);
@@ -857,6 +858,7 @@ async fn get_statement_from_message<'a>(
 									// that up for disputes. We should just try our best to make
 									// sure all valid and invalid data is available so it can be
 									// disputed and the offenders can be slashed.)
+									update = launch_request(meta, peer, active_head, ctx).await;
 								}
 
 							} else {
@@ -870,26 +872,44 @@ async fn get_statement_from_message<'a>(
 							}
 						}
 					}
+					if let Some(update) = update {
+						occupied.get_mut() = update;
+					}
+					return None
 				}
 				Entry::Vacant(vacant) => {
-					let (task, handle) = fetch(fingerprint, vec![peer], active_head.req_sender.clone()).remote_handle();
-					let result = ctx.spawn("large-statement-fetcher", task.boxed())
-						.await;
-					if let Err(err) = result {
-						tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
-						return None
+					if let Some(status) = launch_request(fingerprint, peer, &active_head, ctx).await {
+						vacant.insert(status);
 					}
-					vacant.insert(LargeStatementStatus::Fetching(FetchingInfo {
-						available_peers: vec![peer],
-						peers_to_try: Vec::new(),
-						peer_sender: None,
-						fetching_task: handle,
-					}));
 					return None
 				}
 			}
 		}
 	}
+}
+
+/// Launch request for a large statement and get tracking status.
+///
+/// Returns `None` if spawning task failed.
+async fn launch_request(
+	meta: CandidateMetadata,
+	peer: PeerId,
+	active_head: &ActiveHeadData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+) -> Option<LargeStatementStatus> {
+	let (task, handle) = fetch(meta, vec![peer], active_head.req_sender.clone()).remote_handle();
+	let result = ctx.spawn("large-statement-fetcher", task.boxed())
+		.await;
+	if let Err(err) = result {
+		tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
+		return None
+	}
+	Some(LargeStatementStatus::Fetching(FetchingInfo {
+		available_peers: vec![peer],
+		peers_to_try: Vec::new(),
+		peer_sender: None,
+		fetching_task: handle,
+	}))
 }
 
 /// Handle incoming message and circulate it to peers, if we did not know it already.
@@ -1103,15 +1123,19 @@ async fn handle_network_update(
 			peers.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
-			handle_incoming_message_and_circulate(
-				peer,
-				peers,
-				&*our_view,
-				active_heads,
-				ctx,
-				message,
-				metrics,
-			).await;
+			let message_data = 
+				retrieve_statement_from_message(peer, message, &*our_view, active_heads, ctx).await;
+			if let Some(active_head, statement) = message_data {
+				handle_incoming_message_and_circulate(
+					peer,
+					peers,
+					&*our_view,
+					active_head,
+					ctx,
+					message,
+					metrics,
+				).await;
+			}
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
 			tracing::trace!(
