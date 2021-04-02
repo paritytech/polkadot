@@ -320,7 +320,6 @@ decl_module! {
 			CurrencyOf::<T>::reserve(&depositor, deposit)?;
 
 			Funds::<T>::insert(index, FundInfo {
-				retiring: false,
 				depositor,
 				verifier,
 				deposit,
@@ -538,7 +537,6 @@ decl_module! {
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 
 			Funds::<T>::insert(index, FundInfo {
-				retiring: fund.retiring,
 				depositor: fund.depositor,
 				verifier,
 				deposit: fund.deposit,
@@ -964,7 +962,6 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
-				retiring: false,
 				depositor: 1,
 				verifier: None,
 				deposit: 1,
@@ -997,7 +994,6 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, Some(pubkey.clone())));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
-				retiring: false,
 				depositor: 1,
 				verifier: Some(pubkey),
 				deposit: 1,
@@ -1479,7 +1475,6 @@ mod tests {
 			let new_crowdloan = Crowdloan::funds(para_1).unwrap();
 
 			// Some things stay the same
-			assert_eq!(old_crowdloan.retiring, new_crowdloan.retiring);
 			assert_eq!(old_crowdloan.depositor, new_crowdloan.depositor);
 			assert_eq!(old_crowdloan.deposit, new_crowdloan.deposit);
 			assert_eq!(old_crowdloan.raised, new_crowdloan.raised);
