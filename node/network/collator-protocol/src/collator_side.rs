@@ -430,17 +430,20 @@ async fn declare(
 ) {
 	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
-	let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
-		state.collator_pair.public(),
-		state.collator_pair.sign(&declare_signature_payload),
-	);
+	if let Some(para_id) = state.collating_on {
+		let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
+			state.collator_pair.public(),
+			para_id,
+			state.collator_pair.sign(&declare_signature_payload),
+		);
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendCollationMessage(
-			vec![peer],
-			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
-		)
-	)).await;
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendCollationMessage(
+				vec![peer],
+				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+			)
+		)).await;
+	}
 }
 
 /// Issue a connection request to a set of validators and
@@ -476,11 +479,6 @@ async fn advertise_collation(
 	relay_parent: Hash,
 	peer: PeerId,
 ) {
-	let collating_on = match state.collating_on {
-		Some(collating_on) => collating_on,
-		None => return,
-	};
-
 	let should_advertise = state.our_validators_groups
 		.get(&relay_parent)
 		.map(|g| g.should_advertise_to(&peer))
@@ -518,7 +516,6 @@ async fn advertise_collation(
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
 		relay_parent,
-		collating_on,
 	);
 
 	ctx.send_message(AllMessages::NetworkBridge(
@@ -772,6 +769,12 @@ async fn handle_validator_connected(
 	validator_id: ValidatorId,
 	relay_parent: Hash,
 ) {
+	tracing::trace!(
+		target: LOG_TARGET,
+		?validator_id,
+		"Connected to requested validator"
+	);
+
 	let not_declared = state.declared_at.insert(peer_id.clone());
 
 	if not_declared {

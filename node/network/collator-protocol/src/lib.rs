@@ -57,11 +57,19 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
-pub struct CollatorEvictionPolicy(pub Duration);
+pub struct CollatorEvictionPolicy {
+	/// How fast to evict collators who are inactive.
+	pub inactive_collator: Duration,
+	/// How fast to evict peers which don't declare their para.
+	pub undeclared: Duration,
+}
 
 impl Default for CollatorEvictionPolicy {
 	fn default() -> Self {
-		CollatorEvictionPolicy(Duration::from_secs(24))
+		CollatorEvictionPolicy {
+			inactive_collator: Duration::from_secs(24),
+			undeclared: Duration::from_secs(1),
+		}
 	}
 }
 
