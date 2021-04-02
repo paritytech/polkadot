@@ -121,7 +121,8 @@ impl PeerKnowledge {
 
 /// Information about blocks in our current view as well as whether peers know of them.
 struct BlockEntry {
-	/// The candidates we shared with peers.
+	/// Peers who we know are aware of this block and thus, the candidates within it.
+	/// This maps to their knowledge of messages.
 	known_by: HashMap<PeerId, PeerKnowledge>,
 	/// The number of the block.
 	number: BlockNumber,
