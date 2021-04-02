@@ -244,10 +244,13 @@ impl State {
 						candidates,
 					});
 					new_hashes.insert(meta.hash.clone());
+
+					// In case there are duplicates, we should only set this if the entry
+					// was vacant.
+					self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 				}
 				_ => continue,
 			}
-			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 		}
 
 		tracing::debug!(

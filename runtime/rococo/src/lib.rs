@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
@@ -32,23 +32,20 @@ use primitives::v1::{
 	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
+	mmr as mmr_common,
 	SlowAdjustingFeeUpdate, impls::ToAuthor, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use runtime_parachains::{
 	self,
 	runtime_api_impl::v1 as runtime_api_impl,
 };
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness},
-	weights::Weight,
-};
+use frame_support::{construct_runtime, parameter_types, traits::{Filter, KeyOwnerProofSystem, Randomness}, weights::Weight};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
+		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
@@ -59,9 +56,11 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use sp_core::OpaqueMetadata;
+use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use pallet_mmr_primitives as mmr;
 use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
@@ -69,7 +68,7 @@ use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::shared as parachains_shared;
 use runtime_parachains::inclusion as parachains_inclusion;
-use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use runtime_parachains::paras_inherent as parachains_paras_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::session_info as parachains_session_info;
 use runtime_parachains::paras as parachains_paras;
@@ -89,6 +88,7 @@ use xcm_builder::{
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 };
 use constants::{time::*, currency::*, fee::*};
+use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -103,7 +103,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 215,
+	spec_version: 227,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -154,9 +154,28 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllPallets,
+	UpgradeSessionKeys,
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// TODO [ToDr] Remove while BEEFY runtime upgrade is done.
+impl_opaque_keys! {
+	pub struct OldSessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub para_validator: Initializer,
+		pub para_assignment: SessionInfo,
+		pub authority_discovery: AuthorityDiscovery,
+	}
+}
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -166,6 +185,35 @@ impl_opaque_keys! {
 		pub para_validator: Initializer,
 		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
+		pub beefy: Beefy,
+	}
+}
+
+fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
+	SessionKeys {
+		grandpa: old.grandpa,
+		babe: old.babe,
+		im_online: old.im_online,
+		para_validator: old.para_validator,
+		para_assignment: old.para_assignment,
+		authority_discovery: old.authority_discovery,
+		beefy: {
+			// We need to produce a dummy value that's unique for the validator.
+			let mut id = BeefyId::default();
+			let id_raw: &mut [u8] = id.as_mut();
+			id_raw.copy_from_slice(v.as_ref());
+			id_raw[0..4].copy_from_slice(b"beef");
+			id
+		},
+	}
+}
+
+// When this is removed, should also remove `OldSessionKeys`.
+pub struct UpgradeSessionKeys;
+impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
+		Perbill::from_percent(50) * BlockWeights::get().max_block
 	}
 }
 
@@ -199,7 +247,7 @@ construct_runtime! {
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: parachains_shared::{Pallet, Call, Storage},
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Event},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
@@ -218,8 +266,16 @@ construct_runtime! {
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
+		// Bridges support.
+		Mmr: pallet_mmr::{Pallet, Call, Storage},
+		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
+		MmrLeaf: mmr_common::{Pallet, Storage},
+
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
+
+		Utility: pallet_utility::{Pallet, Call, Event} = 90,
+		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
 	}
 }
 
@@ -258,6 +314,7 @@ impl frame_system::Config for Runtime {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -584,7 +641,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_inclusion_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_scheduler::Config for Runtime {}
 
@@ -618,6 +675,24 @@ impl paras_registrar::Config for Runtime {
 ///
 /// THIS SHOULD ONLY BE USED FOR TESTING PURPOSES.
 pub struct ParentHashRandomness;
+
+impl pallet_beefy::Config for Runtime {
+	type AuthorityId = BeefyId;
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	type Hashing = Keccak256;
+	type Hash = <Keccak256 as traits::Hash>::Output;
+	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
+	type WeightInfo = ();
+	type LeafData = mmr_common::Pallet<Runtime>;
+}
+
+impl mmr_common::Config for Runtime {
+	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
+	type ParachainHeads = Paras;
+}
 
 impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
@@ -688,6 +763,62 @@ impl pallet_sudo::Config for Runtime {
 impl validator_manager::Config for Runtime {
 	type Event = Event;
 	type PrivilegedOrigin = EnsureRoot<AccountId>;
+}
+
+impl pallet_utility::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	// One storage item; key size 32, value size 8; .
+	pub const ProxyDepositBase: Balance = 10;
+	// Additional storage item size of 33 bytes.
+	pub const ProxyDepositFactor: Balance = 10;
+	pub const MaxProxies: u16 = 32;
+	pub const AnnouncementDepositBase: Balance = 10;
+	pub const AnnouncementDepositFactor: Balance = 10;
+	pub const MaxPending: u16 = 32;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+pub enum ProxyType {
+	Any,
+	CancelProxy,
+}
+impl Default for ProxyType { fn default() -> Self { Self::Any } }
+impl InstanceFilter<Call> for ProxyType {
+	fn filter(&self, c: &Call) -> bool {
+		match self {
+			ProxyType::Any => true,
+			ProxyType::CancelProxy => matches!(c,
+				Call::Proxy(pallet_proxy::Call::reject_announcement(..))
+			)
+		}
+	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(ProxyType::Any, _) => true,
+			_ => false,
+		}
+	}
+}
+
+impl pallet_proxy::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type ProxyType = ProxyType;
+	type ProxyDepositBase = ProxyDepositBase;
+	type ProxyDepositFactor = ProxyDepositFactor;
+	type MaxProxies = MaxProxies;
+	type WeightInfo = ();
+	type MaxPending = MaxPending;
+	type CallHasher = BlakeTwo256;
+	type AnnouncementDepositBase = AnnouncementDepositBase;
+	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
@@ -766,7 +897,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
+			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
@@ -819,6 +950,10 @@ sp_api::impl_runtime_apis! {
 			recipient: Id
 		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
+		}
+
+		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+			runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
 
@@ -922,6 +1057,45 @@ sp_api::impl_runtime_apis! {
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
 			SessionKeys::decode_into_raw_public_keys(&encoded)
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+			Beefy::validator_set()
+		}
+	}
+
+	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(leaf_index: u64)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+		{
+			Mmr::generate_proof(leaf_index)
+				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
+		}
+
+		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			pub type Leaf = <
+				<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider
+			>::LeafData;
+
+			let leaf: Leaf = leaf
+				.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)?;
+			Mmr::verify_leaf(leaf, proof)
+		}
+
+		fn verify_proof_stateless(
+			root: Hash,
+			leaf: mmr::EncodableOpaqueLeaf,
+			proof: mmr::Proof<Hash>
+		) -> Result<(), mmr::Error> {
+			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
+			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
 		}
 	}
 
