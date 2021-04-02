@@ -535,10 +535,10 @@ impl State {
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
 			match entry.known_by.entry(peer_id.clone()) {
-				hash_map::Entry::Occupied(peer_knowledge) => {
-					let knowledge = peer_knowledge.get();
-					if knowledge.contains(&fingerprint) {
-						if knowledge.received.contains(&fingerprint) {
+				hash_map::Entry::Occupied(mut peer_knowledge) => {
+					let peer_knowledge = peer_knowledge.get_mut();
+					if peer_knowledge.contains(&fingerprint) {
+						if peer_knowledge.received.contains(&fingerprint) {
 							tracing::debug!(
 								target: LOG_TARGET,
 								?peer_id,
@@ -547,6 +547,7 @@ impl State {
 							);
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
+						peer_knowledge.received.insert(fingerprint);
 						return;
 					}
 				}
@@ -760,8 +761,8 @@ impl State {
 
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
-				hash_map::Entry::Occupied(knowledge) => {
-					let peer_knowledge = knowledge.get();
+				hash_map::Entry::Occupied(mut knowledge) => {
+					let peer_knowledge = knowledge.get_mut();
 					if peer_knowledge.contains(&fingerprint) {
 						if peer_knowledge.received.contains(&fingerprint) {
 							tracing::debug!(
@@ -773,6 +774,7 @@ impl State {
 
 							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
+						peer_knowledge.received.insert(fingerprint);
 						return;
 					}
 				}
