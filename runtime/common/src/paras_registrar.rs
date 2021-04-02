@@ -182,21 +182,17 @@ decl_module! {
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be the para itself or Root and the para must be a parathread.
+		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
 		#[weight = T::WeightInfo::deregister()]
 		pub fn deregister(origin, id: ParaId) -> DispatchResult {
-			match ensure_root(origin.clone()) {
-				Ok(_) => {},
-				Err(_) => {
-					let caller_id = ensure_parachain(<T as Config>::Origin::from(origin))?;
-					ensure!(caller_id == id, Error::<T>::NotOwner);
-				},
-			};
-
+			Self::ensure_root_para_or_owner(origin, id)?;
 			Self::do_deregister(id)
 		}
 
-		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
+		/// Swap a parachain with another parachain or parathread.
+		///
+		/// The origin must be Root, the `para` owner, or the `para` itself.
+		///
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
 		/// the swap will be stored in the pending swaps map, ready for a later confirmatory swap.
 		///
@@ -205,8 +201,9 @@ decl_module! {
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
 		#[weight = T::WeightInfo::swap()]
-		pub fn swap(origin, other: ParaId) {
-			let id = ensure_parachain(<T as Config>::Origin::from(origin))?;
+		pub fn swap(origin, id: ParaId, other: ParaId) {
+			Self::ensure_root_para_or_owner(origin, id)?;
+
 			if PendingSwap::get(other) == Some(id) {
 				if let Some(other_lifecycle) = paras::Module::<T>::lifecycle(other) {
 					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
@@ -324,6 +321,26 @@ impl<T: Config> Registrar for Module<T> {
 }
 
 impl<T: Config> Module<T> {
+	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
+	fn ensure_root_para_or_owner(origin: <T as frame_system::Config>::Origin, id: ParaId) -> DispatchResult {
+		// Check if root...
+		ensure_root(origin.clone())
+			.or_else(|_| -> DispatchResult {
+				// Else check if para chain origin...
+				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
+				ensure!(caller_id == id, Error::<T>::NotOwner);
+				Ok(())
+			})
+			.or_else(|_| -> DispatchResult{
+				// Else check if owner...
+				// This is the most expensive because of a storage read so we check this last.
+				let who = ensure_signed(origin)?;
+				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
+				ensure!(para_info.manager == who, Error::<T>::NotOwner);
+				Ok(())
+			})
+	}
+
 	/// Attempt to register a new Para Id under management of `who` in the
 	/// system with the given information.
 	fn do_register(
@@ -356,7 +373,11 @@ impl<T: Config> Module<T> {
 
 	/// Deregister a Para Id, freeing all data returning any deposit.
 	fn do_deregister(id: ParaId) -> DispatchResult {
-		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+		match paras::Module::<T>::lifecycle(id) {
+			// Para must be a parathread, or not exist at all.
+			Some(ParaLifecycle::Parathread) | None => {},
+			_ => return Err(Error::<T>::NotParathread.into())
+		}
 		runtime_parachains::schedule_para_cleanup::<T>(id).map_err(|_| Error::<T>::CannotDeregister)?;
 
 		if let Some(info) = Paras::<T>::take(&id) {
