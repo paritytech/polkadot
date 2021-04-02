@@ -1244,6 +1244,9 @@ sp_api::impl_runtime_apis! {
 			BTreeMap::new()
 		}
 
+		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
+			None
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
