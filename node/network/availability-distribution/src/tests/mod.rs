@@ -50,7 +50,7 @@ fn test_harness<T: Future<Output = ()>>(
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(test_fut, subsystem)).1.unwrap();
 	}
 }
 
@@ -111,7 +111,7 @@ fn check_fetch_retry() {
 		})
 		.collect();
 	state.valid_chunks.retain(|(ch, _)| valid_candidate_hashes.contains(ch));
-			
+
 
 	for (_, v) in state.chunks.iter_mut() {
 		// This should still succeed as cores are still pending availability on next block.
