@@ -11,8 +11,9 @@ futures-timer = "3"
 thiserror = "1.0.23"
 tracing = "0.1.25"
 
-sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-sp-runtime = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }

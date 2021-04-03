@@ -155,7 +155,7 @@ impl State {
 		Client::Api: AuthorityDiscoveryApi<Block>,
 	{
 		for leaf in leaves {
-			let current_index = util::request_session_index_for_child_ctx(leaf, ctx).await?.await??;
+			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
 			let maybe_new_session = match self.last_session_index {
 				Some(i) if i <= current_index => None,
 				_ => Some((current_index, leaf)),
