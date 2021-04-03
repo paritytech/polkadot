@@ -517,6 +517,7 @@ parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
+	pub const CouncilModuleId: ModuleId = ModuleId(*b"py/counc");
 }
 
 type CouncilCollective = pallet_collective::Instance1;
@@ -528,6 +529,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type ModuleId = CouncilModuleId;
 	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
 
@@ -569,6 +571,7 @@ parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 7 * DAYS;
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
+	pub const TechnicalModuleId: ModuleId = ModuleId(*b"py/techn");
 }
 
 type TechnicalCollective = pallet_collective::Instance2;
@@ -580,6 +583,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type ModuleId = TechnicalModuleId;
 	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
 
