@@ -48,20 +48,20 @@ pub use paste;
 macro_rules! generate_slot_range{
 	// Entry point
 	($( $x:ident ( $e:expr ) ),*) => {
-		$crate::generate_lease_period_per_slot!(@ $( $x )* );
-		$crate::generate_slot_range!(@
+		$crate::generate_lease_period_per_slot!( $( $x )* );
+		$crate::generate_slot_range!(@inner
 			{ }
 			$( $x ( $e ) )*
 		);
 	};
 	// Does the magic...
-	(@
+	(@inner
 		{ $( $parsed:ident ( $t1:expr, $t2:expr ) )* }
 		$current:ident ( $ce:expr )
 		$( $remaining:ident ( $re:expr ) )*
 	) => {
 		$crate::paste::paste! {
-			$crate::generate_slot_range!(@
+			$crate::generate_slot_range!(@inner
 				{
 					$( $parsed ( $t1, $t2 ) )*
 					[< $current $current >] ( $ce, $ce )
@@ -71,12 +71,12 @@ macro_rules! generate_slot_range{
 			);
 		}
 	};
-	(@
+	(@inner
 		{ $( $parsed:ident ( $t1:expr, $t2:expr ) )* }
 	) => {
-		$crate::generate_slot_range_enum!(@ $( $parsed )* );
+		$crate::generate_slot_range_enum!(@inner $( $parsed )* );
 
-		$crate::generate_slot_range_count!(@ $( $parsed )* );
+		$crate::generate_slot_range_count!( $( $parsed )* );
 
 		#[cfg(feature = "std")]
 		impl std::fmt::Debug for SlotRange {
@@ -90,11 +90,11 @@ macro_rules! generate_slot_range{
 			pub const LEASE_PERIODS_PER_SLOT: usize = LEASE_PERIODS_PER_SLOT;
 			pub const SLOT_RANGE_COUNT: usize = SLOT_RANGE_COUNT;
 
-			$crate::generate_slot_range_as_pair!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_as_pair!(@inner $( $parsed ( $t1, $t2 ) )* );
 
-			$crate::generate_slot_range_len!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_len!(@inner $( $parsed ( $t1, $t2 ) )* );
 
-			$crate::generate_slot_range_new_bounded!(@ $( $parsed ( $t1, $t2 ) )* );
+			$crate::generate_slot_range_new_bounded!(@inner $( $parsed ( $t1, $t2 ) )* );
 		}
 	};
 }
@@ -102,7 +102,7 @@ macro_rules! generate_slot_range{
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generate_slot_range_enum {
-	(@
+	(@inner
 		$( $parsed:ident )*
 	) => {
 		/// A compactly represented sub-range from the series.
@@ -115,7 +115,7 @@ macro_rules! generate_slot_range_enum {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generate_slot_range_as_pair {
-	(@
+	(@inner
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
 		/// Return true if two `SlotRange` intersect in their lease periods.
@@ -141,25 +141,25 @@ macro_rules! generate_slot_range_as_pair {
 #[doc(hidden)]
 macro_rules! generate_slot_range_len {
 	// Use evaluated length in function.
-	(@
+	(@inner
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
-			/// Return the length of occupying a `SlotRange`.
-			///
-			/// Example:`SlotRange::OneTwo.len() == 2`
-			pub fn len(&self) -> usize {
-				match self {
-					// len (0, 2) = 2 - 0 + 1 = 3
-					$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
-				}
+		/// Return the length of occupying a `SlotRange`.
+		///
+		/// Example:`SlotRange::OneTwo.len() == 2`
+		pub fn len(&self) -> usize {
+			match self {
+				// len (0, 2) = 2 - 0 + 1 = 3
+				$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
 			}
+		}
 	};
 }
 
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generate_slot_range_new_bounded {
-	(@
+	(@inner
 		$( $parsed:ident ( $t1:expr, $t2:expr ) )*
 	) => {
 		/// Construct a `SlotRange` from the current lease period, the first lease period of the range,
@@ -195,13 +195,21 @@ macro_rules! generate_slot_range_new_bounded {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generate_slot_range_count {
-	(@
-		$( $idents:ident )*
+	(
+		$start:ident $( $rest:ident )*
 	) => {
-		#[doc(hidden)]
-		#[allow(dead_code, non_camel_case_types)]
-		enum __SlotRangeTemp { $($idents,)* __SlotRangeCountLast }
-		const SLOT_RANGE_COUNT: usize = __SlotRangeTemp::__SlotRangeCountLast as usize;
+		$crate::generate_slot_range_count!(@inner 1; $( $rest )*);
+	};
+	(@inner
+		$count:expr;
+		$start:ident $( $rest:ident )*
+	) => {
+		$crate::generate_slot_range_count!(@inner $count + 1; $( $rest )*);
+	};
+	(@inner
+		$count:expr;
+	) => {
+		const SLOT_RANGE_COUNT: usize = $count;
 	};
 }
 
@@ -211,13 +219,13 @@ macro_rules! generate_lease_period_per_slot {
 	(
 		$start:ident $( $rest:ident )*
 	) => {
-		crate::generate_lease_period_per_slot!(@inner 1; $( $rest )*);
+		$crate::generate_lease_period_per_slot!(@inner 1; $( $rest )*);
 	};
 	(@inner
 		$count:expr;
 		$start:ident $( $rest:ident )*
 	) => {
-		crate::generate_lease_period_per_slot!(@inner $count + 1; $( $rest )*);
+		$crate::generate_lease_period_per_slot!(@inner $count + 1; $( $rest )*);
 	};
 	(@inner
 		$count:expr;
