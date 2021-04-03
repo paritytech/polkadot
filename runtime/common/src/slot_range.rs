@@ -18,6 +18,3 @@
 //! represent all sub ranges between 0 and 3 inclusive.
 
 slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
-
-// An alternative implementation supporting 8 lease periods per slot.
-// slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3), Four(4), Five(5), Six(6), Seven(7));
