@@ -186,6 +186,7 @@ pub struct StatementFetchingRequest {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum StatementFetchingResponse {
 	/// Data missing to reconstruct the full signed statement.
+	#[codec(index = 0)]
 	Statement(CommittedCandidateReceipt),
 }
 

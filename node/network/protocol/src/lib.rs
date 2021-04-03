@@ -330,15 +330,16 @@ pub mod v1 {
 	}
 
 	impl StatementDistributionMessage {
-		/// Get the relay parent of the given `StatementDistributionMessage`.
+		/// Get meta data of the given `StatementDistributionMessage`.
 		pub fn get_metadata(&self) -> StatementMetadata {
 			match self {
 				Self::Statement(relay_parent, statement) => StatementMetadata {
 					relay_parent: *relay_parent,
 					candidate_hash: statement.payload().candidate_hash(),
 					signed_by: statement.validator_index(),
+					signature: statement.signature().clone(),
 				},
-				Self::LargeStatement(fingerprint) => fingerprint.clone(),
+				Self::LargeStatement(metadata) => metadata.clone(),
 			}
 		}
 	}
