@@ -1220,11 +1220,12 @@ mod tests {
 	use sp_core::{crypto::Pair, Encode};
 	use sp_keystore::SyncCryptoStore;
 	use sp_keystore::testing::KeyStore as TestKeyStore;
+	use sp_keyring::Sr25519Keyring;
 	use assert_matches::assert_matches;
 
 	use polkadot_primitives::v1::{
 		CollatorPair, ValidatorPair, ValidatorId, ValidatorIndex, CoreState,
-		GroupRotationInfo,
+		GroupRotationInfo, ScheduledCore, OccupiedCore, GroupIndex,
 	};
 	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
@@ -1240,10 +1241,9 @@ mod tests {
 		chain_ids: Vec<ParaId>,
 		relay_parent: Hash,
 		collators: Vec<CollatorPair>,
-		validator_key: ValidatorPair,
-		validators: Vec<ValidatorId>,
+		validators: Vec<Sr25519Keyring>,
+		validator_public: Vec<ValidatorId>,
 		validator_groups: Vec<Vec<ValidatorIndex>>,
-		keystore: SyncCryptoStorePtr,
 		group_rotation_info: GroupRotationInfo,
 		cores: Vec<CoreState>,
 	}
@@ -1260,12 +1260,54 @@ mod tests {
 				.take(4)
 				.collect();
 
-			// TODO [now]: add validators, groups, cores, keystore.
+			let validators = vec![
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+				Sr25519Keyring::Eve,
+			];
+
+			let validator_public = validators.iter().map(|k| k.public().into()).collect();
+			let validator_groups = vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2), ValidatorIndex(3)],
+				vec![ValidatorIndex(4)],
+			];
+
+			let group_rotation_info = GroupRotationInfo {
+				session_start_block: 0,
+				group_rotation_frequency: 1,
+				now: 0,
+			};
+
+			let cores = vec![
+				CoreState::Scheduled(ScheduledCore {
+					para_id: chain_ids[0],
+					collator: None,
+				}),
+				CoreState::Occupied(OccupiedCore {
+					next_up_on_available: None,
+					occupied_since: 0,
+					time_out_at: 1,
+					next_up_on_time_out: None,
+					availability: Default::default(),
+					group_responsible: GroupIndex(0),
+					candidate_hash: Default::default(),
+					candidate_descriptor: Default::default(),
+				}),
+				CoreState::Free,
+			];
 
 			Self {
 				chain_ids,
 				relay_parent,
 				collators,
+				validators,
+				validator_public,
+				validator_groups,
+				group_rotation_info,
+				cores,
 			}
 		}
 	}
@@ -1281,8 +1323,15 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
+		let keystore = TestKeyStore::new();
+		keystore.sr25519_generate_new(
+			polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
+			Some(&Sr25519Keyring::Alice.to_seed()),
+		).unwrap();
+
 		let subsystem = run(
 			context,
+			Arc::new(keystore),
 			crate::CollatorEvictionPolicy {
 				inactive_collator: ACTIVITY_TIMEOUT,
 				undeclared: DECLARE_TIMEOUT,
