@@ -25,6 +25,8 @@ use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
+use sp_keystore::SyncCryptoStorePtr;
+
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
 use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
 use polkadot_primitives::v1::CollatorPair;
@@ -76,7 +78,10 @@ impl Default for CollatorEvictionPolicy {
 /// What side of the collator protocol is being engaged
 pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
-	Validator(CollatorEvictionPolicy, validator_side::Metrics),
+	Validator {
+		eviction_policy: CollatorEvictionPolicy,
+		metrics: validator_side::Metrics,
+	},
 	/// Collators operate on a parachain.
 	Collator(PeerId, CollatorPair, collator_side::Metrics),
 }
@@ -103,7 +108,7 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator(policy, metrics) => validator_side::run(
+			ProtocolSide::Validator { eviction_policy, metrics } => validator_side::run(
 				ctx,
 				policy,
 				metrics,

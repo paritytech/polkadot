@@ -15,12 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
+use std::collections::hash_map::Entry;
 use std::time::{Duration, Instant};
 use always_assert::never;
 use futures::{
 	channel::oneshot, future::{BoxFuture, Either, Fuse, FusedFuture}, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
+
+use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
 	request_response as req_res, v1 as protocol_v1,
@@ -268,6 +271,55 @@ impl PeerData {
 impl Default for PeerData {
 	fn default() -> Self {
 		PeerData::new(Default::default())
+	}
+}
+
+struct GroupAssignments {
+	current: ParaId,
+	next: ParaId,
+}
+
+#[derive(Default)]
+struct ActiveParas {
+	relay_parent_assignments: HashMap<Hash, GroupAssignments>,
+	current_assignments: HashMap<ParaId, usize>,
+	next_assignments: HashMap<ParaId, usize>
+}
+
+impl ActiveParas {
+	async fn assign_incoming(
+		&mut self,
+		sender: &mut impl SubsystemSender,
+		new_relay_parents: impl IntoIterator<Item = Hash>,
+	) {
+		unimplemented!()
+	}
+
+	fn remove_outgoing(
+		&mut self,
+		old_relay_parents: impl IntoIterator<Item = Hash>,
+	) {
+		if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
+			let GroupAssignments { current, next } = assignments;
+
+			if let Entry::Occupied(mut occupied) = self.current_assignments.entry(current) {
+				occupied.get_mut() = occupied.get().saturating_sub(1);
+				if *occupied.get() == 0 {
+					occupied.remove_entry();
+				}
+			}
+
+			if let Entry::Occupied(mut occupied) = self.next_assignments.entry(next) {
+				occupied.get_mut() = occupied.get().saturating_sub(1);
+				if *occupied.get() == 0 {
+					occupied.remove_entry();
+				}
+			}
+		}
+	}
+
+	fn is_current_or_next(&self, id: ParaId) -> bool {
+		self.current_assignments.contains_key(&id) || self.next_assignments.contains_key(&id)
 	}
 }
 

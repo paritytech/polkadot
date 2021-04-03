@@ -13,6 +13,7 @@ tracing = "0.1.25"
 
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { package = "sp-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
