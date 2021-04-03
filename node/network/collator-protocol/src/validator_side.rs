@@ -932,11 +932,13 @@ mod tests {
 		}
 	}
 
+	type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
+
 	struct TestHarness {
-		virtual_overseer: test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		virtual_overseer: VirtualOverseer,
 	}
 
-	fn test_harness<T: Future<Output = ()>>(test: impl FnOnce(TestHarness) -> T) {
+	fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
 		let _ = env_logger::builder()
 			.is_test(true)
 			.filter(
@@ -964,13 +966,16 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(async move {
+			let mut overseer = test_fut.await;
+			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
+		}, subsystem)).1.unwrap();
 	}
 
 	const TIMEOUT: Duration = Duration::from_millis(200);
 
 	async fn overseer_send(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		msg: CollatorProtocolMessage,
 	) {
 		tracing::trace!("Sending message:\n{:?}", &msg);
@@ -982,7 +987,7 @@ mod tests {
 	}
 
 	async fn overseer_recv(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 	) -> AllMessages {
 		let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 			.await
@@ -994,7 +999,7 @@ mod tests {
 	}
 
 	async fn overseer_recv_with_timeout(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		timeout: Duration,
 	) -> Option<AllMessages> {
 		tracing::trace!("Waiting for message...");
@@ -1002,6 +1007,17 @@ mod tests {
 			.recv()
 			.timeout(timeout)
 			.await
+	}
+
+	async fn overseer_signal(
+		overseer: &mut VirtualOverseer,
+		signal: OverseerSignal,
+	) {
+		overseer
+			.send(FromOverseer::Signal(signal))
+			.timeout(TIMEOUT)
+			.await
+			.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
 	}
 
 	// As we receive a relevant advertisement act on it and issue a collation request.
@@ -1064,6 +1080,7 @@ mod tests {
 				assert_eq!(para_id, test_state.chain_ids[0]);
 				assert_eq!(collator, pair.public());
 			});
+			virtual_overseer
 		});
 	}
 
@@ -1142,6 +1159,7 @@ mod tests {
 					assert_eq!(rep, BENEFIT_NOTIFY_GOOD);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -1180,6 +1198,7 @@ mod tests {
 					assert_eq!(rep, COST_INVALID_SIGNATURE);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -1377,6 +1396,7 @@ mod tests {
 
 			assert_eq!(collation_0.0, candidate_a);
 			assert_eq!(collation_1.0, candidate_b);
+			virtual_overseer
 		});
 	}
 
@@ -1464,7 +1484,8 @@ mod tests {
 					assert_eq!(peer, peer_b);
 					assert_eq!(peer_set, PeerSet::Collation);
 				}
-			)
+			);
+			virtual_overseer
 		});
 	}
 
@@ -1586,7 +1607,8 @@ mod tests {
 					assert_eq!(peer, peer_b);
 					assert_eq!(peer_set, PeerSet::Collation);
 				}
-			)
+			);
+			virtual_overseer
 		});
 	}
 }
