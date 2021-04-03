@@ -25,6 +25,34 @@ pub enum AssetId {
 	Abstract(Vec<u8>),
 }
 
+/// Classification of whether an asset is fungible or not, along with an optional amount or instance.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub enum Fungibility {
+	Fungible(Option<u128>),
+	NonFungible(Option<AssetInstance>),
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct AssetParts(Option<AssetId>, Fungibility);
+
+impl From<AssetParts> for MultiAsset {
+	fn from(a: AssetParts) -> Self {
+		use {AssetId::*, Fungibility::*};
+		match (a.0, a.1) {
+			(Some(Concrete(id)), Fungible(Some(amount))) => MultiAsset::ConcreteFungible { id, amount },
+			(Some(Abstract(id)), Fungible(Some(amount))) => MultiAsset::AbstractFungible { id, amount },
+			(Some(Concrete(class)), NonFungible(Some(instance))) => MultiAsset::ConcreteNonFungible { class, instance },
+			(Some(Abstract(class)), NonFungible(Some(instance))) => MultiAsset::AbstractNonFungible { class, instance },
+			(Some(Concrete(id)), Fungible(None)) => MultiAsset::AllConcreteFungible { id },
+			(Some(Abstract(id)), Fungible(None)) => MultiAsset::AllAbstractFungible { id },
+			(Some(Concrete(class)), NonFungible(None)) => MultiAsset::AllConcreteNonFungible { class },
+			(Some(Abstract(class)), NonFungible(None)) => MultiAsset::AllAbstractNonFungible { class },
+			(None, Fungible(_)) => MultiAsset::AllFungible,
+			(None, NonFungible(_)) => MultiAsset::AllNonFungible,
+		}
+	}
+}
+
 impl AssetId {
 	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
@@ -50,6 +78,10 @@ impl AssetId {
 			AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
 			AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
 		}
+	}
+
+	pub fn into_multiasset(self, f: Fungibility) -> MultiAsset {
+		AssetParts(Some(self), f).into()
 	}
 }
 

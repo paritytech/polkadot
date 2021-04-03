@@ -26,6 +26,11 @@ use xcm::v0::{
 	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric,
 };
 
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
 pub mod traits;
 use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 
@@ -88,7 +93,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
 					let withdrawn = Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
-					holding.saturating_subsume(withdrawn);
+					holding.saturating_subsume_all(withdrawn);
 				}
 				(holding, effects)
 			}
@@ -98,7 +103,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
-					ensure!(Config::IsTeleporter::filter_asset_location(asset, &origin), XcmError::UntrustedTeleportLocation);
+					ensure!(Config::IsReserve::filter_asset_location(asset, &origin), XcmError::UntrustedReserveLocation);
 				}
 				(Assets::from(assets), effects)
 			}

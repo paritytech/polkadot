@@ -16,8 +16,9 @@
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
 use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, OriginKind};
+use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, Junction, OriginKind};
 use frame_support::traits::Get;
+use super::Assets;
 
 pub trait FilterAssetLocation {
 	/// A filter to distinguish between asset/location pairs.
@@ -61,18 +62,20 @@ pub trait TransactAsset {
 	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult;
 
-	/// Withdraw the given asset from the consensus system. Return the actual asset withdrawn. In
+	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn. In
 	/// the case of `what` being a wildcard, this may be something more specific.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError>;
+	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError>;
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
-	fn transfer_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<MultiAsset, XcmError> {
+	fn transfer_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
 		let withdrawn = Self::withdraw_asset(asset, from)?;
-		Self::deposit_asset(&withdrawn, to)?;
+		for asset in withdrawn.assets_iter() {
+			Self::deposit_asset(&asset, to)?;
+		}
 		Ok(withdrawn)
 	}
 }
@@ -85,7 +88,7 @@ impl TransactAsset for Tuple {
 		)* );
 		Err(XcmError::Unimplemented)
 	}
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
+	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who) { o @ Ok(_) => return o, _ => () }
 		)* );
@@ -165,6 +168,28 @@ impl<O> ConvertOrigin<O> for Tuple {
 	}
 }
 
+/// Means of inverting a location: given a location which describes a `target` interpreted from the `source`, this
+/// will provide the corresponding location which describes the `source`
 pub trait InvertLocation {
 	fn invert_location(l: &MultiLocation) -> MultiLocation;
 }
+
+/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted location.
+pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
+impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
+	fn invert_location(location: &MultiLocation) -> MultiLocation {
+		let mut ancestry = Ancestry::get();
+		let mut result = location.clone();
+		for (i, j) in location.iter_rev()
+			.map(|j| match j {
+				Junction::Parent => ancestry.take_first().unwrap_or(Junction::OnlyChild),
+				_ => Junction::Parent,
+			})
+			.enumerate()
+		{
+			*result.at_mut(i).expect("location and result begin equal; same size; qed") = j;
+		}
+		result
+	}
+}
+
