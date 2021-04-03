@@ -180,7 +180,7 @@ specialize_requests! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr)
+pub async fn signing_key(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
 	-> Option<ValidatorId>
 {
 	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
@@ -188,11 +188,11 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
-pub async fn signing_key_and_index(validators: &[ValidatorId], keystore: SyncCryptoStorePtr)
+pub async fn signing_key_and_index(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
 	-> Option<(ValidatorId, ValidatorIndex)>
 {
 	for (i, v) in validators.iter().enumerate() {
-		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
 			return Some((v.clone(), ValidatorIndex(i as _)));
 		}
 	}
@@ -266,7 +266,7 @@ impl Validator {
 		signing_context: SigningContext,
 		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let (key, index) = signing_key_and_index(validators, keystore)
+		let (key, index) = signing_key_and_index(validators, &keystore)
 			.await
 			.ok_or(Error::NotAValidator)?;
 
