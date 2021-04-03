@@ -183,7 +183,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact { origin_type: OriginKind, max_weight: u64, call: DoubleEncoded<Call> },
+	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
 }
 
 /// The basic concrete type of `XcmGeneric`, which doesn't make any assumptions about the format of a
@@ -234,8 +234,8 @@ impl<Call> XcmGeneric<Call> {
 				=> HrmpChannelAccepted { recipient},
 			HrmpChannelClosing { initiator, sender, recipient}
 				=> HrmpChannelClosing { initiator, sender, recipient},
-			Transact { origin_type, max_weight, call}
-				=> Transact { origin_type, max_weight, call: call.into() }
+			Transact { origin_type, require_weight_at_most, call}
+				=> Transact { origin_type, require_weight_at_most, call: call.into() }
 		}
 	}
 }

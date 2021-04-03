@@ -91,7 +91,7 @@ pub enum OrderGeneric<Call> {
 	/// Errors:
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 
-	/// Pay for the execution of some Xcm with up to `weight` ps of execution time, paying for this with
+	/// Pay for the execution of some Xcm with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:

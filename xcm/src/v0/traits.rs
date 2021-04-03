@@ -38,6 +38,8 @@ pub enum Error {
 	BadOrigin,
 	ExceedsMaxMessageSize,
 	FailedToTransactAsset(#[codec(skip)] &'static str),
+	WeightLimitReached,
+	Wildcard,
 }
 
 impl From<()> for Error {
@@ -49,11 +51,11 @@ impl From<()> for Error {
 pub type Result = result::Result<(), Error>;
 
 pub trait ExecuteXcm {
-	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> Result;
+	fn execute_xcm(origin: MultiLocation, message: Xcm, weight_limit: u64) -> result::Result<u64, Error>;
 }
 
 impl ExecuteXcm for () {
-	fn execute_xcm(_origin: MultiLocation, _msg: Xcm) -> Result {
+	fn execute_xcm(_origin: MultiLocation, _message: Xcm, _weight_limit: u64) -> result::Result<u64, Error> {
 		Err(Error::Unimplemented)
 	}
 }

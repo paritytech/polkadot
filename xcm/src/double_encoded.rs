@@ -54,7 +54,7 @@ impl<T: Decode> DoubleEncoded<T> {
 		self.decoded.take().or_else(|| T::decode(&mut &self.encoded[..]).ok()).ok_or(())
 	}
 	pub fn try_into(mut self) -> Result<T, ()> {
-		self.ensure_decoded();
+		self.ensure_decoded()?;
 		self.decoded.ok_or(())
 	}
 }

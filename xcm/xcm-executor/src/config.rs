@@ -16,7 +16,7 @@
 
 use sp_std::marker::PhantomData;
 use parity_scale_codec::Decode;
-use xcm::v0::{Xcm, SendXcm, MultiLocation, MultiAsset, Order, XcmGeneric, OrderGeneric};
+use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}
 };
@@ -25,37 +25,91 @@ use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLoc
 use crate::assets::Assets;
 
 /// Determine the weight of an XCM message.
-pub trait WeightOf<Call> {
-	/// Return the weight of `message`.
-	fn weight_of(message: &mut XcmGeneric<Call>) -> Result<Weight, ()>;
+pub trait WeightBounds<Call> {
+	/// Return the minimum amount of weight that an attempted execution of this message would definitely
+	/// consume.
+	///
+	/// This is useful to gauge how many fees should be paid up front to begin execution of the message.
+	/// It is not useful for determining whether execution should begin lest it result in surpassing weight
+	/// limits - in that case `deep` is the function to use.
+	fn immediate(message: &mut XcmGeneric<Call>) -> Result<Weight, ()>;
+
+	/// Return the additional amount of weight, over `shallow` that complete and successful execution of
+	/// `message` would incur.
+	///
+	/// This is perhaps overly pessimistic for determining how many fees should be paid for up-front since
+	/// fee payment (or any other way of offsetting the execution costs such as an voucher-style NFT) may
+	/// happen in stages throughout execution of the XCM.
+	fn additional(message: &mut XcmGeneric<Call>) -> Result<Weight, ()>;
 }
 
-pub struct FixedWeightOf<T, C>(PhantomData<(T, C)>);
-impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightOf<C> for FixedWeightOf<T, C> {
-	fn weight_of(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
-		Ok(match message {
+pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
+	fn immediate(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
+		let min = match message {
 			XcmGeneric::Transact { call, .. } => {
 				call.ensure_decoded()?.get_dispatch_info().weight + T::get()
 			}
 			XcmGeneric::WithdrawAsset { effects, .. }
 			| XcmGeneric::ReserveAssetDeposit { effects, .. }
 			| XcmGeneric::TeleportAsset { effects, .. } => {
-				effects.iter()
+				let inner: Weight = effects.iter_mut()
 					.map(|effect| match effect {
+						OrderGeneric::BuyExecution { .. } => {
+							// On success, execution of this will result in more weight being consumed but
+							// we don't count it here since this is only the *immediate*, non-negotiable weight
+							// spend and doesn't count weight placed behind a `BuyExecution` since it will not
+							// be definitely consumed from any existing weight credit if execution of the message
+							// is attempted.
+							T::get()
+						},
 						_ => T::get(),
-					}).sum()
+					}).sum();
+				T::get() + inner
 			}
 			_ => T::get(),
-		})
+		};
+		Ok(min)
+	}
+	fn additional(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
+		let mut extra = 0;
+		match message {
+			XcmGeneric::Transact { .. } => {}
+			XcmGeneric::WithdrawAsset { effects, .. }
+			| XcmGeneric::ReserveAssetDeposit { effects, .. }
+			| XcmGeneric::TeleportAsset { effects, .. } => {
+				for effect in effects.iter_mut() {
+					match effect {
+						OrderGeneric::BuyExecution { xcm, .. } => {
+							for message in xcm.iter_mut() {
+								extra += Self::immediate(message)? + Self::additional(message)?;
+							}
+						},
+						_ => {}
+					}
+				}
+			}
+			_ => {}
+		};
+		Ok(extra)
 	}
 }
 
-/// Charge the for a given XCM message.
-pub trait BuyWeight {
+/// Charge for weight in order to execute XCM.
+pub trait WeightTrader {
+	/// Create a new trader instance.
+	fn new() -> Self;
+
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(weight: Weight, payment: Assets) -> Result<Assets, ()>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()>;
+
+	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
+	/// purchased using `buy_weight`.
+	///
+	/// Default implementation refunds nothing.
+	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
 }
 
 /// Simple fee calculator that requires payment in a single concrete fungible at a fixed rate.
@@ -63,12 +117,13 @@ pub trait BuyWeight {
 /// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
 /// one second of weight.
 pub struct FixedRateOfConcreteFungible<T>(PhantomData<T>);
-impl<T: Get<(MultiLocation, u128)>> BuyWeight for FixedRateOfConcreteFungible<T> {
-	fn buy_weight(weight: Weight, payment: Assets) -> Result<Assets, ()> {
+impl<T: Get<(MultiLocation, u128)>> WeightTrader for FixedRateOfConcreteFungible<T> {
+	fn new() -> Self { Self(PhantomData) }
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
 		let (required_id, units_per_second) = T::get();
 		let required_amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let required = MultiAsset::ConcreteFungible { amount: required_amount, id: required_id };
-		Ok(payment.checked_sub(required).map_err(|_| ())?.0)
+		Ok(payment.less(required).map_err(|_| ())?.0)
 	}
 }
 
@@ -80,8 +135,8 @@ pub trait ShouldExecute {
 	/// - `top_level`: `true`` indicates the initial XCM coming from the `origin`, `false` indicates an embedded
 	///   XCM executed internally as part of another message or an `Order`.
 	/// - `message`: The message itself.
-	/// - `message_weight`: The weight of the message; the actual weight of the message is guaranteed to be
-	///   no greater than this.
+	/// - `immediate_weight`: The weight of the non-negotiable execution of the message. This does not include any
+	///   embedded XCMs sat behind mechanisms like `BuyExecution` which would need to answer for their own weight.
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message
 	///   may utilise in its execution. Typically non-zero only because of prior fee payment, but could
 	///   in principle be due to other factors.
@@ -89,7 +144,7 @@ pub trait ShouldExecute {
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
-		message_weight: Weight,
+		immediate_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
 }
@@ -100,11 +155,11 @@ impl ShouldExecute for Tuple {
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
-		message_weight: Weight,
+		immediate_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		for_tuples!( #(
-			match Tuple::should_execute(origin, top_level, message, message_weight, weight_credit) {
+			match Tuple::should_execute(origin, top_level, message, immediate_weight, weight_credit) {
 				o @ Ok(()) => return o,
 				_ => (),
 			}
@@ -119,10 +174,10 @@ impl ShouldExecute for TakeWeightCredit {
 		_origin: &MultiLocation,
 		_top_level: bool,
 		_message: &XcmGeneric<Call>,
-		message_weight: Weight,
+		immediate_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		*weight_credit = weight_credit.checked_sub(message_weight).ok_or(())?;
+		*weight_credit = weight_credit.checked_sub(immediate_weight).ok_or(())?;
 		Ok(())
 	}
 }
@@ -133,7 +188,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
-		message_weight: Weight,
+		immediate_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
@@ -144,7 +199,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			| XcmGeneric::ReserveAssetDeposit { effects, ..}
 				if matches!(
 					effects.first(),
-					Some(OrderGeneric::BuyExecution { debt, ..}) if *debt >= message_weight
+					Some(OrderGeneric::BuyExecution { debt, ..}) if *debt >= immediate_weight
 				)
 				=> Ok(()),
 			_ => Err(()),
@@ -158,7 +213,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		origin: &MultiLocation,
 		_top_level: bool,
 		_message: &XcmGeneric<Call>,
-		_message_weight: Weight,
+		_immediate_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
@@ -193,8 +248,8 @@ pub trait Config {
 	type Barrier: ShouldExecute;
 
 	/// The means of determining an XCM message's weight.
-	type Weigher: WeightOf<Self::Call>;
+	type Weigher: WeightBounds<Self::Call>;
 
 	/// The means of purchasing weight credit for XCM execution.
-	type Sale: BuyWeight;
+	type Trader: WeightTrader;
 }

@@ -146,6 +146,18 @@ pub enum MultiAsset {
 	ConcreteNonFungible { class: MultiLocation, instance: AssetInstance },
 }
 
+impl MultiAsset {
+	pub fn is_wildcard(&self) -> bool {
+		use MultiAsset::*;
+		match self {
+			None | AbstractFungible {..} | AbstractNonFungible {..}
+			| ConcreteFungible {..} | ConcreteNonFungible {..} => false,
+			All | AllFungible | AllNonFungible | AllAbstractFungible {..} | AllConcreteFungible {..}
+			| AllAbstractNonFungible {..} | AllConcreteNonFungible {..} => true,
+		}
+	}
+}
+
 impl From<MultiAsset> for VersionedMultiAsset {
 	fn from(x: MultiAsset) -> Self {
 		VersionedMultiAsset::V0(x)
