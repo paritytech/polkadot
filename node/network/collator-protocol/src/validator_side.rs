@@ -1229,6 +1229,7 @@ mod tests {
 	};
 	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
 	use polkadot_node_network_protocol::{our_view, ObservedRole,
 		request_response::Requests
 	};
@@ -1312,10 +1313,10 @@ mod tests {
 		}
 	}
 
-	// TODO [now]: utility for responding to validator assignment queries.
+	type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
 
 	struct TestHarness {
-		virtual_overseer: test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		virtual_overseer: VirtualOverseer,
 	}
 
 	fn test_harness<T: Future<Output = ()>>(test: impl FnOnce(TestHarness) -> T) {
@@ -1350,7 +1351,7 @@ mod tests {
 	const TIMEOUT: Duration = Duration::from_millis(200);
 
 	async fn overseer_send(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		msg: CollatorProtocolMessage,
 	) {
 		tracing::trace!("Sending message:\n{:?}", &msg);
@@ -1362,7 +1363,7 @@ mod tests {
 	}
 
 	async fn overseer_recv(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 	) -> AllMessages {
 		let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 			.await
@@ -1374,7 +1375,7 @@ mod tests {
 	}
 
 	async fn overseer_recv_with_timeout(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		timeout: Duration,
 	) -> Option<AllMessages> {
 		tracing::trace!("Waiting for message...");
@@ -1382,6 +1383,44 @@ mod tests {
 			.recv()
 			.timeout(timeout)
 			.await
+	}
+
+	async fn respond_to_core_info_queries(
+		virtual_overseer: &mut VirtualOverseer,
+		test_state: &TestState,
+	) {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::Validators(tx),
+			)) => {
+				let _ = tx.send(Ok(test_state.validator_public.clone()));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::ValidatorGroups(tx),
+			)) => {
+				let _ = tx.send(Ok((
+					test_state.validator_groups.clone(),
+					test_state.group_rotation_info.clone(),
+				)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::AvailabilityCores(tx),
+			)) => {
+				let _ = tx.send(Ok(test_state.cores.clone()));
+			}
+		);
 	}
 
 	// // As we receive a relevant advertisement act on it and issue a collation request.
