@@ -243,7 +243,7 @@ decl_event! {
 		/// A memo has been updated. [who, fund_index, memo]
 		MemoUpdated(AccountId, ParaId, Vec<u8>),
 		/// A parachain has been moved to NewRaise
-		AddedToNewRaise(AccountId, ParaId),
+		AddedToNewRaise(ParaId),
 	}
 }
 
@@ -601,12 +601,12 @@ decl_module! {
 		/// Origin must be Signed, and the fund has non-zero raise.
 		#[weight = T::WeightInfo::poke()]
 		pub fn poke(origin, index: ParaId) {
-			let who = ensure_signed(origin)?;
+			ensure_signed(origin)?;
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
-			ensure!(!(fund.raised.is_zero()), Error::<T>::NoContributions);
-			ensure!(!(NewRaise::get().contains(&index)), Error::<T>::AlreadyInNewRaise);
+			ensure!(!fund.raised.is_zero(), Error::<T>::NoContributions);
+			ensure!(!NewRaise::get().contains(&index), Error::<T>::AlreadyInNewRaise);
 			NewRaise::append(index);
-			Self::deposit_event(RawEvent::AddedToNewRaise(who, index));
+			Self::deposit_event(RawEvent::AddedToNewRaise(index));
 		}
 	}
 }
@@ -1675,23 +1675,25 @@ mod benchmarking {
 
 		poke {
 			let para_id = ParaId::from(1);
-			let cap = BalanceOf::<T>::max_value();
-			let first_period = 0u32.into();
-			let last_period = 3u32.into();
-			let end = T::Auctioneer::lease_period();
-
-			let caller: T::AccountId = whitelisted_caller();
-			let verifier: MultiSigner = account("verifier", 0, 0);
-			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			Crowdloan::<T>::create(
-				RawOrigin::Signed(caller.clone()).into(),
-				para_id, cap, first_period, last_period, end, Some(verifier.clone()),
-			)?;
-			contribute_fund::<T>(&caller, para_id);
-			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
-		}: _(RawOrigin::Signed(caller.clone()), para_id)
+			let depositor : T::AccountId = whitelisted_caller();
+			Funds::<T>::insert(para_id, FundInfo {
+				retiring: false,
+				depositor: depositor.clone(),
+				verifier: None,
+				deposit: 0u32.into(),
+				raised: 1u32.into(),
+				end: 5u32.into(),
+				cap: 5u32.into(),
+				last_contribution: LastContribution::Never,
+				first_period: 1u32.into(),
+				last_period: 1u32.into(),
+				trie_index: 0u32.into(),
+			});
+			assert!(NewRaise::get().is_empty());
+		}: _(RawOrigin::Signed(depositor), para_id)
 		verify {
-			assert_last_event::<T>(RawEvent::AddedToNewRaise(caller,para_id).into())
+			assert!(!NewRaise::get().is_empty());
+			assert_last_event::<T>(RawEvent::AddedToNewRaise(para_id).into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
