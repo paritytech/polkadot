@@ -90,6 +90,11 @@ impl Metrics {
 	fn time_handle_collation_request_result(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_collation_request_result.start_timer())
 	}
+
+	/// Note the current number of collator peers.
+	fn note_collator_peer_count(&self, collator_peers: usize) {
+		self.0.as_ref().map(|metrics| metrics.collator_peer_count.set(collator_peers as u64));
+	}
 }
 
 #[derive(Clone)]
@@ -97,6 +102,7 @@ struct MetricsInner {
 	collation_requests: prometheus::CounterVec<prometheus::U64>,
 	process_msg: prometheus::Histogram,
 	handle_collation_request_result: prometheus::Histogram,
+	collator_peer_count: prometheus::Gauge<prometheus::U64>,
 }
 
 impl metrics::Metrics for Metrics {
@@ -129,6 +135,13 @@ impl metrics::Metrics for Metrics {
 						"parachain_collator_protocol_validator_handle_collation_request_result",
 						"Time spent within `collator_protocol_validator::handle_collation_request_result`",
 					)
+				)?,
+				registry,
+			)?,
+			collator_peer_count: prometheus::register(
+				prometheus::Gauge::new(
+					"parachain_collator_peer_count",
+					"Amount of collator peers connected",
 				)?,
 				registry,
 			)?,
@@ -861,9 +874,11 @@ where
 	match bridge_message {
 		PeerConnected(peer_id, _role) => {
 			state.peer_data.entry(peer_id).or_default();
+			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		PeerDisconnected(peer_id) => {
 			state.peer_data.remove(&peer_id);
+			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(state, peer_id, view).await?;
