@@ -58,6 +58,7 @@ const COST_REQUEST_TIMED_OUT: Rep = Rep::CostMinor("A collation request has time
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Invalid network message signature");
 const COST_REPORT_BAD: Rep = Rep::Malicious("A collator was reported by another subsystem");
 const COST_WRONG_PARA: Rep = Rep::Malicious("A collator provided a collation for the wrong para");
+const COST_UNNEEDED_COLLATOR: Rep = Rep::CostMinor("An unneeded collator connected");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 // How often to check all peers with activity.
@@ -251,6 +252,13 @@ impl PeerData {
 		}
 	}
 
+	fn collating_para(&self) -> Option<ParaId> {
+		match self.state {
+			PeerState::Connected(_) => None,
+			PeerState::Collating(ref state) => Some(state.para_id),
+		}
+	}
+
 	/// Whether the peer has advertised the given collation.
 	fn has_advertised(&self, relay_parent: &Hash) -> bool {
 		match self.state {
@@ -421,6 +429,9 @@ struct State {
 	/// Our own view.
 	view: OurView,
 
+	/// Active paras based on our view. We only accept collators from these paras.
+	active_paras: ActiveParas,
+
 	/// Track all active collators and their data.
 	peer_data: HashMap<PeerId, PeerData>,
 
@@ -448,6 +459,12 @@ fn collator_peer_id(
 		.find_map(|(peer, data)|
 			data.collator_id().filter(|c| c == &collator_id).map(|_| peer.clone())
 		)
+}
+
+async fn disconnect_peer(ctx: &mut impl SubsystemContext, peer_id: PeerId) {
+	ctx.send_message(
+		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation).into()
+	).await
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -680,15 +697,28 @@ where
 				return
 			}
 
-			tracing::debug!(
-				target: LOG_TARGET,
-				peer_id = ?origin,
-				?collator_id,
-				?para_id,
-				"Declared as collator",
-			);
+			if state.active_paras.is_current_or_next(para_id) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?collator_id,
+					?para_id,
+					"Declared as collator for current or next para",
+				);
 
-			peer_data.set_collating(collator_id, para_id);
+				peer_data.set_collating(collator_id, para_id);
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?collator_id,
+					?para_id,
+					"Declared as collator for unneeded para",
+				);
+
+				modify_reputation(ctx, origin.clone(), COST_UNNEEDED_COLLATOR).await;
+				disconnect_peer(ctx, origin).await;
+			}
 		}
 		AdvertiseCollation(relay_parent) => {
 			let _span = state.span_per_relay_parent.get(&relay_parent).map(|s| s.child("advertise-collation"));
@@ -764,9 +794,11 @@ async fn remove_relay_parent(
 }
 
 /// Our view has changed.
-#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
+	ctx: &mut impl SubsystemContext,
 	state: &mut State,
+	keystore: &SyncCryptoStorePtr,
 	view: OurView,
 ) -> Result<()> {
 	let old_view = std::mem::replace(&mut state.view, view);
@@ -777,32 +809,48 @@ async fn handle_our_view_change(
 		.filter(|v| !old_view.contains(&v.0))
 		.map(|v| (v.0.clone(), v.1.clone()))
 		.collect();
+
 	added.into_iter().for_each(|(h, s)| {
 		state.span_per_relay_parent.insert(h, PerLeafSpan::new(s, "validator-side"));
 	});
 
+	let added = state.view.difference(&old_view).cloned().collect::<Vec<_>>();
 	let removed = old_view
 		.difference(&state.view)
 		.cloned()
 		.collect::<Vec<_>>();
 
-	for removed in removed.into_iter() {
+	for removed in removed.iter().cloned() {
 		remove_relay_parent(state, removed).await?;
 		state.span_per_relay_parent.remove(&removed);
 	}
 
-	for peer_data in state.peer_data.values_mut() {
+	state.active_paras.assign_incoming(ctx.sender(), keystore, added).await;
+	state.active_paras.remove_outgoing(removed);
+
+	for (peer_id, peer_data) in state.peer_data.iter_mut() {
 		peer_data.prune_old_advertisements(&state.view);
+
+		// Disconnect peers who are not relevant to our current or next para.
+		//
+		// If the peer hasn't declared yet, they will be disconnected if they do not
+		// declare.
+		if let Some(para_id) = peer_data.collating_para() {
+			if !state.active_paras.is_current_or_next(para_id) {
+				disconnect_peer(ctx, peer_id.clone()).await;
+			}
+		}
 	}
 
 	Ok(())
 }
 
 /// Bridge event switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
+	keystore: &SyncCryptoStorePtr,
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
 ) -> Result<()>
 where
@@ -821,7 +869,7 @@ where
 			handle_peer_view_change(state, peer_id, view).await?;
 		},
 		OurViewChange(view) => {
-			handle_our_view_change(state, view).await?;
+			handle_our_view_change(ctx, state, keystore, view).await?;
 		},
 		PeerMessage(remote, msg) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
@@ -832,9 +880,10 @@ where
 }
 
 /// The main message receiver switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, keystore, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
+	keystore: &SyncCryptoStorePtr,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
 )
@@ -876,6 +925,7 @@ where
 			if let Err(e) = handle_network_msg(
 				ctx,
 				state,
+				keystore,
 				event,
 			).await {
 				tracing::warn!(
@@ -907,9 +957,10 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 }
 
 /// The main run loop.
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
+	keystore: SyncCryptoStorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> Result<()>
@@ -949,7 +1000,12 @@ pub(crate) async fn run<Context>(
 				tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 
 				match msg {
-					Communication { msg } => process_msg(&mut ctx, msg, &mut state).await,
+					Communication { msg } => process_msg(
+						&mut ctx,
+						&keystore,
+						msg,
+						&mut state,
+					).await,
 					Signal(BlockFinalized(..)) => {}
 					Signal(ActiveLeaves(_)) => {}
 					Signal(Conclude) => { break }
@@ -992,9 +1048,7 @@ async fn disconnect_inactive_peers(
 	let now = Instant::now();
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(now, &eviction_policy) {
-			ctx.send_message(
-				NetworkBridgeMessage::DisconnectPeer(peer.clone(), PeerSet::Collation).into()
-			).await;
+			disconnect_peer(ctx, peer.clone()).await;
 		}
 	}
 }

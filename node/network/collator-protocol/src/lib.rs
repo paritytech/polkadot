@@ -79,6 +79,8 @@ impl Default for CollatorEvictionPolicy {
 pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
 	Validator {
+		/// The keystore holding validator keys.
+		keystore: SyncCryptoStorePtr,
 		/// An eviction policy for inactive peers or validators.
 		eviction_policy: CollatorEvictionPolicy,
 		/// Prometheus metrics for validators.
@@ -110,8 +112,9 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator { eviction_policy, metrics } => validator_side::run(
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
 				ctx,
+				keystore,
 				eviction_policy,
 				metrics,
 			).await,
