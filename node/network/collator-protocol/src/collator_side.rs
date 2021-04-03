@@ -37,9 +37,9 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::{
 	validator_discovery,
-	request_validators_ctx,
-	request_validator_groups_ctx,
-	request_availability_cores_ctx,
+	request_validators,
+	request_validator_groups,
+	request_availability_cores,
 	metrics::{self, prometheus},
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV, CompressedPoV};
@@ -380,7 +380,7 @@ async fn determine_core(
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>> {
-	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await??;
+	let cores = request_availability_cores(relay_parent, ctx.sender()).await.await??;
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
@@ -403,7 +403,7 @@ async fn determine_our_validators(
 	cores: usize,
 	relay_parent: Hash,
 ) -> Result<(HashSet<ValidatorId>, HashSet<ValidatorId>)> {
-	let groups = request_validator_groups_ctx(relay_parent, ctx).await?;
+	let groups = request_validator_groups(relay_parent, ctx.sender()).await;
 
 	let groups = groups.await??;
 
@@ -413,7 +413,7 @@ async fn determine_our_validators(
 	let next_group_idx = (current_group_index.0 as usize + 1) % groups.0.len();
 	let next_validators = groups.0.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
 
-	let validators = request_validators_ctx(relay_parent, ctx).await?.await??;
+	let validators = request_validators(relay_parent, ctx.sender()).await.await??;
 
 	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
