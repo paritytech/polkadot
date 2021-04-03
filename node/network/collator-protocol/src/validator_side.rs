@@ -1217,7 +1217,6 @@ mod tests {
 	use std::{iter, time::Duration};
 	use std::sync::Arc;
 	use futures::{executor, future, Future};
-	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_core::{crypto::Pair, Encode};
 	use sp_keystore::SyncCryptoStore;
 	use sp_keystore::testing::KeyStore as TestKeyStore;
@@ -1229,6 +1228,7 @@ mod tests {
 		GroupRotationInfo, ScheduledCore, OccupiedCore, GroupIndex,
 	};
 	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
 	use polkadot_node_network_protocol::{our_view, ObservedRole,
@@ -1326,6 +1326,18 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output = ()>>(test: impl FnOnce(TestHarness) -> T) {
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(
+				Some("polkadot_collator_protocol"),
+				log::LevelFilter::Trace,
+			)
+			.filter(
+				Some(LOG_TARGET),
+				log::LevelFilter::Trace,
+			)
+			.try_init();
+
 		let pool = sp_core::testing::TaskExecutor::new();
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());

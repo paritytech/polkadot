@@ -533,7 +533,11 @@ where
 					collator_pair,
 					Metrics::register(registry)?,
 				),
-				IsCollator::No => ProtocolSide::Validator(Default::default(),Metrics::register(registry)?),
+				IsCollator::No => ProtocolSide::Validator {
+					keystore: keystore.clone(),
+					eviction_policy: Default::default(),
+					metrics: Metrics::register(registry)?,
+				},
 			};
 			CollatorProtocolSubsystem::new(
 				side,
