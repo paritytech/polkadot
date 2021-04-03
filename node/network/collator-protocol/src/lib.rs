@@ -79,7 +79,9 @@ impl Default for CollatorEvictionPolicy {
 pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
 	Validator {
+		/// An eviction policy for inactive peers or validators.
 		eviction_policy: CollatorEvictionPolicy,
+		/// Prometheus metrics for validators.
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
@@ -110,7 +112,7 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator { eviction_policy, metrics } => validator_side::run(
 				ctx,
-				policy,
+				eviction_policy,
 				metrics,
 			).await,
 			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(

@@ -44,7 +44,7 @@ use polkadot_subsystem::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, IfDisconnected,
 		NetworkBridgeEvent, NetworkBridgeMessage,
 	},
-	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
+	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
 
 use super::{modify_reputation, Result, LOG_TARGET};
@@ -275,8 +275,8 @@ impl Default for PeerData {
 }
 
 struct GroupAssignments {
-	current: ParaId,
-	next: ParaId,
+	current: Option<ParaId>,
+	next: Option<ParaId>,
 }
 
 #[derive(Default)]
@@ -290,29 +290,121 @@ impl ActiveParas {
 	async fn assign_incoming(
 		&mut self,
 		sender: &mut impl SubsystemSender,
+		keystore: &SyncCryptoStorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
-		unimplemented!()
+		for relay_parent in new_relay_parents {
+			let mv = polkadot_node_subsystem_util::request_validators(relay_parent, sender)
+				.await
+				.await
+				.ok()
+				.map(|x| x.ok())
+				.flatten();
+
+			let mg = polkadot_node_subsystem_util::request_validator_groups(relay_parent, sender)
+				.await
+				.await
+				.ok()
+				.map(|x| x.ok())
+				.flatten();
+
+
+			let mc = polkadot_node_subsystem_util::request_availability_cores(relay_parent, sender)
+				.await
+				.await
+				.ok()
+				.map(|x| x.ok())
+				.flatten();
+
+			let (validators, groups, rotation_info, cores) = match (mv, mg, mc) {
+				(Some(v), Some((g, r)), Some(c)) => (v, g, r, c),
+				_ => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						relay_parent = ?relay_parent,
+						"Failed to query runtime API for relay-parent",
+					);
+
+					continue
+				}
+			};
+
+			let (para_now, para_next) = match polkadot_node_subsystem_util
+				::signing_key_and_index(&validators, keystore)
+				.await
+				.and_then(|(_, index)| polkadot_node_subsystem_util::find_validator_group(
+					&groups,
+					index,
+				))
+			{
+				Some(group) => {
+					let next_rotation_info = rotation_info.bump_rotation();
+					let core_now = rotation_info.core_for_group(group, cores.len());
+					let core_next = next_rotation_info.core_for_group(group, cores.len());
+
+					(
+						cores.get(core_now.0 as usize).and_then(|c| c.para_id()),
+						cores.get(core_next.0 as usize).and_then(|c| c.para_id()),
+					)
+				}
+				None => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?relay_parent,
+						"Not a validator",
+					);
+
+					continue
+				}
+			};
+
+			// This code won't work well, if at all for parathreads. For parathreads we'll
+			// have to be aware of which core the parathread claim is going to be multiplexed
+			// onto. The parathread claim will also have a known collator, and we should always
+			// allow an incoming connection from that collator. If not even connecting to them
+			// directly.
+			//
+			// However, this'll work fine for parachains, as each parachain gets a dedicated
+			// core.
+			if let Some(para_now) = para_now {
+				*self.current_assignments.entry(para_now).or_default() += 1;
+			}
+
+			if let Some(para_next) = para_next {
+				*self.next_assignments.entry(para_next).or_default() += 1;
+			}
+
+			self.relay_parent_assignments.insert(
+				relay_parent,
+				GroupAssignments { current: para_now, next: para_next },
+			);
+		}
 	}
 
 	fn remove_outgoing(
 		&mut self,
 		old_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
-		if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
-			let GroupAssignments { current, next } = assignments;
+		for old_relay_parent in old_relay_parents {
+			if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
+				let GroupAssignments { current, next } = assignments;
 
-			if let Entry::Occupied(mut occupied) = self.current_assignments.entry(current) {
-				occupied.get_mut() = occupied.get().saturating_sub(1);
-				if *occupied.get() == 0 {
-					occupied.remove_entry();
+				if let Some(cur) = current {
+					if let Entry::Occupied(mut occupied) = self.current_assignments.entry(cur) {
+						*occupied.get_mut() -= 1;
+						if *occupied.get() == 0 {
+							occupied.remove_entry();
+						}
+					}
 				}
-			}
 
-			if let Entry::Occupied(mut occupied) = self.next_assignments.entry(next) {
-				occupied.get_mut() = occupied.get().saturating_sub(1);
-				if *occupied.get() == 0 {
-					occupied.remove_entry();
+				if let Some(next) = next {
+					if let Entry::Occupied(mut occupied) = self.next_assignments.entry(next) {
+						*occupied.get_mut() -= 1;
+						if *occupied.get() == 0 {
+							occupied.remove_entry();
+						}
+					}
 				}
 			}
 		}
