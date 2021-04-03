@@ -640,6 +640,15 @@ impl GroupRotationInfo {
 		let idx = (group_index.0 as usize + cores - rotations as usize) % cores;
 		CoreIndex(idx as u32)
 	}
+
+	/// Create a new `GroupRotationInfo` with one further rotation applied.
+	pub fn bump_rotation(&self) -> Self {
+		GroupRotationInfo {
+			session_start_block: self.session_start_block,
+			group_rotation_frequency: self.group_rotation_frequency,
+			now: self.next_rotation_at(),
+		}
+	}
 }
 
 impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
