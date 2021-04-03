@@ -1199,13 +1199,14 @@ where
 mod tests {
 	use super::*;
 	use std::{iter, time::Duration};
-	use futures::{executor, future, Future};
-	use polkadot_node_subsystem_util::TimeoutExt;
-	use sp_core::{crypto::Pair, Encode};
 	use assert_matches::assert_matches;
+	use futures::{executor, future, Future};
+	use sc_keystore::LocalKeystore;
+	use sp_core::{crypto::Pair, Encode};
 
 	use polkadot_primitives::v1::CollatorPair;
 	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::{our_view, ObservedRole,
 		request_response::Requests
@@ -1246,25 +1247,26 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output = ()>>(test: impl FnOnce(TestHarness) -> T) {
-		// TODO [now]: reinstate
-		// let _ = env_logger::builder()
-		// 	.is_test(true)
-		// 	.filter(
-		// 		Some("polkadot_collator_protocol"),
-		// 		log::LevelFilter::Trace,
-		// 	)
-		// 	.filter(
-		// 		Some(LOG_TARGET),
-		// 		log::LevelFilter::Trace,
-		// 	)
-		// 	.try_init();
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(
+				Some("polkadot_collator_protocol"),
+				log::LevelFilter::Trace,
+			)
+			.filter(
+				Some(LOG_TARGET),
+				log::LevelFilter::Trace,
+			)
+			.try_init();
 
 		let pool = sp_core::testing::TaskExecutor::new();
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = run(
 			context,
+			keystore,
 			crate::CollatorEvictionPolicy {
 				inactive_collator: ACTIVITY_TIMEOUT,
 				undeclared: DECLARE_TIMEOUT,
