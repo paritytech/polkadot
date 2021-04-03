@@ -26,7 +26,10 @@ pub use paste;
 /// This macro generates a `SlotRange` enum of arbitrary length for use in the Slot Auction
 /// mechanism on Polkadot.
 ///
-/// Usage: `generate_slot_range!(Zero(0), One(1), Two(2), Three(3))`
+/// Usage:
+/// ```
+/// slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3));
+/// ```
 ///
 /// To extend the usage, continue to add `Identifier(value)` items to the macro.
 ///
@@ -145,11 +148,11 @@ macro_rules! generate_slot_range_len {
 			///
 			/// Example:`SlotRange::OneTwo.len() == 2`
 			pub fn len(&self) -> usize {
-			match self {
-				// len (0, 2) = 2 - 0 + 1 = 3
-				$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
+				match self {
+					// len (0, 2) = 2 - 0 + 1 = 3
+					$( SlotRange::$parsed => { ( $t2 - $t1 + 1) } )*
+				}
 			}
-		}
 	};
 }
 
@@ -205,13 +208,21 @@ macro_rules! generate_slot_range_count {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! generate_lease_period_per_slot {
-	(@
-		$( $idents:ident )*
+	(
+		$start:ident $( $rest:ident )*
 	) => {
-		#[doc(hidden)]
-		#[allow(dead_code, non_camel_case_types)]
-		enum __LeasePeriodPerSlotTemp { $($idents,)* __LeasePeriodPerSlotLast }
-		const LEASE_PERIODS_PER_SLOT: usize = __LeasePeriodPerSlotTemp::__LeasePeriodPerSlotLast as usize;
+		crate::generate_lease_period_per_slot!(@inner 1; $( $rest )*);
+	};
+	(@inner
+		$count:expr;
+		$start:ident $( $rest:ident )*
+	) => {
+		crate::generate_lease_period_per_slot!(@inner $count + 1; $( $rest )*);
+	};
+	(@inner
+		$count:expr;
+	) => {
+		const LEASE_PERIODS_PER_SLOT: usize = $count;
 	};
 }
 
