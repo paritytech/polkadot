@@ -39,7 +39,7 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId,
+	AuthorityDiscoveryId, GroupIndex,
 };
 use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
@@ -180,13 +180,34 @@ specialize_requests! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
-	for v in validators.iter() {
+pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr)
+	-> Option<ValidatorId>
+{
+	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
+}
+
+/// From the given set of validators, find the first key we can sign with, if any, and return it
+/// along with the validator index.
+pub async fn signing_key_and_index(validators: &[ValidatorId], keystore: SyncCryptoStorePtr)
+	-> Option<(ValidatorId, ValidatorIndex)>
+{
+	for (i, v) in validators.iter().enumerate() {
 		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
-			return Some(v.clone());
+			return Some((v.clone(), ValidatorIndex(i as _)));
 		}
 	}
 	None
+}
+
+/// Find the validator group the given validator index belongs to.
+pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorIndex)
+	-> Option<GroupIndex>
+{
+	groups.iter().enumerate().find_map(|(i, g)| if g.contains(&index) {
+		Some(GroupIndex(i as _))
+	} else {
+		None
+	})
 }
 
 /// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
@@ -217,7 +238,7 @@ impl Validator {
 	pub async fn new(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut impl SubsystemSender,
 	) -> Result<Self, Error> {
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
@@ -245,13 +266,9 @@ impl Validator {
 		signing_context: SigningContext,
 		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
-		let index = validators
-			.iter()
-			.enumerate()
-			.find(|(_, k)| k == &&key)
-			.map(|(idx, _)| ValidatorIndex(idx as u32))
-			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
+		let (key, index) = signing_key_and_index(validators, keystore)
+			.await
+			.ok_or(Error::NotAValidator)?;
 
 		Ok(Validator {
 			signing_context,
