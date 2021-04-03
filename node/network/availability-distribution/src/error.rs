@@ -109,13 +109,9 @@ impl From<SubsystemError> for Error {
 
 /// Receive a response from a runtime request and convert errors.
 pub(crate) async fn recv_runtime<V>(
-	r: std::result::Result<
-		oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-		UtilError,
-	>,
+	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 ) -> std::result::Result<V, Error> {
-	r.map_err(Error::UtilRequest)?
-		.await
+	r.await
 		.map_err(Error::RuntimeRequestCanceled)?
 		.map_err(Error::RuntimeRequest)
 }
