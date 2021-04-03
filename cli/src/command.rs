@@ -138,6 +138,13 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 	sp_core::crypto::set_default_ss58_version(ss58_version);
 }
 
+const DEV_ONLY_ERROR_PATTERN: &'static str =
+	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev], got ";
+
+fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
+	if spec.is_dev() { Ok(()) } else { Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id())) }
+}
+
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
 	let cli = Cli::from_args();
@@ -268,13 +275,27 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
-
 			set_default_ss58_version(chain_spec);
 
-			Ok(runner.sync_run(|config| {
-				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-				.map_err(|e| Error::SubstrateCli(e))
-			})?)
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+			if chain_spec.is_polkadot() {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else if chain_spec.is_kusama() {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else if chain_spec.is_westend() {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else {
+				Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, chain_spec.id()).into())
+			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
@@ -283,24 +304,38 @@ pub fn run() -> Result<()> {
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|config| {
-				use sc_service::TaskManager;
-				let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
-				let task_manager = TaskManager::new(
-					config.task_executor.clone(),
-					registry,
-				).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
+			use sc_service::TaskManager;
+			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
+			let task_manager = TaskManager::new(
+				runner.config().task_executor.clone(),
+				*registry,
+			).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
-				Ok((
-					cmd.run::<
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+			if chain_spec.is_polkadot() {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::polkadot_runtime::Block,
+						service::PolkadotExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else if chain_spec.is_kusama() {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
 						service::kusama_runtime::Block,
 						service::KusamaExecutor,
-					>(config).map_err(Error::SubstrateCli),
-					task_manager
-				))
-				// NOTE: we fetch only the block number from the block type, the chance of disparity
-				// between kusama's and polkadot's block number is small enough to overlook this.
-			})
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::westend_runtime::Block,
+						service::WestendExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else {
+				Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, chain_spec.id()).into())
+			}
 		}
 	}?;
 	Ok(())

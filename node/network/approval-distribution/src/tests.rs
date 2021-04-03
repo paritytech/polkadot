@@ -345,6 +345,87 @@ fn spam_attack_results_in_negative_reputation_change() {
 	});
 }
 
+
+/// Imagine we send a message to peer A and peer B.
+/// Upon receiving them, they both will try to send the message each other.
+/// This test makes sure they will not punish each other for such duplicate messages.
+///
+/// See https://github.com/paritytech/polkadot/issues/2499.
+#[test]
+fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let peer_a = PeerId::random();
+	let hash = Hash::repeat_byte(0xAA);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		let peer = &peer_a;
+		setup_peer_with_view(overseer, peer, view![]).await;
+
+		// new block `hash` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		// import an assignment related to `hash` locally
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+		let cert = fake_assignment_cert(hash, validator_index);
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index)
+		).await;
+
+		// update peer view to include the hash
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view![hash])
+			)
+		).await;
+
+		// we should send them the assignment
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
+				)
+			)) => {
+				assert_eq!(peers.len(), 1);
+				assert_eq!(assignments.len(), 1);
+			}
+		);
+
+		// but if someone else is sending it the same assignment
+		// the peer could send us it as well
+		let assignments = vec![(cert, candidate_index)];
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
+		send_message_from_peer(overseer, peer, msg.clone()).await;
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"we should not punish the peer",
+		);
+
+		// send the assignments again
+		send_message_from_peer(overseer, peer, msg).await;
+
+		// now we should
+		expect_reputation_change(overseer, peer, COST_DUPLICATE_MESSAGE).await;
+	});
+}
+
 #[test]
 fn import_approval_happy_path() {
 	let peer_a = PeerId::random();
@@ -655,6 +736,7 @@ fn update_peer_view() {
 			.known_by
 			.get(peer)
 			.unwrap()
+			.sent
 			.known_messages
 			.len(),
 		1,
@@ -701,6 +783,7 @@ fn update_peer_view() {
 			.known_by
 			.get(peer)
 			.unwrap()
+			.sent
 			.known_messages
 			.len(),
 		1,
@@ -729,6 +812,7 @@ fn update_peer_view() {
 	);
 }
 
+/// E.g. if someone copies the keys...
 #[test]
 fn import_remotely_then_locally() {
 	let peer_a = PeerId::random();
