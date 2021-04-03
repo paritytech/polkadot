@@ -1354,6 +1354,7 @@ mod tests {
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
 	};
 	use polkadot_node_primitives::{InvalidCandidate, BlockData};
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
@@ -1467,14 +1468,16 @@ mod tests {
 		}
 	}
 
-	struct TestHarness {
-		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
-	}
+	type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>;
 
-	fn test_harness<T: Future<Output=()>>(keystore: SyncCryptoStorePtr, test: impl FnOnce(TestHarness) -> T) {
+	fn test_harness<T: Future<Output=VirtualOverseer>>(
+		keystore: SyncCryptoStorePtr,
+		test: impl FnOnce(VirtualOverseer) -> T,
+	) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) =
+			test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::new(
 			pool.clone(),
@@ -1482,13 +1485,16 @@ mod tests {
 			Metrics(None),
 		).run(context);
 
-		let test_fut = test(TestHarness {
-			virtual_overseer,
-		});
+		let test_fut = test(virtual_overseer);
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
-		futures::executor::block_on(future::select(test_fut, subsystem));
+		futures::executor::block_on(future::join(async move {
+			let mut virtual_overseer = test_fut.await;
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::Conclude,
+			)).await;
+		}, subsystem));
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
@@ -1530,7 +1536,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut VirtualOverseer,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
@@ -1588,9 +1594,7 @@ mod tests {
 	#[test]
 	fn backing_second_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1675,6 +1679,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1682,9 +1687,7 @@ mod tests {
 	#[test]
 	fn backing_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1821,15 +1824,14 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn backing_works_while_validation_ongoing() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1984,6 +1986,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1992,9 +1995,7 @@ mod tests {
 	#[test]
 	fn backing_misbehavior_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2138,6 +2139,7 @@ mod tests {
 					).expect("signature must be valid");
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2146,9 +2148,7 @@ mod tests {
 	#[test]
 	fn backing_dont_second_invalid() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov_block_a = PoV {
@@ -2269,6 +2269,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2277,9 +2278,7 @@ mod tests {
 	#[test]
 	fn backing_second_after_first_fails_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2393,6 +2392,7 @@ mod tests {
 					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2401,9 +2401,7 @@ mod tests {
 	#[test]
 	fn backing_works_after_failed_validation() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2479,6 +2477,7 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 0);
+			virtual_overseer
 		});
 	}
 
@@ -2492,9 +2491,7 @@ mod tests {
 			collator: Some(Sr25519Keyring::Bob.public().into()),
 		});
 
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2532,6 +2529,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2543,9 +2541,7 @@ mod tests {
 			collator: Some(Sr25519Keyring::Bob.public().into()),
 		});
 
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2588,6 +2584,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2673,9 +2670,7 @@ mod tests {
 	fn retry_works() {
 		// sp_tracing::try_init_simple();
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2818,6 +2813,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor()
 			);
+			virtual_overseer
 		});
 	}
 }
