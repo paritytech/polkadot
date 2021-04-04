@@ -27,12 +27,13 @@ use frame_support::{
 };
 use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use crate::slot_range::SlotRange;
 use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> =
+	<<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait WeightInfo {
 	fn new_auction() -> Weight;
@@ -84,7 +85,7 @@ pub type AuctionIndex = u32;
 type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> =
-	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SlotRange::SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>, SlotRange)>;
@@ -563,19 +564,19 @@ impl<T: Config> Module<T> {
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
-				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+				[(Vec<SlotRange>, BalanceOf<T>); SlotRange::LEASE_PERIODS_PER_SLOT] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
-			for i in 0..4 {
+			for i in 0..SlotRange::LEASE_PERIODS_PER_SLOT {
 				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
 					let r = SlotRange::new_bounded(0, j as u32 + 1, i as u32)
-						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+						.expect("`i < LPPS`; `j < i`; `j + 1 < LPPS`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
 						if bid > best_winners_ending_at[i].1 {
@@ -590,8 +591,7 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
-			let [_, _, _, (winning_ranges, _)] = best_winners_ending_at;
-			winning_ranges
+			best_winners_ending_at[SlotRange::LEASE_PERIODS_PER_SLOT - 1].0.clone()
 		};
 
 		winning_ranges.into_iter().map(|range| {
@@ -722,7 +722,10 @@ mod tests {
 			})
 		}
 
-		fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
+		fn deposit_held(
+			para: ParaId,
+			leaser: &Self::AccountId
+		) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
 			leases().iter()
 				.filter_map(|((id, _period), data)|
 					if id == &para && &data.leaser == leaser { Some(data.amount) } else { None }
@@ -1546,7 +1549,7 @@ mod benchmarking {
 		let auction_index = AuctionCounter::get();
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
-		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
 			let owner = account("owner", n, 0);
 			let worst_validation_code = T::Registrar::worst_validation_code();
 			let worst_head_data = T::Registrar::worst_head_data();
@@ -1562,7 +1565,7 @@ mod benchmarking {
 
 		T::Registrar::execute_pending_transitions();
 
-		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
 			let bidder = account("bidder", n, 0);
 			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
 

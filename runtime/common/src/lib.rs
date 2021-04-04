@@ -19,7 +19,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod claims;
-pub mod slot_range;
 pub mod slots;
 pub mod auctions;
 pub mod crowdloan;
@@ -28,6 +27,7 @@ pub mod impls;
 pub mod mmr;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
+pub mod slot_range;
 pub mod traits;
 pub mod xcm_sender;
 
