@@ -880,6 +880,33 @@ mod tests {
 			));
 		});
 	}
+
+	#[test]
+	fn para_lock_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(Registrar::register(
+				Origin::signed(1),
+				1u32.into(),
+				vec![1; 3].into(),
+				WASM_MAGIC.to_vec().into(),
+			));
+
+			// Owner can call swap
+			assert_ok!(Registrar::swap(Origin::signed(1), 1u32.into(), 2u32.into()));
+
+			// 2 session changes to fully onboard.
+			run_to_session(2);
+			assert_eq!(Parachains::lifecycle(1u32.into()), Some(ParaLifecycle::Parathread));
+
+			// Once they begin onboarding, we lock them in.
+			assert_ok!(Registrar::make_parachain(1u32.into()));
+
+			// Owner cannot call swap anymore
+			assert_noop!(Registrar::swap(Origin::signed(1), 1u32.into(), 3u32.into()), BadOrigin);
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -891,7 +918,7 @@ mod benchmarking {
 	use crate::traits::{Registrar as RegistrarT};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller};
+	use frame_benchmarking::{benchmarks, whitelisted_caller, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -909,6 +936,10 @@ mod benchmarking {
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		assert_ok!(Registrar::<T>::register(RawOrigin::Signed(caller).into(), para, genesis_head, validation_code));
 		return para;
+	}
+
+	fn para_origin(id: u32) -> ParaOrigin {
+		ParaOrigin::Parachain(id.into())
 	}
 
 	// This function moves forward to the next scheduled session for parachain lifecycle upgrades.
@@ -940,7 +971,7 @@ mod benchmarking {
 			let para = register_para::<T>(1337);
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
-		}: _(RawOrigin::Signed(caller.clone()), para)
+		}: _(RawOrigin::Signed(caller), para)
 		verify {
 			assert_last_event::<T>(RawEvent::Deregistered(para).into());
 		}
@@ -948,6 +979,8 @@ mod benchmarking {
 		swap {
 			let parathread = register_para::<T>(1337);
 			let parachain = register_para::<T>(1338);
+
+			let parachain_origin = para_origin(parachain.into());
 
 			// Actually finish registration process
 			next_scheduled_session::<T>();
@@ -960,8 +993,8 @@ mod benchmarking {
 			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
 			let caller: T::AccountId = whitelisted_caller();
-			Registrar::<T>::swap(RawOrigin::Signed(caller.clone()).into(), parathread, parachain)?;
-		}: _(RawOrigin::Signed(caller.clone()), parachain, parathread)
+			Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
+		}: _(RawOrigin::Signed(caller.clone()), parathread, parachain)
 		verify {
 			next_scheduled_session::<T>();
 			// Swapped!
@@ -970,19 +1003,9 @@ mod benchmarking {
 		}
 	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-		use crate::integration_tests::{new_test_ext, Test};
-		use frame_support::assert_ok;
-
-		#[test]
-		fn test_benchmarks() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_register::<Test>());
-				assert_ok!(test_benchmark_deregister::<Test>());
-				assert_ok!(test_benchmark_swap::<Test>());
-			});
-		}
-	}
+	impl_benchmark_test_suite!(
+		Registrar,
+		crate::integration_tests::new_test_ext(),
+		crate::integration_tests::Test,
+	);
 }
