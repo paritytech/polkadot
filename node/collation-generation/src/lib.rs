@@ -32,8 +32,8 @@ use polkadot_node_subsystem::{
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores_ctx, request_persisted_validation_data_ctx,
-	request_validators_ctx, request_validation_code_ctx,
+	request_availability_cores, request_persisted_validation_data,
+	request_validators, request_validation_code,
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
@@ -198,8 +198,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
 
 		let (availability_cores, validators) = join!(
-			request_availability_cores_ctx(relay_parent, ctx).await?,
-			request_validators_ctx(relay_parent, ctx).await?,
+			request_availability_cores(relay_parent, ctx.sender()).await,
+			request_validators(relay_parent, ctx.sender()).await,
 		);
 
 		let availability_cores = availability_cores??;
@@ -248,13 +248,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			// within the subtask loop, because we have only a single mutable handle to the
 			// context, so the work can't really be distributed
 
-			let validation_data = match request_persisted_validation_data_ctx(
+			let validation_data = match request_persisted_validation_data(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
-				ctx,
+				ctx.sender(),
 			)
-			.await?
+			.await
 			.await??
 			{
 				Some(v) => v,
@@ -271,13 +271,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				}
 			};
 
-			let validation_code = match request_validation_code_ctx(
+			let validation_code = match request_validation_code(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
-				ctx,
+				ctx.sender(),
 			)
-			.await?
+			.await
 			.await??
 			{
 				Some(v) => v,

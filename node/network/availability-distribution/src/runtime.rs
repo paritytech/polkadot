@@ -23,7 +23,7 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem_util::{
-	request_session_index_for_child_ctx, request_session_info_ctx,
+	request_session_index_for_child, request_session_info,
 };
 use polkadot_primitives::v1::{GroupIndex, Hash, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
 use polkadot_subsystem::SubsystemContext;
@@ -93,7 +93,7 @@ impl Runtime {
 			Some(index) => Ok(*index),
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child_ctx(parent, ctx).await)
+					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
 						.await?;
 				self.session_index_cache.put(parent, index);
 				Ok(index)
@@ -117,7 +117,7 @@ impl Runtime {
 
 	/// Get `ExtendedSessionInfo` by session index.
 	///
-	/// `request_session_info_ctx` still requires the parent to be passed in, so we take the parent
+	/// `request_session_info` still requires the parent to be passed in, so we take the parent
 	/// in addition to the `SessionIndex`.
 	pub async fn get_session_info_by_index<'a, Context>(
 		&'a mut self,
@@ -130,7 +130,7 @@ impl Runtime {
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
-				recv_runtime(request_session_info_ctx(parent, session_index, ctx).await)
+				recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 					.await?
 					.ok_or(Error::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;

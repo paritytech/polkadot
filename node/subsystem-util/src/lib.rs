@@ -39,13 +39,13 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId,
+	AuthorityDiscoveryId, GroupIndex,
 };
 use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
 use std::{
-	collections::{HashMap, hash_map::Entry}, convert::{TryFrom, TryInto}, marker::Unpin, pin::Pin, task::{Poll, Context},
+	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
 	time::Duration, fmt, sync::Arc,
 };
 use streamunordered::{StreamUnordered, StreamYield};
@@ -179,96 +179,35 @@ specialize_requests! {
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 }
 
-/// Request some data from the `RuntimeApi` via a SubsystemContext.
-async fn request_from_runtime_ctx<RequestBuilder, Context, Response>(
-	parent: Hash,
-	ctx: &mut Context,
-	request_builder: RequestBuilder,
-) -> Result<RuntimeApiReceiver<Response>, Error>
-where
-	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	Context: SubsystemContext,
-{
-	let (tx, rx) = oneshot::channel();
-
-	ctx.send_message(
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
-			.try_into()
-			.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
-	).await;
-
-	Ok(rx)
-}
-
-
-/// Construct specialized request functions for the runtime.
-///
-/// These would otherwise get pretty repetitive.
-macro_rules! specialize_requests_ctx {
-	// expand return type name for documentation purposes
-	(fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
-		specialize_requests_ctx!{
-			named stringify!($request_variant) ; fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant;
-		}
-	};
-
-	// create a single specialized request function
-	(named $doc_name:expr ; fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
-		#[doc = "Request `"]
-		#[doc = $doc_name]
-		#[doc = "` from the runtime via a `SubsystemContext`"]
-		pub async fn $func_name<Context: SubsystemContext>(
-			parent: Hash,
-			$(
-				$param_name: $param_ty,
-			)*
-			ctx: &mut Context,
-		) -> Result<RuntimeApiReceiver<$return_ty>, Error> {
-			request_from_runtime_ctx(parent, ctx, |tx| RuntimeApiRequest::$request_variant(
-				$( $param_name, )* tx
-			)).await
-		}
-	};
-
-	// recursive decompose
-	(
-		fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;
-		$(
-			fn $t_func_name:ident( $( $t_param_name:ident : $t_param_ty:ty ),* ) -> $t_return_ty:ty ; $t_request_variant:ident;
-		)+
-	) => {
-		specialize_requests_ctx!{
-			fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant ;
-		}
-		specialize_requests_ctx!{
-			$(
-				fn $t_func_name( $( $t_param_name : $t_param_ty ),* ) -> $t_return_ty ; $t_request_variant ;
-			)+
-		}
-	};
-}
-
-specialize_requests_ctx! {
-	fn request_authorities_ctx() -> Vec<AuthorityDiscoveryId>; Authorities;
-	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
-	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
-	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
-	fn request_persisted_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
-	fn request_session_index_for_child_ctx() -> SessionIndex; SessionIndexForChild;
-	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
-	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
-	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
-	fn request_session_info_ctx(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
-}
-
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
-	for v in validators.iter() {
-		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
-			return Some(v.clone());
+pub async fn signing_key(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
+	-> Option<ValidatorId>
+{
+	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
+}
+
+/// From the given set of validators, find the first key we can sign with, if any, and return it
+/// along with the validator index.
+pub async fn signing_key_and_index(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
+	-> Option<(ValidatorId, ValidatorIndex)>
+{
+	for (i, v) in validators.iter().enumerate() {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+			return Some((v.clone(), ValidatorIndex(i as _)));
 		}
 	}
 	None
+}
+
+/// Find the validator group the given validator index belongs to.
+pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorIndex)
+	-> Option<GroupIndex>
+{
+	groups.iter().enumerate().find_map(|(i, g)| if g.contains(&index) {
+		Some(GroupIndex(i as _))
+	} else {
+		None
+	})
 }
 
 /// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
@@ -299,7 +238,7 @@ impl Validator {
 	pub async fn new(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut impl SubsystemSender,
 	) -> Result<Self, Error> {
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
@@ -327,13 +266,9 @@ impl Validator {
 		signing_context: SigningContext,
 		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
-		let index = validators
-			.iter()
-			.enumerate()
-			.find(|(_, k)| k == &&key)
-			.map(|(idx, _)| ValidatorIndex(idx as u32))
-			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
+		let (key, index) = signing_key_and_index(validators, &keystore)
+			.await
+			.ok_or(Error::NotAValidator)?;
 
 		Ok(Validator {
 			signing_context,
