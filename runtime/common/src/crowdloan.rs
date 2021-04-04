@@ -41,7 +41,7 @@
 //! Contributors will get a refund of their contributions from completed funds before the crowdloan
 //! can be dissolved.
 //!
-//! Funds may accept contributions at any point before their success. When a parachain
+//! Funds may accept contributions at any point before their success or end. When a parachain
 //! slot auction enters its ending period, then parachains will each place a bid; the bid will be
 //! raised once per block if the parachain had additional funds contributed since the last bid.
 //!
