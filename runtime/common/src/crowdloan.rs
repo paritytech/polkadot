@@ -17,13 +17,13 @@
 //! # Parachain Crowdloaning module
 //!
 //! The point of this module is to allow parachain projects to offer the ability to help fund a
-//! deposit for the parachain. When the parachain is retired, the funds may be returned.
+//! deposit for the parachain. When the crowdloan has ended, the funds are returned.
 //!
-//! Contributing funds is permissionless. Each fund has a child-trie which stores all
-//! contributors account IDs together with the amount they contributed; the root of this can then be
-//! used by the parachain to allow contributors to prove that they made some particular contribution
-//! to the project (e.g. to be rewarded through some token or badge). The trie is retained for later
-//! (efficient) redistribution back to the contributors.
+//! Each fund has a child-trie which stores all contributors account IDs together with the amount
+//! they contributed; the root of this can then be used by the parachain to allow contributors to
+//! prove that they made some particular contribution to the project (e.g. to be rewarded through
+//! some token or badge). The trie is retained for later (efficient) redistribution back to the
+//! contributors.
 //!
 //! Contributions must be of at least `MinContribution` (to account for the resources taken in
 //! tracking contributions), and may never tally greater than the fund's `cap`, set and fixed at the
@@ -32,36 +32,28 @@
 //! the main trie in tracking a fund and this accounts for that.
 //!
 //! Funds may be set up during an auction period; their closing time is fixed at creation (as a
-//! block number) and if the fund is not successful by the closing time, then it will become *retired*.
+//! block number) and if the fund is not successful by the closing time, then it can be dissolved.
 //! Funds may span multiple auctions, and even auctions that sell differing periods. However, for a
 //! fund to be active in bidding for an auction, it *must* have had *at least one bid* since the end
 //! of the last auction. Until a fund takes a further bid following the end of an auction, then it
 //! will be inactive.
 //!
-//! Contributors may get a refund of their contributions from retired funds. After a period (`RetirementPeriod`)
-//! the fund may be dissolved entirely. At this point any non-refunded contributions are considered
-//! `orphaned` and are disposed of through the `OrphanedFunds` handler (which may e.g. place them
-//! into the treasury).
+//! Contributors will get a refund of their contributions from completed funds before the crowdloan
+//! can be dissolved.
 //!
-//! Funds may accept contributions at any point before their success or retirement. When a parachain
+//! Funds may accept contributions at any point before their success or end. When a parachain
 //! slot auction enters its ending period, then parachains will each place a bid; the bid will be
 //! raised once per block if the parachain had additional funds contributed since the last bid.
-//!
-//! Funds may set their deploy data (the code hash and head data of their parachain) at any point.
-//! It may only be done once and once set cannot be changed. Good procedure would be to set them
-//! ahead of receiving any contributions in order that contributors may verify that their parachain
-//! contains all expected functionality. However, this is not enforced and deploy data may happen
-//! at any point, even after a slot has been successfully won or, indeed, never.
 //!
 //! Successful funds remain tracked (in the `Funds` storage item and the associated child trie) as long as
 //! the parachain remains active. Users can withdraw their funds once the slot is completed and funds are
 //! returned to the crowdloan account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, ensure,
-	storage::child,
+	decl_module, decl_storage, decl_event, decl_error, ensure, Identity,
+	storage::{child, ChildTriePrefixIterator},
 	traits::{
-		Currency, ReservableCurrency, Get, OnUnbalanced, ExistenceRequirement::AllowDeath
+		Currency, ReservableCurrency, Get, ExistenceRequirement::AllowDeath
 	},
 	pallet_prelude::{Weight, DispatchResultWithPostInfo},
 };
@@ -69,7 +61,7 @@ use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
 	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
-		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Bounded, Verify, IdentifyAccount,
+		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Verify, IdentifyAccount,
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
@@ -91,7 +83,8 @@ pub trait WeightInfo {
 	fn create() -> Weight;
 	fn contribute() -> Weight;
 	fn withdraw() -> Weight;
-	fn dissolve(k: u32, ) -> Weight;
+	fn refund(k: u32, ) -> Weight;
+	fn dissolve() -> Weight;
 	fn edit() -> Weight;
 	fn add_memo() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
@@ -102,7 +95,8 @@ impl WeightInfo for TestWeightInfo {
 	fn create() -> Weight { 0 }
 	fn contribute() -> Weight { 0 }
 	fn withdraw() -> Weight { 0 }
-	fn dissolve(_k: u32, ) -> Weight { 0 }
+	fn refund(_k: u32, ) -> Weight { 0 }
+	fn dissolve() -> Weight { 0 }
 	fn edit() -> Weight { 0 }
 	fn add_memo() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
@@ -120,13 +114,6 @@ pub trait Config: frame_system::Config {
 	/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
 	/// least ExistentialDeposit.
 	type MinContribution: Get<BalanceOf<Self>>;
-
-	/// The period of time (in blocks) after an unsuccessful crowdloan ending when
-	/// contributors are able to withdraw their funds. After this period, their funds are lost.
-	type RetirementPeriod: Get<Self::BlockNumber>;
-
-	/// What to do with funds that were not withdrawn.
-	type OrphanedFunds: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
@@ -161,9 +148,6 @@ pub enum LastContribution<BlockNumber> {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
-	/// True if the fund is being retired. This can only be set once and only when the current
-	/// lease period is greater than the `last_period`.
-	retiring: bool,
 	/// The owning account who placed the deposit.
 	depositor: AccountId,
 	/// An optional verifier. If exists, contributions must be signed by verifier.
@@ -224,11 +208,11 @@ decl_event! {
 		Contributed(AccountId, ParaId, Balance),
 		/// Withdrew full balance of a contributor. [who, fund_index, amount]
 		Withdrew(AccountId, ParaId, Balance),
-		/// Fund is placed into retirement. [fund_index]
-		Retiring(ParaId),
-		/// Fund is partially dissolved, i.e. there are some left over child
-		/// keys that still need to be killed. [fund_index]
-		PartiallyDissolved(ParaId),
+		/// The loans in a fund have been partially dissolved, i.e. there are some left
+		/// over child keys that still need to be killed. [fund_index]
+		PartiallyRefunded(ParaId),
+		/// All loans in a fund have been refunded. [fund_index]
+		AllRefunded(ParaId),
 		/// Fund is dissolved. [fund_index]
 		Dissolved(ParaId),
 		/// The deploy data of the funded parachain is set. [fund_index]
@@ -278,8 +262,6 @@ decl_error! {
 		BidOrLeaseActive,
 		/// Funds have not yet been returned.
 		FundsNotReturned,
-		/// Fund has not yet retired.
-		FundNotRetired,
 		/// The crowdloan has not yet ended.
 		FundNotEnded,
 		/// There are no contributions stored in this crowdloan.
@@ -302,7 +284,6 @@ decl_module! {
 		const ModuleId: ModuleId = T::ModuleId::get();
 		const MinContribution: BalanceOf<T> = T::MinContribution::get();
 		const RemoveKeysLimit: u32 = T::RemoveKeysLimit::get();
-		const RetirementPeriod: T::BlockNumber = T::RetirementPeriod::get();
 
 		fn deposit_event() = default;
 
@@ -342,7 +323,6 @@ decl_module! {
 			CurrencyOf::<T>::reserve(&depositor, deposit)?;
 
 			Funds::<T>::insert(index, FundInfo {
-				retiring: false,
 				depositor,
 				verifier,
 				deposit,
@@ -361,8 +341,7 @@ decl_module! {
 		}
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
-		/// slot. It will be withdrawable in two instances: the parachain becomes retired; or the
-		/// slot is unable to be purchased and the timeout expires.
+		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
 		#[weight = T::WeightInfo::contribute()]
 		pub fn contribute(origin,
 			#[compact] index: ParaId,
@@ -468,52 +447,80 @@ decl_module! {
 
 			Self::contribution_kill(fund.trie_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
-			if !fund.retiring {
-				fund.retiring = true;
-				fund.end = now;
-			}
 
 			Funds::<T>::insert(index, &fund);
 
 			Self::deposit_event(RawEvent::Withdrew(who, index, balance));
 		}
 
-		/// Remove a fund after the retirement period has ended and all funds have been returned.
+		/// Automatically refund contributors of an ended crowdloan.
+		/// Due to weight restrictions, this function may need to be called multiple
+		/// times to fully refund all users. We will refund `RemoveKeysLimit` users at a time.
 		///
-		/// This places any deposits that were not withdrawn into the treasury.
-		#[weight = T::WeightInfo::dissolve(T::RemoveKeysLimit::get())]
-		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
+		/// Origin must be signed, but can come from anyone.
+		#[weight = T::WeightInfo::refund(T::RemoveKeysLimit::get())]
+		pub fn refund(origin, #[compact] index: ParaId) -> DispatchResultWithPostInfo {
+			ensure_signed(origin)?;
+
+			let mut fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+			let now = frame_system::Pallet::<T>::block_number();
+			let fund_account = Self::fund_account_id(index);
+			Self::ensure_crowdloan_ended(now, &fund_account, &fund)?;
+
+			let mut refund_count = 0u32;
+			// Try killing the crowdloan child trie
+			let contributions = Self::contribution_iterator(fund.trie_index);
+			// Assume everyone will be refunded.
+			let mut all_refunded = true;
+			for (who, (balance, _)) in contributions {
+				if refund_count >= T::RemoveKeysLimit::get() {
+					// Not everyone was able to be refunded this time around.
+					all_refunded = false;
+					break;
+				}
+				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+				Self::contribution_kill(fund.trie_index, &who);
+				fund.raised = fund.raised.saturating_sub(balance);
+				refund_count += 1;
+			}
+
+			// Save the changes.
+			Funds::<T>::insert(index, &fund);
+
+			if all_refunded {
+				Self::deposit_event(RawEvent::AllRefunded(index));
+				// Refund for unused refund count.
+				Ok(Some(T::WeightInfo::refund(refund_count)).into())
+			} else {
+				Self::deposit_event(RawEvent::PartiallyRefunded(index));
+				// No weight to refund since we did not finish the loop.
+				Ok(().into())
+			}
+		}
+
+		/// Remove a fund after the retirement period has ended and all funds have been returned.
+		#[weight = T::WeightInfo::dissolve()]
+		pub fn dissolve(origin, #[compact] index: ParaId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let dissolution = fund.end.saturating_add(T::RetirementPeriod::get());
 
-			let can_dissolve = (fund.retiring && now >= dissolution) ||
-				(fund.raised.is_zero() && who == fund.depositor);
+			// Only allow dissolution when the raised funds goes to zero,
+			// and the caller is the fund creator or we are past the end date.
+			let permitted = who == fund.depositor || now >= fund.end;
+			let can_dissolve = permitted && fund.raised.is_zero();
 			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
-			// Try killing the crowdloan child trie
-			match Self::crowdloan_kill(fund.trie_index) {
-				child::KillChildStorageResult::AllRemoved(num_removed) => {
-					CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
+			// Assuming state is not corrupted, the child trie should already be cleaned up
+			// and all funds in the crowdloan account have been returned. If not, governance
+			// can take care of that.
+			debug_assert!(Self::contribution_iterator(fund.trie_index).count().is_zero());
 
-					// Remove all other balance from the account into orphaned funds.
-					let account = Self::fund_account_id(index);
-					let (imbalance, _) = CurrencyOf::<T>::slash(&account, BalanceOf::<T>::max_value());
-					T::OrphanedFunds::on_unbalanced(imbalance);
-
-					Funds::<T>::remove(index);
-
-					Self::deposit_event(RawEvent::Dissolved(index));
-
-					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
-				},
-				child::KillChildStorageResult::SomeRemaining(num_removed) => {
-					Self::deposit_event(RawEvent::PartiallyDissolved(index));
-					Ok(Some(T::WeightInfo::dissolve(num_removed)).into())
-				}
-			}
+			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
+			Funds::<T>::remove(index);
+			Self::deposit_event(RawEvent::Dissolved(index));
+			Ok(())
 		}
 
 		/// Edit the configuration for an in-progress crowdloan.
@@ -533,7 +540,6 @@ decl_module! {
 			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
 
 			Funds::<T>::insert(index, FundInfo {
-				retiring: fund.retiring,
 				depositor: fund.depositor,
 				verifier,
 				deposit: fund.deposit,
@@ -628,6 +634,12 @@ impl<T: Config> Module<T> {
 
 	pub fn crowdloan_kill(index: TrieIndex) -> child::KillChildStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
+	}
+
+	pub fn contribution_iterator(
+		index: TrieIndex
+	) -> ChildTriePrefixIterator<(T::AccountId, (BalanceOf<T>, Vec<u8>))> {
+		ChildTriePrefixIterator::<_>::with_prefix_over_key::<Identity>(&Self::id_from_index(index), &[])
 	}
 
 	/// This function checks all conditions which would qualify a crowdloan has ended.
@@ -796,8 +808,18 @@ mod tests {
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
 	}
-	fn make_winner(para: ParaId, who: u64) {
-		HAS_WON.with(|p| p.borrow_mut().insert((para, who), true));
+	// Emulate what would happen if we won an auction:
+	// balance is reserved and a deposit_held is recorded
+	fn set_winner(para: ParaId, who: u64, winner: bool) {
+		let account_id = Crowdloan::fund_account_id(para);
+		if winner {
+			let free_balance = Balances::free_balance(&account_id);
+			Balances::reserve(&account_id, free_balance).expect("should be able to reserve free balance");
+		} else {
+			let reserved_balance = Balances::reserved_balance(&account_id);
+			Balances::unreserve(&account_id, reserved_balance);
+		}
+		HAS_WON.with(|p| p.borrow_mut().insert((para, who), winner));
 	}
 
 	pub struct TestAuctioneer;
@@ -854,7 +876,6 @@ mod tests {
 	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
-		pub const RetirementPeriod: u64 = 5;
 		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
 		pub const RemoveKeysLimit: u32 = 10;
 		pub const MaxMemoLength: u8 = 32;
@@ -864,8 +885,6 @@ mod tests {
 		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
-		type RetirementPeriod = RetirementPeriod;
-		type OrphanedFunds = ();
 		type ModuleId = CrowdloanModuleId;
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
@@ -911,6 +930,10 @@ mod tests {
 		}
 	}
 
+	fn last_event() -> Event {
+		System::events().pop().expect("Event expected").event
+	}
+
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
@@ -942,7 +965,6 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
-				retiring: false,
 				depositor: 1,
 				verifier: None,
 				deposit: 1,
@@ -975,7 +997,6 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, Some(pubkey.clone())));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
-				retiring: false,
 				depositor: 1,
 				verifier: Some(pubkey),
 				deposit: 1,
@@ -1128,7 +1149,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
 			let crowdloan_account = Crowdloan::fund_account_id(para_2);
-			make_winner(para_2, crowdloan_account);
+			set_winner(para_2, crowdloan_account, true);
 			assert_noop!(Crowdloan::contribute(Origin::signed(1), para_2, 49, None), Error::<Test>::BidOrLeaseActive);
 
 			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
@@ -1230,31 +1251,85 @@ mod tests {
 
 			// Some funds are left over
 			assert_eq!(Balances::free_balance(&account_id), 10);
-			// They wil be orphaned at the end
+			// They wil be left in the account at the end
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(&account_id), 0);
+			assert_eq!(Balances::free_balance(&account_id), 10);
 		});
 	}
 
 	#[test]
-	fn dissolving_failed_without_contributions_works() {
+	fn refund_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
+			let account_id = Crowdloan::fund_account_id(para);
 
-			// Set up a crowdloan
+			// Set up a crowdloan ending on 9
 			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			run_to_block(10);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
+			// Make some contributions
+			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 200, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 300, None));
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
+			assert_eq!(Balances::free_balance(account_id), 600);
+
+			// Can't refund before the crowdloan it has ended
+			assert_noop!(
+				Crowdloan::refund(Origin::signed(1337), para),
+				Error::<Test>::FundNotEnded,
+			);
+
+			// Move to the end of the crowdloan
+			run_to_block(10);
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+
+			// Funds are returned
+			assert_eq!(Balances::free_balance(account_id), 0);
+			// 1 deposit for the crowdloan which hasn't dissolved yet.
+			assert_eq!(Balances::free_balance(1), 1000 - 1);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
 		});
 	}
 
 	#[test]
-	fn dissolving_failed_with_contributions_works() {
+	fn multiple_refund_works() {
+		new_test_ext().execute_with(|| {
+			let para = new_para();
+			let account_id = Crowdloan::fund_account_id(para);
+
+			// Set up a crowdloan ending on 9
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 100000, 1, 1, 9, None));
+			// Make more contributions than our limit
+			for i in 1 ..= RemoveKeysLimit::get() * 2 {
+				Balances::make_free_balance_be(&i.into(), (1000 * i).into());
+				assert_ok!(Crowdloan::contribute(Origin::signed(i.into()), para, (i * 100).into(), None));
+			}
+
+			assert_eq!(Balances::free_balance(account_id), 21000);
+
+			// Move to the end of the crowdloan
+			run_to_block(10);
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_eq!(last_event(), super::RawEvent::PartiallyRefunded(para).into());
+
+			// Funds still left over
+			assert!(!Balances::free_balance(account_id).is_zero());
+
+			// Call again
+			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_eq!(last_event(), super::RawEvent::AllRefunded(para).into());
+
+			// Funds are returned
+			assert_eq!(Balances::free_balance(account_id), 0);
+			// 1 deposit for the crowdloan which hasn't dissolved yet.
+			for i in 1 ..= RemoveKeysLimit::get() * 2 {
+				assert_eq!(Balances::free_balance(&i.into()), i as u64 * 1000);
+			}
+		});
+	}
+
+	#[test]
+	fn refund_and_dissolve_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 			let issuance = Balances::total_issuance();
@@ -1265,15 +1340,50 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
 
 			run_to_block(10);
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			// All funds are refunded
+			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
 
-			run_to_block(14);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
-
-			run_to_block(15);
+			// Now that `fund.raised` is zero, it can be dissolved.
 			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
-			assert_eq!(Balances::total_issuance(), issuance - 50);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
+			assert_eq!(Balances::total_issuance(), issuance);
+		});
+	}
+
+	#[test]
+	fn dissolve_works() {
+		new_test_ext().execute_with(|| {
+			let para = new_para();
+			let issuance = Balances::total_issuance();
+
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+
+			// Can't dissolve before it ends
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+
+			run_to_block(10);
+			set_winner(para, 1, true);
+			// Can't dissolve when it won.
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+			set_winner(para, 1, false);
+
+			// Can't dissolve while it still has user funds
+			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
+
+			// All funds are refunded
+			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
+
+			// Now that `fund.raised` is zero, it can be dissolved.
+			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_eq!(Balances::free_balance(1), 1000);
+			assert_eq!(Balances::free_balance(2), 2000);
+			assert_eq!(Balances::free_balance(3), 3000);
+			assert_eq!(Balances::total_issuance(), issuance);
 		});
 	}
 
@@ -1314,50 +1424,6 @@ mod tests {
 			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 3, para));
 			assert_eq!(Balances::free_balance(&account_id), 0);
 			assert_eq!(Balances::free_balance(3), 3000);
-		});
-	}
-
-	#[test]
-	fn dissolving_finished_without_contributions_works() {
-		new_test_ext().execute_with(|| {
-			let para = new_para();
-
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			// Fund crowdloans.
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			// during this time the funds get reserved and unreserved.
-			run_to_block(20);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
-
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-			// Only crowdloan creator can dissolve when raised is zero.
-			assert_noop!(Crowdloan::dissolve(Origin::signed(2), para), Error::<Test>::NotReadyToDissolve);
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
-		});
-	}
-
-	#[test]
-	fn dissolving_finished_with_contributions_works() {
-		new_test_ext().execute_with(|| {
-			let para = new_para();
-			let issuance = Balances::total_issuance();
-
-			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
-			run_to_block(20);
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
-
-			run_to_block(24);
-			assert_noop!(Crowdloan::dissolve(Origin::signed(1), para), Error::<Test>::NotReadyToDissolve);
-
-			run_to_block(25);
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
-			assert_eq!(Balances::free_balance(1), 1000);
-			assert_eq!(Balances::total_issuance(), issuance - 50);
 		});
 	}
 
@@ -1412,7 +1478,6 @@ mod tests {
 			let new_crowdloan = Crowdloan::funds(para_1).unwrap();
 
 			// Some things stay the same
-			assert_eq!(old_crowdloan.retiring, new_crowdloan.retiring);
 			assert_eq!(old_crowdloan.depositor, new_crowdloan.depositor);
 			assert_eq!(old_crowdloan.deposit, new_crowdloan.deposit);
 			assert_eq!(old_crowdloan.raised, new_crowdloan.raised);
@@ -1558,7 +1623,7 @@ mod benchmarking {
 		}
 
 		withdraw {
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
@@ -1568,26 +1633,27 @@ mod benchmarking {
 			assert_last_event::<T>(RawEvent::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
 		}
 
-		// Worst case: Dissolve removes `RemoveKeysLimit` keys, and then finishes up the dissolution of the fund.
-		dissolve {
+		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
+		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
 			for i in 0 .. k {
 				contribute_fund::<T>(&account("contributor", i, 0), fund_index);
 			}
 
-			// One extra contributor so we can trigger withdraw
-			contribute_fund::<T>(&account("last_contributor", 0, 0), fund_index);
+			let caller: T::AccountId = whitelisted_caller();
+			frame_system::Pallet::<T>::set_block_number(200u32.into());
+		}: _(RawOrigin::Signed(caller), fund_index)
+		verify {
+			assert_last_event::<T>(RawEvent::AllRefunded(fund_index).into());
+		}
 
+		dissolve {
+			let fund_index = create_fund::<T>(1337, 100u32.into());
 			let caller: T::AccountId = whitelisted_caller();
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
-			Crowdloan::<T>::withdraw(
-				RawOrigin::Signed(caller.clone()).into(),
-				account("last_contributor", 0, 0),
-				fund_index,
-			)?;
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
 			assert_last_event::<T>(RawEvent::Dissolved(fund_index).into());
