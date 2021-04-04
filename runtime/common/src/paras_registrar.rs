@@ -44,8 +44,12 @@ use sp_runtime::{RuntimeDebug, traits::Saturating};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
+	/// The account that has placed a deposit for registering this para.
 	pub(crate) manager: Account,
+	/// The amount reserved by the `manager` account for the registration.
 	deposit: Balance,
+	/// Whether the para registration should be locked from being controlled by the manager.
+	locked: bool,
 }
 
 type BalanceOf<T> =
@@ -145,6 +149,8 @@ decl_error! {
 		CannotDowngrade,
 		/// Cannot schedule upgrade of parathread to parachain
 		CannotUpgrade,
+		/// Para is locked from manipulation by the manager. Must use parachain or relay chain governance.
+		ParaLocked,
 	}
 }
 
@@ -259,6 +265,16 @@ impl<T: Config> Registrar for Module<T> {
 		paras::Module::<T>::is_parachain(id)
 	}
 
+	// Apply a lock to the parachain.
+	fn apply_lock(id: ParaId) {
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
+	}
+
+	// Apply a lock to the parachain.
+	fn remove_lock(id: ParaId) {
+		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
+	}
+
 	// Register a Para ID under control of `manager`.
 	fn register(
 		manager: T::AccountId,
@@ -322,23 +338,24 @@ impl<T: Config> Registrar for Module<T> {
 
 impl<T: Config> Module<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
+	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(origin: <T as frame_system::Config>::Origin, id: ParaId) -> DispatchResult {
-		// Check if root...
-		ensure_root(origin.clone())
-			.or_else(|_| -> DispatchResult {
-				// Else check if para origin...
-				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
-				ensure!(caller_id == id, Error::<T>::NotOwner);
-				Ok(())
-			})
-			.or_else(|_| -> DispatchResult{
-				// Else check if owner...
-				// This is the most expensive because of a storage read so we check this last.
-				let who = ensure_signed(origin)?;
-				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
-				ensure!(para_info.manager == who, Error::<T>::NotOwner);
-				Ok(())
-			})
+		ensure_signed(origin.clone()).map_err(|e| e.into())
+		.and_then(|who| -> DispatchResult {
+			let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
+			ensure!(!para_info.locked, Error::<T>::ParaLocked);
+			ensure!(para_info.manager == who, Error::<T>::NotOwner);
+			Ok(())
+		})
+		.or_else(|_| -> DispatchResult {
+			// Else check if para origin...
+			let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
+			ensure!(caller_id == id, Error::<T>::NotOwner);
+			Ok(())
+		}).or_else(|_| -> DispatchResult {
+			// Check if root...
+			ensure_root(origin.clone()).map_err(|e| e.into())
+		})
 	}
 
 	/// Attempt to register a new Para Id under management of `who` in the
@@ -361,6 +378,7 @@ impl<T: Config> Module<T> {
 		let info = ParaInfo {
 			manager: who.clone(),
 			deposit: deposit,
+			locked: false,
 		};
 
 		Paras::<T>::insert(id, info);
@@ -432,6 +450,7 @@ mod tests {
 	use frame_support::{
 		traits::{OnInitialize, OnFinalize},
 		assert_ok, assert_noop, parameter_types,
+		error::BadOrigin,
 	};
 	use runtime_parachains::{configuration, shared};
 	use pallet_balances::Error as BalancesError;
@@ -751,7 +770,7 @@ mod tests {
 			assert_noop!(Registrar::deregister(
 				Origin::signed(2),
 				32.into(),
-			), Error::<Test>::NotOwner);
+			), BadOrigin);
 			assert_ok!(Registrar::make_parachain(32.into()));
 			run_to_session(4);
 			// Cant directly deregister parachain
@@ -889,10 +908,6 @@ mod benchmarking {
 		return para;
 	}
 
-	fn para_origin(id: u32) -> ParaOrigin {
-		ParaOrigin::Parachain(id.into())
-	}
-
 	// This function moves forward to the next scheduled session for parachain lifecycle upgrades.
 	fn next_scheduled_session<T: Config>() {
 		shared::Module::<T>::set_session_index(
@@ -921,7 +936,8 @@ mod benchmarking {
 		deregister {
 			let para = register_para::<T>(1337);
 			next_scheduled_session::<T>();
-		}: _(RawOrigin::Root, para)
+			let caller: T::AccountId = whitelisted_caller();
+		}: _(RawOrigin::Signed(caller.clone()), para)
 		verify {
 			assert_last_event::<T>(RawEvent::Deregistered(para).into());
 		}
@@ -929,9 +945,6 @@ mod benchmarking {
 		swap {
 			let parathread = register_para::<T>(1337);
 			let parachain = register_para::<T>(1338);
-
-			let parathread_origin = para_origin(1337);
-			let parachain_origin = para_origin(1338);
 
 			// Actually finish registration process
 			next_scheduled_session::<T>();
@@ -943,10 +956,10 @@ mod benchmarking {
 			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
 			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
-			Registrar::<T>::swap(parathread_origin.into(), parathread, parachain)?;
-		}: {
-			Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
-		} verify {
+			let caller: T::AccountId = whitelisted_caller();
+			Registrar::<T>::swap(RawOrigin::Signed(caller.clone()).into(), parathread, parachain)?;
+		}: _(RawOrigin::Signed(caller.clone()), parachain, parathread)
+		verify {
 			next_scheduled_session::<T>();
 			// Swapped!
 			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
