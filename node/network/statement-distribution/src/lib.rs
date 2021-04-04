@@ -660,7 +660,7 @@ async fn circulate_statement(
 		}
 	}).collect();
 	let peers_to_send = util::choose_random_sqrt_subset(peers_to_send, MIN_GOSSIP_PEERS);
-	let peers_to_send: HashMap<PeerId, bool> = peers_to_send.into_iter()
+	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send.into_iter()
 		.map(|peer_id| {
 			let new = peers.get_mut(&peer_id)
 				.expect("a subset is taken above, so it exists; qed")
@@ -679,7 +679,7 @@ async fn circulate_statement(
 			"Sending statement",
 		);
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
-			peers_to_send.keys().cloned().collect(),
+			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))).await;
 	}
