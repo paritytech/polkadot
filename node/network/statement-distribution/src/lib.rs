@@ -171,7 +171,7 @@ impl PeerRelayParentKnowledge {
 	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
 		debug_assert!(
 			self.can_send(fingerprint),
-			"should only be called after `self.can_send` returns true",
+			"send is only called after `can_send` returns true; qed",
 		);
 
 		let new_known = match fingerprint.0 {
@@ -206,14 +206,12 @@ impl PeerRelayParentKnowledge {
 			CompactStatement::Valid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
 				// of the corresponding candidate.
-				if !self.known_candidates.contains(h) {
-					return false;
-				}
+				self.known_candidates.contains(h)
 			}
-			_ => {},
+			CompactStatement::Seconded(_) => {
+				true
+			},
 		}
-
-		true
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -305,11 +303,11 @@ impl PeerData {
 	) -> bool {
 		debug_assert!(
 			self.can_send(relay_parent, fingerprint),
-			"should only be called after `self.can_send` returns true",
+			"send is only called after `can_send` returns true; qed",
 		);
 		self.view_knowledge
 			.get_mut(relay_parent)
-			.expect("should only be called after `self.can_send` returns true")
+			.expect("send is only called after `can_send` returns true; qed")
 			.send(fingerprint)
 	}
 
