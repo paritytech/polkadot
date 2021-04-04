@@ -73,6 +73,7 @@ use sp_runtime::{
 	},
 };
 use crate::traits::{Registrar, Auctioneer};
+use crate::slot_range::SlotRange;
 use parity_scale_codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v1::Id as ParaId;
@@ -318,7 +319,9 @@ decl_module! {
 			let depositor = ensure_signed(origin)?;
 
 			ensure!(first_period <= last_period, Error::<T>::LastPeriodBeforeFirstPeriod);
-			let last_period_limit = first_period.checked_add(&3u32.into()).ok_or(Error::<T>::FirstPeriodTooFarInFuture)?;
+			let last_period_limit = first_period
+				.checked_add(&((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into())
+				.ok_or(Error::<T>::FirstPeriodTooFarInFuture)?;
 			ensure!(last_period <= last_period_limit, Error::<T>::LastPeriodTooFarInFuture);
 			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
 			let last_possible_win_date = (first_period.saturating_add(One::one())).saturating_mul(T::Auctioneer::lease_period());
@@ -1475,7 +1478,7 @@ mod benchmarking {
 		let cap = BalanceOf::<T>::max_value();
 		let lease_period_index = T::Auctioneer::lease_period_index();
 		let first_period = lease_period_index;
-		let last_period = lease_period_index + 3u32.into();
+		let last_period = lease_period_index + ((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into();
 		let para_id = id.into();
 
 		let caller = account("fund_creator", id, 0);

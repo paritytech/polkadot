@@ -6261,6 +6261,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "slot-range-helper",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -8731,6 +8732,16 @@ name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
+
+[[package]]
+name = "slot-range-helper"
+version = "0.8.30"
+dependencies = [
+ "parity-scale-codec",
+ "paste 1.0.4",
+ "sp-runtime",
+ "sp-std",
+]
 
 [[package]]
 name = "smallvec"
