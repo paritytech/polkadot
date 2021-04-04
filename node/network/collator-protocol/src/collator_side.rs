@@ -1716,4 +1716,44 @@ mod tests {
 			assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 		})
 	}
+
+	#[test]
+	fn collators_reject_declare_messages() {
+		let test_state = TestState::default();
+		let local_peer_id = test_state.local_peer_id.clone();
+		let collator_pair = test_state.collator_pair.clone();
+		let collator_pair2 = CollatorPair::generate().0;
+
+		test_harness(local_peer_id, collator_pair, |test_harness| async move {
+			let mut virtual_overseer = test_harness.virtual_overseer;
+
+			let peer = test_state.current_group_validator_peer_ids()[0].clone();
+
+			setup_system(&mut virtual_overseer, &test_state).await;
+
+			// A validator connected to us
+			connect_peer(&mut virtual_overseer, peer.clone()).await;
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							collator_pair2.public(),
+							ParaId::from(5),
+							collator_pair2.sign(b"garbage"),
+						),
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+					p,
+					PeerSet::Collation,
+				)) if p == peer
+			);
+		})
+	}
 }
