@@ -88,6 +88,7 @@ pub trait WeightInfo {
 	fn edit() -> Weight;
 	fn add_memo() -> Weight;
 	fn on_initialize(n: u32, ) -> Weight;
+	fn poke() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -100,6 +101,7 @@ impl WeightInfo for TestWeightInfo {
 	fn edit() -> Weight { 0 }
 	fn add_memo() -> Weight { 0 }
 	fn on_initialize(_n: u32, ) -> Weight { 0 }
+	fn poke() -> Weight { 0 }
 }
 
 pub trait Config: frame_system::Config {
@@ -225,6 +227,8 @@ decl_event! {
 		Edited(ParaId),
 		/// A memo has been updated. [who, fund_index, memo]
 		MemoUpdated(AccountId, ParaId, Vec<u8>),
+		/// A parachain has been moved to NewRaise
+		AddedToNewRaise(ParaId),
 	}
 }
 
@@ -274,6 +278,8 @@ decl_error! {
 		InvalidSignature,
 		/// The provided memo is too large.
 		MemoTooLarge,
+		/// The fund is already in NewRaise
+		AlreadyInNewRaise
 	}
 }
 
@@ -597,6 +603,19 @@ decl_module! {
 			} else {
 				T::DbWeight::get().reads(1)
 			}
+		}
+
+		/// Poke the fund into NewRaise
+		///
+		/// Origin must be Signed, and the fund has non-zero raise.
+		#[weight = T::WeightInfo::poke()]
+		pub fn poke(origin, index: ParaId) {
+			ensure_signed(origin)?;
+			let fund = Self::funds(index).ok_or(Error::<T>::InvalidParaId)?;
+			ensure!(!fund.raised.is_zero(), Error::<T>::NoContributions);
+			ensure!(!NewRaise::get().contains(&index), Error::<T>::AlreadyInNewRaise);
+			NewRaise::append(index);
+			Self::deposit_event(RawEvent::AddedToNewRaise(index));
 		}
 	}
 }
@@ -1516,6 +1535,29 @@ mod tests {
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (200, b"hello, world".to_vec()));
 		});
 	}
+
+	#[test]
+	fn poke_works() {
+		new_test_ext().execute_with(|| {
+			let para_1 = new_para();
+
+			assert_ok!(TestAuctioneer::new_auction(5, 0));
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			// Should fail when no contributions.
+			assert_noop!(
+				Crowdloan::poke(Origin::signed(1), para_1),
+				Error::<Test>::NoContributions
+			);
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
+			run_to_block(6);
+			assert_ok!(Crowdloan::poke(Origin::signed(1), para_1));
+			assert_eq!(Crowdloan::new_raise(), vec![para_1]);
+			assert_noop!(
+				Crowdloan::poke(Origin::signed(1), para_1),
+				Error::<Test>::AlreadyInNewRaise
+			);
+		});
+	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -1698,6 +1740,18 @@ mod benchmarking {
 				Crowdloan::<T>::contribution_get(fund.trie_index, &caller),
 				(T::MinContribution::get(), worst_memo),
 			);
+		}
+
+		poke {
+			let fund_index = create_fund::<T>(1, 100u32.into());
+			let caller: T::AccountId = whitelisted_caller();
+			contribute_fund::<T>(&caller, fund_index);
+			NewRaise::kill();
+			assert!(NewRaise::get().is_empty());
+		}: _(RawOrigin::Signed(caller), fund_index)
+		verify {
+			assert!(!NewRaise::get().is_empty());
+			assert_last_event::<T>(RawEvent::AddedToNewRaise(fund_index).into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
