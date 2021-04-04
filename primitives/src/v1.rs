@@ -613,8 +613,41 @@ impl GroupRotationInfo {
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 
+		// g = c + r mod cores
+
 		let idx = (core_index.0 as usize + rotations as usize) % cores;
 		GroupIndex(idx as u32)
+	}
+
+	/// Returns the index of the group assigned to the given core. This does no checking or
+	/// whether the group index is in-bounds.
+	///
+	/// `core_index` should be less than `cores`, which is capped at u32::max().
+	pub fn core_for_group(&self, group_index: GroupIndex, cores: usize) -> CoreIndex {
+		if self.group_rotation_frequency == 0 { return CoreIndex(group_index.0) }
+		if cores == 0 { return CoreIndex(0) }
+
+		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
+		let rotations = blocks_since_start / self.group_rotation_frequency;
+		let rotations = rotations % cores as u32;
+
+		// g = c + r mod cores
+		// c = g - r mod cores
+		// x = x + cores mod cores
+		// c = (g + cores) - r mod cores
+
+		let idx = (group_index.0 as usize + cores - rotations as usize) % cores;
+		CoreIndex(idx as u32)
+	}
+
+	/// Create a new `GroupRotationInfo` with one further rotation applied.
+	pub fn bump_rotation(&self) -> Self {
+		GroupRotationInfo {
+			session_start_block: self.session_start_block,
+			group_rotation_frequency: self.group_rotation_frequency,
+			now: self.next_rotation_at(),
+		}
 	}
 }
 
@@ -1105,6 +1138,26 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
+	}
+
+	#[test]
+	fn group_for_core_is_core_for_group() {
+
+		for cores in 1..=256 {
+			for rotations in 0..(cores * 2) {
+				let info = GroupRotationInfo {
+					session_start_block: 0u32,
+					now: rotations,
+					group_rotation_frequency: 1,
+				};
+
+				for core in 0..cores {
+					let group = info.group_for_core(CoreIndex(core), cores as usize);
+					assert_eq!(info.core_for_group(group, cores as usize).0, core);
+				}
+			}
+		}
+
 	}
 
 	#[test]

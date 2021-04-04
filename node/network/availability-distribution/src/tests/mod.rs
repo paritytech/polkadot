@@ -111,7 +111,7 @@ fn check_fetch_retry() {
 		})
 		.collect();
 	state.valid_chunks.retain(|(ch, _)| valid_candidate_hashes.contains(ch));
-			
+
 
 	for (_, v) in state.chunks.iter_mut() {
 		// This should still succeed as cores are still pending availability on next block.
