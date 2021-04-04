@@ -106,6 +106,30 @@ impl Metrics {
 			.set(count as u64)
 		);
 	}
+
+	fn on_notification_received(&self, peer_set: PeerSet, size: usize) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.notifications_received
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc();
+
+			metrics.bytes_received
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc_by(size as u64);
+		}
+	}
+
+	fn on_notification_sent(&self, peer_set: PeerSet, size: usize) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.notifications_sent
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc();
+
+			metrics.bytes_sent
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc_by(size as u64);
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -113,6 +137,12 @@ struct MetricsInner {
 	peer_count: prometheus::GaugeVec<prometheus::U64>,
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
+
+	notifications_received: prometheus::CounterVec<prometheus::U64>,
+	notifications_sent: prometheus::CounterVec<prometheus::U64>,
+
+	bytes_received: prometheus::CounterVec<prometheus::U64>,
+	bytes_sent: prometheus::CounterVec<prometheus::U64>,
 }
 
 impl metrics::Metrics for Metrics {
@@ -134,7 +164,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"parachain_peer_connect_events_total",
-						"The number of peer connect events on a parachain protocol",
+						"The number of peer connect events on a parachain notifications protocol",
 					),
 					&["protocol"]
 				)?,
@@ -144,7 +174,47 @@ impl metrics::Metrics for Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"parachain_peer_disconnect_events_total",
-						"The number of peer disconnect events on a parachain protocol",
+						"The number of peer disconnect events on a parachain notifications protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			notifications_received: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notifications_received_total",
+						"The number of notifications received on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			notifications_sent: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notifications_sent_total",
+						"The number of notifications sent on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			bytes_received: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_bytes_received_total",
+						"The number of bytes received on a parachain notification protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			bytes_sent: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_bytes_sent_total",
+						"The number of bytes sent on a parachain notification protocol",
 					),
 					&["protocol"]
 				)?,
