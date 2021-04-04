@@ -1674,26 +1674,15 @@ mod benchmarking {
 		}
 
 		poke {
-			let para_id = ParaId::from(1);
-			let depositor : T::AccountId = whitelisted_caller();
-			Funds::<T>::insert(para_id, FundInfo {
-				retiring: false,
-				depositor: depositor.clone(),
-				verifier: None,
-				deposit: 0u32.into(),
-				raised: 1u32.into(),
-				end: 5u32.into(),
-				cap: 5u32.into(),
-				last_contribution: LastContribution::Never,
-				first_period: 1u32.into(),
-				last_period: 1u32.into(),
-				trie_index: 0u32.into(),
-			});
+			let fund_index = create_fund::<T>(1, 100u32.into());
+			let caller: T::AccountId = whitelisted_caller();
+			contribute_fund::<T>(&caller, fund_index);
+			NewRaise::kill();
 			assert!(NewRaise::get().is_empty());
-		}: _(RawOrigin::Signed(depositor), para_id)
+		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert!(!NewRaise::get().is_empty());
-			assert_last_event::<T>(RawEvent::AddedToNewRaise(para_id).into())
+			assert_last_event::<T>(RawEvent::AddedToNewRaise(fund_index).into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
