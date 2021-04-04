@@ -40,6 +40,7 @@ use polkadot_node_network_protocol::{
 	PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, UnifiedReputationChange as Rep,
 	ObservedRole,
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 /// Peer set infos for network initialization.
 ///
@@ -77,6 +78,83 @@ const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
 
+#[derive(Clone, Default)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_peer_connected(&self, peer_set: PeerSet) {
+		self.0.as_ref().map(|metrics| metrics
+			.connected_events
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.inc()
+		);
+	}
+
+	fn on_peer_disconnected(&self, peer_set: PeerSet) {
+		self.0.as_ref().map(|metrics| metrics
+			.disconnected_events
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.inc()
+		);
+	}
+
+	fn note_peer_count(&self, peer_set: PeerSet, count: usize) {
+		self.0.as_ref().map(|metrics| metrics
+			.peer_count
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.set(count as u64)
+		);
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	peer_count: prometheus::GaugeVec<prometheus::U64>,
+	connected_events: prometheus::CounterVec<prometheus::U64>,
+	disconnected_events: prometheus::CounterVec<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry)
+		-> std::result::Result<Self, prometheus::PrometheusError>
+	{
+		let metrics = MetricsInner {
+			peer_count: prometheus::register(
+				prometheus::GaugeVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_count",
+						"The number of peers on a parachain-related peer-set",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			connected_events: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_connect_events_total",
+						"The number of peer connect events on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			disconnected_events: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_disconnect_events_total",
+						"The number of peer disconnect events on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 /// Messages from and to the network.
 ///
 /// As transmitted to and received from subsystems.
@@ -90,13 +168,13 @@ pub enum WireMessage<M> {
 	ViewUpdate(View),
 }
 
-
 /// The network bridge subsystem.
 pub struct NetworkBridge<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
 	request_multiplexer: RequestMultiplexer,
+	metrics: Metrics,
 	sync_oracle: Box<dyn SyncOracle + Send>,
 }
 
@@ -109,12 +187,14 @@ impl<N, AD> NetworkBridge<N, AD> {
 		network_service: N,
 		authority_discovery_service: AD,
 		request_multiplexer: RequestMultiplexer,
+		metrics: Metrics,
 		sync_oracle: Box<dyn SyncOracle + Send>,
 	) -> Self {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
 			request_multiplexer,
+			metrics,
 			sync_oracle,
 		}
 	}
@@ -666,6 +746,7 @@ where
 		network_service,
 		request_multiplexer,
 		authority_discovery_service,
+		metrics,
 		sync_oracle,
 	 } = bridge;
 
