@@ -51,6 +51,13 @@ pub enum OriginKind {
 	Superuser,
 }
 
+/// Response data to a query.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+pub enum Response {
+	/// Some assets.
+	Assets(Vec<MultiAsset>),
+}
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.
@@ -119,7 +126,7 @@ pub enum XcmGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 3)]
-	Balances { #[codec(compact)] query_id: u64, assets: Vec<MultiAsset> },
+	QueryResponse { #[codec(compact)] query_id: u64, response: Response },
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
 	/// ownership of `dest` within this consensus system.
@@ -252,8 +259,8 @@ impl<Call> XcmGeneric<Call> {
 				=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
 			TeleportAsset { assets, effects }
 				=> TeleportAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
-			Balances { query_id: u64, assets }
-				=> Balances { query_id: u64, assets },
+			QueryResponse { query_id: u64, response }
+				=> QueryResponse { query_id: u64, response },
 			TransferAsset { assets, dest }
 				=> TransferAsset { assets, dest },
 			TransferReserveAsset { assets, dest, effects }

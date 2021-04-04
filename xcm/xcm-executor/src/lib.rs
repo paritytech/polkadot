@@ -23,7 +23,7 @@ use frame_support::{
 };
 use xcm::v0::{
 	Xcm, ExecuteXcm, SendXcm, Error as XcmError,
-	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric,
+	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response,
 };
 
 #[cfg(test)]
@@ -37,7 +37,7 @@ use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 mod assets;
 pub use assets::{Assets, AssetId};
 mod config;
-pub use config::{Config, WeightBounds, WeightTrader, ShouldExecute};
+pub use config::{Config, WeightBounds, WeightTrader, ShouldExecute, OnResponse};
 
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
@@ -160,8 +160,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// It works because we assume that the `Config::Weigher` will always count the `call`'s
 				// `get_dispatch_info` weight into its `shallow` estimate.
 				*weight_credit += surplus;
+				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
+				// back up the stack to be subtracted from the deep-weight.
+				total_surplus += surplus;
 				// Return the overestimated amount so we can adjust our expectations on how much this entire
 				// execution has taken.
+				None
+			}
+			(origin, XcmGeneric::QueryResponse { query_id, response }) => {
+				Config::ResponseHandler::on_response(origin, query_id, response);
 				None
 			}
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
@@ -208,15 +215,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 			OrderGeneric::QueryHolding { query_id, dest, assets } => {
 				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
-				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })?;
+				Config::XcmSender::send_xcm(dest, Xcm::QueryResponse { query_id, response: Response::Assets(assets) })?;
 			}
 			OrderGeneric::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				// pay for `weight` using up to `fees` of the holding account.
-				let desired_weight = Weight::from(weight + debt);
+				let purchasing_weight = Weight::from(weight + debt);
 				let max_fee = holding.try_take(fees).map_err(|()| XcmError::NotHoldingFees)?;
-				let surplus = trader.buy_weight(desired_weight, max_fee)?;
-				holding.saturating_subsume_all(surplus);
-				let mut remaining_weight= desired_weight;
+				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
+				holding.saturating_subsume_all(unspent);
+
+				let mut remaining_weight = weight;
 				for message in xcm.into_iter() {
 					match Self::do_execute_xcm(origin.clone(), false, message, &mut remaining_weight, None, trader) {
 						Err(e) if halt_on_error => return Err(e),

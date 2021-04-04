@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::marker::PhantomData;
-use parity_scale_codec::Decode;
-use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric};
+use parity_scale_codec::{Encode, Decode};
+use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}
 };
@@ -123,14 +123,25 @@ pub trait WeightTrader {
 ///
 /// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
 /// one second of weight.
-pub struct FixedRateOfConcreteFungible<T>(PhantomData<T>);
+pub struct FixedRateOfConcreteFungible<T>(Weight, PhantomData<T>);
 impl<T: Get<(MultiLocation, u128)>> WeightTrader for FixedRateOfConcreteFungible<T> {
-	fn new() -> Self { Self(PhantomData) }
+	fn new() -> Self { Self(0, PhantomData) }
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
-		let (required_id, units_per_second) = T::get();
-		let required_amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
-		let required = MultiAsset::ConcreteFungible { amount: required_amount, id: required_id };
-		Ok(payment.less(required).map_err(|_| ())?.0)
+		let (id, units_per_second) = T::get();
+		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
+		let required = MultiAsset::ConcreteFungible { amount, id };
+		let (used, _) = payment.less(required).map_err(|_| ())?;
+		self.0 = self.0.saturating_add(weight);
+		Ok(used)
+	}
+	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
+		let weight = weight.min(self.0);
+		self.0 -= weight;
+		let (id, units_per_second) = T::get();
+		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
+		let result = MultiAsset::ConcreteFungible { amount, id };
+		println!("refunding {:?} for {:?} unused weight", result, weight);
+		result
 	}
 }
 
@@ -228,6 +239,32 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	}
 }
 
+pub trait OnResponse {
+	fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool;
+	fn on_response(origin: MultiLocation, query_id: u64, response: Response) -> Weight;
+}
+impl OnResponse for () {
+	fn expecting_response(_origin: &MultiLocation, _query_id: u64) -> bool { false }
+	fn on_response(_origin: MultiLocation, _query_id: u64, _response: Response) -> Weight { 0 }
+}
+
+pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
+impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		_top_level: bool,
+		message: &XcmGeneric<Call>,
+		_shallow_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		match message {
+			XcmGeneric::QueryResponse { query_id, .. } if ResponseHandler::expecting_response(origin, *query_id)
+			=> Ok(()),
+			_ => Err(()),
+		}
+	}
+}
+
 /// The trait to parametrize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
@@ -259,4 +296,7 @@ pub trait Config {
 
 	/// The means of purchasing weight credit for XCM execution.
 	type Trader: WeightTrader;
+
+	/// What to do when a response of a query is found.
+	type ResponseHandler: OnResponse;
 }

@@ -32,7 +32,7 @@ pub use frame_support::{
 pub use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, LocationInverter};
 pub use crate::config::{
 	TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedWeightBounds,
-	FixedRateOfConcreteFungible,
+	FixedRateOfConcreteFungible, AllowKnownQueryResponses
 };
 
 pub enum TestOrigin { Root, Relay, Signed(u64), Parachain(u32) }
@@ -123,12 +123,14 @@ pub fn add_asset(who: u64, what: MultiAsset) {
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
+		dbg!(what, who);
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		add_asset(who, what.clone());
 		Ok(())
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
+		dbg!(what, who);
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		ASSETS.with(|a| a.borrow_mut()
 			.get_mut(&who)
@@ -149,6 +151,8 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 		X1(Parachain { id }) => 1000 + id as u64,
 		// Self at 3000
 		Null => 3000,
+		// Parent at 3000
+		X1(Parent) => 3001,
 		l => return Err(l),
 	})
 }
@@ -162,6 +166,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, X1(Parachain { id })) => Ok(TestOrigin::Parachain(id)),
 			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
+			(Native, X1(AccountIndex64 {index, ..})) => Ok(TestOrigin::Signed(index)),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -195,6 +200,48 @@ impl FilterAssetLocation for TestIsTeleporter {
 	}
 }
 
+use xcm::v0::Response;
+pub enum ResponseSlot {
+	Expecting(MultiLocation),
+	Received(Response),
+}
+thread_local! {
+	pub static QUERIES: RefCell<BTreeMap<u64, ResponseSlot>> = RefCell::new(BTreeMap::new());
+}
+pub struct TestResponseHandler;
+impl OnResponse for TestResponseHandler {
+	fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool {
+		QUERIES.with(|q| match q.borrow().get(&query_id) {
+			Some(ResponseSlot::Expecting(ref l)) => l == origin,
+			_ => false,
+		})
+	}
+	fn on_response(origin: MultiLocation, query_id: u64, response: xcm::v0::Response) -> Weight {
+		QUERIES.with(|q| {
+			q.borrow_mut()
+				.entry(query_id)
+				.and_modify(|v| if matches!(*v, ResponseSlot::Expecting(..)) {
+					*v = ResponseSlot::Received(response);
+				});
+		});
+		10
+	}
+}
+pub fn expect_response(query_id: u64, from: MultiLocation) {
+	QUERIES.with(|q| q.borrow_mut()
+		.insert(query_id, ResponseSlot::Expecting(from))
+	);
+}
+pub fn response(query_id: u64) -> Option<Response> {
+	QUERIES.with(|q| q.borrow()
+		.get(&query_id)
+		.and_then(|v| match v {
+			ResponseSlot::Received(r) => Some(r.clone()),
+			_ => None,
+		})
+	)
+}
+
 parameter_types! {
 	pub TestAncestry: MultiLocation = X1(Parachain{id: 42});
 	pub UnitWeightCost: Weight = 10;
@@ -214,6 +261,7 @@ impl<X: Ord + PartialOrd, T: Get<Vec<X>>> Contains<X> for IsInVec<T> {
 
 pub type TestBarrier = (
 	TakeWeightCredit,
+	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 );
@@ -230,4 +278,5 @@ impl Config for TestConfig {
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
 	type Trader = FixedRateOfConcreteFungible<WeightPrice>;
+	type ResponseHandler = TestResponseHandler;
 }

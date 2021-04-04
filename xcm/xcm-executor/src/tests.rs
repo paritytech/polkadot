@@ -16,7 +16,7 @@
 
 use super::*;
 use super::mock::*;
-use MultiAsset::*;
+use {MultiAsset::*, Option::None};
 use xcm::v0::Order;
 use xcm::v0::NetworkId::Any;
 
@@ -248,35 +248,99 @@ fn transacting_should_work() {
 	let message = Xcm::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
-		call: TestCall::Any(50, Option::None).encode().into(),
+		call: TestCall::Any(50, None).encode().into(),
 	};
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Ok(60));
 }
-/*
+
 #[test]
-fn paid_transacting_should_work() {
-	AllowPaidFrom::set(vec![ X1(Parent) ]);
-	add_reserve(X1(Parent), AllConcreteFungible { id: X1(Parent) });
-	WeightPrice::set((X1(Parent), 1_000_000_000_000));
+fn transacting_should_respect_max_weight_requirement() {
+	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
 
 	let origin = X1(Parent);
-	let message = Xcm::ReserveAssetDeposit {
-		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
+	let message = Xcm::Transact {
+		origin_type: OriginKind::Native,
+		require_weight_at_most: 40,
+		call: TestCall::Any(50, None).encode().into(),
+	};
+	let weight_limit = 60;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Err(XcmError::TooMuchWeightRequired));
+}
+
+#[test]
+fn transacting_should_refund_weight() {
+	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
+
+	let origin = X1(Parent);
+	let message = Xcm::Transact {
+		origin_type: OriginKind::Native,
+		require_weight_at_most: 50,
+		call: TestCall::Any(50, Some(30)).encode().into(),
+	};
+	let weight_limit = 60;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Ok(40));
+}
+
+#[test]
+fn paid_transacting_should_refund_payment_for_unused_weight() {
+	let one = X1(AccountIndex64{index:1, network:Any});
+	AllowPaidFrom::set(vec![ one.clone() ]);
+	add_asset(1, ConcreteFungible { id: X1(Parent), amount: 100 });
+	WeightPrice::set((X1(Parent), 1_000_000_000_000));
+
+	let origin = one.clone();
+	let message = Xcm::WithdrawAsset {
+		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],	// enough for 100 units of weight.
 		effects: vec![
-			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![
-				Xcm::Transact()
+			Order::BuyExecution { fees: All, weight: 70, debt: 30, halt_on_error: true, xcm: vec![
+				Xcm::Transact {
+					origin_type: OriginKind::Native,
+					require_weight_at_most: 60,
+					// call estimated at 70 but only takes 10.
+					call: TestCall::Any(60, Some(10)).encode().into(),
+				}
 			] },
-			Order::DepositAsset { assets: vec![ All ], dest: X1(Parent) },
+			Order::DepositAsset { assets: vec![ All ], dest: one.clone() },
 		],
 	};
-	let weight_limit = 50;
+	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
-	assert_eq!(r, Ok(30));
-	assert_eq!(assets(3000), vec![ ConcreteFungible { id: X1(Parent), amount: 70 } ]);
+	assert_eq!(r, Ok(50));
+	assert_eq!(assets(1), vec![ ConcreteFungible { id: X1(Parent), amount: 50 } ]);
 }
-*/
 
-// TODO: Return path weight payment vouchers (NFT allowing free passage for an origin if the message is in
-//   a particular format).
+#[test]
+fn prepaid_result_of_query_should_get_free_execution() {
+	let query_id = 33;
+	let origin = X1(Parent);
+	expect_response(query_id, origin.clone());
+
+	let the_response = Response::Assets(vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ]);
+	let message = Xcm::QueryResponse {
+		query_id,
+		response: the_response.clone(),
+	};
+	let weight_limit = 10;
+
+	// First time the response gets through since we're expecting it...
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
+	assert_eq!(r, Ok(10));
+	assert_eq!(response(query_id).unwrap(), the_response);
+
+	// Second time it doesn't, since we're not.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
+	assert_eq!(r, Err(XcmError::Barrier));
+}
+
+// TODO: General ResponseMap of (QueryId, Origin) -> EitherOr<Dispatch, Option<Response>> which
+//   allows free execution of the message and then either stores the result or calls a dispatch - in this case
+//   it could go overweight be up to the weight of whatever dispatch is in there. It should be added on and
+//   checked before executing any further XCMs.
+
+// TODO: Ordering flag per message fragment in an aggregate message.
+
+// TODO: Test transact execution origins.
