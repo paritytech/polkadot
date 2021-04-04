@@ -245,8 +245,8 @@ pub struct NetworkBridge<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	request_multiplexer: RequestMultiplexer,
-	metrics: Metrics,
 	sync_oracle: Box<dyn SyncOracle + Send>,
+	metrics: Metrics,
 }
 
 impl<N, AD> NetworkBridge<N, AD> {
@@ -258,15 +258,15 @@ impl<N, AD> NetworkBridge<N, AD> {
 		network_service: N,
 		authority_discovery_service: AD,
 		request_multiplexer: RequestMultiplexer,
-		metrics: Metrics,
 		sync_oracle: Box<dyn SyncOracle + Send>,
+		metrics: Metrics,
 	) -> Self {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
 			request_multiplexer,
-			metrics,
 			sync_oracle,
+			metrics,
 		}
 	}
 }

@@ -548,6 +548,7 @@ where
 			authority_discovery,
 			request_multiplexer,
 			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
 		),
 		provisioner: ProvisionerSubsystem::new(
 			spawner.clone(),
