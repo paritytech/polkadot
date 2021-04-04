@@ -158,7 +158,7 @@ struct PeerRelayParentKnowledge {
 }
 
 impl PeerRelayParentKnowledge {
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// Updates our view of the peer's knowledge with this statement's fingerprint based
 	/// on something that we would like to send to the peer.
 	///
 	/// NOTE: assumes `self.can_send` returned true before this call.
@@ -323,7 +323,7 @@ impl PeerData {
 			.map_or(false, |k| k.can_send(fingerprint))
 	}
 
-	/// Updates our view of the peer's knowledge with this statement's fingerprint based on
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
 	/// a message we are receiving from the peer.
 	///
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
