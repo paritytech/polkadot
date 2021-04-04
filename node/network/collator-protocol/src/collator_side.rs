@@ -1733,6 +1733,8 @@ mod tests {
 
 			// A validator connected to us
 			connect_peer(&mut virtual_overseer, peer.clone()).await;
+			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
+
 			overseer_send(
 				&mut virtual_overseer,
 				CollatorProtocolMessage::NetworkBridgeUpdateV1(
