@@ -513,7 +513,7 @@ impl State {
 			Some(entry) => entry,
 			None => {
 				if let Some(peer_id) = source.peer_id() {
-					tracing::debug!(
+					tracing::trace!(
 						target: LOG_TARGET,
 						?peer_id,
 						?block_hash,
@@ -1008,7 +1008,7 @@ impl State {
 		peer_id: PeerId,
 		blocks: Vec<(BlockDepth, Hash)>,
 	) {
-		// we will only propagate local assignment/approvals after a certain depth
+		// we will propagate only local assignment/approvals after a certain depth
 		const DEPTH_THRESHOLD: usize = 5;
 
 		let mut assignments = Vec::new();
