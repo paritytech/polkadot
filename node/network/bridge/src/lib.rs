@@ -78,6 +78,7 @@ const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
 
+/// Metrics for the network bridge.
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
 
@@ -1274,6 +1275,7 @@ mod tests {
 			network_service: network,
 			authority_discovery_service: discovery,
 			request_multiplexer,
+			metrics: Metrics(None),
 			sync_oracle,
 		};
 
