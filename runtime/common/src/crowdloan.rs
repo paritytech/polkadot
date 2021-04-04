@@ -505,8 +505,8 @@ decl_module! {
 
 			// Only allow dissolution when the raised funds goes to zero,
 			// and the caller is the fund creator or we are past the end date.
-			let can_dissolve = fund.raised.is_zero()
-				&& (who == fund.depositor || now >= fund.end);
+			let permitted = who == fund.depositor || now >= fund.end;
+			let can_dissolve = permitted && fund.raised.is_zero();
 			ensure!(can_dissolve, Error::<T>::NotReadyToDissolve);
 
 			// Assuming state is not corrupted, the child trie should already be cleaned up
