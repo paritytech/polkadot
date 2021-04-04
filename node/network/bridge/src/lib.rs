@@ -483,6 +483,7 @@ async fn handle_network_messages(
 	mut network_service: impl Network,
 	mut request_multiplexer: RequestMultiplexer,
 	mut validator_discovery_notifications: mpsc::Sender<ValidatorDiscoveryNotification>,
+	metrics: Metrics,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
 	let mut network_stream = network_service.event_stream();
@@ -522,6 +523,9 @@ async fn handle_network_messages(
 								vacant.insert(PeerData { view: View::default() });
 							}
 						}
+
+						metrics.on_peer_connected(peer_set);
+						metrics.note_peer_count(peer_set, peer_map.len());
 
 						shared.local_view.clone().unwrap_or(View::default())
 					};
@@ -598,7 +602,12 @@ async fn handle_network_messages(
 							PeerSet::Collation => &mut shared.collation_peers,
 						};
 
-						peer_map.remove(&peer).is_some()
+						let w = peer_map.remove(&peer).is_some();
+
+						metrics.on_peer_disconnected(peer_set);
+						metrics.note_peer_count(peer_set, peer_map.len());
+
+						w
 					};
 
 					// Failure here means that the other side of the network bridge
@@ -758,6 +767,7 @@ where
 		network_service.clone(),
 		request_multiplexer,
 		validation_worker_tx,
+		metrics,
 		shared.clone(),
 	).remote_handle();
 
