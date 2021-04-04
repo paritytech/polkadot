@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 	request_validators,
 	request_validator_groups,
 	request_availability_cores,
-	metrics::prometheus,
+	metrics::{self, prometheus},
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV, CompressedPoV};
 
