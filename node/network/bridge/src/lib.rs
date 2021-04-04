@@ -203,7 +203,7 @@ impl metrics::Metrics for Metrics {
 			bytes_received: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_bytes_received_total",
+						"parachain_notification_bytes_received_total",
 						"The number of bytes received on a parachain notification protocol",
 					),
 					&["protocol"]
