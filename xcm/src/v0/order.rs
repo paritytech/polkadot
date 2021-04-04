@@ -25,6 +25,7 @@ use super::{MultiAsset, MultiLocation, XcmGeneric};
 #[codec(dumb_trait_bound)]
 pub enum OrderGeneric<Call> {
 	/// Do nothing. Not generally used.
+	#[codec(index = 0)]
 	Null,
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
@@ -34,12 +35,13 @@ pub enum OrderGeneric<Call> {
 	/// - `dest`: The new owner for the assets.
 	///
 	/// Errors:
+	#[codec(index = 1)]
 	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The new owner for the assets.
@@ -47,6 +49,7 @@ pub enum OrderGeneric<Call> {
 	///   `dest.
 	///
 	/// Errors:
+	#[codec(index = 2)]
 	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
@@ -58,6 +61,7 @@ pub enum OrderGeneric<Call> {
 	///   is undefined and they should be not be used.
 	///
 	/// Errors:
+	#[codec(index = 3)]
 	ExchangeAsset { give: Vec<MultiAsset>, receive: Vec<MultiAsset> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a reserve location.
@@ -69,6 +73,7 @@ pub enum OrderGeneric<Call> {
 	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
 	///
 	/// Errors:
+	#[codec(index = 4)]
 	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
@@ -78,6 +83,7 @@ pub enum OrderGeneric<Call> {
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
 	///
 	/// Errors:
+	#[codec(index = 5)]
 	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
 	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
@@ -89,12 +95,14 @@ pub enum OrderGeneric<Call> {
 	///   back.
 	///
 	/// Errors:
+	#[codec(index = 6)]
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 
 	/// Pay for the execution of some Xcm with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:
+	#[codec(index = 7)]
 	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<XcmGeneric<Call>> },
 }
 

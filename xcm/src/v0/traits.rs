@@ -40,6 +40,33 @@ pub enum Error {
 	FailedToTransactAsset(#[codec(skip)] &'static str),
 	WeightLimitReached,
 	Wildcard,
+	/// The case where an XCM message has specified a optional weight limit and the weight required for
+	/// processing is too great.
+	///
+	/// Used by:
+	/// - `Transact`
+	TooMuchWeightRequired,
+	/// The fees specified by the XCM message were not found in the holding account.
+	///
+	/// Used by:
+	/// - `BuyExecution`
+	NotHoldingFees,
+	/// The weight of an XCM message is not computable ahead of execution. This generally means at least part
+	/// of the message is invalid, which could be due to it containing overly nested structures or an invalid
+	/// nested data segment (e.g. for the call in `Transact`).
+	WeightNotComputable,
+	/// The XCM did noto pass the barrier condition for execution. The barrier condition differs on different
+	/// chains and in different circumstances, but generally it means that the conditions surrounding the message
+	/// were not such that the chain considers the message worth spending time executing. Since most chains
+	/// lift the barrier to execution on apropriate payment, presentation of an NFT voucher, or based on the
+	/// message origin, it means that none of those were the case.
+	Barrier,
+	/// Indicates that it is not possible for a location to have an asset be withdrawn or transferred from its
+	/// ownership. This probably means it doesn't own (enough of) it, but may also indicate that it is under a
+	/// lock, hold, freeze or is otherwise unavailable.
+	NotWithdrawable,
+	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
+	LocationCannotHold,
 }
 
 impl From<()> for Error {

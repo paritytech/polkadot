@@ -285,6 +285,18 @@ impl MultiAsset {
 			_ => false,
 		}
 	}
+
+	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+		use MultiAsset::*;
+		match self {
+			AllConcreteFungible { ref mut id }
+			| AllConcreteNonFungible { class: ref mut id }
+			| ConcreteFungible { ref mut id, .. }
+			| ConcreteNonFungible { class: ref mut id, .. }
+			=> id.prepend_with(prepend.clone()).map_err(|_| ()),
+			_ => Ok(()),
+		}
+	}
 }
 
 impl From<MultiAsset> for VersionedMultiAsset {

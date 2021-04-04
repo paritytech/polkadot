@@ -70,6 +70,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
+	#[codec(index = 0)]
 	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
@@ -86,6 +87,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
+	#[codec(index = 1)]
 	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
@@ -103,6 +105,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
+	#[codec(index = 2)]
 	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
@@ -115,15 +118,40 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Information*.
 	///
 	/// Errors:
+	#[codec(index = 3)]
 	Balances { #[codec(compact)] query_id: u64, assets: Vec<MultiAsset> },
 
-	Unused4,
+	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
+	/// ownership of `dest` within this consensus system.
+	///
+	/// - `assets`: The asset(s) to be withdrawn.
+	/// - `dest`: The new owner for the assets.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	#[codec(index = 4)]
+	TransferAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
 
-	/// Unused
-	Unused5,
-
-	/// Unused
-	Unused6,
+	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
+	/// ownership of `dest` within this consensus system.
+	///
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
+	///
+	/// - `assets`: The asset(s) to be withdrawn.
+	/// - `dest`: The new owner for the assets.
+	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
+	///   `dest.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	#[codec(index = 5)]
+	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -135,6 +163,7 @@ pub enum XcmGeneric<Call> {
 	/// Safety: The message should originate directly from the relay-chain.
 	///
 	/// Kind: *System Notification*
+	#[codec(index = 7)]
 	HrmpNewChannelOpenRequest {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] max_message_size: u32,
@@ -150,6 +179,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *System Notification*
 	///
 	/// Errors:
+	#[codec(index = 8)]
 	HrmpChannelAccepted {
 		#[codec(compact)] recipient: u32,
 	},
@@ -164,6 +194,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *System Notification*
 	///
 	/// Errors:
+	#[codec(index = 9)]
 	HrmpChannelClosing {
 		#[codec(compact)] initiator: u32,
 		#[codec(compact)] sender: u32,
@@ -183,6 +214,7 @@ pub enum XcmGeneric<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
+	#[codec(index = 10)]
 	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
 }
 
@@ -222,12 +254,10 @@ impl<Call> XcmGeneric<Call> {
 				=> TeleportAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
 			Balances { query_id: u64, assets }
 				=> Balances { query_id: u64, assets },
-			Unused4
-				=> Unused4,
-			Unused5
-				=> Unused5,
-			Unused6
-				=> Unused6,
+			TransferAsset { assets, dest }
+				=> TransferAsset { assets, dest },
+			TransferReserveAsset { assets, dest, effects }
+				=> TransferReserveAsset { assets, dest, effects },
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity}
 				=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
 			HrmpChannelAccepted { recipient}

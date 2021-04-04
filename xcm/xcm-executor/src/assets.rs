@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{prelude::*, mem, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
+use parity_scale_codec::{Encode, Decode, Input};
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 use sp_runtime::RuntimeDebug;
 
@@ -33,22 +34,68 @@ pub enum Fungibility {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
-pub struct AssetParts(Option<AssetId>, Fungibility);
+pub enum MultiAsset2 {
+	None,
+	Asset(Fungibility, Option<AssetId>),
+	All,
+}
 
-impl From<AssetParts> for MultiAsset {
-	fn from(a: AssetParts) -> Self {
-		use {AssetId::*, Fungibility::*};
-		match (a.0, a.1) {
-			(Some(Concrete(id)), Fungible(Some(amount))) => MultiAsset::ConcreteFungible { id, amount },
-			(Some(Abstract(id)), Fungible(Some(amount))) => MultiAsset::AbstractFungible { id, amount },
-			(Some(Concrete(class)), NonFungible(Some(instance))) => MultiAsset::ConcreteNonFungible { class, instance },
-			(Some(Abstract(class)), NonFungible(Some(instance))) => MultiAsset::AbstractNonFungible { class, instance },
-			(Some(Concrete(id)), Fungible(None)) => MultiAsset::AllConcreteFungible { id },
-			(Some(Abstract(id)), Fungible(None)) => MultiAsset::AllAbstractFungible { id },
-			(Some(Concrete(class)), NonFungible(None)) => MultiAsset::AllConcreteNonFungible { class },
-			(Some(Abstract(class)), NonFungible(None)) => MultiAsset::AllAbstractNonFungible { class },
-			(None, Fungible(_)) => MultiAsset::AllFungible,
-			(None, NonFungible(_)) => MultiAsset::AllNonFungible,
+impl Encode for MultiAsset2 {
+	fn encode(&self) -> Vec<u8> {
+		MultiAsset::from(self.clone()).encode()
+	}
+}
+
+impl Decode for MultiAsset2 {
+	fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+		MultiAsset::decode(input).map(Into::into)
+	}
+}
+
+impl From<MultiAsset2> for MultiAsset {
+	fn from(a: MultiAsset2) -> Self {
+		use {AssetId::*, Fungibility::*, MultiAsset::*, MultiAsset2::Asset};
+		use Option::None;
+		match a {
+			MultiAsset2::None => MultiAsset::None,
+			MultiAsset2::All => All,
+
+			Asset(Fungible(_), None) => AllFungible,
+			Asset(NonFungible(_), None) => AllNonFungible,
+
+			Asset(Fungible(None), Some(Concrete(id))) => AllConcreteFungible { id },
+			Asset(Fungible(None), Some(Abstract(id))) => AllAbstractFungible { id },
+			Asset(NonFungible(None), Some(Concrete(class))) => AllConcreteNonFungible { class },
+			Asset(NonFungible(None), Some(Abstract(class))) => AllAbstractNonFungible { class },
+
+			Asset(Fungible(Some(amount)), Some(Concrete(id))) => ConcreteFungible { id, amount },
+			Asset(Fungible(Some(amount)), Some(Abstract(id))) => AbstractFungible { id, amount },
+			Asset(NonFungible(Some(instance)), Some(Concrete(class))) => ConcreteNonFungible { class, instance },
+			Asset(NonFungible(Some(instance)), Some(Abstract(class))) => AbstractNonFungible { class, instance },
+		}
+	}
+}
+
+impl From<MultiAsset> for MultiAsset2 {
+	fn from(a: MultiAsset) -> Self {
+		use {AssetId::*, Fungibility::*, MultiAsset::*, MultiAsset2::Asset};
+		use Option::None;
+		match a {
+			MultiAsset::None => MultiAsset2::None,
+			All => MultiAsset2::All,
+
+			AllFungible => Asset(Fungible(None), None),
+			AllNonFungible => Asset(NonFungible(None), None),
+
+			AllConcreteFungible { id } => Asset(Fungible(None), Some(Concrete(id))),
+			AllAbstractFungible { id } => Asset(Fungible(None), Some(Abstract(id))),
+			AllConcreteNonFungible { class } => Asset(NonFungible(None), Some(Concrete(class))),
+			AllAbstractNonFungible { class } => Asset(NonFungible(None), Some(Abstract(class))),
+
+			ConcreteFungible { id, amount } => Asset(Fungible(Some(amount)), Some(Concrete(id))),
+			AbstractFungible { id, amount } => Asset(Fungible(Some(amount)), Some(Abstract(id))),
+			ConcreteNonFungible { class, instance } => Asset(NonFungible(Some(instance)), Some(Concrete(class))),
+			AbstractNonFungible { class, instance } => Asset(NonFungible(Some(instance)), Some(Abstract(class))),
 		}
 	}
 }
@@ -80,8 +127,8 @@ impl AssetId {
 		}
 	}
 
-	pub fn into_multiasset(self, f: Fungibility) -> MultiAsset {
-		AssetParts(Some(self), f).into()
+	pub fn into_multiasset(self, f: Fungibility) -> MultiAsset2 {
+		MultiAsset2::Asset(f, Some(self))
 	}
 }
 

@@ -95,6 +95,9 @@ impl GetDispatchInfo for TestCall {
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
 }
+pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
@@ -104,30 +107,50 @@ impl SendXcm for TestSendXcm {
 }
 
 thread_local! {
-	pub static ASSETS: RefCell<BTreeMap<MultiLocation, Assets>> = RefCell::new(BTreeMap::new());
+	pub static ASSETS: RefCell<BTreeMap<u64, Assets>> = RefCell::new(BTreeMap::new());
 }
-pub fn assets(who: MultiLocation) -> Vec<MultiAsset> {
+pub fn assets(who: u64) -> Vec<MultiAsset> {
 	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
 }
+pub fn add_asset(who: u64, what: MultiAsset) {
+	ASSETS.with(|a| a.borrow_mut()
+		.entry(who)
+		.or_insert(Assets::new())
+		.saturating_subsume(what)
+	);
+}
+
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
-		ASSETS.with(|a| a.borrow_mut()
-			.entry(who.clone())
-			.or_insert(Assets::new())
-			.saturating_subsume(what.clone())
-		);
+		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
+		add_asset(who, what.clone());
 		Ok(())
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
+		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		ASSETS.with(|a| a.borrow_mut()
-			.get_mut(who)
-			.ok_or(XcmError::Undefined)?
+			.get_mut(&who)
+			.ok_or(XcmError::NotWithdrawable)?
 			.try_take(what.clone())
-			.map_err(|()| XcmError::Undefined)
+			.map_err(|()| XcmError::NotWithdrawable)
 		)
 	}
+}
+
+pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
+	Ok(match l {
+		// Siblings at 2000+id
+		X2(Parent, Parachain { id }) => 2000 + id as u64,
+		// Accounts are their number
+		X1(AccountIndex64 { index, .. }) => index,
+		// Children at 1000+id
+		X1(Parachain { id }) => 1000 + id as u64,
+		// Self at 3000
+		Null => 3000,
+		l => return Err(l),
+	})
 }
 
 pub struct TestOriginConverter;
@@ -136,10 +159,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 		use {OriginKind::*};
 		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
-			(SovereignAccount, X2(Parent, Parachain { id })) => Ok(TestOrigin::Signed(2000 + id as u64)),
-			(SovereignAccount, X1(AccountIndex64 { index, .. })) => Ok(TestOrigin::Signed(index)),
-			(SovereignAccount, X1(Parachain { id })) => Ok(TestOrigin::Signed(1000 + id as u64)),
-			(SovereignAccount, Null) => Ok(TestOrigin::Signed(3000)),
+			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, X1(Parachain { id })) => Ok(TestOrigin::Parachain(id)),
 			(_, origin) => Err(origin),
 		}
@@ -150,28 +170,22 @@ thread_local! {
 	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
 	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
 }
-
 pub fn add_reserve(from: MultiLocation, asset: MultiAsset) {
 	IS_RESERVE.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
 pub fn add_teleporter(from: MultiLocation, asset: MultiAsset) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
-
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
-	/// A filter to distinguish between asset/location pairs.
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		let r = IS_RESERVE.with(|r| r.borrow().get(origin)
+		IS_RESERVE.with(|r| r.borrow().get(origin)
 			.map_or(false, |v| v.iter().any(|a| a.contains(asset)))
-		);
-		println!("FAL: {:?}, {:?} => {}", asset, origin, r);
-		r
+		)
 	}
 }
 pub struct TestIsTeleporter;
 impl FilterAssetLocation for TestIsTeleporter {
-	/// A filter to distinguish between asset/location pairs.
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		IS_TELEPORTER.with(|r| r.borrow().get(origin)
 			.map_or(false, |v| v.iter().any(|a| a.contains(asset)))
@@ -181,14 +195,14 @@ impl FilterAssetLocation for TestIsTeleporter {
 
 parameter_types! {
 	pub TestAncestry: MultiLocation = X1(Parachain{id: 42});
-	pub AllowPaidFrom: Vec<MultiLocation> = vec![
-		Null,							// this chain
-		X1(Parent),						// the relay chain
-		X2(Parent, Parachain{id: 69}),	// our sibling chain 69
-	];
-	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![X1(Parent)];
 	pub UnitWeightCost: Weight = 10;
-	pub WeightPrice: (MultiLocation, u128) = (X1(Parent), 1_000_000_000_000);
+}
+parameter_types! {
+	// Nothing is allowed to be paid/unpaid by default.
+	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
+	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
+	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
+	pub static WeightPrice: (MultiLocation, u128) = (Null, 1_000_000_000_000);
 }
 
 pub struct IsInVec<T>(PhantomData<T>);
