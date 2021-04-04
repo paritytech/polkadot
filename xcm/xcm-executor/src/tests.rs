@@ -170,8 +170,8 @@ fn allow_paid_should_work() {
 
 #[test]
 fn paying_reserve_deposit_should_work() {
-	add_reserve(X1(Parent), AllConcreteFungible { id: X1(Parent) });
 	AllowPaidFrom::set(vec![ X1(Parent) ]);
+	add_reserve(X1(Parent), AllConcreteFungible { id: X1(Parent) });
 	WeightPrice::set((X1(Parent), 1_000_000_000_000));
 
 	let origin = X1(Parent);
@@ -234,8 +234,49 @@ fn reserve_transfer_should_work() {
 	assert_eq!(sent_xcm(), vec![(
 		X1(Parachain { id: 2 }),
 		Xcm::ReserveAssetDeposit {
-			assets: vec![ ConcreteFungible { id: X1(Parachain { id: 2 }), amount: 100 } ],
+			assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three } ],
 		})
 	]);
 }
+
+#[test]
+fn transacting_should_work() {
+	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
+
+	let origin = X1(Parent);
+	let message = Xcm::Transact {
+		origin_type: OriginKind::Native,
+		require_weight_at_most: 50,
+		call: TestCall::Any(50, Option::None).encode().into(),
+	};
+	let weight_limit = 60;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Ok(60));
+}
+/*
+#[test]
+fn paid_transacting_should_work() {
+	AllowPaidFrom::set(vec![ X1(Parent) ]);
+	add_reserve(X1(Parent), AllConcreteFungible { id: X1(Parent) });
+	WeightPrice::set((X1(Parent), 1_000_000_000_000));
+
+	let origin = X1(Parent);
+	let message = Xcm::ReserveAssetDeposit {
+		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
+		effects: vec![
+			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![
+				Xcm::Transact()
+			] },
+			Order::DepositAsset { assets: vec![ All ], dest: X1(Parent) },
+		],
+	};
+	let weight_limit = 50;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Ok(30));
+	assert_eq!(assets(3000), vec![ ConcreteFungible { id: X1(Parent), amount: 70 } ]);
+}
+*/
+
+// TODO: Return path weight payment vouchers (NFT allowing free passage for an origin if the message is in
+//   a particular format).

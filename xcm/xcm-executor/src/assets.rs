@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{prelude::*, mem, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
-use parity_scale_codec::{Encode, Decode, Input};
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 use sp_runtime::RuntimeDebug;
 
@@ -28,7 +27,7 @@ pub enum AssetId {
 
 impl AssetId {
 	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+	pub fn prepend_location(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
 		}
@@ -281,20 +280,20 @@ impl Assets {
 		self.non_fungible.insert((class, instance));
 	}
 
-	/// Alter any concretely identified assets according to the given `MultiLocation`.
+	/// Alter any concretely identified assets by prepending the given `MultiLocation`.
 	///
 	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's responsibility to
 	/// ensure that any internal asset IDs are able to be prepended without overflow.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) {
+	pub fn prepend_location(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible.into_iter()
-			.map(|(mut id, amount)| { let _ = id.reanchor(prepend); (id, amount) })
+			.map(|(mut id, amount)| { let _ = id.prepend_location(prepend); (id, amount) })
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible.into_iter()
-			.map(|(mut class, inst)| { let _ = class.reanchor(prepend); (class, inst) })
+			.map(|(mut class, inst)| { let _ = class.prepend_location(prepend); (class, inst) })
 			.collect();
 	}
 

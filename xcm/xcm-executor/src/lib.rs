@@ -59,7 +59,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 impl<Config: config::Config> XcmExecutor<Config> {
 	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Vec<MultiAsset> {
 		let inv_dest = Config::LocationInverter::invert_location(&dest);
-		assets.reanchor(&inv_dest);
+		assets.prepend_location(&inv_dest);
 		assets.into_assets_iter().collect::<Vec<_>>()
 	}
 
@@ -121,7 +121,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.iter_mut() {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
 					Config::AssetTransactor::transfer_asset(&asset, &origin, &dest)?;
-					asset.reanchor(&dest)?;
+					asset.reanchor(&inv_dest)?;
 				}
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
 				None

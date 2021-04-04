@@ -35,7 +35,7 @@ pub use crate::config::{
 	FixedRateOfConcreteFungible,
 };
 
-pub enum TestOrigin { Root, Signed(u64), Parachain(u32) }
+pub enum TestOrigin { Root, Relay, Signed(u64), Parachain(u32) }
 
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy)]
 pub enum TestCall {
@@ -161,6 +161,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, X1(Parachain { id })) => Ok(TestOrigin::Parachain(id)),
+			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -173,6 +174,7 @@ thread_local! {
 pub fn add_reserve(from: MultiLocation, asset: MultiAsset) {
 	IS_RESERVE.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
+#[allow(dead_code)]
 pub fn add_teleporter(from: MultiLocation, asset: MultiAsset) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
