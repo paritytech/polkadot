@@ -1222,7 +1222,7 @@ mod tests {
 				.boxed()
 		}
 
-		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_to_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 

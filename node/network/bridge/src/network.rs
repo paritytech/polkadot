@@ -116,8 +116,8 @@ pub trait Network: Clone + Send + 'static {
 
 	/// Ask the network to keep a substream open with these nodes and not disconnect from them
 	/// until removed from the priority group.
-	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	/// Cancels the effects of `add_peers_to_reserved_set`.
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	/// Cancels the effects of `add_to_peers_set`.
 	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 
 	/// Get access to an underlying sink for all network actions.
@@ -183,8 +183,8 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
-	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_to_peers_set(&**self, protocol, multiaddresses)
 	}
 
 	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {

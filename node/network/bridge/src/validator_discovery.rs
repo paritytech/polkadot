@@ -280,7 +280,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
-		if let Err(e) = network_service.add_peers_to_reserved_set(
+		if let Err(e) = network_service.add_to_peers_set(
 			peer_set.into_protocol_name(),
 			multiaddr_to_add.clone(),
 		).await {
@@ -388,7 +388,7 @@ mod tests {
 			panic!()
 		}
 
-		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_to_peers_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.extend(multiaddresses.into_iter());
 			Ok(())
 		}
