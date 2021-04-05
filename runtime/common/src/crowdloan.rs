@@ -288,6 +288,9 @@ decl_module! {
 		fn deposit_event() = default;
 
 		/// Create a new crowdloaning campaign for a parachain slot with the given lease period range.
+		///
+		/// This applies a lock to your parachain configuration, ensuring that it cannot be changed
+		/// by the parachain manager.
 		#[weight = T::WeightInfo::create()]
 		pub fn create(origin,
 			#[compact] index: ParaId,
@@ -336,6 +339,8 @@ decl_module! {
 			});
 
 			NextTrieIndex::put(new_trie_index);
+			// Add a lock to the para so that the configuration cannot be changed.
+			T::Registrar::apply_lock(index);
 
 			Self::deposit_event(RawEvent::Created(index));
 		}
