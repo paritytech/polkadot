@@ -1238,7 +1238,7 @@ mod tests {
 			Ok(())
 		}
 
-		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}

@@ -38,7 +38,7 @@ pub trait Network: Send + 'static {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
 	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	/// Remove the peers from the priority group.
-	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 }
 
 /// An abstraction over the authority discovery service.
@@ -56,8 +56,8 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol, multiaddresses)
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 }
 
@@ -407,7 +407,7 @@ mod tests {
 			Ok(())
 		}
 
-		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
 			Ok(())
 		}
