@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -26,7 +28,7 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure};
-use sc_network::config::parse_addr;
+use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
@@ -112,6 +114,13 @@ pub trait Network: Clone + Send + 'static {
 	/// or [`COLLATION_PROTOCOL_NAME`](COLLATION_PROTOCOL_NAME)
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
 
+	/// Ask the network to keep a substream open with these nodes and not disconnect from them
+	/// until removed from the protocol's peer set.
+	/// Note that `out_peers` setting has no effect on this.
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	/// Cancels the effects of `add_to_peers_set`.
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+
 	/// Get access to an underlying sink for all network actions.
 	fn action_sink<'a>(
 		&'a mut self,
@@ -173,6 +182,14 @@ pub trait Network: Clone + Send + 'static {
 impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+	}
+
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
+	}
+
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
