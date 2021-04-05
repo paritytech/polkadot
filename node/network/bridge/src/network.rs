@@ -50,6 +50,7 @@ pub(crate) async fn send_message<M, I>(
 	peers: I,
 	peer_set: PeerSet,
 	message: M,
+	metrics: &super::Metrics,
 ) -> SubsystemResult<()>
 where
 	M: Encode + Clone,
@@ -59,7 +60,12 @@ where
 	let mut message_producer = stream::iter({
 		let peers = peers.into_iter();
 		let n_peers = peers.len();
-		let mut message = Some(message.encode());
+		let mut message = {
+			let encoded = message.encode();
+			metrics.on_notification_sent(peer_set, encoded.len(), n_peers);
+
+			Some(encoded)
+		};
 
 		peers.enumerate().map(move |(i, peer)| {
 			// optimization: avoid cloning the message for the last peer in the

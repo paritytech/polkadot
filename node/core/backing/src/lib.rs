@@ -571,10 +571,10 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, parent_span, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		sender: &mut JobSender<impl SubsystemSender>,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
@@ -598,7 +598,7 @@ impl CandidateBackingJob {
 							if let Some(stmt) = self.sign_import_and_distribute_statement(
 								sender,
 								statement,
-								parent_span,
+								root_span,
 							).await? {
 								sender.send_message(
 									CandidateSelectionMessage::Seconded(self.parent, stmt).into()
@@ -620,7 +620,7 @@ impl CandidateBackingJob {
 				if !self.issued_statements.contains(&candidate_hash) {
 					if res.is_ok() {
 						let statement = Statement::Valid(candidate_hash);
-						self.sign_import_and_distribute_statement(sender, statement, &parent_span).await?;
+						self.sign_import_and_distribute_statement(sender, statement, &root_span).await?;
 					}
 					self.issued_statements.insert(candidate_hash);
 				}
@@ -730,10 +730,10 @@ impl CandidateBackingJob {
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: Statement,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(sender, &signed_statement, parent_span).await?;
+			self.import_statement(sender, &signed_statement, root_span).await?;
 			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
 			sender.send_unbounded_message(smsg.into());
 
@@ -764,7 +764,7 @@ impl CandidateBackingJob {
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: &SignedFullStatement,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -775,7 +775,7 @@ impl CandidateBackingJob {
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
-			self.get_unbacked_statement_child(parent_span, candidate_hash, statement.validator_index())
+			self.get_unbacked_statement_child(root_span, candidate_hash, statement.validator_index())
 		};
 
 		let stmt = primitive_statement_to_table(statement);
@@ -865,13 +865,13 @@ impl CandidateBackingJob {
 			}
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
-				let span = root_span.child("statement")
+				let _span = root_span.child("statement")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_candidate(statement.payload().candidate_hash())
 					.with_relay_parent(_relay_parent);
 
 				self.check_statement_signature(&statement)?;
-				match self.maybe_validate_and_import(&span, &root_span, sender, statement).await {
+				match self.maybe_validate_and_import(&root_span, sender, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
 					Ok(()) => (),
@@ -952,15 +952,14 @@ impl CandidateBackingJob {
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
-	#[tracing::instrument(level = "trace", skip(self, parent_span, root_span, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
-		parent_span: &jaeger::Span,
 		root_span: &jaeger::Span,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(sender, &statement, parent_span).await? {
+		if let Some(summary) = self.import_statement(sender, &statement, root_span).await? {
 			if Some(summary.group_id) != self.assignment {
 				return Ok(())
 			}
