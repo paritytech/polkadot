@@ -219,7 +219,7 @@ mod select_candidates {
 
 		futures::pin_mut!(overseer, test);
 
-		let _ = futures::executor::block_on(future::select(overseer, test));
+		let _ = futures::executor::block_on(future::join(overseer, test));
 	}
 
 	// For test purposes, we always return this set of availability cores:

@@ -1889,11 +1889,12 @@ mod tests {
 					assert_eq!(s, statement);
 				}
 			);
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(bg);
 
-		executor::block_on(future::select(test_fut, bg));
+		executor::block_on(future::join(test_fut, bg));
 	}
 }

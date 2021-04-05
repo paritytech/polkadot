@@ -50,7 +50,7 @@ fn test_harness<T: Future<Output = ()>>(
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(test_fut, subsystem)).1.unwrap();
 	}
 }
 
