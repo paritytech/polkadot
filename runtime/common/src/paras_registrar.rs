@@ -429,7 +429,7 @@ mod tests {
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-			Parachains: paras::{Pallet, Origin, Call, Storage, Config<T>},
+			Parachains: paras::{Pallet, Origin, Call, Storage, Config<T>, Event},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 		}
 	);
@@ -466,6 +466,7 @@ mod tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	parameter_types! {
@@ -486,6 +487,7 @@ mod tests {
 
 	impl paras::Config for Test {
 		type Origin = Origin;
+		type Event = Event;
 	}
 
 	impl configuration::Config for Test { }

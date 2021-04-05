@@ -71,11 +71,20 @@ pub enum Protocol {
 /// When decreasing this value, take into account that the very first request might need to open a
 /// connection, which can be slow. If this causes problems, we should ensure connectivity via peer
 /// sets.
+#[allow(dead_code)]
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Request timeout where we can assume the connection is already open (e.g. we have peers in a
 /// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
+
+/// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
+/// 50Meg bytes per second:
+const MIN_BANDWIDTH_BYTES: u64  = 50 * 1024 * 1024;
+/// Timeout for PoV like data, 2 times what it should take, assuming we can fully utilize the
+/// bandwidth. This amounts to two seconds right now.
+const POV_REQUEST_TIMEOUT_CONNECTED: Duration =
+	Duration::from_millis(2 * 1000 * (MAX_COMPRESSED_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -98,7 +107,8 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 10_000,
 				max_response_size: 10_000_000,
-				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				// We are connected to all validators:
+				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetching => RequestResponseConfig {
@@ -106,14 +116,14 @@ impl Protocol {
 				max_request_size: 10_000,
 				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
 				// Taken from initial implementation in collator protocol:
-				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 			Protocol::PoVFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
 				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
-				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 			Protocol::AvailableDataFetching => RequestResponseConfig {
@@ -121,7 +131,7 @@ impl Protocol {
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
 				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
-				request_timeout: DEFAULT_REQUEST_TIMEOUT,
+				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 		};
