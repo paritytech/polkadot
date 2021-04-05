@@ -19,21 +19,16 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
-	jaeger,
-	messages::{
+use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult, jaeger, messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
 		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
-	},
-};
+	}};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_node_primitives::{SignedFullStatement};
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
 use polkadot_node_network_protocol::{IfDisconnected, OurView, PeerId, UnifiedReputationChange as Rep, View, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::{self as protocol_v1, StatementMetadata}};
 
-use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
+use futures::{channel::mpsc, future::{FusedFuture, RemoteHandle}, prelude::*, select};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
@@ -402,11 +397,27 @@ struct FetchingInfo {
 /// Messages to be handled in this subsystem.
 enum Message {
 	/// Messages from other subsystems.
-	Subsystem(StatementDistributionMessage),
+	Subsystem(SubsystemResult<FromOverseer<StatementDistributionMessage>>),
 	/// Messages from spawned background tasks.
-	Requester(RequesterMessage),
+	Requester(Option<RequesterMessage>),
 }
 
+impl Message {
+	async fn receive(
+		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+		req_receiver: &mut mpsc::Receiver<RequesterMessage>,
+	) -> Message {
+		// We are only fusing here to make `select` happy, in reality we will quit if one of those
+		// streams end:
+		let from_overseer = ctx.recv().fuse();
+		let from_requester = req_receiver.next().fuse();
+		futures::pin_mut!(from_overseer, from_requester);
+		futures::select!(
+			msg = from_overseer => Message::Subsystem(msg),
+			msg = from_requester => Message::Requester(msg),
+		)
+	}
+}
 
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
@@ -426,10 +437,6 @@ struct ActiveHeadData {
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
 	span: PerLeafSpan,
-	/// Receiver for getting news from our statement fetching tasks.
-	req_receiver: mpsc::Receiver<RequesterMessage>,
-	/// Sender to be cloned and passed to forked jobs.
-	req_sender: mpsc::Sender<RequesterMessage>,
 }
 
 impl ActiveHeadData {
@@ -586,7 +593,7 @@ fn check_statement_signature(
 async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
@@ -651,7 +658,7 @@ fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 #[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement(
 	peers: &mut HashMap<PeerId, PeerData>,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	stored: &StoredStatement,
 ) -> Vec<PeerId> {
@@ -693,7 +700,7 @@ async fn circulate_statement(
 async fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
@@ -766,6 +773,39 @@ async fn report_peer(
 	)).await
 }
 
+async fn handle_incoming_message_and_circulate<'a>(
+	peer: PeerId,
+	peers: &mut HashMap<PeerId, PeerData>,
+	message: protocol_v1::StatementDistributionMessage,
+	our_view: &View,
+	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	req_sender: mpsc::Sender<RequesterMessage>,
+	metrics: &Metrics,
+) {
+	let result = retrieve_statement_from_message(
+		peer,
+		message,
+		our_view,
+		active_heads,
+		ctx,
+		req_sender,
+	).await;
+
+	if let Some(active_head, statement) = result {
+		handle_incoming_statement_and_circulate(
+			peer,
+			peers,
+			&*our_view,
+			active_head,
+			ctx,
+			message.get_metadata().relay_parent,
+			statement,
+			metrics,
+		).await;
+	}
+}
+
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
 ///
 /// This function will also return `None` if the message did not pass some basic checks, in that
@@ -779,7 +819,8 @@ async fn retrieve_statement_from_message<'a>(
 	our_view: &View,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-	) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
+	req_sender: mpsc::Sender<RequesterMessage>,
+) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
 
 	let metadata = message.get_metadata();
 
@@ -787,7 +828,7 @@ async fn retrieve_statement_from_message<'a>(
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
-			?fingerprint,
+			?metadata,
 			"Unexpected statement"
 			);
 		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
@@ -801,7 +842,7 @@ async fn retrieve_statement_from_message<'a>(
 			// correspond to actual `StartWork` messages. So we just log and ignore.
 			tracing::warn!(
 				target: LOG_TARGET,
-				requested_relay_parent = %fingerprint.relay_parent,
+				requested_relay_parent = %metadata.relay_parent,
 				"our view out-of-sync with active heads; head not found",
 				);
 			return None
@@ -809,47 +850,50 @@ async fn retrieve_statement_from_message<'a>(
 	};
 
 	match message {
-		protocol_v1::StatementDistributionMessage::Statement(_, statement) => 
+		protocol_v1::StatementDistributionMessage::Statement(_, statement) =>
 			return Some((active_head, statement)),
 
-		protocol_v1::StatementDistributionMessage::LargeStatement(fingerprint) => {
+		protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
 			match active_head.waiting_large_statements
-				.entry((fingerprint.signed_by, fingerprint.candidate_hash)) {
+				.entry(metadata.candidate_hash) {
 
-				Entry::Occupied(occupied) => {
+				Entry::Occupied(mut occupied) => {
 					let mut update = None;
 					match occupied.get_mut() {
 						LargeStatementStatus::Fetching(info) => {
 							info.available_peers.push(peer);
 							info.peers_to_try.push(peer);
-							if let Some(sender) = info.peer_sender {
+							if let Some(sender) = std::mem::take(&mut info.peer_sender) {
 								let to_send = std::mem::take(&mut info.peers_to_try);
-								sender.send(to_send);
-								info.peer_sender = None;
+								if let Err(peers) = sender.send(to_send) {
+									// Requester no longer interested for now, might want them
+									// later:
+									info.peers_to_try = peers;
+								}
 							}
 							return None
 						}
-						LargeStatementStatus::Fetched(statement) => {
+						LargeStatementStatus::Fetched(committed) => {
 
 							let signing_context = SigningContext {
 								session_index: active_head.session_index,
-								parent_hash: relay_parent,
+								parent_hash: metadata.relay_parent,
 							};
 
 							let validator_id = 
-								active_head.validators.get(fingerprint.signed_by.0 as usize);
+								active_head.validators.get(metadata.signed_by.0 as usize).clone();
 
 							if let Some(validator_id) = validator_id {
 
 								let statement = SignedFullStatement::new(
-										statement.clone(),
-										fingerprint.signed_by,
-										fingerprint.signature,
+										Statement::Seconded(committed.clone()),
+										metadata.signed_by,
+										metadata.signature.clone(),
 										&signing_context,
 										validator_id,
 								);
 								if let Some(statement) = statement {
-									return (active_head, statement)
+									return Some((active_head, statement))
 								} else {
 									// Cached data did not match signature, some backer wants to
 									// get slashed. At this point, we have to clear the cache and
@@ -858,14 +902,13 @@ async fn retrieve_statement_from_message<'a>(
 									// that up for disputes. We should just try our best to make
 									// sure all valid and invalid data is available so it can be
 									// disputed and the offenders can be slashed.)
-									update = launch_request(meta, peer, active_head, ctx).await;
+									update = launch_request(metadata, peer, req_sender, ctx).await;
 								}
 
 							} else {
-
 								tracing::debug!(
 									target: LOG_TARGET,
-									?validator_index,
+									validator_index = ?metadata.signed_by,
 									"Error loading statement, could not find key for validator."
 								);
 								return None
@@ -873,12 +916,12 @@ async fn retrieve_statement_from_message<'a>(
 						}
 					}
 					if let Some(update) = update {
-						occupied.get_mut() = update;
+						*occupied.get_mut() = update;
 					}
 					return None
 				}
 				Entry::Vacant(vacant) => {
-					if let Some(status) = launch_request(fingerprint, peer, &active_head, ctx).await {
+					if let Some(status) = launch_request(metadata, peer, req_sender, ctx).await {
 						vacant.insert(status);
 					}
 					return None
@@ -892,12 +935,12 @@ async fn retrieve_statement_from_message<'a>(
 ///
 /// Returns `None` if spawning task failed.
 async fn launch_request(
-	meta: CandidateMetadata,
+	meta: StatementMetadata,
 	peer: PeerId,
-	active_head: &ActiveHeadData,
+	req_sender: mpsc::Sender<RequesterMessage>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 ) -> Option<LargeStatementStatus> {
-	let (task, handle) = fetch(meta, vec![peer], active_head.req_sender.clone()).remote_handle();
+	let (task, handle) = fetch(meta, vec![peer], req_sender).remote_handle();
 	let result = ctx.spawn("large-statement-fetcher", task.boxed())
 		.await;
 	if let Err(err) = result {
@@ -1096,7 +1139,7 @@ async fn update_peer_view_and_send_unlocked(
 async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	our_view: &mut OurView,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
@@ -1123,19 +1166,15 @@ async fn handle_network_update(
 			peers.remove(&peer);
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
-			let message_data = 
-				retrieve_statement_from_message(peer, message, &*our_view, active_heads, ctx).await;
-			if let Some(active_head, statement) = message_data {
-				handle_incoming_message_and_circulate(
-					peer,
-					peers,
-					&*our_view,
-					active_head,
-					ctx,
-					message,
-					metrics,
-				).await;
-			}
+			handle_incoming_message_and_circulate(
+				peer,
+				peers,
+				message,
+				&*our_view,
+				active_heads,
+				ctx,
+				metrics,
+			).await;
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
 			tracing::trace!(
@@ -1191,93 +1230,141 @@ impl StatementDistribution {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut our_view = OurView::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
-		let metrics = self.metrics;
+		// Sender/Receiver for getting news from our statement fetching tasks.
+		let (req_sender, mut req_receiver) = mpsc::channel(1);
 
 		loop {
-			let message = ctx.recv().await?;
-			match message {
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
-					let _timer = metrics.time_active_leaves_update();
-
-					for activated in activated {
-						let relay_parent = activated.hash;
-						let span = PerLeafSpan::new(activated.span, "statement-distribution");
-
-						let (validators, session_index) = {
-							let (val_tx, val_rx) = oneshot::channel();
-							let (session_tx, session_rx) = oneshot::channel();
-
-							let val_message = AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(
-									relay_parent,
-									RuntimeApiRequest::Validators(val_tx),
-								),
-							);
-							let session_message = AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(
-									relay_parent,
-									RuntimeApiRequest::SessionIndexForChild(session_tx),
-								),
-							);
-
-							ctx.send_messages(
-								std::iter::once(val_message).chain(std::iter::once(session_message))
-							).await;
-
-							match (val_rx.await?, session_rx.await?) {
-								(Ok(v), Ok(s)) => (v, s),
-								(Err(e), _) | (_, Err(e)) => {
-									tracing::warn!(
-										target: LOG_TARGET,
-										err = ?e,
-										"Failed to fetch runtime API data for active leaf",
-									);
-
-									// Lacking this bookkeeping might make us behave funny, although
-									// not in any slashable way. But we shouldn't take down the node
-									// on what are likely spurious runtime API errors.
-									continue;
-								}
-							}
-						};
-
-						active_heads.entry(relay_parent)
-							.or_insert(ActiveHeadData::new(validators, session_index, span));
-					}
-				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
-					// do nothing
-				}
-				FromOverseer::Signal(OverseerSignal::Conclude) => break,
-				FromOverseer::Communication { msg } => match msg {
-					StatementDistributionMessage::Share(relay_parent, statement) => {
-						let _timer = metrics.time_share();
-
-						circulate_statement_and_dependents(
-							&mut peers,
-							&mut active_heads,
-							&mut ctx,
-							relay_parent,
-							statement,
-							&metrics,
-						).await;
-					}
-					StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
-						let _timer = metrics.time_network_bridge_update_v1();
-
-						handle_network_update(
-							&mut peers,
-							&mut active_heads,
-							&mut ctx,
-							&mut our_view,
-							event,
-							&metrics,
-						).await;
-					}
-				}
+			let message = Message::receive(&mut ctx, &mut req_receiver).await;
+			let finished = match message {
+				Message::Subsystem(result) =>
+					self.handle_subsystem_messages(
+						&mut ctx,
+						&mut peers,
+						&mut our_view,
+						&mut active_heads,
+						result?,
+					)
+					.await?,
+				Message::Requester(result) =>
+					self.handle_requester_messages(
+						&mut ctx,
+						result.ok_or(SubsystemError::Context(
+							"Failed to read from requester receiver (stream finished)"
+								.to_string()
+						))?
+					)
+					.await?,
+			};
+			if finished {
+				break
 			}
 		}
 		Ok(())
+	}
+
+	async fn handle_requester_messages(
+		&self,
+		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+		msg: RequesterMessage,
+	) -> SubsystemResult<bool> {
+		panic!("WIP");
+	}
+
+	async fn handle_subsystem_messages(
+		&self,
+		ctx: &mut impl SubsystemContext,
+		peers: &mut HashMap<PeerId, PeerData>,
+		our_view: &mut OurView,
+		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		message: FromOverseer<StatementDistributionMessage>,
+	) -> SubsystemResult<bool> {
+		let metrics = &self.metrics;
+
+		match message {
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
+				let _timer = metrics.time_active_leaves_update();
+
+				for activated in activated {
+					let relay_parent = activated.hash;
+					let span = PerLeafSpan::new(activated.span, "statement-distribution");
+
+					let (validators, session_index) = {
+						let (val_tx, val_rx) = oneshot::channel();
+						let (session_tx, session_rx) = oneshot::channel();
+
+						let val_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::Validators(val_tx),
+							),
+						);
+						let session_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::SessionIndexForChild(session_tx),
+							),
+						);
+
+						ctx.send_messages(
+							std::iter::once(val_message).chain(std::iter::once(session_message))
+						).await;
+
+						match (val_rx.await?, session_rx.await?) {
+							(Ok(v), Ok(s)) => (v, s),
+							(Err(e), _) | (_, Err(e)) => {
+								tracing::warn!(
+									target: LOG_TARGET,
+									err = ?e,
+									"Failed to fetch runtime API data for active leaf",
+								);
+
+								// Lacking this bookkeeping might make us behave funny, although
+								// not in any slashable way. But we shouldn't take down the node
+								// on what are likely spurious runtime API errors.
+								return Ok(false)
+							}
+						}
+					};
+
+					active_heads.entry(relay_parent)
+						.or_insert(ActiveHeadData::new(validators, session_index, span));
+				}
+			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
+				// do nothing
+			}
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOverseer::Communication { msg } => match msg {
+				StatementDistributionMessage::Share(relay_parent, statement) => {
+					let _timer = metrics.time_share();
+
+					circulate_statement_and_dependents(
+						peers,
+						active_heads,
+						ctx,
+						relay_parent,
+						statement,
+						metrics,
+					).await;
+				}
+				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
+					let _timer = metrics.time_network_bridge_update_v1();
+
+					handle_network_update(
+						peers,
+						active_heads,
+						ctx,
+						our_view,
+						event,
+						metrics,
+					).await;
+				}
+				StatementDistributionMessage::StatementFetchingRequest(_) => {
+					panic!("WIP");
+				}
+			}
+		}
+		Ok(false)
 	}
 }
 

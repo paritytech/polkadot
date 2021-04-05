@@ -20,7 +20,7 @@ use futures::{SinkExt, channel::{mpsc, oneshot}};
 use polkadot_node_network_protocol::{IfDisconnected, PeerId, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::StatementMetadata};
 use polkadot_node_primitives::SignedFullStatement;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 
 use crate::LOG_TARGET;
@@ -37,7 +37,7 @@ pub enum RequesterMessage {
 	/// Fetching finished.
 	Finished {
 		/// Response in case we got any together with the peer who provided us with it.
-		response: Option<(PeerId, SignedFullStatement)>,
+		response: Option<(PeerId, CommittedCandidateReceipt)>,
 		/// Peers which failed providing the data - they should get punished badly in terms of
 		/// reputation as they just told us a moment ago to have the data.
 		bad_peers: Vec<PeerId>,
@@ -53,8 +53,8 @@ pub enum RequesterMessage {
 /// communicate back via the given mpsc sender.
 ///
 /// The `OverseerSubsystemSender` will be used for issuing network requests.
-async fn fetch(
-	fingerprint: StatementMetadata,
+pub async fn fetch(
+	metadata: StatementMetadata,
 	peers: Vec<PeerId>,
 	mut sender: mpsc::Sender<RequesterMessage>,
 ) {
@@ -64,10 +64,11 @@ async fn fetch(
 	let mut new_peers = peers;
 
 	let req = StatementFetchingRequest {
-		fingerprint: fingerprint.clone(),
+		relay_parent: metadata.relay_parent,
+		candidate_hash: metadata.candidate_hash,
 	};
 
-	// We retry endlessly (with sleep periods), we rely on the subsystem to kill us eventually.
+	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
 	loop {
 		while let Some(peer) = new_peers.pop() {
 			let (outgoing, pending_response) = OutgoingRequest::new(
@@ -127,7 +128,7 @@ async fn fetch(
 		new_peers = std::mem::take(&mut tried_peers);
 
 		// All our peers failed us - try getting new ones before trying again:
-		match try_get_new_peers(fingerprint.clone(), &mut sender).await {
+		match try_get_new_peers(metadata.clone(), &mut sender).await {
 			Ok(Some(mut peers)) => {
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
@@ -164,7 +165,7 @@ async fn try_get_new_peers(
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Failed fetching more peers."
-			);_
+			);
 			Err(())
 		}
 		Ok(val) => Ok(val)
