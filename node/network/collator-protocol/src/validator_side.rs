@@ -2182,7 +2182,8 @@ mod tests {
 					assert_eq!(peer, peer_b);
 					assert_eq!(peer_set, PeerSet::Collation);
 				}
-			)
+			);
+			virtual_overseer
 		})
 	}
 
@@ -2253,6 +2254,7 @@ mod tests {
 					assert_eq!(peer_set, PeerSet::Collation);
 				}
 			);
+			virtual_overseer
 		})
 	}
 
@@ -2324,6 +2326,7 @@ mod tests {
 					assert_eq!(peer_set, PeerSet::Collation);
 				}
 			);
+			virtual_overseer
 		})
 	}
 }
