@@ -273,7 +273,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network + validator_discovery::Network + Sync,
+		Net: Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
@@ -345,7 +345,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 ) -> Result<(), UnexpectedAbort>
 where
 	Context: SubsystemContext<Message = NetworkBridgeMessage>,
-	N: Network + validator_discovery::Network,
+	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
 	// This is kept sorted, descending, by block number.
@@ -835,7 +835,7 @@ async fn run_network<N, AD>(
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
 ) -> SubsystemResult<()>
 where
-	N: Network + validator_discovery::Network,
+	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
 	let shared = Shared::default();
@@ -1222,6 +1222,14 @@ mod tests {
 				.boxed()
 		}
 
+		async fn add_to_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+
+		async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+
 		fn action_sink<'a>(&'a mut self)
 			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 		{
@@ -1229,17 +1237,6 @@ mod tests {
 		}
 
 		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
-		}
-	}
-
-	#[async_trait]
-	impl validator_discovery::Network for TestNetwork {
-		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
-			Ok(())
-		}
-
-		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
-			Ok(())
 		}
 	}
 
