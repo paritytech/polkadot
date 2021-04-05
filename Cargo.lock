@@ -11309,6 +11309,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "xcm-benchmarks"
+version = "0.8.30"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
+]
+
+[[package]]
 name = "xcm-builder"
 version = "0.8.30"
 dependencies = [

@@ -1,0 +1,42 @@
+[package]
+name = "xcm-benchmarks"
+version = "0.8.30"
+authors = ["Parity Technologies x<admin@parity.io>"]
+description = "Benchmarking Wrapper for the XCM Executor"
+edition = "2018"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+xcm-executor = { path = "../xcm-executor", default-features = false }
+
+[dev-dependencies]
+serde = { version = "1.0.119" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+xcm = { path = "..", default-features = false }
+xcm-builder = { path = "../xcm-builder", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
+
+[features]
+default = ['std']
+std = [
+	'parity-scale-codec/std',
+	'frame-support/std',
+	'frame-system/std',
+	'frame-benchmarking/std',
+	'polkadot-parachain/std',
+	'xcm/std',
+	'xcm-builder/std',
+	'xcm-executor/std',
+]
+
+runtime-benchmarks = ["frame-benchmarking"]
+try-runtime = ["frame-support/try-runtime"]

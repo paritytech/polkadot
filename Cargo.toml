@@ -43,6 +43,7 @@ members = [
 	"runtime/test-runtime",
 	"statement-table",
 	"xcm",
+	"xcm/xcm-benchmarks",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"node/collation-generation",
