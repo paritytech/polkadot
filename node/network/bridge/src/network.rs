@@ -115,7 +115,7 @@ pub trait Network: Clone + Send + 'static {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
 
 	/// Ask the network to keep a substream open with these nodes and not disconnect from them
-	/// until removed from the priority group.
+	/// until removed from the protocol's peer set.
 	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	/// Cancels the effects of `add_to_peers_set`.
 	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
