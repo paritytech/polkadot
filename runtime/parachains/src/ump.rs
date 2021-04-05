@@ -62,7 +62,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
+		use xcm::v0::{MultiLocation, ChainRelativeLocation, ExecuteXcm};
 		use xcm_executor::XcmExecutor;
 
 		let weight: Weight = 0;
@@ -70,8 +70,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
 			match versioned_xcm_message {
 				VersionedXcm::V0(xcm_message) => {
-					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
-					let xcm_location: MultiLocation = xcm_junction.into();
+					let xcm_location = MultiLocation::child_parachain(origin.into());
 					// TODO: Do something with result.
 					let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
 				}

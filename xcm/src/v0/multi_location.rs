@@ -582,3 +582,54 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 		}
 	}
 }
+
+/// Relative multi-locations of chains.
+pub trait ChainRelativeLocation {
+	/// Returns parent location.
+	fn parent() -> Self;
+	/// Returns child parachain location with given `para_id`.
+	fn child_parachain(para_id: u32) -> Self;
+	/// Returns sibling parachain location with given `para_id`.
+	fn sibling_parachain(para_id: u32) -> Self;
+
+	/// Returns `true` if it's parent location.
+	fn is_parent(&self) -> bool;
+	/// Returns a para id if location is a child parachain.
+	fn as_child_parachain(&self) -> Option<u32>;
+	/// Returns a para id if location is a sibling parachain.
+	fn as_sibling_parachain(&self) -> Option<u32>;
+}
+
+impl ChainRelativeLocation for MultiLocation {
+	fn parent() -> Self {
+		Junction::Parent.into()
+	}
+
+	fn child_parachain(para_id: u32) -> Self {
+		Junction::Parachain { id: para_id }.into()
+	}
+
+	fn sibling_parachain(para_id: u32) -> Self {
+		(Junction::Parent, Junction::Parachain { id: para_id }).into()
+	}
+
+	fn is_parent(&self) -> bool {
+		self == &Junction::Parent.into()
+	}
+
+	fn as_child_parachain(&self) -> Option<u32> {
+		if let MultiLocation::X1(Junction::Parachain { id }) = self {
+			Some(*id)
+		} else {
+			None
+		}
+	}
+
+	fn as_sibling_parachain(&self) -> Option<u32> {
+		if let MultiLocation::X2(Junction::Parent, Junction::Parachain { id }) = self {
+			Some(*id)
+		} else {
+			None
+		}
+	}
+}
