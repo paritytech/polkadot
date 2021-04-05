@@ -137,4 +137,14 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
+	fn dispatch_as_ratio_account(b: u32, ) -> Weight {
+		(21_162_000 as Weight)
+			// Standard Error: 0
+			.saturating_add((3_000 as Weight).saturating_mul(b as Weight))
+	}
+	fn dispatch_as_quantity_account(b: u32, ) -> Weight {
+		(20_904_000 as Weight)
+			// Standard Error: 0
+			.saturating_add((3_000 as Weight).saturating_mul(b as Weight))
+	}
 }
