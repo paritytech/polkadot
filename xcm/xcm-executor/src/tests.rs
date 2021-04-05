@@ -317,6 +317,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 fn prepaid_result_of_query_should_get_free_execution() {
 	let query_id = 33;
 	let origin = X1(Parent);
+	// We put this in manually here, but normally this would be done at the point of crafting the message.
 	expect_response(query_id, origin.clone());
 
 	let the_response = Response::Assets(vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ]);
@@ -341,6 +342,10 @@ fn prepaid_result_of_query_should_get_free_execution() {
 //   it could go overweight be up to the weight of whatever dispatch is in there. It should be added on and
 //   checked before executing any further XCMs.
 
+// TODO: Integrate into the XCM dispatch system in the runtimes
+
 // TODO: Ordering flag per message fragment in an aggregate message.
 
 // TODO: Test transact execution origins.
+
+// TODO: Don't just burn fees - send them somewhere, and test that we get them!

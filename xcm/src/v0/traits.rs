@@ -19,7 +19,7 @@
 use core::result;
 use parity_scale_codec::{Encode, Decode};
 
-use super::{MultiLocation, Xcm};
+use super::{MultiLocation, Xcm, XcmGeneric};
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum Error {
@@ -77,22 +77,56 @@ impl From<()> for Error {
 
 pub type Result = result::Result<(), Error>;
 
-pub trait ExecuteXcm {
-	fn execute_xcm(origin: MultiLocation, message: Xcm, weight_limit: u64) -> result::Result<u64, Error>;
+/// Local weight type; execution time in picoseconds.
+pub type Weight = u64;
+
+/// Outcome of an XCM excution.
+pub enum Outcome {
+	/// Execution completed successfully; given weight was used.
+	Complete(Weight),
+	/// Execution started, but did not complete successfully due to the given error; given weight was used.
+	Incomplete(Weight, Error),
+	/// Execution did not start due to the given error.
+	Error(Error),
 }
 
-impl ExecuteXcm for () {
-	fn execute_xcm(_origin: MultiLocation, _message: Xcm, _weight_limit: u64) -> result::Result<u64, Error> {
-		Err(Error::Unimplemented)
+impl From<Outcome> for Result {
+	fn from(o: Outcome) -> Self {
+		match o {
+			Outcome::Complete(_) => Ok(()),
+			Outcome::Incomplete(_, e) => Err(e),
+			Outcome::Error(e) => Err(e),
+		}
 	}
 }
 
-pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
+impl Outcome {
+	/// How much weight was used by the XCM execution attempt.
+	fn weight_used(&self) -> Weight {
+		match self {
+			Outcome::Complete(w) => w,
+			Outcome::Incomplete(w, _) => w,
+			Outcome::Error(_) => 0,
+		}
+	}
 }
 
-impl SendXcm for () {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
-		Err(Error::Unimplemented)
+pub trait ExecuteXcm<Call> {
+	fn execute_xcm(origin: MultiLocation, message: XcmGeneric<Call>, weight_limit: Weight) -> Outcome;
+}
+
+impl<C> ExecuteXcm<C> for () {
+	fn execute_xcm(_origin: MultiLocation, _message: XcmGeneric<C>, _weight_limit: Weight) -> Outcome {
+		Outcome::Error(Error::Unimplemented)
+	}
+}
+
+pub trait SendXcm<Call> {
+	fn send_xcm(dest: MultiLocation, msg: XcmGeneric<Call>, weight_limit: Weight) -> Outcome;
+}
+
+impl<C> SendXcm<C> for () {
+	fn send_xcm(_dest: MultiLocation, _msg: XcmGeneric<C>, _weight_limit: Weight) -> Outcome {
+		Outcome::Error(Error::Unimplemented)
 	}
 }

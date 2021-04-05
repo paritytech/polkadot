@@ -37,5 +37,5 @@ use xcm_executor::traits::InvertLocation;
 use xcm::v0::{MultiLocation, Junction};
 use frame_support::traits::Get;
 
-#[deprecated("use `xcm-executor::traits::LocationInverter` instead")]
+#[deprecated="use `xcm-executor::traits::LocationInverter` instead"]
 pub use xcm_executor::traits::LocationInverter;

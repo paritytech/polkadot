@@ -30,7 +30,7 @@ pub use junction::{Junction, NetworkId};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
 pub use order::{Order, OrderGeneric};
-pub use traits::{Error, Result, SendXcm, ExecuteXcm};
+pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
 // TODO: Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode the number of
 //   items in the vector.

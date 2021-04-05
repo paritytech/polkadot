@@ -255,13 +255,15 @@ impl<
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation
-	) -> result::Result<MultiAsset, XcmError> {
+	) -> result::Result<xcm_executor::Assets, XcmError> {
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::from_location(who)
 			.ok_or(Error::AccountIdConversionFailed)?;
 		Assets::burn_from(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
-		Ok(what.clone())
+		Ok(what.clone().into())
 	}
+
+	// TODO: implement transfer_asset, but should move it into a different trait.
 }

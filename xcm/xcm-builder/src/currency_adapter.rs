@@ -19,6 +19,7 @@ use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation};
 use sp_runtime::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReasons};
 use xcm_executor::traits::{MatchesFungible, LocationConversion, TransactAsset};
+use xcm_executor::Assets;
 
 /// Asset transaction errors.
 enum Error {
@@ -70,7 +71,7 @@ impl<
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation
-	) -> result::Result<MultiAsset, XcmError> {
+	) -> result::Result<Assets, XcmError> {
 		// Check we handle this asset.
 		let amount: u128 = Matcher::matches_fungible(what)
 			.ok_or(Error::AssetNotFound)?
@@ -82,6 +83,6 @@ impl<
 			.map_err(|_| Error::AmountToBalanceConversionFailed)?;
 		Currency::withdraw(&who, balance_amount, WithdrawReasons::TRANSFER, AllowDeath)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
-		Ok(what.clone())
+		Ok(what.clone().into())
 	}
 }

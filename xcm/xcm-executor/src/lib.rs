@@ -22,7 +22,7 @@ use frame_support::{
 	dispatch::{Weight, Dispatchable}
 };
 use xcm::v0::{
-	Xcm, ExecuteXcm, SendXcm, Error as XcmError,
+	Xcm, ExecuteXcm, SendXcm, Error as XcmError, Outcome,
 	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response,
 };
 
@@ -42,17 +42,31 @@ pub use config::{Config, WeightBounds, WeightTrader, ShouldExecute, OnResponse};
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
-	fn execute_xcm(origin: MultiLocation, message: Xcm, weight_limit: Weight) -> Result<Weight, XcmError> {
+	fn execute_xcm(origin: MultiLocation, message: Xcm, weight_limit: Weight) -> Outcome {
 		// TODO: We should identify recursive bombs here and bail.
 		let mut message = XcmGeneric::<Config::Call>::from(message);
-		let shallow_weight = Config::Weigher::shallow(&mut message)?;
-		let deep_weight = Config::Weigher::deep(&mut message)?;
-		let maximum_weight = shallow_weight.checked_add(deep_weight)
-			.ok_or(XcmError::WeightLimitReached)?;
-		ensure!(maximum_weight <= weight_limit, XcmError::WeightLimitReached);
+		let shallow_weight = match Config::Weigher::shallow(&mut message) {
+			Ok(x) => x,
+			Err(r) => return Outcome::Error(e),
+		};
+		let deep_weight = match Config::Weigher::deep(&mut message) {
+			Ok(x) => x,
+			Err(r) => return Outcome::Error(e),
+		};
+		let maximum_weight = match shallow_weight.checked_add(deep_weight) {
+			Some(x) => x,
+			None => return Outcome::Error(XcmError::WeightLimitReached),
+		};
+		if maximum_weight > weight_limit {
+			return Outcome::Error(XcmError::WeightLimitReached);
+		}
 		let mut trader = Config::Trader::new();
-		let surplus = Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader)?;
-		Ok(maximum_weight.saturating_sub(surplus))
+		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
+			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
+			// TODO: We can do better than returning `maximum_weight` here, and we should otherwise we'll
+			//  needlessly be disregarding block execution time.
+			Err(e) => Outcome::Incomplete(maximum_weight.saturating_sub(surplus), maximum_weight),
+		}
 	}
 }
 
