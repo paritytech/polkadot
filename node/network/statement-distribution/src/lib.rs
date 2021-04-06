@@ -829,7 +829,7 @@ async fn retrieve_statement_from_message<'a>(
 			?peer,
 			?metadata,
 			"Unexpected statement"
-			);
+		);
 		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
 		return None
 	}
@@ -848,77 +848,84 @@ async fn retrieve_statement_from_message<'a>(
 		}
 	};
 
-	let mut result = None;
 	match message {
 		protocol_v1::StatementDistributionMessage::Statement(_, statement) =>
-			result = Some((active_head, statement)),
+			return Some((active_head, statement)),
 
 		protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
 
 			let candidate_hash = metadata.candidate_hash;
 
-			let old_status = active_head
-				.waiting_large_statements
-				.remove(&candidate_hash);
-			let mut new_status = None;
+			match active_head.waiting_large_statements.entry(candidate_hash) {
+				Entry::Occupied(mut occupied) => {
 
-			if let Some(status) = old_status {
-				match status {
-					LargeStatementStatus::Fetching(mut info) => {
-						info.available_peers.push((peer, metadata));
-						info.peers_to_try.push(peer);
-						// Answer any pending request for more peers:
-						if let Some(sender) = std::mem::take(&mut info.peer_sender) {
-							let to_send = std::mem::take(&mut info.peers_to_try);
-							if let Err(peers) = sender.send(to_send) {
-								// Requester no longer interested for now, might want them
-								// later:
-								info.peers_to_try = peers;
+					let mut new_status = None;
+
+					match occupied.get_mut() {
+						LargeStatementStatus::Fetching(info) => {
+							info.available_peers.push((peer, metadata));
+							info.peers_to_try.push(peer);
+							// Answer any pending request for more peers:
+							if let Some(sender) = std::mem::take(&mut info.peer_sender) {
+								let to_send = std::mem::take(&mut info.peers_to_try);
+								if let Err(peers) = sender.send(to_send) {
+									// Requester no longer interested for now, might want them
+									// later:
+									info.peers_to_try = peers;
+								}
 							}
 						}
-						new_status = Some(LargeStatementStatus::Fetching(info));
-					}
-					LargeStatementStatus::Fetched(committed) => {
-						match build_signed_full_statement(
-							active_head.session_index,
-							|i| active_head.validators.get(i.0 as usize),
-							&metadata,
-							committed.clone(),
-						) {
-							Ok(signed) => {
-								new_status = Some(LargeStatementStatus::Fetched(committed));
-								result = Some((active_head, signed));
-							}
-							Err(BuildStatementError::UnknownValidator) => {
+						LargeStatementStatus::Fetched(committed) => {
+							let validator_id = active_head.validators.get(metadata.signed_by.0 as usize);
+							if let Some(validator_id) = validator_id {
+								let signing_context = SigningContext {
+									session_index: active_head.session_index,
+									parent_hash: metadata.relay_parent,
+								};
+
+								let statement = SignedFullStatement::new(
+									Statement::Seconded(committed.clone()),
+									metadata.signed_by,
+									metadata.signature.clone(),
+									&signing_context,
+									validator_id,
+								);
+
+								if let Some(statement) = statement {
+									return Some((active_head, statement));
+								} else {
+									// Cached data did not match signature, some backer wants to
+									// get slashed. At this point, we have to clear the cache and
+									// fetch the data again from the current peer. (We don't know
+									// which one is correct and it does not really matter, we leave
+									// that up for disputes. We should just try our best to make
+									// sure all valid and invalid data is available so it can be
+									// disputed and the offenders can be slashed.)
+									tracing::info!(
+										target: LOG_TARGET,
+										validator_index = ?metadata.signed_by,
+										"Building statement failed - invalid signature!"
+									);
+									new_status = launch_request(metadata, peer, req_sender, ctx).await;
+								}
+							} else {
 								tracing::debug!(
 									target: LOG_TARGET,
 									validator_index = ?metadata.signed_by,
 									"Error loading statement, could not find key for validator."
 								);
 							}
-							Err(BuildStatementError::InvalidSignature) => {
-								// Cached data did not match signature, some backer wants to
-								// get slashed. At this point, we have to clear the cache and
-								// fetch the data again from the current peer. (We don't know
-								// which one is correct and it does not really matter, we leave
-								// that up for disputes. We should just try our best to make
-								// sure all valid and invalid data is available so it can be
-								// disputed and the offenders can be slashed.)
-								tracing::info!(
-									target: LOG_TARGET,
-									validator_index = ?metadata.signed_by,
-									"Building statement failed - invalid signature!"
-								);
-								new_status = launch_request(metadata, peer, req_sender, ctx).await;
-							}
 						}
 					}
+					if let Some(new_status) = new_status {
+						occupied.insert(new_status);
+					}
 				}
-			} else {
-				new_status = launch_request(metadata, peer, req_sender, ctx).await;
-			}
-			if let Some(status) = new_status {
-				active_head.waiting_large_statements.insert(candidate_hash, status);
+				Entry::Vacant(vacant) => {
+					if let Some(new_status) = launch_request(metadata, peer, req_sender, ctx).await {
+						vacant.insert(new_status);
+					}
+				}
 			}
 		}
 	}

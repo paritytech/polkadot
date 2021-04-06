@@ -158,54 +158,6 @@ pub async fn fetch(
 	}
 }
 
-/// Possible errors of `build_signed_full_statement`.
-#[derive(Debug, Copy, Clone, Error)]
-pub enum BuildStatementError {
-	/// Signature has been invalid.
-	#[error("Invalid signature")]
-	InvalidSignature,
-	/// `ValidatorIndex` in metadata could not be found.
-	#[error("Signing validator could not be found")]
-	UnknownValidator,
-}
-
-
-/// Result of `build_signed_full_statement`.
-pub type BuildStatementResult = Result<SignedFullStatement, BuildStatementError>;
-
-/// Try rebuilding a signed full statement.
-///
-/// By passing in the original meta data and the `CommittedCandidateReceipt` as fetched by the
-/// requester. 
-pub fn build_signed_full_statement<'a, F>(
-	session_index: SessionIndex,
-	get_validator_id: F,
-	metadata: &StatementMetadata,
-	receipt: CommittedCandidateReceipt
-) -> BuildStatementResult 
-	where
-		F: FnOnce(ValidatorIndex) -> Option<&'a ValidatorId> + 'a
-{
-	let signing_context = SigningContext {
-		session_index,
-		parent_hash: metadata.relay_parent,
-	};
-
-	let validator_id =
-		get_validator_id(metadata.signed_by)
-			.ok_or(BuildStatementError::UnknownValidator)?;
-
-	SignedFullStatement::new(
-		Statement::Seconded(receipt),
-		metadata.signed_by,
-		metadata.signature.clone(),
-		&signing_context,
-		validator_id,
-	)
-	.ok_or(BuildStatementError::InvalidSignature)
-}
-
-
 /// Try getting new peers from subsystem.
 ///
 /// If there are non, we will return after a timeout with `None`.
