@@ -181,6 +181,7 @@ build-linux-release:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       variables:
         EXTRA_FLAGS:               "--features=real-overseer"
+        RUSTFLAGS:                 "-Cdebug-assertions=y"
     - when:                        always
   script:
     - time cargo build --release --verbose ${EXTRA_FLAGS}
@@ -247,7 +248,7 @@ generate-impl-guide:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
     # pass artifacts to the trigget-simnet job
     # this twist is to match the similar logic in substrate
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env 
+    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env
     - echo "VERSION=${EXTRATAG}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
