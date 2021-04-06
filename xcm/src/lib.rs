@@ -24,13 +24,15 @@
 extern crate alloc;
 
 use parity_scale_codec::{Encode, Decode};
+use derivative::Derivative;
 
 pub mod v0;
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
 /// A single XCM message, together with its version code.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedXcmGeneric<Call> {

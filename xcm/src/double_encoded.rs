@@ -17,13 +17,25 @@
 use alloc::vec::Vec;
 use parity_scale_codec::{Encode, Decode};
 
-#[derive(Eq, PartialEq, Clone, Encode, Decode, Debug)]
+#[derive(Encode, Decode)]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub struct DoubleEncoded<T> {
 	encoded: Vec<u8>,
 	#[codec(skip)]
 	decoded: Option<T>,
+}
+
+impl<T> Clone for DoubleEncoded<T> {
+	fn clone(&self) -> Self { Self { encoded: self.encoded.clone(), decoded: None } }
+}
+impl<T> Eq for DoubleEncoded<T> {
+}
+impl<T> PartialEq for DoubleEncoded<T> {
+	fn eq(&self, other: &Self) -> bool { self.encoded.eq(&other.encoded) }
+}
+impl<T> core::fmt::Debug for DoubleEncoded<T> {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { self.encoded.fmt(f) }
 }
 
 impl<T> From<Vec<u8>> for DoubleEncoded<T> {

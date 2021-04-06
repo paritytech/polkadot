@@ -17,11 +17,13 @@
 //! Version 0 of the Cross-Consensus Message format data structures.
 
 use alloc::vec::Vec;
+use derivative::Derivative;
 use parity_scale_codec::{self, Encode, Decode};
 use super::{MultiAsset, MultiLocation, XcmGeneric};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum OrderGeneric<Call> {

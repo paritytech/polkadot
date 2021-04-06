@@ -17,6 +17,7 @@
 //! Version 0 of the Cross-Consensus Message format data structures.
 
 use core::{result, convert::TryFrom, fmt::Debug};
+use derivative::Derivative;
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
 use super::{VersionedXcmGeneric, VersionedMultiAsset, DoubleEncoded};
@@ -66,7 +67,8 @@ pub enum Response {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum XcmGeneric<Call> {
