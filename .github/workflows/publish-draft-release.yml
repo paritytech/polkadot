@@ -117,19 +117,6 @@ jobs:
         uses: actions/setup-ruby@v1
         with:
           ruby-version: 2.7
-      - name: Download srtool json output
-        uses: actions/download-artifact@v2
-      - name: Get srtool output
-        id: srtool-output
-        env:
-          srtool_output_filename: "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json/${{ matrix.runtime }}_srtool_output.json"
-        run: |
-          pwd
-          ls -la "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json"
-          cat $srtool_output_filename
-          while IFS= read -r line; do
-            echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
-          done <<< "$(jq -r 'keys[]' < $srtool_output_filename)"
       - name: Get runtime version
         id: get-runtime-ver
         run: |
@@ -141,7 +128,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
-          asset_path: "${{ steps.srtool-output.outputs.wasm }}"
+          asset_path: "${{ matrix.runtime }}-runtime/${{ matrix.runtime }}_runtime.compact.wasm"
           asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
           asset_content_type: application/wasm
 
