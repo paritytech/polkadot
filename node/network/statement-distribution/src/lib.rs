@@ -36,10 +36,7 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 /// Background task logic for requesting of large statements.
 mod requester;
-use requester::{
-	fetch,
-	RequesterMessage,
-};
+use requester::{BuildStatementError, RequesterMessage, build_signed_full_statement, fetch};
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -374,6 +371,7 @@ enum NotedStatement<'a> {
 }
 
 /// Large statement fetching status.
+#[derive(Clone)]
 enum LargeStatementStatus {
 	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
 	/// claiming to have that data and will fallback on them.
@@ -384,8 +382,9 @@ enum LargeStatementStatus {
 
 /// Info about a fetch in progress.
 struct FetchingInfo {
-	/// All peers that send us a `LargeStatement` for that fingerprint.
-	available_peers: Vec<PeerId>,
+	/// All peers that send us a `LargeStatement` for the given `CandidateHash`, together with
+	/// their announced metadata.
+	available_peers: Vec<(PeerId, StatementMetadata)>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
 	/// Sender for sending fresh peers to the fetching task in case of failure.
@@ -849,86 +848,81 @@ async fn retrieve_statement_from_message<'a>(
 		}
 	};
 
+	let mut result = None;
 	match message {
 		protocol_v1::StatementDistributionMessage::Statement(_, statement) =>
-			return Some((active_head, statement)),
+			result = Some((active_head, statement)),
 
 		protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
-			match active_head.waiting_large_statements
-				.entry(metadata.candidate_hash) {
 
-				Entry::Occupied(mut occupied) => {
-					let mut update = None;
-					match occupied.get_mut() {
-						LargeStatementStatus::Fetching(info) => {
-							info.available_peers.push(peer);
-							info.peers_to_try.push(peer);
-							if let Some(sender) = std::mem::take(&mut info.peer_sender) {
-								let to_send = std::mem::take(&mut info.peers_to_try);
-								if let Err(peers) = sender.send(to_send) {
-									// Requester no longer interested for now, might want them
-									// later:
-									info.peers_to_try = peers;
-								}
+			let candidate_hash = metadata.candidate_hash;
+
+			let old_status = active_head
+				.waiting_large_statements
+				.remove(&candidate_hash);
+			let mut new_status = None;
+
+			if let Some(status) = old_status {
+				match status {
+					LargeStatementStatus::Fetching(mut info) => {
+						info.available_peers.push((peer, metadata));
+						info.peers_to_try.push(peer);
+						// Answer any pending request for more peers:
+						if let Some(sender) = std::mem::take(&mut info.peer_sender) {
+							let to_send = std::mem::take(&mut info.peers_to_try);
+							if let Err(peers) = sender.send(to_send) {
+								// Requester no longer interested for now, might want them
+								// later:
+								info.peers_to_try = peers;
 							}
-							return None
 						}
-						LargeStatementStatus::Fetched(committed) => {
-
-							let signing_context = SigningContext {
-								session_index: active_head.session_index,
-								parent_hash: metadata.relay_parent,
-							};
-
-							let validator_id = 
-								active_head.validators.get(metadata.signed_by.0 as usize).clone();
-
-							if let Some(validator_id) = validator_id {
-
-								let statement = SignedFullStatement::new(
-										Statement::Seconded(committed.clone()),
-										metadata.signed_by,
-										metadata.signature.clone(),
-										&signing_context,
-										validator_id,
-								);
-								if let Some(statement) = statement {
-									return Some((active_head, statement))
-								} else {
-									// Cached data did not match signature, some backer wants to
-									// get slashed. At this point, we have to clear the cache and
-									// fetch the data again from the current peer. (We don't know
-									// which one is correct and it does not really matter, we leave
-									// that up for disputes. We should just try our best to make
-									// sure all valid and invalid data is available so it can be
-									// disputed and the offenders can be slashed.)
-									update = launch_request(metadata, peer, req_sender, ctx).await;
-								}
-
-							} else {
+						new_status = Some(LargeStatementStatus::Fetching(info));
+					}
+					LargeStatementStatus::Fetched(committed) => {
+						match build_signed_full_statement(
+							active_head.session_index,
+							|i| active_head.validators.get(i.0 as usize),
+							&metadata,
+							committed.clone(),
+						) {
+							Ok(signed) => {
+								new_status = Some(LargeStatementStatus::Fetched(committed));
+								result = Some((active_head, signed));
+							}
+							Err(BuildStatementError::UnknownValidator) => {
 								tracing::debug!(
 									target: LOG_TARGET,
 									validator_index = ?metadata.signed_by,
 									"Error loading statement, could not find key for validator."
 								);
-								return None
+							}
+							Err(BuildStatementError::InvalidSignature) => {
+								// Cached data did not match signature, some backer wants to
+								// get slashed. At this point, we have to clear the cache and
+								// fetch the data again from the current peer. (We don't know
+								// which one is correct and it does not really matter, we leave
+								// that up for disputes. We should just try our best to make
+								// sure all valid and invalid data is available so it can be
+								// disputed and the offenders can be slashed.)
+								tracing::info!(
+									target: LOG_TARGET,
+									validator_index = ?metadata.signed_by,
+									"Building statement failed - invalid signature!"
+								);
+								new_status = launch_request(metadata, peer, req_sender, ctx).await;
 							}
 						}
 					}
-					if let Some(update) = update {
-						*occupied.get_mut() = update;
-					}
-					return None
 				}
-				Entry::Vacant(vacant) => {
-					if let Some(status) = launch_request(metadata, peer, req_sender, ctx).await {
-						vacant.insert(status);
-					}
-					return None
-				}
+			} else {
+				new_status = launch_request(metadata, peer, req_sender, ctx).await;
+			}
+			if let Some(status) = new_status {
+				active_head.waiting_large_statements.insert(candidate_hash, status);
 			}
 		}
 	}
+	return None
 }
 
 /// Launch request for a large statement and get tracking status.
@@ -1264,10 +1258,52 @@ impl StatementDistribution {
 
 	async fn handle_requester_messages(
 		&self,
-		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-		msg: RequesterMessage,
+		ctx: &mut impl SubsystemContext,
+		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		message: RequesterMessage,
 	) -> SubsystemResult<bool> {
-		panic!("WIP");
+		match message {
+			RequesterMessage::Finished {
+				metadata,
+				response,
+				bad_peers,
+			}=> {
+				let active_head = match active_heads.get_mut(&metadata.relay_parent) {
+					Some(head) => head,
+					None => return Ok(false),
+				};
+
+				let status = match active_head
+					.waiting_large_statements
+					.remove(&metadata.candidate_hash) {
+
+					Some(status) => status,
+					None => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Received finished task event for non existent status - not supposed to happen."
+						);
+						return Ok(false)
+					}
+				};
+				if let Some((from_peer, receipt)) = response {
+				}
+
+			}
+			RequesterMessage::SendRequest(req) => {
+				ctx.send(
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendRequests(
+							vec![req],
+							IfDisconnected::ImmediateError,
+						)
+					))
+					.await?;
+			}
+			RequesterMessage::GetMorePeers => {
+			}
+		}
+		Ok(false)
 	}
 
 	async fn handle_subsystem_messages(
