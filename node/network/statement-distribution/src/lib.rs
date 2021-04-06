@@ -406,7 +406,7 @@ impl PeerData {
 	/// This method does the same checks as `receive` without modifying the internal state.
 	/// Returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
-	fn can_receive(
+	fn check_can_receive(
 		&self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
@@ -953,7 +953,7 @@ async fn handle_incoming_message<'a>(
 
 	// perform only basic checks before verifying the signature
 	// as it's more computationally heavy
-	if let Err(rep) = peer_data.can_receive(&relay_parent, &fingerprint, max_message_count) {
+	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
@@ -994,7 +994,7 @@ async fn handle_incoming_message<'a>(
 	// it will not be kept within their log.
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
 		Err(_) => {
-			unreachable!("checked in `can_receive` above; qed");
+			unreachable!("checked in `check_can_receive` above; qed");
 		}
 		Ok(true) => {
 			tracing::trace!(
