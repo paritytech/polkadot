@@ -27,9 +27,6 @@ const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 /// Current db version.
 const CURRENT_VERSION: Version = 0;
 
-/// Number of columns in v0.
-const V0_NUM_COLUMNS: u32 = 3;
-
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("I/O error when reading/writing the version")]
@@ -78,7 +75,7 @@ fn current_version(path: &Path) -> Result<Version, Error> {
 		Err(err) => Err(err.into()),
 		Ok(mut file) => {
 			let mut s = String::new();
-			file.read_to_string(&mut s)?;
+			let _ = file.read_to_string(&mut s)?;
 			u32::from_str_radix(&s, 10).map_err(|_| Error::CorruptedVersionFile)
 		},
 	}
