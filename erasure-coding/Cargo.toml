@@ -1,13 +1,14 @@
 [package]
 name = "polkadot-erasure-coding"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-primitives = { package = "polkadot-primitives", path = "../primitives" }
-reed_solomon = { package = "reed-solomon-erasure", version = "4.0.2" }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+polkadot-primitives = { path = "../primitives" }
+polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../node/primitives" }
+novelpoly = { package = "reed-solomon-novelpoly", version = "1.0.0" }
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["std", "derive"] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.23"

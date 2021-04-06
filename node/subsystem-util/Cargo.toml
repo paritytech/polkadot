@@ -12,6 +12,7 @@ futures-timer = "3.0.2"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.4"
+rand = "0.8.3"
 streamunordered = "0.5.1"
 thiserror = "1.0.23"
 tracing = "0.1.25"
@@ -23,11 +24,11 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

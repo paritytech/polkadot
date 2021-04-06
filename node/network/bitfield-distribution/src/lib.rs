@@ -31,7 +31,10 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult,
 	jaeger,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	self as util, MIN_GOSSIP_PEERS,
+};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
@@ -169,7 +172,11 @@ impl BitfieldDistribution {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
 				} => {
-					tracing::trace!(target: LOG_TARGET, "Processing DistributeBitfield");
+					tracing::trace!(
+						target: LOG_TARGET,
+						?hash,
+						"Processing DistributeBitfield"
+					);
 					handle_bitfield_distribution(
 						&mut ctx,
 						&mut state,
@@ -188,9 +195,11 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for (relay_parent, span) in activated {
+					for activated in activated {
+						let relay_parent = activated.hash;
+
 						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
-						let span = PerLeafSpan::new(span, "bitfield-distribution");
+						let span = PerLeafSpan::new(activated.span, "bitfield-distribution");
 						let _span = span.child("query-basics");
 
 						// query validator set and signing context per relay_parent once only
@@ -235,7 +244,7 @@ async fn modify_reputation<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
+	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
@@ -336,12 +345,6 @@ where
 			// check interest in the peer in this message's relay parent
 			if view.contains(&message.relay_parent) {
 				let message_needed = job_data.message_from_validator_needed_by_peer(&peer, &validator);
-				// track the message as sent for this peer
-				job_data.message_sent_to_peer
-					.entry(peer.clone())
-					.or_default()
-					.insert(validator.clone());
-
 				if message_needed {
 					Some(peer.clone())
 				} else {
@@ -352,6 +355,16 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
+	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
+	interested_peers.iter()
+		.for_each(|peer|{
+			// track the message as sent for this peer
+			job_data.message_sent_to_peer
+				.entry(peer.clone())
+				.or_default()
+				.insert(validator.clone());
+		});
+
 	drop(_span);
 
 	if interested_peers.is_empty() {
@@ -400,17 +413,17 @@ where
 	};
 
 	let mut _span = job_data.span
-			.child_builder("msg-received")
+			.child("msg-received")
 			.with_peer_id(&origin)
 			.with_claimed_validator_index(message.signed_availability.validator_index())
-			.with_stage(jaeger::Stage::BitfieldDistribution)
-			.build();
+			.with_stage(jaeger::Stage::BitfieldDistribution);
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		tracing::trace!(
 			target: LOG_TARGET,
 			relay_parent = %message.relay_parent,
+			?origin,
 			"Validator set is empty",
 		);
 		modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
@@ -439,6 +452,12 @@ where
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
+		tracing::trace!(
+			target: LOG_TARGET,
+			validator_index,
+			?origin,
+			"Duplicate message",
+		);
 		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 		return;
 	};
@@ -486,24 +505,51 @@ where
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peerid, _role) => {
+		NetworkBridgeEvent::PeerConnected(peerid, role) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				?role,
+				"Peer connected",
+			);
 			// insert if none already present
 			state.peer_views.entry(peerid).or_default();
 		}
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				"Peer disconnected",
+			);
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peerid,
+				?view,
+				"Peer view change",
+			);
 			handle_peer_view_change(ctx, state, peerid, view).await;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?view,
+				"Our view change",
+			);
 			handle_our_view_change(state, view);
 		}
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
+					tracing::trace!(
+						target: LOG_TARGET,
+						peer_id = %remote,
+						?relay_parent,
+						"received bitfield gossip from peer"
+					);
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
 						signed_availability: bitfield,
@@ -602,6 +648,13 @@ where
 	};
 
 	let _span = job_data.span.child("gossip");
+	tracing::trace!(
+		target: LOG_TARGET,
+		?dest,
+		?validator,
+		relay_parent = ?message.relay_parent,
+		"Sending gossip message"
+	);
 
 	job_data.message_sent_to_peer
 		.entry(dest.clone())

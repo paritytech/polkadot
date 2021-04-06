@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-parachain"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 edition = "2018"
@@ -11,19 +11,19 @@ edition = "2018"
 # various unnecessary Substrate-specific endpoints.
 parity-scale-codec = { version = "2.0.0", default-features = false, features = [ "derive" ] }
 parity-util-mem = { version = "0.9.0", optional = true }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 
 # all optional crates.
 thiserror = { version = "1.0.22", optional = true }
 serde = { version = "1.0.117", default-features = false, features = [ "derive" ], optional = true }
-sp-externalities = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-sc-executor = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-sp-io = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 parking_lot = { version = "0.11.1", optional = true }
 log = { version = "0.4.11", optional = true }
 futures = { version = "0.3.8", optional = true }

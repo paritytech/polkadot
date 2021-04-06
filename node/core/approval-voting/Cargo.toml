@@ -13,7 +13,6 @@ bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 merlin = "2.0"
 schnorrkel = "0.9.1"
 kvdb = "0.9.0"
-kvdb-rocksdb = "0.11.0"
 derive_more = "0.99.1"
 
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -23,20 +22,21 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
 rand_core = "0.5.1" # should match schnorrkel
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"

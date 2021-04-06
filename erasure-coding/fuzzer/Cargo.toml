@@ -10,7 +10,7 @@ honggfuzz = "0.5"
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 
 [[bin]]
-name = "reconstruct_fuzzer"
+name = "reconstruct"
 path = "src/reconstruct.rs"
 
 [[bin]]

@@ -17,15 +17,15 @@ bp-header-chain = { path = "../../primitives/header-chain", default-features = f
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
-frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false, optional = true , branch = "bkchr-inherent-something-future" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false, optional = true }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 
 [features]
 default = ["std"]

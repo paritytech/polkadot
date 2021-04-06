@@ -21,10 +21,10 @@
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
+mod parachains_db;
 
 #[cfg(feature = "full-node")]
 use {
-	std::convert::TryInto,
 	std::time::Duration,
 	tracing::info,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -34,18 +34,20 @@ use {
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
+	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::{AuxStore, ExecutorProvider},
 	sc_keystore::LocalKeystore,
 	sp_consensus_babe::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
+	sp_runtime::traits::Header as HeaderT,
 };
 #[cfg(feature = "real-overseer")]
 use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
-
 
 use polkadot_subsystem::jaeger;
 
@@ -60,7 +62,7 @@ pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, 
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, block_validation::Chain};
 pub use polkadot_parachain::wasm_executor::IsolationStrategy;
-pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
+pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
 pub use sc_executor::NativeExecutionDispatch;
@@ -77,6 +79,9 @@ pub use kusama_runtime;
 pub use polkadot_runtime;
 pub use rococo_runtime;
 pub use westend_runtime;
+
+/// The maximum number of active leaves we forward to the [`Overseer`] on startup.
+const MAX_ACTIVE_LEAVES: usize = 4;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -157,6 +162,12 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Rococo` network.
 	fn is_rococo(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Polkadot` network.
+	fn is_polkadot(&self) -> bool;
+
+	/// Returns true if this configuration is for a development network.
+	fn is_dev(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
@@ -168,6 +179,12 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 	fn is_rococo(&self) -> bool {
 		self.id().starts_with("rococo") || self.id().starts_with("rco")
+	}
+	fn is_polkadot(&self) -> bool {
+		self.id().starts_with("polkadot") || self.id().starts_with("dot")
+	}
+	fn is_dev(&self) -> bool {
+		self.id().ends_with("dev")
 	}
 }
 
@@ -228,7 +245,8 @@ fn new_partial<RuntimeApi, Executor>(
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-				babe::BabeLink<Block>
+				babe::BabeLink<Block>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block, BeefySignature>,
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -336,6 +354,9 @@ fn new_partial<RuntimeApi, Executor>(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
+	let (beefy_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
@@ -344,7 +365,7 @@ fn new_partial<RuntimeApi, Executor>(
 		Some(shared_authority_set.clone()),
 	);
 
-	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
+	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone(), beefy_link);
 	let rpc_setup = shared_voter_state.clone();
 
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
@@ -357,7 +378,9 @@ fn new_partial<RuntimeApi, Executor>(
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
+			-> polkadot_rpc::RpcExtension
+		{
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -373,8 +396,12 @@ fn new_partial<RuntimeApi, Executor>(
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscription_executor,
+					subscription_executor: subscription_executor.clone(),
 					finality_provider: finality_proof_provider.clone(),
+				},
+				beefy: polkadot_rpc::BeefyDeps {
+					beefy_commitment_stream: beefy_commitment_stream.clone(),
+					subscription_executor,
 				},
 			};
 
@@ -399,7 +426,9 @@ fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	_: Arc<LocalKeystore>,
 	_: Arc<RuntimeClient>,
+	_parachains_db: (),
 	_: AvailabilityConfig,
+	_: ApprovalVotingConfig,
 	_: Arc<sc_network::NetworkService<Block, Hash>>,
 	_: AuthorityDiscoveryService,
 	_request_multiplexer: (),
@@ -407,11 +436,10 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	_: IsCollator,
 	_: IsolationStrategy,
-	_: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block>,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	Overseer::new(
@@ -427,7 +455,9 @@ fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: Arc<LocalKeystore>,
 	runtime_client: Arc<RuntimeClient>,
+	parachains_db: Arc<dyn kvdb::KeyValueDB>,
 	availability_config: AvailabilityConfig,
+	approval_voting_config: ApprovalVotingConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
 	request_multiplexer: RequestMultiplexer,
@@ -435,11 +465,10 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
-	approval_voting_config: ApprovalVotingConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block>,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
@@ -455,7 +484,6 @@ where
 	use polkadot_node_collation_generation::CollationGenerationSubsystem;
 	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
 	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
 	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
@@ -471,10 +499,11 @@ where
 		),
 		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
 		),
-		availability_store: AvailabilityStoreSubsystem::new_on_disk(
+		availability_store: AvailabilityStoreSubsystem::new(
+			parachains_db.clone(),
 			availability_config,
 			Metrics::register(registry)?,
-		)?,
+		),
 		bitfield_distribution: BitfieldDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
@@ -507,19 +536,26 @@ where
 		),
 		collator_protocol: {
 			let side = match is_collator {
-				IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
-				IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
+					network_service.local_peer_id().clone(),
+					collator_pair,
+					Metrics::register(registry)?,
+				),
+				IsCollator::No => ProtocolSide::Validator {
+					keystore: keystore.clone(),
+					eviction_policy: Default::default(),
+					metrics: Metrics::register(registry)?,
+				},
 			};
 			CollatorProtocolSubsystem::new(
 				side,
 			)
 		},
 		network_bridge: NetworkBridgeSubsystem::new(
-			network_service,
+			network_service.clone(),
 			authority_discovery,
 			request_multiplexer,
-		),
-		pov_distribution: PoVDistributionSubsystem::new(
+			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		),
 		provisioner: ProvisionerSubsystem::new(
@@ -540,10 +576,14 @@ where
 		),
 		approval_voting: ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
+			parachains_db,
 			keystore.clone(),
+			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
-		)?,
-		gossip_support: GossipSupportSubsystem::new(),
+		),
+		gossip_support: GossipSupportSubsystem::new(
+			keystore.clone(),
+		),
 	};
 
 	Overseer::new(
@@ -583,12 +623,23 @@ impl<C> NewFull<C> {
 
 /// Is this node a collator?
 #[cfg(feature = "full-node")]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Clone)]
 pub enum IsCollator {
 	/// This node is a collator.
-	Yes(CollatorId),
+	Yes(CollatorPair),
 	/// This node is not a collator.
 	No,
+}
+
+#[cfg(feature = "full-node")]
+impl std::fmt::Debug for IsCollator {
+	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+		use sp_core::Pair;
+		match self {
+			IsCollator::Yes(pair) => write!(fmt, "Yes({})", pair.public()),
+			IsCollator::No => write!(fmt, "No"),
+		}
+	}
 }
 
 #[cfg(feature = "full-node")]
@@ -597,6 +648,56 @@ impl IsCollator {
 	fn is_collator(&self) -> bool {
 		matches!(self, Self::Yes(_))
 	}
+}
+
+/// Returns the active leaves the overseer should start with.
+#[cfg(feature = "full-node")]
+fn active_leaves<RuntimeApi, Executor>(
+	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
+	client: &FullClient<RuntimeApi, Executor>,
+) -> Result<Vec<BlockInfo>, Error>
+where
+		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
+		RuntimeApi::RuntimeApi:
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		Executor: NativeExecutionDispatch + 'static,
+{
+	let best_block = select_chain.best_chain()?;
+
+	let mut leaves = select_chain
+		.leaves()
+		.unwrap_or_default()
+		.into_iter()
+		.filter_map(|hash| {
+			let number = client.number(hash).ok()??;
+
+			// Only consider leaves that are in maximum an uncle of the best block.
+			if number < best_block.number().saturating_sub(1) {
+				return None
+			} else if hash == best_block.hash() {
+				return None
+			};
+
+			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
+
+			Some(BlockInfo {
+				hash,
+				parent_hash,
+				number,
+			})
+		})
+		.collect::<Vec<_>>();
+
+	// Sort by block number and get the maximum number of leaves
+	leaves.sort_by_key(|b| b.number);
+
+	leaves.push(BlockInfo {
+		hash: best_block.hash(),
+		parent_hash: *best_block.parent_hash(),
+		number: *best_block.number(),
+	});
+
+	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
 /// Create a new full node of arbitrary runtime and executor.
@@ -662,8 +763,21 @@ pub fn new_full<RuntimeApi, Executor>(
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+
+	if config.chain_spec.is_westend() || config.chain_spec.is_rococo() {
+		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+	}
+
 	#[cfg(feature = "real-overseer")]
-	config.network.extra_sets.extend(polkadot_network_bridge::peer_sets_info());
+	{
+		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
+		let is_authority = if role.is_authority() {
+			IsAuthority::Yes
+		} else {
+			IsAuthority::No
+		};
+		config.network.extra_sets.extend(peer_sets_info(is_authority));
+	}
 
 	// Add a dummy collation set with the intent of printing an error if one tries to connect a
 	// collator to a node that isn't compiled with `--features real-overseer`.
@@ -746,16 +860,26 @@ pub fn new_full<RuntimeApi, Executor>(
 		);
 	}
 
-	let availability_config = config.database.clone().try_into().map_err(Error::Availability)?;
+	#[cfg(feature = "real-overseer")]
+	let parachains_db = crate::parachains_db::open_creating(
+		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
+		crate::parachains_db::CacheSizes::default(),
+	)?;
 
-	let approval_voting_config = ApprovalVotingConfig {
-		path: config.database.path()
-			.ok_or(Error::DatabasePathRequired)?
-			.join("parachains").join("approval-voting"),
-		slot_duration_millis: slot_duration.as_millis() as u64,
-		cache_size: None, // default is fine.
+	#[cfg(not(feature = "real-overseer"))]
+	let parachains_db = ();
+
+	let availability_config = AvailabilityConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
+		col_meta: crate::parachains_db::REAL_COLUMNS.col_availability_meta,
 	};
 
+	let approval_voting_config = ApprovalVotingConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
+		slot_duration_millis: slot_duration.as_millis() as u64,
+	};
+
+	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -772,25 +896,11 @@ pub fn new_full<RuntimeApi, Executor>(
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_link) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let leaves: Vec<_> = select_chain.clone()
-		.leaves()
-		.unwrap_or_else(|_| vec![])
-		.into_iter()
-		.filter_map(|hash| {
-			let number = client.number(hash).ok()??;
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
-
-			Some(BlockInfo {
-				hash,
-				parent_hash,
-				number,
-			})
-		})
-		.collect();
+	let active_leaves = active_leaves(&select_chain, &*client)?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
@@ -835,10 +945,12 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
 		let (overseer, overseer_handler) = real_overseer(
-			leaves,
+			active_leaves,
 			keystore,
 			overseer_client.clone(),
+			parachains_db,
 			availability_config,
+			approval_voting_config,
 			network.clone(),
 			authority_discovery_service,
 			request_multiplexer,
@@ -846,7 +958,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			spawner,
 			is_collator,
 			isolation_strategy,
-			approval_voting_config,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
@@ -924,6 +1035,29 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
+	// We currently only run the BEEFY gadget on Rococo and Westend test
+	// networks. On Rococo we start the BEEFY gadget as a normal (non-essential)
+	// task for now, since BEEFY is still experimental and we don't want a
+	// failure to bring down the whole node. Westend test network is less used
+	// than Rococo and therefore a failure there will be less problematic, this
+	// will be the main testing target for BEEFY for now.
+	if chain_spec.is_westend() || chain_spec.is_rococo() {
+		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
+			client.clone(),
+			keystore_container.sync_keystore(),
+			network.clone(),
+			beefy_link,
+			network.clone(),
+			prometheus_registry.clone()
+		);
+
+		if chain_spec.is_westend() {
+			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		} else {
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		}
+	}
+
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt = if role.is_authority() {
@@ -959,7 +1093,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
-			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
+			builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
 				overseer.clone(),
 				prometheus_registry.as_ref(),
 			)?)

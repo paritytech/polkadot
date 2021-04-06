@@ -9,7 +9,7 @@ futures = "0.3.12"
 tracing = "0.1.25"
 thiserror = "1.0.23"
 
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -17,4 +17,5 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

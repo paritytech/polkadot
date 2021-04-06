@@ -6,10 +6,9 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.42"
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.12"
 futures-timer = "3.0.2"
-oorandom = "11.1.3"
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
@@ -17,9 +16,9 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem
 tracing = "0.1.25"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
-futures-timer = "3.0.2"
 femme = "2.1.1"
 kv-log-macro = "1.0.7"
+assert_matches = "1.4.0"

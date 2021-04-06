@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-client"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -14,19 +14,20 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures = "0.3.12"

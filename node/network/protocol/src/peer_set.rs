@@ -30,12 +30,23 @@ pub enum PeerSet {
 	Collation,
 }
 
+/// Whether or not a node is an authority or not.
+///
+/// Peer set configuration gets adjusted accordingly.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum IsAuthority {
+	/// Node is authority.
+	Yes,
+	/// Node is not an authority.
+	No,
+}
+
 impl PeerSet {
 	/// Get `sc_network` peer set configurations for each peerset.
 	///
 	/// Those should be used in the network configuration to register the protocols with the
 	/// network service.
-	pub fn get_info(self) -> NonDefaultSetConfig {
+	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
 		// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
 		// done and collations use request-response protocols
@@ -46,8 +57,12 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					in_peers: 25,
-					out_peers: 0,
+					// we allow full nodes to connect to validators for gossip
+					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
+					// we limit the amount of non-reserved slots to be less
+					// than `MIN_GOSSIP_PEERS` in total
+					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},
@@ -56,10 +71,15 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: SetConfig {
-					in_peers: 25,
+					// Non-authority nodes don't need to accept incoming connections on this peer set:
+					in_peers: if is_authority == IsAuthority::Yes { 25 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+					non_reserved_mode: if is_authority == IsAuthority::Yes {
+						sc_network::config::NonReservedPeerMode::Accept
+					} else {
+						sc_network::config::NonReservedPeerMode::Deny
+					}
 				},
 			},
 		}
@@ -106,18 +126,18 @@ impl<T> Index<PeerSet> for PerPeerSet<T> {
 }
 
 impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
-    fn index_mut(&mut self, index: PeerSet) -> &mut T {
-        match index {
+	fn index_mut(&mut self, index: PeerSet) -> &mut T {
+		match index {
 			PeerSet::Validation => &mut self.validation,
 			PeerSet::Collation => &mut self.collation,
 		}
-    }
+	}
 }
 
 /// Get `NonDefaultSetConfig`s for all available peer sets.
 ///
 /// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
 /// or shortly after startup to register the protocols with the network service.
-pub fn peer_sets_info() -> Vec<sc_network::config::NonDefaultSetConfig> {
-	PeerSet::iter().map(PeerSet::get_info).collect()
+pub fn peer_sets_info(is_authority: IsAuthority) -> Vec<sc_network::config::NonDefaultSetConfig> {
+	PeerSet::iter().map(|s| s.get_info(is_authority)).collect()
 }

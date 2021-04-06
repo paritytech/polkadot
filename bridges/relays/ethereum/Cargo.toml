@@ -12,9 +12,9 @@ async-trait = "0.1.42"
 clap = { version = "2.33.3", features = ["yaml"] }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 env_logger = "0.8.3"
-ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-inherent-something-future" }
-ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-inherent-something-future" }
-ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "bkchr-inherent-something-future" }
+ethabi = { git = "https://github.com/paritytech/ethabi.git", branch = "master" }
+ethabi-contract = { git = "https://github.com/paritytech/ethabi.git", branch = "master" }
+ethabi-derive = { git = "https://github.com/paritytech/ethabi.git", branch = "master" }
 futures = "0.3.12"
 hex = "0.4"
 hex-literal = "0.3"
@@ -40,9 +40,9 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate.git", branch = "master" }

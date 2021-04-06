@@ -40,18 +40,18 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Module, Origin, Call, Storage, Config<T>},
-		Configuration: configuration::{Module, Call, Storage, Config<T>},
-		Shared: shared::{Module, Call, Storage},
-		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
-		Scheduler: scheduler::{Module, Call, Storage},
-		Initializer: initializer::{Module, Call, Storage},
-		Dmp: dmp::{Module, Call, Storage},
-		Ump: ump::{Module, Call, Storage},
-		Hrmp: hrmp::{Module, Call, Storage, Event},
-		SessionInfo: session_info::{Module, Call, Storage},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
+		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
+		Shared: shared::{Pallet, Call, Storage},
+		Inclusion: inclusion::{Pallet, Call, Storage, Event<T>},
+		Scheduler: scheduler::{Pallet, Call, Storage},
+		Initializer: initializer::{Pallet, Call, Storage},
+		Dmp: dmp::{Pallet, Call, Storage},
+		Ump: ump::{Pallet, Call, Storage},
+		Hrmp: hrmp::{Pallet, Call, Storage, Event},
+		SessionInfo: session_info::{Pallet, Call, Storage},
 	}
 );
 
@@ -84,6 +84,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -102,6 +103,7 @@ impl pallet_balances::Config for Test {
 
 impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness<Self>;
+	type ForceOrigin = frame_system::EnsureRoot<u64>;
 }
 
 impl crate::configuration::Config for Test { }
@@ -110,6 +112,7 @@ impl crate::shared::Config for Test { }
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 impl crate::dmp::Config for Test { }
@@ -121,7 +124,7 @@ impl crate::ump::Config for Test {
 impl crate::hrmp::Config for Test {
 	type Event = Event;
 	type Origin = Origin;
-	type Currency = pallet_balances::Module<Test>;
+	type Currency = pallet_balances::Pallet<Test>;
 }
 
 impl crate::scheduler::Config for Test { }
@@ -131,7 +134,7 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::inclusion_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 

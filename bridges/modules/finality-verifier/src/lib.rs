@@ -215,8 +215,8 @@ mod tests {
 	fn next_block() {
 		use frame_support::traits::OnInitialize;
 
-		let current_number = frame_system::Module::<TestRuntime>::block_number();
-		frame_system::Module::<TestRuntime>::set_block_number(current_number + 1);
+		let current_number = frame_system::Pallet::<TestRuntime>::block_number();
+		frame_system::Pallet::<TestRuntime>::set_block_number(current_number + 1);
 		let _ = Module::<TestRuntime>::on_initialize(current_number);
 	}
 

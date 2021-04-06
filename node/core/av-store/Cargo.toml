@@ -8,7 +8,6 @@ edition = "2018"
 futures = "0.3.12"
 futures-timer = "3.0.2"
 kvdb = "0.9.0"
-kvdb-rocksdb = "0.11.0"
 thiserror = "1.0.23"
 tracing = "0.1.25"
 bitvec = "0.20.1"
@@ -19,8 +18,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+polkadot-node-primitives = { path = "../../primitives" }
 
 [dev-dependencies]
 log = "0.4.13"
@@ -28,8 +26,8 @@ env_logger = "0.8.2"
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.9.0"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 parking_lot = "0.11.1"

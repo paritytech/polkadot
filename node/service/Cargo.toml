@@ -1,60 +1,62 @@
 [package]
 name = "polkadot-service"
-version = "0.8.3"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
 futures = "0.3.12"
@@ -62,12 +64,15 @@ hex-literal = "0.3.1"
 tracing = "0.1.25"
 serde = { version = "1.0.123", features = ["derive"] }
 thiserror = "1.0.23"
+kvdb = "0.9.0"
+kvdb-rocksdb = { version = "0.11.0", optional = true }
 
 # Polkadot
 polkadot-node-core-proposer = { path = "../core/proposer" }
 polkadot-overseer = { path = "../overseer" }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-node-primitives = { path = "../primitives" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
@@ -95,7 +100,6 @@ polkadot-node-core-candidate-validation = { path = "../core/candidate-validation
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
-polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
 polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
@@ -110,7 +114,8 @@ db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
 	"polkadot-node-core-approval-voting",
-	"sc-finality-grandpa-warp-sync"
+	"sc-finality-grandpa-warp-sync",
+	"kvdb-rocksdb"
 ]
 
 runtime-benchmarks = [
@@ -123,9 +128,11 @@ try-runtime = [
 	"polkadot-runtime/try-runtime",
 	"kusama-runtime/try-runtime",
 	"westend-runtime/try-runtime",
+	"rococo-runtime/try-runtime",
 ]
 
 real-overseer = [
+	"full-node",
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
@@ -140,7 +147,6 @@ real-overseer = [
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
-	"polkadot-pov-distribution",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
 ]

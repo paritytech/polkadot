@@ -19,10 +19,10 @@ rialto-runtime = { path = "../../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }

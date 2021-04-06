@@ -11,15 +11,15 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-frame-system = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-pallet-session = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-staking = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
-sp-std = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "bkchr-inherent-something-future" }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "master", default-features = false }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "master" }
 serde = "1.0"
 
 [features]

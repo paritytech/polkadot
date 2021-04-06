@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -24,19 +24,19 @@ futures = "0.3.12"
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-parachain = { path = "../parachain", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-inherent-something-future" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", optional = true , branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-inherent-something-future" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "bkchr-inherent-something-future" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]
