@@ -19,8 +19,6 @@
 use std::fs;
 use std::io::{self, Read, Write, ErrorKind};
 use std::path::{Path, PathBuf};
-use thiserror::Error;
-
 
 type Version = u32;
 
@@ -30,7 +28,7 @@ const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 /// Current db version.
 const CURRENT_VERSION: Version = 0;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error("I/O error when reading/writing the version")]
 	Io(#[from] io::Error),
@@ -42,7 +40,6 @@ pub enum Error {
 		got: Version,
 	},
 }
-
 
 impl From<Error> for io::Error {
 	fn from(me: Error) -> io::Error {
@@ -57,8 +54,7 @@ impl From<Error> for io::Error {
 pub fn try_upgrade_db(db_path: &Path) -> Result<(), Error> {
 	let is_empty = db_path.read_dir().map_or(true, |mut d| d.next().is_none());
 	if !is_empty {
-		let db_version = current_version(db_path)?;
-		match db_version {
+		match current_version(db_path)? {
 			CURRENT_VERSION => (),
 			v => return Err(Error::FutureVersion {
 				current: CURRENT_VERSION,
@@ -73,14 +69,10 @@ pub fn try_upgrade_db(db_path: &Path) -> Result<(), Error> {
 /// Reads current database version from the file at given path.
 /// If the file does not exist, assumes version 0.
 fn current_version(path: &Path) -> Result<Version, Error> {
-	match fs::File::open(version_file_path(path)) {
+	match fs::read_to_string(version_file_path(path)) {
 		Err(ref err) if err.kind() == ErrorKind::NotFound => Ok(0),
 		Err(err) => Err(err.into()),
-		Ok(mut file) => {
-			let mut s = String::new();
-			let _ = file.read_to_string(&mut s)?;
-			u32::from_str_radix(&s, 10).map_err(|_| Error::CorruptedVersionFile)
-		},
+		Ok(content) => u32::from_str(&s).map_err(|_| Error::CorruptedVersionFile),
 	}
 }
 
@@ -88,9 +80,7 @@ fn current_version(path: &Path) -> Result<Version, Error> {
 /// Creates a new file if the version file does not exist yet.
 fn update_version(path: &Path) -> Result<(), Error> {
 	fs::create_dir_all(path)?;
-	let mut file = fs::File::create(version_file_path(path))?;
-	file.write_all(format!("{}", CURRENT_VERSION).as_bytes())?;
-	Ok(())
+	fs::write!(version_file_path(path), CURRENT_VERSION.to_string()).map_err(Into::into)
 }
 
 /// Returns the version file path.
