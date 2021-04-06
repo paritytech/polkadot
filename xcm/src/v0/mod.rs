@@ -230,17 +230,13 @@ pub enum XcmGeneric<Call> {
 /// call other than it is pre-encoded.
 pub type Xcm = XcmGeneric<()>;
 
-impl<
-	Call: Clone + Eq + PartialEq + Encode + Decode + Debug
-> From<XcmGeneric<Call>> for VersionedXcmGeneric<Call> {
+impl<Call> From<XcmGeneric<Call>> for VersionedXcmGeneric<Call> {
 	fn from(x: XcmGeneric<Call>) -> Self {
 		VersionedXcmGeneric::V0(x)
 	}
 }
 
-impl<
-	Call: Encode
-> TryFrom<VersionedXcmGeneric<Call>> for XcmGeneric<Call> {
+impl<Call> TryFrom<VersionedXcmGeneric<Call>> for XcmGeneric<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcmGeneric<Call>) -> result::Result<Self, ()> {
 		match x {
