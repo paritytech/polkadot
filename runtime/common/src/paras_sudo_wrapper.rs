@@ -16,7 +16,6 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
-use crate::WASM_MAGIC;
 use sp_std::prelude::*;
 use frame_support::{
 	decl_error, decl_module, ensure,
@@ -47,8 +46,6 @@ decl_error! {
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
-		/// The validation code provided doesn't start with the Wasm file magic string.
-		DefinitelyNotWasm,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
 		/// Not a parathread.
@@ -75,7 +72,6 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 			runtime_parachains::schedule_para_initialize::<T>(id, genesis).map_err(|_| Error::<T>::ParaAlreadyExists)?;
 			Ok(())
 		}
