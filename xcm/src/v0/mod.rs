@@ -67,8 +67,7 @@ pub enum Response {
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-#[codec(dumb_trait_bound)]
-pub enum XcmGeneric<Call> {
+pub enum XcmGeneric<Call: Encode> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -249,9 +248,9 @@ impl<
 	}
 }
 
-impl<Call> XcmGeneric<Call> {
-	pub fn into<C>(self) -> XcmGeneric<C> { XcmGeneric::from(self) }
-	pub fn from<C>(xcm: XcmGeneric<C>) -> Self {
+impl<Call: Encode> XcmGeneric<Call> {
+	pub fn into<C: Encode>(self) -> XcmGeneric<C> { XcmGeneric::from(self) }
+	pub fn from<C: Encode>(xcm: XcmGeneric<C>) -> Self {
 		use XcmGeneric::*;
 		match xcm {
 			WithdrawAsset { assets, effects }

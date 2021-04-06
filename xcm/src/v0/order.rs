@@ -23,7 +23,7 @@ use super::{MultiAsset, MultiLocation, XcmGeneric};
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 #[codec(dumb_trait_bound)]
-pub enum OrderGeneric<Call> {
+pub enum OrderGeneric<Call: Encode> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
 	Null,
@@ -108,9 +108,9 @@ pub enum OrderGeneric<Call> {
 
 pub type Order = OrderGeneric<()>;
 
-impl<Call> OrderGeneric<Call> {
-	pub fn into<C>(self) -> OrderGeneric<C> { OrderGeneric::from(self) }
-	pub fn from<C>(order: OrderGeneric<C>) -> Self {
+impl<Call: Encode> OrderGeneric<Call> {
+	pub fn into<C: Encode>(self) -> OrderGeneric<C> { OrderGeneric::from(self) }
+	pub fn from<C: Encode>(order: OrderGeneric<C>) -> Self {
 		use OrderGeneric::*;
 		match order {
 			Null => Null,

@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::marker::PhantomData;
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Encode, Decode};
 use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}
@@ -25,7 +25,7 @@ use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLoc
 use crate::assets::Assets;
 
 /// Determine the weight of an XCM message.
-pub trait WeightBounds<Call> {
+pub trait WeightBounds<Call: Encode> {
 	/// Return the minimum amount of weight that an attempted execution of this message would definitely
 	/// consume.
 	///
@@ -51,7 +51,7 @@ pub trait WeightBounds<Call> {
 }
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
-impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
+impl<T: Get<Weight>, C: Encode + Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
 	fn shallow(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
 		let min = match message {
 			XcmGeneric::Transact { call, .. } => {
@@ -158,7 +158,7 @@ pub trait ShouldExecute {
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message
 	///   may utilise in its execution. Typically non-zero only because of prior fee payment, but could
 	///   in principle be due to other factors.
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
@@ -169,7 +169,7 @@ pub trait ShouldExecute {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ShouldExecute for Tuple {
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
@@ -188,7 +188,7 @@ impl ShouldExecute for Tuple {
 
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		_origin: &MultiLocation,
 		_top_level: bool,
 		_message: &XcmGeneric<Call>,
@@ -202,7 +202,7 @@ impl ShouldExecute for TakeWeightCredit {
 
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		origin: &MultiLocation,
 		top_level: bool,
 		message: &XcmGeneric<Call>,
@@ -227,7 +227,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		origin: &MultiLocation,
 		_top_level: bool,
 		_message: &XcmGeneric<Call>,
@@ -250,7 +250,7 @@ impl OnResponse for () {
 
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
-	fn should_execute<Call>(
+	fn should_execute<Call: Encode>(
 		origin: &MultiLocation,
 		_top_level: bool,
 		message: &XcmGeneric<Call>,
