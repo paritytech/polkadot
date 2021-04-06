@@ -140,7 +140,6 @@ impl<T: Get<(MultiLocation, u128)>> WeightTrader for FixedRateOfConcreteFungible
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let result = MultiAsset::ConcreteFungible { amount, id };
-		println!("refunding {:?} for {:?} unused weight", result, weight);
 		result
 	}
 }
