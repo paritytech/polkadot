@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-srtool-json
-          path: srtool_output.json
+          path: ${{ matrix.runtime }}_srtool_output.json
       - name: Upload ${{ matrix.runtime }} runtime
         uses: actions/upload-artifact@v2
         with:
@@ -117,6 +117,8 @@ jobs:
         uses: actions/setup-ruby@v1
         with:
           ruby-version: 2.7
+      - name: Download srtool json output
+        uses: actions/download-artifact@v2
       - name: Get srtool output
         id: srtool-output
         env:
