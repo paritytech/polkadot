@@ -47,7 +47,7 @@ pub enum Error {
 impl From<Error> for io::Error {
 	fn from(me: Error) -> io::Error {
 		match me {
-			Io(e) => e,
+			Error::Io(e) => e,
 			_ => super::other_io_error(me.to_string()),
 		}
 	}

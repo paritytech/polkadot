@@ -74,7 +74,7 @@ impl Default for CacheSizes {
 }
 
 fn other_io_error(err: String) -> io::Error {
-	io::Error::new(ErrorKind::Other, err)
+	io::Error::new(io::ErrorKind::Other, err)
 }
 
 /// Open the database on disk, creating it if it doesn't exist.
