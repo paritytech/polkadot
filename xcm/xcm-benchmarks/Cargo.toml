@@ -14,6 +14,9 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm = { path = "..", default-features = false }
+xcm-builder = { path = "../xcm-builder", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 serde = { version = "1.0.119" }
@@ -21,9 +24,6 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-xcm = { path = "..", default-features = false }
-xcm-builder = { path = "../xcm-builder", default-features = false }
-polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [features]
 default = ['std']

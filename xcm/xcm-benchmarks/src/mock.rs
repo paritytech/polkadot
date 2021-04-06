@@ -46,7 +46,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Event<T>},
 		XcmBenchmarks: xcm_benchmarks::{Pallet},
 	}
 );
@@ -140,9 +140,11 @@ impl xcm_executor::Config for XcmConfig {
 
 impl xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
+	type Balances = Balances;
 }
 
 // Build genesis storage according to the mock runtime.
+#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }

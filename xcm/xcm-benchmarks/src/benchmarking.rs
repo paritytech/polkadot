@@ -19,20 +19,30 @@
 use super::*;
 
 use frame_system::RawOrigin;
-use frame_benchmarking::{benchmarks, whitelisted_caller, impl_benchmark_test_suite};
+use frame_benchmarking::{account, benchmarks, whitelisted_caller, impl_benchmark_test_suite};
 #[allow(unused)]
 use crate::Pallet as XcmBenchmarks;
 use xcm_executor::XcmExecutor;
-use xcm::v0::MultiLocation;
+use xcm::v0::{Xcm, MultiLocation};
+use frame_support::traits::Currency;
+use frame_support::pallet_prelude::*;
 
 
 benchmarks! {
-	execute_xcm {
+	balances_transfer {
+		let sender = account("sender", 0, 0);
+		let recipient = account("recipient", 0, 0);
+
+		T::Balances::make_free_balance_be(&sender, 1000.into());
 		let origin = MultiLocation::default();
-		let message = Xcm::default();
+		let message = Xcm::WithdrawAsset {
+
+		};
 		let weight_limit = Weight::max_value();
 	}: {
 		XcmExecutor::<T::XcmConfig>::execute_xcm(origin, message, weight_limit)?;
+	} verify {
+		assert!(false);
 	}
 }
 

@@ -29,12 +29,14 @@ mod benchmarking;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
+	use frame_support::traits::Currency;
 	use frame_system::pallet_prelude::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type XcmConfig: xcm_executor::Config;
+		type Balances: Currency<Self::AccountId>;
 	}
 
 	#[pallet::pallet]
