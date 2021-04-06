@@ -73,6 +73,7 @@ impl Default for CacheSizes {
 	}
 }
 
+#[cfg(feature = "real-overseer")]
 fn other_io_error(err: String) -> io::Error {
 	io::Error::new(io::ErrorKind::Other, err)
 }

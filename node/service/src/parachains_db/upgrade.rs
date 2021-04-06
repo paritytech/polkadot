@@ -13,6 +13,9 @@
 
 //! Migration code for the parachain's DB.
 
+
+#![cfg(feature = "real-overseer")]
+
 use std::fs;
 use std::io::{self, Read, Write, ErrorKind};
 use std::path::{Path, PathBuf};
