@@ -36,7 +36,7 @@ impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> 
 			).map_err(Into::<Error>::into)?;
 			Ok(())
 		} else {
-			Err(Error::CannotReachDestination)
+			Err(Error::CannotReachDestination("TODO: `dest` to string"))
 		}
 	}
 }
