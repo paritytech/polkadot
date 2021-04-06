@@ -746,8 +746,6 @@ impl crowdloan::Config for Runtime {
 	type ModuleId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
-	type RetirementPeriod = RetirementPeriod;
-	type OrphanedFunds = ();
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
@@ -950,6 +948,10 @@ sp_api::impl_runtime_apis! {
 			recipient: Id
 		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
+		}
+
+		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+			runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
 

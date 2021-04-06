@@ -533,7 +533,11 @@ where
 					collator_pair,
 					Metrics::register(registry)?,
 				),
-				IsCollator::No => ProtocolSide::Validator(Default::default(),Metrics::register(registry)?),
+				IsCollator::No => ProtocolSide::Validator {
+					keystore: keystore.clone(),
+					eviction_policy: Default::default(),
+					metrics: Metrics::register(registry)?,
+				},
 			};
 			CollatorProtocolSubsystem::new(
 				side,
@@ -544,6 +548,7 @@ where
 			authority_discovery,
 			request_multiplexer,
 			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
 		),
 		provisioner: ProvisionerSubsystem::new(
 			spawner.clone(),
@@ -570,7 +575,6 @@ where
 		),
 		gossip_support: GossipSupportSubsystem::new(
 			keystore.clone(),
-			runtime_client.clone(),
 		),
 	};
 
@@ -1062,7 +1066,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
-			builder.add(grandpa_support::ApprovalCheckingDiagnostic::new(
+			builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
 				overseer.clone(),
 				prometheus_registry.as_ref(),
 			)?)

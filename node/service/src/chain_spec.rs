@@ -387,7 +387,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			//5Fnu4YYBx9V71ihCBkJyFGsKw9Q2jjNzRQL9kRNpKTPNSAhc
 			hex!["03e9393ee30ae95fc2b7864230f53e45409a807949390140ce2bc77756cdb4bb83"].unchecked_into(),
 		),
-			
+
 	];
 
 	const ENDOWMENT: u128 = 1_000_000 * WND;
@@ -839,7 +839,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			hex!["4e262811acdfe94528bfc3c65036080426a0e1301b9ada8d687a70ffcae99c26"].unchecked_into(),
 			//5E41Znrr2YtZu8bZp3nvRuLVHg3jFksfQ3tXuviLku4wsao7
 			hex!["025e84e95ed043e387ddb8668176b42f8e2773ddd84f7f58a6d9bf436a4b527986"].unchecked_into(),
-		),				
+		),
 	];
 
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
@@ -889,9 +889,9 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 600u32,
-				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				validation_upgrade_frequency: 1u32,
+				validation_upgrade_delay: 1,
+				code_retention_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
@@ -899,7 +899,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				max_upward_queue_count: 8,
-				max_upward_queue_size: 8 * 1024,
+				max_upward_queue_size: 1024 * 1024,
 				max_downward_message_size: 1024,
 				// this is approximatelly 4ms.
 				//
@@ -907,7 +907,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				// an import since that's a made up number and should be replaced with a constant
 				// obtained by benchmarking anyway.
 				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
-				max_upward_message_size: 1024,
+				max_upward_message_size: 1024 * 1024,
 				max_upward_message_num_per_candidate: 5,
 				hrmp_open_request_ttl: 5,
 				hrmp_sender_deposit: 0,
@@ -916,7 +916,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				hrmp_channel_max_total_size: 8 * 1024,
 				hrmp_max_parachain_inbound_channels: 4,
 				hrmp_max_parathread_inbound_channels: 4,
-				hrmp_channel_max_message_size: 1024,
+				hrmp_channel_max_message_size: 1024 * 1024,
 				hrmp_max_parachain_outbound_channels: 4,
 				hrmp_max_parathread_outbound_channels: 4,
 				hrmp_max_message_num_per_candidate: 5,
@@ -924,7 +924,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				no_show_slots: 2,
 				n_delay_tranches: 25,
 				needed_approvals: 2,
-				relay_vrf_modulo_samples: 10,
+				relay_vrf_modulo_samples: 2,
 				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
@@ -1440,7 +1440,7 @@ pub fn rococo_testnet_genesis(
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
-				acceptance_period: 1200,
+				code_retention_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,

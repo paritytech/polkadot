@@ -702,6 +702,10 @@ sp_api::impl_runtime_apis! {
 		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
+
+		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+			runtime_impl::validation_code_by_hash::<Runtime>(hash)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
