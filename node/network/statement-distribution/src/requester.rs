@@ -14,16 +14,19 @@
 
 //! Large statement requesting background task logic.
 
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
+
 
 use futures::{SinkExt, channel::{mpsc, oneshot}};
+use thiserror::Error;
+
 use polkadot_node_network_protocol::{IfDisconnected, PeerId, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::StatementMetadata};
-use polkadot_node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash, ValidatorIndex};
+use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash, SessionIndex, SigningContext, ValidatorId, ValidatorIndex};
 use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 
-use crate::LOG_TARGET;
+use crate::{ActiveHeadData, LOG_TARGET};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -33,14 +36,24 @@ const RETRY_TIMEOUT: Duration = Duration::from_millis(500);
 /// Messages coming from a background task.
 pub enum RequesterMessage {
 	/// Get an update of availble peers to try for fetching a given statement.
-	GetMorePeers(StatementMetadata, oneshot::Sender<Vec<PeerId>>),
-	/// Fetching finished.
-	Finished {
-		/// Response in case we got any together with the peer who provided us with it.
-		response: Option<(PeerId, CommittedCandidateReceipt)>,
-		/// Peers which failed providing the data - they should get punished badly in terms of
-		/// reputation as they just told us a moment ago to have the data.
+	GetMorePeers(Hash, CandidateHash, oneshot::Sender<Vec<PeerId>>),
+	/// Fetching finished, ask for verification. If verification failes, task will continue asking
+	/// peers for data.
+	Verify {
+		/// Relay parent this candidate is in the context of.
+		relay_parent: Hash,
+		/// The candidate we fetched data for.
+		candidate_hash: CandidateHash,
+		/// Data was fetched from this peer.
+		from_peer: PeerId,
+		/// Response we received from above peer.
+		response: CommittedCandidateReceipt,
+		/// Peers which failed providing the data.
 		bad_peers: Vec<PeerId>,
+		/// Tell requester task whether or not the fetched data could be verified successfully or
+		/// not. If not, the task should continue requesting for `CommittedCandidateReceipt`s from
+		/// peers.
+		is_ok: oneshot::Sender<bool>,
 	},
 	/// Ask subsystem to send a request for us.
 	SendRequest(Requests),
@@ -49,12 +62,12 @@ pub enum RequesterMessage {
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
-/// Takes metadata of a statement to fetch and a list of peer ids to try for fetching. It will
-/// communicate back via the given mpsc sender.
-///
-/// The `OverseerSubsystemSender` will be used for issuing network requests.
+/// A fetch task does not know about a particular `Statement` instead it just tries fetching a
+/// `CommittedCandidateReceipt` from peers, whether or not this can be used to re-assemble one ore
+/// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn fetch(
-	metadata: StatementMetadata,
+	relay_parent: Hash,
+	candidate_hash: CandidateHash,
 	peers: Vec<PeerId>,
 	mut sender: mpsc::Sender<RequesterMessage>,
 ) {
@@ -64,8 +77,8 @@ pub async fn fetch(
 	let mut new_peers = peers;
 
 	let req = StatementFetchingRequest {
-		relay_parent: metadata.relay_parent,
-		candidate_hash: metadata.candidate_hash,
+		relay_parent,
+		candidate_hash,
 	};
 
 	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
@@ -75,14 +88,6 @@ pub async fn fetch(
 				Recipient::Peer(peer),
 				req.clone(),
 			);
-			// if let Err(err) = subsystem_sender
-			//     .send(AllMessages::NetworkBridge(
-			//         NetworkBridgeMessage::SendRequests(
-			//             vec![Requests::StatementFetching(outgoing)],
-			//             IfDisconnected::ImmediateError,
-			//         )
-			//     ))
-			//     .await {
 			if let Err(err) = sender.feed(
 				RequesterMessage::SendRequest(Requests::StatementFetching(outgoing))
 			).await {
@@ -95,22 +100,35 @@ pub async fn fetch(
 			}
 			match pending_response.await {
 				Ok(StatementFetchingResponse::Statement(statement)) => {
-					// TODO: We absolutely have to check the signature here and punish peers for
-					// which the signature won't match, we absolutely don't wan to include such a
-					// statement in the cache.
+					let (is_ok_tx, is_ok) = oneshot::channel();
 					if let Err(err) = sender.send(
-						RequesterMessage::Finished {
-							response: Some((peer, statement)),
-							bad_peers: tried_peers,
+						RequesterMessage::Verify {
+							relay_parent,
+							candidate_hash,
+							from_peer: peer,
+							response: statement,
+							bad_peers: tried_peers.clone(),
+							is_ok: is_ok_tx,
 						}
 						).await {
-						tracing::debug!(
+						tracing::info!(
 							target: LOG_TARGET,
 							?err,
-							"Sending task response failed, we might already be finished with that block."
+							"Sending task response failed: This should not happen."
 						);
 					}
-					// No matter what, we are done now.
+					match is_ok.await {
+						Err(_) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								"No verification result, relay parent already finished?"
+							);
+						}
+						// Verification failed => try next peer.
+						Ok(false) => continue,
+						Ok(true) => {},
+					}
+					// We are done now.
 					return
 				},
 				Err(err) => {
@@ -128,7 +146,7 @@ pub async fn fetch(
 		new_peers = std::mem::take(&mut tried_peers);
 
 		// All our peers failed us - try getting new ones before trying again:
-		match try_get_new_peers(metadata.clone(), &mut sender).await {
+		match try_get_new_peers(relay_parent, candidate_hash, &mut sender).await {
 			Ok(Some(mut peers)) => {
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
@@ -140,17 +158,66 @@ pub async fn fetch(
 	}
 }
 
+/// Possible errors of `build_signed_full_statement`.
+#[derive(Debug, Copy, Clone, Error)]
+pub enum BuildStatementError {
+	/// Signature has been invalid.
+	#[error("Invalid signature")]
+	InvalidSignature,
+	/// `ValidatorIndex` in metadata could not be found.
+	#[error("Signing validator could not be found")]
+	UnknownValidator,
+}
+
+
+/// Result of `build_signed_full_statement`.
+pub type BuildStatementResult = Result<SignedFullStatement, BuildStatementError>;
+
+/// Try rebuilding a signed full statement.
+///
+/// By passing in the original meta data and the `CommittedCandidateReceipt` as fetched by the
+/// requester. 
+pub fn build_signed_full_statement<'a, F>(
+	session_index: SessionIndex,
+	get_validator_id: F,
+	metadata: &StatementMetadata,
+	receipt: CommittedCandidateReceipt
+) -> BuildStatementResult 
+	where
+		F: FnOnce(ValidatorIndex) -> Option<&'a ValidatorId> + 'a
+{
+	let signing_context = SigningContext {
+		session_index,
+		parent_hash: metadata.relay_parent,
+	};
+
+	let validator_id =
+		get_validator_id(metadata.signed_by)
+			.ok_or(BuildStatementError::UnknownValidator)?;
+
+	SignedFullStatement::new(
+		Statement::Seconded(receipt),
+		metadata.signed_by,
+		metadata.signature.clone(),
+		&signing_context,
+		validator_id,
+	)
+	.ok_or(BuildStatementError::InvalidSignature)
+}
+
+
 /// Try getting new peers from subsystem.
 ///
 /// If there are non, we will return after a timeout with `None`.
 async fn try_get_new_peers(
-	fingerprint: StatementMetadata,
+	relay_parent: Hash,
+	candidate_hash: CandidateHash,
 	sender: &mut mpsc::Sender<RequesterMessage>
 ) -> Result<Option<Vec<PeerId>>, ()> {
 	let (tx, rx) = oneshot::channel();
 
 	if let Err(err) = sender.send(
-		RequesterMessage::GetMorePeers(fingerprint, tx)
+		RequesterMessage::GetMorePeers(relay_parent, candidate_hash, tx)
 	).await {
 		tracing::debug!(
 			target: LOG_TARGET,
