@@ -31,7 +31,7 @@ const CURRENT_VERSION: Version = 0;
 pub enum Error {
 	#[error("I/O error when reading/writing the version")]
 	Io(#[from] io::Error),
-	#[error("The version file context format is incorrect")]
+	#[error("The version file format is incorrect")]
 	CorruptedVersionFile,
 	#[error("Future version (expected {current:?}, found {got:?})")]
 	FutureVersion {
