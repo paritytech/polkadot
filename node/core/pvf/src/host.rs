@@ -309,19 +309,19 @@ async fn run(
 	loop {
 		futures::select_biased! {
 			_ = prepare_queue => {
-				never!();
+				never!("prepare_pool: long-running task never concludes; qed");
 				break;
 			},
 			_ = prepare_pool => {
-				never!();
+				never!("prepare_pool: long-running task never concludes; qed");
 				break;
 			},
 			_ = execute_queue => {
-				never!();
+				never!("execute_queue: long-running task never concludes; qed");
 				break;
 			},
 			_ = sweeper => {
-				never!();
+				never!("sweeper: long-running task never concludes; qed");
 				break;
 			},
 			() = cleanup_pulse.select_next_some() => {
@@ -515,10 +515,20 @@ async fn handle_prepare_done(
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
+			// before sending request to prepare, the artifact is inserted with `preparing` state;
+			// the requests are deduplicated for the same artifact id;
+			// there is only one possible state change: prepare is done;
+			// thus the artifact cannot be unknown, only preparing;
+			// qed.
 			never!("an unknown artifact was prepared: {:?}", artifact_id);
 			return Ok(());
 		}
 		Some(ArtifactState::Prepared { .. }) => {
+			// before sending request to prepare, the artifact is inserted with `preparing` state;
+			// the requests are deduplicated for the same artifact id;
+			// there is only one possible state change: prepare is done;
+			// thus the artifact cannot be prepared, only preparing;
+			// qed.
 			never!("the artifact is already prepared: {:?}", artifact_id);
 			return Ok(());
 		}

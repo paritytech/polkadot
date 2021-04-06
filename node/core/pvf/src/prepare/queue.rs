@@ -229,7 +229,10 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Result<(), Fatal> {
 	let artifact_id = pvf.as_artifact_id();
 	if never!(queue.artifact_id_to_job.contains_key(&artifact_id)) {
-		// We already know about this artifact yet it was still enqueued.
+		// This function is called in response to a `Enqueue` message;
+		// Precondtion for `Enqueue` is that it is sent only once for a PVF;
+		// Thus this should always be `false`;
+		// qed.
 		tracing::warn!(
 			target: LOG_TARGET,
 			"duplicate `enqueue` command received for {:?}",
@@ -326,6 +329,9 @@ async fn handle_worker_concluded(
 			match $expr {
 				Some(v) => v,
 				None => {
+					// Precondition of calling this is that the $expr is never none;
+					// Assume the conditions holds, then this never is not hit;
+					// qed.
 					never!("never_none, {}", stringify!($expr));
 					return Ok(());
 				}
@@ -334,8 +340,31 @@ async fn handle_worker_concluded(
 	}
 
 	// Find out on which artifact was the worker working.
+
+	// workers are registered upon spawn and removed in one of the following cases:
+	//   1. received rip signal
+	//   2. received concluded signal with rip=true;
+	// concluded signal only comes from a spawned worker and only once;
+	// rip signal is not sent after conclusion with rip=true;
+	// the worker should be registered;
+	// this can't be None;
+	// qed.
 	let worker_data = never_none!(queue.workers.get_mut(worker));
+
+	// worker_data.job is set only by `assign` and removed only here for a worker;
+	// concluded signal only comes for a worker that was previously assigned and only once;
+	// the worker should have the job;
+	// this can't be None;
+	// qed.
 	let job = never_none!(worker_data.job.take());
+
+	// job_data is inserted upon enqueue and removed only here;
+	// as was established above, this worker was previously `assign`ed to the job;
+	// that implies that the job was enqueued;
+	// conclude signal only comes once;
+	// we are just to remove the job for the first and the only time;
+	// this can't be None;
+	// qed.
 	let job_data = never_none!(queue.jobs.remove(job));
 	let artifact_id = job_data.pvf.as_artifact_id();
 
@@ -346,7 +375,8 @@ async fn handle_worker_concluded(
 	// Figure out what to do with the worker.
 	if rip {
 		let worker_data = queue.workers.remove(worker);
-		// worker should exist, it's asserted above.
+		// worker should exist, it's asserted above;
+		// qed.
 		always!(worker_data.is_some());
 
 		if !queue.unscheduled.is_empty() {
@@ -377,13 +407,19 @@ async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fata
 	let worker_data = queue.workers.remove(worker);
 
 	if let Some(WorkerData { job: Some(job), .. }) = worker_data {
-		// This is an edge case where the worker ripped after we send assignment but before it
+		// This is an edge case where the worker ripped after we sent assignment but before it
 		// was received by the pool.
 		let priority = queue
 			.jobs
 			.get(job)
 			.map(|data| data.priority)
 			.unwrap_or_else(|| {
+				// job is inserted upon enqueue and removed on concluded signal;
+				// this is enclosed in the if statement that narrows the situation to before
+				// conclusion;
+				// that means that the job still exists and is known;
+				// this path cannot be hit;
+				// qed.
 				never!();
 				Priority::Normal
 			});

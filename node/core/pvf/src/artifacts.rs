@@ -144,7 +144,11 @@ impl Artifacts {
 	}
 
 	/// Inform the table about the artifact with the given ID. The state will be set to "preparing".
+	///
+	/// This function must be used only for brand new artifacts and should never be used for
+	/// replacing existing ones.
 	pub fn insert_preparing(&mut self, artifact_id: ArtifactId) {
+		// See the precondition.
 		always!(self
 			.artifacts
 			.insert(artifact_id, ArtifactState::Preparing)
@@ -152,8 +156,12 @@ impl Artifacts {
 	}
 
 	/// Insert an artifact with the given ID as "prepared".
+	///
+	/// This function must be used only for brand new artifacts and should never be used for
+	/// replacing existing ones.
 	#[cfg(test)]
 	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {
+		// See the precondition.
 		always!(self
 			.artifacts
 			.insert(artifact_id, ArtifactState::Prepared { last_time_needed })
@@ -247,12 +255,19 @@ async fn scan_for_known_artifacts(
 		};
 
 		// A sanity check so that we really can access the artifact through the artifact id.
-		if always!(artifact_id.path(cache_path).is_file().await) {
+		if artifact_id.path(cache_path).is_file().await {
 			result.insert(
 				artifact_id,
 				ArtifactState::Prepared {
 					last_time_needed: now,
 				},
+			);
+		} else {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"{} is not accessible by artifact_id {:?}",
+				cache_path.display(),
+				artifact_id,
 			);
 		}
 	}

@@ -265,7 +265,8 @@ fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result
 			}
 		}
 	} else {
-		always!(queue.workers.running.remove(worker).is_some());
+		// Note it's possible that the worker was purged already by `purge_dead`
+		queue.workers.running.remove(worker);
 
 		if !queue.queue.is_empty() {
 			// The worker has died and we still have work we have to do. Request an extra worker.

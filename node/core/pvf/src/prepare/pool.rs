@@ -60,6 +60,8 @@ pub enum ToPool {
 	/// Request the given worker to start working on the given code.
 	///
 	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
+	///
+	/// This should not be sent again until the concluded message is received.
 	StartWork {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
@@ -201,6 +203,11 @@ fn handle_to_pool(
 							.boxed(),
 					);
 				} else {
+					// idle token is present after spawn and after a job is concluded;
+					// the precondition for `StartWork` is it should be sent only if all previous work
+					// items concluded;
+					// thus idle token is Some;
+					// qed.
 					never!();
 				}
 			} else {
@@ -209,13 +216,12 @@ fn handle_to_pool(
 			}
 		}
 		ToPool::Kill(worker) => {
-			always!(spawned.remove(worker).is_some());
+			// It may be absent if it were previously already removed by `purge_dead`.
+			let _ = spawned.remove(worker);
 		}
 		ToPool::BumpPriority(worker) => {
 			if let Some(data) = spawned.get(worker) {
 				worker::bump_priority(&data.handle);
-			} else {
-				never!()
 			}
 		}
 	}
