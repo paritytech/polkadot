@@ -22,7 +22,8 @@ use super::{MultiAsset, MultiLocation, XcmGeneric};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-#[codec(dumb_trait_bound)]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
 pub enum OrderGeneric<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]

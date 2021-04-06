@@ -18,7 +18,8 @@ use alloc::vec::Vec;
 use parity_scale_codec::{Encode, Decode};
 
 #[derive(Eq, PartialEq, Clone, Encode, Decode, Debug)]
-#[codec(dumb_trait_bound)]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
 pub struct DoubleEncoded<T> {
 	encoded: Vec<u8>,
 	#[codec(skip)]

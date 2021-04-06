@@ -67,7 +67,8 @@ pub enum Response {
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-#[codec(dumb_trait_bound)]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
 pub enum XcmGeneric<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
