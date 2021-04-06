@@ -122,7 +122,7 @@ jobs:
       - name: Get srtool output
         id: srtool-output
         env:
-          srtool_output_filename: "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json"
+          srtool_output_filename: "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json/${{ matrix.runtime }}_srtool_output.json"
         run: |
           pwd
           ls -la
