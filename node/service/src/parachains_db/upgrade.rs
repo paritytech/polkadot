@@ -72,7 +72,7 @@ fn current_version(path: &Path) -> Result<Version, Error> {
 	match fs::read_to_string(version_file_path(path)) {
 		Err(ref err) if err.kind() == ErrorKind::NotFound => Ok(0),
 		Err(err) => Err(err.into()),
-		Ok(content) => u32::from_str(&s).map_err(|_| Error::CorruptedVersionFile),
+		Ok(content) => u32::from_str(&content).map_err(|_| Error::CorruptedVersionFile),
 	}
 }
 
