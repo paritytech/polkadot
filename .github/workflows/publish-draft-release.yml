@@ -111,8 +111,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
-        with:
-          name: ${{ matrix.runtime }}-runtime
       - name: Set up Ruby 2.7
         uses: actions/setup-ruby@v1
         with:
@@ -120,6 +118,7 @@ jobs:
       - name: Get runtime version
         id: get-runtime-ver
         run: |
+          ls
           ls "${{ matrix.runtime }}-runtime"
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
           echo "::set-output name=runtime_ver::$runtime_ver"
