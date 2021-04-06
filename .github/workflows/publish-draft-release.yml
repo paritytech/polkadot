@@ -120,6 +120,7 @@ jobs:
       - name: Get runtime version
         id: get-runtime-ver
         run: |
+          ls "${{ matrix.runtime }}-runtime"
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
           echo "::set-output name=runtime_ver::$runtime_ver"
       - name: Upload ${{ matrix.runtime }} wasm
