@@ -5,10 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }

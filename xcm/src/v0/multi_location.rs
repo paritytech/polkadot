@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020-2021 Parity Technologies (UK) Ltd.
 // This file is part of Cumulus.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -48,14 +48,22 @@ use crate::VersionedMultiLocation;
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Null,
-	/// A relative path comprising one junction.
+	/// A relative path comprising 1 junction.
 	X1(Junction),
-	/// A relative path comprising two junctions.
+	/// A relative path comprising 2 junctions.
 	X2(Junction, Junction),
-	/// A relative path comprising three junctions.
+	/// A relative path comprising 3 junctions.
 	X3(Junction, Junction, Junction),
-	/// A relative path comprising four junctions.
+	/// A relative path comprising 4 junctions.
 	X4(Junction, Junction, Junction, Junction),
+	/// A relative path comprising 5 junctions.
+	X5(Junction, Junction, Junction, Junction, Junction),
+	/// A relative path comprising 6 junctions.
+	X6(Junction, Junction, Junction, Junction, Junction, Junction),
+	/// A relative path comprising 7 junctions.
+	X7(Junction, Junction, Junction, Junction, Junction, Junction, Junction),
+	/// A relative path comprising 8 junctions.
+	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
 impl From<Junction> for MultiLocation {
@@ -89,6 +97,26 @@ impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
 		MultiLocation::X4(x.0, x.1, x.2, x.3)
 	}
 }
+impl From<(Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X5(x.0, x.1, x.2, x.3, x.4)
+	}
+}
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X6(x.0, x.1, x.2, x.3, x.4, x.5)
+	}
+}
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6)
+	}
+}
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7)
+	}
+}
 
 impl From<[Junction; 0]> for MultiLocation {
 	fn from(_: [Junction; 0]) -> Self {
@@ -117,6 +145,30 @@ impl From<[Junction; 4]> for MultiLocation {
 	fn from(x: [Junction; 4]) -> Self {
 		let [x0, x1, x2, x3] = x;
 		MultiLocation::X4(x0, x1, x2, x3)
+	}
+}
+impl From<[Junction; 5]> for MultiLocation {
+	fn from(x: [Junction; 5]) -> Self {
+		let [x0, x1, x2, x3, x4] = x;
+		MultiLocation::X5(x0, x1, x2, x3, x4)
+	}
+}
+impl From<[Junction; 6]> for MultiLocation {
+	fn from(x: [Junction; 6]) -> Self {
+		let [x0, x1, x2, x3, x4, x5] = x;
+		MultiLocation::X6(x0, x1, x2, x3, x4, x5)
+	}
+}
+impl From<[Junction; 7]> for MultiLocation {
+	fn from(x: [Junction; 7]) -> Self {
+		let [x0, x1, x2, x3, x4, x5, x6] = x;
+		MultiLocation::X7(x0, x1, x2, x3, x4, x5, x6)
+	}
+}
+impl From<[Junction; 8]> for MultiLocation {
+	fn from(x: [Junction; 8]) -> Self {
+		let [x0, x1, x2, x3, x4, x5, x6, x7] = x;
+		MultiLocation::X8(x0, x1, x2, x3, x4, x5, x6, x7)
 	}
 }
 
@@ -164,6 +216,10 @@ impl MultiLocation {
 			MultiLocation::X2(ref a, ..) => Some(a),
 			MultiLocation::X3(ref a, ..) => Some(a),
 			MultiLocation::X4(ref a, ..) => Some(a),
+			MultiLocation::X5(ref a, ..) => Some(a),
+			MultiLocation::X6(ref a, ..) => Some(a),
+			MultiLocation::X7(ref a, ..) => Some(a),
+			MultiLocation::X8(ref a, ..) => Some(a),
 		}
 	}
 
@@ -175,6 +231,10 @@ impl MultiLocation {
 			MultiLocation::X2(.., ref a) => Some(a),
 			MultiLocation::X3(.., ref a) => Some(a),
 			MultiLocation::X4(.., ref a) => Some(a),
+			MultiLocation::X5(.., ref a) => Some(a),
+			MultiLocation::X6(.., ref a) => Some(a),
+			MultiLocation::X7(.., ref a) => Some(a),
+			MultiLocation::X8(.., ref a) => Some(a),
 		}
 	}
 
@@ -187,6 +247,10 @@ impl MultiLocation {
 			MultiLocation::X2(a, b) => (MultiLocation::X1(b), Some(a)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(b, c), Some(a)),
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(b, c, d), Some(a)),
+			MultiLocation::X5(a, b, c ,d, e) => (MultiLocation::X4(b, c, d, e), Some(a)),
+			MultiLocation::X6(a, b, c ,d, e, f) => (MultiLocation::X5(b, c, d, e, f), Some(a)),
+			MultiLocation::X7(a, b, c ,d, e, f, g) => (MultiLocation::X6(b, c, d, e, f, g), Some(a)),
+			MultiLocation::X8(a, b, c ,d, e, f, g, h) => (MultiLocation::X7(b, c, d, e, f, g, h), Some(a)),
 		}
 	}
 
@@ -199,6 +263,10 @@ impl MultiLocation {
 			MultiLocation::X2(a, b) => (MultiLocation::X1(a), Some(b)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(a, b), Some(c)),
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
+			MultiLocation::X5(a, b, c, d, e) => (MultiLocation::X4(a, b, c, d), Some(e)),
+			MultiLocation::X6(a, b, c, d, e, f) => (MultiLocation::X5(a, b, c, d, e), Some(f)),
+			MultiLocation::X7(a, b, c, d, e, f, g) => (MultiLocation::X6(a, b, c, d, e, f), Some(g)),
+			MultiLocation::X8(a, b, c, d, e, f, g, h) => (MultiLocation::X7(a, b, c, d, e, f, g), Some(h)),
 		}
 	}
 
@@ -228,6 +296,10 @@ impl MultiLocation {
 			MultiLocation::X1(a) => MultiLocation::X2(a, new),
 			MultiLocation::X2(a, b) => MultiLocation::X3(a, b, new),
 			MultiLocation::X3(a, b, c) => MultiLocation::X4(a, b, c, new),
+			MultiLocation::X4(a, b, c, d) => MultiLocation::X5(a, b, c, d, new),
+			MultiLocation::X5(a, b, c, d, e) => MultiLocation::X6(a, b, c, d, e, new),
+			MultiLocation::X6(a, b, c, d, e, f) => MultiLocation::X7(a, b, c, d, e, f, new),
+			MultiLocation::X7(a, b, c, d, e, f, g) => MultiLocation::X8(a, b, c, d, e, f, g, new),
 			s => Err(s)?,
 		})
 	}
@@ -240,6 +312,10 @@ impl MultiLocation {
 			MultiLocation::X1(a) => MultiLocation::X2(new, a),
 			MultiLocation::X2(a, b) => MultiLocation::X3(new, a, b),
 			MultiLocation::X3(a, b, c) => MultiLocation::X4(new, a, b, c),
+			MultiLocation::X4(a, b, c, d) => MultiLocation::X5(new, a, b, c, d),
+			MultiLocation::X5(a, b, c, d, e) => MultiLocation::X6(new, a, b, c, d, e),
+			MultiLocation::X6(a, b, c, d, e, f) => MultiLocation::X7(new, a, b, c, d, e, f),
+			MultiLocation::X7(a, b, c, d, e, f, g) => MultiLocation::X8(new, a, b, c, d, e, f, g),
 			s => Err(s)?,
 		})
 	}
@@ -252,6 +328,10 @@ impl MultiLocation {
 			MultiLocation::X2(..) => 2,
 			MultiLocation::X3(..) => 3,
 			MultiLocation::X4(..) => 4,
+			MultiLocation::X5(..) => 5,
+			MultiLocation::X6(..) => 6,
+			MultiLocation::X7(..) => 7,
+			MultiLocation::X8(..) => 8,
 		}
 	}
 
@@ -262,12 +342,38 @@ impl MultiLocation {
 			(0, MultiLocation::X2(ref a, ..)) => a,
 			(0, MultiLocation::X3(ref a, ..)) => a,
 			(0, MultiLocation::X4(ref a, ..)) => a,
+			(0, MultiLocation::X5(ref a, ..)) => a,
+			(0, MultiLocation::X6(ref a, ..)) => a,
+			(0, MultiLocation::X7(ref a, ..)) => a,
+			(0, MultiLocation::X8(ref a, ..)) => a,
 			(1, MultiLocation::X2(_, ref a)) => a,
 			(1, MultiLocation::X3(_, ref a, ..)) => a,
 			(1, MultiLocation::X4(_, ref a, ..)) => a,
+			(1, MultiLocation::X5(_, ref a, ..)) => a,
+			(1, MultiLocation::X6(_, ref a, ..)) => a,
+			(1, MultiLocation::X7(_, ref a, ..)) => a,
+			(1, MultiLocation::X8(_, ref a, ..)) => a,
 			(2, MultiLocation::X3(_, _, ref a)) => a,
 			(2, MultiLocation::X4(_, _, ref a, ..)) => a,
+			(2, MultiLocation::X5(_, _, ref a, ..)) => a,
+			(2, MultiLocation::X6(_, _, ref a, ..)) => a,
+			(2, MultiLocation::X7(_, _, ref a, ..)) => a,
+			(2, MultiLocation::X8(_, _, ref a, ..)) => a,
 			(3, MultiLocation::X4(_, _, _, ref a)) => a,
+			(3, MultiLocation::X5(_, _, _, ref a, ..)) => a,
+			(3, MultiLocation::X6(_, _, _, ref a, ..)) => a,
+			(3, MultiLocation::X7(_, _, _, ref a, ..)) => a,
+			(3, MultiLocation::X8(_, _, _, ref a, ..)) => a,
+			(4, MultiLocation::X5(_, _, _, _, ref a)) => a,
+			(4, MultiLocation::X6(_, _, _, _, ref a, ..)) => a,
+			(4, MultiLocation::X7(_, _, _, _, ref a, ..)) => a,
+			(4, MultiLocation::X8(_, _, _, _, ref a, ..)) => a,
+			(5, MultiLocation::X6(_, _, _, _, _, ref a)) => a,
+			(5, MultiLocation::X7(_, _, _, _, _, ref a, ..)) => a,
+			(5, MultiLocation::X8(_, _, _, _, _, ref a, ..)) => a,
+			(6, MultiLocation::X7(_, _, _, _, _, _, ref a)) => a,
+			(6, MultiLocation::X8(_, _, _, _, _, _, ref a, ..)) => a,
+			(7, MultiLocation::X8(_, _, _, _, _, _, _, ref a)) => a,
 			_ => return None,
 		})
 	}
@@ -280,12 +386,38 @@ impl MultiLocation {
 			(0, MultiLocation::X2(ref mut a, ..)) => a,
 			(0, MultiLocation::X3(ref mut a, ..)) => a,
 			(0, MultiLocation::X4(ref mut a, ..)) => a,
+			(0, MultiLocation::X5(ref mut a, ..)) => a,
+			(0, MultiLocation::X6(ref mut a, ..)) => a,
+			(0, MultiLocation::X7(ref mut a, ..)) => a,
+			(0, MultiLocation::X8(ref mut a, ..)) => a,
 			(1, MultiLocation::X2(_, ref mut a)) => a,
 			(1, MultiLocation::X3(_, ref mut a, ..)) => a,
 			(1, MultiLocation::X4(_, ref mut a, ..)) => a,
+			(1, MultiLocation::X5(_, ref mut a, ..)) => a,
+			(1, MultiLocation::X6(_, ref mut a, ..)) => a,
+			(1, MultiLocation::X7(_, ref mut a, ..)) => a,
+			(1, MultiLocation::X8(_, ref mut a, ..)) => a,
 			(2, MultiLocation::X3(_, _, ref mut a)) => a,
 			(2, MultiLocation::X4(_, _, ref mut a, ..)) => a,
+			(2, MultiLocation::X5(_, _, ref mut a, ..)) => a,
+			(2, MultiLocation::X6(_, _, ref mut a, ..)) => a,
+			(2, MultiLocation::X7(_, _, ref mut a, ..)) => a,
+			(2, MultiLocation::X8(_, _, ref mut a, ..)) => a,
 			(3, MultiLocation::X4(_, _, _, ref mut a)) => a,
+			(3, MultiLocation::X5(_, _, _, ref mut a, ..)) => a,
+			(3, MultiLocation::X6(_, _, _, ref mut a, ..)) => a,
+			(3, MultiLocation::X7(_, _, _, ref mut a, ..)) => a,
+			(3, MultiLocation::X8(_, _, _, ref mut a, ..)) => a,
+			(4, MultiLocation::X5(_, _, _, _, ref mut a)) => a,
+			(4, MultiLocation::X6(_, _, _, _, ref mut a, ..)) => a,
+			(4, MultiLocation::X7(_, _, _, _, ref mut a, ..)) => a,
+			(4, MultiLocation::X8(_, _, _, _, ref mut a, ..)) => a,
+			(5, MultiLocation::X6(_, _, _, _, _, ref mut a)) => a,
+			(5, MultiLocation::X7(_, _, _, _, _, ref mut a, ..)) => a,
+			(5, MultiLocation::X8(_, _, _, _, _, ref mut a, ..)) => a,
+			(6, MultiLocation::X7(_, _, _, _, _, _, ref mut a)) => a,
+			(6, MultiLocation::X8(_, _, _, _, _, _, ref mut a, ..)) => a,
+			(7, MultiLocation::X8(_, _, _, _, _, _, _, ref mut a)) => a,
 			_ => return None,
 		})
 	}
@@ -334,12 +466,71 @@ impl MultiLocation {
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
 	pub fn parent_count(&self) -> usize {
 		match self {
+			MultiLocation::X8(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent, Junction::Parent, Junction::Parent
+			) => 8,
+
+			MultiLocation::X8(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent, Junction::Parent, ..
+			) => 7,
+			MultiLocation::X7(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent, Junction::Parent
+			) => 7,
+
+			MultiLocation::X8(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent, ..
+			) => 6,
+			MultiLocation::X7(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent, ..
+			) => 6,
+			MultiLocation::X6(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
+				Junction::Parent
+			) => 6,
+
+			MultiLocation::X8(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
+			) => 5,
+			MultiLocation::X7(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
+			) => 5,
+			MultiLocation::X6(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
+			) => 5,
+			MultiLocation::X5(
+				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent
+			) => 5,
+
+			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
+			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
+			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
+			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
 			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent) => 4,
+
+			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
+			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
+			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
+			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
 			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
 			MultiLocation::X3(Junction::Parent, Junction::Parent, Junction::Parent) => 3,
+
+			MultiLocation::X8(Junction::Parent, Junction::Parent, ..) => 2,
+			MultiLocation::X7(Junction::Parent, Junction::Parent, ..) => 2,
+			MultiLocation::X6(Junction::Parent, Junction::Parent, ..) => 2,
+			MultiLocation::X5(Junction::Parent, Junction::Parent, ..) => 2,
 			MultiLocation::X4(Junction::Parent, Junction::Parent, ..) => 2,
 			MultiLocation::X3(Junction::Parent, Junction::Parent, ..) => 2,
 			MultiLocation::X2(Junction::Parent, Junction::Parent) => 2,
+
+			MultiLocation::X8(Junction::Parent, ..) => 1,
+			MultiLocation::X7(Junction::Parent, ..) => 1,
+			MultiLocation::X6(Junction::Parent, ..) => 1,
+			MultiLocation::X5(Junction::Parent, ..) => 1,
 			MultiLocation::X4(Junction::Parent, ..) => 1,
 			MultiLocation::X3(Junction::Parent, ..) => 1,
 			MultiLocation::X2(Junction::Parent, ..) => 1,

@@ -1139,7 +1139,7 @@ mod tests {
 		virtual_overseer: VirtualOverseer,
 	}
 
-	fn test_harness<T: Future<Output = ()>>(
+	fn test_harness<T: Future<Output = VirtualOverseer>>(
 		local_peer_id: PeerId,
 		collator_pair: CollatorPair,
 		test: impl FnOnce(TestHarness) -> T,
@@ -1155,13 +1155,16 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(async move {
+			let mut overseer = test_fut.await;
+			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
+		}, subsystem)).1.unwrap();
 	}
 
 	const TIMEOUT: Duration = Duration::from_millis(100);
 
 	async fn overseer_send(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		msg: CollatorProtocolMessage,
 	) {
 		tracing::trace!(?msg, "sending message");
@@ -1173,7 +1176,7 @@ mod tests {
 	}
 
 	async fn overseer_recv(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 	) -> AllMessages {
 		let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 			.await
@@ -1185,7 +1188,7 @@ mod tests {
 	}
 
 	async fn overseer_recv_with_timeout(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		timeout: Duration,
 	) -> Option<AllMessages> {
 		tracing::trace!("waiting for message...");
@@ -1196,7 +1199,7 @@ mod tests {
 	}
 
 	async fn overseer_signal(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
+		overseer: &mut VirtualOverseer,
 		signal: OverseerSignal,
 	) {
 		overseer
@@ -1570,6 +1573,7 @@ mod tests {
 			).await;
 
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
+			virtual_overseer
 		});
 	}
 
@@ -1589,6 +1593,7 @@ mod tests {
 			// A validator connected to us
 			connect_peer(&mut virtual_overseer, peer.clone()).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
+			virtual_overseer
 		})
 	}
 
@@ -1632,6 +1637,7 @@ mod tests {
 
 			// After changing the view we should receive the advertisement
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
+			virtual_overseer
 		})
 	}
 
@@ -1678,7 +1684,9 @@ mod tests {
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, old_relay_parent).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
+
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
+			virtual_overseer
 		})
 	}
 
@@ -1714,6 +1722,7 @@ mod tests {
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 
 			assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
+			virtual_overseer
 		})
 	}
 
@@ -1756,6 +1765,7 @@ mod tests {
 					PeerSet::Collation,
 				)) if p == peer
 			);
+			virtual_overseer
 		})
 	}
 }

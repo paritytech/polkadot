@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -25,6 +25,9 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococ
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 parity-scale-codec = { version = "2.0.0", default-features = false }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }

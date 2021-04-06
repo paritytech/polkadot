@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -8,20 +8,21 @@ edition = "2018"
 impl-trait-for-tuples = "0.2.0"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.13", optional = true }
+log = { version = "0.4.13", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
@@ -35,13 +36,17 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", default-fea
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "rococo-v1" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features=false, optional = true , branch = "rococo-v1" }
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1", default-features = false }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false, optional = true }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
+libsecp256k1 = { version = "0.3.5", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
+slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
@@ -63,9 +68,10 @@ libsecp256k1 = "0.3.5"
 default = ["std"]
 no_std = []
 std = [
+	"beefy-primitives/std",
 	"bitvec/std",
 	"parity-scale-codec/std",
-	"log",
+	"log/std",
 	"rustc-hex/std",
 	"serde_derive",
 	"serde/std",
@@ -78,16 +84,20 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-beefy/std",
+	"pallet-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
 	"pallet-treasury/std",
+	"slot-range-helper/std",
 	"sp-runtime/std",
 	"sp-session/std",
 	"sp-staking/std",
 	"frame-system/std",
+	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
 ]

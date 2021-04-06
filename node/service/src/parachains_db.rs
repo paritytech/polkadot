@@ -51,7 +51,7 @@ pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_approval_data: columns::COL_APPROVAL_DATA,
 };
 
-/// The cache size for each column, in bytes.
+/// The cache size for each column, in megabytes.
 #[derive(Debug, Clone)]
 pub struct CacheSizes {
 	/// Cache used by availability data.
@@ -65,9 +65,9 @@ pub struct CacheSizes {
 impl Default for CacheSizes {
 	fn default() -> Self {
 		CacheSizes {
-			availability_data: 25 * 1024 * 1024,
-			availability_meta: 512 * 1024,
-			approval_data: 5 * 1024 * 1024,
+			availability_data: 25,
+			availability_meta: 1,
+			approval_data: 5,
 		}
 	}
 }

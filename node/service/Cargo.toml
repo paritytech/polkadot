@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.8.3"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -8,6 +8,8 @@ edition = "2018"
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
@@ -16,11 +18,11 @@ sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "roco
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "rococo-v1" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", optional = true }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 # Substrate Primitives
@@ -48,6 +50,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "rococ
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 # Substrate Other
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }

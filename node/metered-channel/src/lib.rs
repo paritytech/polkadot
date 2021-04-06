@@ -17,12 +17,7 @@
 //! Metered variant of mpsc channels to be able to extract metrics.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-
-use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
-
-use std::result;
 use std::sync::Arc;
-use std::pin::Pin;
 
 use derive_more::{Add, Display};
 

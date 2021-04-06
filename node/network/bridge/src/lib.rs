@@ -1362,12 +1362,14 @@ mod tests {
 		Box::new(oracle)
 	}
 
+	type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeMessage>;
+
 	struct TestHarness {
 		network_handle: TestNetworkHandle,
-		virtual_overseer: TestSubsystemContextHandle<NetworkBridgeMessage>,
+		virtual_overseer: VirtualOverseer,
 	}
 
-	fn test_harness<T: Future<Output=()>>(
+	fn test_harness<T: Future<Output=VirtualOverseer>>(
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
@@ -1399,7 +1401,10 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(network_bridge);
 
-		let _ = executor::block_on(future::select(test_fut, network_bridge));
+		let _ = executor::block_on(future::join(async move {
+			let mut virtual_overseer = test_fut.await;
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}, network_bridge));
 	}
 
 	async fn assert_sends_validation_event_to_all(
@@ -1491,6 +1496,7 @@ mod tests {
 					).encode(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
@@ -1582,6 +1588,7 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
@@ -1685,6 +1692,7 @@ mod tests {
 					),
 				);
 			}
+			virtual_overseer
 		});
 	}
 
@@ -1751,6 +1759,7 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
@@ -1793,6 +1802,7 @@ mod tests {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1860,6 +1870,7 @@ mod tests {
 				NetworkBridgeEvent::PeerDisconnected(peer),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1935,6 +1946,7 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2023,6 +2035,7 @@ mod tests {
 					assert_eq!(m, collator_protocol_message);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2088,6 +2101,7 @@ mod tests {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view_b.clone()),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2133,13 +2147,14 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn view_finalized_number_can_not_go_down() {
 		test_harness(done_syncing_oracle(), |test_harness| async move {
-			let TestHarness { mut network_handle, .. } = test_harness;
+			let TestHarness { mut network_handle, virtual_overseer } = test_harness;
 
 			let peer_a = PeerId::random();
 
@@ -2173,6 +2188,7 @@ mod tests {
 					MALFORMED_VIEW_COST,
 				),
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2276,6 +2292,7 @@ mod tests {
 					)
 				);
 			}
+			virtual_overseer
 		});
 	}
 
@@ -2358,6 +2375,7 @@ mod tests {
 				NetworkBridgeEvent::OurViewChange(our_view),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 }

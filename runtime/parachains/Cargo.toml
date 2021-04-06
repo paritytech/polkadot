@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "0.8.0"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -55,7 +55,7 @@ pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate",
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 
