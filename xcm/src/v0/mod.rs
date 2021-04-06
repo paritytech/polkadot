@@ -238,7 +238,7 @@ impl<
 }
 
 impl<
-	Call: Clone + Eq + PartialEq + Encode + Decode + Debug
+	Call: Encode
 > TryFrom<VersionedXcmGeneric<Call>> for XcmGeneric<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcmGeneric<Call>) -> result::Result<Self, ()> {
