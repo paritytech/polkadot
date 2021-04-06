@@ -124,6 +124,10 @@ jobs:
         env:
           srtool_output_filename: "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json"
         run: |
+          pwd
+          ls -la
+          echo $srtool_output_filename
+          cat $srtool_output_filename
           while IFS= read -r line; do
             echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
           done <<< "$(jq -r 'keys[]' < $srtool_output_filename)"
