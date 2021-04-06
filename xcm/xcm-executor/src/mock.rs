@@ -216,7 +216,7 @@ impl OnResponse for TestResponseHandler {
 			_ => false,
 		})
 	}
-	fn on_response(origin: MultiLocation, query_id: u64, response: xcm::v0::Response) -> Weight {
+	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::v0::Response) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut()
 				.entry(query_id)
