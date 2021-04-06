@@ -38,7 +38,7 @@ pub enum InvalidCandidate {
 	///     the host machine ran out of free memory and the OOM killer started killing the processes,
 	///     and in order to save the parent it will "sacrifice child" first.
 	///
-	/// (b) The candidate trigerred a code path that has lead to the process death. For example,
+	/// (b) The candidate triggered a code path that has lead to the process death. For example,
 	///     the PVF found a way to consume unbounded amount of resources and then it either exceeded
 	///     an rlimit (if set) or, again, invited OOM killer. Another possibility is a bug in
 	///     wasmtime allowed the PVF to gain control over the execution worker.
