@@ -113,7 +113,7 @@ pub struct Config {
 	/// The time alloted for a prepare worker to spawn and report to the host.
 	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
-	/// priority below crticial.
+	/// priority below critical.
 	pub prepare_workers_soft_max_num: usize,
 	/// The absolute number of workers that can be spawned in the prepare pool.
 	pub prepare_workers_hard_max_num: usize,
