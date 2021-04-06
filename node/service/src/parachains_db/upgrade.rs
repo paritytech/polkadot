@@ -17,8 +17,9 @@
 #![cfg(feature = "real-overseer")]
 
 use std::fs;
-use std::io::{self, Read, Write, ErrorKind};
+use std::io;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 type Version = u32;
 
@@ -70,7 +71,7 @@ pub fn try_upgrade_db(db_path: &Path) -> Result<(), Error> {
 /// If the file does not exist, assumes version 0.
 fn current_version(path: &Path) -> Result<Version, Error> {
 	match fs::read_to_string(version_file_path(path)) {
-		Err(ref err) if err.kind() == ErrorKind::NotFound => Ok(0),
+		Err(ref err) if err.kind() == io::ErrorKind::NotFound => Ok(0),
 		Err(err) => Err(err.into()),
 		Ok(content) => u32::from_str(&content).map_err(|_| Error::CorruptedVersionFile),
 	}
@@ -80,7 +81,7 @@ fn current_version(path: &Path) -> Result<Version, Error> {
 /// Creates a new file if the version file does not exist yet.
 fn update_version(path: &Path) -> Result<(), Error> {
 	fs::create_dir_all(path)?;
-	fs::write!(version_file_path(path), CURRENT_VERSION.to_string()).map_err(Into::into)
+	fs::write(version_file_path(path), CURRENT_VERSION.to_string()).map_err(Into::into)
 }
 
 /// Returns the version file path.
