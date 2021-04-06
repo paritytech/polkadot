@@ -37,7 +37,11 @@ use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 mod assets;
 pub use assets::{Assets, AssetId};
 mod config;
-pub use config::{Config, WeightBounds, WeightTrader, ShouldExecute, OnResponse};
+pub use config::{
+	Config, WeightBounds, WeightTrader, ShouldExecute, OnResponse, FixedWeightBounds,
+	FixedRateOfConcreteFungible, AllowTopLevelPaidExecutionFrom, TakeWeightCredit,
+	AllowUnpaidExecutionFrom, AllowKnownQueryResponses,
+};
 
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
