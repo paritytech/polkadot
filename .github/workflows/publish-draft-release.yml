@@ -125,7 +125,7 @@ jobs:
           srtool_output_filename: "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json/${{ matrix.runtime }}_srtool_output.json"
         run: |
           pwd
-          ls -la $srtool_output_filename
+          ls -la "${{ github.workspace }}/${{ matrix.runtime }}-srtool-json"
           cat $srtool_output_filename
           while IFS= read -r line; do
             echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
