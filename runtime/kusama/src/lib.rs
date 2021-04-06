@@ -470,7 +470,7 @@ parameter_types! {
 	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
-	pub const CouncilModuleId: ModuleId = ModuleId(*b"py/counc");
+	pub const CouncilModuleId: ModuleId = ModuleId(*b"ku/counc");
 }
 
 type CouncilCollective = pallet_collective::Instance1;
@@ -524,7 +524,7 @@ parameter_types! {
 	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
-	pub const TechnicalModuleId: ModuleId = ModuleId(*b"py/techn");
+	pub const TechnicalModuleId: ModuleId = ModuleId(*b"ku/techn");
 }
 
 type TechnicalCollective = pallet_collective::Instance2;
