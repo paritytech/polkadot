@@ -32,10 +32,5 @@ mod fungibles_adapter;
 pub use currency_adapter::CurrencyAdapter;
 pub use fungibles_adapter::FungiblesAdapter;
 
-use sp_std::marker::PhantomData;
-use xcm_executor::traits::InvertLocation;
-use xcm::v0::{MultiLocation, Junction};
-use frame_support::traits::Get;
-
 #[deprecated="use `xcm-executor::traits::LocationInverter` instead"]
 pub use xcm_executor::traits::LocationInverter;

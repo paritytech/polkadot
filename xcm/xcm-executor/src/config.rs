@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::marker::PhantomData;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::Decode;
 use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}

@@ -32,7 +32,7 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	CannotReachDestination,
+	CannotReachDestination(#[codec(skip)] &'static str),
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
@@ -67,6 +67,9 @@ pub enum Error {
 	NotWithdrawable,
 	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
 	LocationCannotHold,
+	/// We attempted to send an XCM to the local consensus system. Execution was not possible probably due to
+	/// no execution weight being assigned.
+	DestinationIsLocal,
 }
 
 impl From<()> for Error {
@@ -81,6 +84,7 @@ pub type Result = result::Result<(), Error>;
 pub type Weight = u64;
 
 /// Outcome of an XCM excution.
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
@@ -90,22 +94,26 @@ pub enum Outcome {
 	Error(Error),
 }
 
-impl From<Outcome> for Result {
-	fn from(o: Outcome) -> Self {
-		match o {
+impl Outcome {
+	pub fn ensure_complete(self) -> Result {
+		match self {
 			Outcome::Complete(_) => Ok(()),
 			Outcome::Incomplete(_, e) => Err(e),
 			Outcome::Error(e) => Err(e),
 		}
 	}
-}
-
-impl Outcome {
-	/// How much weight was used by the XCM execution attempt.
-	fn weight_used(&self) -> Weight {
+	pub fn ensure_execution(self) -> result::Result<Weight, Error> {
 		match self {
-			Outcome::Complete(w) => w,
-			Outcome::Incomplete(w, _) => w,
+			Outcome::Complete(w) => Ok(w),
+			Outcome::Incomplete(w, _) => Ok(w),
+			Outcome::Error(e) => Err(e),
+		}
+	}
+	/// How much weight was used by the XCM execution attempt.
+	pub fn weight_used(&self) -> Weight {
+		match self {
+			Outcome::Complete(w) => *w,
+			Outcome::Incomplete(w, _) => *w,
 			Outcome::Error(_) => 0,
 		}
 	}
@@ -121,12 +129,12 @@ impl<C> ExecuteXcm<C> for () {
 	}
 }
 
-pub trait SendXcm<Call> {
-	fn send_xcm(dest: MultiLocation, msg: XcmGeneric<Call>, weight_limit: Weight) -> Outcome;
+pub trait SendXcm {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
 }
 
-impl<C> SendXcm<C> for () {
-	fn send_xcm(_dest: MultiLocation, _msg: XcmGeneric<C>, _weight_limit: Weight) -> Outcome {
-		Outcome::Error(Error::Unimplemented)
+impl SendXcm for () {
+	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
+		Err(Error::Unimplemented)
 	}
 }
