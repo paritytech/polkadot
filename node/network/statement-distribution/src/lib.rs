@@ -130,7 +130,7 @@ impl VcPerPeerTracker {
 	}
 
 	/// Returns `true` if the peer is allowed to send us such a message, `false` otherwise.
-	fn allow_send_remote(&self, h: &CandidateHash) -> bool {
+	fn is_wanted_candidate(&self, h: &CandidateHash) -> bool {
 		!self.remote_observed.contains(h) &&
 		!self.remote_observed.is_full()
 	}
@@ -302,7 +302,7 @@ impl PeerRelayParentKnowledge {
 		let candidate_hash = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
 				let allowed_remote = self.seconded_counts.get(&fingerprint.1)
-					.map_or(true, |r| r.allow_send_remote(h));
+					.map_or(true, |r| r.is_wanted_candidate(h));
 
 				if !allowed_remote {
 					return Err(COST_UNEXPECTED_STATEMENT);
@@ -952,7 +952,7 @@ async fn handle_incoming_message<'a>(
 	let max_message_count = active_head.validators.len() * 2;
 
 	// perform only basic checks before verifying the signature
-	// as it's more computationaly heavy
+	// as it's more computationally heavy
 	if let Err(rep) = peer_data.can_receive(&relay_parent, &fingerprint, max_message_count) {
 		tracing::debug!(
 			target: LOG_TARGET,
