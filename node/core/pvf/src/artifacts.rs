@@ -55,8 +55,8 @@ impl Artifact {
 	}
 }
 
-/// NOTE if we get to multiple engine implementations the artifact ID should include the engine
-/// type as well.
+/// Identifier of an artifact. Right now it only encodes a code hash of the PVF. But if we get to
+/// multiple engine implementations the artifact ID should include the engine type as well.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
 	code_hash: Hash,
@@ -65,6 +65,7 @@ pub struct ArtifactId {
 impl ArtifactId {
 	const PREFIX: &'static str = "wasmtime_1_";
 
+	/// Creates a new artifact ID with the given hash.
 	pub fn new(code_hash: Hash) -> Self {
 		Self { code_hash }
 	}
@@ -102,7 +103,7 @@ pub enum ArtifactState {
 	Preparing,
 }
 
-/// A container of all known artifact ids.
+/// A container of all known artifact ids and their states.
 pub struct Artifacts {
 	artifacts: HashMap<ArtifactId, ArtifactState>,
 }
