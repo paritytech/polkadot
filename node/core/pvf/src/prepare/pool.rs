@@ -28,7 +28,7 @@ use futures::{
 };
 use slotmap::HopSlotMap;
 use assert_matches::assert_matches;
-use always_assert::{never, always};
+use always_assert::never;
 
 slotmap::new_key_type! { pub struct Worker; }
 

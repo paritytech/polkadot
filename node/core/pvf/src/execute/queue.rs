@@ -31,7 +31,6 @@ use futures::{
 };
 use async_std::path::PathBuf;
 use slotmap::HopSlotMap;
-use always_assert::always;
 
 slotmap::new_key_type! { struct Worker; }
 
