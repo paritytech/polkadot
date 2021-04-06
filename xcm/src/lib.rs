@@ -31,7 +31,6 @@ pub use double_encoded::DoubleEncoded;
 
 /// A single XCM message, together with its version code.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-#[codec(dumb_trait_bound)]
 pub enum VersionedXcmGeneric<Call> {
 	V0(v0::XcmGeneric<Call>),
 }
