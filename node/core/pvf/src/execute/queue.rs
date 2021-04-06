@@ -22,7 +22,7 @@ use crate::{
 	LOG_TARGET, InvalidCandidate, ValidationError,
 };
 use super::worker::Outcome;
-use std::{collections::VecDeque, fmt};
+use std::{collections::VecDeque, fmt, time::Duration};
 use futures::{
 	Future, FutureExt,
 	channel::mpsc,
@@ -104,7 +104,7 @@ struct Queue {
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
 	program_path: PathBuf,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 
 	/// The queue of jobs that are waiting for a worker to pick up.
 	queue: VecDeque<ExecuteJob>,
@@ -116,12 +116,12 @@ impl Queue {
 	fn new(
 		program_path: PathBuf,
 		worker_capacity: usize,
-		spawn_timeout_secs: u64,
+		spawn_timeout: Duration,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
 			program_path,
-			spawn_timeout_secs,
+			spawn_timeout,
 			to_queue_rx,
 			queue: VecDeque::new(),
 			mux: Mux::new(),
@@ -279,16 +279,15 @@ fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result
 fn spawn_extra_worker(queue: &mut Queue) {
 	queue
 		.mux
-		.push(spawn_worker_task(queue.program_path.clone(), queue.spawn_timeout_secs).boxed());
+		.push(spawn_worker_task(queue.program_path.clone(), queue.spawn_timeout).boxed());
 	queue.workers.spawn_inflight += 1;
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout_secs: u64) -> QueueEvent {
+async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> QueueEvent {
 	use futures_timer::Delay;
-	use std::time::Duration;
 
 	loop {
-		match super::worker::spawn(&program_path, spawn_timeout_secs).await {
+		match super::worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break QueueEvent::Spawn((idle, handle)),
 			Err(err) => {
 				tracing::warn!(
@@ -319,13 +318,13 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
 	let run = Queue::new(
 		program_path,
 		worker_capacity,
-		spawn_timeout_secs,
+		spawn_timeout,
 		to_queue_rx,
 	)
 	.run();

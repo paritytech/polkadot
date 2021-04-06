@@ -41,7 +41,7 @@ pub async fn spawn_with_program_path(
 	debug_id: &'static str,
 	program_path: impl Into<PathBuf>,
 	extra_args: &'static [&'static str],
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let program_path = program_path.into();
 	with_transient_socket_path(debug_id, |socket_path| {
@@ -59,7 +59,7 @@ pub async fn spawn_with_program_path(
 					let (stream, _) = accept_result.map_err(|_| SpawnErr::Accept)?;
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
-				_ = Delay::new(Duration::from_secs(spawn_timeout_secs)).fuse() => {
+				_ = Delay::new(spawn_timeout).fuse() => {
 					Err(SpawnErr::AcceptTimeout)
 				}
 			}

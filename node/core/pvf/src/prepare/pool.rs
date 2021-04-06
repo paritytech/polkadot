@@ -21,7 +21,7 @@ use crate::{
 use super::{
 	worker::{self, Outcome},
 };
-use std::{fmt, sync::Arc, task::Poll};
+use std::{fmt, sync::Arc, task::Poll, time::Duration};
 use async_std::path::{Path, PathBuf};
 use futures::{
 	Future, FutureExt, StreamExt, channel::mpsc, future::BoxFuture, stream::FuturesUnordered,
@@ -102,7 +102,7 @@ type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
 
 struct Pool {
 	program_path: PathBuf,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
 	spawned: HopSlotMap<Worker, WorkerData>,
@@ -115,7 +115,7 @@ struct Fatal;
 async fn run(
 	Pool {
 		program_path,
-		spawn_timeout_secs,
+		spawn_timeout,
 		to_pool,
 		mut from_pool,
 		mut spawned,
@@ -139,7 +139,7 @@ async fn run(
 				let to_pool = break_if_fatal!(to_pool.ok_or(Fatal));
 				handle_to_pool(
 					&program_path,
-					spawn_timeout_secs,
+					spawn_timeout,
 					&mut spawned,
 					&mut mux,
 					to_pool,
@@ -179,14 +179,14 @@ async fn purge_dead(
 
 fn handle_to_pool(
 	program_path: &Path,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
 	to_pool: ToPool,
 ) {
 	match to_pool {
 		ToPool::Spawn => {
-			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout_secs).boxed());
+			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		}
 		ToPool::StartWork {
 			worker,
@@ -221,12 +221,11 @@ fn handle_to_pool(
 	}
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout_secs: u64) -> PoolEvent {
+async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> PoolEvent {
 	use futures_timer::Delay;
-	use std::time::Duration;
 
 	loop {
-		match worker::spawn(&program_path, spawn_timeout_secs).await {
+		match worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
 				tracing::warn!(
@@ -309,7 +308,7 @@ fn reply(from_pool: &mut mpsc::UnboundedSender<FromPool>, m: FromPool) -> Result
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	program_path: PathBuf,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 ) -> (
 	mpsc::Sender<ToPool>,
 	mpsc::UnboundedReceiver<FromPool>,
@@ -320,7 +319,7 @@ pub fn start(
 
 	let run = run(Pool {
 		program_path,
-		spawn_timeout_secs,
+		spawn_timeout,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,
 		spawned: HopSlotMap::with_capacity_and_key(20),

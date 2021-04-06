@@ -38,13 +38,13 @@ use parity_scale_codec::{Encode, Decode};
 /// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	spawn_with_program_path(
 		"execute",
 		program_path,
 		&["execute-worker"],
-		spawn_timeout_secs,
+		spawn_timeout,
 	)
 	.await
 }

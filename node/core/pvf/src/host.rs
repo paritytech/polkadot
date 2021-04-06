@@ -111,7 +111,7 @@ pub struct Config {
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
 	/// The time alloted for a prepare worker to spawn and report to the host.
-	pub prepare_worker_spawn_timeout: u64,
+	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
 	/// priority below crticial.
 	pub prepare_workers_soft_max_num: usize,
@@ -120,7 +120,7 @@ pub struct Config {
 	/// The path to the program that can be used to spawn the execute workers.
 	pub execute_worker_program_path: PathBuf,
 	/// The time alloted for an execute worker to spawn and report to the host.
-	pub execute_worker_spawn_timeout: u64,
+	pub execute_worker_spawn_timeout: Duration,
 	/// The maximum number of execute workers that can run at the same time.
 	pub execute_workers_max_num: usize,
 }
@@ -135,11 +135,11 @@ impl Config {
 		Self {
 			cache_path,
 			prepare_worker_program_path: program_path.clone(),
-			prepare_worker_spawn_timeout: 3,
+			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 8,
 			prepare_workers_hard_max_num: 5,
 			execute_worker_program_path: program_path,
-			execute_worker_spawn_timeout: 3,
+			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 5,
 		}
 	}

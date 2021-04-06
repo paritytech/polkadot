@@ -41,13 +41,13 @@ const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
 /// The program should be able to handle `<program-path> prepare-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
-	spawn_timeout_secs: u64,
+	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	spawn_with_program_path(
 		"prepare",
 		program_path,
 		&["prepare-worker"],
-		spawn_timeout_secs,
+		spawn_timeout,
 	)
 	.await
 }
