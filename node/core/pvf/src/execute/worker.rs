@@ -58,9 +58,15 @@ pub enum Outcome {
 		duration_ms: u64,
 		idle_worker: IdleWorker,
 	},
-	/// The candidate validation failed. It may be for example because the preparation processe
+	/// The candidate validation failed. It may be for example because the preparation process
 	/// produced an error or the wasm execution triggered a trap.
 	InvalidCandidate {
+		err: String,
+		idle_worker: IdleWorker,
+	},
+	/// An internal error happened during the validation. Such an error is most likely related to
+	/// some transient glitch.
+	InternalError {
 		err: String,
 		idle_worker: IdleWorker,
 	},
@@ -102,6 +108,10 @@ pub async fn start_work(
 			idle_worker: IdleWorker { stream, pid },
 		},
 		Response::InvalidCandidate(err) => Outcome::InvalidCandidate {
+			err,
+			idle_worker: IdleWorker { stream, pid },
+		},
+		Response::InternalError(err) => Outcome::InternalError {
 			err,
 			idle_worker: IdleWorker { stream, pid },
 		},
@@ -153,6 +163,7 @@ enum Response {
 		duration_ms: u64,
 	},
 	InvalidCandidate(String),
+	InternalError(String),
 }
 
 impl Response {
@@ -177,21 +188,34 @@ pub fn worker_entrypoint(socket_path: &str) {
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
-			let artifact_bytes = async_std::fs::read(&artifact_path).await?;
-			let artifact = Artifact::deserialize(&artifact_bytes).map_err(|e| {
-				io::Error::new(
-					io::ErrorKind::Other,
-					format!("artifact deserialization error: {}", e),
-				)
-			})?;
-			let response = validate_using_artifact(&artifact, &params, &executor);
+			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
 			send_response(&mut stream, response).await?;
 		}
 	});
 }
 
-fn validate_using_artifact(artifact: &Artifact, params: &[u8], spawner: &TaskExecutor) -> Response {
-	let compiled_artifact = match artifact {
+async fn validate_using_artifact(
+	artifact_path: &Path,
+	params: &[u8],
+	spawner: &TaskExecutor,
+) -> Response {
+	let artifact_bytes = match async_std::fs::read(artifact_path).await {
+		Err(e) => {
+			return Response::InternalError(format!(
+				"failed to read the artifact at {}: {:?}",
+				artifact_path.display(),
+				e,
+			))
+		}
+		Ok(b) => b,
+	};
+
+	let artifact = match Artifact::deserialize(&artifact_bytes) {
+		Err(e) => return Response::InternalError(format!("artifact deserialization: {:?}", e)),
+		Ok(a) => a,
+	};
+
+	let compiled_artifact = match &artifact {
 		Artifact::PrevalidationErr(msg) => {
 			return Response::format_invalid("prevalidation", msg);
 		}

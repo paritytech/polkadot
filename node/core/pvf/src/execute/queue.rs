@@ -227,6 +227,10 @@ fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result
 				InvalidCandidate::WorkerReportedError(err),
 			)),
 		),
+		Outcome::InternalError { err, idle_worker } => (
+			Some(idle_worker),
+			Err(ValidationError::InternalError(err)),
+		),
 		Outcome::HardTimeout => (
 			None,
 			Err(ValidationError::InvalidCandidate(
