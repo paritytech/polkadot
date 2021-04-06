@@ -160,7 +160,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 
 	#[cfg(test)]
 	fn worst_validation_code() -> ValidationCode {
-		let mut validation_code = vec![0u8; 1000];
+		let validation_code = vec![0u8; 1000];
 		validation_code.into()
 	}
 

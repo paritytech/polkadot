@@ -259,7 +259,7 @@ fn test_genesis_head(size: usize) -> HeadData {
 }
 
 fn test_validation_code(size: usize) -> ValidationCode {
-	let mut validation_code = vec![0u8; size as usize];
+	let validation_code = vec![0u8; size as usize];
 	ValidationCode(validation_code)
 }
 

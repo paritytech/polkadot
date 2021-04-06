@@ -301,7 +301,7 @@ impl<T: Config> Registrar for Module<T> {
 	fn worst_validation_code() -> ValidationCode {
 		// TODO: Figure a way to allow bigger wasm in benchmarks?
 		let max_code_size = (T::MaxCodeSize::get()).min(4 * 1024 * 1024);
-		let mut validation_code = vec![0u8; max_code_size as usize];
+		let validation_code = vec![0u8; max_code_size as usize];
 		validation_code.into()
 	}
 
@@ -548,7 +548,7 @@ mod tests {
 	}
 
 	fn test_validation_code(size: usize) -> ValidationCode {
-		let mut validation_code = vec![0u8; size as usize];
+		let validation_code = vec![0u8; size as usize];
 		ValidationCode(validation_code)
 	}
 
