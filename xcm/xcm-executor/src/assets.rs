@@ -93,13 +93,6 @@ impl Assets {
 	/// New value, containing no assets.
 	pub fn new() -> Self { Self::default() }
 
-	/// Substitute all abstract `MultiAsset` values for equivalent concrete values.
-	///
-	/// If at least one of the values cannot be substituted, then return Err.
-	pub fn concretize(&mut self) -> Result<(), ()> {
-		todo!();
-	}
-
 	/// An iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		self.fungible.iter()
