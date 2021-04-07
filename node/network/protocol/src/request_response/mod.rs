@@ -100,7 +100,7 @@ const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
 /// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
 /// to have 3 slow noded connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
-const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
+pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.

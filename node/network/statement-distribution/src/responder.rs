@@ -14,16 +14,19 @@
 
 //! Large statement responding background task logic.
 
-use std::time::Duration;
+use futures::{SinkExt, StreamExt, channel::{mpsc, oneshot}, stream::FuturesUnordered};
 
-use futures::{SinkExt, Stream, StreamExt, channel::{mpsc, oneshot}, stream::FuturesUnordered};
+use parity_scale_codec::Decode;
 
-use parity_scale_codec::{Decode, Error as DecodingError};
-
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep, request_response::{IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS, OutgoingRequest, Recipient, Requests, request::OutgoingResponse, v1::{
-            StatementFetchingRequest, StatementFetchingResponse
-        }}};
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_network_protocol::{
+	UnifiedReputationChange as Rep,
+	request_response::{
+		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS, request::OutgoingResponse,
+		v1::{
+			StatementFetchingRequest, StatementFetchingResponse
+		}
+	}
+};
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
 use crate::LOG_TARGET;
@@ -50,22 +53,22 @@ pub async fn respond(
 	mut receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 	mut sender: mpsc::Sender<ResponderMessage>,
 ) {
-	let pending_out = FuturesUnordered::new();
+	let mut pending_out = FuturesUnordered::new();
 	loop {
 		// Ensure we are not handling too many requests in parallel.
 		// We do this for three reasons:
 		//
 		// 1. We want some requesters to have full data fast, rather then lots of them having them
-        //    late, as each requester having the data will help distributing it.
+		//    late, as each requester having the data will help distributing it.
 		// 2. If we take too long, the requests timing out will not yet have had any data sent,
-        //    thus we wasted no bandwidth.
+		//    thus we wasted no bandwidth.
 		// 3. If the queue is full, requestes will get an immediate error instead of running in a
 		//    timeout, thus they can immediately try another peer and be faster.
 		//
 		// From this perspective we would not want parallel response sending at all, but we don't
 		// want a single slow requester slowing everyone down, so we want some parallelism for that
 		// reason.
-		if pending_out.len() >= MAX_PARALLEL_STATEMENT_REQUESTS {
+		if pending_out.len() >= MAX_PARALLEL_STATEMENT_REQUESTS as usize {
 			// Wait for one to finish:
 			pending_out.next().await;
 		}
@@ -138,7 +141,7 @@ pub async fn respond(
 			sent_feedback: Some(pending_sent_tx),
 		};
 		pending_out.push(pending_sent_rx);
-		if let Err(err) = req.send_outoing_response(response) {
+		if let Err(_) = req.send_outoing_response(response) {
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Sending response failed"
@@ -152,7 +155,7 @@ fn report_peer(
 	tx: oneshot::Sender<sc_network::config::OutgoingResponse>,
 	rep: Rep,
 ) {
-	if let Err(err) = tx.send(sc_network::config::OutgoingResponse {
+	if let Err(_) = tx.send(sc_network::config::OutgoingResponse {
 		result: Err(()),
 		reputation_changes: vec![rep.into_base_rep()],
 		sent_feedback: None,
