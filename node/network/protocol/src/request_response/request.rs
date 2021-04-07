@@ -25,6 +25,8 @@ use sc_network::PeerId;
 
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
+use crate::UnifiedReputationChange;
+
 use super::{v1, Protocol};
 
 /// Common properties of any `Request`.
@@ -203,6 +205,22 @@ pub struct IncomingRequest<Req> {
 	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
 }
 
+/// Typed variant of [`netconfig::OutgoingResponse`].
+///
+/// Responses to `IncomingRequest`s.
+pub struct OutgoingResponse<Response> {
+	/// The payload of the response.
+	pub result: Result<Response, ()>,
+
+	/// Reputation changes accrued while handling the request. To be applied to the reputation of
+	/// the peer sending the request.
+	pub reputation_changes: Vec<UnifiedReputationChange>,
+
+	/// If provided, the `oneshot::Sender` will be notified when the request has been sent to the
+	/// peer.
+	pub sent_feedback: Option<oneshot::Sender<()>>,
+}
+
 impl<Req> IncomingRequest<Req>
 where
 	Req: IsRequest,
@@ -235,6 +253,31 @@ where
 				sent_feedback: None,
 			})
 			.map_err(|_| resp)
+	}
+
+	/// Send response with additional options.
+	///
+	/// This variant allows for waiting for the response to be sent out, allows for changing peer's
+	/// reputation and allows for not sending a response at all (for only changing the peer's
+	/// reputation).
+	pub fn send_outoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
+		-> Result<(), ()> {
+		let OutgoingResponse {
+			result,
+			reputation_changes,
+			sent_feedback,
+		} = resp;
+
+		let response = netconfig::OutgoingResponse {
+			result: result.map(|v| v.encode()),
+			reputation_changes: reputation_changes
+				.into_iter()
+				.map(|c| c.into_base_rep())
+				.collect(),
+			sent_feedback,
+		};
+
+		self.pending_response.send(response).map_err(|_| ())
 	}
 }
 
