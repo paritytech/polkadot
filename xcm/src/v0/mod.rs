@@ -164,6 +164,22 @@ pub enum Xcm<Call> {
 	#[codec(index = 5)]
 	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
+	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
+	/// of origin `origin_type`.
+	///
+	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight and will
+	///   be used in the weight determination arithmetic.
+	/// - `call`: The encoded transaction to be applied.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	#[codec(index = 6)]
+	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
 	///
@@ -211,22 +227,6 @@ pub enum Xcm<Call> {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] recipient: u32,
 	},
-
-	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
-	/// of origin `origin_type`.
-	///
-	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
-	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight and will
-	///   be used in the weight determination arithmetic.
-	/// - `call`: The encoded transaction to be applied.
-	///
-	/// Safety: No concerns.
-	///
-	/// Kind: *Instruction*.
-	///
-	/// Errors:
-	#[codec(index = 10)]
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
 }
 
 impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {

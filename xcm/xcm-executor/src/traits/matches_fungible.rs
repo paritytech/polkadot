@@ -20,9 +20,12 @@ pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
 }
 
-// TODO: #MATCHTUPLE impl for tuples
-impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungible<B> for (X, Y) {
-	fn matches_fungible(a: &MultiAsset) -> Option<B> {
-		X::matches_fungible(a).or_else(|| Y::matches_fungible(a))
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<Balance> MatchesFungible<Balance> for Tuple {
+	fn matches_fungible(a: &MultiAsset) -> Option<Balance> {
+		for_tuples!( #(
+			match Tuple::matches_fungible(a) { o @ Some(_) => return o, _ => () }
+		)* );
+		None
 	}
 }
