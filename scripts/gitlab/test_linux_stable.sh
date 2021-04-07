@@ -5,6 +5,3 @@ set -e
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../common/lib.sh"
 
 time cargo test --all --release --verbose --locked --features=runtime-benchmarks
-
-cd parachain/test-parachains/adder/collator/
-time cargo test --release --verbose --locked
