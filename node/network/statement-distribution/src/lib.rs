@@ -20,12 +20,12 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
-    ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
-    SubsystemContext, SubsystemError, SubsystemResult, jaeger,
-    messages::{
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemError, SubsystemResult, jaeger,
+	messages::{
 		AllMessages, NetworkBridgeMessage, StatementDistributionMessage,
-        CandidateBackingMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
-    },
+		CandidateBackingMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
+	},
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -1672,33 +1672,33 @@ impl StatementDistribution {
 
 		match message {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
-                let _timer = metrics.time_active_leaves_update();
+				let _timer = metrics.time_active_leaves_update();
 
 				for activated in activated {
-                    let relay_parent = activated.hash;
-                    let span = PerLeafSpan::new(activated.span, "statement-distribution");
-                    tracing::trace!(
-                        target: LOG_TARGET,
-                        hash = ?relay_parent,
-                        "New active leaf",
-                    );
+					let relay_parent = activated.hash;
+					let span = PerLeafSpan::new(activated.span, "statement-distribution");
+					tracing::trace!(
+						target: LOG_TARGET,
+						hash = ?relay_parent,
+						"New active leaf",
+					);
 
 					let (validators, session_index) = {
-                        let (val_tx, val_rx) = oneshot::channel();
-                        let (session_tx, session_rx) = oneshot::channel();
+						let (val_tx, val_rx) = oneshot::channel();
+						let (session_tx, session_rx) = oneshot::channel();
 
-                        let val_message = AllMessages::RuntimeApi(
-                            RuntimeApiMessage::Request(
-                                relay_parent,
-                                RuntimeApiRequest::Validators(val_tx),
-                            ),
-                        );
-                        let session_message = AllMessages::RuntimeApi(
-                            RuntimeApiMessage::Request(
-                                relay_parent,
-                                RuntimeApiRequest::SessionIndexForChild(session_tx),
-                            ),
-                        );
+						let val_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::Validators(val_tx),
+							),
+						);
+						let session_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::SessionIndexForChild(session_tx),
+							),
+						);
 						ctx.send_messages(
 							std::iter::once(val_message).chain(std::iter::once(session_message))
 						).await;

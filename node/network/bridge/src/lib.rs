@@ -845,9 +845,9 @@ where
 		sync_oracle,
 	 } = bridge;
 
-    let statement_receiver = request_multiplexer
-        .get_statement_fetching()
-        .expect("Gets initialized, must be `Some` on startup. qed.");
+	let statement_receiver = request_multiplexer
+		.get_statement_fetching()
+		.expect("Gets initialized, must be `Some` on startup. qed.");
 
 	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
 
@@ -862,9 +862,9 @@ where
 
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
 
-    ctx.send_message(AllMessages::StatementDistribution(
-        StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
-    )).await;
+	ctx.send_message(AllMessages::StatementDistribution(
+		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
+	)).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(
 		ctx,
