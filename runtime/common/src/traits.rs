@@ -47,6 +47,14 @@ pub trait Registrar {
 		Self::is_parathread(id) || Self::is_parachain(id)
 	}
 
+	/// Apply a lock to the para registration so that it cannot be modified by
+	/// the manager directly. Instead the para must use its sovereign governance
+	/// or the governance of the relay chain.
+	fn apply_lock(id: ParaId);
+
+	/// Remove any lock on the para registration.
+	fn remove_lock(id: ParaId);
+
 	/// Register a Para ID under control of `who`. Registration may be be
 	/// delayed by session rotation.
 	fn register(
