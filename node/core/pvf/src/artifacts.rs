@@ -283,7 +283,7 @@ mod tests {
 	fn ensure_wasmtime_version() {
 		assert_eq!(
 			wasmtime_jit::VERSION,
-			"0.22.0",
+			"0.24.0",
 			"wasmtime version is updated. Check the prefix.",
 		);
 		// If the version bump is significant, change `ArtifactId::PREFIX`.
