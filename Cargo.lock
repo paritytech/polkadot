@@ -6287,6 +6287,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-staking",
+ "thiserror",
  "tracing",
 ]
 
