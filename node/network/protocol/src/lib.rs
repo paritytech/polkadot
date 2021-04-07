@@ -317,7 +317,7 @@ pub mod v1 {
 	}
 
 	/// Data that maes a statement unique.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 	pub struct StatementMetadata {
 		/// Relayt parent this statement is relevant under.
 		pub relay_parent: Hash,

@@ -36,7 +36,11 @@ const RETRY_TIMEOUT: Duration = Duration::from_millis(500);
 /// Messages coming from a background task.
 pub enum RequesterMessage {
 	/// Get an update of availble peers to try for fetching a given statement.
-	GetMorePeers(Hash, CandidateHash, oneshot::Sender<Vec<PeerId>>),
+	GetMorePeers { 
+		relay_parent: Hash, 
+		candidate_hash: CandidateHash,
+		tx: oneshot::Sender<Vec<PeerId>>
+	},
 	/// Fetching finished, ask for verification. If verification failes, task will continue asking
 	/// peers for data.
 	Verify {
@@ -50,10 +54,9 @@ pub enum RequesterMessage {
 		response: CommittedCandidateReceipt,
 		/// Peers which failed providing the data.
 		bad_peers: Vec<PeerId>,
-		/// Tell requester task whether or not the fetched data could be verified successfully or
-		/// not. If not, the task should continue requesting for `CommittedCandidateReceipt`s from
-		/// peers.
-		is_ok: oneshot::Sender<bool>,
+		/// Tell requester task whether or not it has to carry on. This might happen if the fetched
+		/// data was invalid for example.
+		carry_on: oneshot::Sender<()>,
 	},
 	/// Ask subsystem to send a request for us.
 	SendRequest(Requests),
@@ -100,7 +103,7 @@ pub async fn fetch(
 			}
 			match pending_response.await {
 				Ok(StatementFetchingResponse::Statement(statement)) => {
-					let (is_ok_tx, is_ok) = oneshot::channel();
+					let (carry_on_tx, carry_on) = oneshot::channel();
 					if let Err(err) = sender.send(
 						RequesterMessage::Verify {
 							relay_parent,
@@ -108,7 +111,7 @@ pub async fn fetch(
 							from_peer: peer,
 							response: statement,
 							bad_peers: tried_peers.clone(),
-							is_ok: is_ok_tx,
+							carry_on: carry_on_tx,
 						}
 						).await {
 						tracing::info!(
@@ -117,16 +120,13 @@ pub async fn fetch(
 							"Sending task response failed: This should not happen."
 						);
 					}
-					match is_ok.await {
-						Err(_) => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								"No verification result, relay parent already finished?"
-							);
-						}
-						// Verification failed => try next peer.
-						Ok(false) => continue,
-						Ok(true) => {},
+					match carry_on.await {
+						Err(_) => {}
+						Ok(()) => {
+							// The below push peer gets skipped intentionally, we don't want to try
+							// this peer again.
+							continue
+						},
 					}
 					// We are done now.
 					return
@@ -151,8 +151,11 @@ pub async fn fetch(
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
 			}
-			// No new peers, try the old ones again:
-			Ok(None) => continue,
+			// No new peers, try the old ones again (if we have any):
+			Ok(None) => {
+				// Note: In case we don't have any more peers, we will just keep asking for new
+				// peers, which is exactly what we want.
+			},
 			Err(()) => return,
 		}
 	}
