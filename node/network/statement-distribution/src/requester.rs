@@ -40,8 +40,8 @@ const RETRY_TIMEOUT: Duration = Duration::from_millis(500);
 /// Messages coming from a background task.
 pub enum RequesterMessage {
 	/// Get an update of availble peers to try for fetching a given statement.
-	GetMorePeers { 
-		relay_parent: Hash, 
+	GetMorePeers {
+		relay_parent: Hash,
 		candidate_hash: CandidateHash,
 		tx: oneshot::Sender<Vec<PeerId>>
 	},

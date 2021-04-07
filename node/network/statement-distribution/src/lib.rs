@@ -45,6 +45,10 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 mod requester;
 use requester::{RequesterMessage, fetch};
 
+/// Background task logic for responding for large statements.
+mod responder;
+use responder::{ResponderMessage, respond};
+
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_FETCH_FAIL: Rep = Rep::CostMinor("Requesting `CommittedCandidateReceipt` from peer failed.");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
