@@ -17,7 +17,7 @@
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
 use frame_support::traits::{Get, tokens::fungibles::Mutate as Fungibles};
-use xcm_executor::traits::{LocationConversion, TransactAsset, Convert};
+use xcm_executor::traits::{TransactAsset, Convert};
 
 /// Asset transaction errors.
 pub enum Error {
@@ -141,15 +141,15 @@ pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 impl<
 	Assets: Fungibles<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-	AccountIdConverter: LocationConversion<AccountId>,
-	AccountId,	// can't get away without it since Currency is generic over it.
+	AccountIdConverter: Convert<MultiLocation, AccountId>,
+	AccountId: Clone,	// can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
-		let who = AccountIdConverter::from_location(who)
-			.ok_or(Error::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_ref(who)
+			.map_err(|()| Error::AccountIdConversionFailed)?;
 		Assets::mint_into(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
@@ -160,8 +160,8 @@ impl<
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
-		let who = AccountIdConverter::from_location(who)
-			.ok_or(Error::AccountIdConversionFailed)?;
+		let who = AccountIdConverter::convert_ref(who)
+			.map_err(|()| Error::AccountIdConversionFailed)?;
 		Assets::burn_from(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())

@@ -63,7 +63,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ExecuteXcm, Outcome};
+		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
 		use xcm_executor::XcmExecutor;
 
 		// TODO: #2841 #UMPQUEUE Get a proper weight limit here. Probably from Relay Chain Config

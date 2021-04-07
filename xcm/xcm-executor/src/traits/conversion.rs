@@ -115,33 +115,6 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
 }
 
-// TODO: #2841 #LOCCONV change to use Convert trait.
-/// Attempt to convert a location into some value of type `T`, or vice-versa.
-pub trait LocationConversion<T> {
-	/// Convert `location` into `Some` value of `T`, or `None` if not possible.
-	// TODO: #2841 #LOCCONV consider returning Result<T, ()> instead.
-	fn from_location(location: &MultiLocation) -> Option<T>;
-	/// Convert some value `value` into a `location`, `Err`oring with the original `value` if not possible.
-	// TODO: #2841 #LOCCONV consider renaming `into_location`
-	fn try_into_location(value: T) -> Result<MultiLocation, T>;
-}
-
-#[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<AccountId> LocationConversion<AccountId> for Tuple {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		for_tuples!( #(
-			if let Some(result) = Tuple::from_location(location) { return Some(result) }
-		)* );
-		None
-	}
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		for_tuples!( #(
-			let who = match Tuple::try_into_location(who) { Err(w) => w, r => return r };
-		)* );
-		Err(who)
-	}
-}
-
 pub trait ConvertOrigin<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation>;
 }

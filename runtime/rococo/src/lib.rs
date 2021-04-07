@@ -81,11 +81,11 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
-use xcm_executor::{traits::IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
 };
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
