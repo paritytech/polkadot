@@ -153,7 +153,7 @@ impl Protocol {
 			Protocol::StatementFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				// Available data size is dominated by the PoV size.
+				// Available data size is dominated code size.
 				max_response_size: MAX_CODE_SIZE as u64,
 				// We need statement fetching to be fast and will try our best at the responding
 				// side to answer requests within that timeout, assuming a bandwidth of 500Mbit/s
