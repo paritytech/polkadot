@@ -20,7 +20,7 @@ pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
 }
 
-// TODO: impl for tuples
+// TODO: #MATCHTUPLE impl for tuples
 impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungible<B> for (X, Y) {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		X::matches_fungible(a).or_else(|| Y::matches_fungible(a))
