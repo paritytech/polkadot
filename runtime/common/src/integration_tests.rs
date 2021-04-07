@@ -728,8 +728,8 @@ fn basic_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
 		// Initiate a swap
-		assert_ok!(Registrar::swap(para_origin(1).into(), ParaId::from(2)));
-		assert_ok!(Registrar::swap(para_origin(2).into(), ParaId::from(1)));
+		assert_ok!(Registrar::swap(para_origin(1).into(), ParaId::from(1), ParaId::from(2)));
+		assert_ok!(Registrar::swap(para_origin(2).into(), ParaId::from(2), ParaId::from(1)));
 
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingParachain));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingParathread));
