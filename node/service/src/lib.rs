@@ -427,7 +427,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
-) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
+) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -552,6 +552,7 @@ where
 		leaves,
 		all_subsystems,
 		registry,
+		runtime_client.clone(),
 		spawner,
 	).map_err(|e| e.into())
 }
@@ -640,7 +641,6 @@ where
 				return None
 			};
 
-			let block_id = BlockId::Hash(hash);
 			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
 
 			Some(BlockInfo {

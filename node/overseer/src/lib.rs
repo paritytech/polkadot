@@ -125,7 +125,7 @@ pub trait HeadSupportsParachains {
 	fn head_supports_parachains(&self, head: &Hash) -> bool;
 }
 
-impl<Client> HeadSupportsParachains for Client where
+impl<Client> HeadSupportsParachains for Arc<Client> where
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
 {
