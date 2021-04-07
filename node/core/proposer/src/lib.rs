@@ -40,10 +40,11 @@ use sp_transaction_pool::TransactionPool;
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
-/// How long propsing can take, before we give up and err out. We need a relatively large timeout
+/// How long proposing can take, before we give up and err out. We need a relatively large timeout
 /// here as long as we have large payload in statement distribution. Assuming we can reach most
-/// nodes within two hops, we will take about 4 seconds for transferring statemens of a size of
-/// about 5 Meg given validator bandwidth of 500 Mbit/s.
+/// nodes within two hops, we will take about 2 seconds for transferring statements (data transfer
+/// only). If necessary, we could be able to reduce this to 3 seconds. To consider: The lower the
+/// riskier that we will not be able to include a candidate.
 const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(4000);
 
 /// Custom Proposer factory for Polkadot
