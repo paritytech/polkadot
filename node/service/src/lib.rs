@@ -1009,7 +1009,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				let client_clone = client_clone.clone();
 				let overseer_handler = overseer_handler.clone();
 				async move {
-					let parachain = polkadot_node_core_proposer::ParachainsInherentDataProvider::create(
+					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
 						overseer_handler,
 						parent,

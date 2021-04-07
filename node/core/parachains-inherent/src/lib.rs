@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The proposer proposes new blocks to include
+//! The parachain inherent data provider
+//!
+//! Parachain backing and approval is an off-chain process, but the parachain needs to progress on chain as well. To
+//! make it progress on chain a block producer needs to forward information about the state of a parachain to the
+//! runtime. These information are forwarded through an inherent to the runtime. Here we provide the
+//! [`ParachainInherentDataProvider`] that requests the relevant data from the provisioner subsystem and creates the
+//! the inherent data that the runtime will use to create an inherent.
 
 #![deny(unused_crate_dependencies, unused_results)]
 
@@ -30,14 +36,16 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
 
-/// How long to wait for the provisition, before giving up.
+/// How long to wait for the provisioner, before giving up.
 const PROVISIONER_TIMEOUT: time::Duration = core::time::Duration::from_millis(2500);
 
+/// Provides the parachains inherent data.
 pub struct ParachainsInherentDataProvider {
 	inherent_data: ParachainsInherentData,
 }
 
 impl ParachainsInherentDataProvider {
+	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
 		mut overseer: OverseerHandler,
