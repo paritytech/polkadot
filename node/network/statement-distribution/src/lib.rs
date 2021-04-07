@@ -36,7 +36,7 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 /// Background task logic for requesting of large statements.
 mod requester;
-use requester::{BuildStatementError, RequesterMessage, build_signed_full_statement, fetch};
+use requester::{RequesterMessage, fetch};
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_FETCH_FAIL: Rep = Rep::CostMinor("Requesting `CommittedCandidateReceipt` from peer failed.");
@@ -647,10 +647,31 @@ async fn circulate_statement_and_dependents(
 
 fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 	-> protocol_v1::ValidationProtocol
-{
-	protocol_v1::ValidationProtocol::StatementDistribution(
+{ 
+	let msg = if is_statement_large(&statement) {
+		protocol_v1::StatementDistributionMessage::LargeStatement(
+			StatementMetadata {
+				relay_parent,
+				candidate_hash: statement.payload().candidate_hash(),
+				signed_by: statement.validator_index(),
+				signature: statement.signature().clone(),
+			}
+		)
+	} else {
 		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement)
-	)
+	};
+
+	protocol_v1::ValidationProtocol::StatementDistribution(msg)
+}
+
+/// Check whether a statement should be treated as large statement.
+fn is_statement_large(statement: &SignedFullStatement) -> bool {
+	match &statement.payload() {
+		Statement::Seconded(committed) => 
+			committed.commitments.new_validation_code.is_some(),
+		Statement::Valid(_) =>
+			false,
+	}
 }
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
@@ -1544,6 +1565,29 @@ impl StatementDistribution {
 			FromOverseer::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) => {
 					let _timer = metrics.time_share();
+
+					// Make sure we have data in cache:
+					if is_statement_large(&statement) {
+						if let Statement::Seconded(committed) = &statement.payload() {
+							let active_head = match active_heads.get_mut(&relay_parent) {
+								Some(h) => h,
+								None => {
+									// This should never be out-of-sync with our view if the view updates
+									// correspond to actual `StartWork` messages. So we just log and ignore.
+									tracing::warn!(
+										target: LOG_TARGET,
+										%relay_parent,
+										"our view out-of-sync with active heads; head not found",
+									);
+									return Ok(false)
+								}
+							};
+							active_head.waiting_large_statements.insert(
+								statement.payload().candidate_hash(),
+								LargeStatementStatus::Fetched(committed.clone())
+							);
+						}
+					}
 
 					circulate_statement_and_dependents(
 						peers,
