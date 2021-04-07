@@ -74,11 +74,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
 					let xcm_location: MultiLocation = xcm_junction.into();
 					let result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message, weight_limit);
-					match result {
-						Outcome::Complete(weight) => weight,
-						Outcome::Incomplete(weight, _e) => weight,
-						Outcome::Error(_e) => Weight::zero(),
-					}
+					result.weight_used()
 				}
 			}
 		} else {
