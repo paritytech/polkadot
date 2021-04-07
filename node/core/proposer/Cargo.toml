@@ -11,15 +11,15 @@ tracing = "0.1.25"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sc-basic-authorship = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-block-builder = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-client-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-telemetry = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-blockchain = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-consensus = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-core = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-inherents = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-runtime = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-transaction-pool = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }

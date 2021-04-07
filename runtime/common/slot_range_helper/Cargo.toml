@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 paste = "1.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-sp-std = { package = "sp-std", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id", default-features = false }
-sp-runtime = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [features]
 default = ["std"]

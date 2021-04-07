@@ -42,8 +42,8 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-core = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-finality-grandpa = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-runtime = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-trie = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }

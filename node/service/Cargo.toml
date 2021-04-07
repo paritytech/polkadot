@@ -6,56 +6,56 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-block-builder = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-chain-spec = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-client-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-client-db = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-consensus = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-consensus-slots = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-executor = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id", optional = true }
-sc-network = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-transaction-pool = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sc-keystore = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-service = { package = "sc-service", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-inherents = { package = "sp-inherents", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-block-builder = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-blockchain = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-core = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-io = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-keystore = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-runtime = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-session = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-storage = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-transaction-pool = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-trie = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-sp-state-machine = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-pallet-im-online = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-pallet-staking = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-pallet-mmr-primitives = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-frame-system-rpc-runtime-api = { git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/darwinia-network/substrate", branch = "xavier-pallet-id" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
 futures = "0.3.12"
