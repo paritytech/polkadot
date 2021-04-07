@@ -141,7 +141,7 @@ pub async fn respond(
 			sent_feedback: Some(pending_sent_tx),
 		};
 		pending_out.push(pending_sent_rx);
-		if let Err(_) = req.send_outoing_response(response) {
+		if let Err(_) = req.send_outgoing_response(response) {
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Sending response failed"

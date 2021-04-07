@@ -260,7 +260,7 @@ where
 	/// This variant allows for waiting for the response to be sent out, allows for changing peer's
 	/// reputation and allows for not sending a response at all (for only changing the peer's
 	/// reputation).
-	pub fn send_outoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
+	pub fn send_outgoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
 		-> Result<(), ()> {
 		let OutgoingResponse {
 			result,
