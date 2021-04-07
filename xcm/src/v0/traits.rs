@@ -24,6 +24,7 @@ use super::{MultiLocation, Xcm};
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum Error {
 	Undefined,
+	Overflow,
 	Unimplemented,
 	UnhandledXcmVersion,
 	UnhandledXcmMessage,

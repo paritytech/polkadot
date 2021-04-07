@@ -170,10 +170,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// didn't realise that we didn't have to do.
 				// It works because we assume that the `Config::Weigher` will always count the `call`'s
 				// `get_dispatch_info` weight into its `shallow` estimate.
-				*weight_credit += surplus;
+				*weight_credit = weight_credit.saturating_add(surplus);
 				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
 				// back up the stack to be subtracted from the deep-weight.
-				total_surplus += surplus;
+				total_surplus = total_surplus.saturating_add(surplus);
 				// Return the overestimated amount so we can adjust our expectations on how much this entire
 				// execution has taken.
 				None
@@ -230,7 +230,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				// pay for `weight` using up to `fees` of the holding account.
-				let purchasing_weight = Weight::from(weight + debt);
+				let purchasing_weight = Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
 				let max_fee = holding.try_take(fees).map_err(|()| XcmError::NotHoldingFees)?;
 				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
 				holding.saturating_subsume_all(unspent);
