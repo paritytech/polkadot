@@ -26,7 +26,9 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use polkadot_node_primitives::{CollationGenerationConfig, AvailableData, PoV};
+use polkadot_node_primitives::{
+	POV_BOMB_LIMIT, CollationGenerationConfig, AvailableData, PoV, BlockData,
+};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
@@ -313,7 +315,16 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					}
 				};
 
-				let pov_hash = collation.proof_of_validity.hash();
+				// Apply compression to the block data.
+				let pov = {
+					let PoV { block_data: BlockData(raw) } = collation.proof_of_validity;
+					let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
+						.unwrap_or(raw);
+
+					PoV { block_data: BlockData(raw) }
+				};
+
+				let pov_hash = pov.hash();
 
 				let signature_payload = collator_signature_payload(
 					&relay_parent,
@@ -326,7 +337,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				let erasure_root = match erasure_root(
 					n_validators,
 					validation_data,
-					collation.proof_of_validity.clone(),
+					pov.clone(),
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
@@ -375,7 +386,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				metrics.on_collation_generated();
 
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity, result_sender)
+					CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,

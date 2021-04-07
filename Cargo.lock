@@ -5692,6 +5692,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
+ "sp-maybe-compressed-blob",
  "thiserror",
  "tracing",
 ]
