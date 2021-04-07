@@ -640,6 +640,7 @@ where
 				return None
 			};
 
+			let block_id = BlockId::Hash(hash);
 			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
 
 			Some(BlockInfo {
