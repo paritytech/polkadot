@@ -19,13 +19,13 @@ use std::time::Duration;
 use futures::{SinkExt, channel::{mpsc, oneshot}};
 
 use polkadot_node_network_protocol::{
-    PeerId,
-    request_response::{
-        OutgoingRequest, Recipient, Requests,
-        v1::{
-            StatementFetchingRequest, StatementFetchingResponse
-        }
-    }
+	PeerId,
+	request_response::{
+		OutgoingRequest, Recipient, Requests,
+		v1::{
+			StatementFetchingRequest, StatementFetchingResponse
+		}
+	}
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
@@ -118,7 +118,7 @@ pub async fn fetch(
 							carry_on: carry_on_tx,
 						}
 						).await {
-						tracing::info!(
+						tracing::warn!(
 							target: LOG_TARGET,
 							?err,
 							"Sending task response failed: This should not happen."
