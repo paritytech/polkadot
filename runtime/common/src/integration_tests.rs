@@ -259,12 +259,7 @@ fn test_genesis_head(size: usize) -> HeadData {
 }
 
 fn test_validation_code(size: usize) -> ValidationCode {
-	let mut validation_code = vec![0u8; size as usize];
-	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-	let _ = validation_code.splice(
-		..crate::WASM_MAGIC.len(),
-		crate::WASM_MAGIC.iter().cloned(),
-	).collect::<Vec<_>>();
+	let validation_code = vec![0u8; size as usize];
 	ValidationCode(validation_code)
 }
 

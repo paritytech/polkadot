@@ -160,12 +160,7 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 
 	#[cfg(test)]
 	fn worst_validation_code() -> ValidationCode {
-		let mut validation_code = vec![0u8; 1000];
-		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-		let _ = validation_code.splice(
-			..crate::WASM_MAGIC.len(),
-			crate::WASM_MAGIC.iter().cloned(),
-		).collect::<Vec<_>>();
+		let validation_code = vec![0u8; 1000];
 		validation_code.into()
 	}
 
