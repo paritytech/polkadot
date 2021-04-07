@@ -66,7 +66,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 		use xcm::v0::{Junction, MultiLocation, ExecuteXcm, Outcome};
 		use xcm_executor::XcmExecutor;
 
-		// TODO: #UMPQUEUE Get a proper weight limit here. Probably from Relay Chain Config
+		// TODO: #2841 #UMPQUEUE Get a proper weight limit here. Probably from Relay Chain Config
 		let weight_limit = Weight::max_value();
 		let weight = if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
 			match versioned_xcm_message {
@@ -85,7 +85,7 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 			Weight::zero()
 		};
 
-		// TODO: #UMPQUEUE to be sound, this implementation must ensure that returned (and thus consumed)
+		// TODO: #2841 #UMPQUEUE to be sound, this implementation must ensure that returned (and thus consumed)
 		//  weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
 		//  or lower).
 		weight

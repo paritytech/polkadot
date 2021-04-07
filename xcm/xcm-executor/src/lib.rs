@@ -41,7 +41,7 @@ pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Config::Call>, weight_limit: Weight) -> Outcome {
-		// TODO: #HARDENXCM We should identify recursive bombs here and bail.
+		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
 		let shallow_weight = match Config::Weigher::shallow(&mut message) {
 			Ok(x) => x,
@@ -61,8 +61,8 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let mut trader = Config::Trader::new();
 		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
-			// TODO: #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise we'll
-			//  needlessly be disregarding block execution time.
+			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
+			//  we'll needlessly be disregarding block execution time.
 			Err(e) => Outcome::Incomplete(maximum_weight, e),
 		}
 	}
@@ -151,7 +151,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			(origin, Xcm::Transact { origin_type, require_weight_at_most,  mut call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 
-				// TODO: #TRANSACTFILTER allow the trait to issue filters for the relay-chain
+				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;

@@ -17,14 +17,14 @@
 use sp_std::result::Result;
 use xcm::v0::{MultiLocation, OriginKind};
 
-// TODO: #LOCCONV change to use Convert trait.
+// TODO: #2841 #LOCCONV change to use Convert trait.
 /// Attempt to convert a location into some value of type `T`, or vice-versa.
 pub trait LocationConversion<T> {
 	/// Convert `location` into `Some` value of `T`, or `None` if not possible.
-	// TODO: #LOCCONV consider returning Result<T, ()> instead.
+	// TODO: #2841 #LOCCONV consider returning Result<T, ()> instead.
 	fn from_location(location: &MultiLocation) -> Option<T>;
 	/// Convert some value `value` into a `location`, `Err`oring with the original `value` if not possible.
-	// TODO: #LOCCONV consider renaming `into_location`
+	// TODO: #2841 #LOCCONV consider renaming `into_location`
 	fn try_into_location(value: T) -> Result<MultiLocation, T>;
 }
 
