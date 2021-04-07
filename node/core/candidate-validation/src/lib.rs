@@ -33,7 +33,9 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate, PoV};
+use polkadot_node_primitives::{
+	VALIDATION_CODE_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV,
+};
 use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
@@ -396,7 +398,7 @@ trait ValidationBackend {
 
 	fn validate<S: SpawnNamed + 'static>(
 		arg: Self::Arg,
-		validation_code: &ValidationCode,
+		raw_validation_code: &[u8],
 		params: ValidationParams,
 		spawn: S,
 	) -> Result<WasmValidationResult, ValidationError>;
@@ -409,12 +411,12 @@ impl ValidationBackend for RealValidationBackend {
 
 	fn validate<S: SpawnNamed + 'static>(
 		isolation_strategy: IsolationStrategy,
-		validation_code: &ValidationCode,
+		raw_validation_code: &[u8],
 		params: ValidationParams,
 		spawn: S,
 	) -> Result<WasmValidationResult, ValidationError> {
 		wasm_executor::validate_candidate(
-			&validation_code.0,
+			&raw_validation_code,
 			params,
 			&isolation_strategy,
 			spawn,
@@ -446,6 +448,19 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		return Ok(ValidationResult::Invalid(e))
 	}
 
+	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => code,
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+			// If the validation code is invalid, the candidate certainly is.
+			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure));
+		}
+	};
+
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
@@ -453,7 +468,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
-	match B::validate(backend_arg, &validation_code, params, spawn) {
+	match B::validate(backend_arg, &raw_validation_code, params, spawn) {
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Timeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ParamsTooLarge(l, _))) =>
@@ -597,7 +612,7 @@ mod tests {
 
 		fn validate<S: SpawnNamed + 'static>(
 			arg: Self::Arg,
-			_validation_code: &ValidationCode,
+			_raw_validation_code: &[u8],
 			_params: ValidationParams,
 			_spawn: S,
 		) -> Result<WasmValidationResult, ValidationError> {
@@ -1059,4 +1074,13 @@ mod tests {
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
 	}
 
+	#[test]
+	fn compressed_code_works() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn decompression_failure_is_invalid() {
+		// TODO [now]
+	}
 }

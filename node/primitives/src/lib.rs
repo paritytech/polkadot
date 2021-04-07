@@ -36,8 +36,13 @@ pub use sp_consensus_babe::{
 use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
 pub use polkadot_parachain::primitives::BlockData;
 
-
 pub mod approval;
+
+/// The bomb limit for decompressing code blobs.
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
+
+/// The bomb limit for decompressing PoV blobs.
+pub const POV_BOMB_LIMIT: usize = 50 * 1024 * 1024;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
@@ -119,6 +124,8 @@ pub enum InvalidCandidate {
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
 	CodeTooLarge(u64),
+	/// Code does not decompress correctly.
+	CodeDecompressionFailure,
 	/// Validation function returned invalid data.
 	BadReturn,
 	/// Invalid relay chain parent.
