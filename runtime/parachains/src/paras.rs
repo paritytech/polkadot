@@ -660,20 +660,25 @@ impl<T: Config> Module<T> {
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
 	/// Will return error if para is not a stable parachain or parathread.
+	///
+	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
-		let scheduled_session = Self::scheduled_session();
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
-
+		let lifecycle = ParaLifecycles::get(&id);
 		match lifecycle {
-			ParaLifecycle::Parathread => {
+			// If para is not registered, nothing to do!
+			None => {
+				return Ok(())
+			},
+			Some(ParaLifecycle::Parathread) => {
 				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParathread);
 			},
-			ParaLifecycle::Parachain => {
+			Some(ParaLifecycle::Parachain) => {
 				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
 			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
 
+		let scheduled_session = Self::scheduled_session();
 		ActionsQueue::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);

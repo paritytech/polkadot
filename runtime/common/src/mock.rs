@@ -27,6 +27,7 @@ thread_local! {
 	static OPERATIONS: RefCell<Vec<(ParaId, u32, bool)>> = RefCell::new(Vec::new());
 	static PARACHAINS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
 	static PARATHREADS: RefCell<Vec<ParaId>> = RefCell::new(Vec::new());
+	static LOCKS: RefCell<HashMap<ParaId, bool>> = RefCell::new(HashMap::new());
 	static MANAGERS: RefCell<HashMap<ParaId, Vec<u8>>> = RefCell::new(HashMap::new());
 }
 
@@ -45,6 +46,14 @@ impl<T: frame_system::Config> Registrar for TestRegistrar<T> {
 
 	fn is_parathread(id: ParaId) -> bool {
 		PARATHREADS.with(|x| x.borrow().binary_search(&id).is_ok())
+	}
+
+	fn apply_lock(id: ParaId) {
+		LOCKS.with(|x| x.borrow_mut().insert(id, true));
+	}
+
+	fn remove_lock(id: ParaId) {
+		LOCKS.with(|x| x.borrow_mut().insert(id, false));
 	}
 
 	fn register(
