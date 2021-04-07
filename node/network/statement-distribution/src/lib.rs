@@ -519,7 +519,7 @@ impl Message {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
-		from_responder: &mut mpsc::Receiver<RequesterMessage>,
+		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> Message {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
