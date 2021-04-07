@@ -26,22 +26,16 @@ use xcm::v0::{
 	MultiLocation, MultiAsset, Xcm, Order, Response,
 };
 
-#[cfg(test)]
-mod mock;
-#[cfg(test)]
-mod tests;
-
 pub mod traits;
-use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
+use traits::{
+	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, WeightBounds, WeightTrader, ShouldExecute,
+	OnResponse
+};
 
 mod assets;
 pub use assets::{Assets, AssetId};
 mod config;
-pub use config::{
-	Config, WeightBounds, WeightTrader, ShouldExecute, OnResponse, AllowKnownQueryResponses,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, TakeWeightCredit, FixedWeightBounds,
-	FixedRateOfConcreteFungible,
-};
+pub use config::Config;
 
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 

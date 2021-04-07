@@ -14,13 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::*;
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 pub use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 pub use parity_scale_codec::{Encode, Decode};
 pub use xcm::v0::{
-	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error,
-	OriginKind, MultiLocation, Junction,
+	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error as XcmError,
+	OriginKind, MultiLocation, Junction, opaque,
 };
 pub use frame_support::{
 	ensure, parameter_types,
@@ -29,10 +28,12 @@ pub use frame_support::{
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{Get, Contains},
 };
-pub use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, LocationInverter};
-pub use crate::config::{
+pub use xcm_executor::{
+	Assets, Config, traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse}
+};
+pub use crate::{
 	TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedWeightBounds,
-	FixedRateOfConcreteFungible, AllowKnownQueryResponses
+	FixedRateOfConcreteFungible, AllowKnownQueryResponses, LocationInverter,
 };
 
 pub enum TestOrigin { Root, Relay, Signed(u64), Parachain(u32) }
@@ -93,14 +94,14 @@ impl GetDispatchInfo for TestCall {
 }
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -123,14 +124,12 @@ pub fn add_asset(who: u64, what: MultiAsset) {
 pub struct TestAssetTransactor;
 impl TransactAsset for TestAssetTransactor {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result<(), XcmError> {
-		dbg!(what, who);
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		add_asset(who, what.clone());
 		Ok(())
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
-		dbg!(what, who);
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
 		ASSETS.with(|a| a.borrow_mut()
 			.get_mut(&who)

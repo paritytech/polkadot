@@ -17,8 +17,8 @@
 use super::*;
 use super::mock::*;
 use {MultiAsset::*, Option::None};
-use xcm::v0::Order;
-use xcm::v0::NetworkId::Any;
+use xcm::v0::{Order, NetworkId::Any, Outcome, Response, ExecuteXcm};
+use xcm_executor::{XcmExecutor, Config, traits::*};
 
 #[test]
 fn basic_setup_works() {
@@ -39,7 +39,7 @@ fn basic_setup_works() {
 
 #[test]
 fn weigher_should_work() {
-	let mut message = Xcm::ReserveAssetDeposit {
+	let mut message = opaque::Xcm::ReserveAssetDeposit {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
@@ -51,7 +51,7 @@ fn weigher_should_work() {
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
-	let mut message = Xcm::TransferAsset {
+	let mut message = opaque::Xcm::TransferAsset {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		dest: Null,
 	};
@@ -80,7 +80,7 @@ fn take_weight_credit_barrier_should_work() {
 
 #[test]
 fn allow_unpaid_should_work() {
-	let mut message = Xcm::TransferAsset {
+	let mut message = opaque::Xcm::TransferAsset {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		dest: Null,
 	};
@@ -110,7 +110,7 @@ fn allow_unpaid_should_work() {
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![ X1(Parent) ]);
 
-	let mut message = Xcm::TransferAsset {
+	let mut message = opaque::Xcm::TransferAsset {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		dest: Null,
 	};
@@ -124,7 +124,7 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let mut underpaying_message = Xcm::ReserveAssetDeposit {
+	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposit {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 20, halt_on_error: true, xcm: vec![] },
@@ -141,7 +141,7 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let mut paying_message = Xcm::ReserveAssetDeposit {
+	let mut paying_message = opaque::Xcm::ReserveAssetDeposit {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },

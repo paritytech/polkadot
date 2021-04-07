@@ -20,7 +20,7 @@ use sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::Get;
 use parity_scale_codec::Encode;
 use xcm::v0::{MultiLocation, NetworkId, Junction};
-use xcm_executor::traits::LocationConversion;
+use xcm_executor::traits::{InvertLocation, LocationConversion};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 
@@ -126,7 +126,6 @@ impl<
 }
 
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
-
 impl<
 	Network: Get<NetworkId>,
 	AccountId: From<[u8; 20]> + Into<[u8; 20]>
@@ -146,5 +145,24 @@ impl<
 			network: Network::get(),
 		}
 		.into())
+	}
+}
+
+/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted location.
+pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
+impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
+	fn invert_location(location: &MultiLocation) -> MultiLocation {
+		let mut ancestry = Ancestry::get();
+		let mut result = location.clone();
+		for (i, j) in location.iter_rev()
+			.map(|j| match j {
+				Junction::Parent => ancestry.take_first().unwrap_or(Junction::OnlyChild),
+				_ => Junction::Parent,
+			})
+			.enumerate()
+		{
+			*result.at_mut(i).expect("location and result begin equal; same size; qed") = j;
+		}
+		result
 	}
 }
