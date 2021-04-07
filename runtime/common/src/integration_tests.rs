@@ -20,7 +20,6 @@ use sp_std::sync::Arc;
 use sp_io::TestExternalities;
 use sp_core::{H256, crypto::KeyTypeId};
 use sp_runtime::{
-	ModuleId,
 	traits::{
 		BlakeTwo256, IdentityLookup, One,
 	},
@@ -28,7 +27,7 @@ use sp_runtime::{
 use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData};
 use frame_support::{
-	parameter_types, assert_ok, assert_noop,
+	parameter_types, assert_ok, assert_noop, PalletId,
 	storage::StorageMap,
 	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
 };
@@ -213,7 +212,7 @@ impl slots::Config for Test {
 }
 
 parameter_types! {
-	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
 	pub const SubmissionDeposit: Balance = 100;
 	pub const MinContribution: Balance = 1;
 	pub const RetirementPeriod: BlockNumber = 10;
@@ -223,7 +222,7 @@ parameter_types! {
 
 impl crowdloan::Config for Test {
 	type Event = Event;
-	type ModuleId = CrowdloanId;
+	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RemoveKeysLimit = RemoveKeysLimit;
