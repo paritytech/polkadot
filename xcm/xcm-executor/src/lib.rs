@@ -96,7 +96,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		// The surplus weight, defined as the amount by which `shallow_weight` plus all nested
 		// `shallow_weight` values (ensuring no double-counting) is an overestimate of the actual weight
 		// consumed.
-		let mut total_surplus = 0;
+		let mut total_surplus: Weight = 0;
 
 		let maybe_holding_effects = match (origin.clone(), message) {
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {

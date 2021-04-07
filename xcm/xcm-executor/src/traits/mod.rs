@@ -17,7 +17,7 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{LocationConversion, InvertLocation, ConvertOrigin};
+pub use conversion::{LocationConversion, InvertLocation, ConvertOrigin, Convert, JustTry, Identity, Encoded, Decoded};
 mod filter_asset_location;
 pub use filter_asset_location::{FilterAssetLocation};
 mod matches_fungible;
