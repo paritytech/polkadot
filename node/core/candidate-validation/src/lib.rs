@@ -361,21 +361,27 @@ async fn spawn_validate_exhaustive(
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
-#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(pov, validation_code), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,
 	pov: &PoV,
+	validation_code: &ValidationCode,
 ) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
-	let hash = pov.hash();
+	let pov_hash = pov.hash();
+	let validation_code_hash = validation_code.hash();
 
 	if encoded_pov.len() > max_pov_size as usize {
 		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 	}
 
-	if hash != candidate.pov_hash {
-		return Err(InvalidCandidate::HashMismatch);
+	if pov_hash != candidate.pov_hash {
+		return Err(InvalidCandidate::PoVHashMismatch);
+	}
+
+	if validation_code_hash != candidate.validation_code_hash {
+		return Err(InvalidCandidate::CodeHashMismatch);
 	}
 
 	if let Err(()) = candidate.check_collator_signature() {
@@ -431,7 +437,12 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 ) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
-	if let Err(e) = perform_basic_checks(&descriptor, persisted_validation_data.max_pov_size, &*pov) {
+	if let Err(e) = perform_basic_checks(
+		&descriptor,
+		persisted_validation_data.max_pov_size,
+		&*pov,
+		&validation_code,
+	) {
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -601,6 +612,7 @@ mod tests {
 			&descriptor.para_id,
 			&descriptor.persisted_validation_data_hash,
 			&descriptor.pov_hash,
+			&descriptor.validation_code_hash,
 		);
 
 		descriptor.signature = collator.sign(&payload[..]).into();
@@ -891,13 +903,21 @@ mod tests {
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 		let head_data = HeadData(vec![1, 1, 1]);
+		let validation_code = ValidationCode(vec![2; 16]);
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
 		descriptor.para_head = head_data.hash();
+		descriptor.validation_code_hash = validation_code.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
+		let check = perform_basic_checks(
+			&descriptor,
+			validation_data.max_pov_size,
+			&pov,
+			&validation_code,
+		);
+		assert!(check.is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data,
@@ -911,7 +931,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.clone(),
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -933,12 +953,20 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let validation_code = ValidationCode(vec![2; 16]);
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
+		descriptor.validation_code_hash = validation_code.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
+		let check = perform_basic_checks(
+			&descriptor,
+			validation_data.max_pov_size,
+			&pov,
+			&validation_code,
+		);
+		assert!(check.is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -947,7 +975,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -962,12 +990,20 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let validation_code = ValidationCode(vec![2; 16]);
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
+		descriptor.validation_code_hash = validation_code.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov).is_ok());
+		let check = perform_basic_checks(
+			&descriptor,
+			validation_data.max_pov_size,
+			&pov,
+			&validation_code,
+		);
+		assert!(check.is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -976,7 +1012,7 @@ mod tests {
 				))
 			},
 			validation_data,
-			vec![1, 2, 3].into(),
+			validation_code,
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
@@ -985,4 +1021,42 @@ mod tests {
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 	}
+
+	#[test]
+	fn candidate_validation_code_mismatch_is_invalid() {
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let validation_code = ValidationCode(vec![2; 16]);
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let check = perform_basic_checks(
+			&descriptor,
+			validation_data.max_pov_size,
+			&pov,
+			&validation_code,
+		);
+		assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::BadReturn
+				))
+			},
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			TaskExecutor::new(),
+			&Default::default(),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
+	}
+
 }

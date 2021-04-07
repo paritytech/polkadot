@@ -19,6 +19,13 @@
 use super::*;
 use polkadot_primitives::v1::Id as ParaId;
 
+const DATA_COL: u32 = 0;
+const NUM_COLUMNS: u32 = 1;
+
+const TEST_CONFIG: Config = Config {
+	col_data: DATA_COL,
+};
+
 pub(crate) fn write_stored_blocks(tx: &mut DBTransaction, range: StoredBlockRange) {
 	tx.put_vec(
 		DATA_COL,
@@ -85,7 +92,7 @@ fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
 
 #[test]
 fn read_write() {
-	let store = kvdb_memorydb::create(1);
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
@@ -109,6 +116,7 @@ fn read_write() {
 				tranches: Vec::new(),
 				backing_group: GroupIndex(1),
 				our_assignment: None,
+				our_approval_sig: None,
 				assignments: Default::default(),
 				approved: false,
 			})
@@ -125,10 +133,13 @@ fn read_write() {
 
 	store.write(tx).unwrap();
 
-	assert_eq!(load_stored_blocks(&store).unwrap(), Some(range));
-	assert_eq!(load_blocks_at_height(&store, 1).unwrap(), at_height);
-	assert_eq!(load_block_entry(&store, &hash_a).unwrap(), Some(block_entry));
-	assert_eq!(load_candidate_entry(&store, &candidate_hash).unwrap(), Some(candidate_entry));
+	assert_eq!(load_stored_blocks(&store, &TEST_CONFIG).unwrap(), Some(range));
+	assert_eq!(load_blocks_at_height(&store, &TEST_CONFIG, 1).unwrap(), at_height);
+	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &hash_a).unwrap(), Some(block_entry));
+	assert_eq!(
+		load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash).unwrap(),
+		Some(candidate_entry),
+	);
 
 	let delete_keys = vec![
 		STORED_BLOCKS_KEY.to_vec(),
@@ -144,15 +155,15 @@ fn read_write() {
 
 	store.write(tx).unwrap();
 
-	assert!(load_stored_blocks(&store).unwrap().is_none());
-	assert!(load_blocks_at_height(&store, 1).unwrap().is_empty());
-	assert!(load_block_entry(&store, &hash_a).unwrap().is_none());
-	assert!(load_candidate_entry(&store, &candidate_hash).unwrap().is_none());
+	assert!(load_stored_blocks(&store, &TEST_CONFIG).unwrap().is_none());
+	assert!(load_blocks_at_height(&store, &TEST_CONFIG, 1).unwrap().is_empty());
+	assert!(load_block_entry(&store, &TEST_CONFIG, &hash_a).unwrap().is_none());
+	assert!(load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash).unwrap().is_none());
 }
 
 #[test]
 fn add_block_entry_works() {
-	let store = kvdb_memorydb::create(1);
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
 
 	let parent_hash = Hash::repeat_byte(1);
 	let block_hash_a = Hash::repeat_byte(2);
@@ -188,6 +199,7 @@ fn add_block_entry_works() {
 
 	add_block_entry(
 		&store,
+		&TEST_CONFIG,
 		block_entry_a.clone(),
 		n_validators,
 		|h| new_candidate_info.get(h).map(|x| x.clone()),
@@ -201,24 +213,27 @@ fn add_block_entry_works() {
 
 	add_block_entry(
 		&store,
+		&TEST_CONFIG,
 		block_entry_b.clone(),
 		n_validators,
 		|h| new_candidate_info.get(h).map(|x| x.clone()),
 	).unwrap();
 
-	assert_eq!(load_block_entry(&store, &block_hash_a).unwrap(), Some(block_entry_a));
-	assert_eq!(load_block_entry(&store, &block_hash_b).unwrap(), Some(block_entry_b));
+	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a));
+	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b));
 
-	let candidate_entry_a = load_candidate_entry(&store, &candidate_hash_a).unwrap().unwrap();
+	let candidate_entry_a = load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash_a)
+		.unwrap().unwrap();
 	assert_eq!(candidate_entry_a.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_a, &block_hash_b]);
 
-	let candidate_entry_b = load_candidate_entry(&store, &candidate_hash_b).unwrap().unwrap();
+	let candidate_entry_b = load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash_b)
+		.unwrap().unwrap();
 	assert_eq!(candidate_entry_b.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_b]);
 }
 
 #[test]
 fn add_block_entry_adds_child() {
-	let store = kvdb_memorydb::create(1);
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
 
 	let parent_hash = Hash::repeat_byte(1);
 	let block_hash_a = Hash::repeat_byte(2);
@@ -242,6 +257,7 @@ fn add_block_entry_adds_child() {
 
 	add_block_entry(
 		&store,
+		&TEST_CONFIG,
 		block_entry_a.clone(),
 		n_validators,
 		|_| None,
@@ -249,6 +265,7 @@ fn add_block_entry_adds_child() {
 
 	add_block_entry(
 		&store,
+		&TEST_CONFIG,
 		block_entry_b.clone(),
 		n_validators,
 		|_| None,
@@ -256,13 +273,13 @@ fn add_block_entry_adds_child() {
 
 	block_entry_a.children.push(block_hash_b);
 
-	assert_eq!(load_block_entry(&store, &block_hash_a).unwrap(), Some(block_entry_a));
-	assert_eq!(load_block_entry(&store, &block_hash_b).unwrap(), Some(block_entry_b));
+	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a));
+	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b));
 }
 
 #[test]
 fn canonicalize_works() {
-	let store = kvdb_memorydb::create(1);
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
 
 	//   -> B1 -> C1 -> D1
 	// A -> B2 -> C2 -> D2
@@ -377,6 +394,7 @@ fn canonicalize_works() {
 	for block_entry in blocks {
 		add_block_entry(
 			&store,
+			&TEST_CONFIG,
 			block_entry,
 			n_validators,
 			|h| candidate_info.get(h).map(|x| x.clone()),
@@ -387,11 +405,11 @@ fn canonicalize_works() {
 		for (c_hash, in_blocks) in expected {
 			let (entry, in_blocks) = match in_blocks {
 				None => {
-					assert!(load_candidate_entry(&store, &c_hash).unwrap().is_none());
+					assert!(load_candidate_entry(&store, &TEST_CONFIG, &c_hash).unwrap().is_none());
 					continue
 				}
 				Some(i) => (
-					load_candidate_entry(&store, &c_hash).unwrap().unwrap(),
+					load_candidate_entry(&store, &TEST_CONFIG, &c_hash).unwrap().unwrap(),
 					i,
 				),
 			};
@@ -408,11 +426,11 @@ fn canonicalize_works() {
 		for (hash, with_candidates) in expected {
 			let (entry, with_candidates) = match with_candidates {
 				None => {
-					assert!(load_block_entry(&store, &hash).unwrap().is_none());
+					assert!(load_block_entry(&store, &TEST_CONFIG, &hash).unwrap().is_none());
 					continue
 				}
 				Some(i) => (
-					load_block_entry(&store, &hash).unwrap().unwrap(),
+					load_block_entry(&store, &TEST_CONFIG, &hash).unwrap().unwrap(),
 					i,
 				),
 			};
@@ -443,9 +461,9 @@ fn canonicalize_works() {
 		(block_hash_d2, Some(vec![cand_hash_5])),
 	]);
 
-	canonicalize(&store, 3, block_hash_c1).unwrap();
+	canonicalize(&store, &TEST_CONFIG, 3, block_hash_c1).unwrap();
 
-	assert_eq!(load_stored_blocks(&store).unwrap().unwrap(), StoredBlockRange(4, 5));
+	assert_eq!(load_stored_blocks(&store, &TEST_CONFIG).unwrap().unwrap(), StoredBlockRange(4, 5));
 
 	check_candidates_in_store(vec![
 		(cand_hash_1, None),
@@ -468,7 +486,7 @@ fn canonicalize_works() {
 
 #[test]
 fn force_approve_works() {
-	let store = kvdb_memorydb::create(1);
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
 	let n_validators = 10;
 
 	let mut tx = DBTransaction::new();
@@ -509,16 +527,101 @@ fn force_approve_works() {
 	for block_entry in blocks {
 		add_block_entry(
 			&store,
+			&TEST_CONFIG,
 			block_entry,
 			n_validators,
 			|h| candidate_info.get(h).map(|x| x.clone()),
 		).unwrap();
 	}
 
-	force_approve(&store, block_hash_d, 2).unwrap();
+	force_approve(&store, TEST_CONFIG,  block_hash_d, 2).unwrap();
 
-	assert!(load_block_entry(&store, &block_hash_a).unwrap().unwrap().approved_bitfield.all());
-	assert!(load_block_entry(&store, &block_hash_b).unwrap().unwrap().approved_bitfield.all());
-	assert!(load_block_entry(&store, &block_hash_c).unwrap().unwrap().approved_bitfield.not_any());
-	assert!(load_block_entry(&store, &block_hash_d).unwrap().unwrap().approved_bitfield.not_any());
+	assert!(load_block_entry(
+		&store,
+		&TEST_CONFIG,
+		&block_hash_a,
+	).unwrap().unwrap().approved_bitfield.all());
+	assert!(load_block_entry(
+		&store,
+		&TEST_CONFIG,
+		&block_hash_b,
+	).unwrap().unwrap().approved_bitfield.all());
+	assert!(load_block_entry(
+		&store,
+		&TEST_CONFIG,
+		&block_hash_c,
+	).unwrap().unwrap().approved_bitfield.not_any());
+	assert!(load_block_entry(
+		&store,
+		&TEST_CONFIG,
+		&block_hash_d,
+	).unwrap().unwrap().approved_bitfield.not_any());
+}
+
+#[test]
+fn load_all_blocks_works() {
+	let store = kvdb_memorydb::create(NUM_COLUMNS);
+
+	let parent_hash = Hash::repeat_byte(1);
+	let block_hash_a = Hash::repeat_byte(2);
+	let block_hash_b = Hash::repeat_byte(69);
+	let block_hash_c = Hash::repeat_byte(42);
+
+	let block_number = 10;
+
+	let block_entry_a = make_block_entry(
+		block_hash_a,
+		parent_hash,
+		block_number,
+		vec![],
+	);
+
+	let block_entry_b = make_block_entry(
+		block_hash_b,
+		parent_hash,
+		block_number,
+		vec![],
+	);
+
+	let block_entry_c = make_block_entry(
+		block_hash_c,
+		block_hash_a,
+		block_number + 1,
+		vec![],
+	);
+
+	let n_validators = 10;
+
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_a.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	// add C before B to test sorting.
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_c.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	add_block_entry(
+		&store,
+		&TEST_CONFIG,
+		block_entry_b.clone(),
+		n_validators,
+		|_| None
+	).unwrap();
+
+	assert_eq!(
+		load_all_blocks(
+			&store,
+			&TEST_CONFIG
+		).unwrap(),
+		vec![block_hash_a, block_hash_b, block_hash_c],
+	)
 }

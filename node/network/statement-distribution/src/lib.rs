@@ -19,16 +19,23 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult, jaeger, messages::{
-		AllMessages, NetworkBridgeMessage, StatementDistributionMessage, CandidateBackingMessage,
-		RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
-	}};
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_subsystem::{
+    ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
+    SubsystemContext, SubsystemError, SubsystemResult, jaeger,
+    messages::{
+		AllMessages, NetworkBridgeMessage, StatementDistributionMessage,
+        CandidateBackingMessage, RuntimeApiMessage, RuntimeApiRequest, NetworkBridgeEvent,
+    },
+};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	self as util, MIN_GOSSIP_PEERS,
+};
 use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
-use polkadot_node_network_protocol::{IfDisconnected, OurView, PeerId, UnifiedReputationChange as Rep, View, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::{self as protocol_v1, StatementMetadata}};
+use polkadot_node_network_protocol::{IfDisconnected, PeerId, UnifiedReputationChange as Rep, View, v1::{self as protocol_v1, StatementMetadata}};
 
-use futures::{channel::mpsc, future::{FusedFuture, RemoteHandle}, prelude::*, select};
+use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
@@ -118,6 +125,12 @@ impl VcPerPeerTracker {
 	fn note_remote(&mut self, h: CandidateHash) -> bool {
 		note_hash(&mut self.remote_observed, h)
 	}
+
+	/// Returns `true` if the peer is allowed to send us such a message, `false` otherwise.
+	fn is_wanted_candidate(&self, h: &CandidateHash) -> bool {
+		!self.remote_observed.contains(h) &&
+		!self.remote_observed.is_full()
+	}
 }
 
 fn note_hash(
@@ -148,25 +161,21 @@ struct PeerRelayParentKnowledge {
 }
 
 impl PeerRelayParentKnowledge {
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// Updates our view of the peer's knowledge with this statement's fingerprint based
 	/// on something that we would like to send to the peer.
 	///
-	/// This returns `None` if the peer cannot accept this statement, without altering internal
-	/// state.
+	/// NOTE: assumes `self.can_send` returned true before this call.
 	///
-	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
 	///
-	/// This returns `Some(true)` if this is the first time the peer has become aware of a
+	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> Option<bool> {
-		let already_known = self.sent_statements.contains(fingerprint)
-			|| self.received_statements.contains(fingerprint);
-
-		if already_known {
-			return None;
-		}
+	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+		debug_assert!(
+			self.can_send(fingerprint),
+			"send is only called after `can_send` returns true; qed",
+		);
 
 		let new_known = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
@@ -176,20 +185,36 @@ impl PeerRelayParentKnowledge {
 
 				self.known_candidates.insert(h.clone())
 			},
-			CompactStatement::Valid(ref h) => {
-				// The peer can only accept Valid and Invalid statements for which it is aware
-				// of the corresponding candidate.
-				if !self.known_candidates.contains(h) {
-					return None;
-				}
-
+			CompactStatement::Valid(_) => {
 				false
 			}
 		};
 
 		self.sent_statements.insert(fingerprint.clone());
 
-		Some(new_known)
+		new_known
+	}
+
+	/// This returns `true` if the peer cannot accept this statement, without altering internal
+	/// state, `false` otherwise.
+	fn can_send(&self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+		let already_known = self.sent_statements.contains(fingerprint)
+			|| self.received_statements.contains(fingerprint);
+
+		if already_known {
+			return false;
+		}
+
+		match fingerprint.0 {
+			CompactStatement::Valid(ref h) => {
+				// The peer can only accept Valid and Invalid statements for which it is aware
+				// of the corresponding candidate.
+				self.known_candidates.contains(h)
+			}
+			CompactStatement::Seconded(_) => {
+				true
+			},
+		}
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -256,6 +281,51 @@ impl PeerRelayParentKnowledge {
 		self.received_statements.insert(fingerprint.clone());
 		Ok(self.known_candidates.insert(candidate_hash.clone()))
 	}
+
+	/// This method does the same checks as `receive` without modifying the internal state.
+	/// Returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	fn check_can_receive(
+		&self,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		// We don't check `sent_statements` because a statement could be in-flight from both
+		// sides at the same time.
+		if self.received_statements.contains(fingerprint) {
+			return Err(COST_DUPLICATE_STATEMENT);
+		}
+
+		let candidate_hash = match fingerprint.0 {
+			CompactStatement::Seconded(ref h) => {
+				let allowed_remote = self.seconded_counts.get(&fingerprint.1)
+					.map_or(true, |r| r.is_wanted_candidate(h));
+
+				if !allowed_remote {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+			CompactStatement::Valid(ref h) => {
+				if !self.known_candidates.contains(&h) {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+		};
+
+		let received_per_candidate = self.received_message_count
+			.get(candidate_hash)
+			.unwrap_or(&0);
+
+		if *received_per_candidate >= max_message_count {
+			Err(COST_APPARENT_FLOOD)
+		} else {
+			Ok(())
+		}
+	}
 }
 
 struct PeerData {
@@ -264,24 +334,41 @@ struct PeerData {
 }
 
 impl PeerData {
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// Updates our view of the peer's knowledge with this statement's fingerprint based
 	/// on something that we would like to send to the peer.
 	///
-	/// This returns `None` if the peer cannot accept this statement, without altering internal
-	/// state.
+	/// NOTE: assumes `self.can_send` returned true before this call.
 	///
-	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
 	///
-	/// This returns `Some(true)` if this is the first time the peer has become aware of a
+	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn send(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
-	) -> Option<bool> {
-		self.view_knowledge.get_mut(relay_parent).map_or(None, |k| k.send(fingerprint))
+	) -> bool {
+		debug_assert!(
+			self.can_send(relay_parent, fingerprint),
+			"send is only called after `can_send` returns true; qed",
+		);
+		self.view_knowledge
+			.get_mut(relay_parent)
+			.expect("send is only called after `can_send` returns true; qed")
+			.send(fingerprint)
+	}
+
+	/// This returns `None` if the peer cannot accept this statement, without altering internal
+	/// state.
+	fn can_send(
+		&self,
+		relay_parent: &Hash,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+	) -> bool {
+		self.view_knowledge
+			.get(relay_parent)
+			.map_or(false, |k| k.can_send(fingerprint))
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -311,6 +398,21 @@ impl PeerData {
 			.get_mut(relay_parent)
 			.ok_or(COST_UNEXPECTED_STATEMENT)?
 			.receive(fingerprint, max_message_count)
+	}
+
+	/// This method does the same checks as `receive` without modifying the internal state.
+	/// Returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	fn check_can_receive(
+		&self,
+		relay_parent: &Hash,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		self.view_knowledge
+			.get(relay_parent)
+			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.check_can_receive(fingerprint, max_message_count)
 	}
 }
 
@@ -372,7 +474,6 @@ enum NotedStatement<'a> {
 }
 
 /// Large statement fetching status.
-#[derive(Clone)]
 enum LargeStatementStatus {
 	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
 	/// claiming to have that data and will fallback on them.
@@ -391,6 +492,9 @@ struct FetchingInfo {
 	/// Sender for sending fresh peers to the fetching task in case of failure.
 	peer_sender: Option<oneshot::Sender<Vec<PeerId>>>,
 	/// Task taking care of the request.
+	///
+	/// Will be killed once dropped.
+	#[allow(dead_code)]
 	fetching_task: RemoteHandle<()>,
 }
 
@@ -417,6 +521,12 @@ impl Message {
 			msg = from_requester => Message::Requester(msg),
 		)
 	}
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum DeniedStatement {
+	NotUseful,
+	UsefulButKnown,
 }
 
 struct ActiveHeadData {
@@ -556,6 +666,70 @@ impl ActiveHeadData {
 		}
 	}
 
+	/// Returns an error if the statement is already known or not useful
+	/// without modifying the internal state.
+	fn check_useful_or_unknown(&self, statement: SignedFullStatement) -> Result<(), DeniedStatement> {
+		let validator_index = statement.validator_index();
+		let compact = statement.payload().to_compact();
+		let comparator = StoredStatementComparator {
+			compact: compact.clone(),
+			validator_index,
+			signature: statement.signature().clone(),
+		};
+
+		let stored = StoredStatement {
+			comparator,
+			statement,
+		};
+
+		match compact {
+			CompactStatement::Seconded(_) => {
+				let seconded_so_far = self.seconded_counts.get(&validator_index).unwrap_or(&0);
+				if *seconded_so_far >= VC_THRESHOLD {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Extra statement is ignored",
+					);
+					return Err(DeniedStatement::NotUseful);
+				}
+
+				if self.statements.contains(&stored) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Known statement",
+					);
+					return Err(DeniedStatement::UsefulButKnown);
+				}
+			}
+			CompactStatement::Valid(h) => {
+				if !self.candidates.contains(&h) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Statement for unknown candidate",
+					);
+					return Err(DeniedStatement::NotUseful);
+				}
+
+				if self.statements.contains(&stored) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Known statement",
+					);
+					return Err(DeniedStatement::UsefulButKnown);
+				}
+			}
+		}
+		Ok(())
+	}
+
 	/// Get an iterator over all statements for the active head. Seconded statements come first.
 	fn statements(&self) -> impl Iterator<Item = &'_ StoredStatement> + '_ {
 		self.statements.iter()
@@ -685,13 +859,21 @@ async fn circulate_statement(
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
-	let mut peers_to_send = HashMap::new();
-
-	for (peer, data) in peers.iter_mut() {
-		if let Some(new_known) = data.send(&relay_parent, &fingerprint) {
-			peers_to_send.insert(peer.clone(), new_known);
+	let peers_to_send: Vec<PeerId> = peers.iter().filter_map(|(peer, data)| {
+		if data.can_send(&relay_parent, &fingerprint) {
+			Some(peer.clone())
+		} else {
+			None
 		}
-	}
+	}).collect();
+	let peers_to_send = util::choose_random_sqrt_subset(peers_to_send, MIN_GOSSIP_PEERS);
+	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send.into_iter()
+		.map(|peer_id| {
+			let new = peers.get_mut(&peer_id)
+				.expect("a subset is taken above, so it exists; qed")
+				.send(&relay_parent, &fingerprint);
+			(peer_id, new)
+		}).collect();
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
@@ -701,10 +883,10 @@ async fn circulate_statement(
 			?peers_to_send,
 			?relay_parent,
 			statement = ?stored.statement,
-			"Sending statement"
+			"Sending statement",
 		);
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
-			peers_to_send.keys().cloned().collect(),
+			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))).await;
 	}
@@ -728,26 +910,29 @@ async fn send_statements_about(
 	metrics: &Metrics,
 ) {
 	for statement in active_head.statements_about(candidate_hash) {
-		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
-			let payload = statement_message(
-				relay_parent,
-				statement.statement.clone(),
-			);
-
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer,
-				?relay_parent,
-				?candidate_hash,
-				statement = ?statement.statement,
-				"Sending statement"
-			);
-			ctx.send_message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-			)).await;
-
-			metrics.on_statement_distributed();
+		let fingerprint = statement.fingerprint();
+		if !peer_data.can_send(&relay_parent, &fingerprint) {
+			continue;
 		}
+		peer_data.send(&relay_parent, &fingerprint);
+		let payload = statement_message(
+			relay_parent,
+			statement.statement.clone(),
+		);
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			?peer,
+			?relay_parent,
+			?candidate_hash,
+			statement = ?statement.statement,
+			"Sending statement",
+		);
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
+		)).await;
+
+		metrics.on_statement_distributed();
 	}
 }
 
@@ -756,31 +941,34 @@ async fn send_statements_about(
 async fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
 ) {
 	for statement in active_head.statements() {
-		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
-			let payload = statement_message(
-				relay_parent,
-				statement.statement.clone(),
-			);
-
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer,
-				?relay_parent,
-				statement = ?statement.statement,
-				"Sending statement"
-			);
-			ctx.send_message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-			)).await;
-
-			metrics.on_statement_distributed();
+		let fingerprint = statement.fingerprint();
+		if !peer_data.can_send(&relay_parent, &fingerprint) {
+			continue;
 		}
+		peer_data.send(&relay_parent, &fingerprint);
+		let payload = statement_message(
+			relay_parent,
+			statement.statement.clone(),
+		);
+
+		tracing::trace!(
+			target: LOG_TARGET,
+			?peer,
+			?relay_parent,
+			statement = ?statement.statement,
+			"Sending statement"
+		);
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
+		)).await;
+
+		metrics.on_statement_distributed();
 	}
 }
 
@@ -798,7 +986,6 @@ async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
 	message: protocol_v1::StatementDistributionMessage,
-	our_view: &View,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
@@ -808,7 +995,6 @@ async fn handle_incoming_message_and_circulate<'a>(
 	let result = retrieve_statement_from_message(
 		peer,
 		message,
-		our_view,
 		active_heads,
 		ctx,
 		req_sender,
@@ -818,7 +1004,6 @@ async fn handle_incoming_message_and_circulate<'a>(
 		handle_incoming_statement_and_circulate(
 			peer,
 			peers,
-			&*our_view,
 			active_head,
 			ctx,
 			relay_parent,
@@ -838,7 +1023,6 @@ async fn handle_incoming_message_and_circulate<'a>(
 async fn retrieve_statement_from_message<'a>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
-	our_view: &View,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
@@ -846,27 +1030,15 @@ async fn retrieve_statement_from_message<'a>(
 
 	let metadata = message.get_metadata();
 
-	if !our_view.contains(&metadata.relay_parent) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer,
-			?metadata,
-			"Unexpected statement"
-		);
-		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
-		return None
-	}
-
 	let active_head = match active_heads.get_mut(&metadata.relay_parent) {
 		Some(h) => h,
 		None => {
-			// This should never be out-of-sync with our view if the view updates
-			// correspond to actual `StartWork` messages. So we just log and ignore.
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				requested_relay_parent = %metadata.relay_parent,
 				"our view out-of-sync with active heads; head not found",
-				);
+			);
+			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
 			return None
 		}
 	};
@@ -947,7 +1119,7 @@ async fn retrieve_statement_from_message<'a>(
 					}
 				}
 				Entry::Vacant(vacant) => {
-					if let Some(new_status) = launch_request(metadata, peer, req_sender, ctx).await {
+					if let Some(new_status) = launch_request(metadata, peer, req_sender.clone(), ctx).await {
 						vacant.insert(new_status);
 					}
 				}
@@ -964,7 +1136,7 @@ async fn launch_request(
 	meta: StatementMetadata,
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 ) -> Option<LargeStatementStatus> {
 
 	let (task, handle) = fetch(
@@ -999,7 +1171,6 @@ async fn launch_request(
 async fn handle_incoming_statement_and_circulate<'a>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
-	our_view: &View,
 	active_head: &'a mut ActiveHeadData,
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
@@ -1011,7 +1182,6 @@ async fn handle_incoming_statement_and_circulate<'a>(
 			handle_incoming_statement(
 				peer,
 				data,
-				&*our_view,
 				active_head,
 				ctx,
 				relay_parent,
@@ -1049,9 +1219,8 @@ async fn handle_incoming_statement_and_circulate<'a>(
 async fn handle_incoming_statement<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	our_view: &View,
 	active_head: &'a mut ActiveHeadData,
-	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
@@ -1060,6 +1229,34 @@ async fn handle_incoming_statement<'a>(
 	let handle_incoming_span = active_head.span.child("handle-incoming")
 		.with_candidate(candidate_hash)
 		.with_peer_id(&peer);
+
+	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
+	let max_message_count = active_head.validators.len() * 2;
+
+	// perform only basic checks before verifying the signature
+	// as it's more computationally heavy
+	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer,
+			?statement,
+			?rep,
+			"Error inserting received statement"
+		);
+		report_peer(ctx, peer, rep).await;
+		return None;
+	}
+
+	match active_head.check_useful_or_unknown(statement.clone()) {
+		Ok(()) => {},
+		Err(DeniedStatement::NotUseful) => {
+			return None;
+		}
+		Err(DeniedStatement::UsefulButKnown) => {
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+			return None;
+		}
+	}
 
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
@@ -1077,19 +1274,9 @@ async fn handle_incoming_statement<'a>(
 	//
 	// Note that if the peer is sending us something that is not within their view,
 	// it will not be kept within their log.
-	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
-	let max_message_count = active_head.validators.len() * 2;
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
-		Err(rep) => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?peer,
-				?statement,
-				?rep,
-				"Error inserting received statement"
-			);
-			report_peer(ctx, peer, rep).await;
-			return None;
+		Err(_) => {
+			unreachable!("checked in `check_can_receive` above; qed");
 		}
 		Ok(true) => {
 			tracing::trace!(
@@ -1116,10 +1303,9 @@ async fn handle_incoming_statement<'a>(
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	match active_head.note_statement(statement) {
-		NotedStatement::NotUseful => None,
+		NotedStatement::NotUseful |
 		NotedStatement::UsefulButKnown => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
-			None
+			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		}
 		NotedStatement::Fresh(statement) => {
 			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
@@ -1178,7 +1364,6 @@ async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
-	our_view: &mut OurView,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
@@ -1209,7 +1394,6 @@ async fn handle_network_update(
 				peer,
 				peers,
 				message,
-				&*our_view,
 				active_heads,
 				ctx,
 				req_sender,
@@ -1237,28 +1421,10 @@ async fn handle_network_update(
 				None => (),
 			}
 		}
-		NetworkBridgeEvent::OurViewChange(view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				"Own view change",
-			);
-			let old_view = std::mem::replace(our_view, view);
-			active_heads.retain(|head, _| our_view.contains(head));
-
-			for new in our_view.difference(&old_view) {
-				if !active_heads.contains_key(&new) {
-					tracing::warn!(
-						target: LOG_TARGET,
-						unknown_hash = %new,
-						"Our network bridge view update \
-						inconsistent with `StartWork` messages we have received from overseer. \
-						Contains unknown hash.",
-					);
-				}
-			}
+		NetworkBridgeEvent::OurViewChange(_view) => {
+			// handled by `ActiveLeavesUpdate`
 		}
 	}
-
 }
 
 impl StatementDistribution {
@@ -1268,7 +1434,6 @@ impl StatementDistribution {
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> SubsystemResult<()> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut our_view = OurView::default();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
@@ -1280,7 +1445,6 @@ impl StatementDistribution {
 					self.handle_subsystem_messages(
 						&mut ctx,
 						&mut peers,
-						&mut our_view,
 						&mut active_heads,
 						&req_sender,
 						result?,
@@ -1290,7 +1454,6 @@ impl StatementDistribution {
 					self.handle_requester_messages(
 						&mut ctx,
 						&mut peers,
-						&mut our_view,
 						&mut active_heads,
 						&req_sender,
 						result.ok_or(SubsystemError::Context(
@@ -1311,7 +1474,6 @@ impl StatementDistribution {
 		&self,
 		ctx: &mut impl SubsystemContext,
 		peers: &mut HashMap<PeerId, PeerData>,
-		our_view: &mut OurView,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
@@ -1327,7 +1489,7 @@ impl StatementDistribution {
 			} => {
 			
 				for bad in bad_peers {
-					report_peer(ctx, bad, COST_FETCH_FAIL);
+					report_peer(ctx, bad, COST_FETCH_FAIL).await;
 				}
 
 				let active_head = match active_heads.get_mut(&relay_parent) {
@@ -1386,7 +1548,6 @@ impl StatementDistribution {
 						handle_incoming_statement_and_circulate(
 							from_peer,
 							peers,
-							&*our_view,
 							active_head,
 							ctx,
 							relay_parent,
@@ -1404,7 +1565,6 @@ impl StatementDistribution {
 								peer,
 								peers,
 								message,
-								&*our_view,
 								active_heads,
 								ctx,
 								req_sender,
@@ -1432,7 +1592,7 @@ impl StatementDistribution {
 							candidate_hash,
 							LargeStatementStatus::Fetching(info),
 						);
-						report_peer(ctx, from_peer, COST_INVALID_SIGNATURE);
+						report_peer(ctx, from_peer, COST_INVALID_SIGNATURE).await;
 					}
 				} else {
 					tracing::debug!(
@@ -1501,7 +1661,6 @@ impl StatementDistribution {
 		&self,
 		ctx: &mut impl SubsystemContext,
 		peers: &mut HashMap<PeerId, PeerData>,
-		our_view: &mut OurView,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
@@ -1509,30 +1668,34 @@ impl StatementDistribution {
 		let metrics = &self.metrics;
 
 		match message {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
-				let _timer = metrics.time_active_leaves_update();
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
+                let _timer = metrics.time_active_leaves_update();
 
 				for activated in activated {
-					let relay_parent = activated.hash;
-					let span = PerLeafSpan::new(activated.span, "statement-distribution");
+                    let relay_parent = activated.hash;
+                    let span = PerLeafSpan::new(activated.span, "statement-distribution");
+                    tracing::trace!(
+                        target: LOG_TARGET,
+                        hash = ?relay_parent,
+                        "New active leaf",
+                    );
 
 					let (validators, session_index) = {
-						let (val_tx, val_rx) = oneshot::channel();
-						let (session_tx, session_rx) = oneshot::channel();
+                        let (val_tx, val_rx) = oneshot::channel();
+                        let (session_tx, session_rx) = oneshot::channel();
 
-						let val_message = AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(
-								relay_parent,
-								RuntimeApiRequest::Validators(val_tx),
-							),
-						);
-						let session_message = AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(
-								relay_parent,
-								RuntimeApiRequest::SessionIndexForChild(session_tx),
-							),
-						);
-
+                        let val_message = AllMessages::RuntimeApi(
+                            RuntimeApiMessage::Request(
+                                relay_parent,
+                                RuntimeApiRequest::Validators(val_tx),
+                            ),
+                        );
+                        let session_message = AllMessages::RuntimeApi(
+                            RuntimeApiMessage::Request(
+                                relay_parent,
+                                RuntimeApiRequest::SessionIndexForChild(session_tx),
+                            ),
+                        );
 						ctx.send_messages(
 							std::iter::once(val_message).chain(std::iter::once(session_message))
 						).await;
@@ -1556,6 +1719,18 @@ impl StatementDistribution {
 
 					active_heads.entry(relay_parent)
 						.or_insert(ActiveHeadData::new(validators, session_index, span));
+
+					active_heads.retain(|h, _| {
+						let live = !deactivated.contains(h);
+						if !live {
+							tracing::trace!(
+								target: LOG_TARGET,
+								hash = ?h,
+								"Deactivating leaf",
+							);
+						}
+						live
+					});
 				}
 			}
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
@@ -1605,9 +1780,8 @@ impl StatementDistribution {
 						peers,
 						active_heads,
 						ctx,
-						our_view,
+						req_sender,
 						event,
-						&req_sender,
 						metrics,
 					).await;
 				}
@@ -1709,7 +1883,7 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
-	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
+	use polkadot_node_network_protocol::{view, ObservedRole};
 	use polkadot_subsystem::{jaeger, ActivatedLeaf};
 
 	#[test]
@@ -1770,57 +1944,69 @@ mod tests {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(a_seconded_val_0.clone()).is_ok());
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note A (duplicate)
+		assert_eq!(
+			head_data.check_useful_or_unknown(a_seconded_val_0.clone()),
+			Err(DeniedStatement::UsefulButKnown),
+		);
 		let noted = head_data.note_statement(a_seconded_val_0);
 
 		assert_matches!(noted, NotedStatement::UsefulButKnown);
 
 		// note B
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (beyond 2 - ignored)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert_eq!(
+			head_data.check_useful_or_unknown(statement.clone()),
+			Err(DeniedStatement::NotUseful),
+		);
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::NotUseful);
 
 		// note B (new validator)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (new validator)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
 
@@ -1867,7 +2053,7 @@ mod tests {
 		let hash_a = CandidateHash([1; 32].into());
 
 		// Sending an un-pinned statement should not work and should have no effect.
-		assert!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))).is_none());
+		assert!(!knowledge.can_send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))));
 		assert!(!knowledge.known_candidates.contains(&hash_a));
 		assert!(knowledge.sent_statements.is_empty());
 		assert!(knowledge.received_statements.is_empty());
@@ -1875,8 +2061,8 @@ mod tests {
 		assert!(knowledge.received_message_count.is_empty());
 
 		// Make the peer aware of the candidate.
-		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))), Some(true));
-		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1))), Some(false));
+		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))), true);
+		assert_eq!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(1))), false);
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(knowledge.sent_statements.len(), 2);
 		assert!(knowledge.received_statements.is_empty());
@@ -1884,7 +2070,7 @@ mod tests {
 		assert!(knowledge.received_message_count.get(&hash_a).is_none());
 
 		// And now it should accept the dependent message.
-		assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))), Some(false));
+		assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), ValidatorIndex(0))), false);
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(knowledge.sent_statements.len(), 3);
 		assert!(knowledge.received_statements.is_empty());
@@ -1897,8 +2083,9 @@ mod tests {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
 		let hash_a = CandidateHash([1; 32].into());
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).is_ok());
 		assert!(knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).unwrap());
-		assert!(knowledge.send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))).is_none());
+		assert!(!knowledge.can_send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))));
 	}
 
 	#[test]
@@ -1908,16 +2095,22 @@ mod tests {
 		let hash_a = CandidateHash([1; 32].into());
 
 		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
+		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
 		);
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
 		// Push statements up to the flood limit.
+		assert!(knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(1)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(1)), 3),
 			Ok(false),
@@ -1926,6 +2119,7 @@ mod tests {
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 2);
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Ok(false),
@@ -1933,6 +2127,10 @@ mod tests {
 
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 3);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(7)), 3),
+			Err(COST_APPARENT_FLOOD),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(7)), 3),
 			Err(COST_APPARENT_FLOOD),
@@ -1945,11 +2143,16 @@ mod tests {
 		let hash_b = CandidateHash([2; 32].into());
 		let hash_c = CandidateHash([3; 32].into());
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
@@ -1957,10 +2160,18 @@ mod tests {
 
 		// Last, make sure that already-known statements are disregarded.
 		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
+		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
 		);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
@@ -2016,34 +2227,39 @@ mod tests {
 				PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 			);
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Seconded(candidate.clone()),
 				&signing_context,
 				ValidatorIndex(0),
 				&alice_public.into(),
-			)).ok().flatten().expect("should be signed"));
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				ValidatorIndex(1),
 				&bob_public.into(),
-			)).ok().flatten().expect("should be signed"));
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				ValidatorIndex(2),
 				&charlie_public.into(),
-			)).ok().flatten().expect("should be signed"));
-
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
 			data
@@ -2321,12 +2537,6 @@ mod tests {
 				)
 			}).await;
 
-			handle.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::OurViewChange(our_view![hash_a])
-				)
-			}).await;
-
 			// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
 			// candidate backing.
 			let statement = {
@@ -2387,11 +2597,12 @@ mod tests {
 					assert_eq!(s, statement);
 				}
 			);
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(bg);
 
-		executor::block_on(future::select(test_fut, bg));
+		executor::block_on(future::join(test_fut, bg));
 	}
 }

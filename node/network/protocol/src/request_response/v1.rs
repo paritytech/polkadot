@@ -20,9 +20,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk, SignedFullStatement};
-
-use crate::v1::StatementMetadata;
+use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
 
 use super::request::IsRequest;
 use super::Protocol;

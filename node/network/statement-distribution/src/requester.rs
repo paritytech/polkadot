@@ -14,19 +14,23 @@
 
 //! Large statement requesting background task logic.
 
-use std::{collections::HashMap, time::Duration};
-
+use std::time::Duration;
 
 use futures::{SinkExt, channel::{mpsc, oneshot}};
-use thiserror::Error;
 
-use polkadot_node_network_protocol::{IfDisconnected, PeerId, request_response::{OutgoingRequest, Recipient, Requests, v1::{StatementFetchingRequest, StatementFetchingResponse}}, v1::StatementMetadata};
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_network_protocol::{
+    PeerId,
+    request_response::{
+        OutgoingRequest, Recipient, Requests,
+        v1::{
+            StatementFetchingRequest, StatementFetchingResponse
+        }
+    }
+};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash, SessionIndex, SigningContext, ValidatorId, ValidatorIndex};
-use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
+use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
-use crate::{ActiveHeadData, LOG_TARGET};
+use crate::LOG_TARGET;
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -172,7 +176,7 @@ async fn try_get_new_peers(
 	let (tx, rx) = oneshot::channel();
 
 	if let Err(err) = sender.send(
-		RequesterMessage::GetMorePeers(relay_parent, candidate_hash, tx)
+		RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx }
 	).await {
 		tracing::debug!(
 			target: LOG_TARGET,
