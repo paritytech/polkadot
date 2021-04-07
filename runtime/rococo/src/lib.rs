@@ -655,7 +655,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = size::MAX_CODE_SIZE;
+	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
