@@ -16,7 +16,7 @@
 
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
-use frame_support::traits::{Get, tokens::fungibles::Mutate as Fungibles};
+use frame_support::traits::{Get, tokens::fungibles};
 use xcm_executor::traits::{TransactAsset, Convert};
 
 /// Asset transaction errors.
@@ -134,16 +134,41 @@ impl<
 	}
 }
 
-pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
+pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
 );
-
 impl<
-	Assets: Fungibles<AccountId>,
+	Assets: fungibles::Transfer<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-> TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+> TransactAsset for FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+	fn transfer_asset(
+		what: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> result::Result<xcm_executor::Assets, XcmError> {
+		// Check we handle this asset.
+		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
+		let source = AccountIdConverter::convert_ref(from)
+			.map_err(|()| Error::AccountIdConversionFailed)?;
+		let dest = AccountIdConverter::convert_ref(to)
+			.map_err(|()| Error::AccountIdConversionFailed)?;
+		Assets::transfer(asset_id, &source, &dest, amount, true)
+			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
+		Ok(what.clone().into())
+	}
+}
+
+pub struct FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
+	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
+);
+impl<
+	Assets: fungibles::Mutate<AccountId>,
+	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
+	AccountIdConverter: Convert<MultiLocation, AccountId>,
+	AccountId: Clone,	// can't get away without it since Currency is generic over it.
+> TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
@@ -166,6 +191,34 @@ impl<
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
 	}
+}
 
-	// TODO: #2841 #XCMXFERASSET implement transfer_asset, but should move it into a different trait.
+pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
+	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
+);
+impl<
+	Assets: fungibles::Mutate<AccountId> + fungibles::Transfer<AccountId>,
+	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
+	AccountIdConverter: Convert<MultiLocation, AccountId>,
+	AccountId: Clone,	// can't get away without it since Currency is generic over it.
+> TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::deposit_asset(what, who)
+	}
+
+	fn withdraw_asset(
+		what: &MultiAsset,
+		who: &MultiLocation
+	) -> result::Result<xcm_executor::Assets, XcmError> {
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::withdraw_asset(what, who)
+	}
+
+	fn transfer_asset(
+		what: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> result::Result<xcm_executor::Assets, XcmError> {
+		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(what, from, to)
+	}
 }

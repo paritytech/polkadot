@@ -27,23 +27,23 @@ pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult;
+	fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
 
 	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn. In
 	/// the case of `what` being a wildcard, this may be something more specific.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError>;
+	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
+		Err(XcmError::Unimplemented)
+	}
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
-	fn transfer_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
-		let withdrawn = Self::withdraw_asset(asset, from)?;
-		for asset in withdrawn.assets_iter() {
-			Self::deposit_asset(&asset, to)?;
-		}
-		Ok(withdrawn)
+	fn transfer_asset(_asset: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+		Err(XcmError::Unimplemented)
 	}
 }
 
@@ -61,4 +61,11 @@ impl TransactAsset for Tuple {
 		)* );
 		Err(XcmError::Unimplemented)
 	}
+	fn transfer_asset(what: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+		for_tuples!( #(
+			match Tuple::transfer_asset(what, from, to) { o @ Ok(_) => return o, _ => () }
+		)* );
+		Err(XcmError::Unimplemented)
+	}
 }
+
