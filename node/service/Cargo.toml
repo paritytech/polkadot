@@ -23,6 +23,7 @@ sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
