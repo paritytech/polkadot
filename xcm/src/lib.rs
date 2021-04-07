@@ -52,7 +52,6 @@ pub mod opaque {
 	pub type VersionedXcm = super::VersionedXcm<()>;
 }
 
-
 /// A versioned multi-location, a relative location of a cross-consensus system identifier.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum VersionedMultiLocation {
