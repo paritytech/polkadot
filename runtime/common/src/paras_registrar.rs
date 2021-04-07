@@ -17,7 +17,6 @@
 //! Module to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
-use crate::WASM_MAGIC;
 use sp_std::{prelude::*, result};
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure,
@@ -133,8 +132,6 @@ decl_error! {
 		CodeTooLarge,
 		/// Invalid para head data size.
 		HeadDataTooLarge,
-		/// The validation code provided doesn't start with the Wasm file magic string.
-		DefinitelyNotWasm,
 		/// Para is not a Parachain.
 		NotParachain,
 		/// Para is not a Parathread.
@@ -304,12 +301,7 @@ impl<T: Config> Registrar for Module<T> {
 	fn worst_validation_code() -> ValidationCode {
 		// TODO: Figure a way to allow bigger wasm in benchmarks?
 		let max_code_size = (T::MaxCodeSize::get()).min(4 * 1024 * 1024);
-		let mut validation_code = vec![0u8; max_code_size as usize];
-		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-		let _ = validation_code.splice(
-			..crate::WASM_MAGIC.len(),
-			crate::WASM_MAGIC.iter().cloned(),
-		).collect::<Vec<_>>();
+		let validation_code = vec![0u8; max_code_size as usize];
 		validation_code.into()
 	}
 
@@ -378,7 +370,6 @@ impl<T: Config> Module<T> {
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		ensure!(validation_code.0.len() <= T::MaxCodeSize::get() as usize, Error::<T>::CodeTooLarge);
 		ensure!(genesis_head.0.len() <= T::MaxHeadSize::get() as usize, Error::<T>::HeadDataTooLarge);
-		ensure!(validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 
 		let per_byte_fee = T::DataDepositPerByte::get();
 		let deposit = T::ParaDeposit::get()
@@ -557,12 +548,7 @@ mod tests {
 	}
 
 	fn test_validation_code(size: usize) -> ValidationCode {
-		let mut validation_code = vec![0u8; size as usize];
-		// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-		let _ = validation_code.splice(
-			..crate::WASM_MAGIC.len(),
-			crate::WASM_MAGIC.iter().cloned(),
-		).collect::<Vec<_>>();
+		let validation_code = vec![0u8; size as usize];
 		ValidationCode(validation_code)
 	}
 
@@ -811,7 +797,7 @@ mod tests {
 				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
+				vec![1, 2, 3].into()
 			));
 
 			// 2 session changes to fully onboard.
@@ -827,7 +813,7 @@ mod tests {
 				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
+				vec![1, 2, 3].into()
 			), Error::<Test>::AlreadyRegistered);
 
 			// By session 4, it is offboarded, and we can register again.
@@ -837,7 +823,7 @@ mod tests {
 				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
+				vec![1, 2, 3].into()
 			));
 		});
 	}

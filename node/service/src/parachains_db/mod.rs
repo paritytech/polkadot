@@ -22,6 +22,7 @@ use {
 	kvdb::KeyValueDB,
 };
 
+mod upgrade;
 
 mod columns {
 	#[cfg(feature = "real-overseer")]
@@ -72,6 +73,11 @@ impl Default for CacheSizes {
 	}
 }
 
+#[cfg(feature = "real-overseer")]
+fn other_io_error(err: String) -> io::Error {
+	io::Error::new(io::ErrorKind::Other, err)
+}
+
 /// Open the database on disk, creating it if it doesn't exist.
 #[cfg(feature = "real-overseer")]
 pub fn open_creating(
@@ -91,13 +97,13 @@ pub fn open_creating(
 	let _ = db_config.memory_budget
 		.insert(columns::COL_APPROVAL_DATA, cache_sizes.approval_data);
 
-	let path = path.to_str().ok_or_else(|| io::Error::new(
-		io::ErrorKind::Other,
+	let path_str = path.to_str().ok_or_else(|| other_io_error(
 		format!("Bad database path: {:?}", path),
 	))?;
 
-	std::fs::create_dir_all(&path)?;
-	let db = Database::open(&db_config, &path)?;
+	std::fs::create_dir_all(&path_str)?;
+	upgrade::try_upgrade_db(&path)?;
+	let db = Database::open(&db_config, &path_str)?;
 
 	Ok(Arc::new(db))
 }
