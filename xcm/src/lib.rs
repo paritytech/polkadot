@@ -27,6 +27,7 @@ use parity_scale_codec::{Encode, Decode};
 use derivative::Derivative;
 
 pub mod v0;
+
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
@@ -35,12 +36,22 @@ pub use double_encoded::DoubleEncoded;
 #[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-pub enum VersionedXcmGeneric<Call> {
-	V0(v0::XcmGeneric<Call>),
+pub enum VersionedXcm<Call> {
+	V0(v0::Xcm<Call>),
 }
 
-/// The basic VersionedXcm type which just uses the `Vec<u8>` as an encoded call.
-pub type VersionedXcm = VersionedXcmGeneric<()>;
+pub mod opaque {
+	pub mod v0 {
+		// Everything from v0
+		pub use crate::v0::*;
+		// Then override with the opaque types in v0
+		pub use crate::v0::opaque::{Xcm, Order};
+	}
+
+	/// The basic VersionedXcm type which just uses the `Vec<u8>` as an encoded call.
+	pub type VersionedXcm = super::VersionedXcm<()>;
+}
+
 
 /// A versioned multi-location, a relative location of a cross-consensus system identifier.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]

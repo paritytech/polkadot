@@ -19,14 +19,14 @@
 use alloc::vec::Vec;
 use derivative::Derivative;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, MultiLocation, XcmGeneric};
+use super::{MultiAsset, MultiLocation, Xcm};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-pub enum OrderGeneric<Call> {
+pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
 	Null,
@@ -53,7 +53,7 @@ pub enum OrderGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
@@ -77,7 +77,7 @@ pub enum OrderGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order> },
+	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -87,7 +87,7 @@ pub enum OrderGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 5)]
-	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
 	///
@@ -106,15 +106,17 @@ pub enum OrderGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 7)]
-	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<XcmGeneric<Call>> },
+	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
 }
 
-pub type Order = OrderGeneric<()>;
+pub mod opaque {
+	pub type Order = super::Order<()>;
+}
 
-impl<Call> OrderGeneric<Call> {
-	pub fn into<C>(self) -> OrderGeneric<C> { OrderGeneric::from(self) }
-	pub fn from<C>(order: OrderGeneric<C>) -> Self {
-		use OrderGeneric::*;
+impl<Call> Order<Call> {
+	pub fn into<C>(self) -> Order<C> { Order::from(self) }
+	pub fn from<C>(order: Order<C>) -> Self {
+		use Order::*;
 		match order {
 			Null => Null,
 			DepositAsset { assets, dest }
@@ -130,7 +132,7 @@ impl<Call> OrderGeneric<Call> {
 			QueryHolding { query_id, dest, assets }
 				=> QueryHolding { query_id, dest, assets },
 			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let xcm = xcm.into_iter().map(XcmGeneric::from).collect();
+				let xcm = xcm.into_iter().map(Xcm::from).collect();
 				BuyExecution { fees, weight, debt, halt_on_error, xcm }
 			},
 		}

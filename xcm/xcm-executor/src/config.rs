@@ -16,7 +16,7 @@
 
 use sp_std::marker::PhantomData;
 use parity_scale_codec::Decode;
-use xcm::v0::{SendXcm, MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response};
+use xcm::v0::{SendXcm, MultiLocation, MultiAsset, Xcm, Order, Response};
 use frame_support::{
 	ensure, dispatch::{Dispatchable, Parameter, Weight}, weights::{PostDispatchInfo, GetDispatchInfo}
 };
@@ -32,7 +32,7 @@ pub trait WeightBounds<Call> {
 	/// This is useful to gauge how many fees should be paid up front to begin execution of the message.
 	/// It is not useful for determining whether execution should begin lest it result in surpassing weight
 	/// limits - in that case `deep` is the function to use.
-	fn shallow(message: &mut XcmGeneric<Call>) -> Result<Weight, ()>;
+	fn shallow(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 
 	/// Return the deep amount of weight, over `shallow` that complete, successful and worst-case execution of
 	/// `message` would incur.
@@ -47,22 +47,22 @@ pub trait WeightBounds<Call> {
 	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
 	/// any internal effects. Inner XCM messages may be executed by:
 	/// - Order::BuyExecution
-	fn deep(message: &mut XcmGeneric<Call>) -> Result<Weight, ()>;
+	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 }
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
-	fn shallow(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
+	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		let min = match message {
-			XcmGeneric::Transact { call, .. } => {
+			Xcm::Transact { call, .. } => {
 				call.ensure_decoded()?.get_dispatch_info().weight + T::get()
 			}
-			XcmGeneric::WithdrawAsset { effects, .. }
-			| XcmGeneric::ReserveAssetDeposit { effects, .. }
-			| XcmGeneric::TeleportAsset { effects, .. } => {
+			Xcm::WithdrawAsset { effects, .. }
+			| Xcm::ReserveAssetDeposit { effects, .. }
+			| Xcm::TeleportAsset { effects, .. } => {
 				let inner: Weight = effects.iter_mut()
 					.map(|effect| match effect {
-						OrderGeneric::BuyExecution { .. } => {
+						Order::BuyExecution { .. } => {
 							// On success, execution of this will result in more weight being consumed but
 							// we don't count it here since this is only the *shallow*, non-negotiable weight
 							// spend and doesn't count weight placed behind a `BuyExecution` since it will not
@@ -78,16 +78,16 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 		};
 		Ok(min)
 	}
-	fn deep(message: &mut XcmGeneric<C>) -> Result<Weight, ()> {
+	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		let mut extra = 0;
 		match message {
-			XcmGeneric::Transact { .. } => {}
-			XcmGeneric::WithdrawAsset { effects, .. }
-			| XcmGeneric::ReserveAssetDeposit { effects, .. }
-			| XcmGeneric::TeleportAsset { effects, .. } => {
+			Xcm::Transact { .. } => {}
+			Xcm::WithdrawAsset { effects, .. }
+			| Xcm::ReserveAssetDeposit { effects, .. }
+			| Xcm::TeleportAsset { effects, .. } => {
 				for effect in effects.iter_mut() {
 					match effect {
-						OrderGeneric::BuyExecution { xcm, .. } => {
+						Order::BuyExecution { xcm, .. } => {
 							for message in xcm.iter_mut() {
 								extra += Self::shallow(message)? + Self::deep(message)?;
 							}
@@ -160,7 +160,7 @@ pub trait ShouldExecute {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &XcmGeneric<Call>,
+		message: &Xcm<Call>,
 		shallow_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
@@ -171,7 +171,7 @@ impl ShouldExecute for Tuple {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &XcmGeneric<Call>,
+		message: &Xcm<Call>,
 		shallow_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -190,7 +190,7 @@ impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
 		_origin: &MultiLocation,
 		_top_level: bool,
-		_message: &XcmGeneric<Call>,
+		_message: &Xcm<Call>,
 		shallow_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -204,19 +204,19 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &XcmGeneric<Call>,
+		message: &Xcm<Call>,
 		shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		match message {
-			XcmGeneric::TeleportAsset { effects, .. }
-			| XcmGeneric::WithdrawAsset { effects, ..}
-			| XcmGeneric::ReserveAssetDeposit { effects, ..}
+			Xcm::TeleportAsset { effects, .. }
+			| Xcm::WithdrawAsset { effects, ..}
+			| Xcm::ReserveAssetDeposit { effects, ..}
 				if matches!(
 					effects.first(),
-					Some(OrderGeneric::BuyExecution { debt, ..}) if *debt >= shallow_weight
+					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
 				)
 				=> Ok(()),
 			_ => Err(()),
@@ -229,7 +229,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,
-		_message: &XcmGeneric<Call>,
+		_message: &Xcm<Call>,
 		_shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -252,12 +252,12 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,
-		message: &XcmGeneric<Call>,
+		message: &Xcm<Call>,
 		_shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		match message {
-			XcmGeneric::QueryResponse { query_id, .. } if ResponseHandler::expecting_response(origin, *query_id)
+			Xcm::QueryResponse { query_id, .. } if ResponseHandler::expecting_response(origin, *query_id)
 			=> Ok(()),
 			_ => Err(()),
 		}

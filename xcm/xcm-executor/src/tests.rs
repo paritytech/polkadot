@@ -175,11 +175,11 @@ fn paying_reserve_deposit_should_work() {
 	WeightPrice::set((X1(Parent), 1_000_000_000_000));
 
 	let origin = X1(Parent);
-	let message = XcmGeneric::<TestCall>::ReserveAssetDeposit {
+	let message = Xcm::<TestCall>::ReserveAssetDeposit {
 		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 		effects: vec![
-			OrderGeneric::<TestCall>::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
-			OrderGeneric::<TestCall>::DepositAsset { assets: vec![ All ], dest: Null },
+			Order::<TestCall>::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
+			Order::<TestCall>::DepositAsset { assets: vec![ All ], dest: Null },
 		],
 	};
 	let weight_limit = 50;
@@ -197,7 +197,7 @@ fn transfer_should_work() {
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain{id:1}),
-		XcmGeneric::TransferAsset {
+		Xcm::TransferAsset {
 			assets: vec![ ConcreteFungible { id: Null, amount: 100 } ],
 			dest: X1(AccountIndex64{index:3, network:Any}),
 		},
@@ -221,7 +221,7 @@ fn reserve_transfer_should_work() {
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain{id:1}),
-		XcmGeneric::TransferReserveAsset {
+		Xcm::TransferReserveAsset {
 			assets: vec![ ConcreteFungible { id: Null, amount: 100 } ],
 			dest: X1(Parachain{id:2}),
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three.clone() } ],
@@ -233,7 +233,7 @@ fn reserve_transfer_should_work() {
 	assert_eq!(assets(1002), vec![ ConcreteFungible { id: Null, amount: 100 } ]);
 	assert_eq!(sent_xcm(), vec![(
 		X1(Parachain { id: 2 }),
-		XcmGeneric::ReserveAssetDeposit {
+		Xcm::ReserveAssetDeposit {
 			assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three } ],
 		})
@@ -245,7 +245,7 @@ fn transacting_should_work() {
 	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
 
 	let origin = X1(Parent);
-	let message = XcmGeneric::<TestCall>::Transact {
+	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, None).encode().into(),
@@ -260,7 +260,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
 
 	let origin = X1(Parent);
-	let message = XcmGeneric::<TestCall>::Transact {
+	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 40,
 		call: TestCall::Any(50, None).encode().into(),
@@ -275,7 +275,7 @@ fn transacting_should_refund_weight() {
 	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
 
 	let origin = X1(Parent);
-	let message = XcmGeneric::<TestCall>::Transact {
+	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, Some(30)).encode().into(),
@@ -293,18 +293,18 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	WeightPrice::set((X1(Parent), 1_000_000_000_000));
 
 	let origin = one.clone();
-	let message = XcmGeneric::<TestCall>::WithdrawAsset {
+	let message = Xcm::<TestCall>::WithdrawAsset {
 		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],	// enough for 100 units of weight.
 		effects: vec![
-			OrderGeneric::<TestCall>::BuyExecution { fees: All, weight: 70, debt: 30, halt_on_error: true, xcm: vec![
-				XcmGeneric::<TestCall>::Transact {
+			Order::<TestCall>::BuyExecution { fees: All, weight: 70, debt: 30, halt_on_error: true, xcm: vec![
+				Xcm::<TestCall>::Transact {
 					origin_type: OriginKind::Native,
 					require_weight_at_most: 60,
 					// call estimated at 70 but only takes 10.
 					call: TestCall::Any(60, Some(10)).encode().into(),
 				}
 			] },
-			OrderGeneric::<TestCall>::DepositAsset { assets: vec![ All ], dest: one.clone() },
+			Order::<TestCall>::DepositAsset { assets: vec![ All ], dest: one.clone() },
 		],
 	};
 	let weight_limit = 100;
@@ -321,7 +321,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	expect_response(query_id, origin.clone());
 
 	let the_response = Response::Assets(vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ]);
-	let message = XcmGeneric::<TestCall>::QueryResponse {
+	let message = Xcm::<TestCall>::QueryResponse {
 		query_id,
 		response: the_response.clone(),
 	};

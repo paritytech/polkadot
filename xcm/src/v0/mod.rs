@@ -20,7 +20,7 @@ use core::{result, convert::TryFrom, fmt::Debug};
 use derivative::Derivative;
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{VersionedXcmGeneric, VersionedMultiAsset, DoubleEncoded};
+use crate::{VersionedMultiAsset, DoubleEncoded, VersionedXcm};
 
 mod junction;
 mod multi_asset;
@@ -30,7 +30,7 @@ mod traits;
 pub use junction::{Junction, NetworkId};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
-pub use order::{Order, OrderGeneric};
+pub use order::Order;
 pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
 // TODO: Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode the number of
@@ -68,10 +68,10 @@ pub enum Response {
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
 #[derive(Derivative, Encode, Decode)]
-#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-pub enum XcmGeneric<Call> {
+pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -82,7 +82,7 @@ pub enum XcmGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 0)]
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
+	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -99,7 +99,7 @@ pub enum XcmGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
+	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -117,7 +117,7 @@ pub enum XcmGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<OrderGeneric<Call>> },
+	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -162,7 +162,7 @@ pub enum XcmGeneric<Call> {
 	///
 	/// Errors:
 	#[codec(index = 5)]
-	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -229,50 +229,54 @@ pub enum XcmGeneric<Call> {
 	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
 }
 
-/// The basic concrete type of `XcmGeneric`, which doesn't make any assumptions about the format of a
-/// call other than it is pre-encoded.
-pub type Xcm = XcmGeneric<()>;
-
-impl<Call> From<XcmGeneric<Call>> for VersionedXcmGeneric<Call> {
-	fn from(x: XcmGeneric<Call>) -> Self {
-		VersionedXcmGeneric::V0(x)
+impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: Xcm<Call>) -> Self {
+		VersionedXcm::V0(x)
 	}
 }
 
-impl<Call> TryFrom<VersionedXcmGeneric<Call>> for XcmGeneric<Call> {
+impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
 	type Error = ();
-	fn try_from(x: VersionedXcmGeneric<Call>) -> result::Result<Self, ()> {
+	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
 		match x {
-			VersionedXcmGeneric::V0(x) => Ok(x),
+			VersionedXcm::V0(x) => Ok(x),
 		}
 	}
 }
 
-impl<Call> XcmGeneric<Call> {
-	pub fn into<C>(self) -> XcmGeneric<C> { XcmGeneric::from(self) }
-	pub fn from<C>(xcm: XcmGeneric<C>) -> Self {
-		use XcmGeneric::*;
+impl<Call> Xcm<Call> {
+	pub fn into<C>(self) -> Xcm<C> { Xcm::from(self) }
+	pub fn from<C>(xcm: Xcm<C>) -> Self {
+		use Xcm::*;
 		match xcm {
 			WithdrawAsset { assets, effects }
-				=> WithdrawAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
+			=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			ReserveAssetDeposit { assets, effects }
-				=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
+			=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(Order::into).collect() },
 			TeleportAsset { assets, effects }
-				=> TeleportAsset { assets, effects: effects.into_iter().map(OrderGeneric::into).collect() },
+			=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			QueryResponse { query_id: u64, response }
-				=> QueryResponse { query_id: u64, response },
+			=> QueryResponse { query_id: u64, response },
 			TransferAsset { assets, dest }
-				=> TransferAsset { assets, dest },
+			=> TransferAsset { assets, dest },
 			TransferReserveAsset { assets, dest, effects }
-				=> TransferReserveAsset { assets, dest, effects },
+			=> TransferReserveAsset { assets, dest, effects },
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity}
-				=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
+			=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
 			HrmpChannelAccepted { recipient}
-				=> HrmpChannelAccepted { recipient},
+			=> HrmpChannelAccepted { recipient},
 			HrmpChannelClosing { initiator, sender, recipient}
-				=> HrmpChannelClosing { initiator, sender, recipient},
+			=> HrmpChannelClosing { initiator, sender, recipient},
 			Transact { origin_type, require_weight_at_most, call}
-				=> Transact { origin_type, require_weight_at_most, call: call.into() }
+			=> Transact { origin_type, require_weight_at_most, call: call.into() }
 		}
 	}
+}
+
+pub mod opaque {
+	/// The basic concrete type of `generic::Xcm`, which doesn't make any assumptions about the format of a
+	/// call other than it is pre-encoded.
+	pub type Xcm = super::Xcm<()>;
+
+	pub use super::order::opaque::*;
 }

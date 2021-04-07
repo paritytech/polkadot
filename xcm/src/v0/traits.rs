@@ -19,7 +19,7 @@
 use core::result;
 use parity_scale_codec::{Encode, Decode};
 
-use super::{MultiLocation, Xcm, XcmGeneric};
+use super::{MultiLocation, Xcm};
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub enum Error {
@@ -120,21 +120,21 @@ impl Outcome {
 }
 
 pub trait ExecuteXcm<Call> {
-	fn execute_xcm(origin: MultiLocation, message: XcmGeneric<Call>, weight_limit: Weight) -> Outcome;
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
-	fn execute_xcm(_origin: MultiLocation, _message: XcmGeneric<C>, _weight_limit: Weight) -> Outcome {
+	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
 
 pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
+	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> Result;
 }
 
 impl SendXcm for () {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
+	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> Result {
 		Err(Error::Unimplemented)
 	}
 }

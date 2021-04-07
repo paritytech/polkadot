@@ -22,8 +22,8 @@ use frame_support::{
 	dispatch::{Weight, Dispatchable}
 };
 use xcm::v0::{
-	Xcm, ExecuteXcm, SendXcm, Error as XcmError, Outcome,
-	MultiLocation, MultiAsset, XcmGeneric, OrderGeneric, Response,
+	ExecuteXcm, SendXcm, Error as XcmError, Outcome,
+	MultiLocation, MultiAsset, Xcm, Order, Response,
 };
 
 #[cfg(test)]
@@ -46,9 +46,9 @@ pub use config::{
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
-	fn execute_xcm(origin: MultiLocation, message: XcmGeneric<Config::Call>, weight_limit: Weight) -> Outcome {
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Config::Call>, weight_limit: Weight) -> Outcome {
 		// TODO: We should identify recursive bombs here and bail.
-		let mut message = XcmGeneric::<Config::Call>::from(message);
+		let mut message = Xcm::<Config::Call>::from(message);
 		let shallow_weight = match Config::Weigher::shallow(&mut message) {
 			Ok(x) => x,
 			Err(()) => return Outcome::Error(XcmError::WeightNotComputable),
@@ -85,7 +85,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn do_execute_xcm(
 		origin: MultiLocation,
 		top_level: bool,
-		mut message: XcmGeneric<Config::Call>,
+		mut message: Xcm<Config::Call>,
 		weight_credit: &mut Weight,
 		maybe_shallow_weight: Option<Weight>,
 		trader: &mut Config::Trader,
@@ -105,7 +105,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut total_surplus = 0;
 
 		let maybe_holding_effects = match (origin.clone(), message) {
-			(origin, XcmGeneric::WithdrawAsset { assets, effects }) => {
+			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
 				for asset in assets {
@@ -115,7 +115,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Some((holding, effects))
 			}
-			(origin, XcmGeneric::ReserveAssetDeposit { assets, effects }) => {
+			(origin, Xcm::ReserveAssetDeposit { assets, effects }) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				for asset in assets.iter() {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
@@ -125,7 +125,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Some((Assets::from(assets), effects))
 			}
-			(origin, XcmGeneric::TransferAsset { assets, dest }) => {
+			(origin, Xcm::TransferAsset { assets, dest }) => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
@@ -133,7 +133,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				None
 			}
-			(origin, XcmGeneric::TransferReserveAsset { mut assets, dest, effects }) => {
+			(origin, Xcm::TransferReserveAsset { mut assets, dest, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let inv_dest = Config::LocationInverter::invert_location(&dest);
 				for asset in assets.iter_mut() {
@@ -144,7 +144,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
 				None
 			}
-			(origin, XcmGeneric::TeleportAsset { assets, effects }) => {
+			(origin, Xcm::TeleportAsset { assets, effects }) => {
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.iter() {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
@@ -154,7 +154,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Some((Assets::from(assets), effects))
 			}
-			(origin, XcmGeneric::Transact { origin_type, require_weight_at_most,  mut call }) => {
+			(origin, Xcm::Transact { origin_type, require_weight_at_most,  mut call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 
 				// TODO: allow this to be configurable in the trait.
@@ -185,7 +185,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			}
-			(origin, XcmGeneric::QueryResponse { query_id, response }) => {
+			(origin, Xcm::QueryResponse { query_id, response }) => {
 				Config::ResponseHandler::on_response(origin, query_id, response);
 				None
 			}
@@ -204,18 +204,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn execute_effects(
 		origin: &MultiLocation,
 		holding: &mut Assets,
-		effect: OrderGeneric<Config::Call>,
+		effect: Order<Config::Call>,
 		trader: &mut Config::Trader,
 	) -> Result<Weight, XcmError> {
 		let mut total_surplus = 0;
 		match effect {
-			OrderGeneric::DepositAsset { assets, dest } => {
+			Order::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 			},
-			OrderGeneric::DepositReserveAsset { assets, dest, effects } => {
+			Order::DepositReserveAsset { assets, dest, effects } => {
 				let deposited = holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
@@ -223,19 +223,19 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
 			},
-			OrderGeneric::InitiateReserveWithdraw { assets, reserve, effects} => {
+			Order::InitiateReserveWithdraw { assets, reserve, effects} => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &reserve);
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
-			OrderGeneric::InitiateTeleport { assets, dest, effects} => {
+			Order::InitiateTeleport { assets, dest, effects} => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
 			}
-			OrderGeneric::QueryHolding { query_id, dest, assets } => {
+			Order::QueryHolding { query_id, dest, assets } => {
 				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::QueryResponse { query_id, response: Response::Assets(assets) })?;
 			}
-			OrderGeneric::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
+			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				// pay for `weight` using up to `fees` of the holding account.
 				let purchasing_weight = Weight::from(weight + debt);
 				let max_fee = holding.try_take(fees).map_err(|()| XcmError::NotHoldingFees)?;

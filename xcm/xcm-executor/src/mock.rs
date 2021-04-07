@@ -19,7 +19,7 @@ pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 pub use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 pub use parity_scale_codec::{Encode, Decode};
 pub use xcm::v0::{
-	SendXcm, MultiLocation::*, Junction::*, MultiAsset, XcmGeneric, OrderGeneric, Result as XcmResult, Error,
+	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error,
 	OriginKind, MultiLocation, Junction,
 };
 pub use frame_support::{

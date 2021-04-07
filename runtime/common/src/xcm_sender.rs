@@ -18,7 +18,7 @@
 
 use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
-use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
+use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
 
 /// Xcm sender for relay chain. It only sends downward message.

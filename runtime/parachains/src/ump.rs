@@ -62,15 +62,15 @@ pub struct XcmSink<Config>(sp_std::marker::PhantomData<Config>);
 impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
 		use parity_scale_codec::Decode;
-		use xcm::VersionedXcmGeneric;
+		use xcm::VersionedXcm;
 		use xcm::v0::{Junction, MultiLocation, ExecuteXcm, Outcome};
 		use xcm_executor::XcmExecutor;
 
 		// TODO: Get a proper weight limit here. Probably from Relay Chain Config
 		let weight_limit = Weight::max_value();
-		let weight = if let Ok(versioned_xcm_message) = VersionedXcmGeneric::decode(&mut &msg[..]) {
+		let weight = if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
 			match versioned_xcm_message {
-				VersionedXcmGeneric::V0(xcm_message) => {
+				VersionedXcm::V0(xcm_message) => {
 					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
 					let xcm_location: MultiLocation = xcm_junction.into();
 					let result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message, weight_limit);
