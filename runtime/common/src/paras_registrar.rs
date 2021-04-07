@@ -876,7 +876,7 @@ mod tests {
 				Origin::signed(1),
 				1u32.into(),
 				vec![1; 3].into(),
-				WASM_MAGIC.to_vec().into(),
+				vec![1, 2, 3].into(),
 			));
 
 			// Owner can call swap
