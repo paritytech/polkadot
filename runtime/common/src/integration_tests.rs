@@ -65,7 +65,7 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -76,6 +76,7 @@ frame_support::construct_runtime!(
 );
 
 use crate::crowdloan::Error as CrowdloanError;
+use crate::auctions::Error as AuctionsError;
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -106,6 +107,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -160,6 +162,7 @@ impl shared::Config for Test { }
 
 impl paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 parameter_types! {
@@ -183,12 +186,15 @@ impl paras_registrar::Config for Test {
 
 parameter_types! {
 	pub const EndingPeriod: BlockNumber = 10;
+	pub const SampleLength: BlockNumber = 1;
 }
 
 impl auctions::Config for Test {
 	type Event = Event;
 	type Leaser = Slots;
+	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
 	type Randomness = TestRandomness<Self>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::auctions::TestWeightInfo;
@@ -212,7 +218,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1;
 	pub const RetirementPeriod: BlockNumber = 10;
 	pub const RemoveKeysLimit: u32 = 100;
-
+	pub const MaxMemoLength: u8 = 32;
 }
 
 impl crowdloan::Config for Test {
@@ -220,11 +226,10 @@ impl crowdloan::Config for Test {
 	type ModuleId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
-	type RetirementPeriod = RetirementPeriod;
-	type OrphanedFunds = ();
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
 	type WeightInfo = crate::crowdloan::TestWeightInfo;
 }
 
@@ -254,12 +259,7 @@ fn test_genesis_head(size: usize) -> HeadData {
 }
 
 fn test_validation_code(size: usize) -> ValidationCode {
-	let mut validation_code = vec![0u8; size as usize];
-	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-	let _ = validation_code.splice(
-		..crate::WASM_MAGIC.len(),
-		crate::WASM_MAGIC.iter().cloned(),
-	).collect::<Vec<_>>();
+	let validation_code = vec![0u8; size as usize];
 	ValidationCode(validation_code)
 }
 
@@ -355,7 +355,7 @@ fn basic_end_to_end_works() {
 			910, // Amount
 		));
 
-		// User 2 will be a contribute to crowdfund for parachain 2
+		// User 2 will be a contribute to crowdloan for parachain 2
 		Balances::make_free_balance_be(&2, 1_000);
 		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2), 920, None));
 
@@ -382,6 +382,10 @@ fn basic_end_to_end_works() {
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
 			vec![None, None, None, None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
 		);
+
+		// Should not be able to contribute to a winning crowdloan
+		Balances::make_free_balance_be(&3, 1_000);
+		assert_noop!(Crowdloan::contribute(Origin::signed(3), ParaId::from(2), 10, None), CrowdloanError::<Test>::BidOrLeaseActive);
 
 		// New leases will start on block 400
 		let lease_start_block = 400;
@@ -490,13 +494,16 @@ fn competing_slots() {
 		}
 
 		// Start a new auction in the future
-		let duration = 99u32;
+		let duration = 149u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
+		// Paras should be onboarded
+		run_to_block(20); // session 2
+
 		for n in 1 ..= max_bids {
 			// Increment block number
-			run_to_block(n * 10);
+			run_to_block(System::block_number() + 10);
 
 			Balances::make_free_balance_be(&(n * 10), n * 1_000);
 
@@ -514,7 +521,7 @@ fn competing_slots() {
 				_ => panic!("test not meant for this"),
 			};
 
-			// User 10 will bid directly for parachain 1
+			// Users will bid directly for parachain
 			assert_ok!(Auctions::bid(
 				Origin::signed(n * 10),
 				ParaId::from(n),
@@ -530,8 +537,8 @@ fn competing_slots() {
 			assert!(winner.is_some());
 		}
 
-		// Auction should be done
-		run_to_block(110);
+		// Auction should be done after ending period
+		run_to_block(160);
 
 		// Appropriate Paras should have won slots
 		// 900 + 4500 + 2x 8100 = 21,600
@@ -608,7 +615,7 @@ fn competing_bids() {
 					n * 900, // Amount
 				));
 			} else {
-				// User 20 will be a contribute to crowdfund for parachain 2
+				// User 20 will be a contribute to crowdloan for parachain 2
 				assert_ok!(Crowdloan::contribute(
 					Origin::signed(n * 10),
 					ParaId::from(para),
@@ -759,7 +766,7 @@ fn basic_swap_works() {
 		assert_eq!(Balances::free_balance(&crowdloan_account), 0);
 
 		// Dissolve returns the balance of the person who put a deposit for crowdloan
-		assert_ok!(Crowdloan::dissolve(Origin::signed(2), ParaId::from(2)));
+		assert_ok!(Crowdloan::dissolve(Origin::signed(1), ParaId::from(2)));
 		assert_eq!(Balances::reserved_balance(&1), 0);
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
 
@@ -880,4 +887,205 @@ fn crowdloan_ending_period_bid() {
 			]
 		));
 	})
+}
+
+#[test]
+fn auction_bid_requires_registered_para() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+
+		// Start a new auction in the future
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// Can't bid with non-registered paras
+		Balances::make_free_balance_be(&1, 1_000);
+		assert_noop!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		), AuctionsError::<Test>::ParaNotRegistered);
+
+		// Now we register the para
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Still can't bid until it is fully onboarded
+		assert_noop!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		), AuctionsError::<Test>::ParaNotRegistered);
+
+		// Onboarded on Session 2
+		run_to_session(2);
+
+		// Success
+		Balances::make_free_balance_be(&1, 1_000);
+		assert_ok!(Auctions::bid(
+			Origin::signed(1),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last slot
+			900, // Amount
+		));
+	});
+}
+
+#[test]
+fn gap_bids_work() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+
+		// Start a new auction in the future
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		Balances::make_free_balance_be(&1, 1_000);
+		Balances::make_free_balance_be(&2, 1_000);
+
+		// Now register 2 paras
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(1),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+		assert_ok!(Registrar::register(
+			Origin::signed(2),
+			ParaId::from(2),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Onboarded on Session 2
+		run_to_session(2);
+
+		// Make bids
+		Balances::make_free_balance_be(&10, 1_000);
+		Balances::make_free_balance_be(&20, 1_000);
+		// Slot 1 for 100 from 10
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 0, // Last slot
+			100, // Amount
+		));
+		// Slot 4 for 400 from 10
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 3, // First Slot
+			lease_period_index_start + 3, // Last slot
+			400, // Amount
+		));
+
+		// A bid for another para is counted separately.
+		assert_ok!(Auctions::bid(
+			Origin::signed(10),
+			ParaId::from(2),
+			1, // Auction Index
+			lease_period_index_start + 1, // First Slot
+			lease_period_index_start + 1, // Last slot
+			555, // Amount
+		));
+		assert_eq!(Balances::reserved_balance(&10), 400 + 555);
+
+		// Slot 2 for 800 from 20, overtaking 10's bid
+		assert_ok!(Auctions::bid(
+			Origin::signed(20),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 1, // First Slot
+			lease_period_index_start + 1, // Last slot
+			800, // Amount
+		));
+		// Slot 3 for 200 from 20
+		assert_ok!(Auctions::bid(
+			Origin::signed(20),
+			ParaId::from(1),
+			1, // Auction Index
+			lease_period_index_start + 2, // First Slot
+			lease_period_index_start + 2, // Last slot
+			200, // Amount
+		));
+
+		// Finish the auction
+		run_to_block(110);
+
+		// Should have won the lease periods
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// -- 1 --- 2 --- 3 ---------- 4 -------------- 5 -------------- 6 -------------- 7 -------
+			vec![None, None, None, Some((10, 100)), Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Appropriate amount is reserved (largest of the values)
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		// Appropriate amount is reserved (largest of the values)
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Progress through the leases and note the correct amount of balance is reserved.
+
+		run_to_block(400);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
+			vec![Some((10, 100)), Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Nothing changed.
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Lease period 4 is done, but nothing is unreserved since user 1 has a debt on lease 7
+		run_to_block(500);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 5 -------------- 6 -------------- 7 -------
+			vec![Some((20, 800)), Some((20, 200)), Some((10, 400))],
+		);
+		// Nothing changed.
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 800);
+
+		// Lease period 5 is done, and 20 will unreserve down to 200.
+		run_to_block(600);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 6 -------------- 7 -------
+			vec![Some((20, 200)), Some((10, 400))],
+		);
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 200);
+
+		// Lease period 6 is done, and 20 will unreserve everything.
+		run_to_block(700);
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(1)),
+			// --------- 7 -------
+			vec![Some((10, 400))],
+		);
+		assert_eq!(Balances::reserved_balance(&10), 400);
+		assert_eq!(Balances::reserved_balance(&20), 0);
+
+		// All leases are done. Everything is unreserved.
+		run_to_block(800);
+		assert_eq!(slots::Leases::<Test>::get(ParaId::from(1)), vec![]);
+		assert_eq!(Balances::reserved_balance(&10), 0);
+		assert_eq!(Balances::reserved_balance(&20), 0);
+	});
 }

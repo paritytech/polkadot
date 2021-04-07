@@ -37,38 +37,35 @@ Disputes: double_map (SessionIndex, CandidateHash) -> Option<DisputeState>,
 // All included blocks on the chain, as well as the block number in this chain that
 // should be reverted back to if the candidate is disputed and determined to be invalid.
 Included: double_map (SessionIndex, CandidateHash) -> Option<BlockNumber>,
+// Maps session indices to a vector indicating the number of potentially-spam disputes 
+// each validator is participating in. Potentially-spam disputes are remote disputes which have
+// fewer than `byzantine_threshold + 1` validators.
+//
+// The i'th entry of the vector corresponds to the i'th validator in the session.
+SpamSlots: map SessionIndex -> Vec<u32>,
 // Whether the chain is frozen or not. Starts as `false`. When this is `true`,
 // the chain will not accept any new parachain blocks for backing or inclusion.
 // It can only be set back to `false` by governance intervention.
 Frozen: bool,
 ```
 
-Configuration:
-
-```rust
-/// How many sessions before the current that disputes should be accepted for.
-DisputePeriod: SessionIndex;
-/// How long after conclusion to accept statements.
-PostConclusionAcceptancePeriod: BlockNumber;
-/// How long is takes for a dispute to conclude by time-out, if no supermajority is reached.
-ConclusionByTimeOutPeriod: BlockNumber;
-```
+> `byzantine_threshold` refers to the maximum number `f` of validators which may be byzantine. The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
 
 ## Session Change
 
-1. If the current session is not greater than `dispute_period + 1`, nothing to do here.
-1. Set `pruning_target = current_session - dispute_period - 1`. We add the extra `1` because we want to keep things for `dispute_period` _full_ sessions. The stuff at the end of the most recent session has been around for ~0 sessions, not ~1.
+1. If the current session is not greater than `config.dispute_period + 1`, nothing to do here.
+1. Set `pruning_target = current_session - config.dispute_period - 1`. We add the extra `1` because we want to keep things for `config.dispute_period` _full_ sessions. The stuff at the end of the most recent session has been around for ~0 sessions, not ~1.
 1. If `LastPrunedSession` is `None`, then set `LastPrunedSession` to `Some(pruning_target)` and return.
-1. Otherwise, clear out all disputes and included candidates in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
+1. Otherwise, clear out all disputes, included candidates, and `SpamSlots` entries in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
 
 ## Block Initialization
 
-1. Iterate through all disputes. If any have not concluded and started more than `ConclusionByTimeOutPeriod` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data.
+1. Iterate through all disputes. If any have not concluded and started more than `config.dispute_conclusion_by_timeout_period` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data. If the `Included` map does not contain the candidate and there are fewer than `byzantine_threshold + 1` participating validators, reduce `SpamSlots` for all participating validators.
 
 ## Routines
 
 * `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
-  1. Fail if any disputes in the set are duplicate or concluded before the `PostConclusionAcceptancePeriod` window relative to now.
+  1. Fail if any disputes in the set are duplicate or concluded before the `config.dispute_post_conclusion_acceptance_period` window relative to now.
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
   1. Return a list of all candidates who just had disputes initiated.
 
@@ -76,8 +73,12 @@ ConclusionByTimeOutPeriod: BlockNumber;
   1. All statements must be issued under the correct session for the correct candidate. 
   1. `SessionInfo` is used to check statement signatures and this function should fail if any signatures are invalid.
   1. If there is no dispute under `Disputes`, create a new `DisputeState` with blank bitfields.
-  1. If `concluded_at` is `Some`, and is `concluded_at + PostConclusionAcceptancePeriod < now`, return false.
-  1. Import all statements into the dispute. This should fail if any disputes are duplicate; if the corresponding bit for the corresponding validator is set in the dispute already.
+  1. If `concluded_at` is `Some`, and is `concluded_at + config.post_conclusion_acceptance_period < now`, return false.
+  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is fewer in number than `byzantine_threshold + 1` and the candidate is not present in the `Included` map
+    1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary.
+    1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.
+  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is at least `byzantine_threshold + 1`, the `DisputeState` has fewer than `byzantine_threshold + 1` validators, and the candidate is not present in the `Included` map, decrement `SpamSlots` for each validator in the `DisputeState`.
+  1. Import all statements into the dispute. This should fail if any statements are duplicate; if the corresponding bit for the corresponding validator is set in the dispute already.
   1. If `concluded_at` is `None`, reward all statements slightly less.
   1. If `concluded_at` is `Some`, reward all statements slightly less.
   1. If either side now has supermajority, slash the other side. This may be both sides, and we support this possibility in code, but note that this requires validators to participate on both sides which has negative expected value. Set `concluded_at` to `Some(now)`.
@@ -89,6 +90,7 @@ ConclusionByTimeOutPeriod: BlockNumber;
 
 * `note_included(SessionIndex, CandidateHash, included_in: BlockNumber)`:
   1. Add `(SessionIndex, CandidateHash)` to the `Included` map with `included_in - 1` as the value.
+  1. If there is a dispute under `(Sessionindex, CandidateHash)` with fewer than `byzantine_threshold + 1` participating validators, decrement `SpamSlots` for each validator in the `DisputeState`.
   1. If there is a dispute under `(SessionIndex, CandidateHash)` that has concluded against the candidate, invoke `revert_and_freeze` with the stored block number.
 
 * `could_be_invalid(SessionIndex, CandidateHash) -> bool`: Returns whether a candidate has a live dispute ongoing or a dispute which has already concluded in the negative.

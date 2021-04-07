@@ -19,20 +19,22 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod claims;
-pub mod slot_range;
 pub mod slots;
 pub mod auctions;
 pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
+pub mod mmr;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
+pub mod slot_range;
 pub mod traits;
+pub mod xcm_sender;
+
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod integration_tests;
-pub mod xcm_sender;
 
 use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
@@ -56,10 +58,6 @@ pub use pallet_balances::Call as BalancesCall;
 pub use impls::ToAuthor;
 
 pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
-
-/// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
-/// valid wasm module.
-pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
 /// We assume that an on-initialize consumes 1% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 1%`.
@@ -248,6 +246,7 @@ mod multiplier_tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	fn run_with_system_weight<F>(w: Weight, mut assertions: F) where F: FnMut() -> () {
