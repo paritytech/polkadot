@@ -133,7 +133,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&X1(Parachain { id: 1 }),
+		&X1(Parent),
 		true,
 		&mut underpaying_message,
 		30,
