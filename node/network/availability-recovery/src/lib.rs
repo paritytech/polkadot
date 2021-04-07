@@ -18,7 +18,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
 
 use futures::{channel::oneshot, prelude::*, stream::FuturesUnordered};
@@ -49,7 +49,7 @@ use polkadot_node_network_protocol::{
 		request::RequestError,
 	},
 };
-use polkadot_node_subsystem_util::request_session_info_ctx;
+use polkadot_node_subsystem_util::request_session_info;
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 mod error;
 
@@ -78,7 +78,7 @@ struct RequestFromBackersPhase {
 struct RequestChunksPhase {
 	// a random shuffling of the validators which indicates the order in which we connect to the validators and
 	// request the chunk from them.
-	shuffling: Vec<ValidatorIndex>,
+	shuffling: VecDeque<ValidatorIndex>,
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 	requesting_chunks: FuturesUnordered<BoxFuture<
 		'static,
@@ -198,10 +198,23 @@ impl RequestChunksPhase {
 		shuffling.shuffle(&mut rand::thread_rng());
 
 		RequestChunksPhase {
-			shuffling,
+			shuffling: shuffling.into(),
 			received_chunks: HashMap::new(),
 			requesting_chunks: FuturesUnordered::new(),
 		}
+	}
+
+	fn is_unavailable(&self, params: &InteractionParams) -> bool {
+		is_unavailable(
+			self.received_chunks.len(),
+			self.requesting_chunks.len(),
+			self.shuffling.len(),
+			params.threshold,
+		)
+	}
+
+	fn can_conclude(&self, params: &InteractionParams) -> bool {
+		self.received_chunks.len() >= params.threshold || self.is_unavailable(params)
 	}
 
 	async fn launch_parallel_requests(
@@ -211,7 +224,7 @@ impl RequestChunksPhase {
 	) {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
-			if let Some(validator_index) = self.shuffling.pop() {
+			if let Some(validator_index) = self.shuffling.pop_back() {
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -255,10 +268,8 @@ impl RequestChunksPhase {
 		&mut self,
 		params: &InteractionParams,
 	) {
-		// Poll for new updates from requesting_chunks.
-		while let Poll::Ready(Some(request_result))
-			= futures::poll!(self.requesting_chunks.next())
-		{
+		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
+		while let Some(request_result) = self.requesting_chunks.next().await {
 			match request_result {
 				Ok(Some(chunk)) => {
 					// Check merkle proofs of any received chunks.
@@ -306,11 +317,15 @@ impl RequestChunksPhase {
 					match e {
 						RequestError::InvalidResponse(_) => {}
 						RequestError::NetworkError(_) | RequestError::Canceled(_) => {
-							self.shuffling.push(validator_index);
+							self.shuffling.push_front(validator_index);
 						}
 					}
 				}
 			}
+
+			// Stop waiting for requests when we either can already recover the data
+			// or have gotten firm 'No' responses from enough validators.
+			if self.can_conclude(params) { break }
 		}
 	}
 
@@ -319,13 +334,36 @@ impl RequestChunksPhase {
 		params: &InteractionParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
+		// First query the store for any chunks we've got.
+		{
+			let (tx, rx) = oneshot::channel();
+			sender.send_message(
+				AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx).into()
+			).await;
+
+			match rx.await {
+				Ok(chunks) => {
+					// This should either be length 1 or 0. If we had the whole data,
+					// we wouldn't have reached this stage.
+					let chunk_indices: Vec<_> = chunks.iter().map(|c| c.index).collect();
+					self.shuffling.retain(|i| !chunk_indices.contains(i));
+
+					for chunk in chunks {
+						self.received_chunks.insert(chunk.index, chunk);
+					}
+				}
+				Err(oneshot::Canceled) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						candidate_hash = ?params.candidate_hash,
+						"Failed to reach the availability store"
+					);
+				}
+			}
+		}
+
 		loop {
-			if is_unavailable(
-				self.received_chunks.len(),
-				self.requesting_chunks.len(),
-				self.shuffling.len(),
-				params.threshold,
-			) {
+			if self.is_unavailable(&params) {
 				tracing::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
@@ -421,6 +459,26 @@ fn reconstructed_data_matches_root(
 
 impl<S: SubsystemSender> Interaction<S> {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
+		// First just see if we have the data available locally.
+		{
+			let (tx, rx) = oneshot::channel();
+			self.sender.send_message(
+				AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx).into()
+			).await;
+
+			match rx.await {
+				Ok(Some(data)) => return Ok(data),
+				Ok(None) => {}
+				Err(oneshot::Canceled) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						candidate_hash = ?self.params.candidate_hash,
+						"Failed to reach the availability store",
+					)
+				}
+			}
+		}
+
 		loop {
 			// These only fail if we cannot reach the underlying subsystem, which case there is nothing
 			// meaningful we can do.
@@ -639,11 +697,11 @@ async fn handle_recover(
 	}
 
 	let _span = span.child("not-cached");
-	let session_info = request_session_info_ctx(
+	let session_info = request_session_info(
 		state.live_block.1,
 		session_index,
-		ctx,
-	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
+		ctx.sender(),
+	).await.await.map_err(error::Error::CanceledSessionInfo)??;
 
 	let _span = span.child("session-info-ctx-received");
 	match session_info {

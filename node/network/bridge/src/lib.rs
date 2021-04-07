@@ -25,6 +25,7 @@ use parking_lot::Mutex;
 use futures::prelude::*;
 use futures::channel::mpsc;
 use sc_network::Event as NetworkEvent;
+use sp_consensus::SyncOracle;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
@@ -39,6 +40,7 @@ use polkadot_node_network_protocol::{
 	PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, UnifiedReputationChange as Rep,
 	ObservedRole,
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 /// Peer set infos for network initialization.
 ///
@@ -76,6 +78,154 @@ const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
 
+/// Metrics for the network bridge.
+#[derive(Clone, Default)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_peer_connected(&self, peer_set: PeerSet) {
+		self.0.as_ref().map(|metrics| metrics
+			.connected_events
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.inc()
+		);
+	}
+
+	fn on_peer_disconnected(&self, peer_set: PeerSet) {
+		self.0.as_ref().map(|metrics| metrics
+			.disconnected_events
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.inc()
+		);
+	}
+
+	fn note_peer_count(&self, peer_set: PeerSet, count: usize) {
+		self.0.as_ref().map(|metrics| metrics
+			.peer_count
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.set(count as u64)
+		);
+	}
+
+	fn on_notification_received(&self, peer_set: PeerSet, size: usize) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.notifications_received
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc();
+
+			metrics.bytes_received
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc_by(size as u64);
+		}
+	}
+
+	fn on_notification_sent(&self, peer_set: PeerSet, size: usize, to_peers: usize) {
+		if let Some(metrics) = self.0.as_ref() {
+			metrics.notifications_sent
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc_by(to_peers as u64);
+
+			metrics.bytes_sent
+				.with_label_values(&[peer_set.get_protocol_name_static()])
+				.inc_by((size * to_peers) as u64);
+		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	peer_count: prometheus::GaugeVec<prometheus::U64>,
+	connected_events: prometheus::CounterVec<prometheus::U64>,
+	disconnected_events: prometheus::CounterVec<prometheus::U64>,
+
+	notifications_received: prometheus::CounterVec<prometheus::U64>,
+	notifications_sent: prometheus::CounterVec<prometheus::U64>,
+
+	bytes_received: prometheus::CounterVec<prometheus::U64>,
+	bytes_sent: prometheus::CounterVec<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry)
+		-> std::result::Result<Self, prometheus::PrometheusError>
+	{
+		let metrics = MetricsInner {
+			peer_count: prometheus::register(
+				prometheus::GaugeVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_count",
+						"The number of peers on a parachain-related peer-set",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			connected_events: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_connect_events_total",
+						"The number of peer connect events on a parachain notifications protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			disconnected_events: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_peer_disconnect_events_total",
+						"The number of peer disconnect events on a parachain notifications protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			notifications_received: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notifications_received_total",
+						"The number of notifications received on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			notifications_sent: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notifications_sent_total",
+						"The number of notifications sent on a parachain protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			bytes_received: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notification_bytes_received_total",
+						"The number of bytes received on a parachain notification protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			bytes_sent: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_notification_bytes_sent_total",
+						"The number of bytes sent on a parachain notification protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 /// Messages from and to the network.
 ///
 /// As transmitted to and received from subsystems.
@@ -89,13 +239,14 @@ pub enum WireMessage<M> {
 	ViewUpdate(View),
 }
 
-
 /// The network bridge subsystem.
 pub struct NetworkBridge<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
 	request_multiplexer: RequestMultiplexer,
+	sync_oracle: Box<dyn SyncOracle + Send>,
+	metrics: Metrics,
 }
 
 impl<N, AD> NetworkBridge<N, AD> {
@@ -103,18 +254,26 @@ impl<N, AD> NetworkBridge<N, AD> {
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
-	pub fn new(network_service: N, authority_discovery_service: AD, request_multiplexer: RequestMultiplexer) -> Self {
+	pub fn new(
+		network_service: N,
+		authority_discovery_service: AD,
+		request_multiplexer: RequestMultiplexer,
+		sync_oracle: Box<dyn SyncOracle + Send>,
+		metrics: Metrics,
+	) -> Self {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
 			request_multiplexer,
+			sync_oracle,
+			metrics,
 		}
 	}
 }
 
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network + validator_discovery::Network + Sync,
+		Net: Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
@@ -165,9 +324,14 @@ struct Shared(Arc<Mutex<SharedInner>>);
 
 #[derive(Default)]
 struct SharedInner {
-	local_view: View,
+	local_view: Option<View>,
 	validation_peers: HashMap<PeerId, PeerData>,
 	collation_peers: HashMap<PeerId, PeerData>,
+}
+
+enum Mode {
+	Syncing(Box<dyn SyncOracle + Send>),
+	Active,
 }
 
 async fn handle_subsystem_messages<Context, N, AD>(
@@ -176,16 +340,20 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	validator_discovery_notifications: mpsc::Receiver<ValidatorDiscoveryNotification>,
 	shared: Shared,
+	sync_oracle: Box<dyn SyncOracle + Send>,
+	metrics: Metrics,
 ) -> Result<(), UnexpectedAbort>
 where
 	Context: SubsystemContext<Message = NetworkBridgeMessage>,
-	N: Network + validator_discovery::Network,
+	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
 	// This is kept sorted, descending, by block number.
 	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut finalized_number = 0;
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
+
+	let mut mode = Mode::Syncing(sync_oracle);
 
 	let mut validator_discovery_notifications = validator_discovery_notifications.fuse();
 
@@ -210,13 +378,27 @@ where
 					}
 					live_heads.retain(|h| !deactivated.contains(&h.hash));
 
-					update_our_view(
-						&mut network_service,
-						&mut ctx,
-						&live_heads,
-						&shared,
-						finalized_number,
-					).await?;
+					// if we're done syncing, set the mode to `Mode::Active`.
+					// Otherwise, we don't need to send view updates.
+					{
+						let is_done_syncing = match mode {
+							Mode::Active => true,
+							Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
+						};
+
+						if is_done_syncing {
+							mode = Mode::Active;
+
+							update_our_view(
+								&mut network_service,
+								&mut ctx,
+								&live_heads,
+								&shared,
+								finalized_number,
+								&metrics,
+							).await?;
+						}
+					}
 				}
 				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
 					tracing::trace!(
@@ -263,6 +445,7 @@ where
 							peers,
 							PeerSet::Validation,
 							WireMessage::ProtocolMessage(msg),
+							&metrics,
 						).await?
 					}
 					NetworkBridgeMessage::SendValidationMessages(msgs) => {
@@ -278,6 +461,7 @@ where
 								peers,
 								PeerSet::Validation,
 								WireMessage::ProtocolMessage(msg),
+								&metrics,
 							).await?
 						}
 					}
@@ -293,6 +477,7 @@ where
 							peers,
 							PeerSet::Collation,
 							WireMessage::ProtocolMessage(msg),
+							&metrics,
 						).await?
 					}
 					NetworkBridgeMessage::SendCollationMessages(msgs) => {
@@ -308,6 +493,7 @@ where
 								peers,
 								PeerSet::Collation,
 								WireMessage::ProtocolMessage(msg),
+								&metrics,
 							).await?
 						}
 					}
@@ -373,6 +559,7 @@ async fn handle_network_messages(
 	mut network_service: impl Network,
 	mut request_multiplexer: RequestMultiplexer,
 	mut validator_discovery_notifications: mpsc::Sender<ValidatorDiscoveryNotification>,
+	metrics: Metrics,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
 	let mut network_stream = network_service.event_stream();
@@ -413,7 +600,10 @@ async fn handle_network_messages(
 							}
 						}
 
-						shared.local_view.clone()
+						metrics.on_peer_connected(peer_set);
+						metrics.note_peer_count(peer_set, peer_map.len());
+
+						shared.local_view.clone().unwrap_or(View::default())
 					};
 
 					// Failure here means that the other side of the network bridge
@@ -443,6 +633,7 @@ async fn handle_network_messages(
 								WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 									local_view,
 								),
+								&metrics,
 							).await?;
 						}
 						PeerSet::Collation => {
@@ -464,6 +655,7 @@ async fn handle_network_messages(
 								WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(
 									local_view,
 								),
+								&metrics,
 							).await?;
 						}
 					}
@@ -488,7 +680,12 @@ async fn handle_network_messages(
 							PeerSet::Collation => &mut shared.collation_peers,
 						};
 
-						peer_map.remove(&peer).is_some()
+						let w = peer_map.remove(&peer).is_some();
+
+						metrics.on_peer_disconnected(peer_set);
+						metrics.note_peer_count(peer_set, peer_map.len());
+
+						w
 					};
 
 					// Failure here means that the other side of the network bridge
@@ -516,7 +713,10 @@ async fn handle_network_messages(
 						.filter(|(protocol, _)| {
 							protocol == &PeerSet::Validation.into_protocol_name()
 						})
-						.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+						.map(|(_, msg_bytes)| {
+							WireMessage::decode(&mut msg_bytes.as_ref())
+								.map(|m| (m, msg_bytes.len()))
+						})
 						.collect();
 
 					let v_messages = match v_messages {
@@ -537,7 +737,10 @@ async fn handle_network_messages(
 						.filter(|(protocol, _)| {
 							protocol == &PeerSet::Collation.into_protocol_name()
 						})
-						.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+						.map(|(_, msg_bytes)| {
+							WireMessage::decode(&mut msg_bytes.as_ref())
+								.map(|m| (m, msg_bytes.len()))
+						})
 						.collect();
 
 					match c_messages {
@@ -565,8 +768,10 @@ async fn handle_network_messages(
 								if !v_messages.is_empty() {
 									let (events, reports) = handle_peer_messages(
 										remote.clone(),
+										PeerSet::Validation,
 										&mut shared.0.lock().validation_peers,
 										v_messages,
+										&metrics,
 									);
 
 									for report in reports {
@@ -579,8 +784,10 @@ async fn handle_network_messages(
 								if !c_messages.is_empty() {
 									let (events, reports) = handle_peer_messages(
 										remote.clone(),
+										PeerSet::Collation,
 										&mut shared.0.lock().collation_peers,
 										c_messages,
+										&metrics,
 									);
 
 									for report in reports {
@@ -628,7 +835,7 @@ async fn run_network<N, AD>(
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
 ) -> SubsystemResult<()>
 where
-	N: Network + validator_discovery::Network,
+	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
 	let shared = Shared::default();
@@ -637,6 +844,8 @@ where
 		network_service,
 		request_multiplexer,
 		authority_discovery_service,
+		metrics,
+		sync_oracle,
 	 } = bridge;
 
 	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
@@ -646,6 +855,7 @@ where
 		network_service.clone(),
 		request_multiplexer,
 		validation_worker_tx,
+		metrics.clone(),
 		shared.clone(),
 	).remote_handle();
 
@@ -657,6 +867,8 @@ where
 		authority_discovery_service,
 		validation_worker_rx,
 		shared,
+		sync_oracle,
+		metrics,
 	);
 
 	futures::pin_mut!(subsystem_event_handler);
@@ -707,13 +919,14 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 	)
 }
 
-#[tracing::instrument(level = "trace", skip(net, ctx, shared), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, ctx, shared, metrics), fields(subsystem = LOG_TARGET))]
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
+	metrics: &Metrics,
 ) -> SubsystemResult<()> {
 	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
@@ -722,11 +935,22 @@ async fn update_our_view(
 
 		// We only want to send a view update when the heads changed.
 		// A change in finalized block number only is _not_ sufficient.
-		if shared.local_view.check_heads_eq(&new_view) {
-			return Ok(())
-		}
+		//
+		// If this is the first view update since becoming active, but our view is empty,
+		// there is no need to send anything.
+		match shared.local_view {
+			Some(ref v) if v.check_heads_eq(&new_view) => {
+				return Ok(())
+			}
+			None if live_heads.is_empty() => {
+				shared.local_view = Some(new_view);
+				return Ok(())
+			}
+			_ => {
+				shared.local_view = Some(new_view.clone());
+			}
 
-		shared.local_view = new_view.clone();
+		}
 
 		(
 			shared.validation_peers.keys().cloned().collect::<Vec<_>>(),
@@ -738,12 +962,14 @@ async fn update_our_view(
 		net,
 		validation_peers,
 		WireMessage::ViewUpdate(new_view.clone()),
+		metrics,
 	).await?;
 
 	send_collation_message(
 		net,
 		collation_peers,
 		WireMessage::ViewUpdate(new_view),
+		metrics,
 	).await?;
 
 	let our_view = OurView::new(
@@ -766,11 +992,13 @@ async fn update_our_view(
 
 // Handle messages on a specific peer-set. The peer is expected to be connected on that
 // peer-set.
-#[tracing::instrument(level = "trace", skip(peers, messages), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(peers, messages, metrics), fields(subsystem = LOG_TARGET))]
 fn handle_peer_messages<M>(
 	peer: PeerId,
+	peer_set: PeerSet,
 	peers: &mut HashMap<PeerId, PeerData>,
-	messages: Vec<WireMessage<M>>,
+	messages: Vec<(WireMessage<M>, usize)>,
+	metrics: &Metrics,
 ) -> (Vec<NetworkBridgeEvent<M>>, Vec<Rep>) {
 	let peer_data = match peers.get_mut(&peer) {
 		None => {
@@ -782,7 +1010,9 @@ fn handle_peer_messages<M>(
 	let mut outgoing_messages = Vec::with_capacity(messages.len());
 	let mut reports = Vec::new();
 
-	for message in messages {
+	for (message, size_bytes) in messages {
+		metrics.on_notification_received(peer_set, size_bytes);
+
 		outgoing_messages.push(match message {
 			WireMessage::ViewUpdate(new_view) => {
 				if new_view.len() > MAX_VIEW_HEADS ||
@@ -813,30 +1043,32 @@ fn handle_peer_messages<M>(
 	(outgoing_messages, reports)
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, peers, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
 	message: WireMessage<protocol_v1::ValidationProtocol>,
+	metrics: &Metrics,
 ) -> SubsystemResult<()>
 	where
 		I: IntoIterator<Item=PeerId>,
 		I::IntoIter: ExactSizeIterator,
 {
-	send_message(net, peers, PeerSet::Validation, message).await
+	send_message(net, peers, PeerSet::Validation, message, metrics).await
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(net, peers, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_collation_message<I>(
 	net: &mut impl Network,
 	peers: I,
 	message: WireMessage<protocol_v1::CollationProtocol>,
+	metrics: &Metrics,
 ) -> SubsystemResult<()>
 	where
 	I: IntoIterator<Item=PeerId>,
 	I::IntoIter: ExactSizeIterator,
 {
-	send_message(net, peers, PeerSet::Collation, message).await
+	send_message(net, peers, PeerSet::Collation, message, metrics).await
 }
 
 
@@ -910,11 +1142,12 @@ mod tests {
 	use super::*;
 	use futures::executor;
 	use futures::stream::BoxStream;
-	use std::pin::Pin;
-	use std::sync::Arc;
+	use futures::channel::oneshot;
 
 	use std::borrow::Cow;
 	use std::collections::HashSet;
+	use std::pin::Pin;
+	use std::sync::atomic::{AtomicBool, Ordering};
 	use async_trait::async_trait;
 	use parking_lot::Mutex;
 	use assert_matches::assert_matches;
@@ -989,6 +1222,14 @@ mod tests {
 				.boxed()
 		}
 
+		async fn add_to_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+
+		async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+
 		fn action_sink<'a>(&'a mut self)
 			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 		{
@@ -996,17 +1237,6 @@ mod tests {
 		}
 
 		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
-		}
-	}
-
-	#[async_trait]
-	impl validator_discovery::Network for TestNetwork {
-		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
-			Ok(())
-		}
-
-		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, _: HashSet<Multiaddr>) -> Result<(), String> {
-			Ok(())
 		}
 	}
 
@@ -1071,12 +1301,78 @@ mod tests {
 		}
 	}
 
-	struct TestHarness {
-		network_handle: TestNetworkHandle,
-		virtual_overseer: TestSubsystemContextHandle<NetworkBridgeMessage>,
+	#[derive(Clone)]
+	struct TestSyncOracle {
+		flag: Arc<AtomicBool>,
+		done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 	}
 
-	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
+	struct TestSyncOracleHandle {
+		done_syncing_receiver: oneshot::Receiver<()>,
+		flag: Arc<AtomicBool>,
+	}
+
+	impl TestSyncOracleHandle {
+		fn set_done(&self) {
+			self.flag.store(false, Ordering::SeqCst);
+		}
+
+		async fn await_mode_switch(self) {
+			let _ = self.done_syncing_receiver.await;
+		}
+	}
+
+	impl SyncOracle for TestSyncOracle {
+		fn is_major_syncing(&mut self) -> bool {
+			let is_major_syncing = self.flag.load(Ordering::SeqCst);
+
+			if !is_major_syncing {
+				if let Some(sender) = self.done_syncing_sender.lock().take() {
+					let _ = sender.send(());
+				}
+			}
+
+			is_major_syncing
+		}
+
+		fn is_offline(&mut self) -> bool {
+			unimplemented!("not used in network bridge")
+		}
+	}
+
+	// val - result of `is_major_syncing`.
+	fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
+		let (tx, rx) = oneshot::channel();
+		let flag = Arc::new(AtomicBool::new(val));
+
+		(
+			TestSyncOracle {
+				flag: flag.clone(),
+				done_syncing_sender: Arc::new(Mutex::new(Some(tx))),
+			},
+			TestSyncOracleHandle {
+				flag,
+				done_syncing_receiver: rx,
+			}
+		)
+	}
+
+	fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
+		let (oracle, _) = make_sync_oracle(false);
+		Box::new(oracle)
+	}
+
+	type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeMessage>;
+
+	struct TestHarness {
+		network_handle: TestNetworkHandle,
+		virtual_overseer: VirtualOverseer,
+	}
+
+	fn test_harness<T: Future<Output=VirtualOverseer>>(
+		sync_oracle: Box<dyn SyncOracle + Send>,
+		test: impl FnOnce(TestHarness) -> T,
+	) {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (request_multiplexer, req_configs) = RequestMultiplexer::new();
 		let (network, network_handle, discovery) = new_test_network(req_configs);
@@ -1086,6 +1382,8 @@ mod tests {
 			network_service: network,
 			authority_discovery_service: discovery,
 			request_multiplexer,
+			metrics: Metrics(None),
+			sync_oracle,
 		};
 
 		let network_bridge = run_network(
@@ -1103,7 +1401,10 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(network_bridge);
 
-		let _ = executor::block_on(future::select(test_fut, network_bridge));
+		let _ = executor::block_on(future::join(async move {
+			let mut virtual_overseer = test_fut.await;
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}, network_bridge));
 	}
 
 	async fn assert_sends_validation_event_to_all(
@@ -1148,7 +1449,8 @@ mod tests {
 
 	#[test]
 	fn send_our_view_upon_connection() {
-		test_harness(|test_harness| async move {
+		let (oracle, handle) = make_sync_oracle(false);
+		test_harness(Box::new(oracle), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1166,6 +1468,8 @@ mod tests {
 					})
 				))
 			).await;
+
+			handle.await_mode_switch().await;
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
@@ -1192,16 +1496,29 @@ mod tests {
 					).encode(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn sends_view_updates_to_peers() {
-		test_harness(|test_harness| async move {
+		let (oracle, handle) = make_sync_oracle(false);
+		test_harness(Box::new(oracle), |test_harness| async move {
 			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate {
+						activated: Default::default(),
+						deactivated: Default::default(),
+					}
+				))
+			).await;
+
+			handle.await_mode_switch().await;
 
 			network_handle.connect_peer(
 				peer_a.clone(),
@@ -1210,9 +1527,32 @@ mod tests {
 			).await;
 			network_handle.connect_peer(
 				peer_b.clone(),
-				PeerSet::Validation,
+				PeerSet::Collation,
 				ObservedRole::Full,
 			).await;
+
+			let actions = network_handle.next_network_actions(2).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View::default(),
+			).encode();
+
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_a,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
+			);
+
+			assert_network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer_b,
+					PeerSet::Collation,
+					wire_message.clone(),
+				),
+			);
 
 			let hash_a = Hash::repeat_byte(1);
 
@@ -1226,7 +1566,7 @@ mod tests {
 				))
 			).await;
 
-			let actions = network_handle.next_network_actions(4).await;
+			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
 				view![hash_a]
 			).encode();
@@ -1244,16 +1584,121 @@ mod tests {
 				&actions,
 				&NetworkAction::WriteNotification(
 					peer_b,
-					PeerSet::Validation,
+					PeerSet::Collation,
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
+		});
+	}
+
+	#[test]
+	fn do_not_send_view_update_until_synced() {
+		let (oracle, handle) = make_sync_oracle(true);
+		test_harness(Box::new(oracle), |test_harness| async move {
+			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
+
+			let peer_a = PeerId::random();
+			let peer_b = PeerId::random();
+
+			network_handle.connect_peer(
+				peer_a.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+			network_handle.connect_peer(
+				peer_b.clone(),
+				PeerSet::Collation,
+				ObservedRole::Full,
+			).await;
+
+			{
+				let actions = network_handle.next_network_actions(2).await;
+				let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+					View::default(),
+				).encode();
+
+				assert_network_actions_contains(
+					&actions,
+					&NetworkAction::WriteNotification(
+						peer_a,
+						PeerSet::Validation,
+						wire_message.clone(),
+					),
+				);
+
+				assert_network_actions_contains(
+					&actions,
+					&NetworkAction::WriteNotification(
+						peer_b,
+						PeerSet::Collation,
+						wire_message.clone(),
+					),
+				);
+			}
+
+			let hash_a = Hash::repeat_byte(1);
+			let hash_b = Hash::repeat_byte(1);
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_a,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
+				))
+			).await;
+
+			// delay until the previous update has certainly been processed.
+			futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
+
+			handle.set_done();
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash: hash_b,
+						number: 1,
+						span: Arc::new(jaeger::Span::Disabled),
+					})
+				))
+			).await;
+
+			handle.await_mode_switch().await;
+
+			// There should be a mode switch only for the second view update.
+			{
+				let actions = network_handle.next_network_actions(2).await;
+				let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+					view![hash_a, hash_b]
+				).encode();
+
+				assert_network_actions_contains(
+					&actions,
+					&NetworkAction::WriteNotification(
+						peer_a,
+						PeerSet::Validation,
+						wire_message.clone(),
+					),
+				);
+
+				assert_network_actions_contains(
+					&actions,
+					&NetworkAction::WriteNotification(
+						peer_b,
+						PeerSet::Collation,
+						wire_message.clone(),
+					),
+				);
+			}
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn do_not_send_view_update_when_only_finalized_block_changed() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 			let peer_a = PeerId::random();
@@ -1314,12 +1759,13 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn peer_view_updates_sent_via_overseer() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1356,12 +1802,13 @@ mod tests {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn peer_messages_sent_via_overseer() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1423,12 +1870,13 @@ mod tests {
 				NetworkBridgeEvent::PeerDisconnected(peer),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn peer_disconnect_from_just_one_peerset() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1498,12 +1946,13 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn relays_collation_protocol_messages() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1545,6 +1994,7 @@ mod tests {
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
 				Default::default(),
+				Default::default(),
 			);
 
 			let message = protocol_v1::CollationProtocol::CollatorProtocol(
@@ -1585,12 +2035,13 @@ mod tests {
 					assert_eq!(m, collator_protocol_message);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn different_views_on_different_peer_sets() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1650,12 +2101,13 @@ mod tests {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view_b.clone()),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn sent_views_include_finalized_number_update() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 			let peer_a = PeerId::random();
@@ -1695,13 +2147,14 @@ mod tests {
 					wire_message.clone(),
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn view_finalized_number_can_not_go_down() {
-		test_harness(|test_harness| async move {
-			let TestHarness { mut network_handle, .. } = test_harness;
+		test_harness(done_syncing_oracle(), |test_harness| async move {
+			let TestHarness { mut network_handle, virtual_overseer } = test_harness;
 
 			let peer_a = PeerId::random();
 
@@ -1735,12 +2188,13 @@ mod tests {
 					MALFORMED_VIEW_COST,
 				),
 			);
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn send_messages_to_peers() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut network_handle,
 				mut virtual_overseer,
@@ -1815,6 +2269,7 @@ mod tests {
 				let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 					Sr25519Keyring::Alice.public().into(),
 					Default::default(),
+					Default::default(),
 				);
 
 				let message = protocol_v1::CollationProtocol::CollatorProtocol(
@@ -1837,6 +2292,7 @@ mod tests {
 					)
 				);
 			}
+			virtual_overseer
 		});
 	}
 
@@ -1876,7 +2332,7 @@ mod tests {
 
 	#[test]
 	fn our_view_updates_decreasing_order_and_limited_to_max() {
-		test_harness(|test_harness| async move {
+		test_harness(done_syncing_oracle(), |test_harness| async move {
 			let TestHarness {
 				mut virtual_overseer,
 				..
@@ -1919,6 +2375,7 @@ mod tests {
 				NetworkBridgeEvent::OurViewChange(our_view),
 				&mut virtual_overseer,
 			).await;
+			virtual_overseer
 		});
 	}
 }

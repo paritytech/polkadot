@@ -571,10 +571,10 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, parent_span, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 		sender: &mut JobSender<impl SubsystemSender>,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
@@ -598,7 +598,7 @@ impl CandidateBackingJob {
 							if let Some(stmt) = self.sign_import_and_distribute_statement(
 								sender,
 								statement,
-								parent_span,
+								root_span,
 							).await? {
 								sender.send_message(
 									CandidateSelectionMessage::Seconded(self.parent, stmt).into()
@@ -620,7 +620,7 @@ impl CandidateBackingJob {
 				if !self.issued_statements.contains(&candidate_hash) {
 					if res.is_ok() {
 						let statement = Statement::Valid(candidate_hash);
-						self.sign_import_and_distribute_statement(sender, statement, &parent_span).await?;
+						self.sign_import_and_distribute_statement(sender, statement, &root_span).await?;
 					}
 					self.issued_statements.insert(candidate_hash);
 				}
@@ -730,10 +730,10 @@ impl CandidateBackingJob {
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: Statement,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(sender, &signed_statement, parent_span).await?;
+			self.import_statement(sender, &signed_statement, root_span).await?;
 			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
 			sender.send_unbounded_message(smsg.into());
 
@@ -764,7 +764,7 @@ impl CandidateBackingJob {
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: &SignedFullStatement,
-		parent_span: &jaeger::Span,
+		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -775,7 +775,7 @@ impl CandidateBackingJob {
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
 			let candidate_hash = statement.payload().candidate_hash();
-			self.get_unbacked_statement_child(parent_span, candidate_hash, statement.validator_index())
+			self.get_unbacked_statement_child(root_span, candidate_hash, statement.validator_index())
 		};
 
 		let stmt = primitive_statement_to_table(statement);
@@ -865,13 +865,13 @@ impl CandidateBackingJob {
 			}
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
 				let _timer = self.metrics.time_process_statement();
-				let span = root_span.child("statement")
+				let _span = root_span.child("statement")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_candidate(statement.payload().candidate_hash())
 					.with_relay_parent(_relay_parent);
 
 				self.check_statement_signature(&statement)?;
-				match self.maybe_validate_and_import(&span, &root_span, sender, statement).await {
+				match self.maybe_validate_and_import(&root_span, sender, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
 					Ok(()) => (),
@@ -952,15 +952,14 @@ impl CandidateBackingJob {
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
-	#[tracing::instrument(level = "trace", skip(self, parent_span, root_span, sender), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
-		parent_span: &jaeger::Span,
 		root_span: &jaeger::Span,
 		sender: &mut JobSender<impl SubsystemSender>,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(sender, &statement, parent_span).await? {
+		if let Some(summary) = self.import_statement(sender, &statement, root_span).await? {
 			if Some(summary.group_id) != self.assignment {
 				return Ok(())
 			}
@@ -1354,6 +1353,7 @@ mod tests {
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
 	};
 	use polkadot_node_primitives::{InvalidCandidate, BlockData};
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
@@ -1467,14 +1467,16 @@ mod tests {
 		}
 	}
 
-	struct TestHarness {
-		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
-	}
+	type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>;
 
-	fn test_harness<T: Future<Output=()>>(keystore: SyncCryptoStorePtr, test: impl FnOnce(TestHarness) -> T) {
+	fn test_harness<T: Future<Output=VirtualOverseer>>(
+		keystore: SyncCryptoStorePtr,
+		test: impl FnOnce(VirtualOverseer) -> T,
+	) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) =
+			test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::new(
 			pool.clone(),
@@ -1482,13 +1484,16 @@ mod tests {
 			Metrics(None),
 		).run(context);
 
-		let test_fut = test(TestHarness {
-			virtual_overseer,
-		});
+		let test_fut = test(virtual_overseer);
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
-		futures::executor::block_on(future::select(test_fut, subsystem));
+		futures::executor::block_on(future::join(async move {
+			let mut virtual_overseer = test_fut.await;
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::Conclude,
+			)).await;
+		}, subsystem));
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
@@ -1530,7 +1535,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut VirtualOverseer,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
@@ -1588,9 +1593,7 @@ mod tests {
 	#[test]
 	fn backing_second_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1675,6 +1678,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1682,9 +1686,7 @@ mod tests {
 	#[test]
 	fn backing_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1821,15 +1823,14 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
 	#[test]
 	fn backing_works_while_validation_ongoing() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -1984,6 +1985,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -1992,9 +1994,7 @@ mod tests {
 	#[test]
 	fn backing_misbehavior_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2138,6 +2138,7 @@ mod tests {
 					).expect("signature must be valid");
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2146,9 +2147,7 @@ mod tests {
 	#[test]
 	fn backing_dont_second_invalid() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov_block_a = PoV {
@@ -2269,6 +2268,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2277,9 +2277,7 @@ mod tests {
 	#[test]
 	fn backing_second_after_first_fails_works() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2393,6 +2391,7 @@ mod tests {
 					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
+			virtual_overseer
 		});
 	}
 
@@ -2401,9 +2400,7 @@ mod tests {
 	#[test]
 	fn backing_works_after_failed_validation() {
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2479,6 +2476,7 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 0);
+			virtual_overseer
 		});
 	}
 
@@ -2492,9 +2490,7 @@ mod tests {
 			collator: Some(Sr25519Keyring::Bob.public().into()),
 		});
 
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2532,6 +2528,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2543,9 +2540,7 @@ mod tests {
 			collator: Some(Sr25519Keyring::Bob.public().into()),
 		});
 
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2588,6 +2583,7 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
+			virtual_overseer
 		});
 	}
 
@@ -2673,9 +2669,7 @@ mod tests {
 	fn retry_works() {
 		// sp_tracing::try_init_simple();
 		let test_state = TestState::default();
-		test_harness(test_state.keystore.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-
+		test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 			test_startup(&mut virtual_overseer, &test_state).await;
 
 			let pov = PoV {
@@ -2818,6 +2812,7 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor()
 			);
+			virtual_overseer
 		});
 	}
 }

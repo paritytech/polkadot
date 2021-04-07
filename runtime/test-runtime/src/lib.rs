@@ -28,7 +28,7 @@ use parity_scale_codec::Encode;
 use polkadot_runtime_parachains::configuration as parachains_configuration;
 use polkadot_runtime_parachains::shared as parachains_shared;
 use polkadot_runtime_parachains::inclusion as parachains_inclusion;
-use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use polkadot_runtime_parachains::paras_inherent as parachains_paras_inherent;
 use polkadot_runtime_parachains::initializer as parachains_initializer;
 use polkadot_runtime_parachains::session_info as parachains_session_info;
 use polkadot_runtime_parachains::paras as parachains_paras;
@@ -69,6 +69,8 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use pallet_mmr_primitives as mmr;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -149,6 +151,7 @@ impl frame_system::Config for Runtime {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
@@ -455,7 +458,7 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
-impl parachains_inclusion_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -521,7 +524,7 @@ construct_runtime! {
 		// Parachains runtime modules
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Pallet, Call, Storage, Inherent},
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
@@ -646,7 +649,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>>
+			-> Option<PersistedValidationData<Hash, BlockNumber>>
 		{
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
@@ -698,6 +701,42 @@ sp_api::impl_runtime_apis! {
 			recipient: ParaId,
 		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
+		}
+
+		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+			runtime_impl::validation_code_by_hash::<Runtime>(hash)
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+			// dummy implementation due to lack of BEEFY pallet.
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+		}
+	}
+
+	impl mmr::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(_leaf_index: u64)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::GenerateProof)
+		}
+
+		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
+
+		fn verify_proof_stateless(
+			_root: Hash,
+			_leaf: mmr::EncodableOpaqueLeaf,
+			_proof: mmr::Proof<Hash>
+		) -> Result<(), mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
 		}
 	}
 

@@ -1,0 +1,19 @@
+[package]
+name = "slot-range-helper"
+version = "0.8.30"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+paste = "1.0"
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"sp-std/std",
+	"parity-scale-codec/std",
+	"sp-runtime/std",
+]

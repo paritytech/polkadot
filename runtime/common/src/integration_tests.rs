@@ -107,6 +107,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -225,8 +226,6 @@ impl crowdloan::Config for Test {
 	type ModuleId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
-	type RetirementPeriod = RetirementPeriod;
-	type OrphanedFunds = ();
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
@@ -260,12 +259,7 @@ fn test_genesis_head(size: usize) -> HeadData {
 }
 
 fn test_validation_code(size: usize) -> ValidationCode {
-	let mut validation_code = vec![0u8; size as usize];
-	// Replace first bytes of code with "WASM_MAGIC" to pass validation test.
-	let _ = validation_code.splice(
-		..crate::WASM_MAGIC.len(),
-		crate::WASM_MAGIC.iter().cloned(),
-	).collect::<Vec<_>>();
+	let validation_code = vec![0u8; size as usize];
 	ValidationCode(validation_code)
 }
 
@@ -734,8 +728,8 @@ fn basic_swap_works() {
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::Parathread));
 
 		// Initiate a swap
-		assert_ok!(Registrar::swap(para_origin(1).into(), ParaId::from(2)));
-		assert_ok!(Registrar::swap(para_origin(2).into(), ParaId::from(1)));
+		assert_ok!(Registrar::swap(para_origin(1).into(), ParaId::from(1), ParaId::from(2)));
+		assert_ok!(Registrar::swap(para_origin(2).into(), ParaId::from(2), ParaId::from(1)));
 
 		assert_eq!(Paras::lifecycle(ParaId::from(1)), Some(ParaLifecycle::DowngradingParachain));
 		assert_eq!(Paras::lifecycle(ParaId::from(2)), Some(ParaLifecycle::UpgradingParathread));

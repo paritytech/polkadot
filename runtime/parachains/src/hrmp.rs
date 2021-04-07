@@ -24,6 +24,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, traits::{Get, ReservableCurrency},
 	weights::Weight, StorageMap, StorageValue, dispatch::DispatchResult,
 };
+use frame_system::ensure_root;
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
@@ -407,6 +408,41 @@ decl_module! {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
 			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
+			Ok(())
+		}
+
+		/// This extrinsic triggers the cleanup of all the HRMP storage items that
+		/// a para may have. Normally this happens once per session, but this allows
+		/// you to trigger the cleanup immediately for a specific parachain.
+		///
+		/// Origin must be Root.
+		#[weight = 0]
+		pub fn force_clean_hrmp(origin, para: ParaId) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::clean_hrmp_after_outgoing(&para);
+			Ok(())
+		}
+
+		/// Force process hrmp open channel requests.
+		///
+		/// If there are pending HRMP open channel requests, you can use this
+		/// function process all of those requests immediately.
+		#[weight = 0]
+		pub fn force_process_hrmp_open(origin) -> DispatchResult {
+			ensure_root(origin)?;
+			let host_config = configuration::Module::<T>::config();
+			Self::process_hrmp_open_channel_requests(&host_config);
+			Ok(())
+		}
+
+		/// Force process hrmp close channel requests.
+		///
+		/// If there are pending HRMP close channel requests, you can use this
+		/// function process all of those requests immediately.
+		#[weight = 0]
+		pub fn force_process_hrmp_close(origin) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::process_hrmp_close_channel_requests();
 			Ok(())
 		}
 	}
