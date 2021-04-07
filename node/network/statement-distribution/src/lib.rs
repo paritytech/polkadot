@@ -1487,7 +1487,6 @@ impl StatementDistribution {
 				bad_peers,
 				carry_on,
 			} => {
-			
 				for bad in bad_peers {
 					report_peer(ctx, bad, COST_FETCH_FAIL).await;
 				}
@@ -1785,7 +1784,7 @@ impl StatementDistribution {
 						metrics,
 					).await;
 				}
-				StatementDistributionMessage::StatementFetchingRequest(_) => {
+				StatementDistributionMessage::StatementFetchingReceiver(_) => {
 					panic!("WIP");
 				}
 			}

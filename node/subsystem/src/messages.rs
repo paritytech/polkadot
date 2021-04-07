@@ -529,8 +529,8 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Incoming request from the network
-	StatementFetchingRequest(IncomingRequest<req_res_v1::StatementFetchingRequest>),
+	/// Get receiver for receiving incoming network requests for statement fetching.
+	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -741,12 +741,6 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorPro
 		Self::CollationFetchingRequest(req)
 	}
 }
-impl From<IncomingRequest<req_res_v1::StatementFetchingRequest>> for StatementDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::StatementFetchingRequest>) -> Self {
-		Self::StatementFetchingRequest(req)
-	}
-}
-
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
@@ -766,10 +760,5 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages
 impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
 		From::<AvailabilityRecoveryMessage>::from(From::from(req))
-	}
-}
-impl From<IncomingRequest<req_res_v1::StatementFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::StatementFetchingRequest>) -> Self {
-		From::<StatementDistributionMessage>::from(From::from(req))
 	}
 }

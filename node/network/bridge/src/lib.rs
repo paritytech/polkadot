@@ -27,10 +27,7 @@ use futures::channel::mpsc;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
-use polkadot_subsystem::{
-	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult, SubsystemSender, OverseerSignal, FromOverseer,
-};
+use polkadot_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender, messages::StatementDistributionMessage};
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
 	CollatorProtocolMessage, NetworkBridgeEvent,
@@ -842,11 +839,15 @@ where
 
 	let NetworkBridge {
 		network_service,
-		request_multiplexer,
+		mut request_multiplexer,
 		authority_discovery_service,
 		metrics,
 		sync_oracle,
 	 } = bridge;
+
+    let statement_receiver = request_multiplexer
+        .get_statement_fetching()
+        .expect("Gets initialized, must be `Some` on startup. qed.");
 
 	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
 
@@ -860,6 +861,10 @@ where
 	).remote_handle();
 
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
+
+    ctx.send_message(AllMessages::StatementDistribution(
+        StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
+    )).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(
 		ctx,
