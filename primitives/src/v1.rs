@@ -175,10 +175,10 @@ pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 /// The key type ID for parachain assignment key.
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
-/// Maximum code size we support right now.
-/// At the moment we have runtime upgrade on chain, which restricts scalability severly. If we
-/// want to have bigger values, we should fix that first.
-pub const MAX_CODE_SIZE: u32 = 5 * 1024 * 1024;
+/// Maximum compressed code size we support right now.
+/// At the moment we have runtime upgrade on chain, which restricts scalability severly. If we want
+/// to have bigger values, we should fix that first.
+pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.

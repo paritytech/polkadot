@@ -190,12 +190,15 @@ impl Protocol {
 			// Our queue size approximation is how many blocks of the size of
 			// a runtime we can transfer within a statements timeout, minus the requests we handle
 			// in parallel.
-			//
-			// NOTE: We use `MAX_CODE_SIZE` which is the uncompressed size, so this should get us
-			// enough leeway with actual compressed runtimes.
 			Protocol::StatementFetching => {
+				// We assume we can utilize up to 70% of the available bandwidth for statements.
+				// This is just a guess/estimate, with the following considerations: If we are
+				// faster than that, queue size will stay low anyway, even if not - requesters will
+				// get an immediate error, but if we are slower, requesters will run in a timeout -
+				// waisting precious time.
+				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
-					STATEMENTS_TIMEOUT.as_secs() * MIN_BANDWIDTH_BYTES / MAX_CODE_SIZE as u64,
+					STATEMENTS_TIMEOUT.as_secs() * available_bandwidth / MAX_CODE_SIZE as u64,
 					MAX_PARALLEL_STATEMENT_REQUESTS as u64
 				);
 				debug_assert!(
