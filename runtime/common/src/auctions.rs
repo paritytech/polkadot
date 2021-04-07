@@ -192,6 +192,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		const EndingPeriod: T::BlockNumber = T::EndingPeriod::get();
+		const SampleLength: T::BlockNumber = T::SampleLength::get();
 
 		fn deposit_event() = default;
 
