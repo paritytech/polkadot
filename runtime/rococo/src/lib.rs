@@ -81,11 +81,11 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
-use xcm_executor::traits::IsConcrete;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
 };
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
@@ -616,6 +616,11 @@ type LocalOriginConverter = (
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
+parameter_types! {
+	pub const BaseXcmWeight: Weight = 100_000;
+	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -625,6 +630,10 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Barrier = ();
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type ResponseHandler = ();
 }
 
 impl parachains_session_info::Config for Runtime {}

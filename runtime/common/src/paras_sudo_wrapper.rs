@@ -16,7 +16,6 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
-use crate::WASM_MAGIC;
 use sp_std::prelude::*;
 use frame_support::{
 	decl_error, decl_module, ensure,
@@ -47,8 +46,6 @@ decl_error! {
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
-		/// The validation code provided doesn't start with the Wasm file magic string.
-		DefinitelyNotWasm,
 		/// Could not schedule para cleanup.
 		CouldntCleanup,
 		/// Not a parathread.
@@ -75,7 +72,6 @@ decl_module! {
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(genesis.validation_code.0.starts_with(WASM_MAGIC), Error::<T>::DefinitelyNotWasm);
 			runtime_parachains::schedule_para_initialize::<T>(id, genesis).map_err(|_| Error::<T>::ParaAlreadyExists)?;
 			Ok(())
 		}
@@ -113,7 +109,7 @@ decl_module! {
 		/// The given parachain should exist and the payload should not exceed the preconfigured size
 		/// `config.max_downward_message_size`.
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::VersionedXcm) -> DispatchResult {
+		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::opaque::VersionedXcm) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();
