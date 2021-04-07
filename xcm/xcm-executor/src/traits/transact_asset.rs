@@ -45,6 +45,21 @@ pub trait TransactAsset {
 	fn transfer_asset(_asset: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
+
+	/// Move an `asset` `from` one location in `to` another location.
+	///
+	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
+	fn teleport_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+		match Self::transfer_asset(asset, from, to) {
+			Err(XcmError::Unimplemented) => {
+				let assets = Self::withdraw_asset(asset, from)?;
+				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
+				Self::deposit_asset(asset, to)?;
+				Ok(assets)
+			}
+			result => result
+		}
+	}
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]

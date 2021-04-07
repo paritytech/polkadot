@@ -123,7 +123,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
-					Config::AssetTransactor::transfer_asset(&asset, &origin, &dest)?;
+					Config::AssetTransactor::teleport_asset(&asset, &origin, &dest)?;
 				}
 				None
 			}
@@ -132,14 +132,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let inv_dest = Config::LocationInverter::invert_location(&dest);
 				for asset in assets.iter_mut() {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
-					match Config::AssetTransactor::transfer_asset(&asset, &origin, &dest) {
-						Err(XcmError::Unimplemented) => {
-							// Fallback to using withdraw + deposit.
-							Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
-							Config::AssetTransactor::deposit_asset(&asset, &origin)?;
-						}
-						x => { x?; },
-					}
+					Config::AssetTransactor::teleport_asset(&asset, &origin, &dest)?;
 					asset.reanchor(&inv_dest)?;
 				}
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
