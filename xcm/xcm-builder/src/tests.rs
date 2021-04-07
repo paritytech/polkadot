@@ -336,16 +336,3 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::Barrier));
 }
-
-// TODO: General ResponseMap of (QueryId, Origin) -> EitherOr<Dispatch, Option<Response>> which
-//   allows free execution of the message and then either stores the result or calls a dispatch - in this case
-//   it could go overweight be up to the weight of whatever dispatch is in there. It should be added on and
-//   checked before executing any further XCMs.
-
-// TODO: Integrate into the XCM dispatch system in the runtimes
-
-// TODO: Ordering flag per message fragment in an aggregate message.
-
-// TODO: Test transact execution origins.
-
-// TODO: Don't just burn fees - send them somewhere, and test that we get them!
