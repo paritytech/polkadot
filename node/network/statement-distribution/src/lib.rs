@@ -509,23 +509,28 @@ struct FetchingInfo {
 enum Message {
 	/// Messages from other subsystems.
 	Subsystem(SubsystemResult<FromOverseer<StatementDistributionMessage>>),
-	/// Messages from spawned background tasks.
+	/// Messages from spawned requester background tasks.
 	Requester(Option<RequesterMessage>),
+	/// Messages from spawned responder background task.
+	Responder(Option<ResponderMessage>)
 }
 
 impl Message {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
-		req_receiver: &mut mpsc::Receiver<RequesterMessage>,
+		from_requester: &mut mpsc::Receiver<RequesterMessage>,
+		from_responder: &mut mpsc::Receiver<RequesterMessage>,
 	) -> Message {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
-		let from_requester = req_receiver.next().fuse();
-		futures::pin_mut!(from_overseer, from_requester);
+		let from_requester = from_requester.next().fuse();
+		let from_responder = from_responder.next().fuse();
+		futures::pin_mut!(from_overseer, from_requester, from_responder);
 		futures::select!(
 			msg = from_overseer => Message::Subsystem(msg),
 			msg = from_requester => Message::Requester(msg),
+			msg = from_responder => Message::Responder(msg),
 		)
 	}
 }
@@ -1157,7 +1162,7 @@ async fn launch_request(
 	let result = ctx.spawn("large-statement-fetcher", task.boxed())
 		.await;
 	if let Err(err) = result {
-		tracing::warn!(target: LOG_TARGET, ?err, "Spawning task failed.");
+		tracing::error!(target: LOG_TARGET, ?err, "Spawning task failed.");
 		return None
 	}
 	let available_peers = {
@@ -1444,27 +1449,39 @@ impl StatementDistribution {
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
+		// Sender/Receiver for getting news from our responder task.
+		let (res_sender, mut res_receiver) = mpsc::channel(1);
 
 		loop {
-			let message = Message::receive(&mut ctx, &mut req_receiver).await;
+			let message = Message::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
 			let finished = match message {
 				Message::Subsystem(result) =>
-					self.handle_subsystem_messages(
+					self.handle_subsystem_message(
 						&mut ctx,
 						&mut peers,
 						&mut active_heads,
 						&req_sender,
+						&res_sender,
 						result?,
 					)
 					.await?,
 				Message::Requester(result) =>
-					self.handle_requester_messages(
+					self.handle_requester_message(
 						&mut ctx,
 						&mut peers,
 						&mut active_heads,
 						&req_sender,
 						result.ok_or(SubsystemError::Context(
 							"Failed to read from requester receiver (stream finished)"
+								.to_string()
+						))?
+					)
+					.await?,
+				Message::Responder(result) =>
+					self.handle_responder_message(
+						&mut active_heads,
+						result.ok_or(SubsystemError::Context(
+							"Failed to read from responder receiver (stream finished)"
 								.to_string()
 						))?
 					)
@@ -1477,7 +1494,47 @@ impl StatementDistribution {
 		Ok(())
 	}
 
-	async fn handle_requester_messages(
+	/// Handle messages from responder background task.
+	async fn handle_responder_message(
+		&self,
+		active_heads: &mut HashMap<Hash, ActiveHeadData>,
+		message: ResponderMessage,
+	) -> SubsystemResult<bool> {
+		match message {
+			ResponderMessage::GetData {
+				relay_parent,
+				candidate_hash,
+				tx,
+			} => {
+				let active_head = match active_heads.get(&relay_parent) {
+					Some(head) => head,
+					None => return Ok(false),
+				};
+				let committed = match active_head.waiting_large_statements.get(&candidate_hash) {
+					Some(LargeStatementStatus::Fetched(committed)) => committed.clone(),
+					_ => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							"Requested data not found - this should not happen under normal circumstances."
+						);
+						return Ok(false)
+					}
+				};
+
+				if let Err(_) = tx.send(committed) {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Sending data to responder failed"
+					);
+					return Ok(false)
+				}
+			}
+		}
+		Ok(false)
+	}
+
+	async fn handle_requester_message(
 		&self,
 		ctx: &mut impl SubsystemContext,
 		peers: &mut HashMap<PeerId, PeerData>,
@@ -1560,7 +1617,7 @@ impl StatementDistribution {
 							statement,
 							&self.metrics,
 						).await;
-						
+
 						// Cache is now populated, resend all other messages:
 						for (peer, metadata) in info.available_peers {
 							let message =
@@ -1663,12 +1720,13 @@ impl StatementDistribution {
 		Ok(false)
 	}
 
-	async fn handle_subsystem_messages(
+	async fn handle_subsystem_message(
 		&self,
 		ctx: &mut impl SubsystemContext,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
+		res_sender: &mpsc::Sender<ResponderMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
 	) -> SubsystemResult<bool> {
 		let metrics = &self.metrics;
@@ -1791,8 +1849,8 @@ impl StatementDistribution {
 						metrics,
 					).await;
 				}
-				StatementDistributionMessage::StatementFetchingReceiver(_) => {
-					panic!("WIP");
+				StatementDistributionMessage::StatementFetchingReceiver(receiver) => {
+					ctx.spawn("large-statement-responder", respond(receiver, res_sender.clone()).boxed()).await?;
 				}
 			}
 		}
