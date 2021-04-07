@@ -1020,19 +1020,18 @@ mod tests {
 		);
 		assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
-		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
-			MockValidationArg {
-				result: Err(ValidationError::InvalidCandidate(
-					WasmInvalidCandidate::BadReturn
-				))
-			},
+		let v = executor::block_on(validate_candidate_exhaustive(
+			MockValidatorBackend::with_hardcoded_result(
+				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)),
+			),
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
-			TaskExecutor::new(),
 			&Default::default(),
-		).unwrap();
+		))
+		.unwrap()
+		.unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
 	}

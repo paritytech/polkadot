@@ -427,7 +427,6 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
-	_: ApprovalVotingConfig,
 	_: CandidateValidationConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
@@ -457,7 +456,6 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
-	approval_voting_config: ApprovalVotingConfig,
 	candidate_validation_config: CandidateValidationConfig,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
@@ -962,7 +960,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,
-			approval_voting_config,
 			candidate_validation_config,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
