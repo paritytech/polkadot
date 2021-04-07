@@ -132,7 +132,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let inv_dest = Config::LocationInverter::invert_location(&dest);
 				for asset in assets.iter_mut() {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
-					Config::AssetTransactor::transfer_asset(&asset, &origin, &dest)?;
+					match Config::AssetTransactor::transfer_asset(&asset, &origin, &dest) {
+						Err(XcmError::Unimplemented) => {
+							// Fallback to using withdraw + deposit.
+							Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
+							Config::AssetTransactor::deposit_asset(&asset, &origin)?;
+						}
+						x => { x?; },
+					}
 					asset.reanchor(&inv_dest)?;
 				}
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
