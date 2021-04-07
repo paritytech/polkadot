@@ -665,18 +665,6 @@ pub struct AvailableData {
 	// In the future, outgoing messages as well.
 }
 
-/// A chunk of erasure-encoded block data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
-pub struct ErasureChunk {
-	/// The erasure-encoded chunk of data belonging to the candidate block.
-	pub chunk: Vec<u8>,
-	/// The index of this erasure-encoded chunk of data.
-	pub index: ValidatorIndex,
-	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
-}
-
 const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
 
 /// Statements that can be made about parachain candidates. These are the
@@ -688,8 +676,6 @@ pub enum CompactStatement {
 	Seconded(CandidateHash),
 	/// State that a parachain candidate is valid.
 	Valid(CandidateHash),
-	/// State that a parachain candidate is invalid.
-	Invalid(CandidateHash),
 }
 
 // Inner helper for codec on `CompactStatement`.
@@ -699,8 +685,6 @@ enum CompactStatementInner {
 	Seconded(CandidateHash),
 	#[codec(index = 2)]
 	Valid(CandidateHash),
-	#[codec(index = 3)]
-	Invalid(CandidateHash),
 }
 
 impl From<CompactStatement> for CompactStatementInner {
@@ -708,7 +692,6 @@ impl From<CompactStatement> for CompactStatementInner {
 		match s {
 			CompactStatement::Seconded(h) => CompactStatementInner::Seconded(h),
 			CompactStatement::Valid(h) => CompactStatementInner::Valid(h),
-			CompactStatement::Invalid(h) => CompactStatementInner::Invalid(h),
 		}
 	}
 }
@@ -735,7 +718,6 @@ impl parity_scale_codec::Decode for CompactStatement {
 		Ok(match CompactStatementInner::decode(input)? {
 			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
 			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
-			CompactStatementInner::Invalid(h) => CompactStatement::Invalid(h),
 		})
 	}
 }
@@ -744,10 +726,7 @@ impl CompactStatement {
 	/// Get the underlying candidate hash this references.
 	pub fn candidate_hash(&self) -> &CandidateHash {
 		match *self {
-			CompactStatement::Seconded(ref h)
-				| CompactStatement::Valid(ref h)
-				| CompactStatement::Invalid(ref h)
-				=> h
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
 		}
 	}
 }

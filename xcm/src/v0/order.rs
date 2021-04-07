@@ -17,13 +17,18 @@
 //! Version 0 of the Cross-Consensus Message format data structures.
 
 use alloc::vec::Vec;
+use derivative::Derivative;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, MultiLocation};
+use super::{MultiAsset, MultiLocation, Xcm};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Order {
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum Order<Call> {
 	/// Do nothing. Not generally used.
+	#[codec(index = 0)]
 	Null,
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
@@ -33,12 +38,13 @@ pub enum Order {
 	/// - `dest`: The new owner for the assets.
 	///
 	/// Errors:
+	#[codec(index = 1)]
 	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The new owner for the assets.
@@ -46,7 +52,8 @@ pub enum Order {
 	///   `dest.
 	///
 	/// Errors:
-	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+	#[codec(index = 2)]
+	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
@@ -57,6 +64,7 @@ pub enum Order {
 	///   is undefined and they should be not be used.
 	///
 	/// Errors:
+	#[codec(index = 3)]
 	ExchangeAsset { give: Vec<MultiAsset>, receive: Vec<MultiAsset> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a reserve location.
@@ -68,7 +76,8 @@ pub enum Order {
 	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
 	///
 	/// Errors:
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order> },
+	#[codec(index = 4)]
+	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -77,7 +86,8 @@ pub enum Order {
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
 	///
 	/// Errors:
-	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+	#[codec(index = 5)]
+	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
 	///
@@ -88,5 +98,43 @@ pub enum Order {
 	///   back.
 	///
 	/// Errors:
+	#[codec(index = 6)]
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
+
+	/// Pay for the execution of some Xcm with up to `weight` picoseconds of execution time, paying for this with
+	/// up to `fees` from the holding account.
+	///
+	/// Errors:
+	#[codec(index = 7)]
+	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
+}
+
+pub mod opaque {
+	pub type Order = super::Order<()>;
+}
+
+impl<Call> Order<Call> {
+	pub fn into<C>(self) -> Order<C> { Order::from(self) }
+	pub fn from<C>(order: Order<C>) -> Self {
+		use Order::*;
+		match order {
+			Null => Null,
+			DepositAsset { assets, dest }
+				=> DepositAsset { assets, dest },
+			DepositReserveAsset { assets, dest, effects }
+				=> DepositReserveAsset { assets, dest, effects },
+			ExchangeAsset { give, receive }
+				=> ExchangeAsset { give, receive },
+			InitiateReserveWithdraw { assets, reserve, effects }
+				=> InitiateReserveWithdraw { assets, reserve, effects },
+			InitiateTeleport { assets, dest, effects }
+				=> InitiateTeleport { assets, dest, effects },
+			QueryHolding { query_id, dest, assets }
+				=> QueryHolding { query_id, dest, assets },
+			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
+				let xcm = xcm.into_iter().map(Xcm::from).collect();
+				BuyExecution { fees, weight, debt, halt_on_error, xcm }
+			},
+		}
+	}
 }

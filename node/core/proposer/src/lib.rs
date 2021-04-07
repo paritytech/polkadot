@@ -26,9 +26,10 @@ use polkadot_node_subsystem::{
 };
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Block, Hash, Header,
+	Block, Hash, Header, InherentData as ParachainsInherentData,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_telemetry::TelemetryHandle;
 use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
@@ -55,6 +56,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
 		prometheus: Option<&PrometheusRegistry>,
+		telemetry: Option<TelemetryHandle>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
@@ -62,6 +64,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 				client,
 				transaction_pool,
 				prometheus,
+				telemetry,
 			),
 			overseer,
 		}
@@ -200,27 +203,32 @@ where
 		max_duration: time::Duration,
 	) -> Self::Proposal {
 		async move {
-			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
+			let span = jaeger::Span::new(self.parent_header_hash, "propose");
 			let _span = span.child("get-provisioner");
 
-			let provisioner_data = match self.get_provisioner_data().await {
-				Ok(pd) => pd,
+			let parachains_inherent_data = match self.get_provisioner_data().await {
+				Ok(pd) => ParachainsInherentData {
+					bitfields: pd.bitfields,
+					backed_candidates: pd.backed_candidates,
+					disputes: pd.disputes,
+					parent_header: self.parent_header,
+				},
 				Err(err) => {
 					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
-					Default::default()
+					ParachainsInherentData {
+						bitfields: Vec::new(),
+						backed_candidates: Vec::new(),
+						disputes: Vec::new(),
+						parent_header: self.parent_header,
+					}
 				}
 			};
 
 			drop(_span);
 
-			let inclusion_inherent_data = (
-				provisioner_data.0,
-				provisioner_data.1,
-				self.parent_header,
-			);
 			inherent_data.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
-				&inclusion_inherent_data,
+				polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER,
+				&parachains_inherent_data,
 			)?;
 
 			let _span = span.child("authorship-propose");

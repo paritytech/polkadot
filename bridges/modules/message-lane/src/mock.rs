@@ -64,9 +64,9 @@ frame_support::construct_runtime! {
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Module, Call, Event<T>},
-		MessageLane: pallet_message_lane::{Module, Call, Event<T>},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Event<T>},
+		MessageLane: pallet_message_lane::{Pallet, Call, Event<T>},
 	}
 }
 
@@ -100,6 +100,7 @@ impl frame_system::Config for TestRuntime {
 	type BlockLength = ();
 	type DbWeight = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -112,7 +113,7 @@ impl pallet_balances::Config for TestRuntime {
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = frame_system::Module<TestRuntime>;
+	type AccountStore = frame_system::Pallet<TestRuntime>;
 	type WeightInfo = ();
 }
 

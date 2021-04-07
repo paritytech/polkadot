@@ -14,20 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The `Error` and `Result` types used by the subsystem.
+use xcm::v0::{MultiAsset, MultiLocation};
 
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error(transparent)]
-	Subsystem(#[from] polkadot_subsystem::SubsystemError),
-	#[error(transparent)]
-	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
-	#[error(transparent)]
-	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
-	#[error(transparent)]
-	Util(#[from] polkadot_node_subsystem_util::Error),
+pub trait FilterAssetLocation {
+	/// A filter to distinguish between asset/location pairs.
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl FilterAssetLocation for Tuple {
+	fn filter_asset_location(what: &MultiAsset, origin: &MultiLocation) -> bool {
+		for_tuples!( #(
+			if Tuple::filter_asset_location(what, origin) { return true }
+		)* );
+		false
+	}
+}

@@ -25,7 +25,7 @@ use primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CandidateHash, Hash,
+	CandidateReceipt, HeadData, CandidateHash,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, dispatch::DispatchResult, IterableStorageMap,
@@ -185,6 +185,8 @@ decl_error! {
 		HrmpWatermarkMishandling,
 		/// The HRMP messages sent by the candidate is not valid.
 		InvalidOutboundHrmp,
+		/// The validation code hash of the candidate is not valid.
+		InvalidValidationCodeHash,
 	}
 }
 
@@ -260,7 +262,7 @@ impl<T: Config> Module<T> {
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
-				parent_hash: <frame_system::Module<T>>::parent_hash(),
+				parent_hash: <frame_system::Pallet<T>>::parent_hash(),
 				session_index,
 			};
 
@@ -296,7 +298,7 @@ impl<T: Config> Module<T> {
 			}
 		}
 
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
@@ -378,7 +380,7 @@ impl<T: Config> Module<T> {
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates(
-		parent_storage_root: Hash,
+		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -390,11 +392,11 @@ impl<T: Config> Module<T> {
 		}
 
 		let validators = shared::Module::<T>::active_validator_keys();
-		let parent_hash = <frame_system::Module<T>>::parent_hash();
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
 		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
 		// before of the block where we include a candidate (i.e. this code path).
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now - One::one();
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
@@ -442,6 +444,15 @@ impl<T: Config> Module<T> {
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
+				);
+
+				let validation_code_hash =
+					<paras::Module<T>>::validation_code_hash_at(para_id, now, None)
+					// A candidate for a parachain without current validation code is not scheduled.
+					.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
+				ensure!(
+					candidate.descriptor().validation_code_hash == validation_code_hash,
+					Error::<T>::InvalidValidationCodeHash,
 				);
 
 				if let Err(err) = check_cx
@@ -612,7 +623,7 @@ impl<T: Config> Module<T> {
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
-		let now = <frame_system::Module<T>>::block_number();
+		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now;
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
@@ -954,6 +965,7 @@ mod tests {
 			&candidate.descriptor.para_id,
 			&candidate.descriptor.persisted_validation_data_hash,
 			&candidate.descriptor.pov_hash,
+			&candidate.descriptor.validation_code_hash,
 		);
 
 		candidate.descriptor.signature = collator.sign(&payload[..]).into();
@@ -1109,6 +1121,7 @@ mod tests {
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
+		validation_code: ValidationCode,
 		hrmp_watermark: BlockNumber,
 	}
 
@@ -1120,6 +1133,7 @@ mod tests {
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
 					persisted_validation_data_hash: self.persisted_validation_data_hash,
+					validation_code_hash: self.validation_code.hash(),
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -1133,7 +1147,7 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
-		let relay_parent_number = <frame_system::Module<Test>>::block_number() - 1;
+		let relay_parent_number = <frame_system::Pallet<Test>>::block_number() - 1;
 		let persisted_validation_data
 			= crate::util::make_persisted_validation_data::<Test>(
 				para_id,
@@ -1213,7 +1227,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
@@ -1446,7 +1460,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
@@ -1611,7 +1625,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2071,6 +2085,43 @@ mod tests {
 					Err(Error::<Test>::ValidationDataHashMismatch.into()),
 				);
 			}
+
+			// bad validation code hash
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::repeat_byte(1),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
+					validation_code: ValidationCode(vec![1]),
+					..Default::default()
+				}.build();
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = block_on(back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&keystore,
+					&signing_context,
+					BackingKind::Threshold,
+				));
+
+				assert_eq!(
+					Inclusion::process_candidates(
+						Default::default(),
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::InvalidValidationCodeHash.into()),
+				);
+			}
 		});
 	}
 
@@ -2081,7 +2132,7 @@ mod tests {
 		let thread_a = ParaId::from(3);
 
 		// The block number of the relay-parent for testing.
-        const RELAY_PARENT_NUM: BlockNumber = 4;
+		const RELAY_PARENT_NUM: BlockNumber = 4;
 
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![
@@ -2098,7 +2149,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2295,7 +2346,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
@@ -2392,7 +2443,7 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators(validator_public.clone());
+			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Module::<Test>::set_session_index(5);
 
 			let validators_new = vec![

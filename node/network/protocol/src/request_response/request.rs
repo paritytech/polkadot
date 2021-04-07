@@ -17,6 +17,7 @@
 use futures::channel::oneshot;
 use futures::prelude::Future;
 
+use thiserror::Error;
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 use sc_network as network;
 use sc_network::config as netconfig;
@@ -39,14 +40,23 @@ pub trait IsRequest {
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.
-	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
+	ChunkFetching(OutgoingRequest<v1::ChunkFetchingRequest>),
+	/// Fetch a collation from a collator which previously announced it.
+	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
+	/// Fetch a PoV from a validator which previously sent out a seconded statement.
+	PoVFetching(OutgoingRequest<v1::PoVFetchingRequest>),
+	/// Request full available data from a node.
+	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
 }
 
 impl Requests {
 	/// Get the protocol this request conforms to.
 	pub fn get_protocol(&self) -> Protocol {
 		match self {
-			Self::AvailabilityFetching(_) => Protocol::AvailabilityFetching,
+			Self::ChunkFetching(_) => Protocol::ChunkFetching,
+			Self::CollationFetching(_) => Protocol::CollationFetching,
+			Self::PoVFetching(_) => Protocol::PoVFetching,
+			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
 		}
 	}
 
@@ -59,19 +69,37 @@ impl Requests {
 	/// contained in the enum.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
-			Self::AvailabilityFetching(r) => r.encode_request(),
+			Self::ChunkFetching(r) => r.encode_request(),
+			Self::CollationFetching(r) => r.encode_request(),
+			Self::PoVFetching(r) => r.encode_request(),
+			Self::AvailableDataFetching(r) => r.encode_request(),
 		}
 	}
+}
+
+/// Potential recipients of an outgoing request.
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub enum Recipient {
+	/// Recipient is a regular peer and we know its peer id.
+	Peer(PeerId),
+	/// Recipient is a validator, we address it via this `AuthorityDiscoveryId`.
+	Authority(AuthorityDiscoveryId),
 }
 
 /// A request to be sent to the network bridge, including a sender for sending responses/failures.
 ///
 /// The network implementation will make use of that sender for informing the requesting subsystem
 /// about responses/errors.
+///
+/// When using `Recipient::Peer`, keep in mind that no address (as in IP address and port) might
+/// be known for that specific peer. You are encouraged to use `Peer` for peers that you are
+/// expected to be already connected to.
+/// When using `Recipient::Authority`, the addresses can be found thanks to the authority
+/// discovery system.
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
 	/// Intendent recipient of this request.
-	pub peer: AuthorityDiscoveryId,
+	pub peer: Recipient,
 	/// The actual request to send over the wire.
 	pub payload: Req,
 	/// Sender which is used by networking to get us back a response.
@@ -79,16 +107,23 @@ pub struct OutgoingRequest<Req> {
 }
 
 /// Any error that can occur when sending a request.
+#[derive(Debug, Error)]
 pub enum RequestError {
 	/// Response could not be decoded.
-	InvalidResponse(DecodingError),
+	#[error("Response could not be decoded")]
+	InvalidResponse(#[source] DecodingError),
 
 	/// Some error in substrate/libp2p happened.
-	NetworkError(network::RequestFailure),
+	#[error("Some network error occurred")]
+	NetworkError(#[source] network::RequestFailure),
 
 	/// Response got canceled by networking.
-	Canceled(oneshot::Canceled),
+	#[error("Response channel got canceled")]
+	Canceled(#[source] oneshot::Canceled),
 }
+
+/// Responses received for an `OutgoingRequest`.
+pub type OutgoingResult<Res> = Result<Res, RequestError>;
 
 impl<Req> OutgoingRequest<Req>
 where
@@ -100,11 +135,11 @@ where
 	/// It will contain a sender that is used by the networking for sending back responses. The
 	/// connected receiver is returned as the second element in the returned tuple.
 	pub fn new(
-		peer: AuthorityDiscoveryId,
+		peer: Recipient,
 		payload: Req,
 	) -> (
 		Self,
-		impl Future<Output = Result<Req::Response, RequestError>>,
+		impl Future<Output = OutgoingResult<Req::Response>>,
 	) {
 		let (tx, rx) = oneshot::channel();
 		let r = Self {
@@ -193,6 +228,7 @@ where
 			.send(netconfig::OutgoingResponse {
 				result: Ok(resp.encode()),
 				reputation_changes: Vec::new(),
+				sent_feedback: None,
 			})
 			.map_err(|_| resp)
 	}
@@ -201,7 +237,7 @@ where
 /// Future for actually receiving a typed response for an OutgoingRequest.
 async fn receive_response<Req>(
 	rec: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
-) -> Result<Req::Response, RequestError>
+) -> OutgoingResult<Req::Response>
 where
 	Req: IsRequest,
 	Req::Response: Decode,
