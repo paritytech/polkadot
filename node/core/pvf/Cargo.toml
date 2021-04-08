@@ -1,0 +1,53 @@
+[package]
+name = "polkadot-node-core-pvf"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[[bin]]
+name = "puppet_worker"
+path = "bin/puppet_worker.rs"
+
+[dependencies]
+always-assert = "0.1"
+async-std = { version = "1.8.0", features = ["attributes"] }
+async-process = "1.0.1"
+assert_matches = "1.4.0"
+futures = "0.3.12"
+futures-timer = "3.0.2"
+libc = "0.2.81"
+slotmap = "1.0"
+tracing = "0.1.22"
+pin-project = "1.0.4"
+rand = "0.8.3"
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+polkadot-parachain = { path = "../../../parachain" }
+polkadot-core-primitives = { path = "../../../core-primitives" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+
+[dev-dependencies]
+adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
+halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
+hex-literal = "0.3.1"
+tempfile = "3.2.0"
+
+# PVF execution leverages compiled artifacts provided by wasmtime. The contents of the artifacts
+# depends on the version of wasmtime. In this crate we persist the artifacts on disk so we should
+# be careful about the updates. In order to handle this, we depend on the wasmtime version here
+# that we think is used by the sc-executor. If wasmtime is updated in Substrate and wasn't updated
+# here then there will be linking errors like
+#
+#     `multiple definitions of `set_vmctx_memory`.
+#
+# or similar, because wasmtime exports these symbols and does not support multiple versions compiled
+# in at the same time.
+#
+# Another safeguard is a test `ensure_wasmtime_version` that will fail on each bump and prompt the
+# developer to correspondingly act upon the change.
+wasmtime-jit = "0.24"
