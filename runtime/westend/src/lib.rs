@@ -31,7 +31,7 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	mmr as mmr_common, paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots,
+	mmr as mmr_common, paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
@@ -63,7 +63,7 @@ use xcm_builder::{
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear, ModuleId,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
@@ -824,28 +824,12 @@ impl paras_registrar::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type OnSwap = (Crowdloan, Slots);
+	type OnSwap = Slots;
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = paras_registrar::TestWeightInfo;
-}
-
-parameter_types! {
-	pub const EndingPeriod: BlockNumber = 6 * HOURS;
-	pub const SampleLength: BlockNumber = 1;
-}
-
-impl auctions::Config for Runtime {
-	type Event = Event;
-	type Leaser = Slots;
-	type Registrar = Registrar;
-	type EndingPeriod = EndingPeriod;
-	type SampleLength = SampleLength;
-	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = auctions::TestWeightInfo;
 }
 
 parameter_types! {
@@ -858,28 +842,6 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type WeightInfo = slots::TestWeightInfo;
-}
-
-parameter_types! {
-	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
-	pub const MinContribution: Balance = 1 * DOLLARS;
-	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
-	pub const RemoveKeysLimit: u32 = 500;
-	// Allow 32 bytes for an additional memo to a crowdloan.
-	pub const MaxMemoLength: u8 = 32;
-}
-
-impl crowdloan::Config for Runtime {
-	type Event = Event;
-	type ModuleId = CrowdloanId;
-	type SubmissionDeposit = SubmissionDeposit;
-	type MinContribution = MinContribution;
-	type RemoveKeysLimit = RemoveKeysLimit;
-	type Registrar = Registrar;
-	type Auctioneer = Auctions;
-	type MaxMemoLength = MaxMemoLength;
-	type WeightInfo = crowdloan::TestWeightInfo;
 }
 
 parameter_types! {
@@ -992,26 +954,24 @@ construct_runtime! {
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
 		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
 
-		// Parachains pallets.
-		ParachainsOrigin: parachains_origin::{Pallet, Origin},
-		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
-		ParasShared: parachains_shared::{Pallet, Call, Storage},
-		ParasInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
-		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event},
-		ParasInitializer: parachains_initializer::{Pallet, Call, Storage},
-		ParasDmp: parachains_dmp::{Pallet, Call, Storage},
-		ParasUmp: parachains_ump::{Pallet, Call, Storage},
-		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
-		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage},
+		// Parachains pallets. Start indices at 40 to leave room.
+		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
+		ParasShared: parachains_shared::{Pallet, Call, Storage} = 43,
+		ParasInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
+		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage} = 46,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event} = 47,
+		ParasInitializer: parachains_initializer::{Pallet, Call, Storage} = 48,
+		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 49,
+		ParasUmp: parachains_ump::{Pallet, Call, Storage} = 50,
+		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 51,
+		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 52,
 
-		// Parachain Onboarding Pallets
-		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
-		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
-		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
-		Slots: slots::{Pallet, Call, Storage, Event<T>},
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
+		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 	}
 }
 
@@ -1406,6 +1366,8 @@ sp_api::impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
+
+			// TODO[now] slots, registrar
 
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
