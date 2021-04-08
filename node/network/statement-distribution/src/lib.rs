@@ -1098,15 +1098,16 @@ async fn retrieve_statement_from_message<'a>(
 
 					match occupied.get_mut() {
 						LargeStatementStatus::Fetching(info) => {
-							info.available_peers.insert(peer, metadata);
-							info.peers_to_try.push(peer);
-							// Answer any pending request for more peers:
-							if let Some(sender) = std::mem::take(&mut info.peer_sender) {
-								let to_send = std::mem::take(&mut info.peers_to_try);
-								if let Err(peers) = sender.send(to_send) {
-									// Requester no longer interested for now, might want them
-									// later:
-									info.peers_to_try = peers;
+							if info.available_peers.insert(peer, metadata).is_none() {
+								info.peers_to_try.push(peer);
+								// Answer any pending request for more peers:
+								if let Some(sender) = std::mem::take(&mut info.peer_sender) {
+									let to_send = std::mem::take(&mut info.peers_to_try);
+									if let Err(peers) = sender.send(to_send) {
+										// Requester no longer interested for now, might want them
+										// later:
+										info.peers_to_try = peers;
+									}
 								}
 							}
 						}
