@@ -727,9 +727,9 @@ mod tests {
 
 			run_to_session(2);
 
-			assert_ok!(Registrar::deregister(Origin::root(), 31002.into()));
+			assert_ok!(Registrar::deregister(Origin::root(), 1032.into()));
 
-			// Can't do it again
+			// Can't do it again until offboarded from the paras backend
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
 				1032.into(),
