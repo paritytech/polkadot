@@ -719,6 +719,13 @@ impl<T: Config> Module<T> {
 		shared::Module::<T>::scheduled_session()
 	}
 
+	/// Forcibly set the active config. This should be used with extreme care, and typically
+	/// only when enabling parachains runtime modules for the first time on a chain which has
+	/// been running without them.
+	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
+		<Self as Store>::ActiveConfig::set(config);
+	}
+
 	// NOTE: Explicitly tell rustc not to inline this because otherwise heuristics note the incoming
 	// closure making it's attractive to inline. However, in this case, we will end up with lots of
 	// duplicated code (making this function to show up in the top of heaviest functions) only for
