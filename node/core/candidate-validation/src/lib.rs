@@ -40,51 +40,44 @@ use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
-use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_node_core_pvf::{Pvf, ValidationHost, ValidationError, InvalidCandidate as WasmInvalidCandidate};
+use polkadot_parachain::wasm_executor::{
+	self, IsolationStrategy, ValidationError, InvalidCandidate as WasmInvalidCandidate
+};
+use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
+use sp_core::traits::SpawnNamed;
 
 use futures::channel::oneshot;
 use futures::prelude::*;
 
 use std::sync::Arc;
-use std::path::PathBuf;
-
-use async_trait::async_trait;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
-/// Configuration for the candidate validation subsystem
-pub struct Config {
-	/// The path where candidate validation can store compiled artifacts for PVFs.
-	pub artifacts_cache_path: PathBuf,
-	/// The path to the executable which can be used for spawning PVF compilation & validation
-	/// workers.
-	pub program_path: PathBuf,
-}
-
 /// The candidate validation subsystem.
-pub struct CandidateValidationSubsystem {
+pub struct CandidateValidationSubsystem<S> {
+	spawn: S,
 	metrics: Metrics,
-	config: Config,
+	isolation_strategy: IsolationStrategy,
 }
 
-impl CandidateValidationSubsystem {
+impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner and isolation
 	/// strategy.
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
-	pub fn with_config(config: Config, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { config, metrics, }
+	pub fn new(spawn: S, metrics: Metrics, isolation_strategy: IsolationStrategy) -> Self {
+		CandidateValidationSubsystem { spawn, metrics, isolation_strategy }
 	}
 }
 
-impl<C> Subsystem<C> for CandidateValidationSubsystem where
+impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
+	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.metrics, self.config.artifacts_cache_path, self.config.program_path)
+		let future = run(ctx, self.spawn, self.metrics, self.isolation_strategy)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
 			.boxed();
 		SpawnedSubsystem {
@@ -94,18 +87,13 @@ impl<C> Subsystem<C> for CandidateValidationSubsystem where
 	}
 }
 
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
+	spawn: impl SpawnNamed + Clone + 'static,
 	metrics: Metrics,
-	cache_path: PathBuf,
-	program_path: PathBuf,
+	isolation_strategy: IsolationStrategy,
 ) -> SubsystemResult<()> {
-	let (mut validation_host, task) = polkadot_node_core_pvf::start(
-		polkadot_node_core_pvf::Config::new(cache_path, program_path),
-	);
-	ctx.spawn_blocking("pvf-validation-host", task.boxed()).await?;
-
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
@@ -121,9 +109,10 @@ async fn run(
 
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
-						&mut validation_host,
+						isolation_strategy.clone(),
 						descriptor,
 						pov,
+						spawn.clone(),
 						&metrics,
 					).await;
 
@@ -144,12 +133,14 @@ async fn run(
 				) => {
 					let _timer = metrics.time_validate_from_exhaustive();
 
-					let res = validate_candidate_exhaustive(
-						&mut validation_host,
+					let res = spawn_validate_exhaustive(
+						&mut ctx,
+						isolation_strategy.clone(),
 						persisted_validation_data,
 						validation_code,
 						descriptor,
 						pov,
+						spawn.clone(),
 						&metrics,
 					).await;
 
@@ -277,16 +268,13 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-#[tracing::instrument(
-	level = "trace",
-	skip(ctx, validation_host, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
+#[tracing::instrument(level = "trace", skip(ctx, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	validation_host: &mut ValidationHost,
+	isolation_strategy: IsolationStrategy,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	spawn: impl SpawnNamed + 'static,
 	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (validation_data, validation_code) =
@@ -305,12 +293,14 @@ async fn spawn_validate_from_chain_state(
 			}
 		};
 
-	let validation_result = validate_candidate_exhaustive(
-		validation_host,
+	let validation_result = spawn_validate_exhaustive(
+		ctx,
+		isolation_strategy,
 		validation_data,
 		validation_code,
 		descriptor.clone(),
 		pov,
+		spawn,
 		metrics,
 	)
 	.await;
@@ -340,132 +330,35 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
-#[tracing::instrument(
-	level = "trace",
-	skip(validation_backend, validation_code, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
-async fn validate_candidate_exhaustive(
-	mut validation_backend: impl ValidationBackend,
+#[tracing::instrument(level = "trace", skip(ctx, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
+async fn spawn_validate_exhaustive(
+	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	isolation_strategy: IsolationStrategy,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	spawn: impl SpawnNamed + 'static,
 	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	let _timer = metrics.time_validate_candidate_exhaustive();
+	let (tx, rx) = oneshot::channel();
+	let metrics = metrics.clone();
+	let fut = async move {
+		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
+			isolation_strategy,
+			persisted_validation_data,
+			validation_code,
+			descriptor,
+			pov,
+			spawn,
+			&metrics,
+		);
 
-	if let Err(e) = perform_basic_checks(
-		&descriptor,
-		persisted_validation_data.max_pov_size,
-		&*pov,
-		&validation_code,
-	) {
-		return Ok(Ok(ValidationResult::Invalid(e)));
-	}
-
-	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
-		&validation_code.0,
-		VALIDATION_CODE_BOMB_LIMIT,
-	) {
-		Ok(code) => code,
-		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
-
-			// If the validation code is invalid, the candidate certainly is.
-			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
-		}
+		let _ = tx.send(res);
 	};
 
-	let raw_block_data = match sp_maybe_compressed_blob::decompress(
-		&pov.block_data.0,
-		POV_BOMB_LIMIT,
-	) {
-		Ok(block_data) => BlockData(block_data.to_vec()),
-		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
-
-			// If the PoV is invalid, the candidate certainly is.
-			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
-		}
-	};
-
-	let params = ValidationParams {
-		parent_head: persisted_validation_data.parent_head.clone(),
-		block_data: raw_block_data,
-		relay_parent_number: persisted_validation_data.relay_parent_number,
-		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
-	};
-
-	let result =
-		validation_backend.validate_candidate(
-			raw_validation_code.to_vec(),
-			params
-		)
-		.await;
-
-	let result = match result {
-		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
-
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError("ambigious worker death".to_string()))),
-
-		Ok(res) => {
-			if res.head_data.hash() != descriptor.para_head {
-				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
-			} else {
-				let outputs = CandidateCommitments {
-					head_data: res.head_data,
-					upward_messages: res.upward_messages,
-					horizontal_messages: res.horizontal_messages,
-					new_validation_code: res.new_validation_code,
-					processed_downward_messages: res.processed_downward_messages,
-					hrmp_watermark: res.hrmp_watermark,
-				};
-				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
-			}
-		}
-	};
-
-	Ok(result)
-}
-
-#[async_trait]
-trait ValidationBackend {
-	async fn validate_candidate(
-		&mut self,
-		raw_validation_code: Vec<u8>,
-		params: ValidationParams
-	) -> Result<WasmValidationResult, ValidationError>;
-}
-
-#[async_trait]
-impl ValidationBackend for &'_ mut ValidationHost {
-	async fn validate_candidate(
-		&mut self,
-		raw_validation_code: Vec<u8>,
-		params: ValidationParams
-	) -> Result<WasmValidationResult, ValidationError> {
-		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self.execute_pvf(
-			Pvf::from_code(raw_validation_code),
-			params.encode(),
-			polkadot_node_core_pvf::Priority::Normal,
-			tx,
-		).await {
-			return Err(ValidationError::InternalError(format!("cannot send pvf to the validation host: {:?}", err)));
-		}
-
-		let validation_result = rx
-			.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
-
-		validation_result
-	}
+	ctx.spawn_blocking("blocking-candidate-validation-task", fut.boxed()).await?;
+	rx.await.map_err(Into::into)
 }
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
@@ -498,6 +391,126 @@ fn perform_basic_checks(
 	}
 
 	Ok(())
+}
+
+trait ValidationBackend {
+	type Arg;
+
+	fn validate<S: SpawnNamed + 'static>(
+		arg: Self::Arg,
+		raw_validation_code: &[u8],
+		params: ValidationParams,
+		spawn: S,
+	) -> Result<WasmValidationResult, ValidationError>;
+}
+
+struct RealValidationBackend;
+
+impl ValidationBackend for RealValidationBackend {
+	type Arg = IsolationStrategy;
+
+	fn validate<S: SpawnNamed + 'static>(
+		isolation_strategy: IsolationStrategy,
+		raw_validation_code: &[u8],
+		params: ValidationParams,
+		spawn: S,
+	) -> Result<WasmValidationResult, ValidationError> {
+		wasm_executor::validate_candidate(
+			&raw_validation_code,
+			params,
+			&isolation_strategy,
+			spawn,
+		)
+	}
+}
+
+/// Validates the candidate from exhaustive parameters.
+///
+/// Sends the result of validation on the channel once complete.
+#[tracing::instrument(level = "trace", skip(backend_arg, validation_code, pov, spawn, metrics), fields(subsystem = LOG_TARGET))]
+fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
+	backend_arg: B::Arg,
+	persisted_validation_data: PersistedValidationData,
+	validation_code: ValidationCode,
+	descriptor: CandidateDescriptor,
+	pov: Arc<PoV>,
+	spawn: S,
+	metrics: &Metrics,
+) -> Result<ValidationResult, ValidationFailed> {
+	let _timer = metrics.time_validate_candidate_exhaustive();
+
+	if let Err(e) = perform_basic_checks(
+		&descriptor,
+		persisted_validation_data.max_pov_size,
+		&*pov,
+		&validation_code,
+	) {
+		return Ok(ValidationResult::Invalid(e))
+	}
+
+	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => code,
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+			// If the validation code is invalid, the candidate certainly is.
+			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure));
+		}
+	};
+
+	let raw_block_data = match sp_maybe_compressed_blob::decompress(
+		&pov.block_data.0,
+		POV_BOMB_LIMIT,
+	) {
+		Ok(block_data) => BlockData(block_data.to_vec()),
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+
+			// If the PoV is invalid, the candidate certainly is.
+			return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure));
+		}
+	};
+
+	let params = ValidationParams {
+		parent_head: persisted_validation_data.parent_head.clone(),
+		block_data: raw_block_data,
+		relay_parent_number: persisted_validation_data.relay_parent_number,
+		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
+	};
+
+	match B::validate(backend_arg, &raw_validation_code, params, spawn) {
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Timeout)) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ParamsTooLarge(l, _))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ParamsTooLarge(l as u64))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::CodeTooLarge(l, _))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeTooLarge(l as u64))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::BadReturn)) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WasmExecutor(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ExternalWasmExecutor(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
+		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
+		Ok(res) => {
+			if res.head_data.hash() != descriptor.para_head {
+				return Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch));
+			}
+
+			let outputs = CandidateCommitments {
+				head_data: res.head_data,
+				upward_messages: res.upward_messages,
+				horizontal_messages: res.horizontal_messages,
+				new_validation_code: res.new_validation_code,
+				processed_downward_messages: res.processed_downward_messages,
+				hrmp_watermark: res.hrmp_watermark,
+			};
+			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -592,13 +605,32 @@ impl metrics::Metrics for Metrics {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use polkadot_primitives::v1::{HeadData, UpwardMessage};
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
 	use sp_keyring::Sr25519Keyring;
+
+	struct MockValidationBackend;
+
+	struct MockValidationArg {
+		result: Result<WasmValidationResult, ValidationError>,
+	}
+
+	impl ValidationBackend for MockValidationBackend {
+		type Arg = MockValidationArg;
+
+		fn validate<S: SpawnNamed + 'static>(
+			arg: Self::Arg,
+			_raw_validation_code: &[u8],
+			_params: ValidationParams,
+			_spawn: S,
+		) -> Result<WasmValidationResult, ValidationError> {
+			arg.result
+		}
+	}
 
 	fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring) {
 		descriptor.collator = collator.public().into();
@@ -892,29 +924,6 @@ mod tests {
 		executor::block_on(test_fut);
 	}
 
-	struct MockValidatorBackend {
-		result: Result<WasmValidationResult, ValidationError>,
-	}
-
-	impl MockValidatorBackend {
-		fn with_hardcoded_result(result: Result<WasmValidationResult, ValidationError>) -> Self {
-			Self {
-				result,
-			}
-		}
-	}
-
-	#[async_trait]
-	impl ValidationBackend for MockValidatorBackend {
-		async fn validate_candidate(
-			&mut self,
-			_raw_validation_code: Vec<u8>,
-			_params: ValidationParams
-		) -> Result<WasmValidationResult, ValidationError> {
-			self.result.clone()
-		}
-	}
-
 	#[test]
 	fn candidate_validation_ok_is_ok() {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
@@ -946,16 +955,15 @@ mod tests {
 			hrmp_watermark: 0,
 		};
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
 			validation_data.clone(),
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap()
-		.unwrap();
+		).unwrap();
 
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
@@ -987,20 +995,21 @@ mod tests {
 		);
 		assert!(check.is_ok());
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(
-				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath))
-			),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::BadReturn
+				))
+			},
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap()
-		.unwrap();
+		).unwrap();
 
-		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
+		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
 	}
 
 	#[test]
@@ -1023,17 +1032,19 @@ mod tests {
 		);
 		assert!(check.is_ok());
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(
-				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)),
-			),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::Timeout
+				))
+			},
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap();
+		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 	}
@@ -1058,18 +1069,19 @@ mod tests {
 		);
 		assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(
-				Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)),
-			),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::BadReturn
+				))
+			},
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap()
-		.unwrap();
+		).unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
 	}
@@ -1103,15 +1115,15 @@ mod tests {
 			hrmp_watermark: 0,
 		};
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap();
+		);
 
 		assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
 	}
@@ -1145,15 +1157,15 @@ mod tests {
 			hrmp_watermark: 0,
 		};
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap();
+		);
 
 		assert_matches!(
 			v,
@@ -1194,15 +1206,15 @@ mod tests {
 			hrmp_watermark: 0,
 		};
 
-		let v = executor::block_on(validate_candidate_exhaustive(
-			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
 			validation_data,
 			validation_code,
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 			&Default::default(),
-		))
-		.unwrap();
+		);
 
 		assert_matches!(
 			v,
