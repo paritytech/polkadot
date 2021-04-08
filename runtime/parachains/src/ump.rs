@@ -20,7 +20,6 @@ use crate::{
 };
 use sp_std::{fmt, prelude::*};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use sp_runtime::traits::Zero;
 use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
@@ -66,15 +65,15 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
 		use xcm_executor::XcmExecutor;
 
-		// TODO: #2841 #UMPQUEUE Get a proper weight limit here. Probably from Relay Chain Config
-		let weight_limit = Weight::max_value();
-		let weight = if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
+		let weight: Weight = 0;
+
+		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
 			match versioned_xcm_message {
 				VersionedXcm::V0(xcm_message) => {
 					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
 					let xcm_location: MultiLocation = xcm_junction.into();
-					let result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message, weight_limit);
-					result.weight_used()
+					// TODO: Do something with result.
+					let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
 				}
 			}
 		} else {
@@ -82,12 +81,11 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 				target: LOG_TARGET,
 				"Failed to decode versioned XCM from upward message.",
 			);
-			Weight::zero()
-		};
+		}
 
-		// TODO: #2841 #UMPQUEUE to be sound, this implementation must ensure that returned (and thus consumed)
-		//  weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
-		//  or lower).
+		// TODO: to be sound, this implementation must ensure that returned (and thus consumed)
+		// weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
+		// or lower).
 		weight
 	}
 }
