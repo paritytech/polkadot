@@ -182,6 +182,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::ResponseHandler::on_response(origin, query_id, response);
 				None
 			}
+			(origin, Xcm::RelayedFrom { who, message }) => {
+				ensure!(who.is_interior(), XcmError::EscalationOfPrivilege);
+				let mut origin = origin;
+				origin.append_with(who).map_err(|_| XcmError::MultiLocationFull)?;
+				let surplus = Self::do_execute_xcm(origin, top_level, *message, weight_credit, None, trader)?;
+				total_surplus = total_surplus.saturating_add(surplus);
+				None
+			}
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
 		};
 
