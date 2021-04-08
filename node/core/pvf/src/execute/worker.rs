@@ -77,6 +77,8 @@ pub enum Outcome {
 	IoErr,
 }
 
+/// Given the idle token of a worker and parameters of work, communicates with the worker and
+/// returns the outcome.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact_path: PathBuf,
