@@ -307,6 +307,7 @@ async fn run(
 	let mut sweeper = sweeper.fuse();
 
 	loop {
+		// biased to make it behave deterministically for tests.
 		futures::select_biased! {
 			_ = prepare_queue => {
 				never!("prepare_pool: long-running task never concludes; qed");
