@@ -689,7 +689,6 @@ fn basic_swap_works() {
 			200, // Block End
 			None,
 		));
-		// TODO: Check why this is the same for all paras
 		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(1001));
 
 		// Bunch of contributions
@@ -821,7 +820,6 @@ fn crowdloan_ending_period_bid() {
 			200, // Block End
 			None,
 		));
-		// TODO: Check why this is the same for all paras
 		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(1001));
 
 		// Bunch of contributions
