@@ -228,7 +228,10 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 
 async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Result<(), Fatal> {
 	let artifact_id = pvf.as_artifact_id();
-	if never!(queue.artifact_id_to_job.contains_key(&artifact_id)) {
+	if never!(
+		queue.artifact_id_to_job.contains_key(&artifact_id),
+		"second Enqueue sent for a known artifact"
+	) {
 		// This function is called in response to a `Enqueue` message;
 		// Precondtion for `Enqueue` is that it is sent only once for a PVF;
 		// Thus this should always be `false`;
@@ -420,7 +423,7 @@ async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fata
 				// that means that the job still exists and is known;
 				// this path cannot be hit;
 				// qed.
-				never!();
+				never!("the job of the ripped worker must be known but it is not");
 				Priority::Normal
 			});
 		queue.unscheduled.readd(priority, job);
