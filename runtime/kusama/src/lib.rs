@@ -1198,15 +1198,54 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
+pub struct ParachainHostConfigurationMigration;
+impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			babe_primitives::BabeEpochConfiguration {
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
-				..BABE_GENESIS_EPOCH_CONFIG
-			}
-		)
+		let config = parachains_configuration::HostConfiguration {
+			max_code_size: MaxCodeSize::get(),
+			max_head_data_size: MaxHeadSize::get(),
+			max_upward_queue_count: 10,
+			max_upward_queue_size: 50 * 1024,
+			max_upward_message_size: 50 * 1024,
+			max_upward_message_num_per_candidate: 10,
+			hrmp_max_message_num_per_candidate: 10,
+			validation_upgrade_frequency: 1 * DAYS,
+			validation_upgrade_delay: EPOCH_DURATION_IN_BLOCKS,
+			max_pov_size: 5 * 1024 * 1024,
+			max_downward_message_size: 50 * 1024,
+			preferred_dispatchable_upward_messages_step_weight: 0,
+			hrmp_max_parachain_outbound_channels: 10,
+			hrmp_max_parathread_outbound_channels: 0,
+			hrmp_open_request_ttl: 2,
+			hrmp_sender_deposit: deposit(4, 128),
+			hrmp_recipient_deposit: deposit(4, 128),
+			hrmp_channel_max_capacity: 1000,
+			hrmp_channel_max_total_size: 100 * 1024,
+			hrmp_max_parachain_inbound_channels: 10,
+			hrmp_max_parathread_inbound_channels: 0,
+			hrmp_channel_max_message_size: 100 * 1024,
+			code_retention_period: 2 * DAYS,
+			parathread_cores: 0,
+			parathread_retries: 0,
+			group_rotation_frequency: 1 * MINUTES,
+			chain_availability_period: 1 * MINUTES,
+			thread_availability_period: 1 * MINUTES,
+			scheduling_lookahead: 1,
+			max_validators_per_core: Some(5),
+			max_validators: Some(200),
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 1 * HOURS,
+			dispute_max_spam_slots: 2,
+			dispute_conclusion_by_time_out_period: 1 * HOURS,
+			no_show_slots: 2,
+			n_delay_tranches: 40,
+			zeroth_delay_tranche_width: 0,
+			needed_approvals: 15,
+			relay_vrf_modulo_samples: 1,
+		};
+
+		ParachainsConfiguration::force_set_active_config(config);
+		RocksDbWeight::get().writes(1)
 	}
 }
 
@@ -1241,24 +1280,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	// TODO [now]: migrate to new host configuration
-	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
+	ParachainHostConfigurationMigration,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
-pub struct KillOffchainPhragmenStorageTest;
-impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorageTest {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v6::pre_migrate::<Runtime>()
-	}
-
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {

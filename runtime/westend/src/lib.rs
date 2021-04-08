@@ -291,18 +291,6 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-// TODO [ToDr] Remove while BEEFY runtime upgrade is done.
-impl_opaque_keys! {
-	pub struct OldSessionKeys {
-		pub grandpa: Grandpa,
-		pub babe: Babe,
-		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
-		pub authority_discovery: AuthorityDiscovery,
-	}
-}
-
 impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
@@ -312,34 +300,6 @@ impl_opaque_keys! {
 		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
 		pub beefy: Beefy,
-	}
-}
-
-fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
-	SessionKeys {
-		grandpa: old.grandpa,
-		babe: old.babe,
-		im_online: old.im_online,
-		para_validator: old.para_validator,
-		para_assignment: old.para_assignment,
-		authority_discovery: old.authority_discovery,
-		beefy: {
-			// We need to produce a dummy value that's unique for the validator.
-			let mut id = BeefyId::default();
-			let id_raw: &mut [u8] = id.as_mut();
-			id_raw.copy_from_slice(v.as_ref());
-			id_raw[0..4].copy_from_slice(b"beef");
-			id
-		},
-	}
-}
-
-// When this is removed, should also remove `OldSessionKeys`.
-pub struct UpgradeSessionKeys;
-impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
-		Perbill::from_percent(50) * BlockWeights::get().max_block
 	}
 }
 
@@ -816,7 +776,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxCodeSize: u32 = 5 * 1024 * 1024; // 10 MB
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
@@ -981,12 +941,54 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
+pub struct ParachainHostConfigurationMigration;
+impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			BABE_GENESIS_EPOCH_CONFIG,
-		)
+		let config = parachains_configuration::HostConfiguration {
+			max_code_size: MaxCodeSize::get(),
+			max_head_data_size: MaxHeadSize::get(),
+			max_upward_queue_count: 10,
+			max_upward_queue_size: 50 * 1024,
+			max_upward_message_size: 50 * 1024,
+			max_upward_message_num_per_candidate: 10,
+			hrmp_max_message_num_per_candidate: 10,
+			validation_upgrade_frequency: 1 * DAYS,
+			validation_upgrade_delay: EPOCH_DURATION_IN_BLOCKS,
+			max_pov_size: 5 * 1024 * 1024,
+			max_downward_message_size: 50 * 1024,
+			preferred_dispatchable_upward_messages_step_weight: 0,
+			hrmp_max_parachain_outbound_channels: 10,
+			hrmp_max_parathread_outbound_channels: 0,
+			hrmp_open_request_ttl: 2,
+			hrmp_sender_deposit: deposit(4, 128),
+			hrmp_recipient_deposit: deposit(4, 128),
+			hrmp_channel_max_capacity: 1000,
+			hrmp_channel_max_total_size: 100 * 1024,
+			hrmp_max_parachain_inbound_channels: 10,
+			hrmp_max_parathread_inbound_channels: 0,
+			hrmp_channel_max_message_size: 100 * 1024,
+			code_retention_period: 2 * DAYS,
+			parathread_cores: 0,
+			parathread_retries: 0,
+			group_rotation_frequency: 1 * MINUTES,
+			chain_availability_period: 1 * MINUTES,
+			thread_availability_period: 1 * MINUTES,
+			scheduling_lookahead: 1,
+			max_validators_per_core: Some(5),
+			max_validators: Some(200),
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 1 * HOURS,
+			dispute_max_spam_slots: 2,
+			dispute_conclusion_by_time_out_period: 1 * HOURS,
+			no_show_slots: 2,
+			n_delay_tranches: 40,
+			zeroth_delay_tranche_width: 0,
+			needed_approvals: 15,
+			relay_vrf_modulo_samples: 1,
+		};
+
+		ParachainsConfiguration::force_set_active_config(config);
+		RocksDbWeight::get().writes(1)
 	}
 }
 
@@ -1021,8 +1023,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	// TODO [now]: `ParachainsConfiguration` migration.
-	(BabeEpochConfigMigrations, UpgradeSessionKeys),
+	ParachainHostConfigurationMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
