@@ -321,6 +321,24 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
 						.unwrap_or(raw);
 
+
+					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+					// that honest collators never produce a PoV which is uncompressed.
+					//
+					// As such, honest collators never produce an uncompressed PoV which starts with
+					// a compression magic number, which would lead validators to reject the collation.
+					if raw.len() > validation_data.max_pov_size as usize {
+						tracing::debug!(
+							target: LOG_TARGET,
+							para_id = %scheduled_core.para_id,
+							size = raw.len(),
+							max_size = validation_data.max_pov_size,
+							"PoV exceeded maximum size"
+						);
+
+						return
+					}
+
 					PoV { block_data: BlockData(raw) }
 				};
 
