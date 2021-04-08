@@ -2832,7 +2832,13 @@ mod tests {
 			s.run(ctx).await.unwrap();
 		};
 
+		let (mut tx_reqs, rx_reqs) = mpsc::channel(1);
+
 		let test_fut = async move {
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs)
+			}).await;
+
 			// register our active heads.
 			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: vec![ActivatedLeaf {
@@ -2939,7 +2945,7 @@ mod tests {
 					let req = outgoing.payload;
 					assert_eq!(req.relay_parent, metadata.relay_parent);
 					assert_eq!(req.candidate_hash, metadata.candidate_hash);
-					let response = StatementFetchingResponse::Statement(candidate);
+					let response = StatementFetchingResponse::Statement(candidate.clone());
 					outgoing.pending_response.send(Ok(response.encode())).unwrap();
 				}
 			);
@@ -2976,6 +2982,24 @@ mod tests {
 					assert_eq!(&meta.signature, statement.signature());
 				}
 			);
+
+			// Now that it has the candidate it should answer requests accordingly:
+			let (pending_response, response_rx) = oneshot::channel();
+			let inner_req = StatementFetchingRequest {
+				relay_parent: metadata.relay_parent,
+				candidate_hash: metadata.candidate_hash,
+			};
+			let req = sc_network::config::IncomingRequest {
+				peer: peer_a,
+				payload: inner_req.encode(),
+				pending_response,
+			};
+			tx_reqs.send(req).await.unwrap();
+
+			let StatementFetchingResponse::Statement(committed) =
+				Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
+			assert_eq!(committed, candidate);
+
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
 
