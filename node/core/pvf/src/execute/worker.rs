@@ -16,6 +16,7 @@
 
 use crate::{
 	artifacts::Artifact,
+	LOG_TARGET,
 	executor_intf::TaskExecutor,
 	worker_common::{
 		IdleWorker, SpawnErr, WorkerHandle, bytes_to_path, framed_recv, framed_send, path_to_bytes,
@@ -32,6 +33,8 @@ use futures::FutureExt;
 use futures_timer::Delay;
 use polkadot_parachain::primitives::ValidationResult;
 use parity_scale_codec::{Encode, Decode};
+
+const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -77,6 +80,8 @@ pub enum Outcome {
 	IoErr,
 }
 
+/// Given the idle token of a worker and parameters of work, communicates with the worker and
+/// returns the outcome.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact_path: PathBuf,
@@ -84,7 +89,14 @@ pub async fn start_work(
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
-	if let Err(_err) = send_request(&mut stream, &artifact_path, &validation_params).await {
+	tracing::debug!(
+		target: LOG_TARGET,
+		worker_pid = %pid,
+		"starting execute for {}",
+		artifact_path.display(),
+	);
+
+	if send_request(&mut stream, &artifact_path, &validation_params).await.is_err() {
 		return Outcome::IoErr;
 	}
 
@@ -95,7 +107,7 @@ pub async fn start_work(
 				Ok(response) => response,
 			}
 		},
-		_ = Delay::new(Duration::from_secs(3)).fuse() => return Outcome::HardTimeout,
+		_ = Delay::new(EXECUTION_TIMEOUT).fuse() => return Outcome::HardTimeout,
 	};
 
 	match response {
@@ -124,8 +136,7 @@ async fn send_request(
 	validation_params: &[u8],
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await?;
-	Ok(())
+	framed_send(stream, validation_params).await
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)> {
@@ -141,19 +152,17 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)>
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
-	framed_send(stream, &response.encode()).await?;
-	Ok(())
+	framed_send(stream, &response.encode()).await
 }
 
 async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 	let response_bytes = framed_recv(stream).await?;
-	let response = Response::decode(&mut &response_bytes[..]).map_err(|e| {
+	Response::decode(&mut &response_bytes[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
 			format!("execute pvf recv_response: decode error: {:?}", e),
 		)
-	})?;
-	Ok(response)
+	})
 }
 
 #[derive(Encode, Decode)]
@@ -188,6 +197,12 @@ pub fn worker_entrypoint(socket_path: &str) {
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
+			tracing::debug!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"worker: validating artifact {}",
+				artifact_path.display(),
+			);
 			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
 			send_response(&mut stream, response).await?;
 		}

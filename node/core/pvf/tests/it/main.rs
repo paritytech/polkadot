@@ -19,6 +19,7 @@ use polkadot_parachain::{
 	primitives::{BlockData, ValidationParams, ValidationResult},
 };
 use parity_scale_codec::Encode as _;
+use async_std::sync::Mutex;
 
 mod adder;
 mod worker_common;
@@ -27,7 +28,7 @@ const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
 
 struct TestHost {
 	_cache_dir: tempfile::TempDir,
-	host: ValidationHost,
+	host: Mutex<ValidationHost>,
 }
 
 impl TestHost {
@@ -47,7 +48,7 @@ impl TestHost {
 		let _ = async_std::task::spawn(task);
 		Self {
 			_cache_dir: cache_dir,
-			host,
+			host: Mutex::new(host),
 		}
 	}
 
@@ -58,6 +59,8 @@ impl TestHost {
 	) -> Result<ValidationResult, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
 		self.host
+			.lock()
+			.await
 			.execute_pvf(
 				Pvf::from_code(code.to_vec()),
 				params.encode(),

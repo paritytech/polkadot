@@ -16,7 +16,7 @@
 
 use crate::artifacts::ArtifactId;
 use polkadot_core_primitives::Hash;
-use sp_core::keccak_256;
+use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 
 /// A struct that carries code of a parachain validation function and it's hash.
@@ -38,7 +38,7 @@ impl Pvf {
 	/// Returns an instance of the PVF out of the given PVF code.
 	pub fn from_code(code: Vec<u8>) -> Self {
 		let code = Arc::new(code);
-		let code_hash = keccak_256(&code).into();
+		let code_hash = blake2_256(&code).into();
 		Self { code, code_hash }
 	}
 

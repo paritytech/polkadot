@@ -208,7 +208,7 @@ fn handle_to_pool(
 					// items concluded;
 					// thus idle token is Some;
 					// qed.
-					never!();
+					never!("unexpected abscence of the idle token in prepare pool");
 				}
 			} else {
 				// That's a relatively normal situation since the queue may send `start_work` and
