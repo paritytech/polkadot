@@ -36,7 +36,8 @@ mod mock;
 #[cfg(test)]
 mod integration_tests;
 
-use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use primitives::v1::{AccountId, AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
@@ -190,6 +191,20 @@ impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for AssignmentSe
 	fn on_disabled(_: usize) { }
 }
 
+/// Generates a `BeefyId` from the given `AccountId`. The resulting `BeefyId` is
+/// a dummy value and this is a utility function meant to be used when migration
+/// session keys.
+pub fn dummy_beefy_id_from_account_id(a: AccountId) -> BeefyId {
+	let mut id = BeefyId::default();
+	let id_raw: &mut [u8] = id.as_mut();
+
+	// NOTE: AccountId is 32 bytes, whereas BeefyId is 33 bytes.
+	id_raw[1..].copy_from_slice(a.as_ref());
+	id_raw[0..4].copy_from_slice(b"beef");
+
+	id
+}
+
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
@@ -291,5 +306,16 @@ mod multiplier_tests {
 			blocks += 1;
 			println!("block = {} multiplier {:?}", blocks, multiplier);
 		}
+	}
+
+	#[test]
+	fn generate_dummy_unique_beefy_id_from_account_id() {
+		let acc1 = AccountId::new([0; 32]);
+		let acc2 = AccountId::new([1; 32]);
+
+		let beefy_id1 = dummy_beefy_id_from_account_id(acc1);
+		let beefy_id2 = dummy_beefy_id_from_account_id(acc2);
+
+		assert_ne!(beefy_id1, beefy_id2);
 	}
 }
