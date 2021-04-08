@@ -868,7 +868,7 @@ mod tests {
 
 	#[async_trait]
 	impl ValidationBackend for MockValidatorBackend {
-    	async fn validate_candidate(
+		async fn validate_candidate(
 			&self,
 			_validation_code: ValidationCode,
 			_params: ValidationParams
