@@ -43,6 +43,7 @@ use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	PersistedValidationData,
 };
+use parity_scale_codec::Encode;
 use sp_core::crypto::Pair;
 use std::sync::Arc;
 
@@ -321,17 +322,19 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
 						.unwrap_or(raw);
 
+					let pov = PoV { block_data: BlockData(raw) };
+					let encoded_size = pov.encoded_size();
 
 					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
 					// that honest collators never produce a PoV which is uncompressed.
 					//
 					// As such, honest collators never produce an uncompressed PoV which starts with
 					// a compression magic number, which would lead validators to reject the collation.
-					if raw.len() > validation_data.max_pov_size as usize {
+					if encoded_size > validation_data.max_pov_size as usize {
 						tracing::debug!(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
-							size = raw.len(),
+							size = encoded_size,
 							max_size = validation_data.max_pov_size,
 							"PoV exceeded maximum size"
 						);
@@ -339,7 +342,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						return
 					}
 
-					PoV { block_data: BlockData(raw) }
+					pov
 				};
 
 				let pov_hash = pov.hash();
@@ -529,8 +532,7 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, ScheduledCore, ValidationCode,
+			CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 		};
 		use std::pin::Pin;
 
@@ -546,6 +548,24 @@ mod tests {
 				processed_downward_messages: Default::default(),
 				hrmp_watermark: Default::default(),
 			}
+		}
+
+		fn test_collation_compressed() -> Collation {
+			let mut collation = test_collation();
+			let compressed = PoV {
+				block_data: BlockData(sp_maybe_compressed_blob::compress(
+					&collation.proof_of_validity.block_data.0,
+					POV_BOMB_LIMIT,
+				).unwrap())
+			};
+			collation.proof_of_validity = compressed;
+			collation
+		}
+
+		fn test_validation_data() -> PersistedValidationData {
+			let mut persisted_validation_data: PersistedValidationData = Default::default();
+			persisted_validation_data.max_pov_size = 1024;
+			persisted_validation_data
 		}
 
 		// Box<dyn Future<Output = Collation> + Unpin + Send
@@ -744,7 +764,7 @@ mod tests {
 								tx,
 							),
 						))) => {
-							tx.send(Ok(Some(Default::default()))).unwrap();
+							tx.send(Ok(Some(test_validation_data()))).unwrap();
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
@@ -795,9 +815,8 @@ mod tests {
 			// we expect a single message to be sent, containing a candidate receipt.
 			// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
 			// correct descriptor
-			let expect_pov_hash = test_collation().proof_of_validity.hash();
-			let expect_validation_data_hash
-				= PersistedValidationData::<Hash, BlockNumber>::default().hash();
+			let expect_pov_hash = test_collation_compressed().proof_of_validity.hash();
+			let expect_validation_data_hash = test_validation_data().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
 			let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
 			let expect_payload = collator_signature_payload(

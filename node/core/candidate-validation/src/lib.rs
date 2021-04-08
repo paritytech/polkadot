@@ -370,12 +370,12 @@ fn perform_basic_checks(
 	pov: &PoV,
 	validation_code: &ValidationCode,
 ) -> Result<(), InvalidCandidate> {
-	let encoded_pov = pov.encode();
 	let pov_hash = pov.hash();
 	let validation_code_hash = validation_code.hash();
 
-	if encoded_pov.len() > max_pov_size as usize {
-		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
+	let encoded_pov_size = pov.encoded_size();
+	if encoded_pov_size > max_pov_size as usize {
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov_size as u64));
 	}
 
 	if pov_hash != candidate.pov_hash {
