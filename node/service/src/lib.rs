@@ -27,6 +27,7 @@ mod parachains_db;
 use {
 	std::time::Duration,
 	tracing::info,
+	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
@@ -44,8 +45,6 @@ use {
 	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
 };
-#[cfg(feature = "real-overseer")]
-use polkadot_network_bridge::RequestMultiplexer;
 
 use sp_core::traits::SpawnNamed;
 
@@ -413,36 +412,7 @@ fn new_partial<RuntimeApi, Executor>(
 	})
 }
 
-#[cfg(all(feature="full-node", not(feature = "real-overseer")))]
-fn real_overseer<Spawner, RuntimeClient>(
-	leaves: impl IntoIterator<Item = BlockInfo>,
-	_: Arc<LocalKeystore>,
-	_: Arc<RuntimeClient>,
-	_parachains_db: (),
-	_: AvailabilityConfig,
-	_: ApprovalVotingConfig,
-	_: Arc<sc_network::NetworkService<Block, Hash>>,
-	_: AuthorityDiscoveryService,
-	_request_multiplexer: (),
-	registry: Option<&Registry>,
-	spawner: Spawner,
-	_: IsCollator,
-	_: IsolationStrategy,
-) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
-where
-	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Spawner: 'static + SpawnNamed + Clone + Unpin,
-{
-	Overseer::new(
-		leaves,
-		AllSubsystems::<()>::dummy(),
-		registry,
-		spawner,
-	).map_err(|e| e.into())
-}
-
-#[cfg(all(feature = "full-node", feature = "real-overseer"))]
+#[cfg(feature = "full-node")]
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: Arc<LocalKeystore>,
@@ -457,7 +427,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	isolation_strategy: IsolationStrategy,
-) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
+) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -582,6 +552,7 @@ where
 		leaves,
 		all_subsystems,
 		registry,
+		runtime_client.clone(),
 		spawner,
 	).map_err(|e| e.into())
 }
@@ -711,17 +682,10 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	#[cfg(feature = "real-overseer")]
-	info!("real-overseer feature is ENABLED");
-
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
-		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging {
-			#[cfg(feature = "real-overseer")]
-			unfinalized_slack: 100,
-			..Default::default()
-		};
+		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
 		if config.chain_spec.is_rococo() {
 			// it's a testnet that's in flux, finality has stalled sometimes due
@@ -761,7 +725,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
-	#[cfg(feature = "real-overseer")]
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() {
@@ -772,20 +735,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	// Add a dummy collation set with the intent of printing an error if one tries to connect a
-	// collator to a node that isn't compiled with `--features real-overseer`.
-	#[cfg(not(feature = "real-overseer"))]
-	config.network.extra_sets.push(sc_network::config::NonDefaultSetConfig {
-		notifications_protocol: "/polkadot/collation/1".into(),
-		max_notification_size: 16,
-		set_config: sc_network::config::SetConfig {
-			in_peers: 25,
-			out_peers: 0,
-			reserved_nodes: Vec::new(),
-			non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
-		},
-	});
-
 	// TODO: At the moment, the collator protocol uses notifications protocols to download
 	// collations. Because of DoS-protection measures, notifications protocols have a very limited
 	// bandwidth capacity, resulting in the collation download taking a long time.
@@ -793,26 +742,16 @@ pub fn new_full<RuntimeApi, Executor>(
 	// this problem. This configuraiton change should preferably not reach any live network, and
 	// should be removed once the collation protocol is finished.
 	// Tracking issue: https://github.com/paritytech/polkadot/issues/2283
-	#[cfg(feature = "real-overseer")]
-	fn adjust_yamux(cfg: &mut sc_network::config::NetworkConfiguration) {
-		cfg.yamux_window_size = Some(5 * 1024 * 1024);
-	}
-	#[cfg(not(feature = "real-overseer"))]
-	fn adjust_yamux(_: &mut sc_network::config::NetworkConfiguration) {}
-	adjust_yamux(&mut config.network);
+	config.network.yamux_window_size = Some(5 * 1024 * 1024);
 
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
 		&config, task_manager.spawn_handle(), backend.clone(), import_setup.1.shared_authority_set().clone(),
 	));
-	#[cfg(feature = "real-overseer")]
-	fn register_request_response(config: &mut sc_network::config::NetworkConfiguration) -> RequestMultiplexer {
+	let request_multiplexer = {
 		let (multiplexer, configs) = RequestMultiplexer::new();
-		config.request_response_protocols.extend(configs);
+		config.network.request_response_protocols.extend(configs);
 		multiplexer
-	}
-	#[cfg(not(feature = "real-overseer"))]
-	fn register_request_response(_: &mut sc_network::config::NetworkConfiguration) {}
-	let request_multiplexer = register_request_response(&mut config.network);
+	};
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -825,42 +764,16 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_announce_validator_builder: None,
 		})?;
 
-	// See above. We have added a dummy collation set with the intent of printing an error if one
-	// tries to connect a collator to a node that isn't compiled with `--features real-overseer`.
-	#[cfg(not(feature = "real-overseer"))]
-	task_manager.spawn_handle().spawn("dummy-collation-handler", {
-		let mut network_events = network.event_stream("dummy-collation-handler");
-		async move {
-			use futures::prelude::*;
-			while let Some(ev) = network_events.next().await {
-				if let sc_network::Event::NotificationStreamOpened { protocol, .. } = ev {
-					if protocol == "/polkadot/collation/1" {
-						tracing::warn!(
-							"Incoming collator on a node with parachains disabled. This warning \
-							is harmless and is here to warn developers that they might have \
-							accidentally compiled their node without the `real-overseer` feature \
-							enabled."
-						);
-					}
-				}
-			}
-		}
-	});
-
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
 			&config, task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
 
-	#[cfg(feature = "real-overseer")]
 	let parachains_db = crate::parachains_db::open_creating(
 		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
 		crate::parachains_db::CacheSizes::default(),
 	)?;
-
-	#[cfg(not(feature = "real-overseer"))]
-	let parachains_db = ();
 
 	let availability_config = AvailabilityConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
@@ -1064,7 +977,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
 
-		#[cfg(feature = "real-overseer")]
 		let builder = if let Some(ref overseer) = overseer_handler {
 			builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
 				overseer.clone(),
