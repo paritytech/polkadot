@@ -194,7 +194,7 @@ decl_module! {
 		/// This function must be called by a Root origin.
 		///
 		/// The deposit taken can be specified for this registration. Any ParaId
-		/// can be registered, including sub 1000 ids which are system parachains.
+		/// can be registered, including sub-1000 IDs which are System Parachains.
 		#[weight = T::WeightInfo::force_register()]
 		pub fn force_register(
 			origin,
