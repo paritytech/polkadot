@@ -45,7 +45,7 @@ pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
 pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE;
+pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
@@ -261,7 +261,7 @@ pub struct ErasureChunk {
 }
 
 /// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].
-#[cfg(not(target_os = "unknown")]
+#[cfg(not(target_os = "unknown"))]
 pub fn maybe_compress_pov(pov: PoV) -> PoV {
 	let PoV { block_data: BlockData(raw) } = pov;
 	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
