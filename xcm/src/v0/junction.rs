@@ -128,7 +128,9 @@ pub enum Junction {
 }
 
 impl Junction {
-	pub fn is_sub_consensus(&self) -> bool {
+	/// Returns true if this junction can be considered an interior part of its context. This is generally `true`,
+	/// except for the `Parent` item.
+	pub fn is_interior(&self) -> bool {
 		match self {
 			Junction::Parent => false,
 
