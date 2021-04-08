@@ -34,7 +34,7 @@ use polkadot_subsystem::{
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{
-	VALIDATION_CODE_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV,
+	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
 };
 use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, PersistedValidationData,
@@ -461,9 +461,22 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		}
 	};
 
+	let decompressed_block_data = match sp_maybe_compressed_blob::decompress(
+		&pov.block_data.0,
+		POV_BOMB_LIMIT,
+	) {
+		Ok(block_data) => BlockData(block_data.to_vec()),
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+
+			// If the PoV is invalid, the candidate certainly is.
+			return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure));
+		}
+	};
+
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
-		block_data: pov.block_data.clone(),
+		block_data: decompressed_block_data,
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
@@ -595,7 +608,6 @@ mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use polkadot_primitives::v1::{HeadData, UpwardMessage};
-	use polkadot_node_primitives::BlockData;
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;

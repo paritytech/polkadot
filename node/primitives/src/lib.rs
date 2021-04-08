@@ -126,6 +126,8 @@ pub enum InvalidCandidate {
 	CodeTooLarge(u64),
 	/// Code does not decompress correctly.
 	CodeDecompressionFailure,
+	/// PoV does not decompress correctly.
+	PoVDecompressionFailure,
 	/// Validation function returned invalid data.
 	BadReturn,
 	/// Invalid relay chain parent.
