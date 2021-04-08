@@ -1114,6 +1114,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 		active_heads,
 		ctx,
 		req_sender,
+		metrics,
 	).await;
 
 	if let Some((active_head, statement)) = result {
@@ -1142,6 +1143,7 @@ async fn retrieve_statement_from_message<'a>(
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
+	metrics: &Metrics,
 ) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
 
 	let metadata = message.get_metadata();
@@ -1219,7 +1221,13 @@ async fn retrieve_statement_from_message<'a>(
 										validator_index = ?metadata.signed_by,
 										"Building statement failed - invalid signature!"
 									);
-									new_status = launch_request(metadata, peer, req_sender.clone(), ctx).await;
+									new_status = launch_request(
+										metadata,
+										peer,
+										req_sender.clone(),
+										ctx,
+										metrics,
+									).await;
 								}
 							} else {
 								tracing::debug!(
@@ -1235,7 +1243,13 @@ async fn retrieve_statement_from_message<'a>(
 					}
 				}
 				Entry::Vacant(vacant) => {
-					if let Some(new_status) = launch_request(metadata, peer, req_sender.clone(), ctx).await {
+					if let Some(new_status) = launch_request(
+						metadata,
+						peer,
+						req_sender.clone(),
+						ctx,
+						metrics
+					).await {
 						vacant.insert(new_status);
 					}
 				}
@@ -1253,13 +1267,15 @@ async fn launch_request(
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
 	ctx: &mut impl SubsystemContext,
+	metrics: &Metrics,
 ) -> Option<LargeStatementStatus> {
 
 	let (task, handle) = fetch(
 		meta.relay_parent,
 		meta.candidate_hash,
 		vec![peer],
-		req_sender
+		req_sender,
+		metrics.clone(),
 	)
 	.remote_handle();
 
@@ -1970,6 +1986,8 @@ struct MetricsInner {
 	statements_distributed: prometheus::Counter<prometheus::U64>,
 	received_requests: prometheus::Counter<prometheus::U64>,
 	sent_responses: prometheus::CounterVec<prometheus::U64>,
+	sent_requests: prometheus::Counter<prometheus::U64>,
+	received_responses: prometheus::CounterVec<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
@@ -1996,6 +2014,19 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			let label = if success { "succeeded" } else { "failed" };
 			metrics.sent_responses.with_label_values(&[label]).inc();
+		}
+	}
+
+	fn on_sent_request(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.sent_requests.inc();
+		}
+	}
+
+	fn on_received_response(&self, success: bool) {
+		if let Some(metrics) = &self.0 {
+			let label = if success { "succeeded" } else { "failed" };
+			metrics.received_responses.with_label_values(&[label]).inc();
 		}
 	}
 
@@ -2027,7 +2058,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			received_requests: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_received_requests_total",
+					"parachain_statement_distribution_received_requests_total",
 					"Number of large statement fetching requests received."
 				)?,
 				registry,
@@ -2035,8 +2066,25 @@ impl metrics::Metrics for Metrics {
 			sent_responses: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_sent_responses_total",
+						"parachain_statement_distribution_sent_responses_total",
 						"Number of served requests for large statement data."
+					),
+					&["success"],
+				)?,
+				registry,
+			)?,
+			sent_requests: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_statement_distribution_sent_requests_total",
+					"Number of large statement fetching requests sent."
+				)?,
+				registry,
+			)?,
+			received_responses: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_statement_distribution_received_responses_total",
+						"Number of received responses for large statement data."
 					),
 					&["success"],
 				)?,

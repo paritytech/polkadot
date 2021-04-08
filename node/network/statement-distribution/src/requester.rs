@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
-use crate::LOG_TARGET;
+use crate::{LOG_TARGET, Metrics};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -77,6 +77,7 @@ pub async fn fetch(
 	candidate_hash: CandidateHash,
 	peers: Vec<PeerId>,
 	mut sender: mpsc::Sender<RequesterMessage>,
+	metrics: Metrics,
 ) {
 	// Peers we already tried (and failed).
 	let mut tried_peers = Vec::new();
@@ -105,6 +106,9 @@ pub async fn fetch(
 				);
 				return
 			}
+
+			metrics.on_sent_request();
+
 			match pending_response.await {
 				Ok(StatementFetchingResponse::Statement(statement)) => {
 					let (carry_on_tx, carry_on) = oneshot::channel();
@@ -127,11 +131,15 @@ pub async fn fetch(
 					match carry_on.await {
 						Err(_) => {}
 						Ok(()) => {
+							metrics.on_received_response(false);
 							// The below push peer gets skipped intentionally, we don't want to try
 							// this peer again.
 							continue
 						},
 					}
+
+					metrics.on_received_response(true);
+
 					// We are done now.
 					return
 				},
@@ -141,6 +149,8 @@ pub async fn fetch(
 						?err,
 						"Receiving response failed with error - trying next peer."
 					);
+
+					metrics.on_received_response(false);
 				}
 			}
 
