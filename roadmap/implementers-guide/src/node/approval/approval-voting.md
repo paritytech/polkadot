@@ -60,6 +60,7 @@ struct ApprovalEntry {
     tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
     backing_group: GroupIndex,
     our_assignment: Option<OurAssignment>,
+    our_approval_sig: Option<ValidatorSignature>,
     assignments: Bitfield, // n_validators bits
     approved: bool,
 }
@@ -134,7 +135,7 @@ struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
     babe_epoch: Option<BabeEpoch>, // information about a cached BABE epoch.
-    keystore: KeyStorePtr,
+    keystore: KeyStore,
 
     // A scheduler which keeps at most one wakeup per hash, candidate hash pair and
     // maps such pairs to `Tick`s.
@@ -205,7 +206,7 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * Ensure the validator index is not present in the approval entry already.
     * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
     * Note the candidate index within the approval entry.
-  * [Check for full approval of the candidate entry](#check-full-approval) of the candidate_entry, filtering by this specific approval entry.
+  * [Schedule a wakeup](#schedule-wakeup) for this block, candidate pair.
   * return the appropriate `AssignmentCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
@@ -215,35 +216,32 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
   * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
   * Send `ApprovalCheckResult::Accepted`
+  * Dispatch a [`DisputeCoordinatorMessage::ImportStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with the approval statement.
   * [Import the checked approval vote](#import-checked-approval)
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
 
 On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
-  * Iterate over the ancestry of the hash all the way back to block number given, starting from the provided block hash.
-  * Keep track of an `all_approved_max: Option<(Hash, BlockNumber)>`.
+  * Iterate over the ancestry of the hash all the way back to block number given, starting from the provided block hash. Load the `CandidateHash`es from each block entry.
+  * Keep track of an `all_approved_max: Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>))>`.
   * For each block hash encountered, load the `BlockEntry` associated. If any are not found, return `None` on the response channel and conclude.
   * If the block entry's `approval_bitfield` has all bits set to 1 and `all_approved_max == None`, set `all_approved_max = Some((current_hash, current_number))`.
   * If the block entry's `approval_bitfield` has any 0 bits, set `all_approved_max = None`.
+  * If `all_approved_max` is `Some`, push the current block hash and candidate hashes onto the list of blocks and candidates `all_approved_max`.
   * After iterating all ancestry, return `all_approved_max`.
 
 ### Updates and Auxiliary Logic
 
 #### Import Checked Approval
-  * Import an approval vote which we can assume to have passed signature checks.
+  * Import an approval vote which we can assume to have passed signature checks and correspond to an imported assignment.
   * Requires `(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
-  * [Check full approval of the candidate](#check-full-approval)
-
-#### Check Full Approval
-  * Checks the approval state of the candidate under every block it is included by, and updates the block entries accordingly.
-  * Requires `(CandidateEntry, filter)`, where filter is used to limit which approval entries are inspected.
-  * Checks every `ApprovalEntry` that is not yet `approved` for whether it is now approved.
-    * For each `ApprovalEntry` in the `CandidateEntry` that is not `approved` and passes the `filter`
-    * Load the block entry for the `ApprovalEntry`.
-    * If so, [determine the tranches to inspect](#determine-required-tranches) of the candidate,
-    * If [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
+  * Checks the approval state of a candidate under a specific block, and updates the block and candidate entries accordingly.
+  * Checks the `ApprovalEntry` for the block.
+    * [determine the tranches to inspect](#determine-required-tranches) of the candidate,
+    * [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
     * Otherwise, [schedule a wakeup of the candidate](#schedule-wakeup)
+  * If the approval vote originates locally, set the `our_approval_sig` in the candidate entry.
 
 #### Handling Wakeup
   * Handle a previously-scheduled wakeup of a candidate under a specific block.
@@ -278,7 +276,9 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Wait for the available data
     * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
     * Wait for the result of validation
+    * Check that the result of validation, if valid, matches the commitments in the receipt.
     * If valid, issue a message on `background_tx` detailing the request.
+    * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with `valid = false` to initiate a dispute.
 
 #### Issue Approval Vote
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.

@@ -40,6 +40,9 @@ pub mod request_response;
 
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
+/// The minimum amount of peers to send gossip messages to.
+pub const MIN_GOSSIP_PEERS: usize = 25;
+
 
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -332,11 +335,11 @@ pub mod v1 {
 		/// Declare the intent to advertise collations under a collator ID, attaching a
 		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId, CollatorSignature),
+		Declare(CollatorId, ParaId, CollatorSignature),
 		/// Advertise a collation to a validator. Can only be sent once the peer has
 		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
-		AdvertiseCollation(Hash, ParaId),
+		AdvertiseCollation(Hash),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(SignedFullStatement),

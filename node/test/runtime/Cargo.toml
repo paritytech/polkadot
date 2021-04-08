@@ -44,7 +44,6 @@ polkadot-service = { path = "../../../node/service", version = "0.8.3" }
 polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.8.28" }
 polkadot-runtime-common = { path = "../../../runtime/common", version = "0.8.28" }
 
-rand = "0.7"
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 
 [dev-dependencies]

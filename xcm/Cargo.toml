@@ -7,6 +7,7 @@ edition = "2018"
 
 [dependencies]
 parity-scale-codec = { version = "2.0.0", default-features = false, features = [ "derive" ] }
+derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 
 [features]
 default = ["std"]

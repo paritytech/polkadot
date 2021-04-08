@@ -22,8 +22,9 @@
 //! this module.
 
 use sp_std::prelude::*;
+use sp_runtime::traits::Header as HeaderT;
 use primitives::v1::{
-	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER, Header,
+	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
@@ -43,14 +44,14 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
-// we assume that 75% of an inclusion inherent's weight is used processing backed candidates
+// we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
 pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
-	trait Store for Module<T: Config> as ParaInclusionInherent {
-		/// Whether the inclusion inherent was included within this block.
+	trait Store for Module<T: Config> as ParaInherent {
+		/// Whether the paras inherent was included within this block.
 		///
 		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
 		/// due to the guarantees of FRAME's storage APIs.
@@ -71,7 +72,7 @@ decl_error! {
 }
 
 decl_module! {
-	/// The inclusion inherent module.
+	/// The paras inherent module.
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
@@ -85,17 +86,22 @@ decl_module! {
 			}
 		}
 
-		/// Include backed candidates and bitfields.
+		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[weight = (
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
 		)]
-		pub fn inclusion(
+		pub fn enter(
 			origin,
-			signed_bitfields: SignedAvailabilityBitfields,
-			backed_candidates: Vec<BackedCandidate<T::Hash>>,
-			parent_header: Header,
+			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
+			let ParachainsInherentData {
+				bitfields: signed_bitfields,
+				backed_candidates,
+				parent_header,
+				disputes: _,
+			} = data;
+
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
 
@@ -137,7 +143,7 @@ decl_module! {
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Process backed candidates according to scheduled cores.
-			let parent_storage_root = parent_header.state_root;
+			let parent_storage_root = parent_header.state_root().clone();
 			let occupied = <inclusion::Module<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
@@ -195,7 +201,7 @@ fn limit_backed_candidates<T: Config>(
 		});
 	}
 
-	// the weight of the inclusion inherent is already included in the current block weight,
+	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Pallet::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
 		Vec::new()
@@ -207,39 +213,49 @@ fn limit_backed_candidates<T: Config>(
 impl<T: Config> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;
+	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		data.get_data(&Self::INHERENT_IDENTIFIER)
-			.expect("inclusion inherent data failed to decode")
-			.map(
-				|(signed_bitfields, backed_candidates, parent_header): (
-					SignedAvailabilityBitfields,
-					Vec<BackedCandidate<T::Hash>>,
-					Header,
-				)| {
-					// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-					// See github.com/paritytech/polkadot/issues/1327
-					let (signed_bitfields, backed_candidates) = match Self::inclusion(
-						frame_system::RawOrigin::None.into(),
-						signed_bitfields.clone(),
-						backed_candidates.clone(),
-						parent_header.clone(),
-					) {
-						Ok(_) => (signed_bitfields, backed_candidates),
-						Err(err) => {
-							log::warn!(
-								target: LOG_TARGET,
-								"dropping signed_bitfields and backed_candidates because they produced \
-								an invalid inclusion inherent: {:?}",
-								err,
-							);
-							(Vec::new().into(), Vec::new())
-						}
-					};
-					Call::inclusion(signed_bitfields, backed_candidates, parent_header)
+		let inherent_data: ParachainsInherentData<T::Header>
+			= match data.get_data(&Self::INHERENT_IDENTIFIER)
+		{
+			Ok(Some(d)) => d,
+			Ok(None) => return None,
+			Err(_) => {
+				log::warn!(
+					target: LOG_TARGET,
+					"ParachainsInherentData failed to decode",
+				);
+
+				return None;
+			}
+		};
+
+		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+		// See github.com/paritytech/polkadot/issues/1327
+		let inherent_data = match Self::enter(
+			frame_system::RawOrigin::None.into(),
+			inherent_data.clone(),
+		) {
+			Ok(_) => inherent_data,
+			Err(err) => {
+				log::warn!(
+					target: LOG_TARGET,
+					"dropping signed_bitfields and backed_candidates because they produced \
+					an invalid paras inherent: {:?}",
+					err,
+				);
+
+				ParachainsInherentData {
+					bitfields: Vec::new(),
+					backed_candidates: Vec::new(),
+					disputes: Vec::new(),
+					parent_header: inherent_data.parent_header,
 				}
-			)
+			}
+		};
+
+		Some(Call::enter(inherent_data))
 	}
 }
 
@@ -307,12 +323,13 @@ mod tests {
 		}
 	}
 
-	mod inclusion_inherent_weight {
+	mod paras_inherent_weight {
 		use super::*;
 
 		use crate::mock::{
 			new_test_ext, System, MockGenesisConfig, Test
 		};
+		use primitives::v1::Header;
 
 		use frame_support::traits::UnfilteredDispatchable;
 
@@ -326,7 +343,7 @@ mod tests {
 			}
 		}
 
-		/// We expect the weight of the inclusion inherent not to change when no truncation occurs:
+		/// We expect the weight of the paras inherent not to change when no truncation occurs:
 		/// its weight is dynamically computed from the size of the backed candidates list, and is
 		/// already incorporated into the current block weight when it is selected by the provisioner.
 		#[test]
@@ -336,7 +353,7 @@ mod tests {
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
 
-				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
 				let backed_candidates = vec![BackedCandidate::default(); 10];
@@ -350,8 +367,13 @@ mod tests {
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, default_header())
+				// execute the paras inherent
+				let post_info = Call::<Test>::enter(ParachainsInherentData {
+					bitfields: signed_bitfields,
+					backed_candidates,
+					disputes: Vec::new(),
+					parent_header: default_header(),
+				})
 					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
@@ -367,7 +389,7 @@ mod tests {
 			});
 		}
 
-		/// We expect the weight of the inclusion inherent to change when truncation occurs: its
+		/// We expect the weight of the paras inherent to change when truncation occurs: its
 		/// weight was initially dynamically computed from the size of the backed candidates list,
 		/// but was reduced by truncation.
 		#[test]
@@ -377,7 +399,7 @@ mod tests {
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
 
-				// number of bitfields doesn't affect the inclusion inherent weight, so we can mock it with an empty one
+				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
 				let backed_candidates = vec![BackedCandidate::default(); 10];
@@ -390,8 +412,13 @@ mod tests {
 				let used_block_weight = max_block_weight + 1;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				// execute the inclusion inherent
-				let post_info = Call::<Test>::inclusion(signed_bitfields, backed_candidates, header)
+				// execute the paras inherent
+				let post_info = Call::<Test>::enter(ParachainsInherentData {
+					bitfields: signed_bitfields,
+					backed_candidates,
+					disputes: Vec::new(),
+					parent_header: header,
+				})
 					.dispatch_bypass_filter(None.into()).unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the

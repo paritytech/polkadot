@@ -31,7 +31,10 @@ use polkadot_subsystem::{
 	SubsystemContext, SubsystemResult,
 	jaeger,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	self as util, MIN_GOSSIP_PEERS,
+};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
@@ -342,12 +345,6 @@ where
 			// check interest in the peer in this message's relay parent
 			if view.contains(&message.relay_parent) {
 				let message_needed = job_data.message_from_validator_needed_by_peer(&peer, &validator);
-				// track the message as sent for this peer
-				job_data.message_sent_to_peer
-					.entry(peer.clone())
-					.or_default()
-					.insert(validator.clone());
-
 				if message_needed {
 					Some(peer.clone())
 				} else {
@@ -358,6 +355,16 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
+	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
+	interested_peers.iter()
+		.for_each(|peer|{
+			// track the message as sent for this peer
+			job_data.message_sent_to_peer
+				.entry(peer.clone())
+				.or_default()
+				.insert(validator.clone());
+		});
+
 	drop(_span);
 
 	if interested_peers.is_empty() {

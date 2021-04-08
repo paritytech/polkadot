@@ -16,9 +16,9 @@
 
 //! End to end runtime tests
 
-use test_runner::{Node, ChainInfo, SignatureVerificationOverride};
+use test_runner::{Node, ChainInfo, SignatureVerificationOverride, default_config};
 use grandpa::GrandpaBlockImport;
-use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts};
+use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts, TaskExecutor};
 use sp_runtime::generic::Era;
 use std::sync::Arc;
 use sp_inherents::InherentDataProviders;
@@ -32,6 +32,7 @@ use sp_runtime::AccountId32;
 use frame_support::{weights::Weight, StorageValue};
 use pallet_democracy::{AccountVote, Conviction, Vote};
 use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, TechnicalCollective, CouncilCollective};
+use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
 use codec::Encode;
 
@@ -72,6 +73,10 @@ impl ChainInfo for PolkadotChainInfo {
             pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
             claims::PrevalidateAttests::<Runtime>::new(),
         )
+    }
+
+    fn config(task_executor: TaskExecutor) -> Configuration {
+        default_config(task_executor, Box::new(polkadot_development_config().unwrap()))
     }
 
     fn create_client_parts(
@@ -332,23 +337,11 @@ mod tests {
     use super::*;
     use test_runner::NodeConfig;
     use log::LevelFilter;
-    use sc_client_api::execution_extensions::ExecutionStrategies;
-    use polkadot_service::chain_spec::polkadot_development_config;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
 
     #[test]
     fn test_runner() {
         let config = NodeConfig {
-            execution_strategies: ExecutionStrategies {
-                syncing: sc_client_api::ExecutionStrategy::AlwaysWasm,
-                importing: sc_client_api::ExecutionStrategy::AlwaysWasm,
-                block_construction: sc_client_api::ExecutionStrategy::AlwaysWasm,
-                offchain_worker: sc_client_api::ExecutionStrategy::AlwaysWasm,
-                other: sc_client_api::ExecutionStrategy::AlwaysWasm,
-            },
-            // NOTE: when we have the polkadot db on CI we can change this to the
-            // actual polkadot chain spec
-            chain_spec: Box::new(polkadot_development_config().unwrap()),
             log_targets: vec![
                 ("yamux", LevelFilter::Off),
                 ("multistream_select", LevelFilter::Off),
