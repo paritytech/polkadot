@@ -233,7 +233,7 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
+	use polkadot_parachain::{primitives::{ValidationParams, ValidationResult}};
 	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
@@ -268,18 +268,19 @@ mod tests {
 		parent_head: HeadData,
 		collation: Collation,
 	) {
-		let ret = polkadot_parachain::wasm_executor::validate_candidate(
+		use polkadot_node_core_pvf::testing::validate_candidate;
+
+		let ret_buf = validate_candidate(
 			collator.validation_code(),
-			ValidationParams {
+			&ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
-			},
-			&IsolationStrategy::InProcess,
-			sp_core::testing::TaskExecutor::new(),
+			}.encode(),
 		)
 		.unwrap();
+		let ret = ValidationResult::decode(&mut &ret_buf[..]).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 		assert_eq!(
