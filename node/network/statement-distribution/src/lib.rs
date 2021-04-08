@@ -1954,7 +1954,10 @@ impl StatementDistribution {
 					).await;
 				}
 				StatementDistributionMessage::StatementFetchingReceiver(receiver) => {
-					ctx.spawn("large-statement-responder", respond(receiver, res_sender.clone()).boxed()).await?;
+					ctx.spawn(
+						"large-statement-responder",
+						respond(receiver, res_sender.clone(), metrics.clone()).boxed()
+					).await?;
 				}
 			}
 		}
@@ -1965,6 +1968,8 @@ impl StatementDistribution {
 #[derive(Clone)]
 struct MetricsInner {
 	statements_distributed: prometheus::Counter<prometheus::U64>,
+	received_requests: prometheus::Counter<prometheus::U64>,
+	sent_responses: prometheus::CounterVec<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
@@ -1978,6 +1983,19 @@ impl Metrics {
 	fn on_statement_distributed(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.statements_distributed.inc();
+		}
+	}
+
+	fn on_received_request(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.received_requests.inc();
+		}
+	}
+
+	fn on_sent_response(&self, success: bool) {
+		if let Some(metrics) = &self.0 {
+			let label = if success { "succeeded" } else { "failed" };
+			metrics.sent_responses.with_label_values(&[label]).inc();
 		}
 	}
 
@@ -2004,6 +2022,23 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_statements_distributed_total",
 					"Number of candidate validity statements distributed to other peers."
+				)?,
+				registry,
+			)?,
+			received_requests: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_received_requests_total",
+					"Number of large statement fetching requests received."
+				)?,
+				registry,
+			)?,
+			sent_responses: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_sent_responses_total",
+						"Number of served requests for large statement data."
+					),
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -2063,14 +2098,14 @@ mod tests {
 	};
 
 	#[test]
-    fn test_size_estimate_is_sane() {
-        let commitments = CandidateCommitments { 
-            upward_messages: vec![vec![1,2], vec![3,4]],
-            horizontal_messages: vec![OutboundHrmpMessage { recipient: Id::from(9), data: Vec::new() }],
-            new_validation_code: None,
-            head_data: HeadData(vec![1,2,3,4]),
-            processed_downward_messages: 9,
-            hrmp_watermark: 3u32,
+	fn test_size_estimate_is_sane() {
+		let commitments = CandidateCommitments { 
+			upward_messages: vec![vec![1,2], vec![3,4]],
+			horizontal_messages: vec![OutboundHrmpMessage { recipient: Id::from(9), data: Vec::new() }],
+			new_validation_code: None,
+			head_data: HeadData(vec![1,2,3,4]),
+			processed_downward_messages: 9,
+			hrmp_watermark: 3u32,
 		};
 		assert_eq!(commitments.size_estimate(), 20);
 	}
