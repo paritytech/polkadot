@@ -40,6 +40,7 @@ use runtime_parachains::{
 use frame_support_test::TestRandomness;
 use crate::{
 	auctions, crowdloan, slots, paras_registrar,
+	slot_range::SlotRange,
 	traits::{
 		Registrar as RegistrarT, Auctioneer,
 	},
@@ -532,11 +533,6 @@ fn competing_slots() {
 			));
 		}
 
-		// All winner slots are filled by bids
-		for winner in &auctions::Winning::<Test>::get(0).unwrap() {
-			assert!(winner.is_some());
-		}
-
 		// Auction should be done after ending period
 		run_to_block(160);
 
@@ -850,20 +846,11 @@ fn crowdloan_ending_period_bid() {
 
 		assert_eq!(Auctions::is_ending(100), Some(0));
 
-		assert_eq!(Auctions::winning(0), Some(
-			[
-				None, // 0-0
-				Some((2, ParaId::from(2), 900)), // 0-1
-				None, // 0-2
-				Some((crowdloan_account, ParaId::from(1), total)), // 0-3
-				None, // 1-1
-				None, // 1-2
-				None, // 1-3
-				None, // 2-2
-				None, // 2-3
-				None, // 3-3
-			]
-		));
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2), 900));
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(1), total));
+
+		assert_eq!(Auctions::winning(0), Some(winning));
 
 		run_to_block(101);
 
@@ -872,20 +859,10 @@ fn crowdloan_ending_period_bid() {
 
 		// Data propagates correctly
 		run_to_block(102);
-		assert_eq!(Auctions::winning(2), Some(
-			[
-				None, // 0-0
-				Some((2, ParaId::from(2), 900)), // 0-1
-				None, // 0-2
-				Some((crowdloan_account, ParaId::from(1), total + 900)), // 0-3
-				None, // 1-1
-				None, // 1-2
-				None, // 1-3
-				None, // 2-2
-				None, // 2-3
-				None, // 3-3
-			]
-		));
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2), 900));
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(1), total + 900));
+		assert_eq!(Auctions::winning(2), Some(winning));
 	})
 }
 
