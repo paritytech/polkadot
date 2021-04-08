@@ -55,6 +55,7 @@ members = [
 	"node/core/chain-api",
 	"node/core/proposer",
 	"node/core/provisioner",
+	"node/core/pvf",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",

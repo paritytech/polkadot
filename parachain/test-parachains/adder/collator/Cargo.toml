@@ -9,6 +9,10 @@ edition = "2018"
 name = "adder-collator"
 path = "src/main.rs"
 
+[[bin]]
+name = "adder_collator_puppet_worker"
+path = "bin/puppet_worker.rs"
+
 [dependencies]
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 futures = "0.3.12"
@@ -27,6 +31,11 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# This one is tricky. Even though it is not used directly by the collator, we still need it for the
+# `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
+# a big problem since it is used transitively anyway.
+polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
