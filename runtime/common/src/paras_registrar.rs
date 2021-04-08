@@ -39,7 +39,7 @@ use runtime_parachains::{
 
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, traits::{Saturating, Zero}};
+use sp_runtime::{RuntimeDebug, traits::Saturating};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -186,7 +186,7 @@ decl_module! {
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(id >= LOWEST_USER_ID, Error::<T>::InvalidParaId);
-			Self::do_register(who, id, genesis_head, validation_code, true)
+			Self::do_register(who, None, id, genesis_head, validation_code)
 		}
 
 		/// Force the registration of a Para Id on the relay chain.
@@ -199,12 +199,13 @@ decl_module! {
 		pub fn force_register(
 			origin,
 			who: T::AccountId,
+			deposit: BalanceOf<T>,
 			id: ParaId,
 			genesis_head: HeadData,
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::do_register(who, id, genesis_head, validation_code, false)
+			Self::do_register(who, Some(deposit), id, genesis_head, validation_code)
 		}
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
@@ -266,7 +267,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = 0]
-		fn remove_lock(origin, para: ParaId) {
+		fn force_remove_lock(origin, para: ParaId) {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
 		}
@@ -315,9 +316,8 @@ impl<T: Config> Registrar for Module<T> {
 		id: ParaId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		pays_deposit: bool,
 	) -> DispatchResult {
-		Self::do_register(manager, id, genesis_head, validation_code, pays_deposit)
+		Self::do_register(manager, None, id, genesis_head, validation_code)
 	}
 
 	// Deregister a Para ID, free any data, and return any deposits.
@@ -395,10 +395,10 @@ impl<T: Config> Module<T> {
 	/// system with the given information.
 	fn do_register(
 		who: T::AccountId,
+		deposit_override: Option<BalanceOf<T>>,
 		id: ParaId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		pays_deposit: bool,
 	) -> DispatchResult {
 		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
@@ -411,7 +411,7 @@ impl<T: Config> Module<T> {
 		<T as Config>::Currency::reserve(&who, deposit)?;
 		let info = ParaInfo {
 			manager: who.clone(),
-			deposit: if pays_deposit { deposit } else { Zero::zero() },
+			deposit: deposit_override.unwrap_or(deposit),
 			locked: false,
 		};
 
