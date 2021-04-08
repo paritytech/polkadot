@@ -152,7 +152,9 @@ async fn do_fetch_pov(
 {
 	let response = pending_response.await.map_err(Error::FetchPoV)?;
 	let pov = match response {
-		PoVFetchingResponse::PoV(pov) => pov,
+		PoVFetchingResponse::PoV(compressed) => {
+			compressed.decompress().map_err(Error::PoVDecompression)?
+		}
 		PoVFetchingResponse::NoSuchPoV => {
 			return Err(Error::NoSuchPoV)
 		}
@@ -242,7 +244,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
-	use polkadot_node_primitives::BlockData;
+	use polkadot_node_primitives::{BlockData, CompressedPoV};
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 
@@ -313,8 +315,9 @@ mod tests {
 							reqs.pop(),
 							Some(Requests::PoVFetching(outgoing)) => {outgoing}
 						);
-						req.pending_response.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
-							.unwrap();
+						req.pending_response.send(Ok(PoVFetchingResponse::PoV(
+							CompressedPoV::compress(&pov).unwrap()).encode()
+						)).unwrap();
 						break
 					},
 					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
