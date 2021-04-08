@@ -2041,6 +2041,7 @@ impl metrics::Metrics for Metrics {
 
 #[cfg(test)]
 mod tests {
+	use parity_scale_codec::{Decode, Encode};
 	use super::*;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
@@ -2053,6 +2054,13 @@ mod tests {
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole};
 	use polkadot_subsystem::{jaeger, ActivatedLeaf};
+	use polkadot_node_network_protocol::request_response::{
+		Requests,
+		v1::{
+			StatementFetchingRequest,
+			StatementFetchingResponse,
+		},
+	};
 
 	#[test]
     fn test_size_estimate_is_sane() {
@@ -2897,21 +2905,44 @@ mod tests {
 
 				SignedFullStatement::sign(
 					&keystore,
-					Statement::Seconded(candidate),
+					Statement::Seconded(candidate.clone()),
 					&signing_context,
 					ValidatorIndex(0),
 					&alice_public.into(),
 				).await.ok().flatten().expect("should be signed")
 			};
 
+			let metadata = 
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
+
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()),
+						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
 					)
 				)
 			}).await;
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					let response = StatementFetchingResponse::Statement(candidate);
+					outgoing.pending_response.send(Ok(response.encode())).unwrap();
+				}
+			);
 
 			assert_matches!(
 				handle.recv().await,
