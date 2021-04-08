@@ -1162,11 +1162,11 @@ impl util::JobTrait for CandidateBackingJob {
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
 				&validators,
-				signing_context,
+				signing_context.clone(),
 				keystore.clone(),
 			).await {
-				Ok(v) => v,
-				Err(util::Error::NotAValidator) => { return Ok(()) },
+				Ok(v) => Some(v),
+				Err(util::Error::NotAValidator) => None,
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -1186,16 +1186,18 @@ impl util::JobTrait for CandidateBackingJob {
 			let n_cores = cores.len();
 
 			let mut assignment = None;
-			for (idx, core) in cores.into_iter().enumerate() {
-				// Ignore prospective assignments on occupied cores for the time being.
-				if let CoreState::Scheduled(scheduled) = core {
-					let core_index = CoreIndex(idx as _);
-					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-					if let Some(g) = validator_groups.get(group_index.0 as usize) {
-						if g.contains(&validator.index()) {
-							assignment = Some((scheduled.para_id, scheduled.collator));
+			if let Some(ref validator_index) = validator.as_ref().map(|v| v.index()) {
+				for (idx, core) in cores.into_iter().enumerate() {
+					// Ignore prospective assignments on occupied cores for the time being.
+					if let CoreState::Scheduled(scheduled) = core {
+						let core_index = CoreIndex(idx as _);
+						let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+						if let Some(g) = validator_groups.get(group_index.0 as usize) {
+							if g.contains(&validator_index) {
+								assignment = Some((scheduled.para_id, scheduled.collator));
+							}
+							groups.insert(scheduled.para_id, g.clone());
 						}
-						groups.insert(scheduled.para_id, g.clone());
 					}
 				}
 			}
@@ -1203,8 +1205,8 @@ impl util::JobTrait for CandidateBackingJob {
 			let table_context = TableContext {
 				groups,
 				validators,
-				signing_context: validator.signing_context().clone(),
-				validator: Some(validator),
+				signing_context,
+				validator,
 			};
 
 			let (assignment, required_collator) = match assignment {
