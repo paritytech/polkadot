@@ -5958,6 +5958,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
+ "sp-maybe-compressed-blob",
  "sp-runtime",
  "thiserror",
  "zstd",

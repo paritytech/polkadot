@@ -267,3 +267,13 @@ pub struct ErasureChunk {
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }
+
+/// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].
+pub fn maybe_compress_pov(pov: PoV) -> PoV {
+	let PoV { block_data: BlockData(raw) } = pov;
+	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
+		.unwrap_or(raw);
+
+	let pov = PoV { block_data: BlockData(raw) };
+	pov
+}

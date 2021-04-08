@@ -27,7 +27,7 @@ use futures::{
 	stream::StreamExt,
 };
 use polkadot_node_primitives::{
-	POV_BOMB_LIMIT, CollationGenerationConfig, AvailableData, PoV, BlockData,
+	CollationGenerationConfig, AvailableData, PoV,
 };
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
@@ -318,11 +318,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				// Apply compression to the block data.
 				let pov = {
-					let PoV { block_data: BlockData(raw) } = collation.proof_of_validity;
-					let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
-						.unwrap_or(raw);
-
-					let pov = PoV { block_data: BlockData(raw) };
+					let pov = polkadot_node_primitives::maybe_compress_pov(collation.proof_of_validity);
 					let encoded_size = pov.encoded_size();
 
 					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
@@ -524,7 +520,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV};
+		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV, POV_BOMB_LIMIT};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
