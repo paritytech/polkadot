@@ -108,15 +108,13 @@ where
 	F: FnMut(UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	let err = async_std::task::block_on::<_, io::Result<()>>(async move {
+	let err = async_std::task::block_on::<_, io::Result<Never>>(async move {
 		let stream = UnixStream::connect(socket_path).await?;
 		let _ = async_std::fs::remove_file(socket_path).await;
 
-		event_loop(stream).await?;
-
-		Ok(())
+		event_loop(stream).await
 	})
-	.unwrap_err();
+	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 
 	tracing::debug!(
 		target: LOG_TARGET,
