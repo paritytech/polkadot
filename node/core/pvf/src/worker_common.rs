@@ -68,12 +68,14 @@ pub async fn spawn_with_program_path(
 	.await
 }
 
-async fn with_transient_socket_path<R, F, Fut>(debug_id: &'static str, f: F) -> R
+async fn with_transient_socket_path<T, F, Fut>(debug_id: &'static str, f: F) -> Result<T, SpawnErr>
 where
 	F: FnOnce(&Path) -> Fut,
-	Fut: futures::Future<Output = R> + 'static,
+	Fut: futures::Future<Output = Result<T, SpawnErr>> + 'static,
 {
-	let socket_path = tmpfile(&format!("pvf-host-{}", debug_id));
+	let socket_path = tmpfile(&format!("pvf-host-{}", debug_id))
+		.await
+		.map_err(|_| SpawnErr::TmpFile)?;
 	let result = f(&socket_path).await;
 
 	// Best effort to remove the socket file. Under normal circumstances the socket will be removed
@@ -83,24 +85,45 @@ where
 	result
 }
 
-pub fn tmpfile(prefix: &str) -> PathBuf {
-	use rand::distributions::Alphanumeric;
+/// Returns a path under the location for temporary files. The file name will start with the given
+/// prefix.
+///
+/// There is only a certain number of retries. If exceeded this function will give up and return an
+/// error.
+pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
+	fn tmppath(prefix: &str) -> PathBuf {
+		use rand::distributions::Alphanumeric;
 
-	const DESCRIMINATOR_LEN: usize = 10;
+		const DESCRIMINATOR_LEN: usize = 10;
 
-	let mut buf = Vec::with_capacity(prefix.len() + DESCRIMINATOR_LEN);
-	buf.extend(prefix.as_bytes());
-	buf.extend(
-		rand::thread_rng()
-			.sample_iter(&Alphanumeric)
-			.take(DESCRIMINATOR_LEN),
-	);
+		let mut buf = Vec::with_capacity(prefix.len() + DESCRIMINATOR_LEN);
+		buf.extend(prefix.as_bytes());
+		buf.extend(
+			rand::thread_rng()
+				.sample_iter(&Alphanumeric)
+				.take(DESCRIMINATOR_LEN),
+		);
 
-	let s = std::str::from_utf8(&buf).expect("the string is collected from a valid utf-8 sequence");
+		let s = std::str::from_utf8(&buf)
+			.expect("the string is collected from a valid utf-8 sequence; qed");
 
-	let mut temp_dir = PathBuf::from(std::env::temp_dir());
-	temp_dir.push(s);
-	temp_dir
+		let mut temp_dir = PathBuf::from(std::env::temp_dir());
+		temp_dir.push(s);
+		temp_dir
+	}
+
+	const NUM_RETRIES: usize = 50;
+
+	for _ in 0..NUM_RETRIES {
+		let candidate_path = tmppath(prefix);
+		if !candidate_path.exists().await {
+			return Ok(candidate_path)
+		}
+	}
+
+	Err(
+		io::Error::new(io::ErrorKind::Other, "failed to create a temporary file")
+	)
 }
 
 pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
@@ -141,6 +164,8 @@ pub struct IdleWorker {
 /// An error happened during spawning a worker process.
 #[derive(Clone, Debug)]
 pub enum SpawnErr {
+	/// Cannot obtain a temporary file location.
+	TmpFile,
 	/// Cannot bind the socket to the given path.
 	Bind,
 	/// An error happened during accepting a connection to the socket.

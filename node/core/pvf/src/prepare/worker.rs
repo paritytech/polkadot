@@ -163,7 +163,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let artifact_bytes = prepare_artifact(&code).serialize();
 
 			// Write the serialized artifact into into a temp file.
-			let dest = tmpfile("prepare-artifact-");
+			let dest = tmpfile("prepare-artifact-").await?;
 			async_std::fs::write(&dest, &artifact_bytes).await?;
 
 			// Communicate the results back to the host.
