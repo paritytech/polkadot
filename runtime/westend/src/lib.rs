@@ -991,7 +991,7 @@ construct_runtime! {
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
 		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
 
-		// Parachains modules.
+		// Parachains pallets.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin},
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
@@ -1128,6 +1128,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	// TODO [now]: use parachains runtime API impl
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			Vec::new()

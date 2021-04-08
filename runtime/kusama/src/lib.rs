@@ -27,16 +27,40 @@ use sp_core::u32_trait::{_1, _2, _3, _5};
 use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
+	claims, SlowAdjustingFeeUpdate, CurrencyToVote, paras_registrar, xcm_sender, auctions,
+	crowdloan, slots,
 	impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
+
+use runtime_parachains::origin as parachains_origin;
+use runtime_parachains::configuration as parachains_configuration;
+use runtime_parachains::shared as parachains_shared;
+use runtime_parachains::inclusion as parachains_inclusion;
+use runtime_parachains::paras_inherent as parachains_paras_inherent;
+use runtime_parachains::initializer as parachains_initializer;
+use runtime_parachains::session_info as parachains_session_info;
+use runtime_parachains::paras as parachains_paras;
+use runtime_parachains::dmp as parachains_dmp;
+use runtime_parachains::ump as parachains_ump;
+use runtime_parachains::hrmp as parachains_hrmp;
+use runtime_parachains::scheduler as parachains_scheduler;
+use runtime_parachains::reward_points as parachains_reward_points;
+
+use xcm::v0::{MultiLocation, NetworkId};
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
+	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
+};
+
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
@@ -956,6 +980,163 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
+impl parachains_origin::Config for Runtime {}
+
+impl parachains_configuration::Config for Runtime {}
+
+impl parachains_shared::Config for Runtime {}
+
+impl parachains_session_info::Config for Runtime {}
+
+impl parachains_inclusion::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+}
+
+impl parachains_paras::Config for Runtime {
+	type Origin = Origin;
+	type Event = Event;
+}
+
+impl parachains_ump::Config for Runtime {
+	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
+}
+
+impl parachains_dmp::Config for Runtime {}
+
+impl parachains_hrmp::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+}
+
+impl parachains_paras_inherent::Config for Runtime {}
+
+impl parachains_scheduler::Config for Runtime {}
+
+impl parachains_initializer::Config for Runtime {
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = EnsureRoot<AccountId>;
+}
+
+parameter_types! {
+	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
+}
+
+impl paras_registrar::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+	type OnSwap = (Crowdloan, Slots);
+	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = DataDepositPerByte;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadSize = MaxHeadSize;
+	type WeightInfo = paras_registrar::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 6 * HOURS;
+	pub const SampleLength: BlockNumber = 1;
+}
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type Registrar = Registrar;
+	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const LeasePeriod: BlockNumber = 28 * DAYS;
+}
+
+impl slots::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Registrar = Registrar;
+	type LeasePeriod = LeasePeriod;
+	type WeightInfo = slots::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
+	pub const MinContribution: Balance = 1 * DOLLARS;
+	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
+	pub const RemoveKeysLimit: u32 = 500;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type ModuleId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
+	type WeightInfo = crowdloan::TestWeightInfo;
+}
+
+parameter_types! {
+	pub const KusamaLocation: MultiLocation = MultiLocation::Null;
+	pub const KusamaNetwork: NetworkId = NetworkId::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<KusamaNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor =
+	XcmCurrencyAdapter<
+		// Use this currency:
+		Balances,
+		// Use this currency when it is a fungible asset matching the given location or name:
+		IsConcrete<KusamaLocation>,
+		// We can convert the MultiLocations with our converter above:
+		LocationConverter,
+		// Our chain's account ID type (we can't get away without mentioning it explicitly):
+		AccountId,
+	>;
+
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
+
+parameter_types! {
+	pub const BaseXcmWeight: Weight = 100_000;
+	pub const KusamaFee: (MultiLocation, u128) = (KusamaLocation::get(), 1 * CENTS);
+}
+
+pub struct XcmConfig;
+impl xcm_executor::Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+	type Barrier = ();
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Trader = FixedRateOfConcreteFungible<KusamaFee>;
+	type ResponseHandler = ();
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1027,6 +1208,26 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
+
+		// Parachains pallets.
+		ParachainsOrigin: parachains_origin::{Pallet, Origin},
+		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
+		ParasShared: parachains_shared::{Pallet, Call, Storage},
+		ParasInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
+		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event},
+		ParasInitializer: parachains_initializer::{Pallet, Call, Storage},
+		ParasDmp: parachains_dmp::{Pallet, Call, Storage},
+		ParasUmp: parachains_ump::{Pallet, Call, Storage},
+		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
+		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage},
+
+		// Parachain Onboarding Pallets
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
+		Slots: slots::{Pallet, Call, Storage, Event<T>},
 	}
 }
 
@@ -1079,6 +1280,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
+	// TODO [now]: migrate to new host configuration
 	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
 >;
 /// The payload being signed in the transactions.
@@ -1159,6 +1361,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	// TODO [now]: use parachains runtime API impl
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			Vec::new()
@@ -1172,12 +1375,12 @@ sp_api::impl_runtime_apis! {
 			Vec::new()
 		}
 
-		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
+		fn persisted_validation_data(_: ParaId, _: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			None
 		}
 		fn check_validation_outputs(
-			_: Id,
+			_: ParaId,
 			_: primitives::v1::CandidateCommitments,
 		) -> bool {
 			false
@@ -1191,15 +1394,15 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
+		fn validation_code(_: ParaId, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
 			None
 		}
 
-		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
+		fn historical_validation_code(_: ParaId, _: BlockNumber) -> Option<ValidationCode> {
 			None
 		}
 
-		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+		fn candidate_pending_availability(_: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			None
 		}
 
@@ -1208,14 +1411,14 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn dmq_contents(
-			_recipient: Id,
+			_recipient: ParaId,
 		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
 		}
 
 		fn inbound_hrmp_channels_contents(
-			_recipient: Id
-		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			_recipient: ParaId
+		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			BTreeMap::new()
 		}
 
