@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
-use crate::{LOG_TARGET, Metrics};
+use crate::LOG_TARGET;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 
@@ -52,7 +52,6 @@ pub enum ResponderMessage {
 pub async fn respond(
 	mut receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 	mut sender: mpsc::Sender<ResponderMessage>,
-	metrics: Metrics,
 ) {
 	let mut pending_out = FuturesUnordered::new();
 	loop {
@@ -84,8 +83,6 @@ pub async fn respond(
 			}
 			Some(v) => v,
 		};
-
-		metrics.on_received_request();
 
 		let sc_network::config::IncomingRequest {
 			payload,
@@ -146,14 +143,11 @@ pub async fn respond(
 		};
 		pending_out.push(pending_sent_rx);
 		if let Err(_) = req.send_outgoing_response(response) {
-			metrics.on_sent_response(false);
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Sending response failed"
 			);
-		} else {
-			metrics.on_sent_response(true);
-		}
+		} 
 	}
 }
 
