@@ -35,14 +35,26 @@ use polkadot_node_subsystem_util::{
 	self as util, MIN_GOSSIP_PEERS,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement};
-use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
-use polkadot_node_network_protocol::{IfDisconnected, PeerId, UnifiedReputationChange as Rep, View, v1::{self as protocol_v1, StatementMetadata}};
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
+	HeadData, Id, OutboundHrmpMessage, SigningContext,
+	ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature
+};
+use polkadot_node_network_protocol::{
+	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
+	peer_set::{
+		IsAuthority, PeerSet
+	},
+	v1::{
+		self as protocol_v1, StatementMetadata
+	}
+};
 
 use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::{collections::{HashMap, HashSet, hash_map::Entry}, mem::size_of};
 
 /// Background task logic for requesting of large statements.
 mod requester;
@@ -853,10 +865,102 @@ fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 /// Check whether a statement should be treated as large statement.
 fn is_statement_large(statement: &SignedFullStatement) -> bool {
 	match &statement.payload() {
-		Statement::Seconded(committed) => 
-			committed.commitments.new_validation_code.is_some(),
+		Statement::Seconded(committed) => {
+			// Runtime upgrades will always be large and even if not - no harm done.
+			if committed.commitments.new_validation_code.is_some() {
+				return true
+			}
+			// No runtime upgrade, now we need to be more nuanced:
+			let size = committed.commitments.size_estimate();
+
+			// Half max size seems to be a good threshold to start not using notifications:
+			let threshold =
+				PeerSet::Validation.get_info(IsAuthority::Yes)
+					.max_notification_size as usize / 2;
+
+			size >= threshold
+		}
 		Statement::Valid(_) =>
 			false,
+	}
+}
+
+/// Internal trait for estimating encoded size.
+trait SizeEstimate {
+	fn size_estimate(&self) -> usize;
+}
+
+impl<N: SizeEstimate> SizeEstimate for CandidateCommitments<N> {
+	fn size_estimate(&self) -> usize {
+		let CandidateCommitments {
+			upward_messages,
+			horizontal_messages,
+			new_validation_code,
+			head_data,
+			processed_downward_messages,
+			hrmp_watermark
+		} = self;
+
+		upward_messages.size_estimate()
+			+ horizontal_messages.size_estimate()
+			+ new_validation_code.size_estimate()
+			+ head_data.size_estimate()
+			+ processed_downward_messages.size_estimate()
+			+ hrmp_watermark.size_estimate()
+	}
+}
+
+impl<T: SizeEstimate> SizeEstimate for Vec<T> {
+	fn size_estimate(&self) -> usize {
+		self.len() * self.iter().next().map(|v| v.size_estimate()).unwrap_or(0)
+	}
+}
+
+impl SizeEstimate for ValidationCode {
+	fn size_estimate(&self) -> usize {
+		let ValidationCode(v) = self;
+		v.size_estimate()
+	}
+}
+
+impl SizeEstimate for HeadData {
+	fn size_estimate(&self) -> usize {
+		let HeadData(d) = self;
+		d.size_estimate()
+	}
+}
+
+impl<T: SizeEstimate> SizeEstimate for Option<T> {
+	fn size_estimate(&self) -> usize {
+		match self {
+			None => 0,
+			Some(v) => v.size_estimate()
+		}
+	}
+}
+
+impl SizeEstimate for u8 {
+	fn size_estimate(&self) -> usize {
+		size_of::<u8>()
+	}
+}
+
+impl SizeEstimate for u32 {
+	fn size_estimate(&self) -> usize {
+		size_of::<u32>()
+	}
+}
+
+impl<Id: SizeEstimate> SizeEstimate for OutboundHrmpMessage<Id> {
+	fn size_estimate(&self) -> usize {
+		let OutboundHrmpMessage { recipient, data } = self;
+		data.size_estimate() + recipient.size_estimate()
+	}
+}
+
+impl SizeEstimate for Id {
+	fn size_estimate(&self) -> usize {
+		size_of::<Id>()
 	}
 }
 
