@@ -35,7 +35,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
 # a big problem since it is used transitively, at least when built with `real-overseer`.
-polkadot-node-core-pvf = { path = "../../../../node/core/pvf", optional = true }
+polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
@@ -48,6 +48,3 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 
 tokio = { version = "0.2", features = ["macros"] }
-
-[features]
-real-overseer = [ "polkadot-service/real-overseer", "polkadot-node-core-pvf" ]

@@ -17,12 +17,10 @@
 //! Integration test that ensures that we can build and include parachain
 //! blocks of the adder parachain.
 
-#[cfg(feature = "real-overseer")]
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
 
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
-#[cfg(feature = "real-overseer")]
 async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor) {
 	use sp_keyring::AccountKeyring::*;
 	use futures::join;
