@@ -6043,6 +6043,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
+ "sp-api",
  "sp-core",
  "tracing",
 ]

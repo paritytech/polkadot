@@ -14,7 +14,7 @@
 //! Migration code for the parachain's DB.
 
 
-#![cfg(feature = "real-overseer")]
+#![cfg(feature = "full-node")]
 
 use std::fs;
 use std::io;

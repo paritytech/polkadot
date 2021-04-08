@@ -37,6 +37,3 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "rococo
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 
 tokio = { version = "0.2", features = ["macros"] }
-
-[features]
-real-overseer = [ "polkadot-service/real-overseer" ]
