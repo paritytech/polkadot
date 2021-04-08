@@ -1594,7 +1594,8 @@ sp_api::impl_runtime_apis! {
 			let params = (&config, &whitelist);
 			// Polkadot
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
-			// TODO[now] slots, registrar
+			add_benchmark!(params, batches, slots, Slots);
+			add_benchmark!(params, batches, paras_registrar, Registrar);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
