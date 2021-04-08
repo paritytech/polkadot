@@ -207,7 +207,7 @@ decl_module! {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					let winning_data = offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
-							.unwrap_or_default();
+							.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					Winning::<T>::insert(offset, winning_data);
 				}
 			}
@@ -344,6 +344,9 @@ impl<T: Config> Auctioneer for Module<T> {
 }
 
 impl<T: Config> Module<T> {
+	// A trick to allow me to initialize large arrays with nothing in them.
+	const EMPTY: Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)> = None;
+
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
 		AuctionInfo::<T>::get().map_or(false, |(_, early_end)| {
@@ -416,7 +419,7 @@ impl<T: Config> Module<T> {
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
-			.unwrap_or_default();
+			.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
@@ -497,7 +500,7 @@ impl<T: Config> Module<T> {
 
 					let auction_counter = AuctionCounter::get();
 					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
-					let res = Winning::<T>::get(offset).unwrap_or_default();
+					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
 						Winning::<T>::remove(i);
