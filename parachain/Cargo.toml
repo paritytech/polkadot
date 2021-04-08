@@ -14,47 +14,21 @@ parity-util-mem = { version = "0.9.0", optional = true }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 
 # all optional crates.
-thiserror = { version = "1.0.22", optional = true }
 serde = { version = "1.0.117", default-features = false, features = [ "derive" ], optional = true }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-parking_lot = { version = "0.11.1", optional = true }
-log = { version = "0.4.11", optional = true }
-futures = { version = "0.3.8", optional = true }
-static_assertions = { version = "1.1", optional = true }
-libc = { version = "0.2.81", optional = true }
-
-[target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
-shared_memory = { version = "0.11.0", optional = true }
-raw_sync = { version = "0.1", optional = true }
 
 [features]
 default = ["std"]
-wasmtime = [ "sc-executor/wasmtime" ]
 wasm-api = []
 std = [
 	"parity-scale-codec/std",
-	"thiserror",
 	"serde/std",
 	"sp-std/std",
 	"sp-runtime/std",
-	"shared_memory",
-	"raw_sync",
 	"sp-core/std",
-	"parking_lot",
-	"static_assertions",
-	"log",
-	"libc",
 	"parity-util-mem",
-	"sp-externalities",
-	"sc-executor",
-	"sp-io",
 	"polkadot-core-primitives/std",
-	"futures",
 ]

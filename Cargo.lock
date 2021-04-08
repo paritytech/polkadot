@@ -120,9 +120,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.34"
+version = "1.0.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf8dcb5b4bbaa28653b647d8c77bd4ed40183b48882e130c1f1ffb73de069fd7"
+checksum = "81cddc5f91628367664cc7c69714ff08deee8a3efc54623011c772544d7b2767"
 
 [[package]]
 name = "approx"
@@ -203,6 +203,16 @@ name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
+name = "async-attributes"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3203e79f4dd9bdda415ed03cf14dae5a2bf775c683a00f94e9cd1faf0f596e5"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "async-channel"
@@ -293,6 +303,7 @@ version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f9f84f1280a2b436a2c77c2582602732b6c2f4321d5494d6e799e6c367859a8"
 dependencies = [
+ "async-attributes",
  "async-channel",
  "async-global-executor",
  "async-io",
@@ -5579,7 +5590,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.13",
  "log",
- "polkadot-parachain",
+ "polkadot-node-core-pvf",
  "polkadot-service",
  "sc-cli",
  "sc-service",
@@ -5823,8 +5834,10 @@ name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "futures 0.3.13",
  "parity-scale-codec",
+ "polkadot-node-core-pvf",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -5891,6 +5904,38 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "polkadot-node-core-pvf"
+version = "0.1.0"
+dependencies = [
+ "always-assert",
+ "assert_matches",
+ "async-process",
+ "async-std",
+ "futures 0.3.13",
+ "futures-timer 3.0.2",
+ "hex-literal",
+ "libc",
+ "parity-scale-codec",
+ "pin-project 1.0.4",
+ "polkadot-core-primitives",
+ "polkadot-parachain",
+ "rand 0.8.3",
+ "sc-executor",
+ "sc-executor-common",
+ "sc-executor-wasmtime",
+ "slotmap",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-wasm-interface",
+ "tempfile",
+ "test-parachain-adder",
+ "test-parachain-halt",
+ "tracing",
+ "wasmtime-jit",
 ]
 
 [[package]]
@@ -6074,25 +6119,13 @@ name = "polkadot-parachain"
 version = "0.8.30"
 dependencies = [
  "derive_more",
- "futures 0.3.13",
- "libc",
- "log",
  "parity-scale-codec",
  "parity-util-mem",
- "parking_lot 0.11.1",
  "polkadot-core-primitives",
- "raw_sync",
- "sc-executor",
  "serde",
- "shared_memory",
  "sp-core",
- "sp-externalities",
- "sp-io",
  "sp-runtime",
  "sp-std",
- "sp-wasm-interface",
- "static_assertions",
- "thiserror",
 ]
 
 [[package]]
@@ -7029,19 +7062,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16abd0c1b639e9eb4d7c50c0b8100b0d0f849be2349829c740fe8e6eb4816429"
 dependencies = [
  "rand_core 0.5.1",
-]
-
-[[package]]
-name = "raw_sync"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a34bde3561f980a51c70495164200569a11662644fe5af017f0b5d7015688cc"
-dependencies = [
- "cfg-if 0.1.10",
- "libc",
- "nix",
- "rand 0.8.3",
- "winapi 0.3.9",
 ]
 
 [[package]]
@@ -8705,20 +8725,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared_memory"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b854a362375dfe8ab12ea8a98228040d37293c988f85fbac9fa0f83336387966"
-dependencies = [
- "cfg-if 0.1.10",
- "libc",
- "nix",
- "quick-error 2.0.0",
- "rand 0.8.3",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "shlex"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8776,6 +8782,15 @@ dependencies = [
  "paste 1.0.4",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "slotmap"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab3003725ae562cf995f3dc82bb99e70926e09000396816765bb6d7adbe740b1"
+dependencies = [
+ "version_check",
 ]
 
 [[package]]
@@ -9868,6 +9883,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "polkadot-cli",
+ "polkadot-node-core-pvf",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-parachain",
