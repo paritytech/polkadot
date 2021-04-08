@@ -235,11 +235,7 @@ impl ProvisioningJob {
 		)
 		.await
 		{
-			// THIS IS A HACK: to silence warnings on live chains without the parachains runtime
-			// FIXME: remove this workaround once the parachains runtime is live
-			if !matches!(err, Error::CanceledBackedCandidates(oneshot::Canceled)) {
-				tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-			}
+			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
 			self.metrics.on_inherent_data_request(Err(()));
 		} else {
 			self.metrics.on_inherent_data_request(Ok(()));
