@@ -29,6 +29,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_subsystem::{Span, Stage};
 
 use crate::{LOG_TARGET, Metrics};
 
@@ -79,6 +80,10 @@ pub async fn fetch(
 	mut sender: mpsc::Sender<RequesterMessage>,
 	metrics: Metrics,
 ) {
+	let span = Span::new(candidate_hash, "fetch-large-statement")
+		.with_relay_parent(relay_parent)
+		.with_stage(Stage::StatementDistribution);
+
 	// Peers we already tried (and failed).
 	let mut tried_peers = Vec::new();
 	// Peers left for trying out.
@@ -91,7 +96,14 @@ pub async fn fetch(
 
 	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
 	loop {
+
+		let span = span.child("try-available-peers");
+
 		while let Some(peer) = new_peers.pop() {
+
+			let _span = span.child("try-peer")
+				.with_peer_id(&peer);
+
 			let (outgoing, pending_response) = OutgoingRequest::new(
 				Recipient::Peer(peer),
 				req.clone(),
@@ -160,7 +172,7 @@ pub async fn fetch(
 		new_peers = std::mem::take(&mut tried_peers);
 
 		// All our peers failed us - try getting new ones before trying again:
-		match try_get_new_peers(relay_parent, candidate_hash, &mut sender).await {
+		match try_get_new_peers(relay_parent, candidate_hash, &mut sender, &span).await {
 			Ok(Some(mut peers)) => {
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
@@ -181,8 +193,12 @@ pub async fn fetch(
 async fn try_get_new_peers(
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
-	sender: &mut mpsc::Sender<RequesterMessage>
+	sender: &mut mpsc::Sender<RequesterMessage>,
+	span: &Span,
 ) -> Result<Option<Vec<PeerId>>, ()> {
+
+	let _span = span.child("wait-for-peers");
+
 	let (tx, rx) = oneshot::channel();
 
 	if let Err(err) = sender.send(
