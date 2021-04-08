@@ -2055,6 +2055,19 @@ mod tests {
 	use polkadot_subsystem::{jaeger, ActivatedLeaf};
 
 	#[test]
+    fn test_size_estimate_is_sane() {
+        let commitments = CandidateCommitments { 
+            upward_messages: vec![vec![1,2], vec![3,4]],
+            horizontal_messages: vec![OutboundHrmpMessage { recipient: Id::from(9), data: Vec::new() }],
+            new_validation_code: None,
+            head_data: HeadData(vec![1,2,3,4]),
+            processed_downward_messages: 9,
+            hrmp_watermark: 3u32,
+		};
+		assert_eq!(commitments.size_estimate(), 20);
+	}
+
+	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
 		let validators = vec![
 			Sr25519Keyring::Alice.public().into(),
