@@ -32,7 +32,6 @@ use std::{
 use always_assert::never;
 use async_std::{
 	path::{Path, PathBuf},
-	sync::Mutex,
 };
 use polkadot_parachain::primitives::ValidationResult;
 use futures::{
@@ -44,8 +43,9 @@ use futures::{
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
 /// A handle to the async process serving the validation host requests.
+#[derive(Clone)]
 pub struct ValidationHost {
-	to_host_tx: Mutex<mpsc::Sender<ToHost>>,
+	to_host_tx: mpsc::Sender<ToHost>,
 }
 
 impl ValidationHost {
@@ -57,15 +57,13 @@ impl ValidationHost {
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn execute_pvf(
-		&self,
+		&mut self,
 		pvf: Pvf,
 		params: Vec<u8>,
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.lock()
-			.await
 			.send(ToHost::ExecutePvf {
 				pvf,
 				params,
@@ -82,10 +80,8 @@ impl ValidationHost {
 	/// situations this function should return immediatelly.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
-	pub async fn heads_up(&self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
+	pub async fn heads_up(&mut self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
 		self.to_host_tx
-			.lock()
-			.await
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
@@ -156,9 +152,7 @@ impl Config {
 pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
-	let validation_host = ValidationHost {
-		to_host_tx: Mutex::new(to_host_tx),
-	};
+	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
 		config.prepare_worker_program_path.to_owned(),
@@ -230,12 +224,7 @@ struct PendingExecutionRequest {
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
 impl AwaitingPrepare {
-	fn add(
-		&mut self,
-		artifact_id: ArtifactId,
-		params: Vec<u8>,
-		result_tx: ResultSender,
-	) {
+	fn add(&mut self, artifact_id: ArtifactId, params: Vec<u8>, result_tx: ResultSender) {
 		self.0
 			.entry(artifact_id)
 			.or_default()
@@ -731,10 +720,8 @@ mod tests {
 		}
 
 		fn host_handle(&mut self) -> ValidationHost {
-			let tx = self.to_host_tx.take().unwrap();
-			ValidationHost {
-				to_host_tx: Mutex::new(tx),
-			}
+			let to_host_tx = self.to_host_tx.take().unwrap();
+			ValidationHost { to_host_tx }
 		}
 
 		async fn poll_and_recv_to_prepare_queue(&mut self) -> prepare::ToQueue {
@@ -768,7 +755,8 @@ mod tests {
 							panic!("the execute queue supposed to be empty")
 						}
 					}
-				}.boxed(),
+				}
+				.boxed(),
 			)
 			.await
 		}
@@ -786,7 +774,8 @@ mod tests {
 							panic!("the sweeper supposed to be empty, but received: {:?}", msg)
 						}
 					}
-				}.boxed(),
+				}
+				.boxed(),
 			)
 			.await
 		}
@@ -839,7 +828,7 @@ mod tests {
 		builder.artifacts.insert_prepared(artifact_id(1), mock_now);
 		builder.artifacts.insert_prepared(artifact_id(2), mock_now);
 		let mut test = builder.build();
-		let host = test.host_handle();
+		let mut host = test.host_handle();
 
 		host.heads_up(vec![Pvf::from_discriminator(1)])
 			.await
@@ -866,7 +855,7 @@ mod tests {
 	#[async_std::test]
 	async fn amending_priority() {
 		let mut test = Builder::default().build();
-		let host = test.host_handle();
+		let mut host = test.host_handle();
 
 		host.heads_up(vec![Pvf::from_discriminator(1)])
 			.await
@@ -914,7 +903,7 @@ mod tests {
 		use crate::error::InvalidCandidate;
 
 		let mut test = Builder::default().build();
-		let host = test.host_handle();
+		let mut host = test.host_handle();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
 		host.execute_pvf(
@@ -1021,7 +1010,7 @@ mod tests {
 	#[async_std::test]
 	async fn cancellation() {
 		let mut test = Builder::default().build();
-		let host = test.host_handle();
+		let mut host = test.host_handle();
 
 		let (result_tx, result_rx) = oneshot::channel();
 		host.execute_pvf(

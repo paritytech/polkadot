@@ -99,7 +99,7 @@ async fn run(
 	cache_path: PathBuf,
 	program_path: PathBuf,
 ) -> SubsystemResult<()> {
-	let (validation_host, task) = polkadot_node_core_pvf::start(
+	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed()).await?;
@@ -119,7 +119,7 @@ async fn run(
 
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
-						&validation_host,
+						&mut validation_host,
 						descriptor,
 						pov,
 						&metrics,
@@ -143,7 +143,7 @@ async fn run(
 					let _timer = metrics.time_validate_from_exhaustive();
 
 					let res = validate_candidate_exhaustive(
-						&validation_host,
+						&mut validation_host,
 						persisted_validation_data,
 						validation_code,
 						descriptor,
@@ -282,7 +282,7 @@ async fn find_assumed_validation_data(
 )]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	validation_host: &ValidationHost,
+	validation_host: &mut ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
@@ -344,7 +344,7 @@ async fn spawn_validate_from_chain_state(
 	fields(subsystem = LOG_TARGET),
 )]
 async fn validate_candidate_exhaustive(
-	validation_backend: impl ValidationBackend,
+	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
@@ -403,13 +403,13 @@ async fn validate_candidate_exhaustive(
 
 #[async_trait]
 trait ValidationBackend {
-	async fn validate_candidate(&self, validation_code: ValidationCode, params: ValidationParams) ->
+	async fn validate_candidate(&mut self, validation_code: ValidationCode, params: ValidationParams) ->
 		Result<WasmValidationResult, ValidationError>;
 }
 
 #[async_trait]
-impl ValidationBackend for &'_ ValidationHost {
-	async fn validate_candidate(&self, validation_code: ValidationCode, params: ValidationParams) -> Result<WasmValidationResult, ValidationError>
+impl ValidationBackend for &'_ mut ValidationHost {
+	async fn validate_candidate(&mut self, validation_code: ValidationCode, params: ValidationParams) -> Result<WasmValidationResult, ValidationError>
 	{
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.execute_pvf(
@@ -869,7 +869,7 @@ mod tests {
 	#[async_trait]
 	impl ValidationBackend for MockValidatorBackend {
 		async fn validate_candidate(
-			&self,
+			&mut self,
 			_validation_code: ValidationCode,
 			_params: ValidationParams
 		) -> Result<WasmValidationResult, ValidationError> {
