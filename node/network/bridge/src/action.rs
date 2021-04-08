@@ -24,7 +24,7 @@ use polkadot_node_network_protocol::{
 use polkadot_primitives::v1::{AuthorityDiscoveryId, BlockNumber};
 use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal};
-use sc_network::Event as NetworkEvent;
+use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{request_response::Requests, ObservedRole};
 
@@ -45,7 +45,7 @@ pub(crate) enum Action {
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Ask network to send requests.
-	SendRequests(Vec<Requests>),
+	SendRequests(Vec<Requests>, IfDisconnected),
 
 	/// Ask network to connect to validators.
 	ConnectToValidators {
@@ -56,6 +56,9 @@ pub(crate) enum Action {
 
 	/// Report a peer to the network implementation (decreasing/increasing its reputation).
 	ReportPeer(PeerId, UnifiedReputationChange),
+
+	/// Disconnect a peer from the given peer-set without affecting their reputation.
+	DisconnectPeer(PeerId, PeerSet),
 
 	/// A subsystem updates us on the relay chain leaves we consider active.
 	///
@@ -119,13 +122,16 @@ impl From<polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>
 			}
 			Ok(FromOverseer::Communication { msg }) => match msg {
 				NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
+				NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
+					Action::DisconnectPeer(peer, peer_set)
+				}
 				NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
 					Action::SendValidationMessages(vec![(peers, msg)])
 				}
 				NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
 					Action::SendCollationMessages(vec![(peers, msg)])
 				}
-				NetworkBridgeMessage::SendRequests(reqs) => Action::SendRequests(reqs),
+				NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => Action::SendRequests(reqs, if_disconnected),
 				NetworkBridgeMessage::SendValidationMessages(msgs) => {
 					Action::SendValidationMessages(msgs)
 				}

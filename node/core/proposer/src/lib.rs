@@ -29,10 +29,11 @@ use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_telemetry::TelemetryHandle;
 use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
-use sp_consensus::{Proposal, RecordProof};
+use sp_consensus::{Proposal, DisableProofRecording};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
@@ -44,7 +45,7 @@ const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
-	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
+	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client, DisableProofRecording>,
 	overseer: OverseerHandler,
 }
 
@@ -55,6 +56,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
 		prometheus: Option<&PrometheusRegistry>,
+		telemetry: Option<TelemetryHandle>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
@@ -62,6 +64,7 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 				client,
 				transaction_pool,
 				prometheus,
+				telemetry,
 			),
 			overseer,
 		}
@@ -116,7 +119,7 @@ where
 /// This proposer gets the ProvisionerInherentData and injects it into the wrapped
 /// proposer's inherent data, then delegates the actual proposal generation.
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
-	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
+	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool, DisableProofRecording>,
 	overseer: OverseerHandler,
 	parent_header: Header,
 	parent_header_hash: Hash,
@@ -187,19 +190,20 @@ where
 {
 	type Transaction = sc_client_api::TransactionFor<Backend, Block>;
 	type Proposal = Pin<Box<
-		dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>> + Send,
+		dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>, ()>, Error>> + Send,
 	>>;
 	type Error = Error;
+	type ProofRecording = DisableProofRecording;
+	type Proof = ();
 
 	fn propose(
 		self,
 		mut inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: time::Duration,
-		record_proof: RecordProof,
 	) -> Self::Proposal {
 		async move {
-			let span = jaeger::hash_span(&self.parent_header_hash, "propose");
+			let span = jaeger::Span::new(self.parent_header_hash, "propose");
 			let _span = span.child("get-provisioner");
 
 			let provisioner_data = match self.get_provisioner_data().await {
@@ -224,7 +228,7 @@ where
 
 			let _span = span.child("authorship-propose");
 			self.inner
-				.propose(inherent_data, inherent_digests, max_duration, record_proof)
+				.propose(inherent_data, inherent_digests, max_duration)
 				.await
 				.map_err(Into::into)
 		}

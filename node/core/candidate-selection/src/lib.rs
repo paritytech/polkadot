@@ -37,13 +37,13 @@ use polkadot_node_subsystem_util::{
 	JobTrait, FromJobCommand, Validator, metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV,
+	CandidateReceipt, CollatorId, CoreState, CoreIndex, Hash, Id as ParaId, PoV, BlockNumber,
 };
 use polkadot_node_primitives::SignedFullStatement;
 use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
 
-const LOG_TARGET: &'static str = "candidate_selection";
+const LOG_TARGET: &'static str = "parachain::candidate-selection";
 
 struct CandidateSelectionJob {
 	assignment: ParaId,
@@ -104,10 +104,9 @@ impl JobTrait for CandidateSelectionJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = PerLeafSpan::new(span, "candidate-selection");
 		async move {
-			let _span = span.child_builder("query-runtime")
-				.with_relay_parent(&relay_parent)
-				.with_stage(jaeger::Stage::CandidateSelection)
-				.build();
+			let _span = span.child("query-runtime")
+				.with_relay_parent(relay_parent)
+				.with_stage(jaeger::Stage::CandidateSelection);
 			let (groups, cores) = futures::try_join!(
 				try_runtime_api!(request_validator_groups(relay_parent, &mut sender).await),
 				try_runtime_api!(request_from_runtime(
@@ -121,10 +120,9 @@ impl JobTrait for CandidateSelectionJob {
 			let cores = try_runtime_api!(cores);
 
 			drop(_span);
-			let _span = span.child_builder("find-assignment")
-				.with_relay_parent(&relay_parent)
-				.with_stage(jaeger::Stage::CandidateSelection)
-				.build();
+			let _span = span.child("validator-construction")
+				.with_relay_parent(relay_parent)
+				.with_stage(jaeger::Stage::CandidateSelection);
 
 			let n_cores = cores.len();
 
@@ -134,28 +132,71 @@ impl JobTrait for CandidateSelectionJob {
 				Err(err) => return Err(Error::Util(err)),
 			};
 
-			let mut assignment = None;
+			let assignment_span = span.child("find-assignment")
+				.with_relay_parent(relay_parent)
+				.with_stage(jaeger::Stage::CandidateSelection);
+
+			#[derive(Debug)]
+			enum AssignmentState {
+				Unassigned,
+				Scheduled(ParaId),
+				Occupied(BlockNumber),
+				Free,
+			}
+
+			let mut assignment = AssignmentState::Unassigned;
 
 			for (idx, core) in cores.into_iter().enumerate() {
-				// Ignore prospective assignments on occupied cores for the time being.
-				if let CoreState::Scheduled(scheduled) = core {
-					let core_index = CoreIndex(idx as _);
-					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-					if let Some(g) = validator_groups.get(group_index.0 as usize) {
-						if g.contains(&validator.index()) {
-							assignment = Some(scheduled.para_id);
-							break;
+				let core_index = CoreIndex(idx as _);
+				let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+				if let Some(g) = validator_groups.get(group_index.0 as usize) {
+					if g.contains(&validator.index()) {
+						match core {
+							CoreState::Scheduled(scheduled) => {
+								assignment = AssignmentState::Scheduled(scheduled.para_id);
+							}
+							CoreState::Occupied(occupied) => {
+								// Ignore prospective assignments on occupied cores
+								// for the time being.
+								assignment = AssignmentState::Occupied(occupied.occupied_since);
+							}
+							CoreState::Free => {
+								assignment = AssignmentState::Free;
+							}
 						}
+						break;
 					}
 				}
 			}
 
-			let assignment = match assignment {
-				Some(assignment) => assignment,
-				None => return Ok(()),
+			let (assignment, assignment_span) = match assignment {
+				AssignmentState::Scheduled(assignment) => {
+					let assignment_span = assignment_span
+					.with_string_tag("assigned", "true")
+					.with_para_id(assignment);
+
+					(assignment, assignment_span)
+				}
+				assignment => {
+					let _assignment_span = assignment_span.with_string_tag("assigned", "false");
+
+					let validator_index = validator.index();
+					let validator_id = validator.id();
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						?relay_parent,
+						?validator_index,
+						?validator_id,
+						?assignment,
+						"No assignment. Will not select candidate."
+					);
+
+					return Ok(())
+				}
 			};
 
-			drop(_span);
+			drop(assignment_span);
 
 			CandidateSelectionJob::new(assignment, metrics, sender, receiver).run_loop(&span).await
 		}.boxed()
@@ -179,9 +220,8 @@ impl CandidateSelectionJob {
 	}
 
 	async fn run_loop(&mut self, span: &jaeger::Span) -> Result<(), Error> {
-		let span = span.child_builder("run-loop")
-			.with_stage(jaeger::Stage::CandidateSelection)
-			.build();
+		let span = span.child("run-loop")
+			.with_stage(jaeger::Stage::CandidateSelection);
 
 		loop {
 			match self.receiver.next().await  {
@@ -197,19 +237,17 @@ impl CandidateSelectionJob {
 					_relay_parent,
 					candidate_receipt,
 				)) => {
-					let _span = span.child_builder("handle-invalid")
+					let _span = span.child("handle-invalid")
 						.with_stage(jaeger::Stage::CandidateSelection)
-						.with_candidate(&candidate_receipt.hash())
-						.with_relay_parent(&_relay_parent)
-						.build();
+						.with_candidate(candidate_receipt.hash())
+						.with_relay_parent(_relay_parent);
 					self.handle_invalid(candidate_receipt).await;
 				}
 				Some(CandidateSelectionMessage::Seconded(_relay_parent, statement)) => {
-					let _span = span.child_builder("handle-seconded")
+					let _span = span.child("handle-seconded")
 						.with_stage(jaeger::Stage::CandidateSelection)
-						.with_candidate(&statement.payload().candidate_hash())
-						.with_relay_parent(&_relay_parent)
-						.build();
+						.with_candidate(statement.payload().candidate_hash())
+						.with_relay_parent(_relay_parent);
 					self.handle_seconded(statement).await;
 				}
 				None => break,

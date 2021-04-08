@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.12"
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
@@ -14,15 +14,14 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 thiserror = "1.0.23"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

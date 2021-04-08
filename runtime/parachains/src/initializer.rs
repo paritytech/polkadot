@@ -81,7 +81,7 @@ pub trait Config:
 	+ hrmp::Config
 {
 	/// A randomness beacon.
-	type Randomness: Randomness<Self::Hash>;
+	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 }
 
 decl_storage! {
@@ -174,14 +174,16 @@ decl_module! {
 impl<T: Config> Module<T> {
 	fn apply_new_session(
 		session_index: SessionIndex,
-		validators: Vec<ValidatorId>,
+		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
 		let prev_config = <configuration::Module<T>>::config();
 
 		let random_seed = {
 			let mut buf = [0u8; 32];
-			let random_hash = T::Randomness::random(&b"paras"[..]);
+			// TODO: audit usage of randomness API
+			// https://github.com/paritytech/polkadot/issues/2601
+			let (random_hash, _) = T::Randomness::random(&b"paras"[..]);
 			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
 			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
 			buf
@@ -189,9 +191,16 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&validators, &queued, &session_index);
+		configuration::Module::<T>::initializer_on_new_session(&session_index);
 
 		let new_config = <configuration::Module<T>>::config();
+
+		let validators = shared::Module::<T>::initializer_on_new_session(
+			session_index,
+			random_seed.clone(),
+			&new_config,
+			all_validators,
+		);
 
 		let notification = SessionChangeNotification {
 			validators,
@@ -202,7 +211,6 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
-		shared::Module::<T>::initializer_on_new_session(&notification);
 		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);

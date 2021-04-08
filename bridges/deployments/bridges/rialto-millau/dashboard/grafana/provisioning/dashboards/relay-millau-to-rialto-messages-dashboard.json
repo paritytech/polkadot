@@ -1,0 +1,1137 @@
+{
+  "annotations": {
+    "list": [
+    {
+      "builtIn": 1,
+      "datasource": "-- Grafana --",
+      "enable": true,
+      "hide": true,
+      "iconColor": "rgba(0, 211, 255, 1)",
+      "name": "Annotations & Alerts",
+      "type": "dashboard"
+    }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 9,
+      "w": 12,
+      "x": 0,
+      "y": 0
+    },
+    "hiddenSeries": false,
+    "id": 2,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "label_replace(label_replace(Millau_to_Rialto_MessageLane_00000000_best_block_numbers{type=~\"target|target_at_source\"}, \"type\", \"At Rialto\", \"type\", \"target\"), \"type\", \"At Millau\", \"type\", \"target_at_source\")",
+      "instant": false,
+      "interval": "",
+      "legendFormat": "{{type}}",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Best finalized Rialto headers",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 9,
+      "w": 12,
+      "x": 12,
+      "y": 0
+    },
+    "hiddenSeries": false,
+    "id": 4,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "label_replace(label_replace(Millau_to_Rialto_MessageLane_00000000_best_block_numbers{type=~\"source|source_at_target\"}, \"type\", \"At Millau\", \"type\", \"source\"), \"type\", \"At Rialto\", \"type\", \"source_at_target\")",
+      "interval": "",
+      "legendFormat": "{{type}}",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Best finalized Millau headers",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "alert": {
+      "alertRuleTags": {},
+      "conditions": [
+        {
+          "evaluator": {
+            "params": [
+              1
+            ],
+            "type": "lt"
+          },
+          "operator": {
+            "type": "and"
+          },
+          "query": {
+            "params": [
+              "B",
+              "5m",
+              "now"
+            ]
+          },
+          "reducer": {
+            "params": [],
+            "type": "max"
+          },
+          "type": "query"
+        }
+      ],
+      "executionErrorState": "alerting",
+      "for": "5m",
+      "frequency": "1m",
+      "handler": 1,
+      "name": "Messages generated at Millau are not detected by relay",
+      "noDataState": "no_data",
+      "notifications": []
+    },
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 11,
+      "w": 12,
+      "x": 0,
+      "y": 9
+    },
+    "hiddenSeries": false,
+    "id": 6,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "label_replace(label_replace(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=~\"source_latest_generated|target_latest_received\"}, \"type\", \"Latest message sent from Rialto\", \"type\", \"source_latest_generated\"), \"type\", \"Latest message received by Millau\", \"type\", \"target_latest_received\")",
+      "interval": "",
+      "legendFormat": "{{type}}",
+      "refId": "A"
+      },
+      {
+        "expr": "max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_generated\"}[5m]) - min_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_generated\"}[5m])",
+        "hide": true,
+        "interval": "",
+        "legendFormat": "Messages generated in last 5 minutes",
+        "refId": "B"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Delivery race",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 11,
+      "w": 12,
+      "x": 12,
+      "y": 9
+    },
+    "hiddenSeries": false,
+    "id": 8,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "label_replace(label_replace(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=~\"source_latest_confirmed|target_latest_received\"}, \"type\", \"Latest message confirmed by Rialto to Millau\", \"type\", \"source_latest_confirmed\"), \"type\", \"Latest message received by Millau\", \"type\", \"target_latest_received\")",
+      "interval": "",
+      "legendFormat": "{{type}}",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Confirmations race",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "alert": {
+      "alertRuleTags": {},
+      "conditions": [
+      {
+        "evaluator": {
+        "params": [
+          1
+        ],
+        "type": "lt"
+        },
+        "operator": {
+        "type": "and"
+        },
+        "query": {
+        "params": [
+          "B",
+          "1m",
+          "now"
+        ]
+        },
+        "reducer": {
+        "params": [],
+        "type": "sum"
+        },
+        "type": "query"
+      }
+      ],
+      "executionErrorState": "alerting",
+      "for": "5m",
+      "frequency": "1m",
+      "handler": 1,
+      "name": "Messages from Millau to Rialto are not being delivered",
+      "noDataState": "no_data",
+      "notifications": []
+    },
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 7,
+      "w": 8,
+      "x": 0,
+      "y": 20
+    },
+    "hiddenSeries": false,
+    "id": 10,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_generated\"}[2m])) - scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[2m]))",
+      "format": "time_series",
+      "instant": false,
+      "interval": "",
+      "legendFormat": "Undelivered messages at Rialto",
+      "refId": "A"
+      },
+      {
+        "expr": "increase(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[1m])",
+        "interval": "",
+        "legendFormat": "Messages delivered to Rialto in last 1m",
+        "refId": "B"
+      }
+    ],
+    "thresholds": [
+      {
+      "colorMode": "critical",
+      "fill": true,
+      "line": true,
+      "op": "lt",
+      "value": 1
+      }
+    ],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Delivery race lags",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "alert": {
+      "alertRuleTags": {},
+      "conditions": [
+      {
+        "evaluator": {
+        "params": [
+          10
+        ],
+        "type": "gt"
+        },
+        "operator": {
+        "type": "and"
+        },
+        "query": {
+        "params": [
+          "A",
+          "5m",
+          "now"
+        ]
+        },
+        "reducer": {
+        "params": [],
+        "type": "min"
+        },
+        "type": "query"
+      }
+      ],
+      "executionErrorState": "alerting",
+      "for": "5m",
+      "frequency": "1m",
+      "handler": 1,
+      "name": "Too many unconfirmed messages",
+      "noDataState": "no_data",
+      "notifications": []
+    },
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 7,
+      "w": 8,
+      "x": 8,
+      "y": 20
+    },
+    "hiddenSeries": false,
+    "id": 12,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[2m])) - scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_confirmed\"}[2m]))",
+      "interval": "",
+      "legendFormat": "Unconfirmed messages at Millau",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [
+      {
+      "colorMode": "critical",
+      "fill": true,
+      "line": true,
+      "op": "gt",
+      "value": 10
+      }
+    ],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Confirmations race lags",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "alert": {
+      "alertRuleTags": {},
+      "conditions": [
+      {
+        "evaluator": {
+        "params": [
+          10
+        ],
+        "type": "gt"
+        },
+        "operator": {
+        "type": "and"
+        },
+        "query": {
+        "params": [
+          "B",
+          "5m",
+          "now"
+        ]
+        },
+        "reducer": {
+        "params": [],
+        "type": "min"
+        },
+        "type": "query"
+      }
+      ],
+      "executionErrorState": "alerting",
+      "for": "5m",
+      "frequency": "1m",
+      "handler": 1,
+      "name": "Rewards are not being confirmed",
+      "noDataState": "no_data",
+      "notifications": []
+    },
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 7,
+      "w": 8,
+      "x": 16,
+      "y": 20
+    },
+    "hiddenSeries": false,
+    "id": 14,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_confirmed\"}[2m])) - scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_confirmed\"}[2m]))",
+      "interval": "",
+      "legendFormat": "Unconfirmed rewards at Rialto",
+      "refId": "A"
+      },
+      {
+        "expr": "(scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"source_latest_confirmed\"}[2m])) - scalar(max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_confirmed\"}[2m]))) * (max_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[2m]) > bool min_over_time(Millau_to_Rialto_MessageLane_00000000_lane_state_nonces{type=\"target_latest_received\"}[2m]))",
+        "interval": "",
+        "legendFormat": "Unconfirmed rewards at Rialto (zero if messages are not being delivered to Rialto)",
+        "refId": "B"
+      }
+    ],
+    "thresholds": [
+      {
+      "colorMode": "critical",
+      "fill": true,
+      "line": true,
+      "op": "gt",
+      "value": 10
+      }
+    ],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Reward lags",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {},
+      "mappings": [],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+        {
+          "color": "green",
+          "value": null
+        },
+        {
+          "color": "red",
+          "value": 80
+        }
+        ]
+      }
+      },
+      "overrides": []
+    },
+    "gridPos": {
+      "h": 8,
+      "w": 8,
+      "x": 0,
+      "y": 27
+    },
+    "id": 16,
+    "options": {
+      "orientation": "auto",
+      "reduceOptions": {
+      "calcs": [
+        "mean"
+      ],
+      "fields": "",
+      "values": false
+      },
+      "showThresholdLabels": false,
+      "showThresholdMarkers": true
+    },
+    "pluginVersion": "7.0.6",
+    "targets": [
+      {
+      "expr": "avg_over_time(Millau_to_Rialto_MessageLane_00000000_process_cpu_usage_percentage[1m])",
+      "instant": true,
+      "interval": "",
+      "legendFormat": "1 CPU = 100",
+      "refId": "A"
+      }
+    ],
+    "timeFrom": null,
+    "timeShift": null,
+    "title": "Relay process CPU usage (1 CPU = 100)",
+    "type": "gauge"
+    },
+    {
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 8,
+      "w": 8,
+      "x": 8,
+      "y": 27
+    },
+    "hiddenSeries": false,
+    "id": 18,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "Millau_to_Rialto_MessageLane_00000000_system_average_load",
+      "interval": "",
+      "legendFormat": "Average system load in last {{over}}",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "System load average",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    },
+    {
+    "aliasColors": {},
+    "bars": false,
+    "dashLength": 10,
+    "dashes": false,
+    "datasource": "Prometheus",
+    "fieldConfig": {
+      "defaults": {
+      "custom": {}
+      },
+      "overrides": []
+    },
+    "fill": 1,
+    "fillGradient": 0,
+    "gridPos": {
+      "h": 8,
+      "w": 8,
+      "x": 16,
+      "y": 27
+    },
+    "hiddenSeries": false,
+    "id": 20,
+    "legend": {
+      "avg": false,
+      "current": false,
+      "max": false,
+      "min": false,
+      "show": true,
+      "total": false,
+      "values": false
+    },
+    "lines": true,
+    "linewidth": 1,
+    "nullPointMode": "null",
+    "options": {
+      "dataLinks": []
+    },
+    "percentage": false,
+    "pointradius": 2,
+    "points": false,
+    "renderer": "flot",
+    "seriesOverrides": [],
+    "spaceLength": 10,
+    "stack": false,
+    "steppedLine": false,
+    "targets": [
+      {
+      "expr": "Millau_to_Rialto_MessageLane_00000000_process_memory_usage_bytes / 1024 / 1024",
+      "interval": "",
+      "legendFormat": "Process memory, MB",
+      "refId": "A"
+      }
+    ],
+    "thresholds": [],
+    "timeFrom": null,
+    "timeRegions": [],
+    "timeShift": null,
+    "title": "Memory used by relay process",
+    "tooltip": {
+      "shared": true,
+      "sort": 0,
+      "value_type": "individual"
+    },
+    "type": "graph",
+    "xaxis": {
+      "buckets": null,
+      "mode": "time",
+      "name": null,
+      "show": true,
+      "values": []
+    },
+    "yaxes": [
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      },
+      {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+      }
+    ],
+    "yaxis": {
+      "align": false,
+      "alignLevel": null
+    }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 25,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+    "10s",
+    "30s",
+    "1m",
+    "5m",
+    "15m",
+    "30m",
+    "1h",
+    "2h",
+    "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "Millau to Rialto Message Sync Dashboard",
+  "uid": "relay-millau-to-rialto-messages",
+  "version": 1
+}

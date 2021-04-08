@@ -14,8 +14,7 @@ parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.4"
 streamunordered = "0.5.1"
 thiserror = "1.0.23"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
@@ -24,11 +23,11 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

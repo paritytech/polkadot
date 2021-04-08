@@ -1,34 +1,38 @@
 [package]
 name = "polkadot-primitives"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 serde = { version = "1.0.123", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", optional = true }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30", default-features = false }
 hex-literal = "0.3.1"
 parity-util-mem = { version = "0.9.0", default-features = false, optional = true }
+thiserror = "1.0.23"
+
+[target.'cfg(not(target_os = "unknown"))'.dependencies]
+zstd = "0.5.0"
 
 [dev-dependencies]
-sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 pretty_assertions = "0.6.1"
 
 [features]

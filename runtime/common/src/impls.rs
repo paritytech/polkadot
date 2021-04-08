@@ -31,8 +31,8 @@ where
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
 		let author = <pallet_authorship::Module<R>>::author();
-		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
-		<frame_system::Module<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
+		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
 
@@ -84,9 +84,9 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
 	);
 
@@ -144,7 +144,7 @@ mod tests {
 	}
 
 	impl pallet_treasury::Config for Test {
-		type Currency = pallet_balances::Module<Test>;
+		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
 		type Event = Event;

@@ -22,12 +22,21 @@ use frame_support::{decl_module, decl_storage, StorageMap, weights::Weight, trai
 use sp_std::{fmt, prelude::*};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
+use xcm::v0::Error as XcmError;
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,
+}
+
+impl From<QueueDownwardMessageError> for XcmError {
+	fn from(err: QueueDownwardMessageError) -> Self {
+		match err {
+			QueueDownwardMessageError::ExceedsMaxMessageSize => XcmError::ExceedsMaxMessageSize,
+		}
+	}
 }
 
 /// An error returned by [`check_processed_downward_messages`] that indicates an acceptance check
@@ -136,7 +145,7 @@ impl<T: Config> Module<T> {
 
 		let inbound = InboundDownwardMessage {
 			msg,
-			sent_at: <frame_system::Module<T>>::block_number(),
+			sent_at: <frame_system::Pallet<T>>::block_number(),
 		};
 
 		// obtain the new link in the MQC and update the head.

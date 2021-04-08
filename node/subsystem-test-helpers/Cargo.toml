@@ -9,8 +9,7 @@ description = "Subsystem traits and message definitions"
 async-trait = "0.1.42"
 futures = "0.3.12"
 futures-timer = "3.0.2"
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tracing = "0.1.25"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 parking_lot = "0.11.1"
 pin-project = "1.0.4"
@@ -19,9 +18,9 @@ polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 smallvec = "1.6.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.29" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.8.30" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }
