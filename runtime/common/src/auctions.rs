@@ -1438,19 +1438,8 @@ mod benchmarking {
 			let bidder = account("bidder", n, 0);
 			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
 
-			let (start, end) = match n {
-				1  => (0u32, 0u32),
-				2  => (0, 1),
-				3  => (0, 2),
-				4  => (0, 3),
-				5  => (1, 1),
-				6  => (1, 2),
-				7  => (1, 3),
-				8  => (2, 2),
-				9  => (2, 3),
-				10 => (3, 3),
-				_ => panic!("test not meant for this"),
-			};
+			let slot_range = SlotRange::n((n - 1) as u8).unwrap();
+			let (start, end) = slot_range.as_pair();
 
 			assert!(Auctions::<T>::bid(
 				RawOrigin::Signed(bidder).into(),

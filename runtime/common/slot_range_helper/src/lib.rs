@@ -22,6 +22,7 @@ pub use sp_std::{result, ops::Add, convert::TryInto};
 pub use sp_runtime::traits::CheckedSub;
 pub use parity_scale_codec::{Encode, Decode};
 pub use paste;
+pub use enumn::N;
 
 /// This macro generates a `SlotRange` enum of arbitrary length for use in the Slot Auction
 /// mechanism on Polkadot.
@@ -106,7 +107,7 @@ macro_rules! generate_slot_range_enum {
 		$( $parsed:ident )*
 	) => {
 		/// A compactly represented sub-range from the series.
-		#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, $crate::Encode, $crate::Decode)]
+		#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, $crate::Encode, $crate::Decode, $crate::N)]
 		#[repr(u8)]
 		pub enum SlotRange { $( $parsed ),* }
 	};
