@@ -1129,7 +1129,7 @@ mod tests {
 	}
 
 	#[test]
-	fn decompression_failure_is_invalid() {
+	fn code_decompression_failure_is_invalid() {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 		let head_data = HeadData(vec![1, 1, 1]);
@@ -1170,6 +1170,55 @@ mod tests {
 		assert_matches!(
 			v,
 			Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
+		);
+	}
+
+	#[test]
+	fn pov_decompression_failure_is_invalid() {
+		let validation_data = PersistedValidationData {
+			max_pov_size: POV_BOMB_LIMIT as u32,
+			..Default::default()
+		 };
+		let head_data = HeadData(vec![1, 1, 1]);
+
+		let raw_block_data = vec![2u8; POV_BOMB_LIMIT + 1];
+		let pov = sp_maybe_compressed_blob::compress(
+			&raw_block_data,
+			POV_BOMB_LIMIT + 1,
+		)
+			.map(|raw| PoV { block_data: BlockData(raw) })
+			.unwrap();
+
+		let validation_code = ValidationCode(vec![2; 16]);
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.para_head = head_data.hash();
+		descriptor.validation_code_hash = validation_code.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let validation_result = WasmValidationResult {
+			head_data,
+			new_validation_code: None,
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0,
+		};
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			TaskExecutor::new(),
+			&Default::default(),
+		);
+
+		assert_matches!(
+			v,
+			Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
 		);
 	}
 }
