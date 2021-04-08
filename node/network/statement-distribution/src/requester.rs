@@ -19,19 +19,18 @@ use std::time::Duration;
 use futures::{SinkExt, channel::{mpsc, oneshot}};
 
 use polkadot_node_network_protocol::{
-	PeerId,
-	request_response::{
+	PeerId, UnifiedReputationChange,
+    request_response::{
 		OutgoingRequest, Recipient, Requests,
 		v1::{
 			StatementFetchingRequest, StatementFetchingResponse
 		}
-	}
-};
+	}};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 use polkadot_subsystem::{Span, Stage};
 
-use crate::{LOG_TARGET, Metrics};
+use crate::{LOG_TARGET, Metrics, COST_WRONG_HASH};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -48,7 +47,7 @@ pub enum RequesterMessage {
 	},
 	/// Fetching finished, ask for verification. If verification failes, task will continue asking
 	/// peers for data.
-	Verify {
+	Finished {
 		/// Relay parent this candidate is in the context of.
 		relay_parent: Hash,
 		/// The candidate we fetched data for.
@@ -59,10 +58,9 @@ pub enum RequesterMessage {
 		response: CommittedCandidateReceipt,
 		/// Peers which failed providing the data.
 		bad_peers: Vec<PeerId>,
-		/// Tell requester task whether or not it has to carry on. This might happen if the fetched
-		/// data was invalid for example.
-		carry_on: oneshot::Sender<()>,
 	},
+	/// Report a peer which behaved worse than just not providing data:
+	ReportPeer(PeerId, UnifiedReputationChange),
 	/// Ask subsystem to send a request for us.
 	SendRequest(Requests),
 }
@@ -123,15 +121,30 @@ pub async fn fetch(
 
 			match pending_response.await {
 				Ok(StatementFetchingResponse::Statement(statement)) => {
-					let (carry_on_tx, carry_on) = oneshot::channel();
+
+					if statement.hash() != candidate_hash {
+						metrics.on_received_response(false);
+
+						if let Err(err) = sender.send(
+							RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)
+						).await {
+							tracing::warn!(
+								target: LOG_TARGET,
+								?err,
+								"Sending reputation change failed: This should not happen."
+							);
+						}
+						// We want to get rid of this peer:
+						continue
+					}
+
 					if let Err(err) = sender.send(
-						RequesterMessage::Verify {
+						RequesterMessage::Finished {
 							relay_parent,
 							candidate_hash,
 							from_peer: peer,
 							response: statement,
 							bad_peers: tried_peers.clone(),
-							carry_on: carry_on_tx,
 						}
 						).await {
 						tracing::warn!(
@@ -139,15 +152,6 @@ pub async fn fetch(
 							?err,
 							"Sending task response failed: This should not happen."
 						);
-					}
-					match carry_on.await {
-						Err(_) => {}
-						Ok(()) => {
-							metrics.on_received_response(false);
-							// The below push peer gets skipped intentionally, we don't want to try
-							// this peer again.
-							continue
-						},
 					}
 
 					metrics.on_received_response(true);
