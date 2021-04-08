@@ -75,6 +75,14 @@ pub async fn start_work(
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		worker_pid = %pid,
+		%background_priority,
+		"starting prepare for {}",
+		artifact_path.display(),
+	);
+
 	if background_priority {
 		renice(pid, NICENESS_BACKGROUND);
 	}
@@ -144,6 +152,13 @@ pub fn bump_priority(handle: &WorkerHandle) {
 }
 
 fn renice(pid: u32, niceness: i32) {
+	tracing::debug!(
+		target: LOG_TARGET,
+		worker_pid = %pid,
+		"changing niceness to {}",
+		niceness,
+	);
+
 	// Consider upstreaming this to the `nix` crate.
 	unsafe {
 		if -1 == libc::setpriority(libc::PRIO_PROCESS, pid, niceness) {
@@ -160,10 +175,21 @@ pub fn worker_entrypoint(socket_path: &str) {
 		loop {
 			let code = recv_request(&mut stream).await?;
 
+			tracing::debug!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"worker: preparing artifact",
+			);
 			let artifact_bytes = prepare_artifact(&code).serialize();
 
 			// Write the serialized artifact into into a temp file.
 			let dest = tmpfile("prepare-artifact-").await?;
+			tracing::debug!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"worker: writing artifact to {}",
+				dest.display(),
+			);
 			async_std::fs::write(&dest, &artifact_bytes).await?;
 
 			// Communicate the results back to the host.

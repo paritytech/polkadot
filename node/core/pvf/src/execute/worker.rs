@@ -16,6 +16,7 @@
 
 use crate::{
 	artifacts::Artifact,
+	LOG_TARGET,
 	executor_intf::TaskExecutor,
 	worker_common::{
 		IdleWorker, SpawnErr, WorkerHandle, bytes_to_path, framed_recv, framed_send, path_to_bytes,
@@ -85,6 +86,13 @@ pub async fn start_work(
 	validation_params: Vec<u8>,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		worker_pid = %pid,
+		"starting execute for {}",
+		artifact_path.display(),
+	);
 
 	if send_request(&mut stream, &artifact_path, &validation_params).await.is_err() {
 		return Outcome::IoErr;
@@ -187,6 +195,12 @@ pub fn worker_entrypoint(socket_path: &str) {
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
+			tracing::debug!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"worker: validating artifact {}",
+				artifact_path.display(),
+			);
 			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
 			send_response(&mut stream, response).await?;
 		}

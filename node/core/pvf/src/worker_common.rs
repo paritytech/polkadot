@@ -141,9 +141,9 @@ where
 
 	tracing::debug!(
 		target: LOG_TARGET,
-		"pvf worker ({}) pid={}: {:?}",
+		worker_pid = %std::process::id(),
+		"pvf worker ({}): {:?}",
 		debug_id,
-		std::process::id(),
 		err,
 	);
 }
