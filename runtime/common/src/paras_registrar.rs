@@ -266,7 +266,7 @@ decl_module! {
 		/// previously locked para to deregister or swap a para without using governance.
 		///
 		/// Can only be called by the Root origin.
-		#[weight = 0]
+		#[weight = T::DbWeight::get().reads_writes(1, 1)]
 		fn force_remove_lock(origin, para: ParaId) {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
@@ -408,10 +408,11 @@ impl<T: Config> Module<T> {
 			false
 		)?;
 
+		let deposit = deposit_override.unwrap_or(deposit);
 		<T as Config>::Currency::reserve(&who, deposit)?;
 		let info = ParaInfo {
 			manager: who.clone(),
-			deposit: deposit_override.unwrap_or(deposit),
+			deposit: deposit,
 			locked: false,
 		};
 
@@ -943,7 +944,7 @@ mod benchmarking {
 	use crate::traits::{Registrar as RegistrarT};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 
-	use frame_benchmarking::{benchmarks, whitelisted_caller, impl_benchmark_test_suite};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller, impl_benchmark_test_suite};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -987,6 +988,20 @@ mod benchmarking {
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
+			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			next_scheduled_session::<T>();
+			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+		}
+
+		force_register {
+			let manager: T::AccountId = account("manager", 0, 0);
+			let deposit = 0u32.into();
+			let para = ParaId::from(69);
+			let genesis_head = Registrar::<T>::worst_head_data();
+			let validation_code = Registrar::<T>::worst_validation_code();
+		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
+		verify {
+			assert_last_event::<T>(RawEvent::Registered(para, manager).into());
 			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
