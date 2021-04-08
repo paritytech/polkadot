@@ -34,13 +34,13 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.md).
 
-At initialization, this subsystem has no outputs. Block authors can send a `ProvisionerMessage::RequestBlockAuthorshipData`, which includes a channel over which provisionable data can be sent. All appropriate provisionable data will then be sent over this channel, as it is received.
+At initialization, this subsystem has no outputs.
 
-Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorshipData` for each relay parent they are interested in receiving provisionable data for.
+Block authors request the inherent data they should use for constructing the inherent in the block which contains parachain execution information.
 
 ## Block Production
 
-When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting means that there are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be backed until the previous one either gets declared available or expired.
+When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a [`ParaInherentData`](../../types/runtime.md#parainherentdata). There are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be backed until the previous one either gets declared available or expired. Appropriate bitfields, as outlined in the section on [bitfield selection](#bitfield-selection), and any dispute statements should be attached as well.
 
 ### Bitfield Selection
 
@@ -69,7 +69,31 @@ To determine availability:
     - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
     - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
 
-The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index.
+The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index. Furthermore, this process should select at maximum one candidate which upgrades the runtime validation code.
+
+### Dispute Statement Selection
+
+This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
+
+We must take care not to overwhelm the "spam slots" of the chain. That is, to avoid too many votes from the same validators being placed into the chain, which would trigger the anti-spam protection functionality of the [disputes module](../../runtime/disputes.md).
+
+To select disputes:
+
+- Make a `DisputesInfo` runtime API call and decompose into `{ spam_slots, disputes }`. Bind `disputes` to `onchain_disputes`.
+- Issue a `DisputeCoordinatorMessage::ActiveDisputes` message and wait for the response. Assign the value to `offchain_disputes`.
+- Make a `CandidatesIncluded` runtime API call for each dispute in `offchain_disputes` and tag each offchain dispute as local if the result for it is `true`.
+- Initialize `NewSpamSlots: Map<(SessionIndex, ValidatorIndex), u32>` as an empty map.
+- For each dispute in `offchain_disputes`:
+  1. Make a `RuntimeApiRequest::SessionInfo` against the parent hash for the session of the dispute. If `None`, continue - this chain is in the past relative to the session the dispute belongs to and we can import it when it reaches that session.
+  1. Load the spam slots from `spam_slots` for the given session. If it isn't present, treat as though all zeros.
+  1. construct a `DisputeStatementSet` of all offchain votes we are aware of that the onchain doesn't already have a `valid` or `invalid` bit set for, respectively.
+  1. If the `onchain_disputes` contains an entry for the dispute, load that. Otherwise, treat as empty.
+  1. If the offchain dispute is local or the `DisputeStatementSet` and the onchain dispute together have at least `byzantine_threshold + 1` validators in it, continue to the next offchain dispute.
+  1. Otherwise
+    1. Filter out all votes from the `DisputeStatementSet` where the amount of spam slots occupied on-chain by the validator, plus the `NewSpamSlots` value, plus 1, is greater than `spam_slots.max_spam_slots`.
+    1. After filtering, if either the `valid` or `invalid` lists in the combination of the `DisputeStatementSet` and the onchain dispute is empty, skip this dispute.
+    1. Add 1 to the `NewSpamSlots` value for each validator in the `DisputeStatementSet`.
+- Construct a `MultiDisputeStatementSet` for each `DisputeStatement` and return that.
 
 ### Determining Bitfield Availability
 
@@ -88,8 +112,6 @@ To compute bitfield availability, then:
 ### Notes
 
 See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
-
-One might ask: given `ProvisionerMessage::RequestInherentData`, what's the point of `ProvisionerMessage::RequestBlockAuthorshipData`? The answer is that the block authorship data includes more information than is present in the inherent data; disputes, for example.
 
 ## Functionality
 

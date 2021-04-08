@@ -12,9 +12,9 @@ struct HostConfiguration {
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
-	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
-	/// and fishermen have to perform secondary checks or issue reports.
-	pub acceptance_period: BlockNumber,
+	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
+	/// have concluded.
+	pub code_retention_period: BlockNumber,
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
@@ -36,8 +36,16 @@ struct HostConfiguration {
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core. `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
+	/// The maximum number of validators to use for parachains, in total. `None` means no maximum.
+	pub max_validators: Option<u32>,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
+	/// How long after dispute conclusion to accept statements.
+	pub dispute_post_conclusion_acceptance_period: BlockNumber,
+	/// The maximum number of dispute spam slots 
+	pub dispute_max_spam_slots: u32,
+	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
+	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	/// Must be at least 1.
@@ -103,5 +111,22 @@ struct HostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
+}
+```
+
+## ParaInherentData
+
+Inherent data passed to a runtime entry-point for the advancement of parachain consensus.
+
+This contains 3 pieces of data:
+1. [`Bitfields`](availability.md#signed-availability-bitfield) 
+2. [`BackedCandidates`](backing.md#backed-candidate)
+3. [`MultiDisputeStatementSet`](disputes.md#multidisputestatementset)
+
+```rust
+struct ParaInherentData {
+	bitfields: Bitfields,
+	backed_candidates: BackedCandidates,
+	dispute_statements: MultiDisputeStatementSet,
 }
 ```

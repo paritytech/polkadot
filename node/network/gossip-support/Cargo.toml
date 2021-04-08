@@ -1,0 +1,17 @@
+[package]
+name = "polkadot-gossip-support"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-node-network-protocol = { path = "../protocol" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-primitives = { path = "../../../primitives" }
+
+futures = "0.3.8"
+tracing = "0.1.25"

@@ -30,7 +30,7 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 
 ```rust
 struct ActiveLeavesUpdate {
-    activated: [Hash], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
@@ -75,13 +75,25 @@ enum ApprovalVotingMessage {
         ResponseChannel<ApprovalCheckResult>,
     ),
     /// Returns the highest possible ancestor hash of the provided block hash which is
-    /// acceptable to vote on finality for.
+    /// acceptable to vote on finality for. Along with that, return the lists of candidate hashes
+    /// which appear in every block from the (non-inclusive) base number up to (inclusive) the specified
+    /// approved ancestor.
+    /// This list starts from the highest block (the approved ancestor itself) and moves backwards
+    /// towards the base number.
+    ///
+    /// The base number is typically the number of the last finalized block, but in GRANDPA it is
+    /// possible for the base to be slightly higher than the last finalized block.
+    /// 
     /// The `BlockNumber` provided is the number of the block's ancestor which is the
     /// earliest possible vote.
     ///
     /// It can also return the same block hash, if that is acceptable to vote upon.
     /// Return `None` if the input hash is unrecognized.
-    ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<(Hash, BlockNumber)>>),
+    ApprovedAncestor {
+        target_hash: Hash,
+        base_number: BlockNumber, 
+        rx: ResponseChannel<Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>)>)>>
+    },
 }
 ```
 
@@ -136,13 +148,27 @@ This is a network protocol that receives messages of type [`AvailabilityDistribu
 
 ```rust
 enum AvailabilityDistributionMessage {
-    /// Distribute an availability chunk to other validators.
-    DistributeChunk(Hash, ErasureChunk),
-    /// Fetch an erasure chunk from network by candidate hash and chunk index.
-    FetchChunk(Hash, u32),
-    /// Event from the network.
-    /// An update on network state from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
+      /// Incoming network request for an availability chunk.
+      ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
+      /// Incoming network request for a seconded PoV.
+      PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
+      /// Instruct availability distribution to fetch a remote PoV.
+      ///
+      /// NOTE: The result of this fetch is not yet locally validated and could be bogus.
+      FetchPoV {
+	      /// The relay parent giving the necessary context.
+	      relay_parent: Hash,
+	      /// Validator to fetch the PoV from.
+	      from_validator: ValidatorIndex,
+	      /// Candidate hash to fetch the PoV for.
+	      candidate_hash: CandidateHash,
+	      /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+	      pov_hash: Hash,
+	      /// Sender for getting back the result of this fetch.
+	      ///
+	      /// The sender will be canceled if the fetching failed for some reason.
+	      tx: oneshot::Sender<PoV>,
+      },
 }
 ```
 
@@ -160,6 +186,7 @@ enum AvailabilityRecoveryMessage {
     RecoverAvailableData(
         CandidateReceipt,
         SessionIndex,
+        Option<GroupIndex>, // Backing validator group to request the data directly from.
         ResponseChannel<Result<AvailableData, RecoveryError>>,
     ),
 }
@@ -177,12 +204,14 @@ enum AvailabilityStoreMessage {
     QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
     /// Query a specific availability chunk of the candidate's erasure-coding by validator index.
     /// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-    QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+    QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
+    /// Query all chunks that we have locally for the given candidate hash.
+    QueryAllChunks(CandidateHash, ResponseChannel<Vec<ErasureChunk>>),
     /// Store a specific chunk of the candidate's erasure-coding by validator index, with an
     /// accompanying proof.
-    StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+    StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
     /// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
-    /// `AvailabilityChunkAndProof`.
+    /// `ErasureChunk`.
     StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
@@ -309,6 +338,82 @@ enum CollatorProtocolMessage {
 }
 ```
 
+## Dispute Coordinator Message
+
+Messages received by the [Dispute Coordinator subsystem](../node/disputes/dispute-coordinator.md)
+
+This subsystem coordinates participation in disputes, tracks live disputes, and observed statements of validators from subsystems.
+
+```rust
+enum DisputeCoordinatorMessage {
+    /// Import a statement by a validator about a candidate.
+    ///
+    /// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
+    /// candidates that are previously unknown to the subsystem. The former is simply because ancient
+    /// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
+    /// statements already undergo anti-DoS procedures in their respective subsystems, but statements
+    /// cast specifically for disputes are not necessarily relevant to any candidate the system is
+    /// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
+    /// other of disputes over the network by providing (at least) 2 conflicting statements, of which one is either
+    /// a backing or validation statement.
+    ///
+    /// This does not do any checking of the message signature.
+    ImportStatements {
+        /// The hash of the candidate.
+        candidate_hash: CandidateHash,
+        /// The candidate receipt itself.
+        candidate_receipt: CandidateReceipt,
+        /// The session the candidate appears in.
+        session: SessionIndex,
+        /// Triples containing the following:
+        /// - A statement, either indicating validity or invalidity of the candidate.
+        /// - The validator index (within the session of the candidate) of the validator casting the vote.
+        /// - The signature of the validator casting the vote.
+        statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+    },
+    /// Fetch a list of all active disputes that the co-ordinator is aware of.
+    ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
+    /// Get candidate votes for a candidate.
+    QueryCandidateVotes(SessionIndex, CandidateHash, ResponseChannel<Option<CandidateVotes>>),
+    /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
+    IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
+    /// Determine the highest undisputed block within the given chain, based on where candidates
+    /// were included. If even the base block should not be finalized due to a dispute, 
+    /// then `None` should be returned on the channel.
+    ///
+    /// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
+    /// is typically the number of the last finalized block but may be slightly higher. This block
+    /// is inevitably going to be finalized so it is not accounted for by this function.
+    DetermineUndisputedChain {
+        base_number: BlockNumber,
+        block_descriptions: Vec<(BlockHash, SessionIndex, Vec<CandidateHash>)>,
+        rx: ResponseSender<Option<(BlockNumber, BlockHash)>>,
+    }
+}
+```
+
+## Dispute Participation Message
+
+Messages received by the [Dispute Participation subsystem](../node/disputes/dispute-participation.md)
+
+This subsystem simply executes requests to evaluate a candidate.
+
+```rust
+enum DisputeParticipationMessage {
+    /// Validate a candidate for the purposes of participating in a dispute.
+    Participate {
+        /// The hash of the candidate
+        candidate_hash: CandidateHash,
+        /// The candidate receipt itself.
+        candidate_receipt: CandidateReceipt,
+        /// The session the candidate appears in.
+        session: SessionIndex,
+        /// The indices of validators who have already voted on this candidate.
+        voted_indices: Vec<ValidatorIndex>,
+    }
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
@@ -327,7 +432,9 @@ enum PeerSet {
 
 enum NetworkBridgeMessage {
     /// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-    ReportPeer(PeerSet, PeerId, cost_benefit: i32),
+    ReportPeer(PeerId, cost_benefit: i32),
+    /// Disconnect a peer from the given peer-set without affecting their reputation.
+    DisconnectPeer(PeerId, PeerSet),
     /// Send a message to one or more peers on the validation peerset.
     SendValidationMessage([PeerId], ValidationProtocolV1),
     /// Send a message to one or more peers on the collation peerset.
@@ -449,24 +556,18 @@ enum ProvisionableData {
   Dispute(Hash, Signature),
 }
 
-/// This data needs to make its way from the provisioner into the InherentData.
-///
-/// There, it is used to construct the InclusionInherent.
-type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
-
 /// Message to the Provisioner.
 ///
 /// In all cases, the Hash is that of the relay parent.
 enum ProvisionerMessage {
-  /// This message allows potential block authors to be kept updated with all new authorship data
-  /// as it becomes available.
-  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
-  /// This message allows external subsystems to request the set of bitfields and backed candidates
-  /// associated with a particular potential block hash.
+  /// This message allows external subsystems to request current inherent data that could be used for
+  /// advancing the state of parachain consensus in a block building upon the given hash.
+  ///
+  /// If called at different points in time, this may give different results.
   ///
   /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the InclusionInherent.
-  RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
+  /// where it can be assembled into the ParaInherent.
+  RequestInherentData(Hash, oneshot::Sender<ParaInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
 }

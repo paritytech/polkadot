@@ -17,10 +17,11 @@
 //! Polkadot Client meta trait
 
 use std::sync::Arc;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
-	Justification, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
+	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
@@ -36,11 +37,13 @@ pub trait RuntimeApiCollection:
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+	+ beefy_primitives::BeefyApi<Block, BeefyId>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
@@ -54,11 +57,13 @@ where
 		+ ParachainHost<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+		+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
-		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>,
+		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+		+ beefy_primitives::BeefyApi<Block, BeefyId>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
@@ -204,15 +209,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justification(
+	fn justifications(
 		&self,
 		id: &BlockId<Block>
-	) -> sp_blockchain::Result<Option<Justification>> {
+	) -> sp_blockchain::Result<Option<Justifications>> {
 		match self {
-			Self::Polkadot(client) => client.justification(id),
-			Self::Westend(client) => client.justification(id),
-			Self::Kusama(client) => client.justification(id),
-			Self::Rococo(client) => client.justification(id),
+			Self::Polkadot(client) => client.justifications(id),
+			Self::Westend(client) => client.justifications(id),
+			Self::Kusama(client) => client.justifications(id),
+			Self::Rococo(client) => client.justifications(id),
 		}
 	}
 
@@ -228,15 +233,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn extrinsic(
+	fn indexed_transaction(
 		&self,
 		id: &<Block as BlockT>::Hash
-	) -> sp_blockchain::Result<Option<<Block as BlockT>::Extrinsic>> {
+	) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		match self {
-			Self::Polkadot(client) => client.extrinsic(id),
-			Self::Westend(client) => client.extrinsic(id),
-			Self::Kusama(client) => client.extrinsic(id),
-			Self::Rococo(client) => client.extrinsic(id),
+			Self::Polkadot(client) => client.indexed_transaction(id),
+			Self::Westend(client) => client.indexed_transaction(id),
+			Self::Kusama(client) => client.indexed_transaction(id),
+			Self::Rococo(client) => client.indexed_transaction(id),
 		}
 	}
 

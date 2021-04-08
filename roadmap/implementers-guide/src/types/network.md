@@ -58,6 +58,12 @@ enum AvailabilityRecoveryV1Message {
 	/// Respond with chunk for a given candidate hash and validator index.
 	/// The response may be `None` if the requestee does not have the chunk.
 	Chunk(RequestId, Option<ErasureChunk>),
+	/// Request the full data for a given candidate hash.
+	RequestFullData(RequestId, CandidateHash),
+	/// Respond with data for a given candidate hash and validator index.
+	/// The response may be `None` if the requestee does not have the data.
+	FullData(RequestId, Option<AvailableData>),
+
 }
 ```
 
@@ -96,15 +102,12 @@ enum StatementDistributionV1Message {
 
 ```rust
 enum CollatorProtocolV1Message {
-	/// Declare the intent to advertise collations under a collator ID.
-	Declare(CollatorId),
-	/// Advertise a collation to a validator. Can only be sent once the peer has declared
-	/// that they are a collator with given ID.
-	AdvertiseCollation(Hash, ParaId),
-	/// Request the advertised collation at that relay-parent.
-	RequestCollation(RequestId, Hash, ParaId),
-	/// A requested collation.
-	Collation(RequestId, CandidateReceipt, CompressedPoV),
+	/// Declare the intent to advertise collations under a collator ID and `Para`, attaching a
+	/// signature of the `PeerId` of the node using the given collator ID key.
+	Declare(CollatorId, ParaId, CollatorSignature),
+	/// Advertise a collation to a validator. Can only be sent once the peer has
+	/// declared that they are a collator with given ID.
+	AdvertiseCollation(Hash),
 	/// A collation sent to a validator was seconded.
 	CollationSeconded(SignedFullStatement),
 }

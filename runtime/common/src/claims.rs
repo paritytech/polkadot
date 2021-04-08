@@ -624,10 +624,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Vesting: pallet_vesting::{Module, Call, Storage, Config<T>, Event<T>},
-			Claims: claims::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Vesting: pallet_vesting::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Claims: claims::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		}
 	);
 
@@ -657,6 +657,7 @@ mod tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	parameter_types! {

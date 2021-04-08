@@ -21,7 +21,7 @@
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
 	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
-	SpawnedSubsystem, OverseerSignal,
+	SpawnedSubsystem, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -50,6 +50,13 @@ enum SinkState<T> {
 
 /// The sink half of a single-item sink that does not resolve until the item has been read.
 pub struct SingleItemSink<T>(Arc<Mutex<SinkState<T>>>);
+
+// Derive clone not possible, as it puts `Clone` constraint on `T` which is not sensible here.
+impl<T> Clone for SingleItemSink<T> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
 
 /// The stream half of a single-item sink.
 pub struct SingleItemStream<T>(Arc<Mutex<SinkState<T>>>);
@@ -149,9 +156,50 @@ pub fn single_item_sink<T>() -> (SingleItemSink<T>, SingleItemStream<T>) {
 	(SingleItemSink(inner.clone()), SingleItemStream(inner))
 }
 
+/// A test subsystem sender.
+#[derive(Clone)]
+pub struct TestSubsystemSender {
+	tx: mpsc::UnboundedSender<AllMessages>,
+}
+
+/// Construct a sender/receiver pair.
+pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMessages>) {
+	let (tx, rx) = mpsc::unbounded();
+	(
+		TestSubsystemSender { tx },
+		rx,
+	)
+}
+
+#[async_trait::async_trait]
+impl SubsystemSender for TestSubsystemSender {
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.tx
+			.send(msg)
+			.await
+			.expect("test overseer no longer live");
+	}
+
+	async fn send_messages<T>(&mut self, msgs: T)
+	where
+		T: IntoIterator<Item = AllMessages> + Send,
+		T::IntoIter: Send,
+	{
+		let mut iter = stream::iter(msgs.into_iter().map(Ok));
+		self.tx
+			.send_all(&mut iter)
+			.await
+			.expect("test overseer no longer live");
+	}
+
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.tx.unbounded_send(msg).expect("test overseer no longer live");
+	}
+}
+
 /// A test subsystem context.
 pub struct TestSubsystemContext<M, S> {
-	tx: mpsc::UnboundedSender<AllMessages>,
+	tx: TestSubsystemSender,
 	rx: SingleItemStream<FromOverseer<M>>,
 	spawn: S,
 }
@@ -161,6 +209,7 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 	for TestSubsystemContext<M, S>
 {
 	type Message = M;
+	type Sender = TestSubsystemSender;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
@@ -191,30 +240,21 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.tx
-			.send(msg)
-			.await
-			.expect("test overseer no longer live");
-	}
-
-	async fn send_messages<T>(&mut self, msgs: T)
-	where
-		T: IntoIterator<Item = AllMessages> + Send,
-		T::IntoIter: Send,
-	{
-		let mut iter = stream::iter(msgs.into_iter().map(Ok));
-		self.tx
-			.send_all(&mut iter)
-			.await
-			.expect("test overseer no longer live");
+	fn sender(&mut self) -> &mut TestSubsystemSender {
+		&mut self.tx
 	}
 }
 
 /// A handle for interacting with the subsystem context.
 pub struct TestSubsystemContextHandle<M> {
-	tx: SingleItemSink<FromOverseer<M>>,
-	rx: mpsc::UnboundedReceiver<AllMessages>,
+	/// Direct access to sender of messages.
+	///
+	/// Useful for shared ownership situations (one can have multiple senders, but only one
+	/// receiver.
+	pub tx: SingleItemSink<FromOverseer<M>>,
+
+	/// Direct access to the receiver.
+	pub rx: mpsc::UnboundedReceiver<AllMessages>,
 }
 
 impl<M> TestSubsystemContextHandle<M> {
@@ -247,7 +287,7 @@ pub fn make_subsystem_context<M, S>(
 
 	(
 		TestSubsystemContext {
-			tx: all_messages_tx,
+			tx: TestSubsystemSender { tx: all_messages_tx },
 			rx: overseer_rx,
 			spawn,
 		},

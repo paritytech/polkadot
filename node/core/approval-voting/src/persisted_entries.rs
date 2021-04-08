@@ -23,7 +23,7 @@
 use polkadot_node_primitives::approval::{DelayTranche, RelayVRFStory, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, CandidateReceipt, SessionIndex, GroupIndex, CoreIndex,
-	Hash, CandidateHash,
+	Hash, CandidateHash, BlockNumber, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
 
@@ -79,6 +79,7 @@ pub struct ApprovalEntry {
 	tranches: Vec<TrancheEntry>,
 	backing_group: GroupIndex,
 	our_assignment: Option<OurAssignment>,
+	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
 	assignments: BitVec<BitOrderLsb0, u8>,
 	approved: bool,
@@ -108,9 +109,14 @@ impl ApprovalEntry {
 		})
 	}
 
+	/// Import our local approval vote signature for this candidate.
+	pub fn import_approval_sig(&mut self, approval_sig: ValidatorSignature) {
+		self.our_approval_sig = Some(approval_sig);
+	}
+
 	/// Whether a validator is already assigned.
 	pub fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
-		self.assignments.get(validator_index as usize).map(|b| *b).unwrap_or(false)
+		self.assignments.get(validator_index.0 as usize).map(|b| *b).unwrap_or(false)
 	}
 
 	/// Import an assignment. No-op if already assigned on the same tranche.
@@ -143,7 +149,7 @@ impl ApprovalEntry {
 		};
 
 		self.tranches[idx].assignments.push((validator_index, tick_now));
-		self.assignments.set(validator_index as _, true);
+		self.assignments.set(validator_index.0 as _, true);
 	}
 
 	// Produce a bitvec indicating the assignments of all validators up to and
@@ -153,7 +159,7 @@ impl ApprovalEntry {
 			.take_while(|e| e.tranche <= tranche)
 			.fold(bitvec::bitvec![BitOrderLsb0, u8; 0; self.assignments.len()], |mut a, e| {
 				for &(v, _) in &e.assignments {
-					a.set(v as _, true);
+					a.set(v.0 as _, true);
 				}
 
 				a
@@ -180,9 +186,26 @@ impl ApprovalEntry {
 		self.assignments.len()
 	}
 
+	/// Get the number of assignments by validators, including the local validator.
+	pub fn n_assignments(&self) -> usize {
+		self.assignments.count_ones()
+	}
+
 	/// Get the backing group index of the approval entry.
 	pub fn backing_group(&self) -> GroupIndex {
 		self.backing_group
+	}
+
+	/// Get the assignment cert & approval signature.
+	///
+	/// The approval signature will only be `Some` if the assignment is too.
+	pub fn local_statements(&self) -> (Option<OurAssignment>, Option<ValidatorSignature>) {
+		let approval_sig = self.our_approval_sig.clone();
+		if let Some(our_assignment) = self.our_assignment.as_ref().filter(|a| a.triggered()) {
+			(Some(our_assignment.clone()), approval_sig)
+		} else {
+			(None, None)
+		}
 	}
 
 	/// For tests: set our assignment.
@@ -198,6 +221,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}
@@ -210,6 +234,7 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
+			our_approval_sig: entry.our_approval_sig.map(Into::into),
 			assignments: entry.assignments,
 			approved: entry.approved,
 		}
@@ -235,8 +260,8 @@ impl CandidateEntry {
 
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
-		let prev = self.approvals.get(validator as usize).map(|b| *b).unwrap_or(false);
-		self.approvals.set(validator as usize, true);
+		let prev = self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
+		self.approvals.set(validator.0 as usize, true);
 		prev
 	}
 
@@ -253,11 +278,6 @@ impl CandidateEntry {
 	/// Get the approval entry for this candidate under a specific block.
 	pub fn approval_entry(&self, block_hash: &Hash) -> Option<&ApprovalEntry> {
 		self.block_assignments.get(block_hash)
-	}
-
-	/// Iterate over approval entries.
-	pub fn iter_approval_entries(&self) -> impl IntoIterator<Item = (&Hash, &ApprovalEntry)> {
-		self.block_assignments.iter()
 	}
 
 	#[cfg(test)]
@@ -297,6 +317,8 @@ impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockEntry {
 	block_hash: Hash,
+	parent_hash: Hash,
+	block_number: BlockNumber,
 	session: SessionIndex,
 	slot: Slot,
 	relay_vrf_story: RelayVRFStory,
@@ -318,21 +340,25 @@ impl BlockEntry {
 		}
 	}
 
+	/// Whether a candidate is approved in the bitfield.
+	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
+		self.candidates.iter().position(|(_, h)| h == candidate_hash)
+			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
+			.unwrap_or(false)
+	}
+
 	/// Whether the block entry is fully approved.
 	pub fn is_fully_approved(&self) -> bool {
 		self.approved_bitfield.all()
 	}
 
-	#[cfg(test)]
-	pub fn block_hash(&self) -> Hash {
-		self.block_hash
-	}
-
-	#[cfg(test)]
-	pub fn is_candidate_approved(&self, candidate_hash: &CandidateHash) -> bool {
-		self.candidates.iter().position(|(_, h)| h == candidate_hash)
-			.and_then(|p| self.approved_bitfield.get(p).map(|b| *b))
-			.unwrap_or(false)
+	/// Iterate over all unapproved candidates.
+	pub fn unapproved_candidates(&self) -> impl Iterator<Item = CandidateHash> + '_ {
+		self.approved_bitfield.iter().enumerate().filter_map(move |(i, a)| if !*a {
+			Some(self.candidates[i].1)
+		} else {
+			None
+		})
 	}
 
 	/// For tests: Add a candidate to the block entry. Returns the
@@ -381,12 +407,29 @@ impl BlockEntry {
 	pub fn candidates(&self) -> &[(CoreIndex, CandidateHash)] {
 		&self.candidates
 	}
+
+	/// Access the block number of the block entry.
+	pub fn block_number(&self) -> BlockNumber {
+		self.block_number
+	}
+
+	/// Access the block hash of the block entry.
+	pub fn block_hash(&self) -> Hash {
+		self.block_hash
+	}
+
+	/// Access the parent hash of the block entry.
+	pub fn parent_hash(&self) -> Hash {
+		self.parent_hash
+	}
 }
 
 impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
 		BlockEntry {
 			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
+			block_number: entry.block_number,
 			session: entry.session,
 			slot: entry.slot,
 			relay_vrf_story: RelayVRFStory(entry.relay_vrf_story),
@@ -401,6 +444,8 @@ impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
 			block_hash: entry.block_hash,
+			parent_hash: entry.parent_hash,
+			block_number: entry.block_number,
 			session: entry.session,
 			slot: entry.slot,
 			relay_vrf_story: entry.relay_vrf_story.0,

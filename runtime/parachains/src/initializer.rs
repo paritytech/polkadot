@@ -20,15 +20,16 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use sp_std::prelude::*;
-use frame_support::weights::Weight;
-use primitives::v1::ValidatorId;
+use frame_support::weights::{Weight, DispatchClass};
+use frame_support::traits::EnsureOrigin;
+use primitives::v1::{ValidatorId, SessionIndex, ConsensusLog, BlockNumber};
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
+	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -45,7 +46,7 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// A secure random seed for the session, gathered from BABE.
 	pub random_seed: [u8; 32],
 	/// New session index.
-	pub session_index: sp_staking::SessionIndex,
+	pub session_index: SessionIndex,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
@@ -65,12 +66,13 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,
-	session_index: sp_staking::SessionIndex,
+	session_index: SessionIndex,
 }
 
 pub trait Config:
 	frame_system::Config
 	+ configuration::Config
+	+ shared::Config
 	+ paras::Config
 	+ scheduler::Config
 	+ inclusion::Config
@@ -80,7 +82,9 @@ pub trait Config:
 	+ hrmp::Config
 {
 	/// A randomness beacon.
-	type Randomness: Randomness<Self::Hash>;
+	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+	/// An origin which is allowed to force updates to parachains.
+	type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 }
 
 decl_storage! {
@@ -126,6 +130,7 @@ decl_module! {
 			// - UMP
 			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
+				shared::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
@@ -148,6 +153,7 @@ decl_module! {
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
+			shared::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
@@ -165,20 +171,32 @@ decl_module! {
 
 			HasInitialized::take();
 		}
+
+		/// Issue a signal to the consensus engine to forcibly act as though all parachain
+		/// blocks in all relay chain blocks up to and including the given number in the current
+		/// chain are valid and should be finalized.
+		#[weight = (0, DispatchClass::Operational)]
+		fn force_approve(origin, up_to: BlockNumber) {
+			T::ForceOrigin::ensure_origin(origin)?;
+
+			frame_system::Pallet::<T>::deposit_log(ConsensusLog::ForceApprove(up_to).into());
+		}
 	}
 }
 
 impl<T: Config> Module<T> {
 	fn apply_new_session(
-		session_index: sp_staking::SessionIndex,
-		validators: Vec<ValidatorId>,
+		session_index: SessionIndex,
+		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
 		let prev_config = <configuration::Module<T>>::config();
 
 		let random_seed = {
 			let mut buf = [0u8; 32];
-			let random_hash = T::Randomness::random(&b"paras"[..]);
+			// TODO: audit usage of randomness API
+			// https://github.com/paritytech/polkadot/issues/2601
+			let (random_hash, _) = T::Randomness::random(&b"paras"[..]);
 			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
 			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
 			buf
@@ -186,9 +204,16 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
+		configuration::Module::<T>::initializer_on_new_session(&session_index);
 
 		let new_config = <configuration::Module<T>>::config();
+
+		let validators = shared::Module::<T>::initializer_on_new_session(
+			session_index,
+			random_seed.clone(),
+			&new_config,
+			all_validators,
+		);
 
 		let notification = SessionChangeNotification {
 			validators,
@@ -212,7 +237,7 @@ impl<T: Config> Module<T> {
 	/// at the end of the block. If `queued` is `None`, the `validators` are considered queued.
 	fn on_new_session<'a, I: 'a>(
 		_changed: bool,
-		session_index: sp_staking::SessionIndex,
+		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
 	)
@@ -225,11 +250,17 @@ impl<T: Config> Module<T> {
 			validators.clone()
 		};
 
-		BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
-			validators,
-			queued,
-			session_index,
-		}));
+		if session_index == 0 {
+			// Genesis session should be immediately enacted.
+			Self::apply_new_session(0, validators, queued);
+		} else {
+			BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
+				validators,
+				queued,
+				session_index,
+			}));
+		}
+
 	}
 }
 
@@ -240,10 +271,10 @@ impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-
+		<Module<T>>::on_new_session(false, 0, validators, None);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
@@ -262,13 +293,31 @@ mod tests {
 	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
 		new_test_ext,
-		Initializer, System, Dmp, Paras, Configuration, MockGenesisConfig,
+		Initializer, System, Dmp, Paras, Configuration, SessionInfo, MockGenesisConfig,
 	};
 
 	use frame_support::{
 		assert_ok,
 		traits::{OnFinalize, OnInitialize},
 	};
+
+	#[test]
+	fn session_0_is_instantly_applied() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Initializer::on_new_session(
+				false,
+				0,
+				Vec::new().into_iter(),
+				Some(Vec::new().into_iter()),
+			);
+
+			let v = <BufferedSessionChanges>::get();
+			assert!(v.is_empty());
+
+			assert_eq!(SessionInfo::earliest_stored_session(), 0);
+			assert!(SessionInfo::session_info(0).is_some());
+		});
+	}
 
 	#[test]
 	fn session_change_before_initialize_is_still_buffered_after() {
@@ -361,10 +410,11 @@ mod tests {
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
 
-			Paras::schedule_para_cleanup(a);
-			Paras::schedule_para_cleanup(b);
+			assert_ok!(Paras::schedule_para_cleanup(a));
+			assert_ok!(Paras::schedule_para_cleanup(b));
 
-			Initializer::apply_new_session(1, vec![], vec![]);
+			// Apply session 2 in the future
+			Initializer::apply_new_session(2, vec![], vec![]);
 
 			assert!(Dmp::dmq_contents(a).is_empty());
 			assert!(Dmp::dmq_contents(b).is_empty());

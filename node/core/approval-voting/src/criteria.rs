@@ -20,7 +20,7 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::v1::{
-	CoreIndex, ValidatorIndex, SessionInfo, AssignmentPair, AssignmentId, GroupIndex,
+	CoreIndex, ValidatorIndex, SessionInfo, AssignmentPair, AssignmentId, GroupIndex, CandidateHash,
 };
 use sc_keystore::LocalKeystore;
 use parity_scale_codec::{Encode, Decode};
@@ -178,7 +178,7 @@ pub(crate) trait AssignmentCriteria {
 		keystore: &LocalKeystore,
 		relay_vrf_story: RelayVRFStory,
 		config: &Config,
-		leaving_cores: Vec<(CoreIndex, GroupIndex)>,
+		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment>;
 
 	fn check_assignment_cert(
@@ -200,7 +200,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		keystore: &LocalKeystore,
 		relay_vrf_story: RelayVRFStory,
 		config: &Config,
-		leaving_cores: Vec<(CoreIndex, GroupIndex)>,
+		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
 		compute_assignments(
 			keystore,
@@ -244,19 +244,24 @@ pub(crate) fn compute_assignments(
 	keystore: &LocalKeystore,
 	relay_vrf_story: RelayVRFStory,
 	config: &Config,
-	leaving_cores: impl IntoIterator<Item = (CoreIndex, GroupIndex)> + Clone,
+	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex, GroupIndex)> + Clone,
 ) -> HashMap<CoreIndex, OurAssignment> {
+	if config.n_cores == 0 || config.assignment_keys.is_empty() || config.validator_groups.is_empty() {
+		return HashMap::new()
+	}
+
 	let (index, assignments_key): (ValidatorIndex, AssignmentPair) = {
 		let key = config.assignment_keys.iter().enumerate()
-			.filter_map(|(i, p)| match keystore.key_pair(p) {
-				Ok(pair) => Some((i as ValidatorIndex, pair)),
-				Err(sc_keystore::Error::PairNotFound(_)) => None,
+			.find_map(|(i, p)| match keystore.key_pair(p) {
+				Ok(Some(pair)) => Some((ValidatorIndex(i as _), pair)),
+				Ok(None) => None,
+				Err(sc_keystore::Error::Unavailable) => None,
+				Err(sc_keystore::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
 				Err(e) => {
 					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
 					None
 				}
-			})
-			.next();
+			});
 
 		match key {
 			None => return Default::default(),
@@ -266,8 +271,8 @@ pub(crate) fn compute_assignments(
 
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores.into_iter()
-		.filter(|&(_, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
-		.map(|(c, _)| c)
+		.filter(|&(_, _, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
+		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
 	let assignments_key: &sp_application_crypto::sr25519::Pair = assignments_key.as_ref();
@@ -303,7 +308,7 @@ fn compute_relay_vrf_modulo_assignments(
 	validator_index: ValidatorIndex,
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
-	leaving_cores: impl IntoIterator<Item = CoreIndex> + Clone,
+	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex)> + Clone,
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
 	for rvm_sample in 0..config.relay_vrf_modulo_samples {
@@ -317,7 +322,18 @@ fn compute_relay_vrf_modulo_assignments(
 				relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
 				|vrf_in_out| {
 					*core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
-					if leaving_cores.clone().into_iter().any(|c| c == *core) {
+					if let Some((candidate_hash, _))
+						= leaving_cores.clone().into_iter().find(|(_, c)| c == core)
+					{
+						tracing::trace!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							?core,
+							?validator_index,
+							tranche = 0,
+							"RelayVRFModulo Assignment."
+						);
+
 						Some(assigned_core_transcript(*core))
 					} else {
 						None
@@ -350,10 +366,10 @@ fn compute_relay_vrf_delay_assignments(
 	validator_index: ValidatorIndex,
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
-	leaving_cores: impl IntoIterator<Item = CoreIndex>,
+	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex)>,
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
-	for core in leaving_cores {
+	for (candidate_hash, core) in leaving_cores {
 		let (vrf_in_out, vrf_proof, _) = assignments_key.vrf_sign(
 			relay_vrf_delay_transcript(relay_vrf_story.clone(), core),
 		);
@@ -376,11 +392,25 @@ fn compute_relay_vrf_delay_assignments(
 			triggered: false,
 		};
 
-		match assignments.entry(core) {
-			Entry::Vacant(e) => { let _ = e.insert(our_assignment); }
+		let used = match assignments.entry(core) {
+			Entry::Vacant(e) => { let _ = e.insert(our_assignment); true }
 			Entry::Occupied(mut e) => if e.get().tranche > our_assignment.tranche {
 				e.insert(our_assignment);
+				true
+			} else {
+				false
 			},
+		};
+
+		if used {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?core,
+				?validator_index,
+				tranche,
+				"RelayVRFDelay Assignment",
+			);
 		}
 	}
 }
@@ -417,7 +447,7 @@ pub(crate) fn check_assignment_cert(
 	backing_group: GroupIndex,
 ) -> Result<DelayTranche, InvalidAssignment> {
 	let validator_public = config.assignment_keys
-		.get(validator_index as usize)
+		.get(validator_index.0 as usize)
 		.ok_or(InvalidAssignment)?;
 
 	let public = schnorrkel::PublicKey::from_bytes(validator_public.as_slice())
@@ -495,7 +525,7 @@ mod tests {
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
-	use polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID;
+	use polkadot_primitives::v1::{ASSIGNMENT_KEY_TYPE_ID, Hash};
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 
 	// sets up a keystore with the given keyring accounts.
@@ -535,7 +565,7 @@ mod tests {
 		(0..n_groups).map(|i| {
 			(i * size .. (i + 1) *size)
 				.chain(if i < big_groups { Some(scraps + i) } else { None })
-				.map(|j| j as ValidatorIndex)
+				.map(|j| ValidatorIndex(j as _))
 				.collect::<Vec<_>>()
 		}).collect()
 	}
@@ -555,6 +585,9 @@ mod tests {
 			make_keystore(&[Sr25519Keyring::Alice])
 		);
 
+		let c_a = CandidateHash(Hash::repeat_byte(0));
+		let c_b = CandidateHash(Hash::repeat_byte(1));
+
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
 			&keystore,
@@ -565,13 +598,13 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![vec![0], vec![1, 2]],
+				validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1), ValidatorIndex(2)]],
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
 				n_delay_tranches: 40,
 			},
-			vec![(CoreIndex(0), GroupIndex(1)), (CoreIndex(1), GroupIndex(0))],
+			vec![(c_a, CoreIndex(0), GroupIndex(1)), (c_b, CoreIndex(1), GroupIndex(0))],
 		);
 
 		// Note that alice is in group 0, which was the backing group for core 1.
@@ -586,6 +619,9 @@ mod tests {
 			make_keystore(&[Sr25519Keyring::Alice])
 		);
 
+		let c_a = CandidateHash(Hash::repeat_byte(0));
+		let c_b = CandidateHash(Hash::repeat_byte(1));
+
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
 			&keystore,
@@ -596,17 +632,45 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![vec![0], vec![1, 2]],
+				validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1), ValidatorIndex(2)]],
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
 				n_delay_tranches: 40,
 			},
-			vec![(CoreIndex(0), GroupIndex(0)), (CoreIndex(1), GroupIndex(1))],
+			vec![(c_a, CoreIndex(0), GroupIndex(0)), (c_b, CoreIndex(1), GroupIndex(1))],
 		);
 
 		assert_eq!(assignments.len(), 1);
 		assert!(assignments.get(&CoreIndex(1)).is_some());
+	}
+
+	#[test]
+	fn succeeds_empty_for_0_cores() {
+		let keystore = futures::executor::block_on(
+			make_keystore(&[Sr25519Keyring::Alice])
+		);
+
+		let relay_vrf_story = RelayVRFStory([42u8; 32]);
+		let assignments = compute_assignments(
+			&keystore,
+			relay_vrf_story,
+			&Config {
+				assignment_keys: assignment_keys(&[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				]),
+				validator_groups: vec![],
+				n_cores: 0,
+				zeroth_delay_tranche_width: 10,
+				relay_vrf_modulo_samples: 3,
+				n_delay_tranches: 40,
+			},
+			vec![],
+		);
+
+		assert!(assignments.is_empty());
 	}
 
 	struct MutatedAssignment {
@@ -647,6 +711,7 @@ mod tests {
 			&config,
 			(0..n_cores)
 				.map(|i| (
+					CandidateHash(Hash::repeat_byte(i as u8)),
 					CoreIndex(i as u32),
 					group_for_core(i),
 				))
@@ -660,7 +725,7 @@ mod tests {
 				group: group_for_core(core.0 as _),
 				cert: assignment.cert,
 				own_group: GroupIndex(0),
-				val_index: 0,
+				val_index: ValidatorIndex(0),
 				config: config.clone(),
 			};
 
@@ -710,7 +775,7 @@ mod tests {
 	#[test]
 	fn check_rejects_nonexistent_key() {
 		check_mutated_assignments(200, 100, 25, |m| {
-			m.val_index += 200;
+			m.val_index.0 += 200;
 			Some(false)
 		});
 	}

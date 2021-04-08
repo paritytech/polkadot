@@ -21,7 +21,7 @@ use polkadot_node_primitives::approval::{
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_subsystem::messages::AllMessages;
+use polkadot_node_subsystem::messages::AllMessages;
 use sp_core::testing::TaskExecutor;
 
 use parking_lot::Mutex;
@@ -37,7 +37,7 @@ fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
 	crate::time::slot_number_to_tick(SLOT_DURATION_MILLIS, t.into())
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct MockClock {
 	inner: Arc<Mutex<MockClockInner>>,
 }
@@ -132,7 +132,7 @@ where
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -178,6 +178,14 @@ impl DBReader for TestStore {
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>> {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
+	}
+
+	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+		let mut hashes: Vec<_> = self.block_entries.keys().cloned().collect();
+
+		hashes.sort_by_key(|k| self.block_entries.get(k).unwrap().block_number());
+
+		Ok(hashes)
 	}
 }
 
@@ -226,6 +234,7 @@ fn sign_approval(
 	key.sign(&super::approval_signing_payload(ApprovalVote(candidate_hash), session_index)).into()
 }
 
+#[derive(Clone)]
 struct StateConfig {
 	session_index: SessionIndex,
 	slot: Slot,
@@ -243,7 +252,7 @@ impl Default for StateConfig {
 			slot: Slot::from(0),
 			tick: 0,
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![0], vec![1]],
+			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
 			needed_approvals: 1,
 			no_show_slots: 2,
 		}
@@ -314,6 +323,8 @@ fn add_block(
 		block_hash,
 		approval_db::v1::BlockEntry {
 			block_hash,
+			parent_hash: Default::default(),
+			block_number: 0,
 			session,
 			slot,
 			candidates: Vec::new(),
@@ -351,6 +362,7 @@ fn add_candidate_to_block(
 			tranches: Vec::new(),
 			backing_group,
 			our_assignment: None,
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 			approved: false,
 		}.into(),
@@ -364,7 +376,7 @@ fn rejects_bad_assignment() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let assignment_good = IndirectAssignmentCert {
 		block_hash,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
 				sample: 0,
@@ -386,7 +398,7 @@ fn rejects_bad_assignment() {
 	// unknown hash
 	let assignment = IndirectAssignmentCert {
 		block_hash: Hash::repeat_byte(0x02),
-		validator: 0,
+		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
 				sample: 0,
@@ -423,7 +435,7 @@ fn rejects_assignment_in_future() {
 	let candidate_index = 0;
 	let assignment = IndirectAssignmentCert {
 		block_hash,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
 				sample: 0,
@@ -467,7 +479,7 @@ fn rejects_assignment_with_unknown_candidate() {
 	let candidate_index = 1;
 	let assignment = IndirectAssignmentCert {
 		block_hash,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
 				sample: 0,
@@ -493,7 +505,7 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 	let candidate_index = 0;
 	let assignment = IndirectAssignmentCert {
 		block_hash,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
 				sample: 0,
@@ -523,6 +535,7 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 			block_hash: b,
 			candidate_hash: c,
 			tick,
+			..
 		} => {
 			assert_eq!(b, &block_hash);
 			assert_eq!(c, &candidate_hash);
@@ -534,7 +547,7 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 		actions.get(1).unwrap(),
 		Action::WriteCandidateEntry(c, e) => {
 			assert_eq!(c, &candidate_hash);
-			assert!(e.approval_entry(&block_hash).unwrap().is_assigned(0));
+			assert!(e.approval_entry(&block_hash).unwrap().is_assigned(ValidatorIndex(0)));
 		}
 	);
 }
@@ -554,12 +567,13 @@ fn rejects_approval_before_assignment() {
 	let vote = IndirectSignedApprovalVote {
 		block_hash,
 		candidate_index: 0,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -583,7 +597,7 @@ fn rejects_approval_if_no_candidate_entry() {
 	let vote = IndirectSignedApprovalVote {
 		block_hash,
 		candidate_index: 0,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
@@ -591,6 +605,7 @@ fn rejects_approval_if_no_candidate_entry() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -603,7 +618,7 @@ fn rejects_approval_if_no_candidate_entry() {
 fn rejects_approval_if_no_block_entry() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index = 0;
+	let validator_index = ValidatorIndex(0);
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -615,7 +630,7 @@ fn rejects_approval_if_no_block_entry() {
 	let vote = IndirectSignedApprovalVote {
 		block_hash,
 		candidate_index: 0,
-		validator: 0,
+		validator: ValidatorIndex(0),
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
@@ -628,6 +643,7 @@ fn rejects_approval_if_no_block_entry() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -640,7 +656,7 @@ fn rejects_approval_if_no_block_entry() {
 fn accepts_and_imports_approval_after_assignment() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index = 0;
+	let validator_index = ValidatorIndex(0);
 
 	let candidate_index = 0;
 	let mut state = State {
@@ -649,7 +665,7 @@ fn accepts_and_imports_approval_after_assignment() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
+			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			needed_approvals: 2,
 			..Default::default()
 		})
@@ -669,6 +685,7 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
@@ -680,17 +697,18 @@ fn accepts_and_imports_approval_after_assignment() {
 		actions.get(0).unwrap(),
 		Action::WriteCandidateEntry(c_hash, c_entry) => {
 			assert_eq!(c_hash, &candidate_hash);
-			assert!(c_entry.approvals().get(validator_index as usize).unwrap());
+			assert!(c_entry.approvals().get(validator_index.0 as usize).unwrap());
 			assert!(!c_entry.approval_entry(&block_hash).unwrap().is_approved());
 		}
 	);
 }
 
 #[test]
-fn second_approval_import_is_no_op() {
+fn second_approval_import_only_schedules_wakeups() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index = 0;
+	let validator_index = ValidatorIndex(0);
+	let validator_index_b = ValidatorIndex(1);
 
 	let candidate_index = 0;
 	let mut state = State {
@@ -699,7 +717,7 @@ fn second_approval_import_is_no_op() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
+			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			needed_approvals: 2,
 			..Default::default()
 		})
@@ -720,22 +738,47 @@ fn second_approval_import_is_no_op() {
 	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
 		.mark_approval(validator_index));
 
+	// There is only one assignment, so nothing to schedule if we double-import.
+
 	let (actions, res) = check_and_import_approval(
 		&state,
+		&Metrics(None),
+		vote.clone(),
+		|r| r
+	).unwrap();
+
+	assert_eq!(res, ApprovalCheckResult::Accepted);
+	assert!(actions.is_empty());
+
+	// After adding a second assignment, there should be a schedule wakeup action.
+
+	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, validator_index_b, 0);
+
+	let (actions, res) = check_and_import_approval(
+		&state,
+		&Metrics(None),
 		vote,
 		|r| r
 	).unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
-	assert!(actions.is_empty())
+	assert_eq!(actions.len(), 1);
+
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::ScheduleWakeup { .. } => {}
+	);
 }
 
 #[test]
-fn check_and_apply_full_approval_sets_flag_and_bit() {
+fn import_checked_approval_updates_entries_and_schedules() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index_a = 0;
-	let validator_index_b = 1;
+	let validator_index_a = ValidatorIndex(0);
+	let validator_index_b = ValidatorIndex(1);
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -743,7 +786,7 @@ fn check_and_apply_full_approval_sets_flag_and_bit() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
+			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			needed_approvals: 2,
 			..Default::default()
 		})
@@ -759,103 +802,71 @@ fn check_and_apply_full_approval_sets_flag_and_bit() {
 		.unwrap()
 		.import_assignment(0, validator_index_b, 0);
 
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_a));
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Remote(validator_index_a),
+		);
 
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_b));
+		assert_eq!(actions.len(), 2);
+		assert_matches!(
+			actions.get(0).unwrap(),
+			Action::ScheduleWakeup {
+				block_hash: b_hash,
+				candidate_hash: c_hash,
+				..
+			} => {
+				assert_eq!(b_hash, &block_hash);
+				assert_eq!(c_hash, &candidate_hash);
+			}
+		);
+		assert_matches!(
+			actions.get_mut(1).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert!(!c_entry.approval_entry(&block_hash).unwrap().is_approved());
+				assert!(c_entry.mark_approval(validator_index_a));
 
-	let actions = check_and_apply_full_approval(
-		&state,
-		None,
-		candidate_hash,
-		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
-		|b_hash, _a| b_hash == &block_hash,
-	).unwrap();
+				state.db.candidate_entries.insert(candidate_hash, c_entry.clone());
+			}
+		);
+	}
 
-	assert_eq!(actions.len(), 2);
-	assert_matches!(
-		actions.get(0).unwrap(),
-		Action::WriteBlockEntry(b_entry) => {
-			assert_eq!(b_entry.block_hash(), block_hash);
-			assert!(b_entry.is_fully_approved());
-			assert!(b_entry.is_candidate_approved(&candidate_hash));
-		}
-	);
-	assert_matches!(
-		actions.get(1).unwrap(),
-		Action::WriteCandidateEntry(c_hash, c_entry) => {
-			assert_eq!(c_hash, &candidate_hash);
-			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
-		}
-	);
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Remote(validator_index_b),
+		);
+
+		assert_matches!(
+			actions.get(0).unwrap(),
+			Action::WriteBlockEntry(b_entry) => {
+				assert_eq!(b_entry.block_hash(), block_hash);
+				assert!(b_entry.is_fully_approved());
+				assert!(b_entry.is_candidate_approved(&candidate_hash));
+			}
+		);
+		assert_matches!(
+			actions.get_mut(1).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
+				assert!(c_entry.mark_approval(validator_index_b));
+			}
+		);
+	}
 }
 
 #[test]
-fn check_and_apply_full_approval_does_not_load_cached_block_from_db() {
-	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index_a = 0;
-	let validator_index_b = 1;
-
-	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
-			needed_approvals: 2,
-			..Default::default()
-		})
-	};
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_a, 0);
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_b, 0);
-
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_a));
-
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_b));
-
-	let block_entry = state.db.block_entries.remove(&block_hash).unwrap();
-
-	let actions = check_and_apply_full_approval(
-		&state,
-		Some((block_hash, block_entry)),
-		candidate_hash,
-		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
-		|b_hash, _a| b_hash == &block_hash,
-	).unwrap();
-
-	assert_eq!(actions.len(), 2);
-	assert_matches!(
-		actions.get(0).unwrap(),
-		Action::WriteBlockEntry(b_entry) => {
-			assert_eq!(b_entry.block_hash(), block_hash);
-			assert!(b_entry.is_fully_approved());
-			assert!(b_entry.is_candidate_approved(&candidate_hash));
-		}
-	);
-	assert_matches!(
-		actions.get(1).unwrap(),
-		Action::WriteCandidateEntry(c_hash, c_entry) => {
-			assert_eq!(c_hash, &candidate_hash);
-			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
-		}
-	);
-}
-
-#[test]
-fn assignment_triggered_by_all_with_less_than_supermajority() {
+fn assignment_triggered_by_all_with_less_than_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
@@ -867,9 +878,56 @@ fn assignment_triggered_by_all_with_less_than_supermajority() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: 1,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
+			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			approved: false,
+		};
+
+		approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 1,
+			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
+			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+		}.into()
+	};
+
+	// 1-of-4
+	candidate_entry
+		.approval_entry_mut(&block_hash)
+		.unwrap()
+		.import_assignment(0, ValidatorIndex(0), 0);
+
+	candidate_entry.mark_approval(ValidatorIndex(0));
+
+	let tranche_now = 1;
+	assert!(should_trigger_assignment(
+		candidate_entry.approval_entry(&block_hash).unwrap(),
+		&candidate_entry,
+		RequiredTranches::All,
+		tranche_now,
+	));
+}
+
+#[test]
+fn assignment_not_triggered_by_all_with_threshold() {
+	let block_hash = Hash::repeat_byte(0x01);
+
+	let mut candidate_entry: CandidateEntry = {
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: Vec::new(),
+			backing_group: GroupIndex(0),
+			our_assignment: Some(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 1,
+				validator_index: ValidatorIndex(4),
+				triggered: false,
+			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -886,72 +944,15 @@ fn assignment_triggered_by_all_with_less_than_supermajority() {
 	candidate_entry
 		.approval_entry_mut(&block_hash)
 		.unwrap()
-		.import_assignment(0, 0, 0);
+		.import_assignment(0, ValidatorIndex(0), 0);
 
 	candidate_entry
 		.approval_entry_mut(&block_hash)
 		.unwrap()
-		.import_assignment(0, 1, 0);
+		.import_assignment(0, ValidatorIndex(1), 0);
 
-	candidate_entry.mark_approval(0);
-	candidate_entry.mark_approval(1);
-
-	let tranche_now = 1;
-	assert!(should_trigger_assignment(
-		candidate_entry.approval_entry(&block_hash).unwrap(),
-		&candidate_entry,
-		RequiredTranches::All,
-		tranche_now,
-	));
-}
-
-#[test]
-fn assignment_not_triggered_by_all_with_supermajority() {
-	let block_hash = Hash::repeat_byte(0x01);
-
-	let mut candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
-			tranches: Vec::new(),
-			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
-				tranche: 1,
-				validator_index: 4,
-				triggered: false,
-			}),
-			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-			approved: false,
-		};
-
-		approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
-			session: 1,
-			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
-			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
-	};
-
-	// 3-of-4
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, 0, 0);
-
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, 1, 0);
-
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, 2, 0);
-
-	candidate_entry.mark_approval(0);
-	candidate_entry.mark_approval(1);
-	candidate_entry.mark_approval(2);
+	candidate_entry.mark_approval(ValidatorIndex(0));
+	candidate_entry.mark_approval(ValidatorIndex(1));
 
 	let tranche_now = 1;
 	assert!(!should_trigger_assignment(
@@ -975,9 +976,10 @@ fn assignment_not_triggered_if_already_triggered() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: 1,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: true,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1012,9 +1014,10 @@ fn assignment_not_triggered_by_exact() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: 1,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1050,9 +1053,10 @@ fn assignment_not_triggered_more_than_maximum() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: maximum_broadcast + 1,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1093,9 +1097,10 @@ fn assignment_triggered_if_at_maximum() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: maximum_broadcast,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1136,9 +1141,10 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: maximum_broadcast,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1179,9 +1185,10 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
 				tranche: maximum_broadcast,
-				validator_index: 4,
+				validator_index: ValidatorIndex(4),
 				triggered: false,
 			}),
+			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 			approved: false,
 		};
@@ -1209,7 +1216,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 }
 
 #[test]
-fn wakeups_drain() {
+fn wakeups_next() {
 	let mut wakeups = Wakeups::default();
 
 	let b_a = Hash::repeat_byte(0);
@@ -1218,18 +1225,52 @@ fn wakeups_drain() {
 	let c_a = CandidateHash(Hash::repeat_byte(2));
 	let c_b = CandidateHash(Hash::repeat_byte(3));
 
-	wakeups.schedule(b_a, c_a, 1);
-	wakeups.schedule(b_a, c_b, 4);
-	wakeups.schedule(b_b, c_b, 3);
+	wakeups.schedule(b_a, 0, c_a, 1);
+	wakeups.schedule(b_a, 0, c_b, 4);
+	wakeups.schedule(b_b, 1, c_b, 3);
 
 	assert_eq!(wakeups.first().unwrap(), 1);
 
-	assert_eq!(
-		wakeups.drain(..=3).collect::<Vec<_>>(),
-		vec![(b_a, c_a), (b_b, c_b)],
-	);
+	let clock = MockClock::new(0);
+	let clock_aux = clock.clone();
 
-	assert_eq!(wakeups.first().unwrap(), 4);
+	let test_fut = Box::pin(async move {
+		assert_eq!(wakeups.next(&clock).await, (1, b_a, c_a));
+		assert_eq!(wakeups.next(&clock).await, (3, b_b, c_b));
+		assert_eq!(wakeups.next(&clock).await, (4, b_a, c_b));
+		assert!(wakeups.first().is_none());
+		assert!(wakeups.wakeups.is_empty());
+
+		assert_eq!(
+			wakeups.block_numbers.get(&0).unwrap(),
+			&vec![b_a].into_iter().collect::<HashSet<_>>(),
+		);
+		assert_eq!(
+			wakeups.block_numbers.get(&1).unwrap(),
+			&vec![b_b].into_iter().collect::<HashSet<_>>(),
+		);
+
+		wakeups.prune_finalized_wakeups(0);
+
+		assert!(wakeups.block_numbers.get(&0).is_none());
+		assert_eq!(
+			wakeups.block_numbers.get(&1).unwrap(),
+			&vec![b_b].into_iter().collect::<HashSet<_>>(),
+		);
+
+		wakeups.prune_finalized_wakeups(1);
+
+		assert!(wakeups.block_numbers.get(&0).is_none());
+		assert!(wakeups.block_numbers.get(&1).is_none());
+	});
+
+	let aux_fut = Box::pin(async move {
+		clock_aux.inner.lock().set_tick(1);
+		// skip direct set to 3.
+		clock_aux.inner.lock().set_tick(4);
+	});
+
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1239,28 +1280,34 @@ fn wakeup_earlier_supersedes_later() {
 	let b_a = Hash::repeat_byte(0);
 	let c_a = CandidateHash(Hash::repeat_byte(2));
 
-	wakeups.schedule(b_a, c_a, 4);
-	wakeups.schedule(b_a, c_a, 2);
-	wakeups.schedule(b_a, c_a, 3);
+	wakeups.schedule(b_a, 0, c_a, 4);
+	wakeups.schedule(b_a, 0, c_a, 2);
+	wakeups.schedule(b_a, 0, c_a, 3);
 
-	assert_eq!(wakeups.first().unwrap(), 2);
+	let clock = MockClock::new(0);
+	let clock_aux = clock.clone();
 
-	assert_eq!(
-		wakeups.drain(..=2).collect::<Vec<_>>(),
-		vec![(b_a, c_a)],
-	);
+	let test_fut = Box::pin(async move {
+		assert_eq!(wakeups.next(&clock).await, (2, b_a, c_a));
+		assert!(wakeups.first().is_none());
+		assert!(wakeups.reverse_wakeups.is_empty());
+	});
 
-	assert!(wakeups.first().is_none());
+	let aux_fut = Box::pin(async move {
+		clock_aux.inner.lock().set_tick(2);
+	});
+
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
-fn block_not_approved_until_all_candidates_approved() {
+fn import_checked_approval_sets_one_block_bit_at_a_time() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let candidate_hash_2 = CandidateHash(Hash::repeat_byte(0xDD));
 
-	let validator_index_a = 0;
-	let validator_index_b = 1;
+	let validator_index_a = ValidatorIndex(0);
+	let validator_index_b = ValidatorIndex(1);
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -1268,7 +1315,7 @@ fn block_not_approved_until_all_candidates_approved() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
+			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			needed_approvals: 2,
 			..Default::default()
 		})
@@ -1283,7 +1330,7 @@ fn block_not_approved_until_all_candidates_approved() {
 		GroupIndex(1),
 	);
 
-	let approve_candidate = |db: &mut TestStore, c_hash| {
+	let setup_candidate = |db: &mut TestStore, c_hash| {
 		db.candidate_entries.get_mut(&c_hash).unwrap()
 		.approval_entry_mut(&block_hash)
 		.unwrap()
@@ -1296,26 +1343,51 @@ fn block_not_approved_until_all_candidates_approved() {
 
 		assert!(!db.candidate_entries.get_mut(&c_hash).unwrap()
 			.mark_approval(validator_index_a));
-
-		assert!(!db.candidate_entries.get_mut(&c_hash).unwrap()
-			.mark_approval(validator_index_b));
 	};
 
-	approve_candidate(&mut state.db, candidate_hash_2);
+	setup_candidate(&mut state.db, candidate_hash);
+	setup_candidate(&mut state.db, candidate_hash_2);
 
-	{
-		let b = state.db.block_entries.get_mut(&block_hash).unwrap();
-		b.mark_approved_by_hash(&candidate_hash);
-		assert!(!b.is_fully_approved());
-	}
-
-	let actions = check_and_apply_full_approval(
+	let actions = import_checked_approval(
 		&state,
-		None,
+		&Metrics(None),
+		state.db.block_entries.get(&block_hash).unwrap().clone(),
+		candidate_hash,
+		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+		ApprovalSource::Remote(validator_index_b),
+	);
+
+	assert_eq!(actions.len(), 2);
+	assert_matches!(
+		actions.get(0).unwrap(),
+		Action::WriteBlockEntry(b_entry) => {
+			assert_eq!(b_entry.block_hash(), block_hash);
+			assert!(!b_entry.is_fully_approved());
+			assert!(b_entry.is_candidate_approved(&candidate_hash));
+			assert!(!b_entry.is_candidate_approved(&candidate_hash_2));
+
+			state.db.block_entries.insert(block_hash, b_entry.clone());
+		}
+	);
+
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::WriteCandidateEntry(c_h, c_entry) => {
+			assert_eq!(c_h, &candidate_hash);
+			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
+
+			state.db.candidate_entries.insert(*c_h, c_entry.clone());
+		}
+	);
+
+	let actions = import_checked_approval(
+		&state,
+		&Metrics(None),
+		state.db.block_entries.get(&block_hash).unwrap().clone(),
 		candidate_hash_2,
 		state.db.candidate_entries.get(&candidate_hash_2).unwrap().clone(),
-		|b_hash, _a| b_hash == &block_hash,
-	).unwrap();
+		ApprovalSource::Remote(validator_index_b),
+	);
 
 	assert_eq!(actions.len(), 2);
 	assert_matches!(
@@ -1323,6 +1395,7 @@ fn block_not_approved_until_all_candidates_approved() {
 		Action::WriteBlockEntry(b_entry) => {
 			assert_eq!(b_entry.block_hash(), block_hash);
 			assert!(b_entry.is_fully_approved());
+			assert!(b_entry.is_candidate_approved(&candidate_hash));
 			assert!(b_entry.is_candidate_approved(&candidate_hash_2));
 		}
 	);
@@ -1332,108 +1405,6 @@ fn block_not_approved_until_all_candidates_approved() {
 		Action::WriteCandidateEntry(c_h, c_entry) => {
 			assert_eq!(c_h, &candidate_hash_2);
 			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
-		}
-	);
-}
-
-#[test]
-fn candidate_approval_applied_to_all_blocks() {
-	let block_hash = Hash::repeat_byte(0x01);
-	let block_hash_2 = Hash::repeat_byte(0x02);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
-	let validator_index_a = 0;
-	let validator_index_b = 1;
-
-	let slot = Slot::from(1);
-	let session_index = 1;
-
-	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![0, 1], vec![2]],
-			needed_approvals: 2,
-			session_index,
-			slot,
-			..Default::default()
-		})
-	};
-
-	add_block(
-		&mut state.db,
-		block_hash_2,
-		session_index,
-		slot,
-	);
-
-	add_candidate_to_block(
-		&mut state.db,
-		block_hash_2,
-		candidate_hash,
-		3,
-		CoreIndex(1),
-		GroupIndex(1),
-	);
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_a, 0);
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_b, 0);
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash_2)
-		.unwrap()
-		.import_assignment(0, validator_index_a, 0);
-
-	state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash_2)
-		.unwrap()
-		.import_assignment(0, validator_index_b, 0);
-
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_a));
-
-	assert!(!state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index_b));
-
-	let actions = check_and_apply_full_approval(
-		&state,
-		None,
-		candidate_hash,
-		state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
-		|_b_hash, _a| true,
-	).unwrap();
-
-	assert_eq!(actions.len(), 3);
-	assert_matches!(
-		actions.get(0).unwrap(),
-		Action::WriteBlockEntry(b_entry) => {
-			assert_eq!(b_entry.block_hash(), block_hash);
-			assert!(b_entry.is_fully_approved());
-			assert!(b_entry.is_candidate_approved(&candidate_hash));
-		}
-	);
-	assert_matches!(
-		actions.get(1).unwrap(),
-		Action::WriteBlockEntry(b_entry) => {
-			assert_eq!(b_entry.block_hash(), block_hash_2);
-			assert!(b_entry.is_fully_approved());
-			assert!(b_entry.is_candidate_approved(&candidate_hash));
-		}
-	);
-	assert_matches!(
-		actions.get(2).unwrap(),
-		Action::WriteCandidateEntry(c_hash, c_entry) => {
-			assert_eq!(c_hash, &candidate_hash);
-			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
-			assert!(c_entry.approval_entry(&block_hash_2).unwrap().is_approved());
 		}
 	);
 }
@@ -1456,7 +1427,7 @@ fn approved_ancestor_all_approved() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![0], vec![1]],
+			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
 			needed_approvals: 2,
 			session_index,
 			slot,
@@ -1489,7 +1460,8 @@ fn approved_ancestor_all_approved() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0, &Default::default())
+				.await.unwrap(),
 			Some((block_hash_4, 4)),
 		)
 	});
@@ -1517,7 +1489,7 @@ fn approved_ancestor_all_approved() {
 		);
 	});
 
-	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1538,7 +1510,7 @@ fn approved_ancestor_missing_approval() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![0], vec![1]],
+			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
 			needed_approvals: 2,
 			session_index,
 			slot,
@@ -1571,7 +1543,8 @@ fn approved_ancestor_missing_approval() {
 
 	let test_fut = Box::pin(async move {
 		assert_eq!(
-			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0).await.unwrap(),
+			handle_approved_ancestor(&mut ctx, &state.db, block_hash_4, 0, &Default::default())
+				.await.unwrap(),
 			Some((block_hash_2, 2)),
 		)
 	});
@@ -1599,7 +1572,7 @@ fn approved_ancestor_missing_approval() {
 		);
 	});
 
-	futures::executor::block_on(futures::future::select(test_fut, aux_fut));
+	futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 }
 
 #[test]
@@ -1615,7 +1588,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![0], vec![1]],
+			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
 			needed_approvals: 2,
 			session_index,
 			slot,
@@ -1627,6 +1600,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert!(actions.is_empty());
@@ -1641,7 +1615,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 				AssignmentCertKind::RelayVRFModulo { sample: 0 }
 			),
 			tranche: 0,
-			validator_index: 0,
+			validator_index: ValidatorIndex(0),
 			triggered: false,
 		}.into());
 
@@ -1649,6 +1623,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert_eq!(actions.len(), 3);
@@ -1700,7 +1675,7 @@ fn process_wakeup_schedules_wakeup() {
 		})),
 		..some_state(StateConfig {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![0], vec![1]],
+			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
 			needed_approvals: 2,
 			session_index,
 			slot,
@@ -1718,7 +1693,7 @@ fn process_wakeup_schedules_wakeup() {
 				AssignmentCertKind::RelayVRFModulo { sample: 0 }
 			),
 			tranche: 10,
-			validator_index: 0,
+			validator_index: ValidatorIndex(0),
 			triggered: false,
 		}.into());
 
@@ -1726,12 +1701,13 @@ fn process_wakeup_schedules_wakeup() {
 		&state,
 		block_hash,
 		candidate_hash,
+		1,
 	).unwrap();
 
 	assert_eq!(actions.len(), 1);
 	assert_matches!(
 		actions.get(0).unwrap(),
-		Action::ScheduleWakeup { block_hash: b, candidate_hash: c, tick } => {
+		Action::ScheduleWakeup { block_hash: b, candidate_hash: c, tick, .. } => {
 			assert_eq!(b, &block_hash);
 			assert_eq!(c, &candidate_hash);
 			assert_eq!(tick, &(slot_to_tick(slot) + 10));
@@ -1748,3 +1724,123 @@ fn triggered_assignment_leads_to_recovery_and_validation() {
 fn finalization_event_prunes() {
 
 }
+
+#[test]
+fn local_approval_import_always_updates_approval_entry() {
+	let block_hash = Hash::repeat_byte(0x01);
+	let block_hash_2 = Hash::repeat_byte(0x02);
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let validator_index = ValidatorIndex(0);
+
+	let state_config = StateConfig {
+		validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
+		validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
+		needed_approvals: 2,
+		..Default::default()
+	};
+
+	let mut state = State {
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
+			Ok(0)
+		})),
+		..some_state(state_config.clone())
+	};
+
+	add_block(
+		&mut state.db,
+		block_hash_2,
+		state_config.session_index,
+		state_config.slot,
+	);
+
+	add_candidate_to_block(
+		&mut state.db,
+		block_hash_2,
+		candidate_hash,
+		state_config.validators.len(),
+		1.into(),
+		GroupIndex(1),
+	);
+
+	let sig_a = sign_approval(Sr25519Keyring::Alice, candidate_hash, 1);
+	let sig_b = sign_approval(Sr25519Keyring::Alice, candidate_hash, 1);
+
+	{
+		let mut import_local_assignment = |block_hash: Hash| {
+			let approval_entry = state.db.candidate_entries.get_mut(&candidate_hash).unwrap()
+				.approval_entry_mut(&block_hash)
+				.unwrap();
+
+			approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: 0,
+				validator_index,
+				triggered: false,
+			}.into());
+
+			assert!(approval_entry.trigger_our_assignment(0).is_some());
+			assert!(approval_entry.local_statements().0.is_some());
+		};
+
+		import_local_assignment(block_hash);
+		import_local_assignment(block_hash_2);
+	}
+
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Local(validator_index, sig_a.clone()),
+		);
+
+		assert_eq!(actions.len(), 1);
+
+		assert_matches!(
+			actions.get_mut(0).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert_eq!(
+					c_entry.approval_entry(&block_hash).unwrap().local_statements().1,
+					Some(sig_a),
+				);
+				assert!(c_entry.mark_approval(validator_index));
+
+				state.db.candidate_entries.insert(candidate_hash, c_entry.clone());
+			}
+		);
+	}
+
+	{
+		let mut actions = import_checked_approval(
+			&state,
+			&Metrics(None),
+			state.db.block_entries.get(&block_hash_2).unwrap().clone(),
+			candidate_hash,
+			state.db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			ApprovalSource::Local(validator_index, sig_b.clone()),
+		);
+
+		assert_eq!(actions.len(), 1);
+
+		assert_matches!(
+			actions.get_mut(0).unwrap(),
+			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
+				assert_eq!(c_hash, &candidate_hash);
+				assert_eq!(
+					c_entry.approval_entry(&block_hash_2).unwrap().local_statements().1,
+					Some(sig_b),
+				);
+				assert!(c_entry.mark_approval(validator_index));
+
+				state.db.candidate_entries.insert(candidate_hash, c_entry.clone());
+			}
+		);
+	}
+}
+
+// TODO [now]: handling `BecomeActive` action broadcasts everything.

@@ -19,13 +19,22 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod claims;
-pub mod slot_range;
 pub mod slots;
+pub mod auctions;
 pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
+pub mod mmr;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
+pub mod slot_range;
+pub mod traits;
+pub mod xcm_sender;
+
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod integration_tests;
 
 use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
@@ -48,15 +57,11 @@ pub use pallet_balances::Call as BalancesCall;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
 
-pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
-/// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
-/// valid wasm module.
-pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
-
-/// We assume that an on-initialize consumes 2.5% of the weight on average, hence a single extrinsic
-/// will not be allowed to consume more than `AvailableBlockRatio - 2.5%`.
-pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_perthousand(25);
+/// We assume that an on-initialize consumes 1% of the weight on average, hence a single extrinsic
+/// will not be allowed to consume more than `AvailableBlockRatio - 1%`.
+pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
@@ -77,7 +82,7 @@ parameter_types! {
 	/// Minimum amount of the multiplier. This value cannot be too low. A test case should ensure
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
-	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
 	/// Maximum length of block. Up to 5MB.
 	pub BlockLength: limits::BlockLength =
 		limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
@@ -205,7 +210,7 @@ mod multiplier_tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>}
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>}
 		}
 	);
 
@@ -241,9 +246,10 @@ mod multiplier_tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
-	fn run_with_system_weight<F>(w: Weight, assertions: F) where F: Fn() -> () {
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F) where F: FnMut() -> () {
 		let mut t: sp_io::TestExternalities =
 			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
 		t.execute_with(|| {
@@ -258,10 +264,32 @@ mod multiplier_tests {
 		let target = TargetBlockFullness::get() *
 			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
-		// the weight is 1/10th bigger than target.
+		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target * 101 / 100, || {
 			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
 			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
 		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = TargetBlockFullness::get()
+			* BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap()
+			* 2;
+		let mut blocks = 0;
+		while multiplier <= Multiplier::one() {
+			run_with_system_weight(block_weight, || {
+				let next = SlowAdjustingFeeUpdate::<Runtime>::convert(multiplier);
+				// ensure that it is growing as well.
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+			});
+			blocks += 1;
+			println!("block = {} multiplier {:?}", blocks, multiplier);
+		}
 	}
 }

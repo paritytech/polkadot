@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-client"
-version = "0.8.28"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -25,7 +25,9 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures = "0.3.12"

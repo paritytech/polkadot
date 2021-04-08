@@ -25,14 +25,14 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, Hash,
+	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
 };
-use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp};
+use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
+
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
-	<inclusion::Module<T>>::validators()
+	<shared::Module<T>>::active_validator_keys()
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
@@ -40,7 +40,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
 	let groups = <scheduler::Module<T>>::validator_groups();
 	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
@@ -54,7 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	<scheduler::Module<T>>::clear();
 	<scheduler::Module<T>>::schedule(Vec::new(), now);
 
@@ -84,8 +84,11 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
 			Some(g) => g,
 			None =>  {
-				debug::warn!("Could not determine the group responsible for core extracted \
-					from list of cores for some prior block in same session");
+				log::warn!(
+					target: "runtime::polkadot-api::v1",
+					"Could not determine the group responsible for core extracted \
+					from list of cores for some prior block in same session",
+				);
 
 				GroupIndex(0)
 			}
@@ -197,10 +200,10 @@ fn with_assumption<Config, T, F>(
 pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<PersistedValidationData<T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
-	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
@@ -228,7 +231,35 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<inclusion::Module<T>>::session_index()
+	<shared::Module<T>>::session_index()
+}
+
+/// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
+/// It is a heavy call, but currently only used for authority discovery, so it is fine.
+/// Gets next, current and some historical authority ids using session_info module.
+pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
+	let current_session_index = session_index_for_child::<T>();
+	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+
+	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively
+	// selected to participate in parachain consensus. We'd like all authorities for the current
+	// and next sessions to be used in authority-discovery. The two sets likely have large overlap.
+	let mut authority_ids = <pallet_authority_discovery::Module<T>>::current_authorities();
+	authority_ids.extend(<pallet_authority_discovery::Module<T>>::next_authorities());
+
+	// Due to disputes, we'd like to remain connected to authorities of the previous few sessions.
+	// For this, we don't need anyone other than the validators actively participating in consensus.
+	for session_index in earliest_stored_session..current_session_index {
+		let info = <session_info::Module<T>>::session_info(session_index);
+		if let Some(mut info) = info {
+			authority_ids.append(&mut info.discovery_keys);
+		}
+	}
+
+	authority_ids.sort();
+	authority_ids.dedup();
+
+	authority_ids
 }
 
 /// Implementation for the `validation_code` function of the runtime API.
@@ -268,7 +299,7 @@ where
 {
 	use inclusion::Event as RawEvent;
 
-	<frame_system::Module<T>>::events().into_iter()
+	<frame_system::Pallet<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h, core, group)
@@ -298,4 +329,11 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
 	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
+}
+
+/// Implementation for the `validation_code_by_hash` function of the runtime API.
+pub fn validation_code_by_hash<T: paras::Config>(
+	hash: Hash,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::code_by_hash(hash)
 }

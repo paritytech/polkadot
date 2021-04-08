@@ -17,7 +17,7 @@
 use sp_std::marker::PhantomData;
 use frame_support::traits::{Get, OriginTrait};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
-use xcm_executor::traits::{LocationConversion, ConvertOrigin};
+use xcm_executor::traits::{Convert, ConvertOrigin};
 use polkadot_parachain::primitives::IsSystem;
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
@@ -26,12 +26,12 @@ pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
 	PhantomData<(LocationConverter, Origin)>
 );
 impl<
-	LocationConverter: LocationConversion<Origin::AccountId>,
+	LocationConverter: Convert<MultiLocation, Origin::AccountId>,
 	Origin: OriginTrait,
-> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> {
+> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> where Origin::AccountId: Clone {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		if let OriginKind::SovereignAccount = kind {
-			let location = LocationConverter::from_location(&origin).ok_or(origin)?;
+			let location = LocationConverter::convert(origin)?;
 			Ok(Origin::signed(location).into())
 		} else {
 			Err(origin)
@@ -144,6 +144,27 @@ impl<
 			(OriginKind::Native, MultiLocation::X1(Junction::AccountId32 { id, network }))
 			if matches!(network, NetworkId::Any) || network == Network::get()
 			=> Ok(Origin::signed(id.into())),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct SignedAccountKey20AsNative<Network, Origin>(
+	PhantomData<(Network, Origin)>
+);
+impl<
+	Network: Get<NetworkId>,
+	Origin: OriginTrait
+> ConvertOrigin<Origin> for SignedAccountKey20AsNative<Network, Origin> where
+	Origin::AccountId: From<[u8; 20]>,
+{
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(OriginKind::Native, MultiLocation::X1(Junction::AccountKey20 { key, network }))
+				if matches!(network, NetworkId::Any) || network == Network::get() =>
+			{
+				Ok(Origin::signed(key.into()))
+			}
 			(_, origin) => Err(origin),
 		}
 	}

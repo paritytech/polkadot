@@ -63,7 +63,7 @@ mod select_availability_bitfields {
 			&<SigningContext<Hash>>::default(),
 			validator_idx,
 			&public.into(),
-		).await.expect("Should be signed")
+		).await.ok().flatten().expect("Should be signed")
 	}
 
 	#[test]
@@ -78,9 +78,9 @@ mod select_availability_bitfields {
 		// we pass in three bitfields with two validators
 		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
 		];
 
 		let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -116,9 +116,9 @@ mod select_availability_bitfields {
 		];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec0, 0)),
-			block_on(signed_bitfield(&keystore, bitvec1, 1)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec1, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -140,8 +140,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec, 1)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -174,11 +174,11 @@ mod select_availability_bitfields {
 		// these are out of order but will be selected in order. The better
 		// bitfield for 3 will be selected.
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec3.clone(), 3)),
-			block_on(signed_bitfield(&keystore, bitvec0.clone(), 0)),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3))),
+			block_on(signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0))),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
 		];
 
 		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -191,7 +191,6 @@ mod select_availability_bitfields {
 }
 
 mod select_candidates {
-	use futures_timer::Delay;
 	use super::super::*;
 	use super::{build_occupied_core, occupied_core, scheduled_core, default_bitvec};
 	use polkadot_node_subsystem::messages::{
@@ -201,6 +200,7 @@ mod select_candidates {
 	use polkadot_primitives::v1::{
 		BlockNumber, CandidateDescriptor, PersistedValidationData, CommittedCandidateReceipt, CandidateCommitments,
 	};
+	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 
 	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
@@ -208,18 +208,18 @@ mod select_candidates {
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
-		OverseerFactory: FnOnce(mpsc::Receiver<FromJobCommand>) -> Overseer,
+		OverseerFactory: FnOnce(mpsc::UnboundedReceiver<AllMessages>) -> Overseer,
 		Overseer: Future<Output = ()>,
-		TestFactory: FnOnce(mpsc::Sender<FromJobCommand>) -> Test,
+		TestFactory: FnOnce(TestSubsystemSender) -> Test,
 		Test: Future<Output = ()>,
 	{
-		let (tx, rx) = mpsc::channel(64);
+		let (tx, rx) = polkadot_node_subsystem_test_helpers::sender_receiver();
 		let overseer = overseer_factory(rx);
 		let test = test_factory(tx);
 
 		futures::pin_mut!(overseer, test);
 
-		let _ = futures::executor::block_on(future::select(overseer, test));
+		let _ = futures::executor::block_on(future::join(overseer, test));
 	}
 
 	// For test purposes, we always return this set of availability cores:
@@ -298,24 +298,27 @@ mod select_candidates {
 		]
 	}
 
-	async fn mock_overseer(mut receiver: mpsc::Receiver<FromJobCommand>, expected: Vec<BackedCandidate>) {
+	async fn mock_overseer(
+		mut receiver: mpsc::UnboundedReceiver<AllMessages>,
+		expected: Vec<BackedCandidate>,
+	) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
 
 		while let Some(from_job) = receiver.next().await {
 			match from_job {
-				FromJobCommand::SendMessage(AllMessages::ChainApi(BlockNumber(_relay_parent, tx))) => {
+				AllMessages::ChainApi(BlockNumber(_relay_parent, tx)) => {
 					tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 				}
-				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(
+				AllMessages::RuntimeApi(Request(
 					_parent_hash,
 					PersistedValidationDataReq(_para_id, _assumption, tx),
-				))) => tx.send(Ok(Some(Default::default()))).unwrap(),
-				FromJobCommand::SendMessage(AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx)))) => {
+				)) => tx.send(Ok(Some(Default::default()))).unwrap(),
+				AllMessages::RuntimeApi(Request(_parent_hash, AvailabilityCores(tx))) => {
 					tx.send(Ok(mock_availability_cores())).unwrap()
 				}
-				FromJobCommand::SendMessage(
-					AllMessages::CandidateBacking(CandidateBackingMessage::GetBackedCandidates(_, _, sender))
+				AllMessages::CandidateBacking(
+					CandidateBackingMessage::GetBackedCandidates(_, _, sender)
 				) => {
 					let _ = sender.send(expected.clone());
 				}
@@ -325,28 +328,8 @@ mod select_candidates {
 	}
 
 	#[test]
-	fn handles_overseer_failure() {
-		let overseer = |rx: mpsc::Receiver<FromJobCommand>| async move {
-			// drop the receiver so it closes and the sender can't send, then just sleep long enough that
-			// this is almost certainly not the first of the two futures to complete
-			std::mem::drop(rx);
-			Delay::new(std::time::Duration::from_secs(1)).await;
-		};
-
-		let test = |mut tx: mpsc::Sender<FromJobCommand>| async move {
-			// wait so that the overseer can drop the rx before we attempt to send
-			Delay::new(std::time::Duration::from_millis(50)).await;
-			let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
-			println!("{:?}", result);
-			assert!(std::matches!(result, Err(Error::ChainApiMessageSend(_))));
-		};
-
-		test_harness(overseer, test);
-	}
-
-	#[test]
 	fn can_succeed() {
-		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+		test_harness(|r| mock_overseer(r, Vec::new()), |mut tx: TestSubsystemSender| async move {
 			select_candidates(&[], &[], &[], Default::default(), &mut tx).await.unwrap();
 		})
 	}
@@ -359,7 +342,7 @@ mod select_candidates {
 		let mock_cores = mock_availability_cores();
 		let n_cores = mock_cores.len();
 
-		let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
+		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
 
 		let candidate_template = CandidateReceipt {
 			descriptor: CandidateDescriptor {
@@ -411,7 +394,66 @@ mod select_candidates {
 			})
 			.collect();
 
-		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: mpsc::Sender<FromJobCommand>| async move {
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: TestSubsystemSender| async move {
+			let result =
+				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
+					.await.unwrap();
+
+			result.into_iter()
+				.for_each(|c|
+					assert!(
+						expected_candidates.iter().any(|c2| c.candidate.corresponds_to(c2)),
+						"Failed to find candidate: {:?}",
+						c,
+					)
+				);
+		})
+	}
+
+	#[test]
+	fn selects_max_one_code_upgrade() {
+		let mock_cores = mock_availability_cores();
+		let n_cores = mock_cores.len();
+
+		let empty_hash = PersistedValidationData::<Hash, BlockNumber>::default().hash();
+
+		// why those particular indices? see the comments on mock_availability_cores()
+		// the first candidate with code is included out of [1, 4, 7, 8, 10].
+		let cores = [1, 7, 10];
+		let cores_with_code = [1, 4, 8];
+
+		let committed_receipts: Vec<_> = (0..mock_cores.len())
+			.map(|i| CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: i.into(),
+					persisted_validation_data_hash: empty_hash,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					new_validation_code: if cores_with_code.contains(&i) { Some(vec![].into()) } else { None },
+					..Default::default()
+				},
+				..Default::default()
+			})
+			.collect();
+
+		let candidates: Vec<_> = committed_receipts.iter().map(|r| r.to_plain()).collect();
+
+		let expected_candidates: Vec<_> = cores
+			.iter()
+			.map(|&idx| candidates[idx].clone())
+			.collect();
+
+		let expected_backed: Vec<_> = cores
+			.iter()
+			.map(|&idx| BackedCandidate {
+				candidate: committed_receipts[idx].clone(),
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(n_cores),
+			})
+			.collect();
+
+		test_harness(|r| mock_overseer(r, expected_backed), |mut tx: TestSubsystemSender| async move {
 			let result =
 				select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
 					.await.unwrap();

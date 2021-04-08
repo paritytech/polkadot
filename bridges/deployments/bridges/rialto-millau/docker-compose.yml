@@ -1,0 +1,97 @@
+version: '3.5'
+services:
+  # We provide overrides for these particular nodes since they are public facing
+  # nodes which we use to connect from things like Polkadot JS Apps.
+  rialto-node-charlie:
+    environment:
+      VIRTUAL_HOST: wss.rialto.brucke.link
+      VIRTUAL_PORT: 9944
+      LETSENCRYPT_HOST: wss.rialto.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io
+
+  millau-node-charlie:
+    environment:
+      VIRTUAL_HOST: wss.millau.brucke.link
+      VIRTUAL_PORT: 9944
+      LETSENCRYPT_HOST: wss.millau.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io
+
+  relay-headers-millau-to-rialto: &sub-bridge-relay
+    image: paritytech/substrate-relay
+    entrypoint: /entrypoints/relay-headers-millau-to-rialto-entrypoint.sh
+    volumes:
+      - ./bridges/rialto-millau/entrypoints:/entrypoints
+    environment:
+      RUST_LOG: rpc=trace,bridge=trace
+    ports:
+      - "9616:9616"
+    depends_on: &all-nodes
+      - millau-node-alice
+      - millau-node-bob
+      - millau-node-charlie
+      - millau-node-dave
+      - millau-node-eve
+      - rialto-node-alice
+      - rialto-node-bob
+      - rialto-node-charlie
+      - rialto-node-dave
+      - rialto-node-eve
+
+  relay-headers-rialto-to-millau:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-headers-rialto-to-millau-entrypoint.sh
+    ports:
+      - "9716:9616"
+
+  relay-messages-millau-to-rialto:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-messages-millau-to-rialto-entrypoint.sh
+    environment:
+      RUST_LOG: rpc=trace,bridge=trace,jsonrpsee=trace,soketto=trace
+    ports:
+      - "9816:9616"
+    depends_on:
+      - relay-headers-millau-to-rialto
+      - relay-headers-rialto-to-millau
+
+  relay-messages-millau-to-rialto-generator:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-messages-to-rialto-generator-entrypoint.sh
+    environment:
+      RUST_LOG: rpc=trace,bridge=trace,jsonrpsee=trace,soketto=trace
+    ports:
+      - "9916:9616"
+    depends_on:
+      - relay-messages-millau-to-rialto
+
+  relay-messages-rialto-to-millau:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-messages-rialto-to-millau-entrypoint.sh
+    ports:
+      - "10016:9616"
+    depends_on:
+      - relay-headers-millau-to-rialto
+      - relay-headers-rialto-to-millau
+
+  relay-messages-rialto-to-millau-generator:
+    <<: *sub-bridge-relay
+    entrypoint: /entrypoints/relay-messages-to-millau-generator-entrypoint.sh
+    ports:
+      - "10116:9616"
+    depends_on:
+      - relay-messages-rialto-to-millau
+
+  # Note: These are being overridden from the top level `monitoring` compose file.
+  grafana-dashboard:
+    environment:
+      VIRTUAL_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io
+    volumes:
+       - ./bridges/rialto-millau/dashboard/grafana/provisioning/:/etc/grafana/provisioning/
+
+  prometheus-metrics:
+    volumes:
+      - ./bridges/rialto-millau/dashboard/prometheus/:/etc/prometheus/
+    depends_on: *all-nodes

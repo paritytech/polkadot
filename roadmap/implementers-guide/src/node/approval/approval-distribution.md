@@ -42,6 +42,11 @@ Output:
 ```rust
 type BlockScopedCandidate = (Hash, CandidateHash);
 
+enum PendingMessage {
+  Assignment(IndirectAssignmentCert, CoreIndex),
+  Approval(IndirectSignedApprovalVote),
+}
+
 /// The `State` struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain, which assignments and approvals we have seen, and our peers' views.
@@ -49,6 +54,14 @@ struct State {
   // These two fields are used in conjunction to construct a view over the unfinalized chain.
   blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
   blocks: HashMap<Hash, BlockEntry>,
+
+  /// Our view updates to our peers can race with `NewBlocks` updates. We store messages received
+  /// against the directly mentioned blocks in our view in this map until `NewBlocks` is received.
+  ///
+  /// As long as the parent is already in the `blocks` map and `NewBlocks` messages aren't delayed
+  /// by more than a block length, this strategy will work well for mitigating the race. This is
+  /// also a race that occurs typically on local networks.
+  pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage>)>>,
 
   // Peer view data is partially stored here, and partially inline within the `BlockEntry`s
   peer_views: HashMap<PeerId, View>,
@@ -63,10 +76,17 @@ struct Knowledge {
   known_messages: HashSet<MessageFingerprint>,
 }
 
+struct PeerKnowledge {
+  /// The knowledge we've sent to the peer.
+  sent: Knowledge,
+  /// The knowledge we've received from the peer.
+  received: Knowledge,
+}
+
 /// Information about blocks in our current view as well as whether peers know of them.
 struct BlockEntry {
   // Peers who we know are aware of this block and thus, the candidates within it. This maps to their knowledge of messages.
-  known_by: HashMap<PeerId, Knowledge>,
+  known_by: HashMap<PeerId, PeerKnowledge>,
   // The number of the block.
   number: BlockNumber,
   // The parent hash of the block.
@@ -102,6 +122,11 @@ Remove the view under the associated `PeerId` from `State::peer_views`.
 
 Iterate over every `BlockEntry` and remove `PeerId` from it.
 
+#### `NetworkBridgeEvent::OurViewChange`
+
+Remove entries in `pending_known` for all hashes not present in the view.
+Ensure a vector is present in `pending_known` for each hash in the view that does not have an entry in `blocks`.
+
 #### `NetworkBridgeEvent::PeerViewChange`
 
 Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
@@ -116,6 +141,8 @@ From there, we can loop backwards from `constrain(view.finalized_number)` until 
 
 #### `NetworkBridgeEvent::PeerMessage`
 
+If the block hash referenced by the message exists in `pending_known`, add it to the vector of pending messages and return.
+
 If the message is of type `ApprovalDistributionV1Message::Assignment(assignment_cert, claimed_index)`, then call `import_and_circulate_assignment(MessageSource::Peer(sender), assignment_cert, claimed_index)`
 
 If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote)`, then call `import_and_circulate_approval(MessageSource::Peer(sender), approval_vote)`
@@ -125,6 +152,9 @@ If the message is of type `ApprovalDistributionV1Message::Approval(approval_vote
 #### `ApprovalDistributionMessage::NewBlocks`
 
 Create `BlockEntry` and `CandidateEntries` for all blocks.
+
+For all entries in `pending_known`:
+  * If there is now an entry under `blocks` for the block hash, drain all messages and import with `import_and_circulate_assignment` and `import_and_circulate_approval`.
 
 For all peers:
   * Compute `view_intersection` as the intersection of the peer's view blocks with the hashes of the new blocks.
@@ -157,17 +187,17 @@ enum MessageSource {
 Imports an assignment cert referenced by block hash and candidate index. As a postcondition, if the cert is valid, it will have distributed the cert to all peers who have the block in their view, with the exclusion of the peer referenced by the `MessageSource`.
 
 We maintain a few invariants:
-  * we only send an assignment to a peer after we add its fingerpring to our knownledge
-  * we add a fingerprint of an assignment to our knownledge only if it's valid and hasn't been added before
+  * we only send an assignment to a peer after we add its fingerprint to our knowledge
+  * we add a fingerprint of an assignment to our knowledge only if it's valid and hasn't been added before
 
 The algorithm is the following:
 
   * Load the BlockEntry using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
   * Compute a fingerprint for the `assignment` using `claimed_candidate_index`.
   * If the source is `MessageSource::Peer(sender)`:
-    * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
+    * check if `peer` appears under `known_by` and whether the fingerprint is in the knowledge of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the `sent` knowledge contains the fingerprint, report for providing replicate data and return, otherwise, insert into the `received` knowledge and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost,
-    add the fingerpring to the peer's knownledge only if it knows about the block and return.
+    add the fingerprint to the peer's knowledge only if it knows about the block and return.
     Note that we must do this after checking for out-of-view and if the peers knows about the block to avoid being spammed.
     If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportAssignment(assignment)` and wait for the response.
@@ -192,9 +222,9 @@ Imports an approval signature referenced by block hash and candidate index:
   * Compute a fingerprint for the approval.
   * Compute a fingerprint for the corresponding assignment. If the `BlockEntry`'s knowledge does not contain that fingerprint, then report the source if it is `MessageSource::Peer` and return. All references to a fingerprint after this refer to the approval's, not the assignment's.
   * If the source is `MessageSource::Peer(sender)`:
-    * check if `peer` appears under `known_by` and whether the fingerprint is in the `known_messages` of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the knowledge contains the fingerprint, report for providing replicate data and return.
+    * check if `peer` appears under `known_by` and whether the fingerprint is in the knowledge of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the `sent` knowledge contains the fingerprint, report for providing replicate data and return, otherwise, insert into the `received` knowledge and return.
     * If the message fingerprint appears under the `BlockEntry`'s `Knowledge`, give the peer a small positive reputation boost,
-    add the fingerpring to the peer's knownledge only if it knows about the block and return.
+    add the fingerprint to the peer's knowledge only if it knows about the block and return.
     Note that we must do this after checking for out-of-view to avoid being spammed. If we did this check earlier, a peer could provide data out-of-view repeatedly and be rewarded for it.
     * Dispatch `ApprovalVotingMessage::CheckAndImportApproval(approval)` and wait for the response.
     * If the result is `VoteCheckResult::Accepted(())`:
@@ -214,9 +244,11 @@ Imports an approval signature referenced by block hash and candidate index:
 1. Initialize a set `fresh_blocks = {}`
 
 For each block in the view:
-  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number, go to step 6.
+  2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number go to step 6.
   3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
   4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.
-  5. Return to step 2 with the ancestor of the block.
+  5. Return to step 2 with the ancestor of the block, keeping track of the block depth (+1).
 
-6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
+6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer if the block depth threshold is not reached, otherwise, send only assignments and approvals origination with the local source.
+
+The reason we only send our local assignments and approvals when a certain block depth is reached when unifying with a peer is to avoid DoS attacks. It also helps when a node starts with a large difference between finalized and the highest block.

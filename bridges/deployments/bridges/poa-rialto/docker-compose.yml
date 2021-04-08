@@ -1,0 +1,92 @@
+# This Compose file should be built using the Rialto and Eth-PoA node
+# compose files. Otherwise it won't work.
+
+version: '3.5'
+services:
+  # We override these nodes to make sure we have the correct chain config for this network.
+  poa-node-arthur: &poa-node
+    volumes:
+      - ./bridges/poa-rialto/poa-config:/config
+  poa-node-bertha:
+      <<: *poa-node
+  poa-node-carlos:
+      <<: *poa-node
+
+  # We provide an override for this particular node since this is a public facing
+  # node which we use to connect from things like Polkadot JS Apps.
+  rialto-node-charlie:
+    environment:
+      VIRTUAL_HOST: rialto.bridges.test-installations.parity.io,wss.rialto.brucke.link
+      VIRTUAL_PORT: 9944
+      LETSENCRYPT_HOST: rialto.bridges.test-installations.parity.io,wss.rialto.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io
+
+  relay-headers-poa-to-rialto: &eth-poa-relay
+    image: paritytech/ethereum-poa-relay
+    entrypoint: /entrypoints/relay-headers-poa-to-rialto-entrypoint.sh
+    volumes:
+      - ./bridges/poa-rialto/entrypoints:/entrypoints
+    environment:
+      RUST_LOG: rpc=trace,bridge=trace
+    ports:
+      - "9616:9616"
+    depends_on: &all-nodes
+      - poa-node-arthur
+      - poa-node-bertha
+      - poa-node-carlos
+      - rialto-node-alice
+      - rialto-node-bob
+      - rialto-node-charlie
+      - rialto-node-dave
+      - rialto-node-eve
+
+  relay-poa-exchange-rialto:
+    <<: *eth-poa-relay
+    entrypoint: /entrypoints/relay-poa-exchange-rialto-entrypoint.sh
+    ports:
+      - "9716:9616"
+
+  relay-headers-rialto-to-poa:
+    <<: *eth-poa-relay
+    entrypoint: /entrypoints/relay-headers-rialto-to-poa-entrypoint.sh
+    ports:
+      - "9816:9616"
+
+  poa-exchange-tx-generator:
+    <<: *eth-poa-relay
+    entrypoint: /entrypoints/poa-exchange-tx-generator-entrypoint.sh
+    environment:
+      EXCHANGE_GEN_MIN_AMOUNT_FINNEY: ${EXCHANGE_GEN_MIN_AMOUNT_FINNEY:-1}
+      EXCHANGE_GEN_MAX_AMOUNT_FINNEY: ${EXCHANGE_GEN_MAX_AMOUNT_FINNEY:-100000}
+      EXCHANGE_GEN_MAX_SUBMIT_DELAY_S: ${EXCHANGE_GEN_MAX_SUBMIT_DELAY_S:-60}
+    ports:
+      - "9916:9616"
+    depends_on:
+      - relay-headers-poa-to-rialto
+      - relay-headers-rialto-to-poa
+
+  front-end:
+    build:
+      context: .
+      dockerfile: ./bridges/poa-rialto/Front-end.Dockerfile
+      args:
+        SUBSTRATE_PROVIDER: ${UI_SUBSTRATE_PROVIDER:-ws://localhost:9944}
+        ETHEREUM_PROVIDER: ${UI_ETHEREUM_PROVIDER:-http://localhost:8545}
+        EXPECTED_ETHEREUM_NETWORK_ID: ${UI_EXPECTED_ETHEREUM_NETWORK_ID:-105}
+    ports:
+      - "8080:80"
+
+  # Note: These are being overridden from the top level `monitoring` compose file.
+  prometheus-metrics:
+    volumes:
+      - ./bridges/poa-rialto/dashboard/prometheus/:/etc/prometheus/
+    depends_on: *all-nodes
+
+  grafana-dashboard:
+    volumes:
+       - ./bridges/poa-rialto/dashboard/grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      VIRTUAL_HOST: dashboard.rialto.bridges.test-installations.parity.io,grafana.rialto.brucke.link
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: dashboard.rialto.bridges.test-installations.parity.io,grafana.rialto.brucke.link
+      LETSENCRYPT_EMAIL: admin@parity.io

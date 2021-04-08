@@ -23,15 +23,16 @@
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
-	jaeger, PerLeafSpan, JaegerSpan,
+	jaeger, PerLeafSpan, SubsystemSender,
 	messages::{
-		AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
+		AvailabilityStoreMessage, BitfieldDistributionMessage,
 		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, JobManager, JobTrait, Validator, FromJobCommand, metrics::{self, prometheus},
+	self as util, JobSubsystem, JobTrait, Validator, metrics::{self, prometheus},
+	JobSender,
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
@@ -39,7 +40,7 @@ use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
-const LOG_TARGET: &str = "bitfield_signing";
+const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -71,27 +72,26 @@ pub enum Error {
 /// for whether we have the availability chunk for our validator index.
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
-	relay_parent: Hash,
-	core: CoreState,
+	core: &CoreState,
 	validator_idx: ValidatorIndex,
-	sender: &Mutex<&mut mpsc::Sender<FromJobCommand>>,
-	span: &jaeger::JaegerSpan,
+	sender: &Mutex<&mut impl SubsystemSender>,
+	span: &jaeger::Span,
 ) -> Result<bool, Error> {
-	if let CoreState::Occupied(core) = core {
+	if let &CoreState::Occupied(ref core) = core {
 		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();
 		sender
 			.lock()
 			.await
-			.send(
-				AllMessages::from(AvailabilityStoreMessage::QueryChunkAvailability(
+			.send_message(
+				AvailabilityStoreMessage::QueryChunkAvailability(
 					core.candidate_hash,
 					validator_idx,
 					tx,
-				)).into(),
+				).into(),
 			)
-			.await?;
+			.await;
 
 		let res = rx.await.map_err(Into::into);
 
@@ -112,12 +112,15 @@ async fn get_core_availability(
 /// delegates to the v1 runtime API
 async fn get_availability_cores(
 	relay_parent: Hash,
-	sender: &mut mpsc::Sender<FromJobCommand>,
+	sender: &mut impl SubsystemSender,
 ) -> Result<Vec<CoreState>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send(AllMessages::from(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))).into())
-		.await?;
+		.send_message(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::AvailabilityCores(tx),
+		).into())
+		.await;
 	match rx.await {
 		Ok(Ok(out)) => Ok(out),
 		Ok(Err(runtime_err)) => Err(runtime_err.into()),
@@ -132,9 +135,9 @@ async fn get_availability_cores(
 #[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
-	span: &jaeger::JaegerSpan,
+	span: &jaeger::Span,
 	validator_idx: ValidatorIndex,
-	sender: &mut mpsc::Sender<FromJobCommand>,
+	sender: &mut impl SubsystemSender,
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
 	let availability_cores = {
@@ -152,9 +155,17 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.into_iter()
-			.map(|core| get_core_availability(relay_parent, core, validator_idx, &sender, span)),
+		availability_cores.iter()
+			.map(|core| get_core_availability(core, validator_idx, &sender, span)),
 	).await?;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?relay_parent,
+		"Signing Bitfield for {} cores: {:?}",
+		availability_cores.len(),
+		results,
+	);
 
 	Ok(AvailabilityBitfield(FromIterator::from_iter(results)))
 }
@@ -216,13 +227,13 @@ impl JobTrait for BitfieldSigningJob {
 
 	/// Run a job for the parent block indicated
 	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
-	fn run(
+	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
-		span: Arc<JaegerSpan>,
+		span: Arc<jaeger::Span>,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
-		mut sender: mpsc::Sender<FromJobCommand>,
+		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
@@ -232,7 +243,7 @@ impl JobTrait for BitfieldSigningJob {
 
 			// now do all the work we can before we need to wait for the availability store
 			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(relay_parent, keystore.clone(), sender.clone()).await {
+			let validator = match Validator::new(relay_parent, keystore.clone(), &mut sender).await {
 				Ok(validator) => validator,
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
@@ -253,7 +264,7 @@ impl JobTrait for BitfieldSigningJob {
 					relay_parent,
 					&span_availability,
 					validator.index(),
-					&mut sender,
+					sender.subsystem_sender(),
 				).await
 			{
 				Err(Error::Runtime(runtime_err)) => {
@@ -268,36 +279,47 @@ impl JobTrait for BitfieldSigningJob {
 			drop(span_availability);
 			let _span = span.child("signing");
 
-			let signed_bitfield = validator
-				.sign(keystore.clone(), bitfield)
+			let signed_bitfield = match validator.sign(keystore.clone(), bitfield)
 				.await
-				.map_err(|e| Error::Keystore(e))?;
+				.map_err(|e| Error::Keystore(e))?
+			{
+				Some(b) => b,
+				None => {
+					tracing::error!(
+						target: LOG_TARGET,
+						"Key was found at construction, but while signing it could not be found.",
+					);
+					return Ok(());
+				}
+			};
+
 			metrics.on_bitfield_signed();
 
 			drop(_span);
 			let _span = span.child("gossip");
 
 			sender
-				.send(
-					AllMessages::from(
-						BitfieldDistributionMessage::DistributeBitfield(relay_parent, signed_bitfield),
-					).into(),
-				)
-				.await
-				.map_err(Into::into)
+				.send_message(BitfieldDistributionMessage::DistributeBitfield(
+					relay_parent,
+					signed_bitfield,
+				).into())
+				.await;
+
+			Ok(())
 		}
 		.boxed()
 	}
 }
 
 /// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
-pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Context, BitfieldSigningJob>;
+pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
 	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
+	use polkadot_node_subsystem::messages::AllMessages;
 
 	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {
@@ -315,13 +337,13 @@ mod tests {
 	#[test]
 	fn construct_availability_bitfield_works() {
 		block_on(async move {
-			let (mut sender, mut receiver) = mpsc::channel(10);
 			let relay_parent = Hash::default();
-			let validator_index = 1u32;
+			let validator_index = ValidatorIndex(1u32);
 
+			let (mut sender, mut receiver) = polkadot_node_subsystem_test_helpers::sender_receiver();
 			let future = construct_availability_bitfield(
 				relay_parent,
-				&jaeger::JaegerSpan::Disabled,
+				&jaeger::Span::Disabled,
 				validator_index,
 				&mut sender,
 			).fuse();
@@ -333,18 +355,14 @@ mod tests {
 			loop {
 				futures::select! {
 					m = receiver.next() => match m.unwrap() {
-						FromJobCommand::SendMessage(
-							AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx)),
-							),
+						AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx)),
 						) => {
 							assert_eq!(relay_parent, rp);
 							tx.send(Ok(vec![CoreState::Free, occupied_core(1, hash_a), occupied_core(2, hash_b)])).unwrap();
-						},
-						FromJobCommand::SendMessage(
-							AllMessages::AvailabilityStore(
-								AvailabilityStoreMessage::QueryChunkAvailability(c_hash, vidx, tx),
-							),
+						}
+						AllMessages::AvailabilityStore(
+							AvailabilityStoreMessage::QueryChunkAvailability(c_hash, vidx, tx),
 						) => {
 							assert_eq!(validator_index, vidx);
 

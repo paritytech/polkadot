@@ -14,9 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::prelude::*;
 use futures::stream::BoxStream;
@@ -24,15 +27,18 @@ use futures::stream::BoxStream;
 use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
-use sc_network::{NetworkService, IfDisconnected};
+use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure};
+use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
-	request_response::{OutgoingRequest, Requests},
-	PeerId, ReputationChange,
+	request_response::{OutgoingRequest, Requests, Recipient},
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
+
+use crate::validator_discovery::AuthorityDiscovery;
 
 use super::LOG_TARGET;
 
@@ -46,6 +52,7 @@ pub(crate) async fn send_message<M, I>(
 	peers: I,
 	peer_set: PeerSet,
 	message: M,
+	metrics: &super::Metrics,
 ) -> SubsystemResult<()>
 where
 	M: Encode + Clone,
@@ -55,7 +62,12 @@ where
 	let mut message_producer = stream::iter({
 		let peers = peers.into_iter();
 		let n_peers = peers.len();
-		let mut message = Some(message.encode());
+		let mut message = {
+			let encoded = message.encode();
+			metrics.on_notification_sent(peer_set, encoded.len(), n_peers);
+
+			Some(encoded)
+		};
 
 		peers.enumerate().map(move |(i, peer)| {
 			// optimization: avoid cloning the message for the last peer in the
@@ -86,18 +98,28 @@ where
 #[derive(Debug, PartialEq)]
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
-	ReputationChange(PeerId, ReputationChange),
+	ReputationChange(PeerId, Rep),
+	/// Disconnect a peer from the given peer-set.
+	DisconnectPeer(PeerId, PeerSet),
 	/// Write a notification to a given peer on the given peer-set.
 	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
-pub trait Network: Send + 'static {
+#[async_trait]
+pub trait Network: Clone + Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
 	/// to the [`VALIDATION_PROTOCOL_NAME`](VALIDATION_PROTOCOL_NAME)
 	/// or [`COLLATION_PROTOCOL_NAME`](COLLATION_PROTOCOL_NAME)
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
+
+	/// Ask the network to keep a substream open with these nodes and not disconnect from them
+	/// until removed from the protocol's peer set.
+	/// Note that `out_peers` setting has no effect on this.
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	/// Cancels the effects of `add_to_peers_set`.
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 
 	/// Get access to an underlying sink for all network actions.
 	fn action_sink<'a>(
@@ -105,17 +127,36 @@ pub trait Network: Send + 'static {
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
 
 	/// Send a request to a remote peer.
-	fn start_request(&self, req: Requests);
+	async fn start_request<AD: AuthorityDiscovery>(
+		&self,
+		authority_discovery: &mut AD,
+		req: Requests,
+		if_disconnected: IfDisconnected,
+	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
 	fn report_peer(
 		&mut self,
 		who: PeerId,
-		cost_benefit: ReputationChange,
+		cost_benefit: Rep,
 	) -> BoxFuture<SubsystemResult<()>> {
 		async move {
 			self.action_sink()
 				.send(NetworkAction::ReputationChange(who, cost_benefit))
+				.await
+		}
+		.boxed()
+	}
+
+	/// Disconnect a given peer from the peer set specified without harming reputation.
+	fn disconnect_peer(
+		&mut self,
+		who: PeerId,
+		peer_set: PeerSet,
+	) -> BoxFuture<SubsystemResult<()>> {
+		async move {
+			self.action_sink()
+				.send(NetworkAction::DisconnectPeer(who, peer_set))
 				.await
 		}
 		.boxed()
@@ -137,9 +178,18 @@ pub trait Network: Send + 'static {
 	}
 }
 
+#[async_trait]
 impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+	}
+
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
+	}
+
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -167,8 +217,11 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 							cost_benefit,
 							peer
 						);
-						self.0.report_peer(peer, cost_benefit)
+						self.0.report_peer(peer, cost_benefit.into_base_rep())
 					}
+					NetworkAction::DisconnectPeer(peer, peer_set) => self
+						.0
+						.disconnect_peer(peer, peer_set.into_protocol_name()),
 					NetworkAction::WriteNotification(peer, peer_set, message) => self
 						.0
 						.write_notification(peer, peer_set.into_protocol_name(), message),
@@ -189,7 +242,12 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		Box::pin(ActionSink(&**self))
 	}
 
-	fn start_request(&self, req: Requests) {
+	async fn start_request<AD: AuthorityDiscovery>(
+		&self,
+		authority_discovery: &mut AD,
+		req: Requests,
+		if_disconnected: IfDisconnected,
+	) {
 		let (
 			protocol,
 			OutgoingRequest {
@@ -199,12 +257,55 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			},
 		) = req.encode_request();
 
-		NetworkService::start_request(&*self,
-			peer,
+		let peer_id = match peer {
+			Recipient::Peer(peer_id) =>  Some(peer_id),
+			Recipient::Authority(authority) => {
+				let mut found_peer_id = None;
+				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
+				// to be very quick.
+				for addr in authority_discovery
+					.get_addresses_by_authority_id(authority).await
+					.into_iter().flat_map(|list| list.into_iter())
+				{
+					let (peer_id, addr) = match parse_addr(addr) {
+						Ok(v) => v,
+						Err(_) => continue,
+					};
+					NetworkService::add_known_address(
+						&*self,
+						peer_id.clone(),
+						addr,
+					);
+					found_peer_id = Some(peer_id);
+				}
+				found_peer_id
+			}
+		};
+
+		let peer_id = match peer_id {
+			None => {
+				tracing::debug!(target: LOG_TARGET, "Discovering authority failed");
+				match pending_response
+					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
+				{
+					Err(_) => tracing::debug!(
+						target: LOG_TARGET,
+						"Sending failed request response failed."
+					),
+					Ok(_) => {}
+				}
+				return;
+			}
+			Some(peer_id) => peer_id,
+		};
+
+		NetworkService::start_request(
+			&*self,
+			peer_id,
 			protocol.into_protocol_name(),
 			payload,
 			pending_response,
-			IfDisconnected::TryConnect,
+			if_disconnected,
 		);
 	}
 }

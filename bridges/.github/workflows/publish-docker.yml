@@ -1,0 +1,76 @@
+name:                                               Publish images to Docker hub
+
+on:
+  push:
+    tags:
+      - v*
+    paths-ignore:
+      - '**/README.md'
+      - diagrams/*
+      - docs/*
+  schedule:                                         # Nightly build
+    - cron:                                         '0 1 * * *'
+
+jobs:
+## Publish to Docker hub
+  publish:
+    name:                                           Publishing
+    strategy:
+      matrix:
+        project:
+          - rialto-bridge-node
+          - millau-bridge-node
+          - ethereum-poa-relay
+          - substrate-relay
+        include:
+          - project: rialto-bridge-node
+            healthcheck: http://localhost:9933/health
+          - project: millau-bridge-node
+            healthcheck: http://localhost:9933/health
+          - project: ethereum-poa-relay
+            healthcheck: http://localhost:9616/metrics
+          - project: substrate-relay
+            healthcheck: http://localhost:9616/metrics
+    runs-on:                                        ubuntu-latest
+    container:
+      image:                                        docker:git
+    steps:
+      - name:                                       Cancel Previous Runs
+        uses:                                       styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token:                             ${{ github.token }}
+      - name:                                       Checkout sources & submodules
+        uses:                                       actions/checkout@master
+        with:
+          fetch-depth:                              5
+          submodules:                               recursive
+      - name:                                       Set vars
+        id:                                         vars
+        run:                                        |
+          echo ::set-output name=DATE::$(date +%d-%m-%Y)
+          if [[ ${GITHUB_REF} = refs/tags/* ]]
+          then
+            echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
+          else
+            echo ::set-output name=TAG::nightly-$(date +%d-%m-%Y)
+          fi
+      - name:                                       Build and push ${{ matrix.project }}
+        uses:                                       docker/build-push-action@v1
+        with:
+          username:                                 ${{ secrets.DOCKER_USER }}
+          password:                                 ${{ secrets.DOCKER_PASSWORD }}
+          repository:                               paritytech/${{ matrix.project }}
+          build_args:                               PROJECT=${{ matrix.project }}, HEALTH=${{ matrix.healthcheck }}
+          tags:                                     ${{ steps.vars.outputs.TAG }}, latest
+          labels:
+            org.opencontainers.image.created=${{ steps.vars.outputs.DATE }},
+            org.opencontainers.image.source="https://github.com/paritytech/parity-bridges-common",
+            org.opencontainers.image.authors="devops-team@parity.io",
+            org.opencontainers.image.vendor="Parity Technologies",
+            org.opencontainers.image.url="https://github.com/paritytech/parity-bridges-common",
+            org.opencontainers.image.documentation="https://github.com/paritytech/parity-bridges-common/README.md",
+            org.opencontainers.image.version=${{ steps.vars.outputs.TAG }},
+            org.opencontainers.image.title=${{ matrix.project }},
+            org.opencontainers.image.description="${{ matrix.project }} - component of Parity Bridges Common",
+            org.opencontainers.image.licenses="GPL-3.0 License"
+          add_git_labels:                           true

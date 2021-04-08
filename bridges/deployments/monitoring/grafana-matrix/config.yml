@@ -1,0 +1,49 @@
+---
+# Webhook server configuration
+# Or use the launch options `-o '::' -p 4567`
+#bind: '::'
+#port: 4567
+
+# Set up your HS connections
+matrix:
+- name: matrix-parity-io
+  url: https://matrix.parity.io
+  # Create a user - log that user in using a post request
+  # curl -XPOST -d '{"type": "m.login.password",
+  #                  "user":"grafana",
+  #                  "password":"2m4ny53cr3t5"}'
+  #      "https://my-matrix-server/_matrix/client/r0/login"
+  # Fill that access token in here
+  access_token: "<access_token>"
+  #device_id: <device> # Optional
+
+# The default message type for messages, should be either m.text or m.notice,
+# defaults to m.text
+msgtype: m.text
+
+# Set up notification ingress rules
+rules:
+- name: bridge              # Name of the rule
+  room: "#bridges-workers:matrix.parity.io" # Room or ID
+  matrix: matrix-parity-io     # The Matrix HS to use - defaults to first one
+  msgtype: m.notice
+  # The following values are optional:
+  image: true           # Attach image to the notification?
+  embed_image: true     # Upload and embed the image into the message?
+  #templates:
+    # Templates to use when rendering the notification, available placeholders:
+    #   %TEMPLATES% - lib/grafana_matrix/templates
+    #   $<env>      - Environment variables
+    #html: "%TEMPLATES%/html.erb" # Path to HTML template
+    #plain: "%TEMPLATES%/plain.erb" # Path to plaintext template
+  #auth:
+    #user: example
+    #pass: any HTTP encodable string
+#- name: other-hq
+#  room: "#hq:private.matrix.org
+#  matrix: matrix-priv
+
+# To use the webhook, you need to configure it into Grafana as:
+#
+# Url: http://<server address>:<port>/hook?rule=<rule name>
+# Http Method: POST
