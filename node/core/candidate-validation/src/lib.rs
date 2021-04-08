@@ -461,7 +461,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		}
 	};
 
-	let decompressed_block_data = match sp_maybe_compressed_blob::decompress(
+	let raw_block_data = match sp_maybe_compressed_blob::decompress(
 		&pov.block_data.0,
 		POV_BOMB_LIMIT,
 	) {
@@ -476,7 +476,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
-		block_data: decompressed_block_data,
+		block_data: raw_block_data,
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};

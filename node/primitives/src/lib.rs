@@ -41,8 +41,11 @@ pub mod approval;
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
 
+/// Maximum PoV size we support right now.
+pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
+
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = 50 * 1024 * 1024;
+pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
@@ -152,17 +155,6 @@ pub enum ValidationResult {
 	Invalid(InvalidCandidate),
 }
 
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
-
-/// Very conservative (compression ratio of 1).
-///
-/// Experiments showed that we have a typical compression ratio of 3.4.
-/// https://github.com/ordian/bench-compression-algorithms/
-///
-/// So this could be reduced if deemed necessary.
-pub const MAX_COMPRESSED_POV_SIZE: u32 = MAX_POV_SIZE;
-
 /// A Proof-of-Validity
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
 pub struct PoV {
@@ -269,6 +261,7 @@ pub struct ErasureChunk {
 }
 
 /// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].
+#[cfg(not(target_os = "unknown")]
 pub fn maybe_compress_pov(pov: PoV) -> PoV {
 	let PoV { block_data: BlockData(raw) } = pov;
 	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
