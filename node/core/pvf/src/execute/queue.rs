@@ -82,12 +82,15 @@ impl Workers {
 			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
 	}
 
-	fn claim_idle(&mut self, worker: Worker) -> IdleWorker {
-		let data = self
+	/// Find the associated data by the worker token and extract it's [`IdleWorker`] token.
+	///
+	/// Returns `None` if either worker is not recognized or idle token is absent.
+	fn claim_idle(&mut self, worker: Worker) -> Option<IdleWorker> {
+		self
 			.running
-			.get_mut(worker)
-			.expect("the worker doesn't exist");
-		data.idle.take().expect("the worker has no idle token")
+			.get_mut(worker)?
+			.idle
+			.take()
 	}
 }
 
@@ -304,8 +307,17 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 }
 
 /// Ask the given worker to perform the given job.
+///
+/// The worker must be running and idle.
 fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
-	let idle = queue.workers.claim_idle(worker);
+	let idle = queue
+		.workers
+		.claim_idle(worker)
+		.expect(
+			"this caller must supply a worker which is idle and running;
+			thus claim_idle cannot return None;
+			qed."
+		);
 	queue.mux.push(
 		async move {
 			let outcome = super::worker::start_work(idle, job.artifact_path, job.params).await;
