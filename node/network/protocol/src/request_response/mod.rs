@@ -36,7 +36,7 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use polkadot_node_primitives::MAX_COMPRESSED_POV_SIZE;
+use polkadot_node_primitives::MAX_POV_SIZE;
 use strum::EnumIter;
 
 pub use sc_network::config as network;
@@ -84,7 +84,7 @@ const MIN_BANDWIDTH_BYTES: u64  = 50 * 1024 * 1024;
 /// Timeout for PoV like data, 2 times what it should take, assuming we can fully utilize the
 /// bandwidth. This amounts to two seconds right now.
 const POV_REQUEST_TIMEOUT_CONNECTED: Duration =
-	Duration::from_millis(2 * 1000 * (MAX_COMPRESSED_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
+	Duration::from_millis(2 * 1000 * (MAX_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -114,7 +114,7 @@ impl Protocol {
 			Protocol::CollationFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 10_000,
-				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				max_response_size: MAX_POV_SIZE as u64,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
@@ -122,7 +122,7 @@ impl Protocol {
 			Protocol::PoVFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				max_response_size: MAX_POV_SIZE as u64,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
@@ -130,7 +130,7 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
-				max_response_size: MAX_COMPRESSED_POV_SIZE as u64,
+				max_response_size: MAX_POV_SIZE as u64,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},

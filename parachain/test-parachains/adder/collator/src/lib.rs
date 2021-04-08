@@ -176,13 +176,15 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
+			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
+
 			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn("adder-collator-seconded", async move {
 				if let Ok(res) = recv.await {
 					if !matches!(
 						res.payload(),
-						Statement::Seconded(s) if s.descriptor.pov_hash == pov.hash(),
+						Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
 					) {
 						log::error!("Seconded statement should match our collation: {:?}", res.payload());
 						std::process::exit(-1);
