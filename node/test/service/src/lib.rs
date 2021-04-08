@@ -53,7 +53,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::sync::Arc;
+use std::{sync::Arc, path::PathBuf};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -73,6 +73,7 @@ pub use polkadot_service::FullBackend;
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
+	worker_program_path: Option<PathBuf>,
 ) -> Result<
 	NewFull<Arc<Client>>,
 	Error,
@@ -82,8 +83,8 @@ pub fn new_full(
 		is_collator,
 		None,
 		None,
-		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 		None,
+		worker_program_path,
 	)
 }
 
@@ -214,11 +215,12 @@ pub fn run_validator_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
+	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::No).expect("could not create Polkadot test service");
+		new_full(config, IsCollator::No, worker_program_path).expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
@@ -261,7 +263,7 @@ pub fn run_collator_node(
 		rpc_handlers,
 		overseer_handler,
 		..
-	} = new_full(config, IsCollator::Yes(collator_pair))
+	} = new_full(config, IsCollator::Yes(collator_pair), None)
 		.expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");

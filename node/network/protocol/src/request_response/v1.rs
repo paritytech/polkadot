@@ -20,7 +20,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, PoV, ErasureChunk};
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -104,7 +104,7 @@ pub struct CollationFetchingRequest {
 pub enum CollationFetchingResponse {
 	/// Deliver requested collation.
 	#[codec(index = 0)]
-	Collation(CandidateReceipt, CompressedPoV),
+	Collation(CandidateReceipt, PoV),
 }
 
 impl IsRequest for CollationFetchingRequest {
@@ -124,7 +124,7 @@ pub struct PoVFetchingRequest {
 pub enum PoVFetchingResponse {
 	/// Deliver requested PoV.
 	#[codec(index = 0)]
-	PoV(CompressedPoV),
+	PoV(PoV),
 	/// PoV was not found in store.
 	#[codec(index = 1)]
 	NoSuchPoV,
