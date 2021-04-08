@@ -129,7 +129,7 @@ pub async fn start_work(
 }
 
 async fn send_request(stream: &mut UnixStream, code: Arc<Vec<u8>>) -> io::Result<()> {
-	framed_send(stream, &*code).await?
+	framed_send(stream, &*code).await
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<Vec<u8>> {
