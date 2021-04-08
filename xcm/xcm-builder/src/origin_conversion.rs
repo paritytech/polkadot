@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::marker::PhantomData;
-use frame_support::traits::{Get, OriginTrait};
+use sp_std::{marker::PhantomData, convert::TryInto};
+use frame_support::traits::{EnsureOrigin, Get, OriginTrait};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 use polkadot_parachain::primitives::IsSystem;
+use frame_system::RawOrigin as SystemRawOrigin;
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
 /// `LocationConverter`.
@@ -167,5 +168,55 @@ impl<
 			}
 			(_, origin) => Err(origin),
 		}
+	}
+}
+
+/// EnsureOrigin barrier to convert from dispatch origin to XCM origin, if one exists.
+pub struct EnsureXcmOrigin<Origin, Conversion>(PhantomData<(Origin, Conversion)>);
+impl<
+	Origin: OriginTrait + Clone,
+	Conversion: Convert<Origin, MultiLocation>,
+> EnsureOrigin<Origin> for EnsureXcmOrigin<Origin, Conversion> where
+	Origin::PalletsOrigin: PartialEq,
+{
+	type Success = MultiLocation;
+	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		let o = match Conversion::convert(o) {
+			Ok(location) => return Ok(location),
+			Err(o) => o,
+		};
+		// We institute a root fallback so root can always represent the context. This
+		// guarantees that `successful_origin` will work.
+		if o.caller() == Origin::root().caller() {
+			Ok(MultiLocation::Null)
+		} else {
+			Err(o)
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin {
+		Origin::root()
+	}
+}
+
+pub struct SignedToAccountId32<Origin, AccountId, Network>(
+	PhantomData<(Origin, AccountId, Network)>
+);
+impl<
+	Origin: OriginTrait + Clone,
+	AccountId: Into<[u8; 32]>,
+	Network: Get<NetworkId>,
+> Convert<Origin, MultiLocation> for SignedToAccountId32<Origin, AccountId, Network> where
+	Origin::PalletsOrigin: From<SystemRawOrigin<AccountId>> +
+	TryInto<SystemRawOrigin<AccountId>, Error=Origin::PalletsOrigin>
+{
+	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
+		o.try_with_caller(|caller| match caller.try_into() {
+			Ok(SystemRawOrigin::Signed(who)) =>
+				Ok(Junction::AccountId32 { network: Network::get(), id: who.into() }.into()),
+			Ok(other) => Err(other.into()),
+			Err(other) => Err(other),
+		})
 	}
 }

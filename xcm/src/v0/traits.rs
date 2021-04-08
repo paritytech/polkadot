@@ -121,10 +121,12 @@ impl Outcome {
 }
 
 pub trait ExecuteXcm<Call> {
+	type Call;
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
+	type Call = C;
 	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}

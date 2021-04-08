@@ -81,6 +81,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
@@ -621,6 +622,56 @@ parameter_types! {
 	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
 }
 
+// TODO repot into frame-support
+pub struct Backing {
+	approvals: u32,
+	eligible: u32,
+}
+pub trait GetBacking {
+	fn get_backing(&self) -> Option<Backing>;
+}
+
+// TODO repot into pallet-collective
+use xcm::v0::{BodyId, BodyPart};
+impl<AccountId, I> GetBacking for pallet_collective::RawOrigin<AccountId, I> {
+	fn get_backing(&self) -> Option<Backing> {
+		match self {
+			pallet_collective::RawOrigin::Members(n, d) => Some(Backing { approvals: *n, eligible: *d }),
+			_ => None,
+		}
+	}
+}
+
+// TODO repot into xcm-builder
+use xcm::v0::Junction;
+use sp_std::{marker::PhantomData, convert::TryInto};
+use xcm_executor::traits::Convert;
+use frame_support::traits::{Get, OriginTrait};
+pub struct CollectiveToPlurality<Origin, COrigin, Body>(
+	PhantomData<(Origin, COrigin, Body)>
+);
+impl<
+	Origin: OriginTrait + Clone,
+	COrigin: GetBacking,
+	Body: Get<BodyId>,
+> Convert<Origin, MultiLocation> for CollectiveToPlurality<Origin, COrigin, Body> where
+	Origin::PalletsOrigin: From<COrigin> +
+		TryInto<COrigin, Error=Origin::PalletsOrigin>
+{
+	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
+		o.try_with_caller(|caller| match caller.try_into() {
+			Ok(co) => match co.get_backing() {
+				Some(backing) => Ok(Junction::Plurality {
+					id: Body::get(),
+					part: BodyPart::Fraction { nom: backing.approvals, denom: backing.eligible },
+				}.into()),
+				None => Err(co.into()),
+			}
+			Err(other) => Err(other),
+		})
+	}
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -639,7 +690,7 @@ impl xcm_executor::Config for XcmConfig {
 impl parachains_session_info::Config for Runtime {}
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
 }
 
 impl parachains_dmp::Config for Runtime {}

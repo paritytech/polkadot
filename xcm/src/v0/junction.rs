@@ -61,6 +61,8 @@ pub enum BodyPart {
 	Voice,
 	/// A given number of members of the body.
 	Members { #[codec(compact)] count: u32 },
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
 	/// No less than the given proportion of members of the body.
 	AtLeastProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
 	/// More than than the given proportion of members of the body.
