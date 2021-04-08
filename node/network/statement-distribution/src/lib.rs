@@ -22,6 +22,8 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
+use parity_scale_codec::Encode;
+
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError, SubsystemResult, jaeger,
@@ -36,9 +38,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	HeadData, Id, OutboundHrmpMessage, SigningContext,
-	ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature
+	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 use polkadot_node_network_protocol::{
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
@@ -54,7 +55,7 @@ use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::IndexSet;
 
-use std::{collections::{HashMap, HashSet, hash_map::Entry}, mem::size_of};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 /// Background task logic for requesting of large statements.
 mod requester;
@@ -871,7 +872,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 				return true
 			}
 			// No runtime upgrade, now we need to be more nuanced:
-			let size = committed.commitments.size_estimate();
+			let size = statement.encoded_size();
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
@@ -882,85 +883,6 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 		}
 		Statement::Valid(_) =>
 			false,
-	}
-}
-
-/// Internal trait for estimating encoded size.
-trait SizeEstimate {
-	fn size_estimate(&self) -> usize;
-}
-
-impl<N: SizeEstimate> SizeEstimate for CandidateCommitments<N> {
-	fn size_estimate(&self) -> usize {
-		let CandidateCommitments {
-			upward_messages,
-			horizontal_messages,
-			new_validation_code,
-			head_data,
-			processed_downward_messages,
-			hrmp_watermark
-		} = self;
-
-		upward_messages.size_estimate()
-			+ horizontal_messages.size_estimate()
-			+ new_validation_code.size_estimate()
-			+ head_data.size_estimate()
-			+ processed_downward_messages.size_estimate()
-			+ hrmp_watermark.size_estimate()
-	}
-}
-
-impl<T: SizeEstimate> SizeEstimate for Vec<T> {
-	fn size_estimate(&self) -> usize {
-		self.len() * self.iter().next().map(|v| v.size_estimate()).unwrap_or(0)
-	}
-}
-
-impl SizeEstimate for ValidationCode {
-	fn size_estimate(&self) -> usize {
-		let ValidationCode(v) = self;
-		v.size_estimate()
-	}
-}
-
-impl SizeEstimate for HeadData {
-	fn size_estimate(&self) -> usize {
-		let HeadData(d) = self;
-		d.size_estimate()
-	}
-}
-
-impl<T: SizeEstimate> SizeEstimate for Option<T> {
-	fn size_estimate(&self) -> usize {
-		match self {
-			None => 0,
-			Some(v) => v.size_estimate()
-		}
-	}
-}
-
-impl SizeEstimate for u8 {
-	fn size_estimate(&self) -> usize {
-		size_of::<u8>()
-	}
-}
-
-impl SizeEstimate for u32 {
-	fn size_estimate(&self) -> usize {
-		size_of::<u32>()
-	}
-}
-
-impl<Id: SizeEstimate> SizeEstimate for OutboundHrmpMessage<Id> {
-	fn size_estimate(&self) -> usize {
-		let OutboundHrmpMessage { recipient, data } = self;
-		data.size_estimate() + recipient.size_estimate()
-	}
-}
-
-impl SizeEstimate for Id {
-	fn size_estimate(&self) -> usize {
-		size_of::<Id>()
 	}
 }
 
@@ -2130,7 +2052,7 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
 	use polkadot_node_primitives::Statement;
-	use polkadot_primitives::v1::CommittedCandidateReceipt;
+	use polkadot_primitives::v1::{CommittedCandidateReceipt, ValidationCode};
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
@@ -2144,19 +2066,6 @@ mod tests {
 			StatementFetchingResponse,
 		},
 	};
-
-	#[test]
-	fn test_size_estimate_is_sane() {
-		let commitments = CandidateCommitments { 
-			upward_messages: vec![vec![1,2], vec![3,4]],
-			horizontal_messages: vec![OutboundHrmpMessage { recipient: Id::from(9), data: Vec::new() }],
-			new_validation_code: None,
-			head_data: HeadData(vec![1,2,3,4]),
-			processed_downward_messages: 9,
-			hrmp_watermark: 3u32,
-		};
-		assert_eq!(commitments.size_estimate(), 20);
-	}
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
