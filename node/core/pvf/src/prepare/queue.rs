@@ -129,7 +129,7 @@ impl Unscheduled {
 
 	fn next(&mut self) -> Option<Job> {
 		let mut check = |prio: Priority| self.queue_mut(prio).pop_front();
-		None.or_else(|| check(Priority::Critical))
+		check(Priority::Critical)
 			.or_else(|| check(Priority::Normal))
 			.or_else(|| check(Priority::Background))
 	}
