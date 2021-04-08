@@ -650,7 +650,7 @@ mod tests {
 	fn end_to_end_scenario_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			// 32 is not yet registered
+			// 1032 is not yet registered
 			assert!(!Parachains::is_parathread(1032.into()));
 			// We register the Para ID
 			assert_ok!(Registrar::register(
@@ -709,7 +709,15 @@ mod tests {
 	#[test]
 	fn register_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Successfully register 32
+			// Can't register system parachain
+			assert_noop!(Registrar::register(
+				Origin::signed(1),
+				32.into(),
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), Error::<Test>::InvalidParaId);
+
+			// Successfully register 1032
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				1032.into(),
@@ -813,7 +821,7 @@ mod tests {
 	#[test]
 	fn swap_works() {
 		new_test_ext().execute_with(|| {
-			// Successfully register 23 and 32
+			// Successfully register 1023 and 1032
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				1023.into(),
@@ -828,7 +836,7 @@ mod tests {
 			));
 			run_to_session(2);
 
-			// Upgrade 23 into a parachain
+			// Upgrade 1023 into a parachain
 			assert_ok!(Registrar::make_parachain(1023.into()));
 
 			run_to_session(4);
