@@ -176,8 +176,7 @@ impl Artifacts {
 		for (k, v) in self.artifacts.iter() {
 			if let ArtifactState::Prepared {
 				last_time_needed, ..
-			} = *v
-			{
+			} = *v {
 				if now
 					.duration_since(last_time_needed)
 					.map(|age| age > artifact_ttl)

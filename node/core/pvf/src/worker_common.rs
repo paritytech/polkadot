@@ -251,8 +251,7 @@ pub fn path_to_bytes(path: &Path) -> &[u8] {
 /// Interprets the given bytes as a path. Returns `None` if the given bytes do not constitute a
 /// a proper utf-8 string.
 pub fn bytes_to_path(bytes: &[u8]) -> Option<PathBuf> {
-	let str_buf = std::str::from_utf8(bytes).ok()?;
-	Some(PathBuf::from(str_buf))
+	std::str::from_utf8(bytes).ok().map(PathBuf::from)
 }
 
 pub async fn framed_send(w: &mut (impl AsyncWrite + Unpin), buf: &[u8]) -> io::Result<()> {

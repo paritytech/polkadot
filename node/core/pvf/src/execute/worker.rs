@@ -84,7 +84,7 @@ pub async fn start_work(
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
-	if let Err(_err) = send_request(&mut stream, &artifact_path, &validation_params).await {
+	if send_request(&mut stream, &artifact_path, &validation_params).await.is_err() {
 		return Outcome::IoErr;
 	}
 
@@ -124,8 +124,7 @@ async fn send_request(
 	validation_params: &[u8],
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await?;
-	Ok(())
+	framed_send(stream, validation_params).await
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)> {
@@ -141,19 +140,17 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)>
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
-	framed_send(stream, &response.encode()).await?;
-	Ok(())
+	framed_send(stream, &response.encode()).await
 }
 
 async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 	let response_bytes = framed_recv(stream).await?;
-	let response = Response::decode(&mut &response_bytes[..]).map_err(|e| {
+	Response::decode(&mut &response_bytes[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
 			format!("execute pvf recv_response: decode error: {:?}", e),
 		)
-	})?;
-	Ok(response)
+	})
 }
 
 #[derive(Encode, Decode)]

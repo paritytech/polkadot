@@ -129,13 +129,11 @@ pub async fn start_work(
 }
 
 async fn send_request(stream: &mut UnixStream, code: Arc<Vec<u8>>) -> io::Result<()> {
-	framed_send(stream, &*code).await?;
-	Ok(())
+	framed_send(stream, &*code).await?
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<Vec<u8>> {
-	let code = framed_recv(stream).await?;
-	Ok(code)
+	framed_recv(stream).await
 }
 
 pub fn bump_priority(handle: &WorkerHandle) {
