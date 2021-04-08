@@ -539,6 +539,23 @@ impl MultiLocation {
 		}
 	}
 
+	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalised form is returned, removing any
+	/// internal `Parent`s.
+	///
+	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
+		let mut prefix = suffix;
+		core::mem::swap(self, &mut prefix);
+		match self.prepend_with(prefix) {
+			Ok(()) => Ok(()),
+			Err(prefix) => {
+				let mut suffix = prefix;
+				core::mem::swap(self, &mut suffix);
+				Err(suffix)
+			}
+		}
+	}
+
 	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned, removing any
 	/// internal `Parent`s.
 	///
@@ -565,6 +582,12 @@ impl MultiLocation {
 			self.push_front(j).expect("len + prefix minus 2*skipped is less than 4; qed");
 		}
 		Ok(())
+	}
+
+	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s for which
+	/// `Junction::is_interior` returns `false`. This
+	pub fn is_interior(&self) -> bool {
+		self.iter().all(Junction::is_interior)
 	}
 }
 
