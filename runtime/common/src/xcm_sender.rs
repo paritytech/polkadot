@@ -18,7 +18,7 @@
 
 use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
-use xcm::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
+use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
 
 /// Xcm sender for relay chain. It only sends downward message.
@@ -36,7 +36,7 @@ impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> 
 			).map_err(Into::<Error>::into)?;
 			Ok(())
 		} else {
-			Err(Error::CannotReachDestination)
+			Err(Error::CannotReachDestination("UnsupportedDestination"))
 		}
 	}
 }
