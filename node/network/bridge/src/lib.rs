@@ -1782,6 +1782,13 @@ mod tests {
 
 			let view = view![Hash::repeat_byte(1)];
 
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
+
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
@@ -1826,6 +1833,13 @@ mod tests {
 				PeerSet::Validation,
 				ObservedRole::Full,
 			).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -1891,6 +1905,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -1968,6 +1989,13 @@ mod tests {
 
 			network_handle.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2056,6 +2084,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2209,6 +2244,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2369,6 +2411,13 @@ mod tests {
 			let our_view = OurView::new(
 				view_heads,
 				0,
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
 			);
 
 			assert_sends_validation_event_to_all(
