@@ -34,6 +34,8 @@ use futures_timer::Delay;
 use polkadot_parachain::primitives::ValidationResult;
 use parity_scale_codec::{Encode, Decode};
 
+const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
 /// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
@@ -105,7 +107,7 @@ pub async fn start_work(
 				Ok(response) => response,
 			}
 		},
-		_ = Delay::new(Duration::from_secs(3)).fuse() => return Outcome::HardTimeout,
+		_ = Delay::new(EXECUTION_TIMEOUT).fuse() => return Outcome::HardTimeout,
 	};
 
 	match response {
