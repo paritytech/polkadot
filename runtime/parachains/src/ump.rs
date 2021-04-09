@@ -564,27 +564,24 @@ pub(crate) mod mock_sink {
 	pub struct MockUmpSink;
 	impl UmpSink for MockUmpSink {
 		fn process_upward_message(actual_origin: ParaId, actual_msg: &[u8], _max_weight: Weight) -> Option<Weight> {
-			HOOK.with(|opt_hook| match &mut *opt_hook.borrow_mut() {
-				Some(hook) => {
-					let UmpExpectation {
-						expected_origin,
-						expected_msg,
-						mock_weight,
-					} = match hook.pop_front() {
-						Some(expectation) => expectation,
-						None => {
-							panic!(
-								"The probe is active but didn't expect the message:\n\n\t{:?}.",
-								actual_msg,
-							);
-						}
-					};
-					assert_eq!(expected_origin, actual_origin);
-					assert_eq!(expected_msg, &actual_msg[..]);
-					Some(mock_weight)
-				}
-				None => None,
-			})
+			HOOK.with(|opt_hook| opt_hook.borrow_mut().map(|mut hook| {
+				let UmpExpectation {
+					expected_origin,
+					expected_msg,
+					mock_weight,
+				} = match hook.pop_front() {
+					Some(expectation) => expectation,
+					None => {
+						panic!(
+							"The probe is active but didn't expect the message:\n\n\t{:?}.",
+							actual_msg,
+						);
+					}
+				};
+				assert_eq!(expected_origin, actual_origin);
+				assert_eq!(expected_msg, &actual_msg[..]);
+				mock_weight
+			}))
 		}
 	}
 
