@@ -373,7 +373,7 @@ trigger-simnet:
     - echo "Waiting on ${PIPELINE_ID} status..."
     # --silent
     - |
-      'function get_status {
+      'function get_status() {
         curl --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/396/pipelines/${PIPELINE_ID}" | jq --raw-output ".status";
       }'
     - for i in $(seq 1 1200); do
