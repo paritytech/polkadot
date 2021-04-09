@@ -2700,6 +2700,7 @@ mod tests {
 	#[test]
 	fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing() {
 		let hash_a = Hash::repeat_byte(1);
+		let hash_b = Hash::repeat_byte(2);
 
 		let candidate = {
 			let mut c = CommittedCandidateReceipt::default();
@@ -2886,7 +2887,27 @@ mod tests {
 				}
 			);
 
-			// Now that it has the candidate it should answer requests accordingly:
+			// Now that it has the candidate it should answer requests accordingly (even after a
+			// failed request):
+			
+			// Failing request first:
+			let (pending_response, response_rx) = oneshot::channel();
+			let inner_req = StatementFetchingRequest {
+				relay_parent: hash_b,
+				candidate_hash: metadata.candidate_hash,
+			};
+			let req = sc_network::config::IncomingRequest {
+				peer: peer_a,
+				payload: inner_req.encode(),
+				pending_response,
+			};
+			tx_reqs.send(req).await.unwrap();
+			assert_matches!(
+				response_rx.await.unwrap().result,
+				Err(()) => {}
+			);
+		
+			// Now the working one:
 			let (pending_response, response_rx) = oneshot::channel();
 			let inner_req = StatementFetchingRequest {
 				relay_parent: metadata.relay_parent,

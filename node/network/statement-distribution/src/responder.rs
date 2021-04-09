@@ -63,7 +63,7 @@ pub async fn respond(
 		// 2. If we take too long, the requests timing out will not yet have had any data sent,
 		//    thus we wasted no bandwidth.
 		// 3. If the queue is full, requestes will get an immediate error instead of running in a
-		//    timeout, thus they can immediately try another peer and be faster.
+		//    timeout, thus requesters can immediately try another peer and be faster.
 		//
 		// From this perspective we would not want parallel response sending at all, but we don't
 		// want a single slow requester slowing everyone down, so we want some parallelism for that
@@ -124,20 +124,20 @@ pub async fn respond(
 			);
 			return
 		}
-		let committed = match rx.await {
+		let response = match rx.await {
 			Err(err) => {
 				tracing::debug!(
 					target: LOG_TARGET,
 					?err,
-					"Receiving data failed. Shutting down responder"
+					"Receiving data failed."
 				);
-				return
+                Err(())
 			}
-			Ok(v) => v,
+			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
 		};
 		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
 		let response = OutgoingResponse {
-			result: Ok(StatementFetchingResponse::Statement(committed)),
+			result: response,
 			reputation_changes: Vec::new(),
 			sent_feedback: Some(pending_sent_tx),
 		};
