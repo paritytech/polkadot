@@ -18,7 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::prelude::*;
 pub use pallet::*;
 
 #[frame_support::pallet]
@@ -26,7 +25,6 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use xcm::v0::{Xcm, MultiLocation, Error as XcmError, SendXcm};
-	use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -47,13 +45,12 @@ pub mod pallet {
 	}
 
 	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance", AssetIdOf<T> = "AssetId")]
 	pub enum Event<T: Config> {}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		FailedToSend,
+		Unreachable,
+		SendFailure,
 	}
 
 	#[pallet::hooks]
@@ -65,7 +62,10 @@ pub mod pallet {
 		fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			Self::send_xcm(origin_location, dest, message)
-				.map_err(|_| Error::<T>::FailedToSend)?;
+				.map_err(|e| match e {
+					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
+					_ => Error::<T>::SendFailure,
+				})?;
 			Ok(())
 		}
 	}
