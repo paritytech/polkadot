@@ -647,7 +647,6 @@ impl xcm_executor::Config for XcmConfig {
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
-// TODO: Instance a membership collective pallet and use it with BackingToPlurality.
 pub type LocalOriginToLocation = (
 );
 
