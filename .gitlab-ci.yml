@@ -351,9 +351,8 @@ trigger-simnet:
   #   project:                       parity/simnet
   #   branch:                        master
   #   strategy:                      depend
-  # variables:
-  #   TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-  #   TRGR_REF:                      ${CI_COMMIT_REF_NAME}
+  variables:
+    DWNSTRM_ID:                    396
   script:
     - echo $CI_PIPELINE_URL
     - echo $CI_PROJECT_URL
@@ -367,16 +366,16 @@ trigger-simnet:
         -F "variables[IMAGE_NAME]=${IMAGE_NAME}"
         -F "variables[IMAGE_TAG]=${IMAGE_TAG}"
         -F "variables[COLLATOR_IMAGE_TAG]=${CI_COMMIT_SHA}"
-        "https://${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline" | tee pipeline'
+        "https://${CI_SERVER_HOST}/api/v4/projects/${DWNSTRM_ID}/trigger/pipeline" | tee pipeline'
     - cat pipeline | jq
     - PIPELINE_ID=$(cat pipeline | jq '.id')
     - echo "Waiting on ${PIPELINE_ID} status..."
     # --silent
     - |
       function get_status() {
-        curl --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/396/pipelines/${PIPELINE_ID}" | jq --raw-output ".status";
+        curl --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/${DWNSTRM_ID}/pipelines/${PIPELINE_ID}" | jq --raw-output ".status";
       }
-    - for i in $(seq 1 1200); do
+      for i in $(seq 1 1200); do
         echo $i;
         STATUS=$(get_status);
         if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
@@ -393,4 +392,3 @@ trigger-simnet:
         fi
         sleep 10;
       done
-
