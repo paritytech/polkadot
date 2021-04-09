@@ -367,22 +367,24 @@ trigger-simnet:
         -F "variables[IMAGE_NAME]=${IMAGE_NAME}"
         -F "variables[IMAGE_TAG]=${IMAGE_TAG}"
         -F "variables[COLLATOR_IMAGE_TAG]=${CI_COMMIT_SHA}"
-        https://gitlab.parity.io/api/v4/projects/396/trigger/pipeline
+        ${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline
+    # https://docs.gitlab.com/ee/api/jobs.html#get-job-tokens-job
+    - curl "${CI_SERVER_HOST}/api/v4/job?job_token=${CI_JOB_ID}"
     - echo "Waiting for artifacts from the triggered job"
-    - ARTIFACT_URL="${CI_SERVER_HOST}/api/v4/projects/396/jobs/artifacts/master/download?job_token=${CI_JOB_TOKEN}"
-    - echo $ARTIFACT_URL
-    - sleep 15
-    - for I in `seq 1 3`; do
-        echo "curl";
-        curl -L -o filee ${ARTIFACT_URL};
-        echo "ls";
-        ls;
-        echo "cat";
-        cat filee;
-        echo "type";
-        type filee || exit 0;
-        echo "sleep";
-        sleep 15;
-      done; echo
+    # - ARTIFACT_URL="${CI_SERVER_HOST}/api/v4/projects/396/jobs/artifacts/master/download?job_token=${CI_JOB_TOKEN}"
+    # curl --location --header "PRIVATE-TOKEN: <your_access_token>" "https://gitlab.example.com/api/v4/projects/1/jobs/5/artifacts/some/release/file.pdf"
+#     - ARTIFACT_URL="${CI_SERVER_HOST}api/v4/projects/1/jobs/5/artifacts/artifacts/status.env?job_token=${CI_JOB_TOKEN}"
+#     - echo $ARTIFACT_URL
+#     - sleep 15
+#     - for I in `seq 1 3`; do
+#         echo "curl";
+#         curl -L -o filee ${ARTIFACT_URL};
+#         echo "ls";
+#         ls;
+#         echo "cat";
+#         cat filee;
+#         echo "sleep";
+#         sleep 15;
+#       done; echo
 
 
