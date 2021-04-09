@@ -85,14 +85,10 @@ use runtime_parachains::scheduler as parachains_scheduler;
 pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
-use xcm::v0::{MultiLocation, NetworkId};
+
+use xcm::v0::{MultiLocation, NetworkId, BodyId};
 use xcm_executor::XcmExecutor;
-use xcm_builder::{
-	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
-	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
-	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
-	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
-};
+use xcm_builder::{AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32};
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
@@ -649,9 +645,17 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = ();
 }
 
+parameter_types! {
+	pub const CollectiveBodyId: BodyId = BodyId::Unit;
+}
+
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
+	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
