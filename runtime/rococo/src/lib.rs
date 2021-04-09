@@ -86,11 +86,11 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
-use xcm_executor::traits::IsConcrete;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
 };
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
@@ -108,7 +108,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 227,
+	spec_version: 228,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -202,14 +202,7 @@ fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
 		para_validator: old.para_validator,
 		para_assignment: old.para_assignment,
 		authority_discovery: old.authority_discovery,
-		beefy: {
-			// We need to produce a dummy value that's unique for the validator.
-			let mut id = BeefyId::default();
-			let id_raw: &mut [u8] = id.as_mut();
-			id_raw.copy_from_slice(v.as_ref());
-			id_raw[0..4].copy_from_slice(b"beef");
-			id
-		},
+		beefy: runtime_common::dummy_beefy_id_from_account_id(v),
 	}
 }
 
@@ -621,6 +614,11 @@ type LocalOriginConverter = (
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
+parameter_types! {
+	pub const BaseXcmWeight: Weight = 100_000;
+	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -630,6 +628,10 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Barrier = ();
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type ResponseHandler = ();
 }
 
 impl parachains_session_info::Config for Runtime {}

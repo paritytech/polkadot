@@ -22,7 +22,7 @@ wasm-bindgen-futures = { version = "0.4.19", optional = true }
 futures = "0.3.12"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
-polkadot-parachain = { path = "../parachain", optional = true }
+polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -39,8 +39,8 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-parachain" ]
-wasmtime = [ "sc-cli/wasmtime", "polkadot-parachain/wasmtime" ]
+default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
+wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
 	"structopt",
@@ -48,6 +48,7 @@ cli = [
 	"sc-service",
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
+	"polkadot-node-core-pvf",
 ]
 browser = [
 	"wasm-bindgen",
@@ -58,5 +59,4 @@ browser = [
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
-real-overseer = [ "service/real-overseer" ]
 try-runtime = [ "service/try-runtime" ]
