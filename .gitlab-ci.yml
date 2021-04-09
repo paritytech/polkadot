@@ -367,7 +367,8 @@ trigger-simnet:
         -F "variables[IMAGE_NAME]=${IMAGE_NAME}"
         -F "variables[IMAGE_TAG]=${IMAGE_TAG}"
         -F "variables[COLLATOR_IMAGE_TAG]=${CI_COMMIT_SHA}"
-        ${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline | tee pipeline
+        "https://${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline" | tee pipeline
+    - cat pipeline
     - cat pipeline | jq
     - PIPELINE_ID=$(cat pipeline | jq '.id')
     - echo "Waiting on $PIPELINE_ID status..."
