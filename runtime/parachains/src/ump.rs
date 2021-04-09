@@ -579,7 +579,7 @@ pub(crate) mod mock_sink {
 					assert_eq!(expected_msg, &actual_msg[..]);
 					Some(mock_weight)
 				}
-				None => 0,
+				None => None,
 			})
 		}
 	}

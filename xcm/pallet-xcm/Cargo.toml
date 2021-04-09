@@ -26,3 +26,4 @@ std = [
 	"frame-system/std",
 	"xcm/std",
 ]
+runtime-benchmarks = []
