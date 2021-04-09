@@ -379,7 +379,6 @@ trigger-simnet:
         file filee || exit 0;
         fype filee || exit 0;
         ls;
-        # unzip -l artifacts.zip | grep -q "${CI_PIPELINE_ID}/${CI_JOB_ID}/🏁" && break;
         sleep 15;
       done; echo
 
