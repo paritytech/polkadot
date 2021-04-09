@@ -865,7 +865,7 @@ impl pallet_proxy::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MotionDuration: BlockNumber = 3 * DAYS;
+	pub const MotionDuration: BlockNumber = 5;
 	pub const MaxProposals: u32 = 100;
 	pub const MaxMembers: u32 = 100;
 }
