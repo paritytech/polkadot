@@ -361,6 +361,7 @@ trigger-simnet:
     - curl -X POST
         -F token=${CI_JOB_TOKEN}
         -F ref=master
+        -F "variables[CALLER_ID]=${CI_PIPELINE_ID}/${CI_JOB_ID}"
         -F "variables[TRGR_PROJECT]=${CI_PROJECT_NAME}"
         -F "variables[TRGR_REF]=${CI_COMMIT_REF_NAME}"
         -F "variables[IMAGE_NAME]=${IMAGE_NAME}"
@@ -372,10 +373,11 @@ trigger-simnet:
     - echo $ARTIFACT_URL
     - sleep 15
     - for I in `seq 1 3`; do
-        echo -n "."
-        curl -L -o artifacts.zip ${ARTIFACT_URL}
-        ls
-        unzip -l artifacts.zip | grep -q "${CI_PIPELINE_ID}/${CI_JOB_ID}/🏁" && break
-        sleep 15
+        echo -n ".";
+        curl -L -o artifacts.zip ${ARTIFACT_URL};
+        ls;
+        unzip -l artifacts.zip | grep -q "${CI_PIPELINE_ID}/${CI_JOB_ID}/🏁" && break;
+        sleep 15;
       done; echo
+
 
