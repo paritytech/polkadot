@@ -346,7 +346,7 @@ trigger-simnet:
   # `build.env` is taken by the triggered job from `publish-dockerhub` job with an
   # exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
   # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
+  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job. 
   # trigger:
   #   project:                       parity/simnet
   #   branch:                        master
