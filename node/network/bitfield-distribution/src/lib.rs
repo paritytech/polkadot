@@ -603,8 +603,7 @@ where
 	if !lucky {
 		tracing::trace!(
 			target: LOG_TARGET,
-			?peerid,
-			?view,
+			?origin,
 			"Peer view change is ignored",
 		);
 		return;

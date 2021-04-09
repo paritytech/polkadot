@@ -450,7 +450,7 @@ impl State {
 			"Peer view change",
 		);
 		let finalized_number = view.finalized_number;
-		let old_view = self.peer_views.insert(peer_id.clone(), view);
+		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -460,7 +460,7 @@ impl State {
 		// but we need to make sure the range is not empty, otherwise it will panic
 		// it shouldn't be, we make sure of this in the network bridge
 		let range = old_finalized_number..=finalized_number;
-		if !range.is_empty() && !blocks.empty() {
+		if !range.is_empty() && !blocks.is_empty() {
 			self.blocks_by_number
 			.range(range)
 			.map(|(_number, hashes)| hashes)
@@ -481,7 +481,7 @@ impl State {
 			metrics,
 			&mut self.blocks,
 			peer_id.clone(),
-			view.clone(),
+			view,
 		).await;
 	}
 

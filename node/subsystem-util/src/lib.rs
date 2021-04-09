@@ -224,7 +224,8 @@ pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
 /// Returns bool with a probability of `max(len.sqrt(), min) / len`
 /// being true.
 pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
-	let mut rng = thread_rng();
+	use rand::Rng as _;
+	let mut rng = rand::thread_rng();
 	let threshold = max_of_min_and_sqrt_len(len, min);
 	let n = rng.gen_range(0..len);
 	n < threshold
