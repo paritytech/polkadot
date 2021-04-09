@@ -33,6 +33,10 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
+	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// A human-readable explanation of the specific issue is provided.
+	SendFailed(#[codec(skip)] &'static str),
+	/// The message and destination combination was not recognised as being reachable.
 	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
@@ -68,9 +72,6 @@ pub enum Error {
 	NotWithdrawable,
 	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
 	LocationCannotHold,
-	/// We attempted to send an XCM to the local consensus system. Execution was not possible probably due to
-	/// no execution weight being assigned.
-	DestinationIsLocal,
 }
 
 impl From<()> for Error {
