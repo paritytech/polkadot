@@ -122,7 +122,7 @@ impl Protocol {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: MAX_POV_SIZE / 10,
+				max_response_size: MAX_POV_SIZE as u64 / 10,
 				// We are connected to all validators:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),

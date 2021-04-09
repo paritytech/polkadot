@@ -27,7 +27,11 @@ use futures::channel::mpsc;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
-use polkadot_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender, messages::StatementDistributionMessage};
+use polkadot_subsystem::{
+	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender,
+	messages::StatementDistributionMessage
+};
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
 	CollatorProtocolMessage, NetworkBridgeEvent,
