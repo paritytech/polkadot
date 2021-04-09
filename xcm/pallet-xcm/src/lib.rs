@@ -180,6 +180,6 @@ impl<O: OriginTrait, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		Origin::Xcm(MultiLocation::Null).into()
+		O::PalletsOrigin::from(Origin::Xcm(MultiLocation::Null)).into()
 	}
 }

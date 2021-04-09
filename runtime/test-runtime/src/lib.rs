@@ -475,7 +475,7 @@ impl parachains_paras::Config for Runtime {
 impl parachains_dmp::Config for Runtime {}
 
 parameter_types! {
-	const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl parachains_ump::Config for Runtime {

@@ -662,7 +662,7 @@ impl pallet_xcm::Config for Runtime {
 impl parachains_session_info::Config for Runtime {}
 
 parameter_types! {
-	const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl parachains_ump::Config for Runtime {

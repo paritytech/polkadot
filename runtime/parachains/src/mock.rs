@@ -119,7 +119,7 @@ impl crate::paras::Config for Test {
 impl crate::dmp::Config for Test { }
 
 parameter_types! {
-	const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl crate::ump::Config for Test {
