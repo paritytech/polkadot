@@ -88,9 +88,6 @@ pub mod pallet {
 
 		/// Execute an XCM message from a local, signed, origin.
 		///
-		/// Returns `DispatchError` if execution was not possible. Otherwise returns the amount of
-		/// weight that was used in its attempted execution.
-		///
 		/// An event is deposited indicating whether `msg` could be executed completely or only
 		/// partially.
 		///
