@@ -338,6 +338,7 @@ publish-s3-release:
 trigger-simnet:
   stage:                           deploy
   <<:                              *rules-test
+  image:                           paritytech/tools:latest
   needs:
     - job:                         publish-dockerhub
     # - job:                         publish-real-overseer-image
@@ -354,6 +355,9 @@ trigger-simnet:
   #   TRGR_PROJECT:                  ${CI_PROJECT_NAME}
   #   TRGR_REF:                      ${CI_COMMIT_REF_NAME}
   script:
+    - echo $CI_PIPELINE_URL
+    - echo $CI_PROJECT_URL
+    - echo $CI_SERVER_HOST
     - curl -X POST
         -F token=${CI_JOB_TOKEN}
         -F ref=master
@@ -363,4 +367,12 @@ trigger-simnet:
         -F "variables[IMAGE_TAG]=${IMAGE_TAG}"
         -F "variables[COLLATOR_IMAGE_TAG]=${CI_COMMIT_SHA}"
         https://gitlab.parity.io/api/v4/projects/396/trigger/pipeline
-
+    - echo "Waiting for artifacts from the triggered job"
+    - ARTIFACT_URL="${CI_SERVER_HOST}/api/v4/projects/396/jobs/artifacts/master/download?job_token=${CI_JOB_TOKEN}"
+    - sleep 15
+    - for I in `seq 1 3`; do
+        echo -n "."
+        curl -sL -o artifacts.zip ${ARTIFACT_URL}
+        unzip -l artifacts.zip | grep -q "$CI_PIPELINE_ID/$CI_JOB_ID/🏁" && break
+        sleep 15
+      done; echo
