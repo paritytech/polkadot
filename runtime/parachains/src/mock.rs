@@ -30,6 +30,7 @@ use crate::{
 	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
 	initializer, shared,
 };
+use frame_benchmarking::frame_support::pallet_prelude::Get;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -117,8 +118,13 @@ impl crate::paras::Config for Test {
 
 impl crate::dmp::Config for Test { }
 
+parameter_types! {
+	const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl crate::hrmp::Config for Test {

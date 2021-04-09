@@ -662,8 +662,13 @@ impl pallet_xcm::Config for Runtime {
 
 impl parachains_session_info::Config for Runtime {}
 
+parameter_types! {
+	const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
 	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_dmp::Config for Runtime {}

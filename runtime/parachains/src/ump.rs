@@ -41,16 +41,18 @@ const LOG_TARGET: &str = "runtime::ump-sink";
 /// It is possible that by the time the message is sank the origin parachain was offboarded. It is
 /// up to the implementer to check that if it cares.
 pub trait UmpSink {
-	/// Process an incoming upward message and return the amount of weight it consumed.
+	/// Process an incoming upward message and return the amount of weight it consumed, or `None` if
+	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
 	fn process_upward_message(origin: ParaId, msg: &[u8], max_weight: Weight) -> Option<Weight>;
 }
 
-/// An implementation of a sink that just swallows the message without consuming any weight.
+/// An implementation of a sink that just swallows the message without consuming any weight. Returns
+/// `Some(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
 	fn process_upward_message(_: ParaId, _: &[u8], _: Weight) -> Option<Weight> {
-		None
+		Some(0)
 	}
 }
 
@@ -142,6 +144,9 @@ impl fmt::Debug for AcceptanceCheckErr {
 pub trait Config: frame_system::Config + configuration::Config {
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
+
+	/// The factor by which the weight limit it multiplied for the first UMP message to execute with.
+	type FirstMessageFactorPercent: Get<Weight>;
 }
 
 decl_storage! {
@@ -334,8 +339,7 @@ impl<T: Config> Module<T> {
 			let max_weight = if used_weight_so_far == 0 {
 				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
 				// the possibility of blockage of the queue.
-				// TODO: This should be a parameter.
-				config.preferred_dispatchable_upward_messages_step_weight * 2
+				config.preferred_dispatchable_upward_messages_step_weight * T::FirstMessageFactorPercent::get() / 100
 			} else {
 				config.preferred_dispatchable_upward_messages_step_weight - used_weight_so_far
 			};
