@@ -31,7 +31,7 @@ mod origin_conversion;
 pub use origin_conversion::{
 	SovereignSignedViaLocation, ParentAsSuperuser, ChildSystemParachainAsSuperuser, SiblingSystemParachainAsSuperuser,
 	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative,
-	SignedAccountKey20AsNative,
+	SignedAccountKey20AsNative, EnsureXcmOrigin, SignedToAccountId32, BackingToPlurality,
 };
 
 mod barriers;

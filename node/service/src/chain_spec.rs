@@ -882,6 +882,8 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
+		pallet_collective: Default::default(),
+		pallet_membership: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
@@ -1433,6 +1435,8 @@ pub fn rococo_testnet_genesis(
 		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
+		pallet_collective: Default::default(),
+		pallet_membership: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},

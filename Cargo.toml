@@ -45,6 +45,7 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/pallet-xcm",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",

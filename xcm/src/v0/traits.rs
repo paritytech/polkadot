@@ -21,7 +21,7 @@ use parity_scale_codec::{Encode, Decode};
 
 use super::{MultiLocation, Xcm};
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
 	Undefined,
 	Overflow,
@@ -33,7 +33,11 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	CannotReachDestination(#[codec(skip)] &'static str),
+	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// A human-readable explanation of the specific issue is provided.
+	SendFailed(#[codec(skip)] &'static str),
+	/// The message and destination combination was not recognised as being reachable.
+	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
@@ -68,9 +72,6 @@ pub enum Error {
 	NotWithdrawable,
 	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
 	LocationCannotHold,
-	/// We attempted to send an XCM to the local consensus system. Execution was not possible probably due to
-	/// no execution weight being assigned.
-	DestinationIsLocal,
 }
 
 impl From<()> for Error {
@@ -85,7 +86,7 @@ pub type Result = result::Result<(), Error>;
 pub type Weight = u64;
 
 /// Outcome of an XCM excution.
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
@@ -121,21 +122,38 @@ impl Outcome {
 }
 
 pub trait ExecuteXcm<Call> {
+	type Call;
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
+	type Call = C;
 	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
 
+/// Utility for sending an XCM message.
+///
+/// These can be amalgamted in tuples to form sophisticated routing systems.
 pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> Result;
+	/// Send an XCM `message` to a given `destination`.
+	///
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple implementation to
+	/// exit early without trying other type fields.
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
 
-impl SendXcm for () {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> Result {
-		Err(Error::Unimplemented)
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl SendXcm for Tuple {
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+		for_tuples!( #(
+			let (destination, message) = match Tuple::send_xcm(destination, message) {
+				Err(Error::CannotReachDestination(d, m)) => (d, m),
+				o @ _ => return o,
+			};
+		)* );
+		Err(Error::CannotReachDestination(destination, message))
 	}
 }

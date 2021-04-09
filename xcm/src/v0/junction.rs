@@ -61,10 +61,24 @@ pub enum BodyPart {
 	Voice,
 	/// A given number of members of the body.
 	Members { #[codec(compact)] count: u32 },
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
 	/// No less than the given proportion of members of the body.
 	AtLeastProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
 	/// More than than the given proportion of members of the body.
 	MoreThanProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+}
+
+impl BodyPart {
+	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
+	pub fn is_majority(&self) -> bool {
+		match self {
+			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
+			_ => false,
+		}
+	}
 }
 
 /// A single item in a path to describe the relative location of a consensus system.
