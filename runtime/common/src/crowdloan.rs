@@ -50,7 +50,7 @@
 //! returned to the crowdloan account.
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, ensure, Identity,
+	decl_module, decl_storage, decl_event, decl_error, ensure, Identity, PalletId,
 	storage::{child, ChildTriePrefixIterator},
 	traits::{
 		Currency, ReservableCurrency, Get, ExistenceRequirement::AllowDeath
@@ -59,7 +59,7 @@ use frame_support::{
 };
 use frame_system::{ensure_signed, ensure_root};
 use sp_runtime::{
-	ModuleId, DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
+	DispatchResult, RuntimeDebug, MultiSignature, MultiSigner,
 	traits::{
 		AccountIdConversion, Hash, Saturating, Zero, One, CheckedAdd, Verify, IdentifyAccount,
 	},
@@ -107,8 +107,8 @@ impl WeightInfo for TestWeightInfo {
 pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
-	/// ModuleID for the crowdloan module. An appropriate value could be ```ModuleId(*b"py/cfund")```
-	type ModuleId: Get<ModuleId>;
+	/// PalletId for the crowdloan module. An appropriate value could be ```PalletId(*b"py/cfund")```
+	type PalletId: Get<PalletId>;
 
 	/// The amount to be held on deposit by the depositor of a crowdloan.
 	type SubmissionDeposit: Get<BalanceOf<Self>>;
@@ -287,7 +287,7 @@ decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 		type Error = Error<T>;
 
-		const ModuleId: ModuleId = T::ModuleId::get();
+		const PalletId: PalletId = T::PalletId::get();
 		const MinContribution: BalanceOf<T> = T::MinContribution::get();
 		const RemoveKeysLimit: u32 = T::RemoveKeysLimit::get();
 
@@ -631,7 +631,7 @@ impl<T: Config> Module<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: ParaId) -> T::AccountId {
-		T::ModuleId::get().into_sub_account(index)
+		T::PalletId::get().into_sub_account(index)
 	}
 
 	pub fn id_from_index(index: TrieIndex) -> child::ChildInfo {
@@ -900,7 +900,7 @@ mod tests {
 	parameter_types! {
 		pub const SubmissionDeposit: u64 = 1;
 		pub const MinContribution: u64 = 10;
-		pub const CrowdloanModuleId: ModuleId = ModuleId(*b"py/cfund");
+		pub const CrowdloanPalletId: PalletId = PalletId(*b"py/cfund");
 		pub const RemoveKeysLimit: u32 = 10;
 		pub const MaxMemoLength: u8 = 32;
 	}
@@ -909,7 +909,7 @@ mod tests {
 		type Event = Event;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
-		type ModuleId = CrowdloanModuleId;
+		type PalletId = CrowdloanPalletId;
 		type RemoveKeysLimit = RemoveKeysLimit;
 		type Registrar = TestRegistrar<Test>;
 		type Auctioneer = TestAuctioneer;
