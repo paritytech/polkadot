@@ -109,7 +109,7 @@ decl_module! {
 		/// The given parachain should exist and the payload should not exceed the preconfigured size
 		/// `config.max_downward_message_size`.
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::VersionedXcm) -> DispatchResult {
+		pub fn sudo_queue_downward_xcm(origin, id: ParaId, xcm: xcm::opaque::VersionedXcm) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(<paras::Module<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Module<T>>::config();

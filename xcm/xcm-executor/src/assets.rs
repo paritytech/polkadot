@@ -27,18 +27,41 @@ pub enum AssetId {
 
 impl AssetId {
 	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+	pub fn prepend_location(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
 		}
 		Ok(())
 	}
+
+	/// Use the value of `self` along with an `amount to create the corresponding `MultiAsset` value for a
+	/// fungible asset.
+	pub fn into_fungible_multiasset(self, amount: u128) -> MultiAsset {
+		match self {
+			AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+			AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+		}
+	}
+
+	/// Use the value of `self` along with an `instance to create the corresponding `MultiAsset` value for a
+	/// non-fungible asset.
+	pub fn into_non_fungible_multiasset(self, instance: AssetInstance) -> MultiAsset {
+		match self {
+			AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
+			AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
+		}
+	}
 }
 
-/// List of concretely identified fungible and non-fungible assets.
-#[derive(Default, Clone, RuntimeDebug)]
+/// List of non-wildcard fungible and non-fungible assets.
+#[derive(Default, Clone, RuntimeDebug, Eq, PartialEq)]
 pub struct Assets {
+	/// The fungible assets.
 	pub fungible: BTreeMap<AssetId, u128>,
+
+	/// The non-fungible assets.
+	// OPTIMIZE: Consider BTreeMap<AssetId, BTreeSet<AssetInstance>>
+	//   or even BTreeMap<AssetId, SortedVec<AssetInstance>>
 	pub non_fungible: BTreeSet<(AssetId, AssetInstance)>,
 }
 
@@ -58,7 +81,18 @@ impl From<Assets> for Vec<MultiAsset> {
 	}
 }
 
+impl From<MultiAsset> for Assets {
+	fn from(asset: MultiAsset) -> Assets {
+		let mut result = Self::default();
+		result.saturating_subsume(asset);
+		result
+	}
+}
+
 impl Assets {
+	/// New value, containing no assets.
+	pub fn new() -> Self { Self::default() }
+
 	/// An iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		self.fungible.iter()
@@ -99,8 +133,20 @@ impl Assets {
 		fungible.chain(non_fungible)
 	}
 
-	/// Modify `self` to include a `MultiAsset`, saturating if necessary.
-	/// Only works on concretely identified assets; wildcards will be swallowed without error.
+	/// Mutate `self` to contain all given `assets`, saturating if necessary.
+	///
+	/// Wildcards in `assets` are ignored.
+	pub fn saturating_subsume_all(&mut self, assets: Assets) {
+		// OPTIMIZE: Could be done with a much faster btree entry merge and only sum the entries with the
+		// same key.
+		for asset in assets.into_assets_iter() {
+			self.saturating_subsume(asset)
+		}
+	}
+
+	/// Mutate `self` to contain the given `asset`, saturating if necessary.
+	///
+	/// Wildcard values of `asset` do nothing.
 	pub fn saturating_subsume(&mut self, asset: MultiAsset) {
 		match asset {
 			MultiAsset::ConcreteFungible { id, amount } => {
@@ -119,6 +165,100 @@ impl Assets {
 		}
 	}
 
+	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
+	///
+	/// Wildcard assets in `self` will result in an error.
+	///
+	/// `asset` may be a wildcard and are evaluated in the context of `self`.
+	///
+	/// Returns `Ok` with the `self` minus `asset` and the non-wildcard equivalence of `asset` taken if `self`
+	/// contains `asset`, and `Err` with `self` otherwise.
+	pub fn less(mut self, asset: MultiAsset) -> Result<(Self, Assets), Self> {
+		match self.try_take(asset) {
+			Ok(taken) => Ok((self, taken)),
+			Err(()) => Err(self),
+		}
+	}
+
+	/// Mutates `self` to its original value less `asset` and returns `true` iff it contains at least `asset`.
+	///
+	/// Wildcard assets in `self` will result in an error.
+	///
+	/// `asset` may be a wildcard and are evaluated in the context of `self`.
+	///
+	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
+	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
+	pub fn try_take(&mut self, asset: MultiAsset) -> Result<Assets, ()> {
+		match asset {
+			MultiAsset::None => Ok(Assets::new()),
+			MultiAsset::ConcreteFungible { id, amount } => self.try_take_fungible(AssetId::Concrete(id), amount),
+			MultiAsset::AbstractFungible { id, amount } => self.try_take_fungible(AssetId::Abstract(id), amount),
+			MultiAsset::ConcreteNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Concrete(class), instance),
+			MultiAsset::AbstractNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Abstract(class), instance),
+			MultiAsset::AllAbstractFungible { id } => Ok(self.take_fungible(&AssetId::Abstract(id))),
+			MultiAsset::AllConcreteFungible { id } => Ok(self.take_fungible(&AssetId::Concrete(id))),
+			MultiAsset::AllAbstractNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Abstract(class))),
+			MultiAsset::AllConcreteNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Concrete(class))),
+			MultiAsset::AllFungible => {
+				let mut taken = Assets::new();
+				mem::swap(&mut self.fungible, &mut taken.fungible);
+				Ok(taken)
+			},
+			MultiAsset::AllNonFungible => {
+				let mut taken = Assets::new();
+				mem::swap(&mut self.non_fungible, &mut taken.non_fungible);
+				Ok(taken)
+			},
+			MultiAsset::All => Ok(self.swapped(Assets::new())),
+		}
+	}
+
+	pub fn try_take_fungible(&mut self, id: AssetId, amount: u128) -> Result<Assets, ()> {
+		self.try_remove_fungible(&id, amount)?;
+		Ok(id.into_fungible_multiasset(amount).into())
+	}
+
+	pub fn try_take_non_fungible(&mut self, id: AssetId, instance: AssetInstance) -> Result<Assets, ()> {
+		let asset_id_instance = (id, instance);
+		self.try_remove_non_fungible(&asset_id_instance)?;
+		let (asset_id, instance) = asset_id_instance;
+		Ok(asset_id.into_non_fungible_multiasset(instance).into())
+	}
+
+	pub fn take_fungible(&mut self, id: &AssetId) -> Assets {
+		let mut taken = Assets::new();
+		if let Some((id, amount)) = self.fungible.remove_entry(&id) {
+			taken.fungible.insert(id, amount);
+		}
+		taken
+	}
+
+	pub fn take_non_fungible(&mut self, id: &AssetId) -> Assets {
+		let mut taken = Assets::new();
+		let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
+		non_fungible.into_iter().for_each(|(c, instance)| {
+			if &c == id {
+				taken.non_fungible.insert((c, instance));
+			} else {
+				self.non_fungible.insert((c, instance));
+			}
+		});
+		taken
+	}
+
+	pub fn try_remove_fungible(&mut self, id: &AssetId, amount: u128) -> Result<(), ()> {
+		let self_amount = self.fungible.get_mut(&id).ok_or(())?;
+		*self_amount = self_amount.checked_sub(amount).ok_or(())?;
+		Ok(())
+	}
+
+	pub fn try_remove_non_fungible(&mut self, class_instance: &(AssetId, AssetInstance)) -> Result<(), ()> {
+		match self.non_fungible.remove(class_instance) {
+			true => Ok(()),
+			false => Err(()),
+		}
+	}
+
 	/// Modify `self` to include a new fungible asset by `id` and `amount`,
 	/// saturating if necessary.
 	pub fn saturating_subsume_fungible(&mut self, id: AssetId, amount: u128) {
@@ -133,20 +273,20 @@ impl Assets {
 		self.non_fungible.insert((class, instance));
 	}
 
-	/// Alter any concretely identified assets according to the given `MultiLocation`.
+	/// Alter any concretely identified assets by prepending the given `MultiLocation`.
 	///
 	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's responsibility to
 	/// ensure that any internal asset IDs are able to be prepended without overflow.
-	pub fn reanchor(&mut self, prepend: &MultiLocation) {
+	pub fn prepend_location(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible.into_iter()
-			.map(|(mut id, amount)| { let _ = id.reanchor(prepend); (id, amount) })
+			.map(|(mut id, amount)| { let _ = id.prepend_location(prepend); (id, amount) })
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible.into_iter()
-			.map(|(mut class, inst)| { let _ = class.reanchor(prepend); (class, inst) })
+			.map(|(mut class, inst)| { let _ = class.prepend_location(prepend); (class, inst) })
 			.collect();
 	}
 

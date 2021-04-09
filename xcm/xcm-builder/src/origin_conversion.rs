@@ -17,7 +17,7 @@
 use sp_std::marker::PhantomData;
 use frame_support::traits::{Get, OriginTrait};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
-use xcm_executor::traits::{LocationConversion, ConvertOrigin};
+use xcm_executor::traits::{Convert, ConvertOrigin};
 use polkadot_parachain::primitives::IsSystem;
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
@@ -26,12 +26,12 @@ pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
 	PhantomData<(LocationConverter, Origin)>
 );
 impl<
-	LocationConverter: LocationConversion<Origin::AccountId>,
+	LocationConverter: Convert<MultiLocation, Origin::AccountId>,
 	Origin: OriginTrait,
-> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> {
+> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> where Origin::AccountId: Clone {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		if let OriginKind::SovereignAccount = kind {
-			let location = LocationConverter::from_location(&origin).ok_or(origin)?;
+			let location = LocationConverter::convert(origin)?;
 			Ok(Origin::signed(location).into())
 		} else {
 			Err(origin)

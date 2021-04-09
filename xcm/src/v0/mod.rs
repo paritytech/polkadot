@@ -16,11 +16,11 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryFrom};
-use alloc::{boxed::Box, vec::Vec};
-
+use core::{result, convert::TryFrom, fmt::Debug};
+use derivative::Derivative;
+use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{VersionedXcm, VersionedMultiAsset};
+use crate::{VersionedMultiAsset, DoubleEncoded, VersionedXcm};
 
 mod junction;
 mod multi_asset;
@@ -31,10 +31,10 @@ pub use junction::{Junction, NetworkId};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, Result, SendXcm, ExecuteXcm};
+pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
-// TODO: Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode the number of
-//   items in the vector.
+// TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
+//   the number of items in the vector.
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
@@ -52,6 +52,13 @@ pub enum OriginKind {
 	Superuser,
 }
 
+/// Response data to a query.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+pub enum Response {
+	/// Some assets.
+	Assets(Vec<MultiAsset>),
+}
+
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
 /// Consensus systems that may send and receive messages include blockchains and smart contracts.
@@ -60,8 +67,11 @@ pub enum OriginKind {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Xcm {
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -71,7 +81,8 @@ pub enum Xcm {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	#[codec(index = 0)]
+	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -87,7 +98,8 @@ pub enum Xcm {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	#[codec(index = 1)]
+	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -104,7 +116,8 @@ pub enum Xcm {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+	#[codec(index = 2)]
+	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -116,12 +129,47 @@ pub enum Xcm {
 	/// Kind: *Information*.
 	///
 	/// Errors:
-	Balances { #[codec(compact)] query_id: u64, assets: Vec<MultiAsset> },
+	#[codec(index = 3)]
+	QueryResponse { #[codec(compact)] query_id: u64, response: Response },
+
+	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
+	/// ownership of `dest` within this consensus system.
+	///
+	/// - `assets`: The asset(s) to be withdrawn.
+	/// - `dest`: The new owner for the assets.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	#[codec(index = 4)]
+	TransferAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
+
+	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
+	/// ownership of `dest` within this consensus system.
+	///
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
+	///
+	/// - `assets`: The asset(s) to be withdrawn.
+	/// - `dest`: The new owner for the assets.
+	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
+	///   `dest.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*.
+	///
+	/// Errors:
+	#[codec(index = 5)]
+	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
 	/// of origin `origin_type`.
 	///
 	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight and will
+	///   be used in the weight determination arithmetic.
 	/// - `call`: The encoded transaction to be applied.
 	///
 	/// Safety: No concerns.
@@ -129,35 +177,8 @@ pub enum Xcm {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact { origin_type: OriginKind, call: Vec<u8> },
-
-	/// Relay an inner message (`inner`) to a locally reachable destination ID `dest`.
-	///
-	/// The message sent to the destination will be wrapped into a `RelayedFrom` message, with the
-	/// `superorigin` being this location.
-	///
-	/// - `dest: MultiLocation`: The location of the to be relayed into. This may never contain `Parent`, and
-	///   it must be immediately reachable from the interpreting context.
-	/// - `inner: VersionedXcm`: The message to be wrapped and relayed.
-	///
-	/// Safety: No concerns.
-	///
-	/// Kind: *Instruction*.
-	///
-	/// Errors:
-	RelayTo { dest: MultiLocation, inner: Box<VersionedXcm> },
-
-	/// A message (`inner`) was sent to `origin` from `superorigin` with the intention of being relayed.
-	///
-	/// - `superorigin`: The location of the `inner` message origin, **relative to `origin`**.
-	/// - `inner`: The message sent by the super origin.
-	///
-	/// Safety: `superorigin` must express a sub-consensus only; it may *NEVER* contain a `Parent` junction.
-	///
-	/// Kind: *Trusted Indication*.
-	///
-	/// Errors:
-	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
+	#[codec(index = 6)]
+	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -169,6 +190,7 @@ pub enum Xcm {
 	/// Safety: The message should originate directly from the relay-chain.
 	///
 	/// Kind: *System Notification*
+	#[codec(index = 7)]
 	HrmpNewChannelOpenRequest {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] max_message_size: u32,
@@ -184,6 +206,7 @@ pub enum Xcm {
 	/// Kind: *System Notification*
 	///
 	/// Errors:
+	#[codec(index = 8)]
 	HrmpChannelAccepted {
 		#[codec(compact)] recipient: u32,
 	},
@@ -198,6 +221,7 @@ pub enum Xcm {
 	/// Kind: *System Notification*
 	///
 	/// Errors:
+	#[codec(index = 9)]
 	HrmpChannelClosing {
 		#[codec(compact)] initiator: u32,
 		#[codec(compact)] sender: u32,
@@ -205,17 +229,54 @@ pub enum Xcm {
 	},
 }
 
-impl From<Xcm> for VersionedXcm {
-	fn from(x: Xcm) -> Self {
+impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: Xcm<Call>) -> Self {
 		VersionedXcm::V0(x)
 	}
 }
 
-impl TryFrom<VersionedXcm> for Xcm {
+impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
 	type Error = ();
-	fn try_from(x: VersionedXcm) -> result::Result<Self, ()> {
+	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
 		match x {
 			VersionedXcm::V0(x) => Ok(x),
 		}
 	}
+}
+
+impl<Call> Xcm<Call> {
+	pub fn into<C>(self) -> Xcm<C> { Xcm::from(self) }
+	pub fn from<C>(xcm: Xcm<C>) -> Self {
+		use Xcm::*;
+		match xcm {
+			WithdrawAsset { assets, effects }
+			=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReserveAssetDeposit { assets, effects }
+			=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(Order::into).collect() },
+			TeleportAsset { assets, effects }
+			=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			QueryResponse { query_id: u64, response }
+			=> QueryResponse { query_id: u64, response },
+			TransferAsset { assets, dest }
+			=> TransferAsset { assets, dest },
+			TransferReserveAsset { assets, dest, effects }
+			=> TransferReserveAsset { assets, dest, effects },
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity}
+			=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
+			HrmpChannelAccepted { recipient}
+			=> HrmpChannelAccepted { recipient},
+			HrmpChannelClosing { initiator, sender, recipient}
+			=> HrmpChannelClosing { initiator, sender, recipient},
+			Transact { origin_type, require_weight_at_most, call}
+			=> Transact { origin_type, require_weight_at_most, call: call.into() }
+		}
+	}
+}
+
+pub mod opaque {
+	/// The basic concrete type of `generic::Xcm`, which doesn't make any assumptions about the format of a
+	/// call other than it is pre-encoded.
+	pub type Xcm = super::Xcm<()>;
+
+	pub use super::order::opaque::*;
 }

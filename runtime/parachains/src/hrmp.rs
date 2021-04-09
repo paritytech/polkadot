@@ -995,7 +995,7 @@ impl<T: Config> Module<T> {
 		<Self as Store>::HrmpOpenChannelRequestsList::append(channel_id);
 
 		let notification_bytes = {
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 			use parity_scale_codec::Encode as _;
 
 			VersionedXcm::from(Xcm::HrmpNewChannelOpenRequest {
@@ -1061,7 +1061,7 @@ impl<T: Config> Module<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelAccepted {
 				recipient: u32::from(origin),
@@ -1104,7 +1104,7 @@ impl<T: Config> Module<T> {
 		let config = <configuration::Module<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelClosing {
 				initiator: u32::from(origin),
