@@ -198,7 +198,7 @@ impl Protocol {
 				// waisting precious time.
 				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
-					STATEMENTS_TIMEOUT.as_secs() * available_bandwidth / MAX_CODE_SIZE as u64,
+                    STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth / (1000 * MAX_CODE_SIZE as u64),
 					MAX_PARALLEL_STATEMENT_REQUESTS as u64
 				);
 				debug_assert!(
