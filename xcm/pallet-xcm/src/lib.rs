@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{marker::PhantomData, convert::TryInto};
+use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
 use codec::{Encode, Decode};
 use xcm::v0::{BodyId, MultiLocation::{self, X1}, Junction::Plurality};
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
@@ -28,6 +28,7 @@ pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use xcm::v0::{Xcm, MultiLocation, Error as XcmError, SendXcm, ExecuteXcm};
@@ -100,11 +101,11 @@ pub mod pallet {
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
 		#[pallet::weight(1_000 + max_weight)]
-		fn execute(origin: OriginFor<T>, message: Xcm<T::Call>, max_weight: Weight)
+		fn execute(origin: OriginFor<T>, message: Box<Xcm<T::Call>>, max_weight: Weight)
 			-> DispatchResult
 		{
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
+			let outcome = T::XcmExecutor::execute_xcm(origin_location, *message, max_weight);
 			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}
@@ -116,7 +117,7 @@ pub mod pallet {
 		pub fn send_xcm(interior: MultiLocation, dest: MultiLocation, message: Xcm<()>) -> Result<(), XcmError> {
 			let message = match interior {
 				MultiLocation::Null => message,
-				who => Xcm::<()>::RelayedFrom { who, message: sp_std::boxed::Box::new(message) },
+				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
 			};
 			T::XcmRouter::send_xcm(dest, message)
 		}

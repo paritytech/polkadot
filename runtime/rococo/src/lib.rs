@@ -655,6 +655,9 @@ impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
+	// Right now nobody but root is allowed to dispatch local XCM messages.
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 impl parachains_session_info::Config for Runtime {}
