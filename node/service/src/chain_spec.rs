@@ -16,6 +16,7 @@
 
 //! Polkadot chain configurations.
 
+use rococo::constants::size::MAX_CODE_SIZE;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
@@ -894,7 +895,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				validation_upgrade_frequency: 1u32,
 				validation_upgrade_delay: 1,
 				code_retention_period: 1200,
-				max_code_size: 5 * 1024 * 1024,
+				max_code_size: MAX_CODE_SIZE,
 				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 20,

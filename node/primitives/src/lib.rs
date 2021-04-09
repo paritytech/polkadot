@@ -42,7 +42,7 @@ pub mod approval;
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
 
 /// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
+pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
 
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;

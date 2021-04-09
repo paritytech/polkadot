@@ -88,8 +88,13 @@ use polkadot_parachain::primitives::Id as ParaId;
 
 use xcm::v0::{MultiLocation, NetworkId, BodyId};
 use xcm_executor::XcmExecutor;
-use xcm_builder::{AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32};
-use constants::{time::*, currency::*, fee::*};
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
+	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
+	FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32
+};
+use constants::{time::*, currency::*, fee::*, size::*};
 use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
@@ -700,7 +705,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
