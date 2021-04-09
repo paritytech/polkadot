@@ -40,6 +40,7 @@ pallet-collective = { git = "https://github.com/paritytech/substrate", branch = 
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -87,6 +88,7 @@ std = [
 	"pallet-beefy/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
+	"pallet-membership/std",
 	"pallet-mmr/std",
 	"pallet-mmr-primitives/std",
 	"pallet-indices/std",
@@ -159,6 +161,7 @@ try-runtime = [
 	"pallet-sudo/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-im-online/try-runtime",
+	"pallet-membership/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
 	"pallet-offences/try-runtime",
