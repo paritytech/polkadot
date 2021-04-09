@@ -599,7 +599,15 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
-
+	let lucky = util::gen_ratio_sqrt_subset(state.peer_views.len(), util::MIN_GOSSIP_PEERS);
+	if !lucky {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?origin,
+			"Peer view change is ignored",
+		);
+		return;
+	}
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
