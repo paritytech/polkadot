@@ -125,7 +125,7 @@ pub async fn fetch(
 					if statement.hash() != candidate_hash {
 						metrics.on_received_response(false);
 
-						if let Err(err) = sender.send(
+						if let Err(err) = sender.feed(
 							RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)
 						).await {
 							tracing::warn!(
@@ -138,7 +138,7 @@ pub async fn fetch(
 						continue
 					}
 
-					if let Err(err) = sender.send(
+					if let Err(err) = sender.feed(
 						RequesterMessage::Finished {
 							relay_parent,
 							candidate_hash,

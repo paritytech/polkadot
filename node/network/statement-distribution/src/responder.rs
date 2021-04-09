@@ -110,7 +110,7 @@ pub async fn respond(
 		);
 
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = sender.send(
+		if let Err(err) = sender.feed(
 			ResponderMessage::GetData {
 				relay_parent: req.payload.relay_parent,
 				candidate_hash: req.payload.candidate_hash,
@@ -129,7 +129,7 @@ pub async fn respond(
 				tracing::debug!(
 					target: LOG_TARGET,
 					?err,
-					"Receiving data failed."
+					"Requested data not found."
 				);
                 Err(())
 			}
