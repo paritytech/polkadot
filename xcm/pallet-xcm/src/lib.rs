@@ -162,7 +162,7 @@ impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognise and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
-impl<O: OriginTrait, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
+impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 	where O::PalletsOrigin: From<Origin> + TryInto<Origin, Error=O::PalletsOrigin>
 {
 	type Success = MultiLocation;
@@ -180,6 +180,6 @@ impl<O: OriginTrait, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::PalletsOrigin::from(Origin::Xcm(MultiLocation::Null)).into()
+		O::from(Origin::Xcm(MultiLocation::Null))
 	}
 }

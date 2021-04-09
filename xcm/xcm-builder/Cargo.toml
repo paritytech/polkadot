@@ -22,6 +22,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [features]
 default = ["std"]
+runtime-benchmarks = []
 std = [
 	"parity-scale-codec/std",
 	"xcm/std",
