@@ -69,88 +69,88 @@ default:
 
 #### stage:                        test
 
-check-runtime:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
-  script:
-    - echo "./scripts/gitlab/check_runtime.sh"
-  allow_failure:                   true
+# check-runtime:
+#   stage:                           test
+#   image:                           paritytech/tools:latest
+#   <<:                              *kubernetes-env
+#   <<:                              *rules-pr-only
+#   variables:
+#     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+#     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+#   script:
+#     - echo "./scripts/gitlab/check_runtime.sh"
+#   allow_failure:                   true
 
-check-line-width:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  script:
-    - echo "./scripts/gitlab/check_line_width.sh"
-  allow_failure:                   true
+# check-line-width:
+#   stage:                           test
+#   image:                           paritytech/tools:latest
+#   <<:                              *kubernetes-env
+#   <<:                              *rules-pr-only
+#   script:
+#     - echo "./scripts/gitlab/check_line_width.sh"
+#   allow_failure:                   true
 
-test-deterministic-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    - echo "./scripts/gitlab/test_deterministic_wasm.sh"
+# test-deterministic-wasm:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     - echo "./scripts/gitlab/test_deterministic_wasm.sh"
 
-test-linux-stable:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  variables:
-    RUST_TOOLCHAIN: stable
-    # Enable debug assertions since we are running optimized builds for testing
-    # but still want to have debug assertions.
-    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
-    TARGET: native
-  # artifacts:
-  #   paths:
-  #     - ./target/release/polkadot
-  script:
-    - echo "./scripts/gitlab/test_linux_stable.sh"
+# test-linux-stable:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   variables:
+#     RUST_TOOLCHAIN: stable
+#     # Enable debug assertions since we are running optimized builds for testing
+#     # but still want to have debug assertions.
+#     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+#     TARGET: native
+#   # artifacts:
+#   #   paths:
+#   #     - ./target/release/polkadot
+#   script:
+#     - echo "./scripts/gitlab/test_linux_stable.sh"
 
-check-web-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we should
-    # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - echo "./scripts/gitlab/check_web_wasm.sh"
+# check-web-wasm:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # WASM support is in progress. As more and more crates support WASM, we should
+#     # add entries here. See https://github.com/paritytech/polkadot/issues/625
+#     - echo "./scripts/gitlab/check_web_wasm.sh"
 
-check-runtime-benchmarks:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - echo "./scripts/gitlab/check_runtime_benchmarks.sh"
+# check-runtime-benchmarks:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # Check that the node will compile with `runtime-benchmarks` feature flag.
+#     - echo "./scripts/gitlab/check_runtime_benchmarks.sh"
 
-.pack-artifacts:                   &pack-artifacts
-  - mkdir -p ./artifacts
-  - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
-  - mv ./target/release/polkadot ./artifacts/.
-  - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-  # - if [ "${CI_COMMIT_TAG}" ]; then
-  #     EXTRATAG="latest";
-  #   else
-  #     EXTRATAG="$(./artifacts/polkadot --version |
-  #       sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
-      # EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
-    # fi
-  - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
-  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
-  - echo -n ${VERSION} > ./artifacts/VERSION
-  - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-  - cp -r scripts/docker/* ./artifacts
+# .pack-artifacts:                   &pack-artifacts
+#   - mkdir -p ./artifacts
+#   - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+#   - mv ./target/release/polkadot ./artifacts/.
+#   - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+#   # - if [ "${CI_COMMIT_TAG}" ]; then
+#   #     EXTRATAG="latest";
+#   #   else
+#   #     EXTRATAG="$(./artifacts/polkadot --version |
+#   #       sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
+#       # EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
+#     # fi
+#   - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
+#   - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+#   - echo -n ${VERSION} > ./artifacts/VERSION
+#   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+#   - cp -r scripts/docker/* ./artifacts
 
 build-linux-release:
   stage:                           test
@@ -178,30 +178,30 @@ build-linux-release:
 
 #### stage:                        build
 
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  needs:
-    - job:                         test-linux-stable
-      artifacts:                   true
-  before_script:
-    # - apt-get -y update; apt-get -y install jq lsof
-    # - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    # - git fetch origin release
-  script:
-    - echo "scripts/gitlab/check_extrinsics_ordering.sh"
+# check-transaction-versions:
+#   image:                           node:15
+#   stage:                           build
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   needs:
+#     - job:                         test-linux-stable
+#       artifacts:                   true
+#   before_script:
+#     # - apt-get -y update; apt-get -y install jq lsof
+#     # - npm install --ignore-scripts -g @polkadot/metadata-cmp
+#     # - git fetch origin release
+#   script:
+#     - echo "scripts/gitlab/check_extrinsics_ordering.sh"
 
-generate-impl-guide:
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.4
-    entrypoint: [""]
-  script:
-    - echo "mdbook build roadmap/implementers-guide"
+# generate-impl-guide:
+#   stage:                           build
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   image:
+#     name: michaelfbryan/mdbook-docker-image:v0.4.4
+#     entrypoint: [""]
+#   script:
+#     - echo "mdbook build roadmap/implementers-guide"
 
 .build-push-docker-image:          &build-push-docker-image
   <<:                              *kubernetes-env
