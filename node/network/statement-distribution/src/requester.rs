@@ -144,7 +144,7 @@ pub async fn fetch(
 							candidate_hash,
 							from_peer: peer,
 							response: statement,
-							bad_peers: tried_peers.clone(),
+							bad_peers: tried_peers,
 						}
 						).await {
 						tracing::warn!(
