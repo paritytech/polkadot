@@ -372,7 +372,8 @@ trigger-simnet:
     - sleep 15
     - for I in `seq 1 3`; do
         echo -n "."
-        curl -sL -o artifacts.zip ${ARTIFACT_URL}
-        unzip -l artifacts.zip | grep -q "$CI_PIPELINE_ID/$CI_JOB_ID/🏁" && break
+        curl -L -o artifacts.zip ${ARTIFACT_URL}
+        ls
+        unzip -l artifacts.zip | grep -q "${CI_PIPELINE_ID}/${CI_JOB_ID}/🏁" && break
         sleep 15
       done; echo
