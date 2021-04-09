@@ -369,6 +369,7 @@ trigger-simnet:
         https://gitlab.parity.io/api/v4/projects/396/trigger/pipeline
     - echo "Waiting for artifacts from the triggered job"
     - ARTIFACT_URL="${CI_SERVER_HOST}/api/v4/projects/396/jobs/artifacts/master/download?job_token=${CI_JOB_TOKEN}"
+    - echo $ARTIFACT_URL
     - sleep 15
     - for I in `seq 1 3`; do
         echo -n "."
@@ -377,3 +378,4 @@ trigger-simnet:
         unzip -l artifacts.zip | grep -q "${CI_PIPELINE_ID}/${CI_JOB_ID}/🏁" && break
         sleep 15
       done; echo
+
