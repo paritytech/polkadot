@@ -1,5 +1,5 @@
 use polkadot_erasure_coding::*;
-use primitives::v1::{AvailableData, BlockData, PoV};
+use primitives::{AvailableData, BlockData, PoV};
 use std::sync::Arc;
 use honggfuzz::fuzz;
 

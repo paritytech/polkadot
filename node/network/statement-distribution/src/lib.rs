@@ -128,6 +128,12 @@ impl VcPerPeerTracker {
 	fn note_remote(&mut self, h: CandidateHash) -> bool {
 		note_hash(&mut self.remote_observed, h)
 	}
+
+	/// Returns `true` if the peer is allowed to send us such a message, `false` otherwise.
+	fn is_wanted_candidate(&self, h: &CandidateHash) -> bool {
+		!self.remote_observed.contains(h) &&
+		!self.remote_observed.is_full()
+	}
 }
 
 fn note_hash(
@@ -278,6 +284,51 @@ impl PeerRelayParentKnowledge {
 		self.received_statements.insert(fingerprint.clone());
 		Ok(self.known_candidates.insert(candidate_hash.clone()))
 	}
+
+	/// This method does the same checks as `receive` without modifying the internal state.
+	/// Returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	fn check_can_receive(
+		&self,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		// We don't check `sent_statements` because a statement could be in-flight from both
+		// sides at the same time.
+		if self.received_statements.contains(fingerprint) {
+			return Err(COST_DUPLICATE_STATEMENT);
+		}
+
+		let candidate_hash = match fingerprint.0 {
+			CompactStatement::Seconded(ref h) => {
+				let allowed_remote = self.seconded_counts.get(&fingerprint.1)
+					.map_or(true, |r| r.is_wanted_candidate(h));
+
+				if !allowed_remote {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+			CompactStatement::Valid(ref h) => {
+				if !self.known_candidates.contains(&h) {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+		};
+
+		let received_per_candidate = self.received_message_count
+			.get(candidate_hash)
+			.unwrap_or(&0);
+
+		if *received_per_candidate >= max_message_count {
+			Err(COST_APPARENT_FLOOD)
+		} else {
+			Ok(())
+		}
+	}
 }
 
 struct PeerData {
@@ -351,6 +402,21 @@ impl PeerData {
 			.ok_or(COST_UNEXPECTED_STATEMENT)?
 			.receive(fingerprint, max_message_count)
 	}
+
+	/// This method does the same checks as `receive` without modifying the internal state.
+	/// Returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	fn check_can_receive(
+		&self,
+		relay_parent: &Hash,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		self.view_knowledge
+			.get(relay_parent)
+			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.check_can_receive(fingerprint, max_message_count)
+	}
 }
 
 // A statement stored while a relay chain head is active.
@@ -408,6 +474,12 @@ enum NotedStatement<'a> {
 	NotUseful,
 	Fresh(&'a StoredStatement),
 	UsefulButKnown
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum DeniedStatement {
+	NotUseful,
+	UsefulButKnown,
 }
 
 struct ActiveHeadData {
@@ -542,6 +614,70 @@ impl ActiveHeadData {
 				}
 			}
 		}
+	}
+
+	/// Returns an error if the statement is already known or not useful
+	/// without modifying the internal state.
+	fn check_useful_or_unknown(&self, statement: SignedFullStatement) -> Result<(), DeniedStatement> {
+		let validator_index = statement.validator_index();
+		let compact = statement.payload().to_compact();
+		let comparator = StoredStatementComparator {
+			compact: compact.clone(),
+			validator_index,
+			signature: statement.signature().clone(),
+		};
+
+		let stored = StoredStatement {
+			comparator,
+			statement,
+		};
+
+		match compact {
+			CompactStatement::Seconded(_) => {
+				let seconded_so_far = self.seconded_counts.get(&validator_index).unwrap_or(&0);
+				if *seconded_so_far >= VC_THRESHOLD {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Extra statement is ignored",
+					);
+					return Err(DeniedStatement::NotUseful);
+				}
+
+				if self.statements.contains(&stored) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Known statement",
+					);
+					return Err(DeniedStatement::UsefulButKnown);
+				}
+			}
+			CompactStatement::Valid(h) => {
+				if !self.candidates.contains(&h) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Statement for unknown candidate",
+					);
+					return Err(DeniedStatement::NotUseful);
+				}
+
+				if self.statements.contains(&stored) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?stored.statement,
+						"Known statement",
+					);
+					return Err(DeniedStatement::UsefulButKnown);
+				}
+			}
+		}
+		Ok(())
 	}
 
 	/// Get an iterator over all statements for the active head. Seconded statements come first.
@@ -812,6 +948,34 @@ async fn handle_incoming_message<'a>(
 		.with_candidate(candidate_hash)
 		.with_peer_id(&peer);
 
+	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
+	let max_message_count = active_head.validators.len() * 2;
+
+	// perform only basic checks before verifying the signature
+	// as it's more computationally heavy
+	if let Err(rep) = peer_data.check_can_receive(&relay_parent, &fingerprint, max_message_count) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer,
+			?statement,
+			?rep,
+			"Error inserting received statement"
+		);
+		report_peer(ctx, peer, rep).await;
+		return None;
+	}
+
+	match active_head.check_useful_or_unknown(statement.clone()) {
+		Ok(()) => {},
+		Err(DeniedStatement::NotUseful) => {
+			return None;
+		}
+		Err(DeniedStatement::UsefulButKnown) => {
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+			return None;
+		}
+	}
+
 	// check the signature on the statement.
 	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
 		tracing::debug!(
@@ -828,19 +992,9 @@ async fn handle_incoming_message<'a>(
 	//
 	// Note that if the peer is sending us something that is not within their view,
 	// it will not be kept within their log.
-	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
-	let max_message_count = active_head.validators.len() * 2;
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
-		Err(rep) => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?peer,
-				?statement,
-				?rep,
-				"Error inserting received statement"
-			);
-			report_peer(ctx, peer, rep).await;
-			return None;
+		Err(_) => {
+			unreachable!("checked in `check_can_receive` above; qed");
 		}
 		Ok(true) => {
 			tracing::trace!(
@@ -867,10 +1021,9 @@ async fn handle_incoming_message<'a>(
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	match active_head.note_statement(statement) {
-		NotedStatement::NotUseful => None,
+		NotedStatement::NotUseful |
 		NotedStatement::UsefulButKnown => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
-			None
+			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		}
 		NotedStatement::Fresh(statement) => {
 			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
@@ -1278,57 +1431,69 @@ mod tests {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(a_seconded_val_0.clone()).is_ok());
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note A (duplicate)
+		assert_eq!(
+			head_data.check_useful_or_unknown(a_seconded_val_0.clone()),
+			Err(DeniedStatement::UsefulButKnown),
+		);
 		let noted = head_data.note_statement(a_seconded_val_0);
 
 		assert_matches!(noted, NotedStatement::UsefulButKnown);
 
 		// note B
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (beyond 2 - ignored)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert_eq!(
+			head_data.check_useful_or_unknown(statement.clone()),
+			Err(DeniedStatement::NotUseful),
+		);
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::NotUseful);
 
 		// note B (new validator)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (new validator)
-		let noted = head_data.note_statement(block_on(SignedFullStatement::sign(
+		let statement = block_on(SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		)).ok().flatten().expect("should be signed"));
-
+		)).ok().flatten().expect("should be signed");
+		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
 
@@ -1405,6 +1570,7 @@ mod tests {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
 		let hash_a = CandidateHash([1; 32].into());
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).is_ok());
 		assert!(knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).unwrap());
 		assert!(!knowledge.can_send(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0))));
 	}
@@ -1416,16 +1582,22 @@ mod tests {
 		let hash_a = CandidateHash([1; 32].into());
 
 		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
+		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
 		);
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_a), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
 		// Push statements up to the flood limit.
+		assert!(knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(1)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(1)), 3),
 			Ok(false),
@@ -1434,6 +1606,7 @@ mod tests {
 		assert!(knowledge.known_candidates.contains(&hash_a));
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 2);
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Ok(false),
@@ -1441,6 +1614,10 @@ mod tests {
 
 		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 3);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(7)), 3),
+			Err(COST_APPARENT_FLOOD),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(7)), 3),
 			Err(COST_APPARENT_FLOOD),
@@ -1453,11 +1630,16 @@ mod tests {
 		let hash_b = CandidateHash([2; 32].into());
 		let hash_c = CandidateHash([3; 32].into());
 
+		assert!(knowledge.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3).is_ok());
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Ok(true),
 		);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
 			Err(COST_UNEXPECTED_STATEMENT),
@@ -1465,10 +1647,18 @@ mod tests {
 
 		// Last, make sure that already-known statements are disregarded.
 		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
+		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), ValidatorIndex(2)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
 		);
 
+		assert_eq!(
+			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Err(COST_DUPLICATE_STATEMENT),
@@ -1524,34 +1714,39 @@ mod tests {
 				PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 			);
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Seconded(candidate.clone()),
 				&signing_context,
 				ValidatorIndex(0),
 				&alice_public.into(),
-			)).ok().flatten().expect("should be signed"));
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				ValidatorIndex(1),
 				&bob_public.into(),
-			)).ok().flatten().expect("should be signed"));
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
-			let noted = data.note_statement(block_on(SignedFullStatement::sign(
+			let statement = block_on(SignedFullStatement::sign(
 				&keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				ValidatorIndex(2),
 				&charlie_public.into(),
-			)).ok().flatten().expect("should be signed"));
-
+			)).ok().flatten().expect("should be signed");
+			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			let noted = data.note_statement(statement);
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
 			data
