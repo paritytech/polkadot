@@ -100,7 +100,7 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(1_000 + max_weight)]
+		#[pallet::weight(1_000.saturating_add(max_weight))]
 		fn execute(origin: OriginFor<T>, message: Box<Xcm<T::Call>>, max_weight: Weight)
 			-> DispatchResult
 		{
