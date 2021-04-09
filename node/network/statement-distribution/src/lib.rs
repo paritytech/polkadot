@@ -1676,7 +1676,7 @@ impl StatementDistribution {
 					None => {
 						tracing::warn!(
 							target: LOG_TARGET,
-							"Received get more peers event for non existent status - not supposed to happen."
+							"Received 'get more peers' event for non existent status - not supposed to happen."
 						);
 						return Ok(false)
 					}
