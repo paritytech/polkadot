@@ -39,10 +39,15 @@ use runtime_parachains::{
 	self,
 	runtime_api_impl::v1 as runtime_api_impl,
 };
-use frame_support::{construct_runtime, parameter_types, traits::{Filter, KeyOwnerProofSystem, Randomness}, weights::Weight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Filter, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
+	PalletId
+};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
+	ApplyExtrinsicResult, KeyTypeId, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
@@ -104,7 +109,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1-1"),
 	authoring_version: 0,
-	spec_version: 227,
+	spec_version: 228,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -198,14 +203,7 @@ fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
 		para_validator: old.para_validator,
 		para_assignment: old.para_assignment,
 		authority_discovery: old.authority_discovery,
-		beefy: {
-			// We need to produce a dummy value that's unique for the validator.
-			let mut id = BeefyId::default();
-			let id_raw: &mut [u8] = id.as_mut();
-			id_raw.copy_from_slice(v.as_ref());
-			id_raw[0..4].copy_from_slice(b"beef");
-			id
-		},
+		beefy: runtime_common::dummy_beefy_id_from_account_id(v),
 	}
 }
 
@@ -792,7 +790,7 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
 	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
 	pub const MinContribution: Balance = 1 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
@@ -803,7 +801,7 @@ parameter_types! {
 
 impl crowdloan::Config for Runtime {
 	type Event = Event;
-	type ModuleId = CrowdloanId;
+	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RemoveKeysLimit = RemoveKeysLimit;

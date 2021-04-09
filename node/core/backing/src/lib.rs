@@ -1162,11 +1162,11 @@ impl util::JobTrait for CandidateBackingJob {
 			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = match Validator::construct(
 				&validators,
-				signing_context,
+				signing_context.clone(),
 				keystore.clone(),
 			).await {
-				Ok(v) => v,
-				Err(util::Error::NotAValidator) => { return Ok(()) },
+				Ok(v) => Some(v),
+				Err(util::Error::NotAValidator) => None,
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -1186,13 +1186,14 @@ impl util::JobTrait for CandidateBackingJob {
 			let n_cores = cores.len();
 
 			let mut assignment = None;
+
 			for (idx, core) in cores.into_iter().enumerate() {
 				// Ignore prospective assignments on occupied cores for the time being.
 				if let CoreState::Scheduled(scheduled) = core {
 					let core_index = CoreIndex(idx as _);
 					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 					if let Some(g) = validator_groups.get(group_index.0 as usize) {
-						if g.contains(&validator.index()) {
+						if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
 							assignment = Some((scheduled.para_id, scheduled.collator));
 						}
 						groups.insert(scheduled.para_id, g.clone());
@@ -1203,8 +1204,8 @@ impl util::JobTrait for CandidateBackingJob {
 			let table_context = TableContext {
 				groups,
 				validators,
-				signing_context: validator.signing_context().clone(),
-				validator: Some(validator),
+				signing_context,
+				validator,
 			};
 
 			let (assignment, required_collator) = match assignment {
@@ -2812,6 +2813,110 @@ mod tests {
 					)
 				) if pov == pov && &c == candidate.descriptor()
 			);
+			virtual_overseer
+		});
+	}
+
+	#[test]
+	fn observes_backing_even_if_not_validator() {
+		let test_state = TestState::default();
+		let empty_keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
+		test_harness(empty_keystore, |mut virtual_overseer| async move {
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![1, 2, 3]),
+			};
+
+			let pov_hash = pov.hash();
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let candidate_a_hash = candidate_a.hash();
+			let public0 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[0].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public1 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[5].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[2].to_seed()),
+			).await.expect("Insert key into keystore");
+
+			// Produce a 3-of-5 quorum on the candidate.
+
+			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Seconded(candidate_a.clone()),
+				&test_state.signing_context,
+				ValidatorIndex(0),
+				&public0.into(),
+			).await.ok().flatten().expect("should be signed");
+
+			let signed_b = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				ValidatorIndex(5),
+				&public1.into(),
+			).await.ok().flatten().expect("should be signed");
+
+			let signed_c = SignedFullStatement::sign(
+				&test_state.keystore,
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				ValidatorIndex(2),
+				&public2.into(),
+			).await.ok().flatten().expect("should be signed");
+
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_b.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_c.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						_,
+						ProvisionableData::BackedCandidate(candidate_receipt)
+					)
+				) => {
+					assert_eq!(candidate_receipt, candidate_a.to_plain());
+				}
+			);
+
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
+			).await;
 			virtual_overseer
 		});
 	}
