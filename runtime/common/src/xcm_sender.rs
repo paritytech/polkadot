@@ -22,21 +22,22 @@ use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Resu
 use runtime_parachains::{configuration, dmp};
 
 /// Xcm sender for relay chain. It only sends downward message.
-pub struct RelayChainXcmSender<T>(PhantomData<T>);
+pub struct ChildParachainRouter<T>(PhantomData<T>);
 
-impl<T: configuration::Config + dmp::Config> SendXcm for RelayChainXcmSender<T> {
+impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T> {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
-		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
-			// Downward message passing.
-			let config = <configuration::Module<T>>::config();
-			<dmp::Module<T>>::queue_downward_message(
-				&config,
-				id.into(),
-				VersionedXcm::from(msg).encode(),
-			).map_err(Into::<Error>::into)?;
-			Ok(())
-		} else {
-			Err(Error::CannotReachDestination("UnsupportedDestination"))
+		match dest {
+			MultiLocation::X1(Junction::Parachain { id }) => {
+				// Downward message passing.
+				let config = <configuration::Module<T>>::config();
+				<dmp::Module<T>>::queue_downward_message(
+					&config,
+					id.into(),
+					VersionedXcm::from(msg).encode(),
+				).map_err(Into::<Error>::into)?;
+				Ok(())
+			}
+			d => Err(Error::CannotReachDestination(d, msg)),
 		}
 	}
 }

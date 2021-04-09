@@ -474,8 +474,13 @@ impl parachains_paras::Config for Runtime {
 
 impl parachains_dmp::Config for Runtime {}
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
 	type UmpSink = ();
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_hrmp::Config for Runtime {
