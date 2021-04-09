@@ -38,7 +38,7 @@ use runtime_common::{
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ModuleId,
+	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
@@ -56,7 +56,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug, PalletId,
 	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -66,6 +66,8 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use pallet_mmr_primitives as mmr;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -90,7 +92,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2030,
+	spec_version: 2031,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -157,6 +159,7 @@ impl frame_system::Config for Runtime {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -491,7 +494,7 @@ parameter_types! {
 	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
-	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
 }
 
 // Make sure that there are no more than MaxMembers members elected via phragmen.
@@ -511,7 +514,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
-	type ModuleId = ElectionsPhragmenModuleId;
+	type PalletId = ElectionsPhragmenPalletId;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 }
 
@@ -549,7 +552,7 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
-	pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -570,7 +573,7 @@ type ApproveOrigin = EnsureOneOf<
 >;
 
 impl pallet_treasury::Config for Runtime {
-	type ModuleId = TreasuryModuleId;
+	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
@@ -802,7 +805,7 @@ parameter_types! {
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
 	pub const MaxCandidateIntake: u32 = 1;
-	pub const SocietyModuleId: ModuleId = ModuleId(*b"py/socie");
+	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
 impl pallet_society::Config for Runtime {
@@ -820,7 +823,7 @@ impl pallet_society::Config for Runtime {
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
-	type ModuleId = SocietyModuleId;
+	type PalletId = SocietyPalletId;
 }
 
 parameter_types! {
@@ -1170,7 +1173,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
+			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			None
 		}
 		fn check_validation_outputs(
@@ -1214,6 +1217,42 @@ sp_api::impl_runtime_apis! {
 			_recipient: Id
 		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
 			BTreeMap::new()
+		}
+
+		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
+			None
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+			// dummy implementation due to lack of BEEFY pallet.
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+		}
+	}
+
+	impl mmr::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(_leaf_index: u64)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::GenerateProof)
+		}
+
+		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
+
+		fn verify_proof_stateless(
+			_root: Hash,
+			_leaf: mmr::EncodableOpaqueLeaf,
+			_proof: mmr::Proof<Hash>
+		) -> Result<(), mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
 		}
 	}
 

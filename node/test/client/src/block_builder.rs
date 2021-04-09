@@ -16,7 +16,7 @@
 
 use crate::{Client, FullBackend};
 use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
-use polkadot_primitives::v1::Block;
+use polkadot_primitives::v1::{Block, InherentData as ParachainsInherentData};
 use sp_runtime::{generic::BlockId, Digest, DigestItem};
 use sp_api::ProvideRuntimeApi;
 use sp_consensus_babe::{BABE_ENGINE_ID, digests::{PreDigest, SecondaryPlainPreDigest}};
@@ -100,18 +100,20 @@ impl InitPolkadotBlockBuilder for Client {
 		let parent_header = self.header(at)
 			.expect("Get the parent block header")
 			.expect("The target block header must exist");
-		let provisioner_data = polkadot_node_subsystem::messages::ProvisionerInherentData::default();
-		let inclusion_inherent_data = (
-			provisioner_data.0,
-			provisioner_data.1,
-			parent_header,
-		);
+
+		let parachains_inherent_data = ParachainsInherentData {
+			bitfields: Vec::new(),
+			backed_candidates: Vec::new(),
+			disputes: Vec::new(),
+			parent_header: parent_header,
+		};
+
 		inherent_data
 			.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
-				&inclusion_inherent_data,
+				polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER,
+				&parachains_inherent_data,
 			)
-			.expect("Put inclusion inherent data");
+			.expect("Put parachains inherent data");
 
 		let inherents = block_builder.create_inherents(inherent_data).expect("Creates inherents");
 

@@ -27,7 +27,7 @@ use super::*;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
-fn test_harness<T: Future<Output = ()>>(
+fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,
 	test_fn: impl FnOnce(VirtualOverseer) -> T,
 ) -> State {
@@ -51,7 +51,14 @@ fn test_harness<T: Future<Output = ()>>(
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(async move {
+			let mut overseer = test_fut.await;
+			overseer
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.timeout(TIMEOUT)
+				.await
+				.expect("Conclude send timeout");
+		}, subsystem));
 	}
 
 	state
@@ -262,6 +269,7 @@ fn try_import_the_same_assignment() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }
 
@@ -342,6 +350,89 @@ fn spam_attack_results_in_negative_reputation_change() {
 			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
 			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE).await;
 		}
+		virtual_overseer
+	});
+}
+
+
+/// Imagine we send a message to peer A and peer B.
+/// Upon receiving them, they both will try to send the message each other.
+/// This test makes sure they will not punish each other for such duplicate messages.
+///
+/// See https://github.com/paritytech/polkadot/issues/2499.
+#[test]
+fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
+	let parent_hash = Hash::repeat_byte(0xFF);
+	let peer_a = PeerId::random();
+	let hash = Hash::repeat_byte(0xAA);
+
+	let _ = test_harness(State::default(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		let peer = &peer_a;
+		setup_peer_with_view(overseer, peer, view![]).await;
+
+		// new block `hash` with 1 candidates
+		let meta = BlockApprovalMeta {
+			hash,
+			parent_hash,
+			number: 1,
+			candidates: vec![Default::default(); 1],
+			slot: 1.into(),
+		};
+		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
+		overseer_send(overseer, msg).await;
+
+		// import an assignment related to `hash` locally
+		let validator_index = ValidatorIndex(0);
+		let candidate_index = 0u32;
+		let cert = fake_assignment_cert(hash, validator_index);
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index)
+		).await;
+
+		// update peer view to include the hash
+		overseer_send(
+			overseer,
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view![hash])
+			)
+		).await;
+
+		// we should send them the assignment
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				peers,
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
+				)
+			)) => {
+				assert_eq!(peers.len(), 1);
+				assert_eq!(assignments.len(), 1);
+			}
+		);
+
+		// but if someone else is sending it the same assignment
+		// the peer could send us it as well
+		let assignments = vec![(cert, candidate_index)];
+		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
+		send_message_from_peer(overseer, peer, msg.clone()).await;
+
+		assert!(overseer
+			.recv()
+			.timeout(TIMEOUT)
+			.await
+			.is_none(),
+			"we should not punish the peer",
+		);
+
+		// send the assignments again
+		send_message_from_peer(overseer, peer, msg).await;
+
+		// now we should
+		expect_reputation_change(overseer, peer, COST_DUPLICATE_MESSAGE).await;
+		virtual_overseer
 	});
 }
 
@@ -428,6 +519,7 @@ fn import_approval_happy_path() {
 				assert_eq!(approvals.len(), 1);
 			}
 		);
+		virtual_overseer
 	});
 }
 
@@ -507,6 +599,7 @@ fn import_approval_bad() {
 		);
 
 		expect_reputation_change(overseer, &peer_b, COST_INVALID_MESSAGE).await;
+		virtual_overseer
 	});
 }
 
@@ -545,6 +638,7 @@ fn update_our_view() {
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
 		overseer_send(overseer, msg).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&1).is_some());
@@ -558,6 +652,7 @@ fn update_our_view() {
 		let overseer = &mut virtual_overseer;
 		// finalize a block
 		overseer_signal_block_finalized(overseer, 2).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&1).is_none());
@@ -571,6 +666,7 @@ fn update_our_view() {
 		let overseer = &mut virtual_overseer;
 		// finalize a very high block
 		overseer_signal_block_finalized(overseer, 4_000_000_000).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&3).is_none());
@@ -645,6 +741,7 @@ fn update_peer_view() {
 				assert_eq!(assignments.len(), 1);
 			}
 		);
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(0));
@@ -655,6 +752,7 @@ fn update_peer_view() {
 			.known_by
 			.get(peer)
 			.unwrap()
+			.sent
 			.known_messages
 			.len(),
 		1,
@@ -691,6 +789,7 @@ fn update_peer_view() {
 				assert_eq!(assignments[0].0, cert_c);
 			}
 		);
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(2));
@@ -701,6 +800,7 @@ fn update_peer_view() {
 			.known_by
 			.get(peer)
 			.unwrap()
+			.sent
 			.known_messages
 			.len(),
 		1,
@@ -716,6 +816,7 @@ fn update_peer_view() {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::with_finalized(finalized_number))
 			)
 		).await;
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(finalized_number));
@@ -729,6 +830,7 @@ fn update_peer_view() {
 	);
 }
 
+/// E.g. if someone copies the keys...
 #[test]
 fn import_remotely_then_locally() {
 	let peer_a = PeerId::random();
@@ -825,6 +927,7 @@ fn import_remotely_then_locally() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }
 
@@ -910,5 +1013,6 @@ fn sends_assignments_even_when_state_is_approved() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }
