@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -26,6 +28,7 @@ use parity_scale_codec::Encode;
 
 use sc_network::Event as NetworkEvent;
 use sc_network::{IfDisconnected, NetworkService, OutboundFailure, RequestFailure};
+use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
@@ -35,7 +38,7 @@ use polkadot_node_network_protocol::{
 use polkadot_primitives::v1::{Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
-use crate::validator_discovery::{peer_id_from_multiaddr, AuthorityDiscovery};
+use crate::validator_discovery::AuthorityDiscovery;
 
 use super::LOG_TARGET;
 
@@ -49,6 +52,7 @@ pub(crate) async fn send_message<M, I>(
 	peers: I,
 	peer_set: PeerSet,
 	message: M,
+	metrics: &super::Metrics,
 ) -> SubsystemResult<()>
 where
 	M: Encode + Clone,
@@ -58,7 +62,12 @@ where
 	let mut message_producer = stream::iter({
 		let peers = peers.into_iter();
 		let n_peers = peers.len();
-		let mut message = Some(message.encode());
+		let mut message = {
+			let encoded = message.encode();
+			metrics.on_notification_sent(peer_set, encoded.len(), n_peers);
+
+			Some(encoded)
+		};
 
 		peers.enumerate().map(move |(i, peer)| {
 			// optimization: avoid cloning the message for the last peer in the
@@ -98,12 +107,19 @@ pub enum NetworkAction {
 
 /// An abstraction over networking for the purposes of this subsystem.
 #[async_trait]
-pub trait Network: Send + 'static {
+pub trait Network: Clone + Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
 	/// to the [`VALIDATION_PROTOCOL_NAME`](VALIDATION_PROTOCOL_NAME)
 	/// or [`COLLATION_PROTOCOL_NAME`](COLLATION_PROTOCOL_NAME)
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
+
+	/// Ask the network to keep a substream open with these nodes and not disconnect from them
+	/// until removed from the protocol's peer set.
+	/// Note that `out_peers` setting has no effect on this.
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	/// Cancels the effects of `add_to_peers_set`.
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 
 	/// Get access to an underlying sink for all network actions.
 	fn action_sink<'a>(
@@ -166,6 +182,14 @@ pub trait Network: Send + 'static {
 impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+	}
+
+	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
+	}
+
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -235,16 +259,28 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 		let peer_id = match peer {
 			Recipient::Peer(peer_id) =>  Some(peer_id),
-			Recipient::Authority(authority) =>
-				authority_discovery
-				.get_addresses_by_authority_id(authority)
-				.await
-				.and_then(|addrs| {
-					addrs
-						.into_iter()
-						.find_map(|addr| peer_id_from_multiaddr(&addr))
-				}),
-			};
+			Recipient::Authority(authority) => {
+				let mut found_peer_id = None;
+				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
+				// to be very quick.
+				for addr in authority_discovery
+					.get_addresses_by_authority_id(authority).await
+					.into_iter().flat_map(|list| list.into_iter())
+				{
+					let (peer_id, addr) = match parse_addr(addr) {
+						Ok(v) => v,
+						Err(_) => continue,
+					};
+					NetworkService::add_known_address(
+						&*self,
+						peer_id.clone(),
+						addr,
+					);
+					found_peer_id = Some(peer_id);
+				}
+				found_peer_id
+			}
+		};
 
 		let peer_id = match peer_id {
 			None => {

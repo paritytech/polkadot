@@ -19,14 +19,30 @@
 
 use std::sync::Arc;
 
+use sc_keystore::LocalKeystore;
 use sp_keyring::Sr25519Keyring;
+use sp_application_crypto::AppKey;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_primitives::v1::{AvailableData, BlockData, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CommittedCandidateReceipt, ErasureChunk, GroupIndex, Hash, HeadData, Id
-	as ParaId, OccupiedCore, PersistedValidationData, PoV, SessionInfo,
-	ValidatorIndex
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateDescriptor, CandidateHash,
+	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId,
+	OccupiedCore, PersistedValidationData, SessionInfo, ValidatorId, ValidatorIndex
 };
+use polkadot_node_primitives::{PoV, ErasureChunk, AvailableData, BlockData};
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+
+/// Get mock keystore with `Ferdie` key.
+pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
+	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	SyncCryptoStore::sr25519_generate_new(
+		&*keystore,
+		ValidatorId::ID,
+		Some(&Sr25519Keyring::Ferdie.to_seed()),
+	)
+	.expect("Insert key into keystore");
+	keystore
+}
 
 /// Create dummy session info with two validator groups.
 pub fn make_session_info() -> SessionInfo {
@@ -123,6 +139,7 @@ impl TestCandidateBuilder {
 	}
 }
 
+// Get chunk for index 0
 pub fn get_valid_chunk_data(pov: PoV) -> (Hash, ErasureChunk) {
 	let fake_validator_count = 10;
 	let persisted = PersistedValidationData {

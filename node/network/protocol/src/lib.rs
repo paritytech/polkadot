@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 use parity_scale_codec::{Encode, Decode};
 use std::{fmt, collections::HashMap};
 
-pub use sc_network::PeerId;
+pub use sc_network::{PeerId, IfDisconnected};
 #[doc(hidden)]
 pub use polkadot_node_jaeger as jaeger;
 #[doc(hidden)]
@@ -38,11 +38,11 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
-/// A unique identifier of a request.
-pub type RequestId = u64;
-
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
+/// The minimum amount of peers to send gossip messages to.
+pub const MIN_GOSSIP_PEERS: usize = 25;
+
 
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -288,29 +288,14 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
-	use polkadot_node_primitives::{
-		SignedFullStatement,
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
-	};
 	use parity_scale_codec::{Encode, Decode};
-	use super::RequestId;
 	use std::convert::TryFrom;
 
-	/// Network messages used by the availability recovery subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum AvailabilityRecoveryMessage {
-		/// Request a chunk for a given candidate hash and validator index.
-		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
-		/// Respond with chunk for a given candidate hash and validator index.
-		/// The response may be `None` if the requestee does not have the chunk.
-		Chunk(RequestId, Option<ErasureChunk>),
-		/// Request full data for a given candidate hash.
-		RequestFullData(RequestId, CandidateHash),
-		/// Respond with full data for a given candidate hash.
-		/// The response may be `None` if the requestee does not have the data.
-		FullData(RequestId, Option<AvailableData>),
-	}
+	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature};
+	use polkadot_node_primitives::{
+		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		SignedFullStatement,
+	};
 
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -320,25 +305,73 @@ pub mod v1 {
 		Bitfield(Hash, SignedAvailabilityBitfield),
 	}
 
-	/// Network messages used by the PoV distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum PoVDistributionMessage {
-		/// Notification that we are awaiting the given PoVs (by hash) against a
-		/// specific relay-parent hash.
-		#[codec(index = 0)]
-		Awaiting(Hash, Vec<Hash>),
-		/// Notification of an awaited PoV, in a given relay-parent context.
-		/// (relay_parent, pov_hash, compressed_pov)
-		#[codec(index = 1)]
-		SendPoV(Hash, Hash, CompressedPoV),
-	}
-
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
-		Statement(Hash, SignedFullStatement)
+		Statement(Hash, SignedFullStatement),
+		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
+		///
+		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
+		/// via req/response.
+		#[codec(index = 1)]
+		LargeStatement(StatementMetadata),
+	}
+
+	/// Data that maes a statement unique.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+	pub struct StatementMetadata {
+		/// Relayt parent this statement is relevant under.
+		pub relay_parent: Hash,
+		/// Hash of the candidate that got validated.
+		pub candidate_hash: CandidateHash,
+		/// Validator that attested the valididty.
+		pub signed_by: ValidatorIndex,
+		/// Signature of seconding validator.
+		pub signature: ValidatorSignature,
+	}
+
+	impl StatementDistributionMessage {
+		/// Get meta data of the given `StatementDistributionMessage`.
+		pub fn get_metadata(&self) -> StatementMetadata {
+			match self {
+				Self::Statement(relay_parent, statement) => StatementMetadata {
+					relay_parent: *relay_parent,
+					candidate_hash: statement.payload().candidate_hash(),
+					signed_by: statement.validator_index(),
+					signature: statement.signature().clone(),
+				},
+				Self::LargeStatement(metadata) => metadata.clone(),
+			}
+		}
+
+		/// Get fingerprint describing the contained statement uniquely.
+		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
+			match self {
+				Self::Statement(_, statement) =>
+					(statement.payload().to_compact(), statement.validator_index()),
+				Self::LargeStatement(meta) =>
+					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
+			}
+		}
+
+		/// Get contained relay parent.
+		pub fn get_relay_parent(&self) -> Hash {
+			match self {
+				Self::Statement(r, _) => *r,
+				Self::LargeStatement(meta) => meta.relay_parent,
+			}
+		}
+
+		/// Whether or not this message contains a large statement.
+		pub fn is_large_statement(&self) -> bool {
+			if let Self::LargeStatement(_) = self {
+				true
+			} else {
+				false
+			}
+		}
 	}
 
 	/// Network messages used by the approval distribution subsystem.
@@ -357,13 +390,14 @@ pub mod v1 {
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
-		/// Declare the intent to advertise collations under a collator ID.
+		/// Declare the intent to advertise collations under a collator ID, attaching a
+		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId),
-		/// Advertise a collation to a validator. Can only be sent once the peer has declared
-		/// that they are a collator with given ID.
+		Declare(CollatorId, ParaId, CollatorSignature),
+		/// Advertise a collation to a validator. Can only be sent once the peer has
+		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
-		AdvertiseCollation(Hash, ParaId),
+		AdvertiseCollation(Hash),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(SignedFullStatement),
@@ -375,25 +409,17 @@ pub mod v1 {
 		/// Bitfield distribution messages
 		#[codec(index = 1)]
 		BitfieldDistribution(BitfieldDistributionMessage),
-		/// PoV Distribution messages
-		#[codec(index = 2)]
-		PoVDistribution(PoVDistributionMessage),
 		/// Statement distribution messages
 		#[codec(index = 3)]
 		StatementDistribution(StatementDistributionMessage),
-		/// Availability recovery messages
-		#[codec(index = 4)]
-		AvailabilityRecovery(AvailabilityRecoveryMessage),
 		/// Approval distribution messages
-		#[codec(index = 5)]
+		#[codec(index = 4)]
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
-	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
-	impl_try_from!(ValidationProtocol, AvailabilityRecovery, AvailabilityRecoveryMessage);
 
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -404,4 +430,14 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+
+	/// Get the payload that should be signed and included in a `Declare` message.
+	///
+	/// The payload is the local peer id of the node, which serves to prove that it
+	/// controls the collator key it is declaring an intention to collate under.
+	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
+		let mut payload = peer_id.to_bytes();
+		payload.extend_from_slice(b"COLL");
+		payload
+	}
 }

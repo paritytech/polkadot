@@ -18,7 +18,8 @@
 
 use futures_timer::Delay;
 use polkadot_node_primitives::{Collation, CollatorFn, CollationResult, Statement, SignedFullStatement};
-use polkadot_primitives::v1::{CollatorId, CollatorPair, PoV};
+use polkadot_primitives::v1::{CollatorId, CollatorPair};
+use polkadot_node_primitives::PoV;
 use parity_scale_codec::{Encode, Decode};
 use sp_core::{Pair, traits::SpawnNamed};
 use std::{
@@ -175,13 +176,15 @@ impl Collator {
 				hrmp_watermark: validation_data.relay_parent_number,
 			};
 
+			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
+
 			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn("adder-collator-seconded", async move {
 				if let Ok(res) = recv.await {
 					if !matches!(
 						res.payload(),
-						Statement::Seconded(s) if s.descriptor.pov_hash == pov.hash(),
+						Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
 					) {
 						log::error!("Seconded statement should match our collation: {:?}", res.payload());
 						std::process::exit(-1);
@@ -230,7 +233,7 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
+	use polkadot_parachain::{primitives::{ValidationParams, ValidationResult}};
 	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
@@ -265,18 +268,19 @@ mod tests {
 		parent_head: HeadData,
 		collation: Collation,
 	) {
-		let ret = polkadot_parachain::wasm_executor::validate_candidate(
+		use polkadot_node_core_pvf::testing::validate_candidate;
+
+		let ret_buf = validate_candidate(
 			collator.validation_code(),
-			ValidationParams {
+			&ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
-			},
-			&IsolationStrategy::InProcess,
-			sp_core::testing::TaskExecutor::new(),
+			}.encode(),
 		)
 		.unwrap();
+		let ret = ValidationResult::decode(&mut &ret_buf[..]).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 		assert_eq!(

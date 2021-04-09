@@ -60,7 +60,7 @@ fn main() -> Result<()> {
 
 						let full_node = polkadot_service::build_full(
 							config,
-							polkadot_service::IsCollator::Yes(collator.collator_id()),
+							polkadot_service::IsCollator::Yes(collator.collator_key()),
 							None,
 							None,
 							None,

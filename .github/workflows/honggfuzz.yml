@@ -1,0 +1,84 @@
+name: Run nightly fuzzer jobs
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  erasure-coding-round-trip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install minimal stable Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install minimal nightly Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Install honggfuzz deps
+        run: sudo apt-get install --no-install-recommends binutils-dev libunwind8-dev
+
+      - name: Install honggfuzz
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: honggfuzz --version "0.5.54"
+
+      - name: Build fuzzer binaries
+        working-directory: erasure-coding/fuzzer
+        run: cargo hfuzz build
+
+      - name: Run fuzzer
+        working-directory: erasure-coding/fuzzer
+        run: bash $GITHUB_WORKSPACE/scripts/github/run_fuzzer.sh round_trip
+
+  erasure-coding-reconstruct:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+
+      - name: Install minimal stable Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install minimal nightly Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Install honggfuzz deps
+        run: sudo apt-get install --no-install-recommends binutils-dev libunwind8-dev
+
+      - name: Install honggfuzz
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: honggfuzz --version "0.5.54"
+
+      - name: Build fuzzer binaries
+        working-directory: erasure-coding/fuzzer
+        run: cargo hfuzz build
+
+      - name: Run fuzzer
+        working-directory: erasure-coding/fuzzer
+        run: bash $GITHUB_WORKSPACE/scripts/github/run_fuzzer.sh reconstruct

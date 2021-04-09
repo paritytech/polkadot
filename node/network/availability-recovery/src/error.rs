@@ -16,7 +16,7 @@
 
 //! The `Error` and `Result` types used by the subsystem.
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use thiserror::Error;
 
 /// Error type used by the Availability Recovery subsystem.
@@ -24,9 +24,6 @@ use thiserror::Error;
 pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] polkadot_subsystem::SubsystemError),
-
-	#[error("failed to query a chunk from store")]
-	CanceledQueryChunk(#[source] oneshot::Canceled),
 
 	#[error("failed to query full data from store")]
 	CanceledQueryFullData(#[source] oneshot::Canceled),
@@ -36,9 +33,6 @@ pub enum Error {
 
 	#[error("failed to send response")]
 	CanceledResponseSender,
-
-	#[error("to_state channel is closed")]
-	ClosedToState(#[source] mpsc::SendError),
 
 	#[error(transparent)]
 	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
