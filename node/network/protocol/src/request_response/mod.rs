@@ -121,16 +121,16 @@ impl Protocol {
 		let cfg = match self {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
-				max_request_size: 10_000,
-				max_response_size: 10_000_000,
+				max_request_size: 1_000,
+				max_response_size: MAX_POV_SIZE / 10,
 				// We are connected to all validators:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetching => RequestResponseConfig {
 				name: p_name,
-				max_request_size: 10_000,
-				max_response_size: MAX_POV_SIZE as u64,
+				max_request_size: 1_000,
+				max_response_size: MAX_POV_SIZE as u64 + 1000,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
@@ -146,7 +146,7 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
-				max_response_size: MAX_POV_SIZE as u64,
+				max_response_size: MAX_POV_SIZE as u64 + 1000,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
@@ -154,7 +154,8 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated code size.
-				max_response_size: MAX_CODE_SIZE as u64,
+                // + 1000 to account for protocol overhead (should be way less).
+				max_response_size: MAX_CODE_SIZE as u64 + 1000,
 				// We need statement fetching to be fast and will try our best at the responding
 				// side to answer requests within that timeout, assuming a bandwidth of 500Mbit/s
 				// - which is the recommended minimum bandwidth for nodes on Kusama as of April
