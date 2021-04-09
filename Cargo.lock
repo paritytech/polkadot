@@ -7335,6 +7335,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-indices",
+ "pallet-membership",
  "pallet-mmr",
  "pallet-mmr-primitives",
  "pallet-offences",
