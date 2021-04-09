@@ -65,11 +65,11 @@ where
 mod tests {
 	use super::*;
 	use frame_system::limits;
-	use frame_support::{parameter_types, weights::DispatchClass};
+	use frame_support::{parameter_types, PalletId, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
-		testing::Header, ModuleId,
+		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 		Perbill,
 	};
@@ -141,7 +141,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 	}
 
 	impl pallet_treasury::Config for Test {
@@ -155,7 +155,7 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type ModuleId = TreasuryModuleId;
+		type PalletId = TreasuryPalletId;
 		type SpendFunds = ();
 		type WeightInfo = ();
 	}

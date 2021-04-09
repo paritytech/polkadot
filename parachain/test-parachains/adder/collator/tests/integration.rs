@@ -17,6 +17,9 @@
 //! Integration test that ensures that we can build and include parachain
 //! blocks of the adder parachain.
 
+const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_adder_collator_puppet_worker");
+
+// If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test]
 async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor) {
 	use sp_keyring::AccountKeyring::*;
@@ -30,7 +33,12 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 	let para_id = ParaId::from(100);
 
 	// start alice
-	let alice = polkadot_test_service::run_validator_node(task_executor.clone(), Alice, || {}, vec![]);
+	let alice = polkadot_test_service::run_validator_node(
+		task_executor.clone(),
+		Alice, || {},
+		vec![],
+		Some(PUPPET_EXE.into()),
+	);
 
 	// start bob
 	let bob = polkadot_test_service::run_validator_node(
@@ -38,6 +46,7 @@ async fn collating_using_adder_collator(task_executor: sc_service::TaskExecutor)
 		Bob,
 		|| {},
 		vec![alice.addr.clone()],
+		Some(PUPPET_EXE.into()),
 	);
 
 	let collator = test_parachain_adder_collator::Collator::new();
