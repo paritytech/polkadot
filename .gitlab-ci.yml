@@ -376,8 +376,7 @@ trigger-simnet:
         echo -n ".";
         curl -L -o filee ${ARTIFACT_URL};
         cat filee;
-        file filee || exit 0;
-        fype filee || exit 0;
+        type filee || exit 0;
         ls;
         sleep 15;
       done; echo
