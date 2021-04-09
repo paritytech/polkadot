@@ -18,13 +18,19 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use sp_std::{marker::PhantomData, convert::TryInto};
+use codec::{Encode, Decode};
+use xcm::v0::{BodyId, MultiLocation::{self, X1}, Junction::Plurality};
+use sp_runtime::{RuntimeDebug, traits::BadOrigin};
+use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get};
+
 pub use pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use xcm::v0::{Xcm, MultiLocation, Error as XcmError, SendXcm};
+	use xcm::v0::{Xcm, MultiLocation, Error as XcmError, SendXcm, ExecuteXcm};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -42,10 +48,20 @@ pub mod pallet {
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
+
+		/// Required origin for executing XCM messages. If successful, the it resolves to `MultiLocation`
+		/// which exists as an interior location within this chain's XCM context.
+		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
+
+		/// Something to execute an XCM message.
+		type XcmExecutor: ExecuteXcm<Self::Call>;
 	}
 
 	#[pallet::event]
-	pub enum Event<T: Config> {}
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		Attempted(xcm::v0::Outcome),
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -68,6 +84,30 @@ pub mod pallet {
 				})?;
 			Ok(())
 		}
+
+		/// Execute an XCM message from a local, signed, origin.
+		///
+		/// Returns `DispatchError` if execution was not possible. Otherwise returns the amount of
+		/// weight that was used in its attempted execution.
+		///
+		/// An event is deposited indicating whether `msg` could be executed completely or only
+		/// partially.
+		///
+		/// No more than `max_weight` will be used in its attempted execution. If this is less than the
+		/// maximum amount of weight that the message could take to be executed, then no execution
+		/// attempt will be made.
+		///
+		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
+		/// to completion; only that *some* of it was executed.
+		#[pallet::weight(1_000 + max_weight)]
+		fn execute(origin: OriginFor<T>, message: Xcm<T::Call>, max_weight: Weight)
+			-> DispatchResult
+		{
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
+			Self::deposit_event(Event::Attempted(outcome));
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -80,5 +120,59 @@ pub mod pallet {
 			};
 			T::XcmRouter::send_xcm(dest, message)
 		}
+	}
+}
+
+/// Origin for the parachains module.
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+pub enum Origin {
+	/// It comes from somewhere in the XCM space.
+	Xcm(MultiLocation),
+}
+
+impl From<MultiLocation> for Origin {
+	fn from(location: MultiLocation) -> Origin {
+		Origin::Xcm(location)
+	}
+}
+
+/// Ensure that the origin `o` represents a sibling parachain.
+/// Returns `Ok` with the parachain ID of the sibling or an `Err` otherwise.
+pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
+	where OuterOrigin: Into<Result<Origin, OuterOrigin>>
+{
+	match o.into() {
+		Ok(Origin::Xcm(location)) => Ok(location),
+		_ => Err(BadOrigin),
+	}
+}
+
+pub struct IsMajorityOfBody<Body>(PhantomData<Body>);
+impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
+	fn filter(l: &MultiLocation) -> bool {
+		matches!(l, X1(Plurality { id, part }) if id == &Body::get() && part.is_majority())
+	}
+}
+
+pub struct EnsureXcm<F>(PhantomData<F>);
+impl<O: OriginTrait, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
+	where O::PalletsOrigin: From<Origin> + TryInto<Origin, Error=O::PalletsOrigin>
+{
+	type Success = MultiLocation;
+
+	fn try_origin(outer: O) -> Result<Self::Success, O> {
+		outer.try_with_caller(|caller| caller.try_into()
+			.and_then(|Origin::Xcm(location)|
+				if F::filter(&location) {
+					Ok(location)
+				} else {
+					Err(Origin::Xcm(location).into())
+				}
+			))
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> O {
+		Origin::Xcm(MultiLocation::Null).into()
 	}
 }
