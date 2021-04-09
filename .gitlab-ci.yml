@@ -358,22 +358,22 @@ trigger-simnet:
     - echo $CI_PIPELINE_URL
     - echo $CI_PROJECT_URL
     - echo $CI_SERVER_HOST
-    - curl -X POST
+    # 
+    - 'curl -X POST
         -F token=${CI_JOB_TOKEN}
         -F ref=master
-        -F "variables[CALLER_ID]=${CI_PIPELINE_ID}/${CI_JOB_ID}"
         -F "variables[TRGR_PROJECT]=${CI_PROJECT_NAME}"
         -F "variables[TRGR_REF]=${CI_COMMIT_REF_NAME}"
         -F "variables[IMAGE_NAME]=${IMAGE_NAME}"
         -F "variables[IMAGE_TAG]=${IMAGE_TAG}"
         -F "variables[COLLATOR_IMAGE_TAG]=${CI_COMMIT_SHA}"
-        "https://${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline" | tee pipeline
-    - cat pipeline
+        "https://${CI_SERVER_HOST}/api/v4/projects/396/trigger/pipeline" | tee pipeline'
     - cat pipeline | jq
     - PIPELINE_ID=$(cat pipeline | jq '.id')
-    - echo "Waiting on $PIPELINE_ID status..."
+    - echo "Waiting on ${PIPELINE_ID} status..."
+    # --silent
     - 'function get_status {
-        curl --silent --header "PRIVATE-TOKEN: ${TOKEN}" "${CI_SERVER_HOST}/api/v4/projects/396/pipelines/${PIPELINE_ID}" | jq --raw-output ".status"
+        curl --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/396/pipelines/${PIPELINE_ID}" | jq --raw-output ".status"
       }'
     - for i in $(seq 1 1200); do
         echo $i
