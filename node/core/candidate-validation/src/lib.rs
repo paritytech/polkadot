@@ -33,7 +33,9 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate, PoV};
+use polkadot_node_primitives::{
+	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
+};
 use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
@@ -362,16 +364,42 @@ async fn validate_candidate_exhaustive(
 		return Ok(Ok(ValidationResult::Invalid(e)));
 	}
 
+	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => code,
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+			// If the validation code is invalid, the candidate certainly is.
+			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
+		}
+	};
+
+	let raw_block_data = match sp_maybe_compressed_blob::decompress(
+		&pov.block_data.0,
+		POV_BOMB_LIMIT,
+	) {
+		Ok(block_data) => BlockData(block_data.to_vec()),
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+
+			// If the PoV is invalid, the candidate certainly is.
+			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
+		}
+	};
+
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
-		block_data: pov.block_data.clone(),
+		block_data: raw_block_data,
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
 	let result =
 		validation_backend.validate_candidate(
-			validation_code.0,
+			raw_validation_code.to_vec(),
 			params
 		)
 		.await;
@@ -567,7 +595,6 @@ mod tests {
     use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use polkadot_primitives::v1::{HeadData, UpwardMessage};
-	use polkadot_node_primitives::BlockData;
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
@@ -1047,4 +1074,139 @@ mod tests {
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
 	}
 
+	#[test]
+	fn compressed_code_works() {
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let head_data = HeadData(vec![1, 1, 1]);
+
+		let raw_code = vec![2u8; 16];
+		let validation_code = sp_maybe_compressed_blob::compress(
+			&raw_code,
+			VALIDATION_CODE_BOMB_LIMIT,
+		)
+			.map(ValidationCode)
+			.unwrap();
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.para_head = head_data.hash();
+		descriptor.validation_code_hash = validation_code.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let validation_result = WasmValidationResult {
+			head_data,
+			new_validation_code: None,
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0,
+		};
+
+		let v = executor::block_on(validate_candidate_exhaustive(
+			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			&Default::default(),
+		))
+		.unwrap();
+
+		assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
+	}
+
+	#[test]
+	fn code_decompression_failure_is_invalid() {
+		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+		let head_data = HeadData(vec![1, 1, 1]);
+
+		let raw_code = vec![2u8; VALIDATION_CODE_BOMB_LIMIT + 1];
+		let validation_code = sp_maybe_compressed_blob::compress(
+			&raw_code,
+			VALIDATION_CODE_BOMB_LIMIT + 1,
+		)
+			.map(ValidationCode)
+			.unwrap();
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.para_head = head_data.hash();
+		descriptor.validation_code_hash = validation_code.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let validation_result = WasmValidationResult {
+			head_data,
+			new_validation_code: None,
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0,
+		};
+
+		let v = executor::block_on(validate_candidate_exhaustive(
+			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			&Default::default(),
+		))
+		.unwrap();
+
+		assert_matches!(
+			v,
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
+		);
+	}
+
+	#[test]
+	fn pov_decompression_failure_is_invalid() {
+		let validation_data = PersistedValidationData {
+			max_pov_size: POV_BOMB_LIMIT as u32,
+			..Default::default()
+		 };
+		let head_data = HeadData(vec![1, 1, 1]);
+
+		let raw_block_data = vec![2u8; POV_BOMB_LIMIT + 1];
+		let pov = sp_maybe_compressed_blob::compress(
+			&raw_block_data,
+			POV_BOMB_LIMIT + 1,
+		)
+			.map(|raw| PoV { block_data: BlockData(raw) })
+			.unwrap();
+
+		let validation_code = ValidationCode(vec![2; 16]);
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		descriptor.para_head = head_data.hash();
+		descriptor.validation_code_hash = validation_code.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		let validation_result = WasmValidationResult {
+			head_data,
+			new_validation_code: None,
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			processed_downward_messages: 0,
+			hrmp_watermark: 0,
+		};
+
+		let v = executor::block_on(validate_candidate_exhaustive(
+			MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+			validation_data,
+			validation_code,
+			descriptor,
+			Arc::new(pov),
+			&Default::default(),
+		))
+		.unwrap();
+
+		assert_matches!(
+			v,
+			Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
+		);
+	}
 }

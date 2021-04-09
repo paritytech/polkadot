@@ -5685,6 +5685,7 @@ name = "polkadot-node-collation-generation"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.13",
+ "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5692,6 +5693,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
+ "sp-maybe-compressed-blob",
  "thiserror",
  "tracing",
 ]
@@ -5833,6 +5835,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
+ "sp-maybe-compressed-blob",
  "tracing",
 ]
 
@@ -5989,6 +5992,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
+ "sp-maybe-compressed-blob",
  "sp-runtime",
  "thiserror",
  "zstd",
