@@ -30,7 +30,6 @@ use crate::{
 	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
 	initializer, shared,
 };
-use frame_benchmarking::frame_support::pallet_prelude::Get;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
