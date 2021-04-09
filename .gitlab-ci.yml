@@ -373,11 +373,15 @@ trigger-simnet:
     - echo $ARTIFACT_URL
     - sleep 15
     - for I in `seq 1 3`; do
-        echo -n ".";
+        echo "curl";
         curl -L -o filee ${ARTIFACT_URL};
-        cat filee;
-        type filee || exit 0;
+        echo "ls";
         ls;
+        echo "cat";
+        cat filee;
+        echo "type";
+        type filee || exit 0;
+        echo "sleep";
         sleep 15;
       done; echo
 
