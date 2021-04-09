@@ -18,9 +18,8 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
-use sp_std::{fmt, prelude::*};
+use sp_std::{prelude::*, fmt, marker::PhantomData};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use sp_runtime::traits::Zero;
 use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
@@ -42,39 +41,41 @@ const LOG_TARGET: &str = "runtime::ump-sink";
 /// It is possible that by the time the message is sank the origin parachain was offboarded. It is
 /// up to the implementer to check that if it cares.
 pub trait UmpSink {
-	/// Process an incoming upward message and return the amount of weight it consumed.
+	/// Process an incoming upward message and return the amount of weight it consumed, or `None` if
+	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
-	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight;
+	fn process_upward_message(origin: ParaId, msg: &[u8], max_weight: Weight) -> Option<Weight>;
 }
 
-/// An implementation of a sink that just swallows the message without consuming any weight.
+/// An implementation of a sink that just swallows the message without consuming any weight. Returns
+/// `Some(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
-	fn process_upward_message(_: ParaId, _: Vec<u8>) -> Weight {
-		0
+	fn process_upward_message(_: ParaId, _: &[u8], _: Weight) -> Option<Weight> {
+		Some(0)
 	}
 }
 
 /// A specific implementation of a UmpSink where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
-pub struct XcmSink<Config>(sp_std::marker::PhantomData<Config>);
+pub struct XcmSink<XcmExecutor, Call>(PhantomData<(XcmExecutor, Call)>);
 
-impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
-	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
+impl<XcmExecutor: xcm::v0::ExecuteXcm<Call>, Call> UmpSink for XcmSink<XcmExecutor, Call> {
+	fn process_upward_message(origin: ParaId, mut msg: &[u8], max_weight: Weight) -> Option<Weight> {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
-		use xcm_executor::XcmExecutor;
+		use xcm::v0::{Junction, MultiLocation, Outcome, Error as XcmError};
 
-		// TODO: #2841 #UMPQUEUE Get a proper weight limit here. Probably from Relay Chain Config
-		let weight_limit = Weight::max_value();
-		let weight = if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
+		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut msg) {
 			match versioned_xcm_message {
 				VersionedXcm::V0(xcm_message) => {
 					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
 					let xcm_location: MultiLocation = xcm_junction.into();
-					let result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message, weight_limit);
-					result.weight_used()
+					match XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight) {
+						Outcome::Complete(w) | Outcome::Incomplete(w, _) => Some(w),
+						Outcome::Error(XcmError::WeightLimitReached) => None,
+						Outcome::Error(_) => Some(0),
+					}
 				}
 			}
 		} else {
@@ -82,13 +83,8 @@ impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
 				target: LOG_TARGET,
 				"Failed to decode versioned XCM from upward message.",
 			);
-			Weight::zero()
-		};
-
-		// TODO: #2841 #UMPQUEUE to be sound, this implementation must ensure that returned (and thus consumed)
-		//  weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
-		//  or lower).
-		weight
+			None
+		}
 	}
 }
 
@@ -148,6 +144,9 @@ impl fmt::Debug for AcceptanceCheckErr {
 pub trait Config: frame_system::Config + configuration::Config {
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
+
+	/// The factor by which the weight limit it multiplied for the first UMP message to execute with.
+	type FirstMessageFactorPercent: Get<Weight>;
 }
 
 decl_storage! {
@@ -337,12 +336,21 @@ impl<T: Config> Module<T> {
 				// if so - bail.
 				break;
 			}
+			let max_weight = if used_weight_so_far == 0 {
+				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
+				// the possibility of blockage of the queue.
+				config.preferred_dispatchable_upward_messages_step_weight * T::FirstMessageFactorPercent::get() / 100
+			} else {
+				config.preferred_dispatchable_upward_messages_step_weight - used_weight_so_far
+			};
 
 			// dequeue the next message from the queue of the dispatchee
 			let (upward_message, became_empty) = queue_cache.dequeue::<T>(dispatchee);
 			if let Some(upward_message) = upward_message {
-				used_weight_so_far +=
-					T::UmpSink::process_upward_message(dispatchee, upward_message);
+				match T::UmpSink::process_upward_message(dispatchee, &upward_message[..], max_weight) {
+					None => break,
+					Some(used) => used_weight_so_far += used,
+				}
 			}
 
 			if became_empty {
@@ -555,28 +563,25 @@ pub(crate) mod mock_sink {
 
 	pub struct MockUmpSink;
 	impl UmpSink for MockUmpSink {
-		fn process_upward_message(actual_origin: ParaId, actual_msg: Vec<u8>) -> Weight {
-			HOOK.with(|opt_hook| match &mut *opt_hook.borrow_mut() {
-				Some(hook) => {
-					let UmpExpectation {
-						expected_origin,
-						expected_msg,
-						mock_weight,
-					} = match hook.pop_front() {
-						Some(expectation) => expectation,
-						None => {
-							panic!(
-								"The probe is active but didn't expect the message:\n\n\t{:?}.",
-								actual_msg,
-							);
-						}
-					};
-					assert_eq!(expected_origin, actual_origin);
-					assert_eq!(expected_msg, actual_msg);
-					mock_weight
-				}
-				None => 0,
-			})
+		fn process_upward_message(actual_origin: ParaId, actual_msg: &[u8], _max_weight: Weight) -> Option<Weight> {
+			HOOK.with(|opt_hook| opt_hook.borrow_mut().as_mut().map(|hook| {
+				let UmpExpectation {
+					expected_origin,
+					expected_msg,
+					mock_weight,
+				} = match hook.pop_front() {
+					Some(expectation) => expectation,
+					None => {
+						panic!(
+							"The probe is active but didn't expect the message:\n\n\t{:?}.",
+							actual_msg,
+						);
+					}
+				};
+				assert_eq!(expected_origin, actual_origin);
+				assert_eq!(expected_msg, &actual_msg[..]);
+				mock_weight
+			}))
 		}
 	}
 

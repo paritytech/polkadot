@@ -117,8 +117,13 @@ impl crate::paras::Config for Test {
 
 impl crate::dmp::Config for Test { }
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl crate::hrmp::Config for Test {

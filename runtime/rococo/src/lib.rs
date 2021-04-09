@@ -86,6 +86,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
@@ -274,6 +275,9 @@ construct_runtime! {
 
 		Utility: pallet_utility::{Pallet, Call, Event} = 90,
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
+
+		// Pallet for sending XCM.
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
 	}
 }
 
@@ -619,10 +623,17 @@ parameter_types! {
 	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
 }
 
+/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
+/// individual routers.
+pub type XcmRouter = (
+	// Only one router so far - use DMP to communicate with child parachains.
+	xcm_sender::ChildParachainRouter<Runtime>,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
+	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -634,10 +645,29 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = ();
 }
 
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+);
+
+impl pallet_xcm::Config for Runtime {
+	type Event = Event;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type XcmRouter = XcmRouter;
+	// Right now nobody but root is allowed to dispatch local XCM messages.
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
 impl parachains_session_info::Config for Runtime {}
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_dmp::Config for Runtime {}
