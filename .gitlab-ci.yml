@@ -372,24 +372,25 @@ trigger-simnet:
     - PIPELINE_ID=$(cat pipeline | jq '.id')
     - echo "Waiting on ${PIPELINE_ID} status..."
     # --silent
-    - 'function get_status {
+    - |
+      'function get_status {
         curl --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/396/pipelines/${PIPELINE_ID}" | jq --raw-output ".status"
       }'
-    - for i in $(seq 1 1200); do
-        echo $i
+      for i in $(seq 1 1200); do
+        echo $i;
         STATUS=$(get_status);
         if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
-            echo ${STATUS}
+            echo ${STATUS};
         elif [[ ${STATUS} =~ ^(failed|canceled|skipped|manual)$ ]]; then
-            echo ${STATUS}
+            echo ${STATUS};
             exit 1;
         elif [[ ${STATUS} =~ ^(success)$ ]]; then
-            echo ${STATUS}
+            echo ${STATUS};
             exit 0;
         else
-            echo ${STATUS}
+            echo ${STATUS};
             exit 1;
         fi
-        sleep 10
+        sleep 10;
       done
 
