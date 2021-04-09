@@ -62,7 +62,7 @@ use xcm_builder::{
 };
 
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ModuleId,
+	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
@@ -80,7 +80,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug, PalletId,
 	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -521,7 +521,7 @@ parameter_types! {
 	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
-	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
 }
 
 // Make sure that there are no more than MaxMembers members elected via phragmen.
@@ -541,7 +541,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
-	type ModuleId = ElectionsPhragmenModuleId;
+	type PalletId = ElectionsPhragmenPalletId;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 }
 
@@ -579,7 +579,7 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
-	pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -600,7 +600,7 @@ type ApproveOrigin = EnsureOneOf<
 >;
 
 impl pallet_treasury::Config for Runtime {
-	type ModuleId = TreasuryModuleId;
+	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
@@ -832,7 +832,7 @@ parameter_types! {
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
 	pub const MaxCandidateIntake: u32 = 1;
-	pub const SocietyModuleId: ModuleId = ModuleId(*b"py/socie");
+	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
 impl pallet_society::Config for Runtime {
@@ -850,7 +850,7 @@ impl pallet_society::Config for Runtime {
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
-	type ModuleId = SocietyModuleId;
+	type PalletId = SocietyPalletId;
 }
 
 parameter_types! {

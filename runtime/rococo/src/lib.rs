@@ -39,10 +39,15 @@ use runtime_parachains::{
 	self,
 	runtime_api_impl::v1 as runtime_api_impl,
 };
-use frame_support::{construct_runtime, parameter_types, traits::{Filter, KeyOwnerProofSystem, Randomness}, weights::Weight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Filter, KeyOwnerProofSystem, Randomness},
+	weights::Weight,
+	PalletId
+};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, ModuleId,
+	ApplyExtrinsicResult, KeyTypeId, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
@@ -734,7 +739,7 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CrowdloanId: ModuleId = ModuleId(*b"py/cfund");
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
 	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
 	pub const MinContribution: Balance = 1 * DOLLARS;
 	pub const RetirementPeriod: BlockNumber = 6 * HOURS;
@@ -745,7 +750,7 @@ parameter_types! {
 
 impl crowdloan::Config for Runtime {
 	type Event = Event;
-	type ModuleId = CrowdloanId;
+	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RemoveKeysLimit = RemoveKeysLimit;
