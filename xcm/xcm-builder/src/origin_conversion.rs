@@ -200,6 +200,10 @@ impl<
 	}
 }
 
+/// `Convert` implementation to convert from some a `Signed` (system) `Origin` into an `AccountId32`.
+///
+/// Typically used when configuring `pallet-xcm` for allowing normal accounts to dispatch an XCM from an `AccountId32`
+/// origin.
 pub struct SignedToAccountId32<Origin, AccountId, Network>(
 	PhantomData<(Origin, AccountId, Network)>
 );
@@ -221,6 +225,11 @@ impl<
 	}
 }
 
+/// `Convert` implementation to convert from some an origin which implements `Backing` into a corresponding `Plurality`
+/// MultiLocation.
+///
+/// Typically used when configuring `pallet-xcm` for allowing a collective's Origin to dispatch an XCM from a
+/// `Plurality` origin.
 pub struct BackingToPlurality<Origin, COrigin, Body>(
 	PhantomData<(Origin, COrigin, Body)>
 );
