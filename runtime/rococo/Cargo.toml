@@ -36,6 +36,7 @@ pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = 
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -64,6 +65,7 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
@@ -81,6 +83,7 @@ std = [
 	"pallet-babe/std",
 	"beefy-primitives/std",
 	"pallet-balances/std",
+	"pallet-collective/std",
 	"pallet-beefy/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
@@ -118,6 +121,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"pallet-xcm/std",
 	"log/std",
 ]
 # When enabled, the runtime api will not be build.
@@ -133,11 +137,14 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-collective/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+	"pallet-xcm/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -147,6 +154,7 @@ try-runtime = [
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-collective/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-indices/try-runtime",
