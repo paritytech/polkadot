@@ -38,8 +38,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement};
 use polkadot_primitives::v1::{
-	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SigningContext, ValidatorId,
-	ValidatorIndex, ValidatorSignature,
+	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature
 };
 use polkadot_node_network_protocol::{
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
@@ -506,9 +506,9 @@ enum LargeStatementStatus {
 
 /// Info about a fetch in progress.
 struct FetchingInfo {
-	/// All peers that send us a `LargeStatement` for the given `CandidateHash`, together with
-	/// their announced metadata.
-	available_peers: HashMap<PeerId, StatementMetadata>,
+	/// All peers that send us a `LargeStatement` or a `Valid` statement for the given
+	/// `CandidateHash`, together with their originally sent messages.
+	available_peers: HashMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
 	/// Sender for sending fresh peers to the fetching task in case of failure.
@@ -1022,38 +1022,6 @@ async fn report_peer(
 	)).await
 }
 
-async fn handle_incoming_message_and_circulate<'a>(
-	peer: PeerId,
-	peers: &mut HashMap<PeerId, PeerData>,
-	message: protocol_v1::StatementDistributionMessage,
-	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext,
-	req_sender: &mpsc::Sender<RequesterMessage>,
-	metrics: &Metrics,
-) {
-	let relay_parent = message.get_metadata().relay_parent;
-	let result = retrieve_statement_from_message(
-		peer,
-		message,
-		active_heads,
-		ctx,
-		req_sender,
-		metrics,
-	).await;
-
-	if let Some((active_head, statement)) = result {
-		handle_incoming_statement_and_circulate(
-			peer,
-			peers,
-			active_head,
-			ctx,
-			relay_parent,
-			statement,
-			metrics,
-		).await;
-	}
-}
-
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
 ///
 /// This function will also return `None` if the message did not pass some basic checks, in that
@@ -1064,53 +1032,65 @@ async fn handle_incoming_message_and_circulate<'a>(
 async fn retrieve_statement_from_message<'a>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
-	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	active_head: &'a mut ActiveHeadData,
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<(&'a mut ActiveHeadData, SignedFullStatement)> {
+) -> Option<SignedFullStatement> {
 
-	let metadata = message.get_metadata();
+	let fingerprint = message.get_fingerprint();
+	let candidate_hash = *fingerprint.0.candidate_hash();
 
-	let active_head = match active_heads.get_mut(&metadata.relay_parent) {
-		Some(h) => h,
-		None => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				requested_relay_parent = %metadata.relay_parent,
-				"our view out-of-sync with active heads; head not found",
-			);
-			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
-			return None
-		}
-	};
+	// Immediately return any Seconded statement:
+	let message =
+		if let protocol_v1::StatementDistributionMessage::Statement(h, s) = message {
+			if let Statement::Seconded(_) = s.payload() {
+				return Some(s)
+			}
+			protocol_v1::StatementDistributionMessage::Statement(h, s)
+		} else {
+			message
+		};
 
-	match message {
-		protocol_v1::StatementDistributionMessage::Statement(_, statement) =>
-			return Some((active_head, statement)),
+	match active_head.waiting_large_statements.entry(candidate_hash) {
+		Entry::Occupied(mut occupied) => {
+			match occupied.get_mut() {
+				LargeStatementStatus::Fetching(info) => {
 
-		protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
+					let is_new_peer = !info.available_peers.contains_key(&peer);
+					let is_large_statement = message.is_large_statement();
 
-			let candidate_hash = metadata.candidate_hash;
+					match info.available_peers.entry(peer) {
+						Entry::Occupied(mut occupied) => {
+							occupied.get_mut().push(message);
+						}
+						Entry::Vacant(vacant) => {
+							vacant.insert(vec![message]);
+						}
+					}
 
-			match active_head.waiting_large_statements.entry(candidate_hash) {
-				Entry::Occupied(mut occupied) => {
-					match occupied.get_mut() {
-						LargeStatementStatus::Fetching(info) => {
-							if info.available_peers.insert(peer, metadata).is_none() {
-								info.peers_to_try.push(peer);
-								// Answer any pending request for more peers:
-								if let Some(sender) = std::mem::take(&mut info.peer_sender) {
-									let to_send = std::mem::take(&mut info.peers_to_try);
-									if let Err(peers) = sender.send(to_send) {
-										// Requester no longer interested for now, might want them
-										// later:
-										info.peers_to_try = peers;
-									}
-								}
+					if is_new_peer & is_large_statement {
+						info.peers_to_try.push(peer);
+						// Answer any pending request for more peers:
+						if let Some(sender) = std::mem::take(&mut info.peer_sender) {
+							let to_send = std::mem::take(&mut info.peers_to_try);
+							if let Err(peers) = sender.send(to_send) {
+								// Requester no longer interested for now, might want them
+								// later:
+								info.peers_to_try = peers;
 							}
 						}
-						LargeStatementStatus::Fetched(committed) => {
+					}
+				}
+				LargeStatementStatus::Fetched(committed) => {
+					match message {
+						protocol_v1::StatementDistributionMessage::Statement(_, s) => {
+							// We can now immediately return any statements (should only be
+							// `Statement::Valid` ones, but we don't care at this point.)
+							return Some(s)
+						}
+						protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
+
 							let validator_id = active_head.validators.get(metadata.signed_by.0 as usize);
 
 							if let Some(validator_id) = validator_id {
@@ -1128,7 +1108,7 @@ async fn retrieve_statement_from_message<'a>(
 								);
 
 								if let Some(statement) = statement {
-									return Some((active_head, statement))
+									return Some(statement)
 								} else {
 									tracing::debug!(
 										target: LOG_TARGET,
@@ -1147,7 +1127,11 @@ async fn retrieve_statement_from_message<'a>(
 						}
 					}
 				}
-				Entry::Vacant(vacant) => {
+			}
+		}
+		Entry::Vacant(vacant) => {
+			match message {
+				protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
 					if let Some(new_status) = launch_request(
 						metadata,
 						peer,
@@ -1157,11 +1141,17 @@ async fn retrieve_statement_from_message<'a>(
 					).await {
 						vacant.insert(new_status);
 					}
+				} 
+				protocol_v1::StatementDistributionMessage::Statement(_, s) => {
+					// No fetch in progress, safe to return any statement immediately (we don't bother
+					// about normal network jitter which might cause `Valid` statements to arrive early
+					// for now.).
+					return Some(s)
 				}
 			}
 		}
 	}
-	return None
+	None
 }
 
 /// Launch request for a large statement and get tracking status.
@@ -1192,7 +1182,7 @@ async fn launch_request(
 	}
 	let available_peers = {
 		let mut m = HashMap::new();
-		m.insert(peer, meta);
+		m.insert(peer, vec![protocol_v1::StatementDistributionMessage::LargeStatement(meta)]);
 		m
 	};
 	Some(LargeStatementStatus::Fetching(FetchingInfo {
@@ -1205,24 +1195,24 @@ async fn launch_request(
 
 /// Handle incoming message and circulate it to peers, if we did not know it already.
 ///
-async fn handle_incoming_statement_and_circulate<'a>(
+async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
-	active_head: &'a mut ActiveHeadData,
+	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
-	relay_parent: Hash,
-	statement: SignedFullStatement,
+	message: protocol_v1::StatementDistributionMessage,
+	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) {
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) => {
-			handle_incoming_statement(
+			handle_incoming_message(
 				peer,
 				data,
-				active_head,
+				active_heads,
 				ctx,
-				relay_parent,
-				statement,
+				message,
+				req_sender,
 				metrics,
 			).await
 		}
@@ -1230,7 +1220,7 @@ async fn handle_incoming_statement_and_circulate<'a>(
 	};
 
 	// if we got a fresh message, we need to circulate it to all peers.
-	if let Some(statement) = handled_incoming {
+	if let Some((relay_parent, statement)) = handled_incoming {
 		// we can ignore the set of peers who this function returns as now expecting
 		// dependent statements.
 		//
@@ -1247,27 +1237,41 @@ async fn handle_incoming_statement_and_circulate<'a>(
 	}
 }
 
-// Handle an statement. Returns a reference to a newly-stored statement
+// Handle a statement. Returns a reference to a newly-stored statement
 // if we were not already aware of it, along with the corresponding relay-parent.
 //
 // This function checks the signature and ensures the statement is compatible with our
 // view. It also notifies candidate backing if the statement was previously unknown.
-#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
-async fn handle_incoming_statement<'a>(
+async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	active_head: &'a mut ActiveHeadData,
+	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
-	relay_parent: Hash,
-	statement: SignedFullStatement,
+	message: protocol_v1::StatementDistributionMessage,
+	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<&'a StoredStatement> {
-	let candidate_hash = statement.payload().candidate_hash();
+) -> Option<(Hash, &'a StoredStatement)> {
+	let relay_parent = message.get_relay_parent();
+
+	let active_head = match active_heads.get_mut(&relay_parent) {
+		Some(h) => h,
+		None => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				%relay_parent,
+				"our view out-of-sync with active heads; head not found",
+			);
+			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+			return None
+		}
+	};
+
+	let fingerprint = message.get_fingerprint();
+	let candidate_hash = fingerprint.0.candidate_hash().clone();
 	let handle_incoming_span = active_head.span.child("handle-incoming")
 		.with_candidate(candidate_hash)
 		.with_peer_id(&peer);
 
-	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
 	let max_message_count = active_head.validators.len() * 2;
 
 	// perform only basic checks before verifying the signature
@@ -1276,13 +1280,27 @@ async fn handle_incoming_statement<'a>(
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer,
-			?statement,
+			?message,
 			?rep,
 			"Error inserting received statement"
 		);
 		report_peer(ctx, peer, rep).await;
 		return None;
 	}
+
+	let statement = retrieve_statement_from_message(
+		peer,
+		message,
+		active_head,
+		ctx,
+		req_sender,
+		metrics,
+	).await;
+
+	let statement = match statement {
+		None => return None,
+		Some(statement) => statement,
+	};
 
 	match active_head.check_useful_or_unknown(statement.clone()) {
 		Ok(()) => {},
@@ -1356,7 +1374,7 @@ async fn handle_incoming_statement<'a>(
 			);
 			ctx.send_message(message).await;
 
-			Some(statement)
+			Some((relay_parent, statement))
 		}
 	}
 }
@@ -1430,9 +1448,9 @@ async fn handle_network_update(
 			handle_incoming_message_and_circulate(
 				peer,
 				peers,
-				message,
 				active_heads,
 				ctx,
+				message,
 				req_sender,
 				metrics,
 			).await;
@@ -1610,21 +1628,19 @@ impl StatementDistribution {
 				);
 
 				// Cache is now populated, send all messages:
-				for (peer, metadata) in info.available_peers {
-					let message =
-						protocol_v1::StatementDistributionMessage::LargeStatement(
-							metadata
-					);
-					handle_incoming_message_and_circulate(
-						peer,
-						peers,
-						message,
-						active_heads,
-						ctx,
-						req_sender,
-						&self.metrics,
-					)
-					.await;
+				for (peer, messages) in info.available_peers {
+					for message in messages {
+						handle_incoming_message_and_circulate(
+							peer,
+							peers,
+							active_heads,
+							ctx,
+							message,
+							req_sender,
+							&self.metrics,
+						)
+						.await;
+					}
 				}
 			}
 			RequesterMessage::SendRequest(req) => {
