@@ -148,6 +148,10 @@ pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigi
 	}
 }
 
+/// Filter for `MultiLocation` to find those which represent a strict majority approval of an identified
+/// plurality.
+///
+/// May reasonably be used with `EnsureXcm`.
 pub struct IsMajorityOfBody<Body>(PhantomData<Body>);
 impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
 	fn filter(l: &MultiLocation) -> bool {
@@ -155,6 +159,8 @@ impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
 	}
 }
 
+/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognise and filter the
+/// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
 impl<O: OriginTrait, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 	where O::PalletsOrigin: From<Origin> + TryInto<Origin, Error=O::PalletsOrigin>
