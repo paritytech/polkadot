@@ -564,7 +564,7 @@ pub(crate) mod mock_sink {
 	pub struct MockUmpSink;
 	impl UmpSink for MockUmpSink {
 		fn process_upward_message(actual_origin: ParaId, actual_msg: &[u8], _max_weight: Weight) -> Option<Weight> {
-			HOOK.with(|opt_hook| opt_hook.borrow_mut().map(|mut hook| {
+			HOOK.with(|opt_hook| opt_hook.borrow_mut().as_mut().map(|hook| {
 				let UmpExpectation {
 					expected_origin,
 					expected_msg,
