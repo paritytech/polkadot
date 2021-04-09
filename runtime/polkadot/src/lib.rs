@@ -1544,6 +1544,7 @@ mod test_fees {
 		assert!(cost_dollars > 150_000); // DOLLAR ~ new DOT ~ 10e10
 	}
 
+#[test]
 	fn nominator_limit() {
 		use pallet_election_provider_multi_phase::WeightInfo;
 		// starting point of the nominators.
