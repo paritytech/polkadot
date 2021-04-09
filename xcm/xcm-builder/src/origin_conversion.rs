@@ -15,11 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{marker::PhantomData, convert::TryInto};
-use frame_support::traits::{EnsureOrigin, Get, OriginTrait};
-use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
+use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction, BodyId, BodyPart};
 use xcm_executor::traits::{Convert, ConvertOrigin};
-use polkadot_parachain::primitives::IsSystem;
+use frame_support::traits::{EnsureOrigin, Get, OriginTrait, GetBacking};
 use frame_system::RawOrigin as SystemRawOrigin;
+use polkadot_parachain::primitives::IsSystem;
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
 /// `LocationConverter`.
@@ -216,6 +216,31 @@ impl<
 			Ok(SystemRawOrigin::Signed(who)) =>
 				Ok(Junction::AccountId32 { network: Network::get(), id: who.into() }.into()),
 			Ok(other) => Err(other.into()),
+			Err(other) => Err(other),
+		})
+	}
+}
+
+pub struct BackingToPlurality<Origin, COrigin, Body>(
+	PhantomData<(Origin, COrigin, Body)>
+);
+impl<
+	Origin: OriginTrait + Clone,
+	COrigin: GetBacking,
+	Body: Get<BodyId>,
+> Convert<Origin, MultiLocation> for BackingToPlurality<Origin, COrigin, Body> where
+	Origin::PalletsOrigin: From<COrigin> +
+	TryInto<COrigin, Error=Origin::PalletsOrigin>
+{
+	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
+		o.try_with_caller(|caller| match caller.try_into() {
+			Ok(co) => match co.get_backing() {
+				Some(backing) => Ok(Junction::Plurality {
+					id: Body::get(),
+					part: BodyPart::Fraction { nom: backing.approvals, denom: backing.eligible },
+				}.into()),
+				None => Err(co.into()),
+			}
 			Err(other) => Err(other),
 		})
 	}

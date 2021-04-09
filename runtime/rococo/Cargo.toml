@@ -65,6 +65,7 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
@@ -119,6 +120,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"pallet-xcm/std",
 	"log/std",
 ]
 # When enabled, the runtime api will not be build.

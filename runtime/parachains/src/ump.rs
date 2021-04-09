@@ -20,7 +20,6 @@ use crate::{
 };
 use sp_std::{prelude::*, fmt, marker::PhantomData};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use sp_runtime::traits::Zero;
 use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
@@ -63,7 +62,7 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<Call>, Call> UmpSink for XcmSink<XcmExecut
 	fn process_upward_message(origin: ParaId, mut msg: &[u8], max_weight: Weight) -> Option<Weight> {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ExecuteXcm, Outcome, Error as XcmError};
+		use xcm::v0::{Junction, MultiLocation, Outcome, Error as XcmError};
 
 		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut msg) {
 			match versioned_xcm_message {

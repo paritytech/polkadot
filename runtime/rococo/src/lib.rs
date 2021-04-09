@@ -275,6 +275,9 @@ construct_runtime! {
 
 		Utility: pallet_utility::{Pallet, Call, Event} = 90,
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
+
+		// Pallet for sending XCM.
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
 	}
 }
 
@@ -620,60 +623,17 @@ parameter_types! {
 	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
 }
 
-// TODO repot into frame-support
-pub struct Backing {
-	approvals: u32,
-	eligible: u32,
-}
-pub trait GetBacking {
-	fn get_backing(&self) -> Option<Backing>;
-}
-
-// TODO repot into pallet-collective
-use xcm::v0::{BodyId, BodyPart};
-impl<AccountId, I> GetBacking for pallet_collective::RawOrigin<AccountId, I> {
-	fn get_backing(&self) -> Option<Backing> {
-		match self {
-			pallet_collective::RawOrigin::Members(n, d) => Some(Backing { approvals: *n, eligible: *d }),
-			_ => None,
-		}
-	}
-}
-
-// TODO repot into xcm-builder
-use xcm::v0::Junction;
-use sp_std::{marker::PhantomData, convert::TryInto};
-use xcm_executor::traits::Convert;
-use frame_support::traits::{Get, OriginTrait};
-pub struct CollectiveToPlurality<Origin, COrigin, Body>(
-	PhantomData<(Origin, COrigin, Body)>
+/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
+/// individual routers.
+pub type XcmRouter = (
+	// Only one router so far - use DMP to communicate with child parachains.
+	xcm_sender::ChildParachainRouter<Runtime>,
 );
-impl<
-	Origin: OriginTrait + Clone,
-	COrigin: GetBacking,
-	Body: Get<BodyId>,
-> Convert<Origin, MultiLocation> for CollectiveToPlurality<Origin, COrigin, Body> where
-	Origin::PalletsOrigin: From<COrigin> +
-		TryInto<COrigin, Error=Origin::PalletsOrigin>
-{
-	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
-		o.try_with_caller(|caller| match caller.try_into() {
-			Ok(co) => match co.get_backing() {
-				Some(backing) => Ok(Junction::Plurality {
-					id: Body::get(),
-					part: BodyPart::Fraction { nom: backing.approvals, denom: backing.eligible },
-				}.into()),
-				None => Err(co.into()),
-			}
-			Err(other) => Err(other),
-		})
-	}
-}
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
+	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -683,6 +643,18 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfConcreteFungible<RocFee>;
 	type ResponseHandler = ();
+}
+
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+// TODO: Instance a membership collective pallet and use it with BackingToPlurality.
+pub type LocalOriginToLocation = (
+);
+
+impl pallet_xcm::Config for Runtime {
+	type Event = Event;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type XcmRouter = XcmRouter;
 }
 
 impl parachains_session_info::Config for Runtime {}

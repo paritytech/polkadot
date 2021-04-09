@@ -5047,6 +5047,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-xcm"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
+]
+
+[[package]]
 name = "parity-db"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7334,6 +7347,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-utility",
+ "pallet-xcm",
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-primitives",
@@ -11369,6 +11383,7 @@ name = "xcm"
 version = "0.8.30"
 dependencies = [
  "derivative",
+ "impl-trait-for-tuples",
  "parity-scale-codec",
 ]
 
