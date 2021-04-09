@@ -26,11 +26,10 @@ impl FilterAssetLocation for NativeAsset {
 	}
 }
 
-
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		let (a, o) = T::get();
-		&a == asset && &o == origin
+		a.contains(asset) && &o == origin
 	}
 }
