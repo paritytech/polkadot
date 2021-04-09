@@ -57,9 +57,12 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					// we want our gossip subset to always include reserved peers
-					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2,
-					out_peers: 0,
+					// we allow full nodes to connect to validators for gossip
+					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
+					// we limit the amount of non-reserved slots to be less
+					// than `MIN_GOSSIP_PEERS` in total
+					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},

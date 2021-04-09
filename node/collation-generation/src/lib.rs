@@ -26,14 +26,16 @@ use futures::{
 	sink::SinkExt,
 	stream::StreamExt,
 };
-use polkadot_node_primitives::{CollationGenerationConfig, AvailableData, PoV};
+use polkadot_node_primitives::{
+	CollationGenerationConfig, AvailableData, PoV,
+};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores_ctx, request_persisted_validation_data_ctx,
-	request_validators_ctx,
+	request_availability_cores, request_persisted_validation_data,
+	request_validators, request_validation_code,
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
@@ -41,6 +43,7 @@ use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	PersistedValidationData,
 };
+use parity_scale_codec::Encode;
 use sp_core::crypto::Pair;
 use std::sync::Arc;
 
@@ -198,8 +201,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		let _relay_parent_timer = metrics.time_new_activations_relay_parent();
 
 		let (availability_cores, validators) = join!(
-			request_availability_cores_ctx(relay_parent, ctx).await?,
-			request_validators_ctx(relay_parent, ctx).await?,
+			request_availability_cores(relay_parent, ctx.sender()).await,
+			request_validators(relay_parent, ctx.sender()).await,
 		);
 
 		let availability_cores = availability_cores??;
@@ -244,16 +247,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				continue;
 			}
 
-			// we get validation data synchronously for each core instead of
+			// we get validation data and validation code synchronously for each core instead of
 			// within the subtask loop, because we have only a single mutable handle to the
 			// context, so the work can't really be distributed
-			let validation_data = match request_persisted_validation_data_ctx(
+
+			let validation_data = match request_persisted_validation_data(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
-				ctx,
+				ctx.sender(),
 			)
-			.await?
+			.await
 			.await??
 			{
 				Some(v) => v,
@@ -269,6 +273,30 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					continue
 				}
 			};
+
+			let validation_code = match request_validation_code(
+				relay_parent,
+				scheduled_core.para_id,
+				assumption,
+				ctx.sender(),
+			)
+			.await
+			.await??
+			{
+				Some(v) => v,
+				None => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						core_idx = %core_idx,
+						relay_parent = ?relay_parent,
+						our_para = %config.para_id,
+						their_para = %scheduled_core.para_id,
+						"validation code is not available",
+					);
+					continue
+				}
+			};
+			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
@@ -288,19 +316,45 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					}
 				};
 
-				let pov_hash = collation.proof_of_validity.hash();
+				// Apply compression to the block data.
+				let pov = {
+					let pov = polkadot_node_primitives::maybe_compress_pov(collation.proof_of_validity);
+					let encoded_size = pov.encoded_size();
+
+					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+					// that honest collators never produce a PoV which is uncompressed.
+					//
+					// As such, honest collators never produce an uncompressed PoV which starts with
+					// a compression magic number, which would lead validators to reject the collation.
+					if encoded_size > validation_data.max_pov_size as usize {
+						tracing::debug!(
+							target: LOG_TARGET,
+							para_id = %scheduled_core.para_id,
+							size = encoded_size,
+							max_size = validation_data.max_pov_size,
+							"PoV exceeded maximum size"
+						);
+
+						return
+					}
+
+					pov
+				};
+
+				let pov_hash = pov.hash();
 
 				let signature_payload = collator_signature_payload(
 					&relay_parent,
 					&scheduled_core.para_id,
 					&persisted_validation_data_hash,
 					&pov_hash,
+					&validation_code_hash,
 				);
 
 				let erasure_root = match erasure_root(
 					n_validators,
 					validation_data,
-					collation.proof_of_validity.clone(),
+					pov.clone(),
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
@@ -334,6 +388,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						pov_hash,
 						erasure_root,
 						para_head: commitments.head_data.hash(),
+						validation_code_hash: validation_code_hash,
 					},
 				};
 
@@ -348,7 +403,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				metrics.on_collation_generated();
 
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity, result_sender)
+					CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,
@@ -465,7 +520,7 @@ mod tests {
 			task::{Context as FuturesContext, Poll},
 			Future,
 		};
-		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV};
+		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV, POV_BOMB_LIMIT};
 		use polkadot_node_subsystem::messages::{
 			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
 		};
@@ -473,8 +528,7 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockNumber, CollatorPair, Id as ParaId,
-			PersistedValidationData, ScheduledCore,
+			CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 		};
 		use std::pin::Pin;
 
@@ -490,6 +544,24 @@ mod tests {
 				processed_downward_messages: Default::default(),
 				hrmp_watermark: Default::default(),
 			}
+		}
+
+		fn test_collation_compressed() -> Collation {
+			let mut collation = test_collation();
+			let compressed = PoV {
+				block_data: BlockData(sp_maybe_compressed_blob::compress(
+					&collation.proof_of_validity.block_data.0,
+					POV_BOMB_LIMIT,
+				).unwrap())
+			};
+			collation.proof_of_validity = compressed;
+			collation
+		}
+
+		fn test_validation_data() -> PersistedValidationData {
+			let mut persisted_validation_data: PersistedValidationData = Default::default();
+			persisted_validation_data.max_pov_size = 1024;
+			persisted_validation_data
 		}
 
 		// Box<dyn Future<Output = Collation> + Unpin + Send
@@ -688,13 +760,23 @@ mod tests {
 								tx,
 							),
 						))) => {
-							tx.send(Ok(Some(Default::default()))).unwrap();
+							tx.send(Ok(Some(test_validation_data()))).unwrap();
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
 							RuntimeApiRequest::Validators(tx),
 						))) => {
 							tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						}
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::ValidationCode(
+								_para_id,
+								OccupiedCoreAssumption::Free,
+								tx,
+							),
+						))) => {
+							tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
 						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)
@@ -729,15 +811,16 @@ mod tests {
 			// we expect a single message to be sent, containing a candidate receipt.
 			// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
 			// correct descriptor
-			let expect_pov_hash = test_collation().proof_of_validity.hash();
-			let expect_validation_data_hash
-				= PersistedValidationData::<BlockNumber>::default().hash();
+			let expect_pov_hash = test_collation_compressed().proof_of_validity.hash();
+			let expect_validation_data_hash = test_validation_data().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
+			let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,
 				&config.para_id,
 				&expect_validation_data_hash,
 				&expect_pov_hash,
+				&expect_validation_code_hash,
 			);
 			let expect_descriptor = CandidateDescriptor {
 				signature: config.key.sign(&expect_payload),
@@ -748,6 +831,7 @@ mod tests {
 				pov_hash: expect_pov_hash,
 				erasure_root: Default::default(), // this isn't something we're checking right now
 				para_head: test_collation().head_data.hash(),
+				validation_code_hash: expect_validation_code_hash,
 			};
 
 			assert_eq!(sent_messages.len(), 1);
@@ -768,6 +852,7 @@ mod tests {
 							&descriptor.para_id,
 							&descriptor.persisted_validation_data_hash,
 							&descriptor.pov_hash,
+							&descriptor.validation_code_hash,
 						)
 						.as_ref(),
 						&descriptor.collator,
