@@ -602,6 +602,39 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
+use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
+parameter_types! {
+	pub const RococoForTick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
+	pub const RococoForTrick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
+	pub const RococoForTrack: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+}
+pub type TrustedTeleporters = (
+	xcm_builder::Case<RococoForTick>,
+	xcm_builder::Case<RococoForTrick>,
+	xcm_builder::Case<RococoForTrack>,
+);
+
+parameter_types! {
+	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![ X1(Parachain{id: 100}), X1(Parachain{id: 110}), X1(Parachain{id: 120}) ];
+}
+
+pub struct All<T>(sp_std::marker::PhantomData<T>);
+impl<T: Ord> frame_support::traits::Contains<T> for All<T> {
+	fn contains(_: &T) -> bool { true }
+	fn sorted_members() -> Vec<T> { vec![] }
+}
+pub struct IsInVec<T>(sp_std::marker::PhantomData<T>);
+impl<X: Ord + PartialOrd, T: frame_support::traits::Get<Vec<X>>> frame_support::traits::Contains<X> for IsInVec<T> {
+	fn sorted_members() -> Vec<X> { let mut r = T::get(); r.sort(); r }
+}
+
+use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,	// <- Trusted parachains get free execution
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -609,9 +642,9 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
-	type IsTeleporter = ();
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = ();
+	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfConcreteFungible<RocFee>;
 	type ResponseHandler = ();
