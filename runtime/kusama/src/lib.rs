@@ -1043,7 +1043,7 @@ impl paras_registrar::Config for Runtime {
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
-	type WeightInfo = paras_registrar::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1056,7 +1056,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
-	type WeightInfo = slots::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
 parameter_types! {
