@@ -28,8 +28,9 @@ use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, ActivatedLeaf, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
-	SubsystemResult, SubsystemSender, OverseerSignal, FromOverseer,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender,
+	messages::StatementDistributionMessage
 };
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
@@ -842,11 +843,15 @@ where
 
 	let NetworkBridge {
 		network_service,
-		request_multiplexer,
+		mut request_multiplexer,
 		authority_discovery_service,
 		metrics,
 		sync_oracle,
 	 } = bridge;
+
+	let statement_receiver = request_multiplexer
+		.get_statement_fetching()
+		.expect("Gets initialized, must be `Some` on startup. qed.");
 
 	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
 
@@ -860,6 +865,10 @@ where
 	).remote_handle();
 
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
+
+	ctx.send_message(AllMessages::StatementDistribution(
+		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
+	)).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(
 		ctx,
@@ -1777,6 +1786,13 @@ mod tests {
 
 			let view = view![Hash::repeat_byte(1)];
 
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
+
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
@@ -1821,6 +1837,13 @@ mod tests {
 				PeerSet::Validation,
 				ObservedRole::Full,
 			).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -1886,6 +1909,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -1963,6 +1993,13 @@ mod tests {
 
 			network_handle.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2051,6 +2088,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2204,6 +2248,13 @@ mod tests {
 
 			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
+			);
 
 			// bridge will inform about all connected peers.
 			{
@@ -2364,6 +2415,13 @@ mod tests {
 			let our_view = OurView::new(
 				view_heads,
 				0,
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::StatementFetchingReceiver(_)
+				)
 			);
 
 			assert_sends_validation_event_to_all(

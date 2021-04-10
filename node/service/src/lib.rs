@@ -734,15 +734,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	// TODO: At the moment, the collator protocol uses notifications protocols to download
-	// collations. Because of DoS-protection measures, notifications protocols have a very limited
-	// bandwidth capacity, resulting in the collation download taking a long time.
-	// The lines of code below considerably relaxes this DoS protection in order to circumvent
-	// this problem. This configuraiton change should preferably not reach any live network, and
-	// should be removed once the collation protocol is finished.
-	// Tracking issue: https://github.com/paritytech/polkadot/issues/2283
-	config.network.yamux_window_size = Some(5 * 1024 * 1024);
-
 	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
 		&config, task_manager.spawn_handle(), backend.clone(), import_setup.1.shared_authority_set().clone(),
 	));

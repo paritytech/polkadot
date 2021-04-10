@@ -291,10 +291,7 @@ pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{
-		CandidateIndex, CollatorId, Hash, Id as ParaId, SignedAvailabilityBitfield,
-		CollatorSignature,
-	};
+	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature};
 	use polkadot_node_primitives::{
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		SignedFullStatement,
@@ -313,7 +310,68 @@ pub mod v1 {
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
-		Statement(Hash, SignedFullStatement)
+		Statement(Hash, SignedFullStatement),
+		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
+		///
+		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
+		/// via req/response.
+		#[codec(index = 1)]
+		LargeStatement(StatementMetadata),
+	}
+
+	/// Data that maes a statement unique.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+	pub struct StatementMetadata {
+		/// Relayt parent this statement is relevant under.
+		pub relay_parent: Hash,
+		/// Hash of the candidate that got validated.
+		pub candidate_hash: CandidateHash,
+		/// Validator that attested the valididty.
+		pub signed_by: ValidatorIndex,
+		/// Signature of seconding validator.
+		pub signature: ValidatorSignature,
+	}
+
+	impl StatementDistributionMessage {
+		/// Get meta data of the given `StatementDistributionMessage`.
+		pub fn get_metadata(&self) -> StatementMetadata {
+			match self {
+				Self::Statement(relay_parent, statement) => StatementMetadata {
+					relay_parent: *relay_parent,
+					candidate_hash: statement.payload().candidate_hash(),
+					signed_by: statement.validator_index(),
+					signature: statement.signature().clone(),
+				},
+				Self::LargeStatement(metadata) => metadata.clone(),
+			}
+		}
+
+		/// Get fingerprint describing the contained statement uniquely.
+		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
+			match self {
+				Self::Statement(_, statement) =>
+					(statement.payload().to_compact(), statement.validator_index()),
+				Self::LargeStatement(meta) =>
+					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
+			}
+		}
+
+		/// Get contained relay parent.
+		pub fn get_relay_parent(&self) -> Hash {
+			match self {
+				Self::Statement(r, _) => *r,
+				Self::LargeStatement(meta) => meta.relay_parent,
+			}
+		}
+
+		/// Whether or not this message contains a large statement.
+		pub fn is_large_statement(&self) -> bool {
+			if let Self::LargeStatement(_) = self {
+				true
+			} else {
+				false
+			}
+		}
 	}
 
 	/// Network messages used by the approval distribution subsystem.

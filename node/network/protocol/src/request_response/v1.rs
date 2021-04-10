@@ -18,10 +18,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, ValidatorIndex,
-	Hash,
-};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
 use polkadot_node_primitives::{AvailableData, PoV, ErasureChunk};
 
@@ -168,4 +165,30 @@ impl From<Option<AvailableData>> for AvailableDataFetchingResponse {
 impl IsRequest for AvailableDataFetchingRequest {
 	type Response = AvailableDataFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;
+}
+
+/// Request for fetching a large statement via request/response.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct StatementFetchingRequest {
+	/// Data needed to locate and identify the needed statement.
+	pub relay_parent: Hash,
+	/// Hash of candidate that was used create the CommitedCandidateRecept.
+	pub candidate_hash: CandidateHash,
+}
+
+/// Respond with found full statement.
+///
+/// In this protocol the requester will only request data it was previously notified about,
+/// therefore not having the data is not really an option and would just result in a
+/// `RequestFailure`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum StatementFetchingResponse {
+	/// Data missing to reconstruct the full signed statement.
+	#[codec(index = 0)]
+	Statement(CommittedCandidateReceipt),
+}
+
+impl IsRequest for StatementFetchingRequest {
+	type Response = StatementFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::StatementFetching;
 }

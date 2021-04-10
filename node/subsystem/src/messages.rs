@@ -28,8 +28,11 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
-	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
+	PeerId, UnifiedReputationChange, peer_set::PeerSet,
+	request_response::{
+		Requests, request::IncomingRequest, v1 as req_res_v1
+	},
+	v1 as protocol_v1,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -526,16 +529,8 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-}
-
-impl StatementDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
+	/// Get receiver for receiving incoming network requests for statement fetching.
+	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -746,7 +741,6 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorPro
 		Self::CollationFetchingRequest(req)
 	}
 }
-
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
