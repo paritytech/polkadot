@@ -1385,8 +1385,10 @@ sp_api::impl_runtime_apis! {
 			let params = (&config, &whitelist);
 
 			// Polkadot
-			add_benchmark!(params, batches, slots, Slots);
-			add_benchmark!(params, batches, paras_registrar, Registrar);
+			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
+			// in the generated file.
+			add_benchmark!(params, batches, runtime_common::slots, Slots);
+			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
