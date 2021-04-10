@@ -1333,7 +1333,7 @@ impl<M> OverseerSubsystemContext<M> {
 		 }
 	}
 
-	/// Create a new `OverseserSubsystemContext` with no metering.
+	/// Create a new `OverseerSubsystemContext` with no metering.
 	///
 	/// Intended for tests.
 	#[allow(unused)]
