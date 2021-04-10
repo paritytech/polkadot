@@ -843,7 +843,7 @@ fn crowdloan_ending_period_bid() {
 
 		assert_eq!(Auctions::is_ending(100), Some(0));
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-		winning[SlotRange::ZeroOne as u8 as usize] = Some((1002, ParaId::from(1002), 900));
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(1002), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(1001), total));
 
 		assert_eq!(Auctions::winning(0), Some(winning));
@@ -856,7 +856,7 @@ fn crowdloan_ending_period_bid() {
 		// Data propagates correctly
 		run_to_block(102);
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-		winning[SlotRange::ZeroOne as u8 as usize] = Some((1002, ParaId::from(1002), 900));
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(1002), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(1001), total + 900));
 		assert_eq!(Auctions::winning(2), Some(winning));
 	})
