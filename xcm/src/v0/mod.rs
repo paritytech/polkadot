@@ -27,7 +27,7 @@ mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-pub use junction::{Junction, NetworkId};
+pub use junction::{Junction, NetworkId, BodyId, BodyPart};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
 pub use order::Order;
@@ -227,6 +227,20 @@ pub enum Xcm<Call> {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] recipient: u32,
 	},
+
+	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
+	/// location within the origin.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	#[codec(index = 10)]
+	RelayedFrom {
+		who: MultiLocation,
+		message: alloc::boxed::Box<Xcm<Call>>,
+	},
 }
 
 impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
@@ -268,7 +282,9 @@ impl<Call> Xcm<Call> {
 			HrmpChannelClosing { initiator, sender, recipient}
 			=> HrmpChannelClosing { initiator, sender, recipient},
 			Transact { origin_type, require_weight_at_most, call}
-			=> Transact { origin_type, require_weight_at_most, call: call.into() }
+			=> Transact { origin_type, require_weight_at_most, call: call.into() },
+			RelayedFrom { who, message }
+			=> RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 }

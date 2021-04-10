@@ -75,8 +75,9 @@ use futures::{
 };
 use futures_timer::Delay;
 
-use polkadot_primitives::v1::{Block, BlockNumber, Hash};
+use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
+use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
@@ -115,6 +116,22 @@ impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
 
 	fn map_subsystem(&self, sub: T) -> U {
 		(self)(sub)
+	}
+}
+
+/// Whether a header supports parachain consensus or not.
+pub trait HeadSupportsParachains {
+	/// Return true if the given header supports parachain consensus. Otherwise, false.
+	fn head_supports_parachains(&self, head: &Hash) -> bool;
+}
+
+impl<Client> HeadSupportsParachains for Arc<Client> where
+	Client: ProvideRuntimeApi<Block>,
+	Client::Api: ParachainHost<Block>,
+{
+	fn head_supports_parachains(&self, head: &Hash) -> bool {
+		let id = BlockId::Hash(*head);
+		self.runtime_api().has_api::<dyn ParachainHost<Block>>(&id).unwrap_or(false)
 	}
 }
 
@@ -1316,7 +1333,7 @@ impl<M> OverseerSubsystemContext<M> {
 		 }
 	}
 
-	/// Create a new `OverseserSubsystemContext` with no metering.
+	/// Create a new `OverseerSubsystemContext` with no metering.
 	///
 	/// Intended for tests.
 	#[allow(unused)]
@@ -1515,7 +1532,7 @@ struct SubsystemMeterReadouts {
 }
 
 /// The `Overseer` itself.
-pub struct Overseer<S> {
+pub struct Overseer<S, SupportsParachains> {
 	/// Handles to all subsystems.
 	subsystems: AllSubsystems<
 		OverseenSubsystem<CandidateValidationMessage>,
@@ -1563,6 +1580,9 @@ pub struct Overseer<S> {
 
 	/// The set of the "active leaves".
 	active_leaves: HashMap<Hash, BlockNumber>,
+
+	/// An implementation for checking whether a header supports parachain consensus.
+	supports_parachains: SupportsParachains,
 
 	/// Various Prometheus metrics.
 	metrics: Metrics,
@@ -1740,9 +1760,10 @@ impl fmt::Debug for Metrics {
 	}
 }
 
-impl<S> Overseer<S>
+impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	S: SpawnNamed,
+	SupportsParachains: HeadSupportsParachains,
 {
 	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
 	///
@@ -1778,7 +1799,8 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use polkadot_overseer::{Overseer, AllSubsystems};
+	/// # use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
+	/// # use polkadot_primitives::v1::Hash;
 	/// # use polkadot_subsystem::{
 	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
 	/// #     messages::CandidateValidationMessage,
@@ -1805,12 +1827,18 @@ where
 	/// }
 	///
 	/// # fn main() { executor::block_on(async move {
+	///
+	/// struct AlwaysSupportsParachains;
+	/// impl HeadSupportsParachains for AlwaysSupportsParachains {
+	///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+	/// }
 	/// let spawner = sp_core::testing::TaskExecutor::new();
 	/// let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_validation(ValidationSubsystem);
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
 	///     None,
+	///     AlwaysSupportsParachains,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -1831,6 +1859,7 @@ where
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
+		supports_parachains: SupportsParachains,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -2289,6 +2318,7 @@ where
 			active_leaves,
 			metrics,
 			span_per_active_leaf: Default::default(),
+			supports_parachains,
 		};
 
 		Ok((this, handler))
@@ -2337,12 +2367,13 @@ where
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			let span = self.on_head_activated(&hash, None);
-			update.activated.push(ActivatedLeaf {
-				hash,
-				number,
-				span,
-			});
+			if let Some(span) = self.on_head_activated(&hash, None) {
+				update.activated.push(ActivatedLeaf {
+					hash,
+					number,
+					span,
+				});
+			}
 		}
 
 		if !update.is_empty() {
@@ -2421,12 +2452,14 @@ where
 			}
 		};
 
-		let span = self.on_head_activated(&block.hash, Some(block.parent_hash));
-		let mut update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
-			hash: block.hash,
-			number: block.number,
-			span
-		});
+		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)) {
+			Some(span) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: block.hash,
+				number: block.number,
+				span
+			}),
+			None => ActiveLeavesUpdate::default(),
+		};
 
 		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
 			debug_assert_eq!(block.number.saturating_sub(1), number);
@@ -2436,7 +2469,11 @@ where
 
 		self.clean_up_external_listeners();
 
-		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await
+		if !update.is_empty() {
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await
+		} else {
+			Ok(())
+		}
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -2555,8 +2592,16 @@ where
 		Ok(())
 	}
 
+	/// Handles a header activation. If the header's state doesn't support the parachains API,
+	/// this returns `None`.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>) -> Arc<jaeger::Span> {
+	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>)
+		-> Option<Arc<jaeger::Span>>
+	{
+		if !self.supports_parachains.head_supports_parachains(hash) {
+			return None;
+		}
+
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
@@ -2573,7 +2618,7 @@ where
 
 		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
-		span
+		Some(span)
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -2786,6 +2831,13 @@ mod tests {
 		}
 	}
 
+	struct MockSupportsParachains;
+
+	impl HeadSupportsParachains for MockSupportsParachains {
+		fn head_supports_parachains(&self, _head: &Hash) -> bool {
+			true
+		}
+	}
 
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
@@ -2807,6 +2859,7 @@ mod tests {
 				vec![],
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -2876,6 +2929,7 @@ mod tests {
 				vec![first_block],
 				all_subsystems,
 				Some(&registry),
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -2929,6 +2983,7 @@ mod tests {
 				vec![],
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 
@@ -3034,6 +3089,7 @@ mod tests {
 				vec![first_block],
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 
@@ -3139,6 +3195,7 @@ mod tests {
 				vec![first_block, second_block],
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 
@@ -3236,6 +3293,7 @@ mod tests {
 				Vec::new(),
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 
@@ -3479,6 +3537,7 @@ mod tests {
 				vec![],
 				all_subsystems,
 				None,
+				MockSupportsParachains,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();

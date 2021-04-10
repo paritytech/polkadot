@@ -32,6 +32,55 @@ pub enum NetworkId {
 	Kusama,
 }
 
+/// An identifier of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+pub enum BodyId {
+	/// The only body in its context.
+	Unit,
+	/// A named body.
+	Named(Vec<u8>),
+	/// An indexed body.
+	// TODO: parity-scale-codec#262: Change to be a tuple.
+	Index { #[codec(compact)] id: u32 },
+	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
+	Executive,
+	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
+	Technical,
+	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a majority of
+	/// lock-voters).
+	Legislative,
+	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
+	/// may be considered as that).
+	Judicial,
+}
+
+/// A part of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+pub enum BodyPart {
+	/// The body's declaration, under whatever means it decides.
+	Voice,
+	/// A given number of members of the body.
+	Members { #[codec(compact)] count: u32 },
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+	/// No less than the given proportion of members of the body.
+	AtLeastProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+	/// More than than the given proportion of members of the body.
+	MoreThanProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+}
+
+impl BodyPart {
+	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
+	pub fn is_majority(&self) -> bool {
+		match self {
+			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
+			_ => false,
+		}
+	}
+}
+
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
@@ -85,21 +134,30 @@ pub enum Junction {
 	///
 	/// Not currently used except as a fallback when deriving ancestry.
 	OnlyChild,
+	/// A pluralistic body existing within consensus.
+	///
+	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
+	/// things such as multisigs also.
+	Plurality { id: BodyId, part: BodyPart },
 }
 
 impl Junction {
-	pub fn is_sub_consensus(&self) -> bool {
+	/// Returns true if this junction can be considered an interior part of its context. This is generally `true`,
+	/// except for the `Parent` item.
+	pub fn is_interior(&self) -> bool {
 		match self {
 			Junction::Parent => false,
 
-			Junction::Parachain { .. } |
-			Junction::AccountId32 { .. } |
-			Junction::AccountIndex64 { .. } |
-			Junction::AccountKey20 { .. } |
-			Junction::PalletInstance { .. } |
-			Junction::GeneralIndex { .. } |
-			Junction::GeneralKey(..) |
-			Junction::OnlyChild => true,
+			Junction::Parachain { .. }
+			| Junction::AccountId32 { .. }
+			| Junction::AccountIndex64 { .. }
+			| Junction::AccountKey20 { .. }
+			| Junction::PalletInstance { .. }
+			| Junction::GeneralIndex { .. }
+			| Junction::GeneralKey(..)
+			| Junction::OnlyChild
+			| Junction::Plurality { .. }
+			=> true,
 		}
 	}
 }

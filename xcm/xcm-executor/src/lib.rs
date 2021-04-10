@@ -40,6 +40,7 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
+	type Call = Config::Call;
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Config::Call>, weight_limit: Weight) -> Outcome {
 		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
@@ -180,6 +181,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 			(origin, Xcm::QueryResponse { query_id, response }) => {
 				Config::ResponseHandler::on_response(origin, query_id, response);
+				None
+			}
+			(origin, Xcm::RelayedFrom { who, message }) => {
+				ensure!(who.is_interior(), XcmError::EscalationOfPrivilege);
+				let mut origin = origin;
+				origin.append_with(who).map_err(|_| XcmError::MultiLocationFull)?;
+				let surplus = Self::do_execute_xcm(origin, top_level, *message, weight_credit, None, trader)?;
+				total_surplus = total_surplus.saturating_add(surplus);
 				None
 			}
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.

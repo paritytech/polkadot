@@ -45,6 +45,7 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/pallet-xcm",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -55,6 +56,7 @@ members = [
 	"node/core/chain-api",
 	"node/core/proposer",
 	"node/core/provisioner",
+	"node/core/pvf",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",
@@ -95,7 +97,6 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
-real-overseer=["cli/real-overseer"]
 try-runtime = ["cli/try-runtime"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`

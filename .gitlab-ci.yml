@@ -176,11 +176,9 @@ build-linux-release:
     # extra features when building on `rococo-v1` branch and manual build on PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
-        EXTRA_FLAGS:               "--features=real-overseer"
         RUSTFLAGS:                 "-Cdebug-assertions=y"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       variables:
-        EXTRA_FLAGS:               "--features=real-overseer"
         RUSTFLAGS:                 "-Cdebug-assertions=y"
     - when:                        always
   script:

@@ -13,7 +13,7 @@
 
 //! A RocksDB instance for storing parachain data; availability data, and approvals.
 
-#[cfg(feature = "real-overseer")]
+#[cfg(feature = "full-node")]
 use {
 	std::io,
 	std::path::PathBuf,
@@ -25,7 +25,6 @@ use {
 mod upgrade;
 
 mod columns {
-	#[cfg(feature = "real-overseer")]
 	pub const NUM_COLUMNS: u32 = 3;
 
 
@@ -73,13 +72,13 @@ impl Default for CacheSizes {
 	}
 }
 
-#[cfg(feature = "real-overseer")]
+#[cfg(feature = "full-node")]
 fn other_io_error(err: String) -> io::Error {
 	io::Error::new(io::ErrorKind::Other, err)
 }
 
 /// Open the database on disk, creating it if it doesn't exist.
-#[cfg(feature = "real-overseer")]
+#[cfg(feature = "full-node")]
 pub fn open_creating(
 	root: PathBuf,
 	cache_sizes: CacheSizes,
