@@ -42,7 +42,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for slots.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> slots::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T> {
 	fn force_lease() -> Weight {
 		(49_448_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))

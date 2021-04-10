@@ -54,13 +54,14 @@ use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
 use xcm::v0::{MultiLocation, NetworkId};
+
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
 	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
 };
-
+use xcm_executor::XcmExecutor;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
@@ -1001,8 +1002,13 @@ impl parachains_paras::Config for Runtime {
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1088,10 +1094,17 @@ parameter_types! {
 	pub const KusamaFee: (MultiLocation, u128) = (KusamaLocation::get(), 1 * CENTS);
 }
 
+/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
+/// individual routers.
+pub type XcmRouter = (
+	// Only one router so far - use DMP to communicate with child parachains.
+	xcm_sender::ChildParachainRouter<Runtime>,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
+	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();

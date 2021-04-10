@@ -54,6 +54,7 @@ use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
 use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
@@ -753,8 +754,13 @@ impl parachains_paras::Config for Runtime {
 	type Event = Event;
 }
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmConfig>;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -792,7 +798,7 @@ impl paras_registrar::Config for Runtime {
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
 	type MaxHeadSize = MaxHeadSize;
-	type WeightInfo = paras_registrar::TestWeightInfo;
+	type WeightInfo = weights::paras_registrar::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -804,7 +810,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
-	type WeightInfo = slots::TestWeightInfo;
+	type WeightInfo = weights::slots::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -842,10 +848,17 @@ parameter_types! {
 	pub const WestendFee: (MultiLocation, u128) = (WestendLocation::get(), 1 * CENTS);
 }
 
+/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
+/// individual routers.
+pub type XcmRouter = (
+	// Only one router so far - use DMP to communicate with child parachains.
+	xcm_sender::ChildParachainRouter<Runtime>,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = xcm_sender::RelayChainXcmSender<Runtime>;
+	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
