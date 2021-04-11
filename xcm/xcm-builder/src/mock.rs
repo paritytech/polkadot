@@ -26,7 +26,7 @@ pub use frame_support::{
 	dispatch::{Dispatchable, Parameter, Weight, DispatchError, DispatchResultWithPostInfo, DispatchInfo},
 	weights::{PostDispatchInfo, GetDispatchInfo},
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Get, Contains},
+	traits::{Get, Contains, IsInVec},
 };
 pub use xcm_executor::{
 	Assets, Config, traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse}
@@ -252,11 +252,6 @@ parameter_types! {
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (MultiLocation, u128) = (Null, 1_000_000_000_000);
-}
-
-pub struct IsInVec<T>(PhantomData<T>);
-impl<X: Ord + PartialOrd, T: Get<Vec<X>>> Contains<X> for IsInVec<T> {
-	fn sorted_members() -> Vec<X> { let mut r = T::get(); r.sort(); r }
 }
 
 pub type TestBarrier = (

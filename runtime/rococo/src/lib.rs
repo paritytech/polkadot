@@ -41,7 +41,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness},
+	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
 	weights::Weight,
 	PalletId
 };
@@ -616,16 +616,6 @@ pub type TrustedTeleporters = (
 
 parameter_types! {
 	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![ X1(Parachain{id: 100}), X1(Parachain{id: 110}), X1(Parachain{id: 120}) ];
-}
-
-pub struct All<T>(sp_std::marker::PhantomData<T>);
-impl<T: Ord> frame_support::traits::Contains<T> for All<T> {
-	fn contains(_: &T) -> bool { true }
-	fn sorted_members() -> Vec<T> { vec![] }
-}
-pub struct IsInVec<T>(sp_std::marker::PhantomData<T>);
-impl<X: Ord + PartialOrd, T: frame_support::traits::Get<Vec<X>>> frame_support::traits::Contains<X> for IsInVec<T> {
-	fn sorted_members() -> Vec<X> { let mut r = T::get(); r.sort(); r }
 }
 
 use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
