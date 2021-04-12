@@ -6507,6 +6507,7 @@ dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
  "futures 0.3.13",
+ "futures-timer 3.0.2",
  "indexmap",
  "parity-scale-codec",
  "polkadot-node-network-protocol",
@@ -6522,6 +6523,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-staking",
+ "sp-tracing",
  "tracing",
 ]
 
