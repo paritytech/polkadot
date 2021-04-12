@@ -244,7 +244,7 @@ publish-adder-collator-image:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
-    - buildah logout "$IMAGE_NAME"
+    # - buildah logout "$IMAGE_NAME"
     # pass artifacts to the trigger-simnet job
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
   artifacts:

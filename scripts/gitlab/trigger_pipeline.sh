@@ -31,7 +31,6 @@ function get_status() {
 }
 
 for i in $(seq 1 360); do
-    echo "$i";
     STATUS=$(get_status);
     echo "Triggered pipeline status is ${STATUS}";
     if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
