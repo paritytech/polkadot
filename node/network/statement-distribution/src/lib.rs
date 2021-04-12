@@ -2714,6 +2714,7 @@ mod tests {
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
+		let peer_bad = PeerId::random();
 
 		let validators = vec![
 			Sr25519Keyring::Alice.public().into(),
@@ -2787,6 +2788,11 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(peer_c.clone(), ObservedRole::Full)
 				)
 			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full)
+				)
+			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
@@ -2802,6 +2808,11 @@ mod tests {
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a])
 				)
 			}).await;
 
@@ -2869,6 +2880,16 @@ mod tests {
 				)
 			}).await;
 
+			// Malicious peer:
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_bad.clone(),
+						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+					)
+				)
+			}).await;
+
 			// Let c fail once too:
 			assert_matches!(
 				handle.recv().await,
@@ -2910,7 +2931,42 @@ mod tests {
 				}
 			);
 
-			// and again (retried in reverse order):
+			// Send invalid response (all other peers have been tried now):
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_bad));
+					let bad_candidate = {
+						let mut bad = candidate.clone();
+						bad.descriptor.para_id = 0xeadbeaf.into();
+						bad
+					};
+					let response = StatementFetchingResponse::Statement(bad_candidate);
+					outgoing.pending_response.send(Ok(response.encode())).unwrap();
+				}
+			);
+
+			// Should get punished and never tried again:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(p, r)
+				) if p == peer_bad && r == COST_WRONG_HASH => {}
+			);
+
+			// a is tried again (retried in reverse order):
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
