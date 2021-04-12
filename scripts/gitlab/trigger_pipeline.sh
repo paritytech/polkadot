@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -eu
 # API trigger another projects' pipeline
 curl --silent \
     -X POST \
