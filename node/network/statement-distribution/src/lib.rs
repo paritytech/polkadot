@@ -1060,17 +1060,19 @@ async fn retrieve_statement_from_message<'a>(
 			match occupied.get_mut() {
 				LargeStatementStatus::Fetching(info) => {
 
-					let is_new_peer = !info.available_peers.contains_key(&peer);
 					let is_large_statement = message.is_large_statement();
 
-					match info.available_peers.entry(peer) {
-						IEntry::Occupied(mut occupied) => {
-							occupied.get_mut().push(message);
-						}
-						IEntry::Vacant(vacant) => {
-							vacant.insert(vec![message]);
-						}
-					}
+					let is_new_peer =
+						match info.available_peers.entry(peer) {
+							IEntry::Occupied(mut occupied) => {
+								occupied.get_mut().push(message);
+								false
+							}
+							IEntry::Vacant(vacant) => {
+								vacant.insert(vec![message]);
+								true
+							}
+					};
 
 					if is_new_peer & is_large_statement {
 						info.peers_to_try.push(peer);
