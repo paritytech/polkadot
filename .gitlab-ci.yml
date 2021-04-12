@@ -361,12 +361,7 @@ trigger-simnet:
     - |
       'for i in $(seq 1 360); do
         echo $i
-        STATUS=$(
-          curl --silent
-            --header "PRIVATE-TOKEN: ${TOKEN}"
-            "https://${CI_SERVER_HOST}/api/v4/projects/${DWNSTRM_ID}/pipelines/${PIPELINE_ID}" |
-              jq --raw-output '.status'
-        );
+        STATUS=$(curl --silent --header "PRIVATE-TOKEN: ${TOKEN}" "https://${CI_SERVER_HOST}/api/v4/projects/${DWNSTRM_ID}/pipelines/${PIPELINE_ID}" | jq --raw-output '.status');
         echo "Triggered pipeline status is ${STATUS}";
         if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
           echo "Busy..."
