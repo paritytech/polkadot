@@ -48,17 +48,19 @@ impl PeerSet {
 	/// network service.
 	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
-		// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
-		// done and collations use request-response protocols
-		let max_notification_size = 16 * 1024 * 1024;
+		let max_notification_size = 100 * 1024;
 
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					in_peers: 25,
-					out_peers: 0,
+					// we allow full nodes to connect to validators for gossip
+					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
+					// we limit the amount of non-reserved slots to be less
+					// than `MIN_GOSSIP_PEERS` in total
+					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},

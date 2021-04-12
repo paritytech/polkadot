@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 polkadot-erasure-coding = { path = ".." }
 honggfuzz = "0.5"
-primitives = { package = "polkadot-primitives", path = "../../primitives/" }
+primitives = { package = "polkadot-node-primitives", path = "../../node/primitives/" }
 
 [[bin]]
 name = "reconstruct"

@@ -20,6 +20,7 @@ struct DisputeStatementSet {
 enum DisputeStatement {
     /// A valid statement, of the given kind
     Valid(ValidDisputeStatementKind),
+    /// An invalid statement, of the given kind.
     Invalid(InvalidDisputeStatementKind),
 }
 

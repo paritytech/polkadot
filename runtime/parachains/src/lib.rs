@@ -25,9 +25,9 @@
 pub mod configuration;
 pub mod shared;
 pub mod inclusion;
-pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
+pub mod paras_inherent;
 pub mod scheduler;
 pub mod session_info;
 pub mod origin;

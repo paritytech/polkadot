@@ -21,6 +21,7 @@ use sp_std::vec::Vec;
 
 use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
+use sp_runtime::traits::Hash as _;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -45,7 +46,6 @@ pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 impl HeadData {
 	/// Returns the hash of this head data.
 	pub fn hash(&self) -> Hash {
-		use sp_runtime::traits::Hash;
 		sp_runtime::traits::BlakeTwo256::hash(&self.0)
 	}
 }
@@ -54,6 +54,13 @@ impl HeadData {
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl ValidationCode {
+	/// Get the blake2-256 hash of the validation code bytes.
+	pub fn hash(&self) -> Hash {
+		sp_runtime::traits::BlakeTwo256::hash(&self.0[..])
+	}
+}
 
 /// Parachain block data.
 ///
@@ -124,11 +131,6 @@ impl Id {
 	pub const fn new(id: u32) -> Self {
 		Self(id)
 	}
-
-	/// Returns `true` if this parachain runs with system-level privileges.
-	/// Use IsSystem instead.
-	#[deprecated]
-	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
 }
 
 pub trait IsSystem {

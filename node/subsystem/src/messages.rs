@@ -28,8 +28,11 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
-	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
+	PeerId, UnifiedReputationChange, peer_set::PeerSet,
+	request_response::{
+		Requests, request::IncomingRequest, v1 as req_res_v1
+	},
+	v1 as protocol_v1,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -44,7 +47,7 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
-	CandidateIndex, GroupIndex,
+	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
@@ -353,6 +356,9 @@ pub enum AvailabilityStoreMessage {
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
+	/// Query all chunks that we have for the given candidate hash.
+	QueryAllChunks(CandidateHash, oneshot::Sender<Vec<ErasureChunk>>),
+
 	/// Query whether an `ErasureChunk` exists within the AV Store.
 	///
 	/// This is useful in cases like bitfield signing, when existence
@@ -366,8 +372,6 @@ pub enum AvailabilityStoreMessage {
 	StoreChunk {
 		/// A hash of the candidate this chunk belongs to.
 		candidate_hash: CandidateHash,
-		/// A relevant relay parent.
-		relay_parent: Hash,
 		/// The chunk itself.
 		chunk: ErasureChunk,
 		/// Sending side of the channel to send result to.
@@ -436,6 +440,8 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeA
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
+	/// Get the next, current and some previous authority discovery set deduplicated.
+	Authorities(RuntimeApiSender<Vec<AuthorityDiscoveryId>>),
 	/// Get the current validator set.
 	Validators(RuntimeApiSender<Vec<ValidatorId>>),
 	/// Get the validator groups and group rotation info.
@@ -523,16 +529,8 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-}
-
-impl StatementDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
+	/// Get receiver for receiving incoming network requests for statement fetching.
+	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -549,10 +547,16 @@ pub enum ProvisionableData {
 	Dispute(Hash, ValidatorSignature),
 }
 
-/// This data needs to make its way from the provisioner into the InherentData.
-///
-/// There, it is used to construct the ParaInherent.
-pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
+/// Inherent data returned by the provisioner
+#[derive(Debug, Clone)]
+pub struct ProvisionerInherentData {
+	/// Signed bitfields.
+	pub bitfields: SignedAvailabilityBitfields,
+	/// Backed candidates.
+	pub backed_candidates: Vec<BackedCandidate>,
+	/// Dispute statement sets.
+	pub disputes: MultiDisputeStatementSet,
+}
 
 /// Message to the Provisioner.
 ///
@@ -737,7 +741,6 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorPro
 		Self::CollationFetchingRequest(req)
 	}
 }
-
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {

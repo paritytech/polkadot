@@ -294,7 +294,7 @@ impl CandidateSelectionJob {
 				).await {
 					Ok(response) => response,
 					Err(err) => {
-						tracing::warn!(
+						tracing::debug!(
 							target: LOG_TARGET,
 							err = ?err,
 							"failed to get collation from collator protocol subsystem",

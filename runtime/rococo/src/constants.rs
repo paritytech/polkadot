@@ -34,7 +34,7 @@ pub mod time {
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	frame_support::parameter_types! {
-		pub storage EpochDurationInBlocks: BlockNumber = 30 * MINUTES;
+		pub storage EpochDurationInBlocks: BlockNumber = 10 * MINUTES;
 	}
 
 	// These time units are defined in number of blocks.
@@ -44,6 +44,11 @@ pub mod time {
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
+}
+
+/// Size restrictions.
+pub mod size {
+	pub use primitives::v1::MAX_CODE_SIZE;
 }
 
 /// Fee-related.
