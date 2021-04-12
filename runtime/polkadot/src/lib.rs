@@ -1030,15 +1030,6 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			BABE_GENESIS_EPOCH_CONFIG,
-		)
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1071,58 +1062,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, FixPolkadotCouncilVotersDeposit),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-pub struct FixPolkadotCouncilVotersDeposit;
-impl frame_support::traits::OnRuntimeUpgrade for FixPolkadotCouncilVotersDeposit {
-	fn on_runtime_upgrade() -> Weight {
-		use pallet_elections_phragmen::Voter;
-		use frame_support::IterableStorageMap;
-		let mut updated = 0;
-		let mut skipped = 0;
-		let mut correct = 0;
-		pallet_elections_phragmen::Voting::<Runtime>::translate::<Voter<AccountId, Balance>, _>(
-			|_who, mut vote| {
-				if vote.deposit == 5 * CENTS {
-					// If their deposit is what we set by mistake
-					vote.deposit = 5 * DOLLARS;
-					updated += 1;
-				} else if vote.deposit == 5 * DOLLARS {
-					correct += 1;
-				} else {
-					skipped += 1;
-				}
-				Some(vote)
-			},
-		);
-
-		log::info!(
-			target: "runtime::polkadot",
-			"updated {} (updated) + {} (correct) + {} (skipped) voter's deposit.",
-			updated,
-			correct,
-			skipped,
-		);
-		BlockWeights::get().max_block
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::IterableStorageMap;
-		log::info!("Checking FixPolkadotCouncilVotersDeposit post migration");
-		// no further vote with the wrong 5 CENT deposit shall exist.
-		assert!(
-			pallet_elections_phragmen::Voting::<Runtime>::iter().all(
-				|(_, vote)| vote.deposit != 5 * CENTS
-			)
-		);
-
-		Ok(())
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
