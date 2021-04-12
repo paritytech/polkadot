@@ -24,12 +24,10 @@ use futures::{FutureExt, SinkExt};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
 	request::{OutgoingRequest, RequestError, Requests, Recipient},
-	v1::{AvailabilityFetchingRequest, AvailabilityFetchingResponse},
+	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlakeTwo256, ErasureChunk, GroupIndex, Hash, HashT, OccupiedCore,
-	SessionIndex,
-};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore, SessionIndex};
+use polkadot_node_primitives::ErasureChunk;
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, NetworkBridgeMessage, IfDisconnected,
 };
@@ -88,6 +86,9 @@ pub enum FromFetchTask {
 	/// In case of `None` everything was fine, in case of `Some`, some validators in the group
 	/// did not serve us our chunk as expected.
 	Concluded(Option<BadValidators>),
+
+	/// We were not able to fetch the desired chunk for the given `CandidateHash`.
+	Failed(CandidateHash),
 }
 
 /// Information a running task needs.
@@ -106,7 +107,7 @@ struct RunningTask {
 	group: Vec<AuthorityDiscoveryId>,
 
 	/// The request to send.
-	request: AvailabilityFetchingRequest,
+	request: ChunkFetchingRequest,
 
 	/// Root hash, for verifying the chunks validity.
 	erasure_root: Hash,
@@ -138,7 +139,7 @@ impl FetchTaskConfig {
 		let live_in = vec![leaf].into_iter().collect();
 
 		// Don't run tasks for our backing group:
-		if session_info.our_group == core.group_responsible {
+		if session_info.our_group == Some(core.group_responsible) {
 			return FetchTaskConfig {
 				live_in,
 				prepared_running: None,
@@ -154,7 +155,7 @@ impl FetchTaskConfig {
 			group: session_info.validator_groups.get(core.group_responsible.0 as usize)
 				.expect("The responsible group of a candidate should be available in the corresponding session. qed.")
 				.clone(),
-			request: AvailabilityFetchingRequest {
+			request: ChunkFetchingRequest {
 				candidate_hash: core.candidate_hash,
 				index: session_info.our_index,
 			},
@@ -261,7 +262,7 @@ impl RunningTask {
 	/// Try validators in backing group in order.
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
-		let mut label = FAILED;
+		let mut succeeded = false;
 		let mut count: u32 = 0;
 		let mut _span = self.span.child("fetch-task")
 			.with_chunk_index(self.request.index.0)
@@ -292,10 +293,10 @@ impl RunningTask {
 				}
 			};
 			let chunk = match resp {
-				AvailabilityFetchingResponse::Chunk(resp) => {
+				ChunkFetchingResponse::Chunk(resp) => {
 					resp.recombine_into_chunk(&self.request)
 				}
-				AvailabilityFetchingResponse::NoSuchChunk => {
+				ChunkFetchingResponse::NoSuchChunk => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						validator = ?validator,
@@ -314,23 +315,28 @@ impl RunningTask {
 
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
-			label = SUCCEEDED;
+			succeeded = true;
 			_span.add_string_tag("success", "true");
 			break;
 		}
 		_span.add_int_tag("tries", count as _);
-		self.metrics.on_fetch(label);
-		self.conclude(bad_validators).await;
+		if succeeded {
+			self.metrics.on_fetch(SUCCEEDED);
+			self.conclude(bad_validators).await;
+		} else {
+			self.metrics.on_fetch(FAILED);
+			self.conclude_fail().await
+		}
 	}
 
 	/// Do request and return response, if successful.
 	async fn do_request(
 		&mut self,
 		validator: &AuthorityDiscoveryId,
-	) -> std::result::Result<AvailabilityFetchingResponse, TaskError> {
+	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
-		let requests = Requests::AvailabilityFetching(full_request);
+		let requests = Requests::ChunkFetching(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
@@ -399,7 +405,6 @@ impl RunningTask {
 			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
-					relay_parent: self.relay_parent,
 					chunk,
 					tx,
 				},
@@ -430,6 +435,16 @@ impl RunningTask {
 				target: LOG_TARGET,
 				err= ?err,
 				"Sending concluded message for task failed"
+			);
+		}
+	}
+
+	async fn conclude_fail(&mut self) {
+		if let Err(err) = self.sender.send(FromFetchTask::Failed(self.request.candidate_hash)).await {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?err,
+				"Sending `Failed` message for task failed"
 			);
 		}
 	}

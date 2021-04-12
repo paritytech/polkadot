@@ -31,11 +31,11 @@ adder_collator="target/release/adder-collator"
 
 # ensure the polkadot binary exists and is up to date
 if [ ! -x "$polkadot" ] || [ "$polkadot" -ot "$last_modified_rust_file" ]; then
-  cargo build --release --features real-overseer
+  cargo build --release
 fi
 # likewise for the adder collator
 if [ ! -x "$adder_collator" ] || [ "$adder_collator" -ot "$last_modified_rust_file" ]; then
-  cargo build --release --features real-overseer -p test-parachain-adder-collator
+  cargo build --release -p test-parachain-adder-collator
 fi
 
 genesis="$(mktemp --directory)"

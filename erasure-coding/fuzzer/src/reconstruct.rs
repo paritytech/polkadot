@@ -1,5 +1,5 @@
 use polkadot_erasure_coding::*;
-use primitives::v1::AvailableData;
+use primitives::AvailableData;
 use honggfuzz::fuzz;
 
 fn main() {

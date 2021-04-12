@@ -19,6 +19,7 @@ use polkadot_primitives::v1::{
 	CoreState, GroupRotationInfo, InboundDownwardMessage, InboundHrmpMessage, Hash,
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, SessionInfo, ValidationCode, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId,
 };
 use sp_consensus_babe::Epoch;
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
@@ -28,6 +29,7 @@ use memory_lru::{MemoryLruCache, ResidentSize};
 
 use std::collections::btree_map::BTreeMap;
 
+const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
 const VALIDATORS_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATOR_GROUPS_CACHE_SIZE: usize = 64 * 1024;
 const AVAILABILITY_CORES_CACHE_SIZE: usize = 64 * 1024;
@@ -59,7 +61,18 @@ impl<T> ResidentSize for DoesNotAllocate<T> {
 	}
 }
 
+// this is an ugly workaround for `AuthorityDiscoveryId`
+// not implementing `MallocSizeOf`
+struct VecOfDoesNotAllocate<T>(Vec<T>);
+
+impl<T> ResidentSize for VecOfDoesNotAllocate<T> {
+	fn resident_size(&self) -> usize {
+		std::mem::size_of::<T>() * self.0.capacity()
+	}
+}
+
 pub(crate) struct RequestResultCache {
+	authorities: MemoryLruCache<Hash, VecOfDoesNotAllocate<AuthorityDiscoveryId>>,
 	validators: MemoryLruCache<Hash, ResidentSizeOf<Vec<ValidatorId>>>,
 	validator_groups: MemoryLruCache<Hash, ResidentSizeOf<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>>,
 	availability_cores: MemoryLruCache<Hash, ResidentSizeOf<Vec<CoreState>>>,
@@ -79,6 +92,7 @@ pub(crate) struct RequestResultCache {
 impl Default for RequestResultCache {
 	fn default() -> Self {
 		Self {
+			authorities: MemoryLruCache::new(AUTHORITIES_CACHE_SIZE),
 			validators: MemoryLruCache::new(VALIDATORS_CACHE_SIZE),
 			validator_groups: MemoryLruCache::new(VALIDATOR_GROUPS_CACHE_SIZE),
 			availability_cores: MemoryLruCache::new(AVAILABILITY_CORES_CACHE_SIZE),
@@ -98,6 +112,14 @@ impl Default for RequestResultCache {
 }
 
 impl RequestResultCache {
+	pub(crate) fn authorities(&mut self, relay_parent: &Hash) -> Option<&Vec<AuthorityDiscoveryId>> {
+		self.authorities.get(relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_authorities(&mut self, relay_parent: Hash, authorities: Vec<AuthorityDiscoveryId>) {
+		self.authorities.insert(relay_parent, VecOfDoesNotAllocate(authorities));
+	}
+
 	pub(crate) fn validators(&mut self, relay_parent: &Hash) -> Option<&Vec<ValidatorId>> {
 		self.validators.get(relay_parent).map(|v| &v.0)
 	}
@@ -212,6 +234,7 @@ impl RequestResultCache {
 }
 
 pub(crate) enum RequestResult {
+	Authorities(Hash, Vec<AuthorityDiscoveryId>),
 	Validators(Hash, Vec<ValidatorId>),
 	ValidatorGroups(Hash, (Vec<Vec<ValidatorIndex>>, GroupRotationInfo)),
 	AvailabilityCores(Hash, Vec<CoreState>),
