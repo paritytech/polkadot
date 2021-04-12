@@ -1951,7 +1951,6 @@ impl metrics::Metrics for Metrics {
 #[cfg(test)]
 mod tests {
 	use parity_scale_codec::{Decode, Encode};
-    use sc_network::RequestFailure;
 	use super::*;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
@@ -1962,7 +1961,7 @@ mod tests {
 	use futures::executor::{self, block_on};
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
-	use polkadot_node_network_protocol::{view, ObservedRole};
+	use polkadot_node_network_protocol::{view, ObservedRole, request_response::Recipient};
 	use polkadot_subsystem::{jaeger, ActivatedLeaf};
 	use polkadot_node_network_protocol::request_response::{
 		Requests,
@@ -2700,6 +2699,7 @@ mod tests {
 
 	#[test]
 	fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing() {
+		sp_tracing::try_init_simple();
 		let hash_a = Hash::repeat_byte(1);
 		let hash_b = Hash::repeat_byte(2);
 
@@ -2782,6 +2782,11 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)
 				)
 			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer_c.clone(), ObservedRole::Full)
+				)
+			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
@@ -2792,6 +2797,11 @@ mod tests {
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a])
 				)
 			}).await;
 
@@ -2845,6 +2855,7 @@ mod tests {
 					let req = outgoing.payload;
 					assert_eq!(req.relay_parent, metadata.relay_parent);
 					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
 					// Just drop request - should trigger error.
 				}
 			);
@@ -2857,7 +2868,8 @@ mod tests {
 					)
 				)
 			}).await;
-			// Let c fail once too::
+
+			// Let c fail once too:
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -2873,10 +2885,11 @@ mod tests {
 					let req = outgoing.payload;
 					assert_eq!(req.relay_parent, metadata.relay_parent);
 					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
 				}
 			);
 
-			// and now success:
+			// a fails again:
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -2892,6 +2905,50 @@ mod tests {
 					let req = outgoing.payload;
 					assert_eq!(req.relay_parent, metadata.relay_parent);
 					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					// On retry, we should have reverse order:
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+				}
+			);
+
+			// and again (retried in reverse order):
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					// On retry, we should have reverse order:
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+				}
+			);
+
+			// c succeeds now:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					// On retry, we should have reverse order:
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
 					let response = StatementFetchingResponse::Statement(candidate.clone());
 					outgoing.pending_response.send(Ok(response.encode())).unwrap();
 				}
@@ -2901,7 +2958,14 @@ mod tests {
 				handle.recv().await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ReportPeer(p, r)
-				) if p == peer_a && r == BENEFIT_VALID_RESPONSE => {}
+				) if p == peer_a && r == COST_FETCH_FAIL => {}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(p, r)
+				) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
 			);
 
 			assert_matches!(
@@ -2924,13 +2988,13 @@ mod tests {
 				handle.recv().await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendValidationMessage(
-						recipients,
+						mut recipients,
 						protocol_v1::ValidationProtocol::StatementDistribution(
 							protocol_v1::StatementDistributionMessage::LargeStatement(meta)
 						),
 					)
 				) => {
-					assert_eq!(recipients, vec![peer_b.clone()]);
+					assert_eq!(recipients.sort(), vec![peer_b.clone(), peer_c.clone()].sort());
 					assert_eq!(meta.relay_parent, hash_a);
 					assert_eq!(meta.candidate_hash, statement.payload().candidate_hash());
 					assert_eq!(meta.signed_by, statement.validator_index());
