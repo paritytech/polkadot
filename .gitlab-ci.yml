@@ -413,7 +413,7 @@ trigger-simnet:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
     # simnet project ID
-    DWNSTRM_ID:                    396
+    DWNSTRM_ID:                    332
   script:
     # API trigger for a simnet job
     - ./scripts/gitlab/trigger_pipeline.sh
