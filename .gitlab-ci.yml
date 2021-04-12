@@ -240,6 +240,10 @@ publish-adder-collator-image:
     IMAGE_NAME:                    docker.io/paritypr/colander
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   needs:
     - job:                         build-adder-collator
       artifacts:                   true
@@ -321,6 +325,11 @@ publish-adder-collator-image:
 trigger-simnet:
   stage:                           deploy
   # <<:                              *rules-test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   image:                           paritytech/tools:latest
   # runs when `build-adder-collator` job does
   needs:

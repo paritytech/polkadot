@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -eu
 # API trigger another projects' pipeline
 curl --silent \
     -X POST \
@@ -15,7 +15,7 @@ curl --silent \
         tee pipeline
 
 PIPELINE_ID=$(cat pipeline | jq ".id")
-echo "Waiting on ${PIPELINE_ID} status..."
+echo "\nWaiting on ${PIPELINE_ID} status..."
 
 # This part polls for the triggered pipeline status, the native
 # `trigger` job does not return this status via API.
