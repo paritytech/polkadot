@@ -1075,7 +1075,7 @@ async fn retrieve_statement_from_message<'a>(
 					if is_new_peer & is_large_statement {
 						info.peers_to_try.push(peer);
 						// Answer any pending request for more peers:
-						if let Some(sender) = std::mem::take(&mut info.peer_sender) {
+						if let Some(sender) = info.peer_sender.take() {
 							let to_send = std::mem::take(&mut info.peers_to_try);
 							if let Err(peers) = sender.send(to_send) {
 								// Requester no longer interested for now, might want them
