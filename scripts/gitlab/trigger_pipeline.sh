@@ -4,8 +4,8 @@ set -e
 # API trigger another projects' pipeline
 curl --silent \
     -X POST \
-    -F token=${CI_JOB_TOKEN} \
-    -F ref=master \
+    -F "token=${CI_JOB_TOKEN}" \
+    -F "ref=master" \
     -F "variables[TRGR_PROJECT]=${TRGR_PROJECT}" \
     -F "variables[TRGR_REF]=${TRGR_REF}" \
     -F "variables[IMAGE_NAME]=${IMAGE_NAME}" \
