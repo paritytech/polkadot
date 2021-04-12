@@ -508,6 +508,9 @@ enum LargeStatementStatus {
 struct FetchingInfo {
 	/// All peers that send us a `LargeStatement` or a `Valid` statement for the given
 	/// `CandidateHash`, together with their originally sent messages.
+	///
+	/// We use an `IndexMap` here to preserve the ordering of peers sending us messages. This is
+	/// desirable because we reward first sending peers with reputation.
 	available_peers: IndexMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
