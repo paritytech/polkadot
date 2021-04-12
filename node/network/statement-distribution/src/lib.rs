@@ -53,7 +53,7 @@ use polkadot_node_network_protocol::{
 
 use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
-use indexmap::IndexSet;
+use indexmap::{IndexSet, IndexMap, map::Entry as IEntry};
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
@@ -508,7 +508,7 @@ enum LargeStatementStatus {
 struct FetchingInfo {
 	/// All peers that send us a `LargeStatement` or a `Valid` statement for the given
 	/// `CandidateHash`, together with their originally sent messages.
-	available_peers: HashMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
+	available_peers: IndexMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
 	/// Sender for sending fresh peers to the fetching task in case of failure.
@@ -1061,10 +1061,10 @@ async fn retrieve_statement_from_message<'a>(
 					let is_large_statement = message.is_large_statement();
 
 					match info.available_peers.entry(peer) {
-						Entry::Occupied(mut occupied) => {
+						IEntry::Occupied(mut occupied) => {
 							occupied.get_mut().push(message);
 						}
-						Entry::Vacant(vacant) => {
+						IEntry::Vacant(vacant) => {
 							vacant.insert(vec![message]);
 						}
 					}
@@ -1181,7 +1181,7 @@ async fn launch_request(
 		return None
 	}
 	let available_peers = {
-		let mut m = HashMap::new();
+		let mut m = IndexMap::new();
 		m.insert(peer, vec![protocol_v1::StatementDistributionMessage::LargeStatement(meta)]);
 		m
 	};
