@@ -1951,6 +1951,7 @@ impl metrics::Metrics for Metrics {
 #[cfg(test)]
 mod tests {
 	use parity_scale_codec::{Decode, Encode};
+    use sc_network::RequestFailure;
 	use super::*;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
@@ -2712,6 +2713,7 @@ mod tests {
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
+		let peer_c = PeerId::random();
 
 		let validators = vec![
 			Sr25519Keyring::Alice.public().into(),
@@ -2793,7 +2795,8 @@ mod tests {
 				)
 			}).await;
 
-			// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
+			// receive a seconded statement from peer A, which does not provide the request data,
+			// then get that data from peer C. It should be propagated onwards to peer B and to
 			// candidate backing.
 			let statement = {
 				let signing_context = SigningContext {
@@ -2815,7 +2818,7 @@ mod tests {
 				).await.ok().flatten().expect("should be signed")
 			};
 
-			let metadata = 
+			let metadata =
 				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
 
 			handle.send(FromOverseer::Communication {
@@ -2827,6 +2830,53 @@ mod tests {
 				)
 			}).await;
 
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					// Just drop request - should trigger error.
+				}
+			);
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_c.clone(),
+						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+					)
+				)
+			}).await;
+			// Let c fail once too::
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+				}
+			);
+
+			// and now success:
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -2869,6 +2919,7 @@ mod tests {
 			);
 
 
+			// Now messages should go out:
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -2889,7 +2940,7 @@ mod tests {
 
 			// Now that it has the candidate it should answer requests accordingly (even after a
 			// failed request):
-			
+
 			// Failing request first:
 			let (pending_response, response_rx) = oneshot::channel();
 			let inner_req = StatementFetchingRequest {
@@ -2906,7 +2957,7 @@ mod tests {
 				response_rx.await.unwrap().result,
 				Err(()) => {}
 			);
-		
+
 			// Now the working one:
 			let (pending_response, response_rx) = oneshot::channel();
 			let inner_req = StatementFetchingRequest {
