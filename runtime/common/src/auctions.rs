@@ -192,6 +192,7 @@ decl_module! {
 		type Error = Error<T>;
 
 		const EndingPeriod: T::BlockNumber = T::EndingPeriod::get();
+		const SampleLength: T::BlockNumber = T::SampleLength::get();
 		const SlotRangeCount: u32 = SlotRange::SLOT_RANGE_COUNT as u32;
 		const LeasePeriodsPerSlot: u32 = SlotRange::LEASE_PERIODS_PER_SLOT as u32;
 
