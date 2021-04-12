@@ -120,10 +120,18 @@ impl AvailabilityDistributionSubsystem {
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					log_error(
-						pov_requester.update_connected_validators(&mut ctx, &mut self.runtime, &update).await,
-						"PoVRequester::update_connected_validators"
-					);
+					let result = pov_requester.update_connected_validators(
+						&mut ctx,
+						&mut self.runtime,
+						&update,
+					).await;
+					if let Err(error) = result {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?error,
+							"PoVRequester::update_connected_validators",
+						);
+					}
 					log_error(
 						requester.get_mut().update_fetching_heads(&mut ctx, update).await,
 						"Error in Requester::update_fetching_heads"

@@ -17,7 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v1::{Id as ParaId, PersistedValidationData, Hash, ValidatorIndex};
+use primitives::v1::{Id as ParaId, PersistedValidationData, ValidatorIndex};
 use sp_std::vec::Vec;
 
 use crate::{configuration, paras, hrmp};
@@ -29,8 +29,8 @@ use crate::{configuration, paras, hrmp};
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	para_id: ParaId,
 	relay_parent_number: T::BlockNumber,
-	relay_parent_storage_root: Hash,
-) -> Option<PersistedValidationData<T::BlockNumber>> {
+	relay_parent_storage_root: T::Hash,
+) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
 
 	Some(PersistedValidationData {

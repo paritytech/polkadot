@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 async-trait = "0.1.42"
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.12"
 futures-timer = "3.0.2"
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }

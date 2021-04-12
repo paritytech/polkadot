@@ -32,7 +32,7 @@ use futures::{
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_node_subsystem_util::request_availability_cores_ctx;
+use polkadot_node_subsystem_util::request_availability_cores;
 use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
 use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
@@ -235,7 +235,7 @@ async fn query_occupied_cores<Context>(
 where
 	Context: SubsystemContext,
 {
-	let cores = recv_runtime(request_availability_cores_ctx(relay_parent, ctx).await).await?;
+	let cores = recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await?;
 
 	Ok(cores
 		.into_iter()

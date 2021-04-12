@@ -406,6 +406,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: Default::default(),
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -452,6 +453,7 @@ mod tests {
 			],
 			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -515,6 +517,7 @@ mod tests {
 			],
 			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -582,6 +585,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 5],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -619,6 +623,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -657,6 +662,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -700,6 +706,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -765,6 +772,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -852,6 +860,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();

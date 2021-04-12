@@ -43,8 +43,12 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
-	ValidationWorker(ValidationWorkerCommand),
+	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfPrepareWorker(ValidationWorkerCommand),
+
+	#[allow(missing_docs)]
+	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfExecuteWorker(ValidationWorkerCommand),
 
 	/// The custom benchmark subcommand benchmarking runtime pallets.
 	#[structopt(
@@ -64,11 +68,8 @@ pub enum Subcommand {
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct ValidationWorkerCommand {
-	/// The path that the executor can use for its caching purposes.
-	pub cache_base_path: std::path::PathBuf,
-
-	#[allow(missing_docs)]
-	pub mem_id: String,
+	/// The path to the validation host's socket.
+	pub socket_path: String,
 }
 
 #[allow(missing_docs)]

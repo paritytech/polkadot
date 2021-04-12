@@ -19,7 +19,7 @@ pub mod currency {
 	use primitives::v0::Balance;
 
 	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 6;
+	pub const DOLLARS: Balance = DOTS / 300;
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
