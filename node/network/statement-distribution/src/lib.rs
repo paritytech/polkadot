@@ -1953,6 +1953,7 @@ impl metrics::Metrics for Metrics {
 
 #[cfg(test)]
 mod tests {
+	use std::time::Duration;
 	use parity_scale_codec::{Decode, Encode};
 	use super::*;
 	use std::sync::Arc;
@@ -1962,6 +1963,7 @@ mod tests {
 	use polkadot_primitives::v1::{CommittedCandidateReceipt, ValidationCode};
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
+	use futures_timer::Delay;
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, request_response::Recipient};
@@ -2873,6 +2875,11 @@ mod tests {
 					// Just drop request - should trigger error.
 				}
 			);
+
+			// There is a race between request handler asking for more peers and processing of the
+			// coming `PeerMessage`s, we want the request handler to ask first here for better test
+			// coverage:
+			Delay::new(Duration::from_millis(20)).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
