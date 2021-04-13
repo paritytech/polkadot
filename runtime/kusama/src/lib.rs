@@ -180,7 +180,7 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub const ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
@@ -311,7 +311,7 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
@@ -1036,18 +1036,6 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			babe_primitives::BabeEpochConfiguration {
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
-				..BABE_GENESIS_EPOCH_CONFIG
-			}
-		)
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1070,8 +1058,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -1079,23 +1065,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
-pub struct KillOffchainPhragmenStorageTest;
-impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorageTest {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v6::pre_migrate::<Runtime>()
-	}
-
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
