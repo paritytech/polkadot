@@ -59,7 +59,7 @@ where
 
 	fn initialize(relayer_fund_account: &T::AccountId) -> usize {
 		assert!(
-			frame_system::Module::<T>::account_exists(relayer_fund_account),
+			frame_system::Pallet::<T>::account_exists(relayer_fund_account),
 			"The relayer fund account ({:?}) must exist for the message lanes pallet to work correctly.",
 			relayer_fund_account,
 		);
@@ -189,7 +189,7 @@ mod tests {
 	use crate::mock::{run_test, AccountId as TestAccountId, Balance as TestBalance, TestRuntime};
 	use bp_message_lane::source_chain::RelayerRewards;
 
-	type Balances = pallet_balances::Module<TestRuntime>;
+	type Balances = pallet_balances::Pallet<TestRuntime>;
 
 	const RELAYER_1: TestAccountId = 1;
 	const RELAYER_2: TestAccountId = 2;

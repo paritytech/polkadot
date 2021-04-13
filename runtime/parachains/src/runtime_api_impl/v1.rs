@@ -25,7 +25,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, Hash, AuthorityDiscoveryId
+	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -40,7 +40,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 	Vec<Vec<ValidatorIndex>>,
 	GroupRotationInfo<T::BlockNumber>,
 ) {
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
 	let groups = <scheduler::Module<T>>::validator_groups();
 	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
@@ -54,7 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let parachains = <paras::Module<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
-	let now = <frame_system::Module<T>>::block_number() + One::one();
+	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	<scheduler::Module<T>>::clear();
 	<scheduler::Module<T>>::schedule(Vec::new(), now);
 
@@ -200,10 +200,10 @@ fn with_assumption<Config, T, F>(
 pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<PersistedValidationData<T::BlockNumber>> {
+) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
 	use parity_scale_codec::Decode as _;
-	let relay_parent_number = <frame_system::Module<T>>::block_number();
-	let relay_parent_storage_root = Hash::decode(&mut &sp_io::storage::root()[..])
+	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
@@ -240,9 +240,16 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
-	let mut authority_ids = <pallet_authority_discovery::Module<T>>::next_authorities();
 
-	for session_index in earliest_stored_session..=current_session_index {
+	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively
+	// selected to participate in parachain consensus. We'd like all authorities for the current
+	// and next sessions to be used in authority-discovery. The two sets likely have large overlap.
+	let mut authority_ids = <pallet_authority_discovery::Module<T>>::current_authorities();
+	authority_ids.extend(<pallet_authority_discovery::Module<T>>::next_authorities());
+
+	// Due to disputes, we'd like to remain connected to authorities of the previous few sessions.
+	// For this, we don't need anyone other than the validators actively participating in consensus.
+	for session_index in earliest_stored_session..current_session_index {
 		let info = <session_info::Module<T>>::session_info(session_index);
 		if let Some(mut info) = info {
 			authority_ids.append(&mut info.discovery_keys);
@@ -292,7 +299,7 @@ where
 {
 	use inclusion::Event as RawEvent;
 
-	<frame_system::Module<T>>::events().into_iter()
+	<frame_system::Pallet<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h, core, group)
@@ -322,4 +329,11 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
 	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
+}
+
+/// Implementation for the `validation_code_by_hash` function of the runtime API.
+pub fn validation_code_by_hash<T: paras::Config>(
+	hash: Hash,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::code_by_hash(hash)
 }

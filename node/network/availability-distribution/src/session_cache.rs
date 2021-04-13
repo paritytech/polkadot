@@ -24,7 +24,7 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem_util::{
-	request_session_index_for_child_ctx, request_session_info_ctx,
+	request_session_index_for_child, request_session_info,
 };
 use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
@@ -33,8 +33,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::SubsystemContext;
 
 use super::{
-	error::{recv_runtime, NonFatalError},
-	Error,
+	error::{recv_runtime, Error},
 	LOG_TARGET,
 };
 
@@ -82,7 +81,9 @@ pub struct SessionInfo {
 
 	/// Remember to which group we belong, so we won't start fetching chunks for candidates with
 	/// our group being responsible. (We should have that chunk already.)
-	pub our_group: GroupIndex,
+	///
+	/// `None`, if we are not in fact part of any group.
+	pub our_group: Option<GroupIndex>,
 }
 
 /// Report of bad validators.
@@ -122,7 +123,7 @@ impl SessionCache {
 		ctx: &mut Context,
 		parent: Hash,
 		with_info: F,
-	) -> Result<Option<R>, NonFatalError>
+	) -> Result<Option<R>, Error>
 	where
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
@@ -131,7 +132,7 @@ impl SessionCache {
 			Some(index) => *index,
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child_ctx(parent, ctx).await)
+					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
 						.await?;
 				self.session_index_cache.put(parent, index);
 				index
@@ -209,7 +210,7 @@ impl SessionCache {
 
 	/// Query needed information from runtime.
 	///
-	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
+	/// We need to pass in the relay parent for our call to `request_session_info`. We should
 	/// actually don't need that: I suppose it is used for internal caching based on relay parents,
 	/// which we don't use here. It should not do any harm though.
 	///
@@ -219,7 +220,7 @@ impl SessionCache {
 		ctx: &mut Context,
 		parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<SessionInfo>, NonFatalError>
+	) -> Result<Option<SessionInfo>, Error>
 	where
 		Context: SubsystemContext,
 	{
@@ -228,9 +229,9 @@ impl SessionCache {
 			discovery_keys,
 			mut validator_groups,
 			..
-		} = recv_runtime(request_session_info_ctx(parent, session_index, ctx).await)
+		} = recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 			.await?
-			.ok_or(NonFatalError::NoSuchSession(session_index))?;
+			.ok_or(Error::NoSuchSession(session_index))?;
 
 		if let Some(our_index) = self.get_our_index(validators).await {
 			// Get our group index:
@@ -245,8 +246,8 @@ impl SessionCache {
 							None
 						}
 					})
-				})
-				.expect("Every validator should be in a validator group. qed.");
+				}
+			);
 
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
@@ -274,9 +275,9 @@ impl SessionCache {
 				session_index,
 				our_group,
 			};
-			return Ok(Some(info));
+			return Ok(Some(info))
 		}
-		return Ok(None);
+		return Ok(None)
 	}
 
 	/// Get our `ValidatorIndex`.

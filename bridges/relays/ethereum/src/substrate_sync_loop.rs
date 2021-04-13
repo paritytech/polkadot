@@ -42,7 +42,7 @@ use std::fmt::Debug;
 use std::{collections::HashSet, time::Duration};
 
 pub mod consts {
-	use super::*;
+	use super::Duration;
 
 	/// Interval at which we check new Ethereum blocks.
 	pub const ETHEREUM_TICK_INTERVAL: Duration = Duration::from_secs(5);

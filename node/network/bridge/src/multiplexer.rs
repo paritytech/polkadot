@@ -37,8 +37,11 @@ use polkadot_subsystem::messages::AllMessages;
 /// type, useful for the network bridge to send them via the `Overseer` to other subsystems.
 ///
 /// The resulting stream will end once any of its input ends.
+///
+/// TODO: Get rid of this: https://github.com/paritytech/polkadot/issues/2842
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
+	statement_fetching: Option<mpsc::Receiver<network::IncomingRequest>>,
 	next_poll: usize,
 }
 
@@ -58,20 +61,37 @@ impl RequestMultiplexer {
 	/// `RequestMultiplexer` from it. The returned `RequestResponseConfig`s must be passed to the
 	/// network implementation.
 	pub fn new() -> (Self, Vec<RequestResponseConfig>) {
-		let (receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
+		let (mut receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
 			.map(|p| {
 				let (rx, cfg) = p.get_config();
 				((p, rx), cfg)
 			})
 			.unzip();
 
+		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
+			if let Protocol::StatementFetching = p {
+				Some(i)
+			} else {
+				None
+			}
+		).expect("Statement fetching must be registered. qed.");
+		let statement_fetching = Some(receivers.remove(index).1);
+
 		(
 			Self {
 				receivers,
+				statement_fetching,
 				next_poll: 0,
 			},
 			cfgs,
 		)
+	}
+
+	/// Get the receiver for handling statement fetching requests.
+	///
+	/// This function will only return `Some` once.
+	pub fn get_statement_fetching(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
+		std::mem::take(&mut self.statement_fetching)
 	}
 }
 
@@ -131,11 +151,29 @@ fn multiplex_single(
 	}: network::IncomingRequest,
 ) -> Result<AllMessages, RequestMultiplexError> {
 	let r = match p {
-		Protocol::AvailabilityFetching => From::from(IncomingRequest::new(
+		Protocol::ChunkFetching => From::from(IncomingRequest::new(
 			peer,
-			decode_with_peer::<v1::AvailabilityFetchingRequest>(peer, payload)?,
+			decode_with_peer::<v1::ChunkFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
+		Protocol::CollationFetching => From::from(IncomingRequest::new(
+			peer,
+			decode_with_peer::<v1::CollationFetchingRequest>(peer, payload)?,
+			pending_response,
+		)),
+		Protocol::PoVFetching => From::from(IncomingRequest::new(
+			peer,
+			decode_with_peer::<v1::PoVFetchingRequest>(peer, payload)?,
+			pending_response,
+		)),
+		Protocol::AvailableDataFetching => From::from(IncomingRequest::new(
+			peer,
+			decode_with_peer::<v1::AvailableDataFetchingRequest>(peer, payload)?,
+			pending_response,
+		)),
+		Protocol::StatementFetching => {
+			panic!("Statement fetching requests are handled directly. qed.");
+		}
 	};
 	Ok(r)
 }

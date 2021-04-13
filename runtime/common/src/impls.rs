@@ -31,8 +31,8 @@ where
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
 		let author = <pallet_authorship::Module<R>>::author();
-		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
-		<frame_system::Module<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
+		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
 
@@ -65,11 +65,11 @@ where
 mod tests {
 	use super::*;
 	use frame_system::limits;
-	use frame_support::{parameter_types, weights::DispatchClass};
+	use frame_support::{parameter_types, PalletId, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
-		testing::Header, ModuleId,
+		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 		Perbill,
 	};
@@ -84,9 +84,9 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Module, Call, Config, Storage, Event<T>},
-			Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-			Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
 	);
 
@@ -127,6 +127,7 @@ mod tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	impl pallet_balances::Config for Test {
@@ -140,11 +141,11 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 	}
 
 	impl pallet_treasury::Config for Test {
-		type Currency = pallet_balances::Module<Test>;
+		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
 		type Event = Event;
@@ -154,7 +155,7 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type ModuleId = TreasuryModuleId;
+		type PalletId = TreasuryPalletId;
 		type SpendFunds = ();
 		type WeightInfo = ();
 	}

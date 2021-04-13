@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.8.29"
+version = "0.8.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -34,6 +34,7 @@ members = [
 	"erasure-coding",
 	"primitives",
 	"runtime/common",
+	"runtime/common/slot_range_helper",
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
@@ -44,6 +45,7 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/pallet-xcm",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -54,10 +56,10 @@ members = [
 	"node/core/chain-api",
 	"node/core/proposer",
 	"node/core/provisioner",
+	"node/core/pvf",
 	"node/core/runtime-api",
 	"node/network/approval-distribution",
 	"node/network/bridge",
-	"node/network/pov-distribution",
 	"node/network/protocol",
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
@@ -95,7 +97,6 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
-real-overseer=["cli/real-overseer"]
 try-runtime = ["cli/try-runtime"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`

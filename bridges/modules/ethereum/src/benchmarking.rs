@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::*;
+use super::{
+	BridgeStorage,
+	RawOrigin,
+	HeadersByNumber,
+	Instance,
+	Config,
+};
 
 use crate::test_utils::{
 	build_custom_header, build_genesis_header, insert_header, validator_utils::*, validators_change_receipt,

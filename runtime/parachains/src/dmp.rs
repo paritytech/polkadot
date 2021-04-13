@@ -145,7 +145,7 @@ impl<T: Config> Module<T> {
 
 		let inbound = InboundDownwardMessage {
 			msg,
-			sent_at: <frame_system::Module<T>>::block_number(),
+			sent_at: <frame_system::Pallet<T>>::block_number(),
 		};
 
 		// obtain the new link in the MQC and update the head.
