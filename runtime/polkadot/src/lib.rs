@@ -612,7 +612,7 @@ parameter_types! {
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 	pub const MaxActiveSubBountyCount: u32 = 10;
-	pub const MinimumCurationFee:u64 = 1;
+	pub const MinimumCurationFee: Balance = 1 * DOLLARS;
 }
 
 type ApproveOrigin = EnsureOneOf<
