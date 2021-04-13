@@ -24,7 +24,6 @@ use futures::channel::oneshot;
 
 use polkadot_node_subsystem_util::Error as UtilError;
 use polkadot_primitives::v1::SessionIndex;
-use polkadot_node_primitives::CompressedPoVError;
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
 use crate::LOG_TARGET;
@@ -79,10 +78,6 @@ pub enum Error {
 	#[error("There was no session with the given index")]
 	NoSuchSession(SessionIndex),
 
-	/// Decompressing PoV failed.
-	#[error("PoV could not be decompressed")]
-	PoVDecompression(CompressedPoVError),
-
 	/// Fetching PoV failed with `RequestError`.
 	#[error("FetchPoV request error")]
 	FetchPoV(#[source] RequestError),
@@ -109,13 +104,9 @@ impl From<SubsystemError> for Error {
 
 /// Receive a response from a runtime request and convert errors.
 pub(crate) async fn recv_runtime<V>(
-	r: std::result::Result<
-		oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-		UtilError,
-	>,
+	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 ) -> std::result::Result<V, Error> {
-	r.map_err(Error::UtilRequest)?
-		.await
+	r.await
 		.map_err(Error::RuntimeRequestCanceled)?
 		.map_err(Error::RuntimeRequest)
 }

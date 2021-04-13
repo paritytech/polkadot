@@ -296,12 +296,16 @@ async fn send_inherent_data(
 		candidates,
 		relay_parent,
 		from_job,
-	)
-	.await?;
+	).await?;
 
-	let res = (bitfields, candidates);
+	let inherent_data = ProvisionerInherentData {
+		bitfields,
+		backed_candidates: candidates,
+		disputes: Vec::new(), // until disputes are implemented.
+	};
+
 	for return_sender in return_senders {
-		return_sender.send(res.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
+		return_sender.send(inherent_data.clone()).map_err(|_data| Error::InherentDataReturnChannel)?;
 	}
 
 	Ok(())

@@ -94,6 +94,8 @@ match msg {
 Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(CandidateReceipt))` message.
 `Invalid` statements that conflict with already witnessed `Seconded` and `Valid` statements for the given candidate, statements that are double-votes, self-contradictions and so on, should result in issuing a [`ProvisionerMessage`][PM]`::MisbehaviorReport` message for each newly detected case of this kind.
 
+On each incoming statement, [`DisputeCoordinatorMessage::ImportStatement`][DCM] should be issued.
+
 ### Validating Candidates.
 
 ```rust
@@ -137,6 +139,7 @@ Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFul
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-message
 [ADM]: ../../types/overseer-protocol.md#availability-distribution-message
 [SDM]: ../../types/overseer-protocol.md#statement-distribution-message
+[DCM]: ../../types/overseer-protocol.md#dispute-coordinator-message
 
 [CS]: candidate-selection.md
 [CV]: ../utility/candidate-validation.md

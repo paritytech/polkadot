@@ -39,7 +39,7 @@ use runtime_common::{
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ModuleId,
+	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
@@ -57,7 +57,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug, PalletId,
 	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -67,6 +67,8 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use pallet_mmr_primitives as mmr;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -91,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2030,
+	spec_version: 2031,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -158,6 +160,7 @@ impl frame_system::Config for Runtime {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -178,7 +181,7 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub const ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
@@ -309,7 +312,7 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
@@ -493,7 +496,7 @@ parameter_types! {
 	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
-	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
 }
 
 // Make sure that there are no more than MaxMembers members elected via phragmen.
@@ -513,7 +516,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
-	type ModuleId = ElectionsPhragmenModuleId;
+	type PalletId = ElectionsPhragmenPalletId;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 }
 
@@ -551,7 +554,7 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
-	pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
@@ -572,7 +575,7 @@ type ApproveOrigin = EnsureOneOf<
 >;
 
 impl pallet_treasury::Config for Runtime {
-	type ModuleId = TreasuryModuleId;
+	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
@@ -804,7 +807,7 @@ parameter_types! {
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
 	pub const MaxCandidateIntake: u32 = 1;
-	pub const SocietyModuleId: ModuleId = ModuleId(*b"py/socie");
+	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
 
 impl pallet_society::Config for Runtime {
@@ -822,7 +825,7 @@ impl pallet_society::Config for Runtime {
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
-	type ModuleId = SocietyModuleId;
+	type PalletId = SocietyPalletId;
 }
 
 parameter_types! {
@@ -1035,18 +1038,6 @@ impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	}
 }
 
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			babe_primitives::BabeEpochConfiguration {
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
-				..BABE_GENESIS_EPOCH_CONFIG
-			}
-		)
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1069,8 +1060,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -1078,23 +1067,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, KillOffchainPhragmenStorageTest),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// This is only for testing. The main migration is inside staking's `on_runtime_upgrade`.
-pub struct KillOffchainPhragmenStorageTest;
-impl frame_support::traits::OnRuntimeUpgrade for KillOffchainPhragmenStorageTest {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v6::pre_migrate::<Runtime>()
-	}
-
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		0
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1172,7 +1148,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
+			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			None
 		}
 		fn check_validation_outputs(
@@ -1216,6 +1192,42 @@ sp_api::impl_runtime_apis! {
 			_recipient: Id
 		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
 			BTreeMap::new()
+		}
+
+		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
+			None
+		}
+	}
+
+	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+			// dummy implementation due to lack of BEEFY pallet.
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+		}
+	}
+
+	impl mmr::MmrApi<Block, Hash> for Runtime {
+		fn generate_proof(_leaf_index: u64)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::GenerateProof)
+		}
+
+		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
+
+		fn verify_proof_stateless(
+			_root: Hash,
+			_leaf: mmr::EncodableOpaqueLeaf,
+			_proof: mmr::Proof<Hash>
+		) -> Result<(), mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
 		}
 	}
 
@@ -1485,5 +1497,31 @@ mod test_fees {
 		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000u128));
 		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000u128));
 		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000_000u128));
+	}
+
+	#[test]
+	fn nominator_limit() {
+		use pallet_election_provider_multi_phase::WeightInfo;
+		// starting point of the nominators.
+		let all_voters: u32 = 10_000;
+
+		// assuming we want around 5k candidates and 1k active validators.
+		let all_targets: u32 = 5_000;
+		let desired: u32 = 1_000;
+		let weight_with = |active| {
+			<Runtime as pallet_election_provider_multi_phase::Config>::WeightInfo::submit_unsigned(
+				all_voters.max(active),
+				all_targets,
+				active,
+				desired,
+			)
+		};
+
+		let mut active = 1;
+		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == all_voters {
+			active += 1;
+		}
+
+		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
 	}
 }
