@@ -890,6 +890,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_sudo: rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
+		parachains_paras: rococo_runtime::ParasConfig {
+			paras: vec![],
+		    _phdata: Default::default(),
+		},
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 1u32,
@@ -1482,6 +1486,10 @@ pub fn rococo_testnet_genesis(
 				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
+		},
+		parachains_paras: rococo_runtime::ParasConfig {
+			paras: vec![],
+		    _phdata: Default::default(),
 		},
 	}
 }
