@@ -27,12 +27,13 @@ use frame_support::{
 };
 use primitives::v1::Id as ParaId;
 use frame_system::{ensure_signed, ensure_root};
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
+use crate::slot_range::SlotRange;
 use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> =
+	<<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait WeightInfo {
 	fn new_auction() -> Weight;
@@ -84,7 +85,7 @@ pub type AuctionIndex = u32;
 type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> =
-	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SlotRange::SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>, SlotRange)>;
@@ -191,6 +192,9 @@ decl_module! {
 		type Error = Error<T>;
 
 		const EndingPeriod: T::BlockNumber = T::EndingPeriod::get();
+		const SampleLength: T::BlockNumber = T::SampleLength::get();
+		const SlotRangeCount: u32 = SlotRange::SLOT_RANGE_COUNT as u32;
+		const LeasePeriodsPerSlot: u32 = SlotRange::LEASE_PERIODS_PER_SLOT as u32;
 
 		fn deposit_event() = default;
 
@@ -206,7 +210,7 @@ decl_module! {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					let winning_data = offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
-							.unwrap_or_default();
+							.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					Winning::<T>::insert(offset, winning_data);
 				}
 			}
@@ -343,6 +347,9 @@ impl<T: Config> Auctioneer for Module<T> {
 }
 
 impl<T: Config> Module<T> {
+	// A trick to allow me to initialize large arrays with nothing in them.
+	const EMPTY: Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)> = None;
+
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
 		AuctionInfo::<T>::get().map_or(false, |(_, early_end)| {
@@ -415,7 +422,7 @@ impl<T: Config> Module<T> {
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
-			.unwrap_or_default();
+			.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
@@ -496,7 +503,7 @@ impl<T: Config> Module<T> {
 
 					let auction_counter = AuctionCounter::get();
 					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
-					let res = Winning::<T>::get(offset).unwrap_or_default();
+					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					let mut i = T::BlockNumber::zero();
 					while i < ending_period {
 						Winning::<T>::remove(i);
@@ -563,19 +570,19 @@ impl<T: Config> Module<T> {
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
-				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+				[(Vec<SlotRange>, BalanceOf<T>); SlotRange::LEASE_PERIODS_PER_SLOT] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
-			for i in 0..4 {
+			for i in 0..SlotRange::LEASE_PERIODS_PER_SLOT {
 				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
 					let r = SlotRange::new_bounded(0, j as u32 + 1, i as u32)
-						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+						.expect("`i < LPPS`; `j < i`; `j + 1 < LPPS`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
 						if bid > best_winners_ending_at[i].1 {
@@ -590,8 +597,7 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
-			let [_, _, _, (winning_ranges, _)] = best_winners_ending_at;
-			winning_ranges
+			best_winners_ending_at[SlotRange::LEASE_PERIODS_PER_SLOT - 1].0.clone()
 		};
 
 		winning_ranges.into_iter().map(|range| {
@@ -662,6 +668,7 @@ mod tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	parameter_types! {
@@ -721,7 +728,10 @@ mod tests {
 			})
 		}
 
-		fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
+		fn deposit_held(
+			para: ParaId,
+			leaser: &Self::AccountId
+		) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
 			leases().iter()
 				.filter_map(|((id, _period), data)|
 					if id == &para && &data.leaser == leaser { Some(data.amount) } else { None }
@@ -1184,18 +1194,9 @@ mod tests {
 
 	#[test]
 	fn incomplete_calculate_winners_works() {
-		let winning = [
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			Some((1, 0.into(), 1)),
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ThreeThree as u8 as usize] = Some((1, 0.into(), 1));
+
 		let winners = vec![
 			(1, 0.into(), 1, SlotRange::ThreeThree)
 		];
@@ -1205,18 +1206,9 @@ mod tests {
 
 	#[test]
 	fn first_incomplete_calculate_winners_works() {
-		let winning = [
-			Some((1, 0.into(), 1)),
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[0] = Some((1, 0.into(), 1));
+
 		let winners = vec![
 			(1, 0.into(), 1, SlotRange::ZeroZero)
 		];
@@ -1226,28 +1218,13 @@ mod tests {
 
 	#[test]
 	fn calculate_winners_works() {
-		let mut winning = [
-			/*0..0*/
-			Some((2, 0.into(), 2)),
-			/*0..1*/
-			None,
-			/*0..2*/
-			None,
-			/*0..3*/
-			Some((1, 100.into(), 1)),
-			/*1..1*/
-			Some((3, 1.into(), 1)),
-			/*1..2*/
-			None,
-			/*1..3*/
-			None,
-			/*2..2*/
-			Some((1, 2.into(), 53)),
-			/*2..3*/
-			None,
-			/*3..3*/
-			Some((5, 3.into(), 1)),
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ZeroZero as u8 as usize] = Some((2, 0.into(), 2));
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((1, 100.into(), 1));
+		winning[SlotRange::OneOne as u8 as usize] = Some((3, 1.into(), 1));
+		winning[SlotRange::TwoTwo as u8 as usize] = Some((1, 2.into(), 53));
+		winning[SlotRange::ThreeThree as u8 as usize] = Some((5, 3.into(), 1));
+
 		let winners = vec![
 			(2, 0.into(), 2, SlotRange::ZeroZero),
 			(3, 1.into(), 1, SlotRange::OneOne),
@@ -1309,67 +1286,27 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 3, 4, 20));
 
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(11);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
-			assert_eq!(Auctions::winning(1), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			assert_eq!(Auctions::winning(1), Some(winning));
 			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 3, 4, 30));
 
 			run_to_block(12);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
-			assert_eq!(Auctions::winning(2), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((3, para_3, 30)),
-				None,
-			]));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(2), Some(winning));
 		});
 	}
 
@@ -1402,96 +1339,35 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 13, 14, 20));
 
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			// New bids update the current winning
 			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 14, 14, 30));
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				Some((3, para_3, 30)),
-			]));
+			winning[SlotRange::ThreeThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(20);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
-			assert_eq!(Auctions::winning(1), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				Some((3, para_3, 30)),
-			]));
+			assert_eq!(Auctions::winning(1), Some(winning));
 			run_to_block(25);
 			// Overbid mid sample
 			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 13, 14, 30));
-			assert_eq!(Auctions::winning(1), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((3, para_3, 30)),
-				Some((3, para_3, 30)),
-			]));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(1), Some(winning));
 
 			run_to_block(30);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
-			assert_eq!(Auctions::winning(2), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((3, para_3, 30)),
-				Some((3, para_3, 30)),
-			]));
+			assert_eq!(Auctions::winning(2), Some(winning));
 
 			set_last_random(H256::from([254; 32]), 40);
 			run_to_block(40);
@@ -1545,7 +1421,7 @@ mod benchmarking {
 		let auction_index = AuctionCounter::get();
 		let minimum_balance = CurrencyOf::<T>::minimum_balance();
 
-		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
 			let owner = account("owner", n, 0);
 			let worst_validation_code = T::Registrar::worst_validation_code();
 			let worst_head_data = T::Registrar::worst_head_data();
@@ -1561,23 +1437,12 @@ mod benchmarking {
 
 		T::Registrar::execute_pending_transitions();
 
-		for n in 1 ..= SLOT_RANGE_COUNT as u32 {
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
 			let bidder = account("bidder", n, 0);
 			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
 
-			let (start, end) = match n {
-				1  => (0u32, 0u32),
-				2  => (0, 1),
-				3  => (0, 2),
-				4  => (0, 3),
-				5  => (1, 1),
-				6  => (1, 2),
-				7  => (1, 3),
-				8  => (2, 2),
-				9  => (2, 3),
-				10 => (3, 3),
-				_ => panic!("test not meant for this"),
-			};
+			let slot_range = SlotRange::n((n - 1) as u8).unwrap();
+			let (start, end) = slot_range.as_pair();
 
 			assert!(Auctions::<T>::bid(
 				RawOrigin::Signed(bidder).into(),

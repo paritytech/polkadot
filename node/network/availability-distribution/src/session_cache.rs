@@ -24,7 +24,7 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem_util::{
-	request_session_index_for_child_ctx, request_session_info_ctx,
+	request_session_index_for_child, request_session_info,
 };
 use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
 use polkadot_primitives::v1::{
@@ -132,7 +132,7 @@ impl SessionCache {
 			Some(index) => *index,
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child_ctx(parent, ctx).await)
+					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
 						.await?;
 				self.session_index_cache.put(parent, index);
 				index
@@ -210,7 +210,7 @@ impl SessionCache {
 
 	/// Query needed information from runtime.
 	///
-	/// We need to pass in the relay parent for our call to `request_session_info_ctx`. We should
+	/// We need to pass in the relay parent for our call to `request_session_info`. We should
 	/// actually don't need that: I suppose it is used for internal caching based on relay parents,
 	/// which we don't use here. It should not do any harm though.
 	///
@@ -229,7 +229,7 @@ impl SessionCache {
 			discovery_keys,
 			mut validator_groups,
 			..
-		} = recv_runtime(request_session_info_ctx(parent, session_index, ctx).await)
+		} = recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 			.await?
 			.ok_or(Error::NoSuchSession(session_index))?;
 

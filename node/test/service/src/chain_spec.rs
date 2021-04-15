@@ -178,7 +178,7 @@ fn polkadot_testnet_genesis(
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,
 				validation_upgrade_delay: 5,
-				acceptance_period: 1200,
+				code_retention_period: 1200,
 				max_code_size: 5 * 1024 * 1024,
 				max_pov_size: 50 * 1024 * 1024,
 				max_head_data_size: 32 * 1024,

@@ -50,8 +50,9 @@ use test_helpers::SingleItemSink;
 use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
 use crate::LOG_TARGET;
 
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>;
 pub struct TestHarness {
-	pub virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	pub virtual_overseer: VirtualOverseer,
 	pub pool: TaskExecutor,
 }
 
@@ -67,7 +68,7 @@ pub struct TestState {
 	pub relay_chain: Vec<Hash>,
 	/// Whenever the subsystem tries to fetch an erasure chunk one item of the given vec will be
 	/// popped. So you can experiment with serving invalid chunks or no chunks on request and see
-	/// whether the subystem still succeds with its goal. 
+	/// whether the subystem still succeds with its goal.
 	pub chunks: HashMap<(CandidateHash, ValidatorIndex), Vec<Option<ErasureChunk>>>,
 	/// All chunks that are valid and should be accepted.
 	pub valid_chunks: HashSet<(CandidateHash, ValidatorIndex)>,
@@ -161,7 +162,7 @@ impl TestState {
 	///
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
-	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
+	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: VirtualOverseer) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
@@ -198,8 +199,7 @@ impl TestState {
 				// cancel jobs as obsolete:
 				Delay::new(Duration::from_millis(20)).await;
 			}
-		}.boxed()
-		);
+		}.boxed());
 
 		while remaining_stores > 0
 		{
@@ -211,11 +211,12 @@ impl TestState {
 						// Forward requests:
 						let in_req = to_incoming_req(&executor, req);
 
-						executor.spawn("Request forwarding",
-									overseer_send(
-										tx.clone(),
-										AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
-									).boxed()
+						executor.spawn(
+							"Request forwarding",
+							overseer_send(
+									tx.clone(),
+									AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
+							).boxed()
 						);
 					}
 				}
@@ -259,6 +260,8 @@ impl TestState {
 				}
 			}
 		}
+
+		overseer_signal(tx, OverseerSignal::Conclude).await;
 	}
 }
 
