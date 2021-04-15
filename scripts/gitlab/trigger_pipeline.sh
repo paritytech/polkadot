@@ -42,11 +42,11 @@ for i in $(seq 1 360); do
     if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
         echo "Busy...";
     elif [[ ${STATUS} =~ ^(failed|canceled|skipped|manual)$ ]]; then
-        echo "${PIPELINE_ID}"; exit 1;
+        echo "Something's broken in: ${PIPELINE_URL}"; exit 1;
     elif [[ ${STATUS} =~ ^(success)$ ]]; then
-        echo "${PIPELINE_ID}"; exit 0;
+        echo "Look how green it is: ${PIPELINE_URL}"; exit 0;
     else
-        echo "${PIPELINE_ID}"; exit 1;
+        echo "Something else has happened in ${PIPELINE_URL}"; exit 1;
     fi
 sleep 8;
 done
