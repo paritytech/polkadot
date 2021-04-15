@@ -33,8 +33,9 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
+use polkadot_node_subsystem_util::runtime::{Runtime, ValidatorInfo};
 
-use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
+use crate::error::{Error, log_error};
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
