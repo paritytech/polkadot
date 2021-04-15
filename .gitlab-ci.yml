@@ -318,7 +318,7 @@ publish-s3-release:                &publish-s3
     GIT_STRATEGY:                  none
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
   rules:
-    # FIXME: decide where/when to publish these releases
+    # publishing binaries nightly
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - *check-versions
