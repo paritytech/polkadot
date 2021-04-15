@@ -32,7 +32,7 @@ pub mod currency {
 	/// which we can evaluate what would be economically safe for the chain.
 	pub const MILLICENTS_PER_KSM: Balance = 300_00_000;
 
-	/// The approximate number of KSM for one US Dollar and so on...
+	/// The approximate number of UNITS for one US Dollar and so on...
 	pub const MILLICENTS: Balance = UNITS_PER_KSM / MILLICENTS_PER_KSM;
 	pub const CENTS: Balance = MILLICENTS * 1000;
 	pub const DOLLARS: Balance = CENTS * 100;

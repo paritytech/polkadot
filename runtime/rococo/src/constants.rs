@@ -27,7 +27,7 @@ pub mod currency {
 	/// NOTE: This is written funny to more easily interpret the value of 1 USD per ROC.
 	pub const MILLICENTS_PER_ROC: Balance = 1_00_000;
 
-	/// The approximate number of ROC for one US Dollar and so on...
+	/// The approximate number of UNITS for one US Dollar and so on...
 	pub const MILLICENTS: Balance = UNITS_PER_ROC / MILLICENTS_PER_ROC;
 	pub const CENTS: Balance = MILLICENTS * 1000;
 	pub const DOLLARS: Balance = CENTS * 100;
