@@ -18,10 +18,25 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 100;       // 10_000_000_000
-	pub const CENTS: Balance = DOLLARS / 100;      // 100_000_000
-	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
+	/// The number of balance UNITS per one DOT. 1x10^10
+	pub const UNITS_PER_DOT: Balance = 10_000_000_000;
+	/// Easier to reference this way.
+	pub const DOTS: Balance = UNITS_PER_DOT;
+
+	/// The approximate USD value of DOT in April 2021 in millicents.
+	/// The threshold to change this price:
+	/// * Every time the market price is three times more than USD_PER_DOT, we can double USD_PER_DOT.
+	/// * Every time the market price is half of the current USD_PER_DOT, we can reduce USD_PER_DOT by 3x.
+	/// NOTE: This is written funny to more easily interpret the value of 30 USD per DOT.
+	/// NOTE: THis is no way predicts the price of the token. It is simply a measurement threshold for
+	/// which we can evaluate what would be economically safe for the chain.
+	pub const MILLICENTS_PER_DOT: Balance = 30_00_000;
+
+	/// The approximate number of UNITS for one US Dollar and so on...
+	pub const MILLICENTS: Balance = UNITS_PER_DOT / MILLICENTS_PER_DOT;
+	pub const CENTS: Balance = MILLICENTS * 1000;
+	pub const DOLLARS: Balance = CENTS * 100;
+
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 20 * DOLLARS + (bytes as Balance) * 100 * MILLICENTS

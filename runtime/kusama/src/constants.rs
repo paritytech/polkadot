@@ -18,10 +18,25 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 300;
-	pub const CENTS: Balance = DOLLARS / 100;
-	pub const MILLICENTS: Balance = CENTS / 1_000;
+	/// The number of balance UNITS per one KSM. 1x10^12
+	pub const UNITS_PER_KSM: Balance = 1_000_000_000_000;
+	/// Easier to reference this way.
+	pub const KSM: Balance = UNITS_PER_KSM;
+
+	/// The approximate USD value of KSM in April 2021 in millicents.
+	/// The threshold to change this price:
+	/// * Every time the market price is three times more than USD_PER_KSM, we can double USD_PER_KSM.
+	/// * Every time the market price is half of the current USD_PER_KSM, we can reduce USD_PER_KSM by 3x.
+	/// NOTE: This is written funny to more easily interpret the value of 300 USD per KSM.
+	/// NOTE: THis is no way predicts the price of the token. It is simply a measurement threshold for
+	/// which we can evaluate what would be economically safe for the chain.
+	pub const MILLICENTS_PER_KSM: Balance = 300_00_000;
+
+	/// The approximate number of KSM for one US Dollar and so on...
+	pub const MILLICENTS: Balance = UNITS_PER_KSM / MILLICENTS_PER_KSM;
+	pub const CENTS: Balance = MILLICENTS * 1000;
+	pub const DOLLARS: Balance = CENTS * 100;
+
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 20 * DOLLARS + (bytes as Balance) * 100 * MILLICENTS
@@ -31,17 +46,9 @@ pub mod currency {
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{Moment, BlockNumber};
-	// Kusama & mainnet
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
-	// Testnet
-//	pub const MILLISECS_PER_BLOCK: Moment = 1000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	// Kusama
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
-	// Mainnet
-//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
-	// Testnet
-//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 10 * MINUTES;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
