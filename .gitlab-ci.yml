@@ -38,7 +38,7 @@ default:
     when:                          on_success
     expire_in:                     28 days
     paths:
-      - artifacts/
+      - ./artifacts/
 
 .kubernetes-env:                   &kubernetes-env
   tags:
@@ -160,7 +160,7 @@ check-runtime-benchmarks:
         sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')";
       EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)";
     fi
-  - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+  - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
   - echo -n ${VERSION} > ./artifacts/VERSION
   - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
   - cp -r scripts/docker/* ./artifacts
@@ -170,21 +170,40 @@ build-linux-release:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  variables:
-    EXTRA_FLAGS:                   ""
   rules:
-    # extra features when building on `rococo-v1` branch and manual build on PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      variables:
-        RUSTFLAGS:                 "-Cdebug-assertions=y"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
       variables:
-        RUSTFLAGS:                 "-Cdebug-assertions=y"
-    - when:                        always
+        RUSTFLAGS:                     "-Cdebug-assertions=y"
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+      variables:
+        RUSTFLAGS:                     "-Cdebug-assertions=y"
   script:
-    - time cargo build --release --verbose ${EXTRA_FLAGS}
+    - time cargo build --release --verbose
     - sccache -s
     - *pack-artifacts
+
+build-adder-collator:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - time cargo build --release --verbose -p test-parachain-adder-collator
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/adder-collator ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
 
@@ -213,12 +232,13 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
-.build-push-docker-image:          &build-push-docker-image
+.build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
   image:                           quay.io/buildah/stable
   variables:
     GIT_STRATEGY:                  none
-    # DOCKERFILE:                  scripts/docker/Dockerfile
+    # scripts/docker/Dockerfile
+    DOCKERFILE:                    Dockerfile
     IMAGE_NAME:                    docker.io/parity/polkadot
     DOCKER_USER:                   ${Docker_Hub_User_Parity}
     DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
@@ -236,54 +256,79 @@ generate-impl-guide:
         --format=docker
         --build-arg VCS_REF="${CI_COMMIT_SHA}"
         --build-arg BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        --build-arg IMAGE_NAME="${IMAGE_NAME}"
         --tag "$IMAGE_NAME:$VERSION"
-        --tag "$IMAGE_NAME:$EXTRATAG" .
+        --tag "$IMAGE_NAME:$EXTRATAG"
+        --file ${DOCKERFILE} .
     # The job will success only on the protected branch
     - echo "$DOCKER_PASS" |
         buildah login --username "$DOCKER_USER" --password-stdin docker.io
     - buildah info
     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
-    # pass artifacts to the trigget-simnet job
-    # this twist is to match the similar logic in substrate
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > build.env
-    - echo "VERSION=${EXTRATAG}" >> build.env
   after_script:
     - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the trigger-simnet job
+    - echo "IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/build.env
+    - echo "IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/build.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
       # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: artifacts/build.env
+      dotenv: ./artifacts/build.env
 
-
-publish-dockerhub:
+publish-polkadot-image:
   stage:                           build
-  <<:                              *build-push-docker-image
+  <<:                              *build-push-image
   rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      variables:
+        IMAGE_NAME:                    docker.io/paritypr/synth-wave
+        DOCKER_USER:                   ${PARITYPR_USER}
+        DOCKER_PASS:                   ${PARITYPR_PASS}
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         IMAGE_NAME:                docker.io/parity/rococo
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-      variables:
-        # image to be tested with Simnet
-        IMAGE_NAME:                docker.io/paritypr/synth-wave
-        DOCKER_USER:               ${PARITYPR_USER}
-        DOCKER_PASS:               ${PARITYPR_PASS}
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "web"
-    - if: $CI_COMMIT_REF_NAME == "master"
   needs:
     - job:                         build-linux-release
       artifacts:                   true
 
+publish-adder-collator-image:
+  # service image for Simnet
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    # scripts/docker/collator.Dockerfile
+    DOCKERFILE:                    collator.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/colander
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    # FIXME: remove me after merging
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    - job:                         build-adder-collator
+      artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the trigger-simnet job
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
+  artifacts:
+    reports:
+      # this artifact is used in trigger-simnet job
+      dotenv: ./artifacts/collator.env
+
 #### stage:                        publish
 
-publish-s3-release:
+publish-s3-release:                &publish-s3
   stage:                           publish
   needs:
     - job:                         build-linux-release
@@ -295,10 +340,6 @@ publish-s3-release:
     BUCKET:                        "releases.parity.io"
     PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
   rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      variables:
-        PREFIX:                    "rococo/${ARCH}-${DOCKER_OS}"
-    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
@@ -327,6 +368,14 @@ publish-s3-release:
     - aws s3 ls s3://${BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
+publish-s3-adder-collator:
+  <<:                              *publish-s3
+  variables:
+    PREFIX:                        "rococo/${ARCH}-${DOCKER_OS}"
+  needs:
+    - job:                         build-adder-collator
+      artifacts:                   true
+
 #### stage:                        deploy
 
 deploy-polkasync-kusama:
@@ -335,29 +384,36 @@ deploy-polkasync-kusama:
     # former .rules-build
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
-    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
-    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
+    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
 trigger-simnet:
   stage:                           deploy
-  <<:                              *rules-test
+  image:                           paritytech/tools:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
-    - job:                         publish-dockerhub
-  # `build.env` is taken by the triggered job from `publish-dockerhub` job with an
-  # exact `$VERSION` (`$EXTRATAG` here, i.e. `2643-0.8.29-5f689e0a-6b24dc54`)
+    - job:                         publish-polkadot-image
+    - job:                         publish-adder-collator-image
+  # `build.env` brings here `$IMAGE_NAME` and `$IMAGE_TAG` (`$EXTRATAG` here, 
+  # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
+  # can be called by `master` tag.
   # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for runs not launched by this job.
-  trigger:
-    project:                       parity/simnet
-    branch:                        master
-    strategy:                      depend
+  # on commits. And parity/rococo:rococo-v1 for the runs not launched by this job.
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
+    # simnet project ID
+    DWNSTRM_ID:                    332
+  script:
+    # API trigger for a simnet job
+    - ./scripts/gitlab/trigger_pipeline.sh

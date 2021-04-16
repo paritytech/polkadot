@@ -259,7 +259,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 	}
 
 	fn is_inherent(call: &Self::Call) -> bool {
-		matches!(call, Call::enter(_))
+		matches!(call, Call::enter(..))
 	}
 }
 

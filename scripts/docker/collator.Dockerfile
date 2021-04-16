@@ -27,21 +27,21 @@ RUN apt-get update && \
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-# add user and link ~/.local/share/polkadot to /data
-	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
-	mkdir -p /data /polkadot/.local/share && \
-	chown -R polkadot:polkadot /data && \
-	ln -s /data /polkadot/.local/share/polkadot
+# add user and link ~/.local/share/adder-collator to /data
+	useradd -m -u 1000 -U -s /bin/sh -d /adder-collator adder-collator && \
+	mkdir -p /data /adder-collator/.local/share && \
+	chown -R adder-collator:adder-collator /data && \
+	ln -s /data /adder-collator/.local/share/polkadot
 
-# add polkadot binary to docker image
-COPY ./polkadot /usr/local/bin
+# add adder-collator binary to docker image
+COPY ./adder-collator /usr/local/bin
 
-USER polkadot
+USER adder-collator
 
 # check if executable works in this container
-RUN /usr/local/bin/polkadot --version
+RUN /usr/local/bin/adder-collator --version
 
 EXPOSE 30333 9933 9944
-VOLUME ["/polkadot"]
+VOLUME ["/adder-collator"]
 
-ENTRYPOINT ["/usr/local/bin/polkadot"]
+ENTRYPOINT ["/usr/local/bin/adder-collator"]
