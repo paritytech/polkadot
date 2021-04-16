@@ -23,6 +23,8 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
 
+use crate::IsFatal;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors for fetching of runtime information.
@@ -40,6 +42,16 @@ pub enum Error {
 	/// We tried fetching a session info which was not available.
 	#[error("There was no session with the given index")]
 	NoSuchSession(SessionIndex),
+}
+
+impl IsFatal for Error {
+	fn is_fatal(&self) -> bool {
+		match self {
+			Self::RuntimeRequestCanceled(_) => true,
+			Self::RuntimeRequest(_) => false,
+			Self::NoSuchSession(_) => false,
+		}
+	}
 }
 
 /// Receive a response from a runtime request and convert errors.
