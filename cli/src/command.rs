@@ -256,19 +256,39 @@ pub fn run() -> Result<()> {
 				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
-		Some(Subcommand::ValidationWorker(cmd)) => {
+		Some(Subcommand::PvfPrepareWorker(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			if cfg!(feature = "browser") || cfg!(target_os = "android") {
-				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())
-			} else {
-				#[cfg(not(any(target_os = "android", feature = "browser")))]
-				polkadot_parachain::wasm_executor::run_worker(
-					&cmd.mem_id,
-					Some(cmd.cache_base_path.clone()),
-				)?;
+			#[cfg(any(target_os = "android", feature = "browser"))]
+			{
+				return Err(
+					sc_cli::Error::Input("PVF preparation workers are not supported under this platform".into()).into()
+				);
+			}
+
+			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			{
+				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
+				Ok(())
+			}
+		},
+		Some(Subcommand::PvfExecuteWorker(cmd)) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
+
+			#[cfg(any(target_os = "android", feature = "browser"))]
+			{
+				return Err(
+					sc_cli::Error::Input("PVF execution workers are not supported under this platform".into()).into()
+				);
+			}
+
+			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			{
+				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				Ok(())
 			}
 		},

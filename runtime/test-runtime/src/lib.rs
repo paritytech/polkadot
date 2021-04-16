@@ -94,7 +94,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1055,
+	spec_version: 1056,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -162,7 +162,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub storage ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -474,8 +474,13 @@ impl parachains_paras::Config for Runtime {
 
 impl parachains_dmp::Config for Runtime {}
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl parachains_ump::Config for Runtime {
 	type UmpSink = ();
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -558,8 +563,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
 /// The payload being signed in transactions.

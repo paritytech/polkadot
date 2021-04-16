@@ -113,25 +113,6 @@ db = ["service/db"]
 full-node = [
 	"polkadot-node-core-av-store",
 	"polkadot-node-core-approval-voting",
-	"sc-finality-grandpa-warp-sync",
-	"kvdb-rocksdb"
-]
-
-runtime-benchmarks = [
-	"polkadot-runtime/runtime-benchmarks",
-	"kusama-runtime/runtime-benchmarks",
-	"westend-runtime/runtime-benchmarks",
-	"rococo-runtime/runtime-benchmarks"
-]
-try-runtime = [
-	"polkadot-runtime/try-runtime",
-	"kusama-runtime/try-runtime",
-	"westend-runtime/try-runtime",
-	"rococo-runtime/try-runtime",
-]
-
-real-overseer = [
-	"full-node",
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
@@ -148,4 +129,19 @@ real-overseer = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
+	"sc-finality-grandpa-warp-sync",
+	"kvdb-rocksdb"
+]
+
+runtime-benchmarks = [
+	"polkadot-runtime/runtime-benchmarks",
+	"kusama-runtime/runtime-benchmarks",
+	"westend-runtime/runtime-benchmarks",
+	"rococo-runtime/runtime-benchmarks"
+]
+try-runtime = [
+	"polkadot-runtime/try-runtime",
+	"kusama-runtime/try-runtime",
+	"westend-runtime/try-runtime",
+	"rococo-runtime/try-runtime",
 ]

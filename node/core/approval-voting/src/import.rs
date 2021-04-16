@@ -212,7 +212,7 @@ async fn load_all_sessions(
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
 			Ok(Ok(None)) => {
-				tracing::warn!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					"Session {} is missing from session-info state of block {}",
 					i,
@@ -266,14 +266,14 @@ async fn cache_session_info_for_head(
 
 			let window_start = session_index.saturating_sub(APPROVAL_SESSIONS - 1);
 
-			tracing::info!(
+			tracing::debug!(
 				target: LOG_TARGET, "Loading approval window from session {}..={}",
 				window_start, session_index,
 			);
 
 			match load_all_sessions(ctx, block_hash, window_start, session_index).await {
 				Err(SessionsUnavailable) => {
-					tracing::warn!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						"Could not load sessions {}..={} from block {:?} in session {}",
 						window_start, session_index, block_hash, session_index,
@@ -599,7 +599,7 @@ pub(crate) async fn handle_new_head(
 			&header,
 		).await
 	{
-		tracing::warn!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			"Could not cache session info when processing head {:?}",
 			head,
@@ -636,13 +636,26 @@ pub(crate) async fn handle_new_head(
 			match imported_block_info(ctx, env, block_hash, &block_header).await? {
 				Some(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
 				None => {
-					// Such errors are likely spurious, but this prevents us from getting gaps
-					// in the approval-db.
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Unable to gather info about imported block {:?}. Skipping chain.",
-						(block_hash, block_header.number),
-					);
+					// It's possible that we've lost a race with finality.
+					let (tx, rx) = oneshot::channel();
+					ctx.send_message(
+						ChainApiMessage::FinalizedBlockHash(block_header.number.clone(), tx).into()
+					).await;
+
+					let lost_to_finality = match rx.await {
+						Ok(Ok(Some(h))) if h != block_hash => true,
+						_ => false,
+					};
+
+					if !lost_to_finality {
+						// Such errors are likely spurious, but this prevents us from getting gaps
+						// in the approval-db.
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Unable to gather info about imported block {:?}. Skipping chain.",
+							(block_hash, block_header.number),
+						);
+					}
 
 					return Ok(Vec::new());
 				},

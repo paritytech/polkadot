@@ -104,7 +104,7 @@ async fn determine_relevant_authorities(
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
-	let authorities = util::request_authorities_ctx(relay_parent, ctx).await?.await??;
+	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
 	Ok(authorities)
 }
 
@@ -135,7 +135,7 @@ impl State {
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
-			let current_index = util::request_session_index_for_child_ctx(leaf, ctx).await?.await??;
+			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
 			let maybe_new_session = match self.last_session_index {
 				Some(i) if i <= current_index => None,
 				_ => Some((current_index, leaf)),

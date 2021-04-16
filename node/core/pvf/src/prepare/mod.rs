@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,17 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-mod adder;
-mod wasm_executor;
+//! Preparation part of pipeline
+//!
+//! The validation host spins up two processes: the queue (by running [`start_queue`]) and the pool
+//! (by running [`start_pool`]).
+//!
+//! The pool will spawn workers in new processes and those should execute pass control to
+//! [`worker_entrypoint`].
 
-use parachain::wasm_executor::run_worker;
+mod pool;
+mod queue;
+mod worker;
 
-// This is not an actual test, but rather an entry point for out-of process WASM executor.
-// When executing tests the executor spawns currently executing binary, which happens to be test binary.
-// It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
-#[test]
-fn validation_worker() {
-	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_")) {
-		run_worker(&id, None).unwrap()
-	}
-}
+pub use queue::{ToQueue, FromQueue, start as start_queue};
+pub use pool::start as start_pool;
+pub use worker::worker_entrypoint;

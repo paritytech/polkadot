@@ -16,6 +16,7 @@
 
 //! Polkadot chain configurations.
 
+use rococo::constants::size::MAX_CODE_SIZE;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
@@ -881,18 +882,24 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
+		pallet_collective: Default::default(),
+		pallet_membership: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
 		pallet_sudo: rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
+		parachains_paras: rococo_runtime::ParasConfig {
+			paras: vec![],
+		    _phdata: Default::default(),
+		},
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 1u32,
 				validation_upgrade_delay: 1,
 				code_retention_period: 1200,
-				max_code_size: 5 * 1024 * 1024,
+				max_code_size: MAX_CODE_SIZE,
 				max_pov_size: MAX_POV_SIZE,
 				max_head_data_size: 32 * 1024,
 				group_rotation_frequency: 20,
@@ -1432,6 +1439,8 @@ pub fn rococo_testnet_genesis(
 		},
 		pallet_grandpa: Default::default(),
 		pallet_im_online: Default::default(),
+		pallet_collective: Default::default(),
+		pallet_membership: Default::default(),
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
@@ -1477,6 +1486,10 @@ pub fn rococo_testnet_genesis(
 				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
+		},
+		parachains_paras: rococo_runtime::ParasConfig {
+			paras: vec![],
+		    _phdata: Default::default(),
 		},
 	}
 }

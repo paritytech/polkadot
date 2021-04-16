@@ -31,7 +31,7 @@ pub mod time {
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	// 30 seconds for now
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = MINUTES / 2;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = MINUTES / 2;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);

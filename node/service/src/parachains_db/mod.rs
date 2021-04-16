@@ -13,7 +13,7 @@
 
 //! A RocksDB instance for storing parachain data; availability data, and approvals.
 
-#[cfg(feature = "real-overseer")]
+#[cfg(feature = "full-node")]
 use {
 	std::io,
 	std::path::PathBuf,
@@ -22,9 +22,9 @@ use {
 	kvdb::KeyValueDB,
 };
 
+mod upgrade;
 
 mod columns {
-	#[cfg(feature = "real-overseer")]
 	pub const NUM_COLUMNS: u32 = 3;
 
 
@@ -51,7 +51,7 @@ pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_approval_data: columns::COL_APPROVAL_DATA,
 };
 
-/// The cache size for each column, in bytes.
+/// The cache size for each column, in megabytes.
 #[derive(Debug, Clone)]
 pub struct CacheSizes {
 	/// Cache used by availability data.
@@ -65,15 +65,20 @@ pub struct CacheSizes {
 impl Default for CacheSizes {
 	fn default() -> Self {
 		CacheSizes {
-			availability_data: 25 * 1024 * 1024,
-			availability_meta: 512 * 1024,
-			approval_data: 5 * 1024 * 1024,
+			availability_data: 25,
+			availability_meta: 1,
+			approval_data: 5,
 		}
 	}
 }
 
+#[cfg(feature = "full-node")]
+fn other_io_error(err: String) -> io::Error {
+	io::Error::new(io::ErrorKind::Other, err)
+}
+
 /// Open the database on disk, creating it if it doesn't exist.
-#[cfg(feature = "real-overseer")]
+#[cfg(feature = "full-node")]
 pub fn open_creating(
 	root: PathBuf,
 	cache_sizes: CacheSizes,
@@ -91,13 +96,13 @@ pub fn open_creating(
 	let _ = db_config.memory_budget
 		.insert(columns::COL_APPROVAL_DATA, cache_sizes.approval_data);
 
-	let path = path.to_str().ok_or_else(|| io::Error::new(
-		io::ErrorKind::Other,
+	let path_str = path.to_str().ok_or_else(|| other_io_error(
 		format!("Bad database path: {:?}", path),
 	))?;
 
-	std::fs::create_dir_all(&path)?;
-	let db = Database::open(&db_config, &path)?;
+	std::fs::create_dir_all(&path_str)?;
+	upgrade::try_upgrade_db(&path)?;
+	let db = Database::open(&db_config, &path_str)?;
 
 	Ok(Arc::new(db))
 }

@@ -46,6 +46,7 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 libsecp256k1 = { version = "0.3.5", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
+slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
@@ -91,6 +92,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
 	"pallet-treasury/std",
+	"slot-range-helper/std",
 	"sp-runtime/std",
 	"sp-session/std",
 	"sp-staking/std",

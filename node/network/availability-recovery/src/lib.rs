@@ -49,7 +49,7 @@ use polkadot_node_network_protocol::{
 		request::RequestError,
 	},
 };
-use polkadot_node_subsystem_util::request_session_info_ctx;
+use polkadot_node_subsystem_util::request_session_info;
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 mod error;
 
@@ -697,11 +697,11 @@ async fn handle_recover(
 	}
 
 	let _span = span.child("not-cached");
-	let session_info = request_session_info_ctx(
+	let session_info = request_session_info(
 		state.live_block.1,
 		session_index,
-		ctx,
-	).await?.await.map_err(error::Error::CanceledSessionInfo)??;
+		ctx.sender(),
+	).await.await.map_err(error::Error::CanceledSessionInfo)??;
 
 	let _span = span.child("session-info-ctx-received");
 	match session_info {

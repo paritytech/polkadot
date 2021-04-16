@@ -7,13 +7,26 @@ on:
       - v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
+  get-rust-versions:
+    runs-on: ubuntu-latest
+    container:
+      image: paritytech/ci-linux:production
+    outputs:
+      rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
+      rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
+    steps:
+      - id: get-rust-versions
+        run: |
+          echo "::set-output name=stable::$(rustc +stable --version)"
+          echo "::set-output name=nightly::$(rustc +nightly --version)"
+
   build-runtimes:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         runtime: ['polkadot', 'kusama']
     container:
-      image: paritytech/srtool:nightly-2020-10-27
+      image: paritytech/srtool:nightly-2021-03-15
       volumes:
         - ${{ github.workspace }}:/build
       env:
@@ -32,38 +45,27 @@ jobs:
       - name: Build ${{ matrix.runtime }} runtime
         id: build-runtime
         shell: bash
+        env:
+          srtool_output_filename: ${{ matrix.runtime }}_srtool_output.json
         run: |
           cd /build
           pwd
           ls -la
-          build --json | tee srtool_output.json
-          cat srtool_output.json
+          build --json | tee $srtool_output_filename
+          cat $srtool_output_filename
           while IFS= read -r line; do
-            echo "::set-output name=$line::$(jq -r ".$line" < srtool_output.json)"
-          done <<< "$(jq -r 'keys[]' < srtool_output.json)"
+            echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
+          done <<< "$(jq -r 'keys[]' < $srtool_output_filename)"
       - name: Upload ${{ matrix.runtime }} srtool json
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-srtool-json
-          path: srtool_output.json
+          path: ${{ matrix.runtime }}_srtool_output.json
       - name: Upload ${{ matrix.runtime }} runtime
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-runtime
           path: "${{ steps.build-runtime.outputs.wasm }}"
-
-  get-rust-versions:
-    runs-on: ubuntu-latest
-    container:
-      image: paritytech/ci-linux:production
-    outputs:
-      rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
-      rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
-    steps:
-      - id: get-rust-versions
-        run: |
-          echo "::set-output name=stable::$(rustc +stable --version)"
-          echo "::set-output name=nightly::$(rustc +nightly --version)"
 
   publish-draft-release:
     runs-on: ubuntu-latest
@@ -109,8 +111,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
-        with:
-          name: ${{ matrix.runtime }}-runtime
       - name: Set up Ruby 2.7
         uses: actions/setup-ruby@v1
         with:
@@ -118,6 +118,8 @@ jobs:
       - name: Get runtime version
         id: get-runtime-ver
         run: |
+          ls
+          ls "${{ matrix.runtime }}-runtime"
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
           echo "::set-output name=runtime_ver::$runtime_ver"
       - name: Upload ${{ matrix.runtime }} wasm
@@ -126,7 +128,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
-          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_path: "${{ matrix.runtime }}-runtime/${{ matrix.runtime }}_runtime.compact.wasm"
           asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
           asset_content_type: application/wasm
 

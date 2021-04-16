@@ -46,7 +46,7 @@ pub async fn connect_to_validators<Context: SubsystemContext>(
 	validators: Vec<ValidatorId>,
 	peer_set: PeerSet,
 ) -> Result<ConnectionRequest, Error> {
-	let current_index = crate::request_session_index_for_child_ctx(relay_parent, ctx).await?.await??;
+	let current_index = crate::request_session_index_for_child(relay_parent, ctx.sender()).await.await??;
 	connect_to_validators_in_session(
 		ctx,
 		relay_parent,
@@ -64,11 +64,11 @@ pub async fn connect_to_validators_in_session<Context: SubsystemContext>(
 	peer_set: PeerSet,
 	session_index: SessionIndex,
 ) -> Result<ConnectionRequest, Error> {
-	let session_info = crate::request_session_info_ctx(
+	let session_info = crate::request_session_info(
 		relay_parent,
 		session_index,
-		ctx,
-	).await?.await??;
+		ctx.sender(),
+	).await.await??;
 
 	let (session_validators, discovery_keys) = match session_info {
 		Some(info) => (info.validators, info.discovery_keys),
