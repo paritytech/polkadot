@@ -20,7 +20,7 @@
 
 use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
 use codec::{Encode, Decode};
-use xcm::v0::{BodyId, OriginKind, MultiLocation::{self, X1}, Junction::Plurality};
+use xcm::v0::{BodyId, OriginKind, MultiLocation, Junction::Plurality};
 use xcm_executor::traits::ConvertOrigin;
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
 use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get};
@@ -150,10 +150,11 @@ pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigi
 /// plurality.
 ///
 /// May reasonably be used with `EnsureXcm`.
-pub struct IsMajorityOfBody<Body>(PhantomData<Body>);
-impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
+pub struct IsMajorityOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Prefix, Body> {
 	fn filter(l: &MultiLocation) -> bool {
-		matches!(l, X1(Plurality { id, part }) if id == &Body::get() && part.is_majority())
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
 	}
 }
 
