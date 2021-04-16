@@ -275,7 +275,7 @@ mod tests {
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
 		let keystore = make_ferdie_keystore();
-		let mut runtime = crate::runtime::Runtime::new(keystore);
+		let mut runtime = polkadot_node_subsystem_util::runtime::Runtime::new(keystore);
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {
