@@ -6096,6 +6096,7 @@ dependencies = [
  "futures 0.3.13",
  "futures-timer 3.0.2",
  "log",
+ "lru",
  "metered-channel",
  "parity-scale-codec",
  "parking_lot 0.11.1",
