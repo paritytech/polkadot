@@ -20,7 +20,8 @@
 
 use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
 use codec::{Encode, Decode};
-use xcm::v0::{BodyId, MultiLocation::{self, X1}, Junction::Plurality};
+use xcm::v0::{BodyId, OriginKind, MultiLocation::{self, X1}, Junction::Plurality};
+use xcm_executor::traits::ConvertOrigin;
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
 use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get};
 
@@ -178,5 +179,19 @@ impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> fo
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
 		O::from(Origin::Xcm(MultiLocation::Null))
+	}
+}
+
+/// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
+/// this crate's `Origin::Xcm` value.
+pub struct XcmPassthough<Origin>(PhantomData<Origin>);
+impl<
+	Origin: From<crate::Origin>,
+> ConvertOrigin<Origin> for XcmPassthough<Origin> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(OriginKind::Xcm, l) => Ok(crate::Origin::Xcm(l).into()),
+			(_, origin) => Err(origin),
+		}
 	}
 }
