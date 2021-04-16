@@ -185,10 +185,10 @@ impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> fo
 
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
-pub struct XcmPassthough<Origin>(PhantomData<Origin>);
+pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
 impl<
 	Origin: From<crate::Origin>,
-> ConvertOrigin<Origin> for XcmPassthough<Origin> {
+> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
 			(OriginKind::Xcm, l) => Ok(crate::Origin::Xcm(l).into()),
