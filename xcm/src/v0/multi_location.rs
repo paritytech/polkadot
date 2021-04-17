@@ -442,8 +442,8 @@ impl MultiLocation {
 		MultiLocationReverseIterator(self)
 	}
 
-	/// Ensures that self begins with `prefix` and that is has a single `Junction` item following. If
-	/// so, returns a reference to it.
+	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following. If
+	/// so, returns a reference to this `Junction` item.
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
 		if prefix.len() + 1 != self.len() {
 			return None
