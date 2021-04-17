@@ -11413,6 +11413,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
+ "pallet-transaction-payment",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",

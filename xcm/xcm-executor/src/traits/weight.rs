@@ -46,7 +46,7 @@ pub trait WeightBounds<Call> {
 }
 
 /// Charge for weight in order to execute XCM.
-pub trait WeightTrader {
+pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
 
@@ -60,4 +60,8 @@ pub trait WeightTrader {
 	///
 	/// Default implementation refunds nothing.
 	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+
+	/// Should be called once all buying/refunding is done. Used to deposit any weight bought into the
+	/// treasury or whatever.
+	fn finalize(self) {}
 }

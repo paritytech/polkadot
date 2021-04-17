@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result::Result, marker::PhantomData};
+use sp_std::{result::Result, marker::PhantomData, convert::TryInto};
 use parity_scale_codec::Decode;
 use xcm::v0::{Xcm, Order, MultiAsset, MultiLocation};
-use frame_support::{traits::Get, weights::{Weight, GetDispatchInfo}};
+use sp_runtime::traits::{Zero, Saturating, SaturatedConversion};
+use frame_support::traits::{Get, OnUnbalanced as OnUnbalancedT, tokens::currency::Currency as CurrencyT};
+use frame_support::weights::{Weight, GetDispatchInfo, WeightToFeePolynomial};
 use xcm_executor::{Assets, traits::{WeightBounds, WeightTrader}};
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
@@ -94,5 +96,43 @@ impl<T: Get<(MultiLocation, u128)>> WeightTrader for FixedRateOfConcreteFungible
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let result = MultiAsset::ConcreteFungible { amount, id };
 		result
+	}
+}
+
+/// Weight trader which uses the TransactionPayment pallet to set the right price for weight and then
+/// places any weight bought into the right account.
+pub struct UsingComponents<W, A, AI, C: CurrencyT<AI>, OU>(Weight, C::Balance, PhantomData<(W, A, AI, C, OU)>);
+impl<
+	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
+	AssetId: Get<MultiLocation>,
+	AccountId,
+	Currency: CurrencyT<AccountId>,
+	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+> WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
+	fn new() -> Self { Self(0, Zero::zero(), PhantomData) }
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
+		let amount = WeightToFee::calc(&weight);
+		let required = MultiAsset::ConcreteFungible {
+			amount: amount.try_into().map_err(|_| ())?,
+			id: AssetId::get(),
+		};
+		let (unused, _) = payment.less(required).map_err(|_| ())?;
+		self.0 = self.0.saturating_add(weight);
+		self.1 = self.1.saturating_add(amount);
+		Ok(unused)
+	}
+	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
+		let weight = weight.min(self.0);
+		let amount = WeightToFee::calc(&weight);
+		self.0 -= weight;
+		self.1 = self.1.saturating_sub(amount);
+		let result = MultiAsset::ConcreteFungible {
+			amount: amount.saturated_into(),
+			id: AssetId::get(),
+		};
+		result
+	}
+	fn finalize(self) {
+		OnUnbalanced::on_unbalanced(Currency::issue(self.1));
 	}
 }

@@ -92,7 +92,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
-	FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32
+	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
 use constants::{time::*, currency::*, fee::*, size::*};
 use frame_support::traits::InstanceFilter;
@@ -634,7 +634,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
 
