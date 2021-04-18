@@ -65,6 +65,9 @@ pub mod reexports {
 	};
 }
 
+/// Convenient and efficient runtime info access.
+pub mod runtime;
+
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs

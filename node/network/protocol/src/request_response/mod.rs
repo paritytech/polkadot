@@ -154,7 +154,7 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated code size.
-                // + 1000 to account for protocol overhead (should be way less).
+				// + 1000 to account for protocol overhead (should be way less).
 				max_response_size: MAX_CODE_SIZE as u64 + 1000,
 				// We need statement fetching to be fast and will try our best at the responding
 				// side to answer requests within that timeout, assuming a bandwidth of 500Mbit/s
@@ -199,7 +199,7 @@ impl Protocol {
 				// waisting precious time.
 				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
-                    STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth / (1000 * MAX_CODE_SIZE as u64),
+					STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth / (1000 * MAX_CODE_SIZE as u64),
 					MAX_PARALLEL_STATEMENT_REQUESTS as u64
 				);
 				debug_assert!(
