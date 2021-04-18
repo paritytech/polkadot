@@ -1437,7 +1437,7 @@ async fn handle_network_update(
 	metrics: &Metrics,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _) => {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?peer,
@@ -2667,13 +2667,13 @@ mod tests {
 			// notify of peers and view
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 
@@ -2835,23 +2835,23 @@ mod tests {
 			// notify of peers and view
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_c.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_c.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full)
+					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None)
 				)
 			}).await;
 

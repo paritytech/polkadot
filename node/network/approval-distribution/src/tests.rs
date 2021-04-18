@@ -117,7 +117,7 @@ async fn setup_peer_with_view(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-			NetworkBridgeEvent::PeerConnected(peer_id.clone(), ObservedRole::Full)
+			NetworkBridgeEvent::PeerConnected(peer_id.clone(), ObservedRole::Full, None)
 		)
 	).await;
 	overseer_send(
