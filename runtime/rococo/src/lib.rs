@@ -883,6 +883,8 @@ impl pallet_membership::Config for Runtime {
 	type PrimeOrigin = EnsureRoot<AccountId>;
 	type MembershipInitialized = Collective;
 	type MembershipChanged = Collective;
+	type MaxMembers = MaxMembers;
+	type WeightInfo = ();
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
