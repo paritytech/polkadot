@@ -951,7 +951,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.clone()
 		);
 	
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
