@@ -213,7 +213,7 @@ generate-impl-guide:
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
   image:                           quay.io/buildah/stable
-  variables:
+  variables:                       &image-variables
     GIT_STRATEGY:                  none
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
@@ -222,7 +222,7 @@ generate-impl-guide:
     - test -s ./artifacts/EXTRATAG || exit 1
     - VERSION="$(cat ./artifacts/VERSION)"
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
-    - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
   script:
     - test "$DOCKER_USER" -a "$DOCKER_PASS" ||
         ( echo "no docker credentials provided"; exit 1 )
@@ -256,6 +256,7 @@ publish-polkadot-image:
   stage:                           build
   <<:                              *build-push-image
   variables:
+    <<:                            *image-variables
     # scripts/docker/Dockerfile
     DOCKERFILE:                    Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
@@ -269,6 +270,7 @@ publish-polkadot-image:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
+        <<:                        *image-variables
         IMAGE_NAME:                docker.io/parity/rococo
         DOCKER_USER:               ${Docker_Hub_User_Parity}
         DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
@@ -281,6 +283,7 @@ publish-adder-collator-image:
   stage:                           build
   <<:                              *build-push-image
   variables:
+    <<:                            *image-variables
     # scripts/docker/collator.Dockerfile
     DOCKERFILE:                    collator.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
