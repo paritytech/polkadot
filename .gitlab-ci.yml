@@ -126,8 +126,9 @@ test-build-linux-stable:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
-    # we're using the bin built here, instead of having a parallel `build-linux-release`
     - ./scripts/gitlab/test_linux_stable.sh
+    # we're using the bin built here, instead of having a parallel `build-linux-release`
+    - time cargo build --release --verbose --bin polkadot
     - sccache -s
     # pack-artifacts
     - mkdir -p ./artifacts
