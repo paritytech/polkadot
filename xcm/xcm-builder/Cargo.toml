@@ -34,4 +34,5 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"polkadot-parachain/std",
+	"pallet-transaction-payment/std",
 ]

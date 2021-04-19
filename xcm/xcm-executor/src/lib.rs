@@ -60,7 +60,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::WeightLimitReached);
 		}
 		let mut trader = Config::Trader::new();
-		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
+		let result = Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader);
+		drop(trader);
+		match result {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
 			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
 			//  we'll needlessly be disregarding block execution time.

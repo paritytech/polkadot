@@ -74,34 +74,63 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 	}
 }
 
+/// Function trait for handling some revenue. Similar to a negative imbalance (credit) handler, but for a
+/// `MultiAsset`. Sensible implementations will deposit the asset in some known treasury or block-author account.
+pub trait TakeRevenue {
+	/// Do something with the given `revenue`, which is a single non-wildcard `MultiAsset`.
+	fn take_revenue(revenue: MultiAsset);
+}
+
+/// Null implementation just burns the revenue.
+impl TakeRevenue for () {
+	fn take_revenue(_revenue: MultiAsset) {}
+}
+
 /// Simple fee calculator that requires payment in a single concrete fungible at a fixed rate.
 ///
 /// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
 /// one second of weight.
-pub struct FixedRateOfConcreteFungible<T>(Weight, PhantomData<T>);
-impl<T: Get<(MultiLocation, u128)>> WeightTrader for FixedRateOfConcreteFungible<T> {
-	fn new() -> Self { Self(0, PhantomData) }
+pub struct FixedRateOfConcreteFungible<
+	T: Get<(MultiLocation, u128)>,
+	R: TakeRevenue,
+>(Weight, u128, PhantomData<(T, R)>);
+impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfConcreteFungible<T, R> {
+	fn new() -> Self { Self(0, 0, PhantomData) }
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let required = MultiAsset::ConcreteFungible { amount, id };
 		let (used, _) = payment.less(required).map_err(|_| ())?;
 		self.0 = self.0.saturating_add(weight);
+		self.1 = self.1.saturating_add(amount);
 		Ok(used)
 	}
 	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
-		let weight = weight.min(self.0);
-		self.0 -= weight;
 		let (id, units_per_second) = T::get();
+		let weight = weight.min(self.0);
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
+		self.0 -= weight;
+		self.1 = self.1.saturating_sub(amount);
 		let result = MultiAsset::ConcreteFungible { amount, id };
 		result
+	}
+}
+impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcreteFungible<T, R> {
+	fn drop(&mut self) {
+		let revenue = MultiAsset::ConcreteFungible { amount: self.1, id: T::get().0 };
+		R::take_revenue(revenue);
 	}
 }
 
 /// Weight trader which uses the TransactionPayment pallet to set the right price for weight and then
 /// places any weight bought into the right account.
-pub struct UsingComponents<W, A, AI, C: CurrencyT<AI>, OU>(Weight, C::Balance, PhantomData<(W, A, AI, C, OU)>);
+pub struct UsingComponents<
+	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
+	AssetId: Get<MultiLocation>,
+	AccountId,
+	Currency: CurrencyT<AccountId>,
+	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+>(Weight, Currency::Balance, PhantomData<(WeightToFee, AssetId, AccountId, Currency, OnUnbalanced)>);
 impl<
 	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
 	AssetId: Get<MultiLocation>,
@@ -132,7 +161,15 @@ impl<
 		};
 		result
 	}
-	fn finalize(self) {
+}
+impl<
+	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
+	AssetId: Get<MultiLocation>,
+	AccountId,
+	Currency: CurrencyT<AccountId>,
+	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+> Drop for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
+	fn drop(&mut self) {
 		OnUnbalanced::on_unbalanced(Currency::issue(self.1));
 	}
 }

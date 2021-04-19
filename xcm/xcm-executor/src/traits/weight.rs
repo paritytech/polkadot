@@ -60,8 +60,4 @@ pub trait WeightTrader: Sized {
 	///
 	/// Default implementation refunds nothing.
 	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
-
-	/// Should be called once all buying/refunding is done. Used to deposit any weight bought into the
-	/// treasury or whatever.
-	fn finalize(self) {}
 }
