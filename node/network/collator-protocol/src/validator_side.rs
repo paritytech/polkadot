@@ -873,7 +873,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, _role) => {
+		PeerConnected(peer_id, _role, _) => {
 			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
@@ -1469,6 +1469,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1543,6 +1544,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1553,6 +1555,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1636,6 +1639,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1704,6 +1708,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1714,6 +1719,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1918,6 +1924,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2012,6 +2019,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2153,6 +2161,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2199,6 +2208,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2270,6 +2280,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
