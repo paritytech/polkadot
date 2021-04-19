@@ -139,6 +139,7 @@ impl<
 	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
 > WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
 	fn new() -> Self { Self(0, Zero::zero(), PhantomData) }
+	
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let amount = WeightToFee::calc(&weight);
 		let required = MultiAsset::ConcreteFungible {
@@ -150,6 +151,7 @@ impl<
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
 	}
+
 	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
 		let weight = weight.min(self.0);
 		let amount = WeightToFee::calc(&weight);
@@ -161,6 +163,7 @@ impl<
 		};
 		result
 	}
+
 }
 impl<
 	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
