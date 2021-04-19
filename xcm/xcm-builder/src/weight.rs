@@ -16,7 +16,7 @@
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryInto};
 use parity_scale_codec::Decode;
-use xcm::v0::{Xcm, Order, MultiAsset, MultiLocation};
+use xcm::v0::{Xcm, Order, MultiAsset, MultiLocation, Error};
 use sp_runtime::traits::{Zero, Saturating, SaturatedConversion};
 use frame_support::traits::{Get, OnUnbalanced as OnUnbalancedT, tokens::currency::Currency as CurrencyT};
 use frame_support::weights::{Weight, GetDispatchInfo, WeightToFeePolynomial};
@@ -96,11 +96,11 @@ pub struct FixedRateOfConcreteFungible<
 >(Weight, u128, PhantomData<(T, R)>);
 impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfConcreteFungible<T, R> {
 	fn new() -> Self { Self(0, 0, PhantomData) }
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let required = MultiAsset::ConcreteFungible { amount, id };
-		let (used, _) = payment.less(required).map_err(|_| ())?;
+		let (used, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(used)
@@ -139,13 +139,13 @@ impl<
 	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
 > WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
 	fn new() -> Self { Self(0, Zero::zero(), PhantomData) }
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let amount = WeightToFee::calc(&weight);
 		let required = MultiAsset::ConcreteFungible {
-			amount: amount.try_into().map_err(|_| ())?,
+			amount: amount.try_into().map_err(|_| Error::Overflow)?,
 			id: AssetId::get(),
 		};
-		let (unused, _) = payment.less(required).map_err(|_| ())?;
+		let (unused, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)

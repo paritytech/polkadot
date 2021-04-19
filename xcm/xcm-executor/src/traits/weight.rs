@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset};
+use xcm::v0::{Xcm, MultiAsset, Error};
 use frame_support::weights::Weight;
 use crate::Assets;
 
@@ -53,7 +53,7 @@ pub trait WeightTrader: Sized {
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
