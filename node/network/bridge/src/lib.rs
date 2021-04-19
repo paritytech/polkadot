@@ -36,7 +36,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
 	CollatorProtocolMessage, NetworkBridgeEvent,
 };
-use polkadot_primitives::v1::{Hash, BlockNumber};
+use polkadot_primitives::v1::{Hash, BlockNumber, AuthorityDiscoveryId};
 use polkadot_node_network_protocol::{
 	PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, UnifiedReputationChange as Rep,
 	ObservedRole,
@@ -316,7 +316,7 @@ impl From<SubsystemError> for UnexpectedAbort {
 
 // notifications to be passed through to the validator discovery worker.
 enum ValidatorDiscoveryNotification {
-	PeerConnected(PeerId, PeerSet),
+	PeerConnected(PeerId, PeerSet, Option<AuthorityDiscoveryId>),
 	PeerDisconnected(PeerId, PeerSet),
 }
 
@@ -540,11 +540,11 @@ where
 			},
 			notification = validator_discovery_notifications.next().fuse() => match notification {
 				None => return Ok(()),
-				Some(ValidatorDiscoveryNotification::PeerConnected(peer, peer_set)) => {
+				Some(ValidatorDiscoveryNotification::PeerConnected(peer, peer_set, maybe_auth)) => {
 					validator_discovery.on_peer_connected(
 						peer.clone(),
 						peer_set,
-						&mut authority_discovery_service,
+						maybe_auth,
 					).await;
 				}
 				Some(ValidatorDiscoveryNotification::PeerDisconnected(peer, peer_set)) => {
@@ -555,9 +555,10 @@ where
 	}
 }
 
-async fn handle_network_messages(
+async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
+	mut authority_discovery_service: AD,
 	mut request_multiplexer: RequestMultiplexer,
 	mut validator_discovery_notifications: mpsc::Sender<ValidatorDiscoveryNotification>,
 	metrics: Metrics,
@@ -607,10 +608,14 @@ async fn handle_network_messages(
 						shared.local_view.clone().unwrap_or(View::default())
 					};
 
+					let maybe_authority =
+						authority_discovery_service
+							.get_authority_id_by_peer_id(peer).await;
+
 					// Failure here means that the other side of the network bridge
 					// has concluded and this future will be dropped in due course.
 					let _ = validator_discovery_notifications.send(
-						ValidatorDiscoveryNotification::PeerConnected(peer.clone(), peer_set)
+						ValidatorDiscoveryNotification::PeerConnected(peer, peer_set, maybe_authority.clone())
 					).await;
 
 
@@ -618,7 +623,7 @@ async fn handle_network_messages(
 						PeerSet::Validation => {
 							dispatch_validation_events_to_all(
 								vec![
-									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+									NetworkBridgeEvent::PeerConnected(peer.clone(), role, maybe_authority),
 									NetworkBridgeEvent::PeerViewChange(
 										peer.clone(),
 										View::default(),
@@ -640,7 +645,7 @@ async fn handle_network_messages(
 						PeerSet::Collation => {
 							dispatch_collation_events_to_all(
 								vec![
-									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+									NetworkBridgeEvent::PeerConnected(peer.clone(), role, maybe_authority),
 									NetworkBridgeEvent::PeerViewChange(
 										peer.clone(),
 										View::default(),
@@ -858,6 +863,7 @@ where
 	let (remote, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
+		authority_discovery_service.clone(),
 		request_multiplexer,
 		validation_worker_tx,
 		metrics.clone(),
@@ -1191,6 +1197,7 @@ mod tests {
 		_req_configs: Vec<RequestResponseConfig>,
 	}
 
+	#[derive(Clone)]
 	struct TestAuthorityDiscovery;
 
 	// The test's view of the network. This receives updates from the subsystem in the form
@@ -1796,7 +1803,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -1848,7 +1855,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -1920,7 +1927,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -1932,7 +1939,7 @@ mod tests {
 
 			{
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2004,7 +2011,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2016,7 +2023,7 @@ mod tests {
 
 			{
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2099,7 +2106,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2111,7 +2118,7 @@ mod tests {
 
 			{
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2259,7 +2266,7 @@ mod tests {
 			// bridge will inform about all connected peers.
 			{
 				assert_sends_validation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 
@@ -2271,7 +2278,7 @@ mod tests {
 
 			{
 				assert_sends_collation_event_to_all(
-					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, None),
 					&mut virtual_overseer,
 				).await;
 

@@ -19,13 +19,13 @@ use futures::{SinkExt, StreamExt, channel::{mpsc, oneshot}, stream::FuturesUnord
 use parity_scale_codec::Decode;
 
 use polkadot_node_network_protocol::{
-	UnifiedReputationChange as Rep,
+	PeerId, UnifiedReputationChange as Rep,
 	request_response::{
 		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS, request::OutgoingResponse,
 		v1::{
 			StatementFetchingRequest, StatementFetchingResponse
-		}
-	}
+		},
+	},
 };
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
@@ -37,6 +37,7 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 pub enum ResponderMessage {
 	/// Get an update of availble peers to try for fetching a given statement.
 	GetData {
+		requesting_peer: PeerId,
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
 		tx: oneshot::Sender<CommittedCandidateReceipt>
@@ -112,6 +113,7 @@ pub async fn respond(
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = sender.feed(
 			ResponderMessage::GetData {
+				requesting_peer: peer,
 				relay_parent: req.payload.relay_parent,
 				candidate_hash: req.payload.candidate_hash,
 				tx,
@@ -131,7 +133,7 @@ pub async fn respond(
 					?err,
 					"Requested data not found."
 				);
-                Err(())
+				Err(())
 			}
 			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
 		};
@@ -147,7 +149,7 @@ pub async fn respond(
 				target: LOG_TARGET,
 				"Sending response failed"
 			);
-		} 
+		}
 	}
 }
 
