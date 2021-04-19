@@ -40,7 +40,7 @@ for i in $(seq 1 360); do
     STATUS=$(get_status);
     echo "Triggered pipeline status is ${STATUS}";
     if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
-        echo "Busy...";
+        echo;
     elif [[ ${STATUS} =~ ^(failed|canceled|skipped|manual)$ ]]; then
         echo "Something's broken in: ${PIPELINE_URL}"; exit 1;
     elif [[ ${STATUS} =~ ^(success)$ ]]; then

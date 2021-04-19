@@ -316,16 +316,16 @@ publish-s3-release:                &publish-s3
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
-    PREFIX:                        "polkadot/${ARCH}-${DOCKER_OS}"
+    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
   rules:
     # publishing binaries nightly
     - if: $CI_PIPELINE_SOURCE == "schedule"
   before_script:
     - *check-versions
   script:
-    - echo "uploading objects to https://${AWS_BUCKET}/${PREFIX}/${VERSION}"
-    - aws s3 sync ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects at https://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}"
+    - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
+    - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
+    - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
     - find ./artifacts -type f | while read file; do
         name="${file#./artifacts/}";
         aws s3api copy-object
@@ -337,8 +337,8 @@ publish-s3-release:                &publish-s3
       |
       |  polkadot binary paths:
       |
-      |  - https://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/polkadot
-      |  - https://${AWS_BUCKET}/${PREFIX}/${VERSION}/polkadot
+      |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
+      |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
       |
       EOM
   after_script:
