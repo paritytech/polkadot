@@ -939,7 +939,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.clone()
 		);
 	
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
 	} else if chain_spec.is_rococo() {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
