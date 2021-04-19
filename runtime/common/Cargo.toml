@@ -102,6 +102,7 @@ std = [
 	"xcm/std",
 ]
 runtime-benchmarks = [
+	"sp-api/disable-logging",
 	"libsecp256k1/hmac",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
