@@ -215,11 +215,8 @@ generate-impl-guide:
   image:                           quay.io/buildah/stable
   variables:
     GIT_STRATEGY:                  none
-    # scripts/docker/Dockerfile
-    DOCKERFILE:                    Dockerfile
-    IMAGE_NAME:                    docker.io/parity/polkadot
-    DOCKER_USER:                   ${Docker_Hub_User_Parity}
-    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
   before_script:                   &check-versions
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
@@ -259,9 +256,9 @@ publish-polkadot-image:
   stage:                           build
   <<:                              *build-push-image
   variables:
+    # scripts/docker/Dockerfile
+    DOCKERFILE:                    Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
   rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
@@ -287,8 +284,6 @@ publish-adder-collator-image:
     # scripts/docker/collator.Dockerfile
     DOCKERFILE:                    collator.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
