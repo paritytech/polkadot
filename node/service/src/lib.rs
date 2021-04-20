@@ -940,6 +940,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			network.clone(),
 			beefy_link,
 			network.clone(),
+			if chain_spec.is_westend() { 4 } else { 8 },
 			prometheus_registry.clone()
 		);
 
