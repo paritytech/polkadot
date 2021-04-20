@@ -714,6 +714,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let shared_voter_state = rpc_setup;
+	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
 	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
@@ -826,7 +827,11 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = sc_authority_discovery::new_worker_and_service(
+		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
+			sc_authority_discovery::WorkerConfig {
+				publish_non_global_ips: auth_disc_publish_non_global_ips,
+				..Default::default()
+			},
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
