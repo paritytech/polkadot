@@ -278,7 +278,7 @@ pub fn validation_code<T: initializer::Config>(
 pub fn validation_code_hash<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<ValidationCode> {
+) -> Option<Hash> {
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
