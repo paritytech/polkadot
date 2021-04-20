@@ -19,7 +19,7 @@ pub mod currency {
 	use primitives::v0::Balance;
 
 	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 6;
+	pub const DOLLARS: Balance = DOTS / 300;
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
@@ -37,11 +37,11 @@ pub mod time {
 //	pub const MILLISECS_PER_BLOCK: Moment = 1000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	// Kusama
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
 	// Mainnet
-//	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
+//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
 	// Testnet
-//	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
+//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 10 * MINUTES;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);

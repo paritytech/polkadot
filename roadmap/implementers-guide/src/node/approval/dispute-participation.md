@@ -1,5 +1,0 @@
-# Dispute Participation
-
-## Protocol
-
-## Functionality

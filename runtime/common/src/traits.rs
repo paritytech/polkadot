@@ -47,6 +47,14 @@ pub trait Registrar {
 		Self::is_parathread(id) || Self::is_parachain(id)
 	}
 
+	/// Apply a lock to the para registration so that it cannot be modified by
+	/// the manager directly. Instead the para must use its sovereign governance
+	/// or the governance of the relay chain.
+	fn apply_lock(id: ParaId);
+
+	/// Remove any lock on the para registration.
+	fn remove_lock(id: ParaId);
+
 	/// Register a Para ID under control of `who`. Registration may be be
 	/// delayed by session rotation.
 	fn register(
@@ -174,6 +182,12 @@ pub trait Auctioneer {
 
 	/// Returns the current lease period.
 	fn lease_period_index() -> Self::LeasePeriod;
+
+	/// Returns the length of a lease period.
+	fn lease_period() -> Self::LeasePeriod;
+
+	/// Check if the para and user combination has won an auction in the past.
+	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
 }
 
 /// Runtime hook for when we swap a parachain and parathread.

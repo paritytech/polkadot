@@ -27,12 +27,18 @@ use futures::{
 use futures_timer::Delay;
 
 use polkadot_node_primitives::{PoV, BlockData};
-use polkadot_overseer::{Overseer, AllSubsystems};
+use polkadot_primitives::v1::Hash;
+use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 
 use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
+
+struct AlwaysSupportsParachains;
+impl HeadSupportsParachains for AlwaysSupportsParachains {
+	fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+}
 
 struct Subsystem1;
 
@@ -146,6 +152,7 @@ fn main() {
 			vec![],
 			all_subsystems,
 			None,
+			AlwaysSupportsParachains,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

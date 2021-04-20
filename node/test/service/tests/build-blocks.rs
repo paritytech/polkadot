@@ -30,12 +30,14 @@ async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
 		Sr25519Keyring::Alice,
 		|| {},
 		Vec::new(),
+		None,
 	);
 	let mut bob = run_validator_node(
 		task_executor.clone(),
 		Sr25519Keyring::Bob,
 		|| {},
 		vec![alice.addr.clone()],
+		None,
 	);
 
 	{

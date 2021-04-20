@@ -33,8 +33,9 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
+use polkadot_node_subsystem_util::runtime::{Runtime, ValidatorInfo};
 
-use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
+use crate::error::{Error, log_error};
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -120,7 +121,8 @@ impl PoVRequester {
 		)).await;
 
 		let span = jaeger::Span::new(candidate_hash, "fetch-pov")
-			.with_validator_index(from_validator);
+			.with_validator_index(from_validator)
+			.with_relay_parent(parent);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
 			.map_err(|e| Error::SpawnTask(e))
@@ -151,9 +153,7 @@ async fn do_fetch_pov(
 {
 	let response = pending_response.await.map_err(Error::FetchPoV)?;
 	let pov = match response {
-		PoVFetchingResponse::PoV(compressed) => {
-			compressed.decompress().map_err(Error::PoVDecompression)?
-		}
+		PoVFetchingResponse::PoV(pov) => pov,
 		PoVFetchingResponse::NoSuchPoV => {
 			return Err(Error::NoSuchPoV)
 		}
@@ -243,7 +243,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
-	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 
@@ -275,7 +275,7 @@ mod tests {
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
 		let keystore = make_ferdie_keystore();
-		let mut runtime = crate::runtime::Runtime::new(keystore);
+		let mut runtime = polkadot_node_subsystem_util::runtime::Runtime::new(keystore);
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {
@@ -314,9 +314,8 @@ mod tests {
 							reqs.pop(),
 							Some(Requests::PoVFetching(outgoing)) => {outgoing}
 						);
-						req.pending_response.send(Ok(PoVFetchingResponse::PoV(
-							CompressedPoV::compress(&pov).unwrap()).encode()
-						)).unwrap();
+						req.pending_response.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
+							.unwrap();
 						break
 					},
 					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),

@@ -25,6 +25,8 @@ use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use thiserror::Error;
 
+use sp_keystore::SyncCryptoStorePtr;
+
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
 use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
 use polkadot_primitives::v1::CollatorPair;
@@ -57,18 +59,33 @@ type Result<T> = std::result::Result<T, Error>;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
-pub struct CollatorEvictionPolicy(pub Duration);
+pub struct CollatorEvictionPolicy {
+	/// How fast to evict collators who are inactive.
+	pub inactive_collator: Duration,
+	/// How fast to evict peers which don't declare their para.
+	pub undeclared: Duration,
+}
 
 impl Default for CollatorEvictionPolicy {
 	fn default() -> Self {
-		CollatorEvictionPolicy(Duration::from_secs(24))
+		CollatorEvictionPolicy {
+			inactive_collator: Duration::from_secs(24),
+			undeclared: Duration::from_secs(1),
+		}
 	}
 }
 
 /// What side of the collator protocol is being engaged
 pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
-	Validator(CollatorEvictionPolicy, validator_side::Metrics),
+	Validator {
+		/// The keystore holding validator keys.
+		keystore: SyncCryptoStorePtr,
+		/// An eviction policy for inactive peers or validators.
+		eviction_policy: CollatorEvictionPolicy,
+		/// Prometheus metrics for validators.
+		metrics: validator_side::Metrics,
+	},
 	/// Collators operate on a parachain.
 	Collator(PeerId, CollatorPair, collator_side::Metrics),
 }
@@ -95,9 +112,10 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator(policy, metrics) => validator_side::run(
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
 				ctx,
-				policy,
+				keystore,
+				eviction_policy,
 				metrics,
 			).await,
 			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(

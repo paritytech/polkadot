@@ -228,6 +228,7 @@ impl TestRun {
 				);
 				match msg {
 					FromFetchTask::Concluded(_) => break,
+					FromFetchTask::Failed(_) => break,
 					FromFetchTask::Message(msg) =>
 						end_ok = self.handle_message(msg).await,
 				}
