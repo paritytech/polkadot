@@ -36,5 +36,5 @@ When you build a new version of Polkadot, the following will ensure you auto-com
 COMPL_DIR=$HOME/.completion
 mkdir -p $COMPL_DIR
 cp -f target/release/completion-scripts/polkadot.bash $COMPL_DIR/
-source $HOME/.bash_profile
+source $HOME/.bash_profile 
 ```
