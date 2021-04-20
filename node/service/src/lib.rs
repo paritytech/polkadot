@@ -810,7 +810,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let spawner = task_manager.spawn_handle();
 	let active_leaves = active_leaves(&select_chain, &*client)?;
 
-	let authority_discovery_service = if true || role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
 		use futures::StreamExt;
 
