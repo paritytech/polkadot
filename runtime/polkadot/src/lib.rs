@@ -1192,6 +1192,10 @@ sp_api::impl_runtime_apis! {
 		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
 			None
 		}
+
+		fn validation_code_hash(_: Id, _: OccupiedCoreAssumption) -> Option<Hash> {
+			None
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {

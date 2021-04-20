@@ -264,7 +264,7 @@ decl_storage! {
 		/// The validation code hash of every live para.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		CurrentCodeHash: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		CurrentCodeHash get(fn current_code_hash): map hasher(twox_64_concat) ParaId => Option<Hash>;
 		/// Actual past code hash, indicated by the para id as well as the block number at which it
 		/// became outdated.
 		///

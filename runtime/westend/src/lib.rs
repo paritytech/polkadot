@@ -948,6 +948,10 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
+		fn validation_code_hash(_: Id, _: OccupiedCoreAssumption) -> Option<Hash> {
+			None
+		}
+
 		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
 			None
 		}

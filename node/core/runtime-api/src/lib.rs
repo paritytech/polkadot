@@ -519,6 +519,14 @@ mod tests {
 				self.validation_code.get(&para).map(|c| c.clone())
 			}
 
+			fn validation_code_hash(
+				&self,
+				para: ParaId,
+				_assumption: OccupiedCoreAssumption,
+			) -> Option<Hash> {
+				self.validation_code.get(&para).map(|c| c.hash())
+			}
+
 			fn historical_validation_code(
 				&self,
 				para: ParaId,

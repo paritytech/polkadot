@@ -274,6 +274,18 @@ pub fn validation_code<T: initializer::Config>(
 	)
 }
 
+/// Implementation for the `validation_code_hash` function of the runtime API.
+pub fn validation_code_hash<T: initializer::Config>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<ValidationCode> {
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| <paras::Module<T>>::current_code_hash(&para_id),
+	)
+}
+
 /// Implementation for the `historical_validation_code` function of the runtime API.
 pub fn historical_validation_code<T: initializer::Config>(
 	para_id: ParaId,

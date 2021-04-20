@@ -885,9 +885,21 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		///
+		/// To fetch the hash of the code use [`Self::validation_code_hash`].
 		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>;
+
+		/// Fetch the hash of the validation code used by a para, making the given
+		/// `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		///
+		/// This is similar to [`Self::validation_code`] except it fetch the hash of the code.
+		#[skip_initialize_block]
+		fn validation_code_hash(para_id: Id, assumption: OccupiedCoreAssumption) -> Option<Hash>;
 
 		/// Fetch the historical validation code used by a para for candidates executed in the
 		/// context of a given block height in the current chain.

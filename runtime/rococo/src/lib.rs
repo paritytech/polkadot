@@ -983,6 +983,10 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
+		fn validation_code_hash(para_id: Id, assumption: OccupiedCoreAssumption) -> Option<Hash> {
+			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
 		fn historical_validation_code(para_id: Id, context_height: BlockNumber)
 			-> Option<ValidationCode>
 		{
