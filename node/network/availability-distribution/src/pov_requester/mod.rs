@@ -35,7 +35,8 @@ use polkadot_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::{Runtime, ValidatorInfo};
 
-use crate::error::{Error, log_error};
+use crate::error::{Fatal, NonFatal};
+use crate::LOG_TARGET;
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -99,7 +100,7 @@ impl PoVRequester {
 	{
 		let info = &runtime.get_session_info(ctx, parent).await?.session_info;
 		let authority_id = info.discovery_keys.get(from_validator.0 as usize)
-			.ok_or(Error::InvalidValidatorIndex)?
+			.ok_or(NonFatal::InvalidValidatorIndex)?
 			.clone();
 		let (req, pending_response) = OutgoingRequest::new(
 			Recipient::Authority(authority_id),
@@ -125,7 +126,8 @@ impl PoVRequester {
 			.with_relay_parent(parent);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
-			.map_err(|e| Error::SpawnTask(e))
+			.map_err(|e| Fatal::SpawnTask(e))?;
+		Ok(())
 	}
 }
 
@@ -136,10 +138,13 @@ async fn fetch_pov_job(
 	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 ) {
-	log_error(
-		do_fetch_pov(pov_hash, pending_response, span, tx).await,
-		"fetch_pov_job",
-	)
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx).await {
+		tracing::warn!(
+			target: LOG_TARGET,
+			?err,
+			"fetch_pov_job"
+		);
+	}
 }
 
 /// Do the actual work of waiting for the response.
@@ -149,19 +154,19 @@ async fn do_fetch_pov(
 	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 )
-	-> super::Result<()>
+	-> std::result::Result<(), NonFatal>
 {
-	let response = pending_response.await.map_err(Error::FetchPoV)?;
+	let response = pending_response.await.map_err(NonFatal::FetchPoV)?;
 	let pov = match response {
 		PoVFetchingResponse::PoV(pov) => pov,
 		PoVFetchingResponse::NoSuchPoV => {
-			return Err(Error::NoSuchPoV)
+			return Err(NonFatal::NoSuchPoV)
 		}
 	};
 	if pov.hash() == pov_hash {
-		tx.send(pov).map_err(|_| Error::SendResponse)
+		tx.send(pov).map_err(|_| NonFatal::SendResponse)
 	} else {
-		Err(Error::UnexpectedPoV)
+		Err(NonFatal::UnexpectedPoV)
 	}
 }
 

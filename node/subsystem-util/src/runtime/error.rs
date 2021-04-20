@@ -23,17 +23,36 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
 
-use crate::IsFatal;
+use crate::Err;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Errors for `Runtime` cache.
+pub type Error = Err<NonFatal, Fatal>;
+
+impl From<NonFatal> for Error {
+	fn from(e: NonFatal) -> Self {
+		Self::from_non_fatal(e)
+	}
+}
+
+impl From<Fatal> for Error {
+	fn from(f: Fatal) -> Self {
+		Self::from_fatal(f)
+	}
+}
+
+/// Fatal runtime errors.
+#[derive(Debug, Error)]
+pub enum Fatal {
+	/// Runtime API subsystem is down, which means we're shutting down.
+	#[error("Runtime request got canceled")]
+	RuntimeRequestCanceled(oneshot::Canceled),
+}
+
 /// Errors for fetching of runtime information.
 #[derive(Debug, Error)]
-pub enum Error {
-	/// Runtime API subsystem is down, which means we're shutting down.
-	#[error("Runtime request canceled")]
-	RuntimeRequestCanceled(oneshot::Canceled),
-
+pub enum NonFatal {
 	/// Some request to the runtime failed.
 	/// For example if we prune a block we're requesting info about.
 	#[error("Runtime API error")]
@@ -44,21 +63,12 @@ pub enum Error {
 	NoSuchSession(SessionIndex),
 }
 
-impl IsFatal for Error {
-	fn is_fatal(&self) -> bool {
-		match self {
-			Self::RuntimeRequestCanceled(_) => true,
-			Self::RuntimeRequest(_) => false,
-			Self::NoSuchSession(_) => false,
-		}
-	}
-}
-
 /// Receive a response from a runtime request and convert errors.
 pub(crate) async fn recv_runtime<V>(
 	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-) -> std::result::Result<V, Error> {
-	r.await
-		.map_err(Error::RuntimeRequestCanceled)?
-		.map_err(Error::RuntimeRequest)
+) -> Result<V> {
+	let result = r.await
+		.map_err(Fatal::RuntimeRequestCanceled)?
+		.map_err(NonFatal::RuntimeRequest)?;
+	Ok(result)
 }

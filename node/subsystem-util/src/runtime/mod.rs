@@ -33,7 +33,7 @@ use crate::{
 mod error;
 
 use error::{recv_runtime, Result};
-pub use error::Error;
+pub use error::{Error, NonFatal, Fatal};
 
 /// Caching of session info.
 ///
@@ -134,7 +134,7 @@ impl Runtime {
 			let session_info =
 				recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 					.await?
-					.ok_or(Error::NoSuchSession(session_index))?;
+					.ok_or(NonFatal::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;
 
 			let full_info = ExtendedSessionInfo {

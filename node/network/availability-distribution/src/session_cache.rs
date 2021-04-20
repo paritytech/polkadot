@@ -33,7 +33,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::SubsystemContext;
 
 use super::{
-	error::{recv_runtime, Error},
+	error::{recv_runtime, Error, NonFatal},
 	LOG_TARGET,
 };
 
@@ -189,9 +189,9 @@ impl SessionCache {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)
-			.ok_or(Error::NoSuchCachedSession)?
+			.ok_or(NonFatal::NoSuchCachedSession)?
 			.as_mut()
-			.ok_or(Error::NotAValidator)?;
+			.ok_or(NonFatal::NotAValidator)?;
 		let group = session
 			.validator_groups
 			.get_mut(report.group_index.0 as usize)
@@ -231,7 +231,7 @@ impl SessionCache {
 			..
 		} = recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 			.await?
-			.ok_or(Error::NoSuchSession(session_index))?;
+			.ok_or(NonFatal::NoSuchSession(session_index))?;
 
 		if let Some(our_index) = self.get_our_index(validators).await {
 			// Get our group index:

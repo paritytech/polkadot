@@ -6525,6 +6525,7 @@ dependencies = [
  "sp-keystore",
  "sp-staking",
  "sp-tracing",
+ "thiserror",
  "tracing",
 ]
 
