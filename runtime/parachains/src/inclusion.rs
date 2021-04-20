@@ -128,11 +128,11 @@ decl_storage! {
 			=> Option<AvailabilityBitfieldRecord<T::BlockNumber>>;
 
 		/// Candidates pending availability by `ParaId`.
-		PendingAvailability: map hasher(twox_64_concat) ParaId
+		PendingAvailability: map hasher(blake2_128_concat) ParaId
 			=> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
 
 		/// The commitments of candidates pending availability, by ParaId.
-		PendingAvailabilityCommitments: map hasher(twox_64_concat) ParaId
+		PendingAvailabilityCommitments: map hasher(blake2_128_concat) ParaId
 			=> Option<CandidateCommitments>;
 	}
 }

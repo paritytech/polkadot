@@ -258,23 +258,23 @@ decl_storage! {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
 		/// The current lifecycle of a all known Para IDs.
-		ParaLifecycles: map hasher(twox_64_concat) ParaId => Option<ParaLifecycle>;
+		ParaLifecycles: map hasher(blake2_128_concat) ParaId => Option<ParaLifecycle>;
 		/// The head-data of every registered para.
-		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
+		Heads get(fn para_head): map hasher(blake2_128_concat) ParaId => Option<HeadData>;
 		/// The validation code hash of every live para.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		CurrentCodeHash: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		CurrentCodeHash: map hasher(blake2_128_concat) ParaId => Option<Hash>;
 		/// Actual past code hash, indicated by the para id as well as the block number at which it
 		/// became outdated.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		PastCodeHash: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<Hash>;
+		PastCodeHash: map hasher(blake2_128_concat) (ParaId, T::BlockNumber) => Option<Hash>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to keep it available for secondary checkers.
 		PastCodeMeta get(fn past_code_meta):
-			map hasher(twox_64_concat) ParaId => ParaPastCodeMeta<T::BlockNumber>;
+			map hasher(blake2_128_concat) ParaId => ParaPastCodeMeta<T::BlockNumber>;
 		/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
 		/// Note that this is the actual height of the included block, not the expected height at which the
 		/// code upgrade would be applied, although they may be equal.
@@ -285,15 +285,15 @@ decl_storage! {
 		/// The block number at which the planned code change is expected for a para.
 		/// The change will be applied after the first parablock for this ID included which executes
 		/// in the context of a relay chain block with a number >= `expected_at`.
-		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
+		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(blake2_128_concat) ParaId => Option<T::BlockNumber>;
 		/// The actual future code hash of a para.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		FutureCodeHash: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		FutureCodeHash: map hasher(blake2_128_concat) ParaId => Option<Hash>;
 		/// The actions to perform during the start of a specific session index.
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
-		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
+		UpcomingParasGenesis: map hasher(blake2_128_concat) ParaId => Option<ParaGenesisArgs>;
 		/// The number of reference on the validation code in [`CodeByHash`] storage.
 		CodeByHashRefs: map hasher(identity) Hash => u32;
 		/// Validation code stored by its hash.
