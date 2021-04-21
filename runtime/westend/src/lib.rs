@@ -91,11 +91,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	// On westend we might deploy multiple runtimes without actually doing a
-	// client release. The first two digits reflect the minor version of the
-	// upcoming client software while the last two can be incremented multiple
-	// times as we go through different runtimes.
-	spec_version: 3100,
+	// NOTE: see https://github.com/paritytech/polkadot/wiki/Westend
+	spec_version: 51,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
