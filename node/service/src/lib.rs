@@ -927,7 +927,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
-	// We currently only run the BEEFY gadget on Rococo and the temporary Wococo testnet.
+	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
 	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
@@ -939,10 +939,12 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.clone()
 		);
 
-		if chain_spec.is_rococo() {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
-		} else {
+		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// bring the node down with it to make sure it is noticed.
+		if chain_spec.is_wococo() {
 			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		} else {
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
 		}
 	}
 
