@@ -715,7 +715,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if config.chain_spec.is_westend() || config.chain_spec.is_rococo() {
+	if config.chain_spec.is_rococo() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -921,28 +921,19 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
-	// We currently only run the BEEFY gadget on Rococo and Westend test
-	// networks. On Rococo we start the BEEFY gadget as a normal (non-essential)
-	// task for now, since BEEFY is still experimental and we don't want a
-	// failure to bring down the whole node. Westend test network is less used
-	// than Rococo and therefore a failure there will be less problematic, this
-	// will be the main testing target for BEEFY for now.
-	if chain_spec.is_westend() || chain_spec.is_rococo() {
+	// We currently only run the BEEFY gadget on Rococo.
+	if chain_spec.is_rococo() {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
 			keystore_container.sync_keystore(),
 			network.clone(),
 			beefy_link,
 			network.clone(),
-			if chain_spec.is_westend() { 4 } else { 8 },
+			8,
 			prometheus_registry.clone()
 		);
 
-		if chain_spec.is_westend() {
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
-		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
-		}
+		task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
