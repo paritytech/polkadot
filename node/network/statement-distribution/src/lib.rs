@@ -1310,10 +1310,7 @@ async fn handle_incoming_message<'a>(
 		metrics,
 	).await;
 
-	let statement = match statement {
-		None => return None,
-		Some(statement) => statement,
-	};
+	let statement = statement?;
 
 	match active_head.check_useful_or_unknown(statement.clone()) {
 		Ok(()) => {},

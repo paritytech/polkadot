@@ -188,10 +188,7 @@ impl<'a> Validators<'a> {
 		finalized_blocks: &[(HeaderId, Option<S::Submitter>)],
 	) -> Option<ChangeToEnact> {
 		// if we haven't finalized any blocks, no changes may be finalized
-		let newest_finalized_id = match finalized_blocks.last().map(|(id, _)| id) {
-			Some(last_finalized_id) => last_finalized_id,
-			None => return None,
-		};
+		let newest_finalized_id = finalized_blocks.last().map(|(id, _)| id)?;
 		let oldest_finalized_id = finalized_blocks
 			.first()
 			.map(|(id, _)| id)

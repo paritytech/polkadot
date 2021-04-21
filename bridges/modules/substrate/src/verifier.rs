@@ -330,10 +330,7 @@ where
 
 		let parent = storage.header_by_hash(*current_header.parent_hash());
 		ancestors.push(current_header);
-		current_header = match parent {
-			Some(h) => h,
-			None => return None,
-		}
+		current_header = parent?
 	}
 
 	Some(ancestors)
