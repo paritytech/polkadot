@@ -1,0 +1,17 @@
+[parity]
+chain = "./deployments/dev/poa-config/poa.json"
+keys_path = "./deployments/dev/poa-config/keys"
+no_persistent_txqueue = true
+
+[account]
+password = ["./deployments/dev/poa-config/pass"]
+
+[rpc]
+apis = ["all"]
+cors = ["moz-extension://*", "chrome-extension://*"]
+
+[mining]
+force_sealing = true
+
+[misc]
+unsafe_expose = true

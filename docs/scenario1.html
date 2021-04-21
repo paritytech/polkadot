@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width">
+		<title>Flow Chart of Millau to Rialto Transfer</title>
+	</head>
+	<body>
+		<h1>Scenario: <code>mDave</code> sending RLT to <code>rEve</code></h1>
+		<div class="mermaid">
+			sequenceDiagram
+			participant mDave
+			participant Millau
+			participant Bridge Relayer
+			participant Rialto
+			participant rEve
+			Rialto->>Rialto: Endow r(mDave) with RLT.
+			mDave->>Millau: send_message(transfer, 5 RLT, rEve)
+			Millau->>Millau: Locks fee &amp; reward for the relayer and queues the message.
+			rect rgb(205, 226, 244)
+				Bridge Relayer->>+Millau: What's your best header?
+				Millau-->>-Bridge Relayer: It's header 5.
+				Bridge Relayer->>+Rialto: What's the best Millau header you know about?
+				Rialto-->>-Bridge Relayer: I only know about 4.
+				Bridge Relayer->>Rialto: Cool, here is Millau header 5 [`submit_signed_header()`].
+				Bridge Relayer->>+Rialto: What's the best finalized Millau header you know about?
+				Rialto-->>-Bridge Relayer: I only know about 3.
+				Bridge Relayer->>+Millau: Do you have a finality proof for 4..5?
+				Millau-->>-Bridge Relayer: Yes I do, here it is.
+				Bridge Relayer->>Rialto: Here is the finality proof for 5 [`finalize_header()`].
+			end
+			rect rgb(218, 195, 244)
+				Bridge Relayer->>+Millau: Do you have any messages for me to deliver (at 5)?
+				Millau-->>-Bridge Relayer: Yes, here they are.
+				Bridge Relayer->>+Rialto: I have some new messages for you [`receive_messages_proof()`].
+				Rialto->>Rialto: Validate and Dispatch Message.
+				Rialto->>rEve: Transfer(5 RLT) from r(mDave).
+				Rialto-->>-Bridge Relayer: Event(Message Succesfully Dispatched).
+				Bridge Relayer->>Millau: I sent your message, can I get paid now [`receive_messages_delivery_proof`]?
+				Millau-->>Bridge Relayer: Yes, here you go $$$.
+				Bridge Relayer ->>Rialto: These messages are confirmed now, feel free to clean up.
+			end
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@8.8.4/dist/mermaid.min.js"></script>
+		<script>mermaid.initialize({startOnLoad: true})</script>
+	</body>
+</html>

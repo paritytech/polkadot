@@ -1,0 +1,15 @@
+notifiers:
+  - name: Matrix
+    type: webhook
+    uid: notifier1
+    is_default: true
+    send_reminder: true
+    frequency: 1h
+    disable_resolve_message: false
+    settings:
+      url: http://grafana-matrix-notifier:4567/hook?rule=bridge
+      http_method: POST
+
+delete_notifiers:
+  - name: Matrix
+    uid: notifier1
