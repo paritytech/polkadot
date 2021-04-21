@@ -112,6 +112,11 @@ pub fn rococo_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
+/// This is a temporary testnet that uses the same runtime as rococo.
+pub fn wococo_config() -> Result<PolkadotChainSpec, String> {
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
+}
+
 fn polkadot_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
