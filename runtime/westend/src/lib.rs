@@ -91,7 +91,11 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 51,
+	// On westend we might deploy multiple runtimes without actually doing a
+	// client release. The first two digits reflect the minor version of the
+	// upcoming client software while the last two can be incremented multiple
+	// times as we go through different runtimes.
+	spec_version: 3100,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -840,7 +844,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	UpgradeSessionKeys,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
