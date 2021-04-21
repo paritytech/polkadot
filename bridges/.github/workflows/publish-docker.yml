@@ -1,0 +1,93 @@
+name:                              Publish images to Docker hub
+
+on:
+  push:
+    tags:
+      - v*
+    paths-ignore:
+      - '**.md'
+      - diagrams/*
+      - docs/*
+  schedule:                        # Nightly build
+    - cron:                        '0 1 * * *'
+
+jobs:
+                                   ## Publish to Docker hub
+  publish:
+    name:                          Publishing
+    strategy:
+      matrix:
+        project:
+          - rialto-bridge-node
+          - millau-bridge-node
+          - ethereum-poa-relay
+          - substrate-relay
+        include:
+          - project: rialto-bridge-node
+            healthcheck: http://localhost:9933/health
+          - project: millau-bridge-node
+            healthcheck: http://localhost:9933/health
+          - project: ethereum-poa-relay
+            healthcheck: http://localhost:9616/metrics
+          - project: substrate-relay
+            healthcheck: http://localhost:9616/metrics
+
+    runs-on:                       ubuntu-latest
+    steps:
+
+      - name:                      Cancel Previous Runs
+        uses:                      styfle/cancel-workflow-action@0.4.1
+        with:
+          access_token:            ${{ github.token }}
+
+      - name:                      Checkout sources & submodules
+        uses:                      actions/checkout@v2
+        with:
+          fetch-depth:             5
+          submodules:              recursive
+
+      - name: Prepare
+        id: prep
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          elif [[ $GITHUB_REF == refs/heads/* ]]; then
+            VERSION=$(echo ${GITHUB_REF#refs/heads/} | sed -r 's#/+#-#g')
+          fi
+          TAGS="${VERSION} sha-${GITHUB_SHA::8} latest"
+          echo ::set-output name=TAGS::${VERSION}
+          echo ::set-output name=TAGS::${TAGS}
+          echo ::set-output name=DATE::$(date +%d-%m-%Y)
+
+      - name: Workaround rootless build
+        run: |
+          sudo apt-get install fuse-overlayfs
+          mkdir -vp ~/.config/containers
+          printf "[storage.options]\nmount_program=\"/usr/bin/fuse-overlayfs\"" > ~/.config/containers/storage.conf
+
+      - name:                                       Build image for ${{ matrix.project }}
+        uses:                                       redhat-actions/buildah-build@v2.2
+        with:
+          image:                                    ${{ matrix.project }}
+          tags:                                     ${{ steps.prep.outputs.TAGS }}
+          dockerfiles:                              ./Dockerfile
+          build-args: |
+            PROJECT=${{ matrix.project }}
+            HEALTH=${{ matrix.healthcheck }}
+            VCS_REF=sha-${GITHUB_SHA::8}
+            BUILD_DATE=${{ steps.prep.outputs.DATE }}
+            VERSION=${{ steps.prep.outputs.VERSION }}
+
+      - name:                                       Push ${{ matrix.project }} image to docker.io
+        id:                                         push-to-dockerhub
+        uses:                                       redhat-actions/push-to-registry@v2.1.1
+        with:
+          registry:                                 docker.io/paritytech
+          image:                                    ${{ matrix.project }}
+          tags:                                     ${{ steps.prep.outputs.TAGS }}
+          username:                                 ${{ secrets.DOCKER_USER }}
+          password:                                 ${{ secrets.DOCKER_PASSWORD }}
+
+      - name:                                       Check the image
+        run: |
+          echo "New image has been pushed to ${{ steps.push-to-dockerhub.outputs.registry-path }}"

@@ -1,0 +1,167 @@
+[
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "rawInitialHeader",
+				"type": "bytes"
+			},
+			{
+				"internalType": "uint64",
+				"name": "initialValidatorsSetId",
+				"type": "uint64"
+			},
+			{
+				"internalType": "bytes",
+				"name": "initialValidatorsSet",
+				"type": "bytes"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"stateMutability": "nonpayable",
+		"type": "fallback"
+	},
+	{
+		"inputs": [],
+		"name": "bestKnownHeader",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "",
+				"type": "bytes32"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "finalityTargetNumber",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "finalityTargetHash",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawFinalityProof",
+				"type": "bytes"
+			}
+		],
+		"name": "importFinalityProof",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "rawHeader1",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader2",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader3",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader4",
+				"type": "bytes"
+			}
+		],
+		"name": "importHeaders",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "incompleteHeaders",
+		"outputs": [
+			{
+				"internalType": "uint256[]",
+				"name": "",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "bytes32[]",
+				"name": "",
+				"type": "bytes32[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "rawHeader1",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader2",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader3",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes",
+				"name": "rawHeader4",
+				"type": "bytes"
+			}
+		],
+		"name": "isIncompleteHeaders",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "headerHash",
+				"type": "bytes32"
+			}
+		],
+		"name": "isKnownHeader",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
