@@ -162,9 +162,6 @@ pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Rococo` network.
 	fn is_rococo(&self) -> bool;
 
-	/// Returns if this is a configuration for the `Polkadot` network.
-	fn is_polkadot(&self) -> bool;
-
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
 }
@@ -178,9 +175,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 	fn is_rococo(&self) -> bool {
 		self.id().starts_with("rococo") || self.id().starts_with("rco")
-	}
-	fn is_polkadot(&self) -> bool {
-		self.id().starts_with("polkadot") || self.id().starts_with("dot")
 	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
@@ -714,6 +708,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let shared_voter_state = rpc_setup;
+	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
 	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
@@ -826,7 +821,11 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = sc_authority_discovery::new_worker_and_service(
+		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
+			sc_authority_discovery::WorkerConfig {
+				publish_non_global_ips: auth_disc_publish_non_global_ips,
+				..Default::default()
+			},
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
@@ -935,6 +934,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			network.clone(),
 			beefy_link,
 			network.clone(),
+			if chain_spec.is_westend() { 4 } else { 8 },
 			prometheus_registry.clone()
 		);
 
