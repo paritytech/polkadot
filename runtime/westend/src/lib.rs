@@ -91,6 +91,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
+	// NOTE: see https://github.com/paritytech/polkadot/wiki/Westend
 	spec_version: 51,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
@@ -840,7 +841,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	UpgradeSessionKeys,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
