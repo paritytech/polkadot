@@ -270,10 +270,10 @@ fn ethereum_deploy_contract_params(matches: &clap::ArgMatches) -> Result<Ethereu
 }
 
 fn ethereum_exchange_submit_params(matches: &clap::ArgMatches) -> Result<EthereumExchangeSubmitParams, String> {
-	let eth_nonce = matches.value_of("eth-nonce").map(|eth_nonce| { 
+	let eth_nonce = matches.value_of("eth-nonce").map(|eth_nonce|  
 			relay_ethereum_client::types::U256::from_dec_str(&eth_nonce)
 				.map_err(|e| format!("Failed to parse eth-nonce: {}", e))?,
-		 });
+		 );
 
 	let eth_amount = if let Some(eth_amount) = matches.value_of("eth-amount") {
 		eth_amount
