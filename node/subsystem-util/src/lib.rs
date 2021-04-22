@@ -177,6 +177,8 @@ specialize_requests! {
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<Hash>; ValidationCodeHash;
+	fn request_validation_code_by_hash(hash: Hash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;

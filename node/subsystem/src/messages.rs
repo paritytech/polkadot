@@ -45,7 +45,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, CandidateHash,
+	ValidationCode, ValidationCodeAndHash, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
 };
@@ -159,7 +159,7 @@ pub enum CandidateValidationMessage {
 	/// performed by the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		ValidationCode,
+		ValidationCodeAndHash,
 		CandidateDescriptor,
 		Arc<PoV>,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -472,6 +472,14 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
+	/// Get the validation code hash for a para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently
+	/// occupies a core.
+	ValidationCodeHash(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<Hash>>,
+	),
 	/// Fetch the historical validation code used by a para for candidates executed in the
 	/// context of a given block height in the current chain.
 	///
@@ -480,6 +488,11 @@ pub enum RuntimeApiRequest {
 	HistoricalValidationCode(
 		ParaId,
 		BlockNumber,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
+	/// Get the validation code of a para from its hash.
+	ValidationCodeByHash(
+		Hash,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index

@@ -62,6 +62,45 @@ impl ValidationCode {
 	}
 }
 
+/// Parachain validation code and its hash.
+///
+/// The hash is as resulting from [`ValidationCode::hash`].
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+pub struct ValidationCodeAndHash {
+	code: ValidationCode,
+	hash: Hash,
+}
+
+impl ValidationCodeAndHash {
+	/// Create from the code and hash.
+	pub fn new(code: ValidationCode, hash: Hash) -> Self {
+		Self {
+			hash,
+			code,
+		}
+	}
+
+	/// Create from code and compute the hash.
+	///
+	/// Depending on the size of the code the hash computation can be expensive.
+	pub fn compute_from_code(code: ValidationCode) -> Self {
+		Self {
+			hash: code.hash(),
+			code,
+		}
+	}
+
+	/// Get a reference to the validation code.
+	pub fn code(&self) -> &ValidationCode {
+		&self.code
+	}
+
+	/// Get a reference to the validation code hash.
+	pub fn hash(&self) -> &Hash {
+		&self.hash
+	}
+}
+
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.

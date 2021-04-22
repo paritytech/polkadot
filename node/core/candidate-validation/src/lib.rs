@@ -37,7 +37,7 @@ use polkadot_node_primitives::{
 	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
 };
 use polkadot_primitives::v1::{
-	ValidationCode, CandidateDescriptor, PersistedValidationData,
+	ValidationCodeAndHash, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
@@ -189,7 +189,8 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	Matches(PersistedValidationData, ValidationCode),
+	/// Contains \[persisted validation data, validation code, hash of validation code\].
+	Matches(PersistedValidationData, ValidationCodeAndHash),
 	DoesNotMatch,
 	BadRequest,
 }
@@ -223,26 +224,57 @@ async fn check_assumption_validation_data(
 
 	let persisted_validation_data_hash = validation_data.hash();
 
-	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
-		let (code_tx, code_rx) = oneshot::channel();
+	if descriptor.persisted_validation_data_hash != persisted_validation_data_hash {
+		return Ok(AssumptionCheckOutcome::DoesNotMatch)
+	}
+
+	let validation_code_hash = {
+		let (tx, rx) = oneshot::channel();
+		let validation_code_hash = runtime_api_request(
+			ctx,
+			descriptor.relay_parent,
+			RuntimeApiRequest::ValidationCodeHash(
+				descriptor.para_id,
+				assumption,
+				tx,
+			),
+			rx,
+		).await?;
+
+		match validation_code_hash {
+			Ok(None) | Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
+			Ok(Some(validation_code_hash)) => validation_code_hash,
+		}
+	};
+
+	let validation_code = {
+		let (tx, rx) = oneshot::channel();
 		let validation_code = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCode(
-				descriptor.para_id,
-				assumption,
-				code_tx,
+			RuntimeApiRequest::ValidationCodeByHash(
+				validation_code_hash,
+				tx,
 			),
-			code_rx,
+			rx,
 		).await?;
 
 		match validation_code {
-			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
-			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
+			Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
+			Ok(None) => {
+				tracing::error!(target: LOG_TARGET, "No validation code found from its hash");
+				return Ok(AssumptionCheckOutcome::BadRequest)
+			},
+			Ok(Some(validation_code)) => validation_code,
 		}
-	} else {
-		AssumptionCheckOutcome::DoesNotMatch
-	})
+	};
+	
+	let validation_code_and_hash = ValidationCodeAndHash::new(
+		validation_code,
+		validation_code_hash,
+	);
+
+	Ok(AssumptionCheckOutcome::Matches(validation_data, validation_code_and_hash))
 }
 
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
@@ -268,7 +300,7 @@ async fn find_assumed_validation_data(
 		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
 
 		match outcome {
-			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
+			AssumptionCheckOutcome::Matches(..) => return Ok(outcome),
 			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
 			AssumptionCheckOutcome::DoesNotMatch => continue,
 		}
@@ -289,10 +321,10 @@ async fn spawn_validate_from_chain_state(
 	pov: Arc<PoV>,
 	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	let (validation_data, validation_code) =
+	let (validation_data, validation_code_and_hash) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
-				(validation_data, validation_code)
+			AssumptionCheckOutcome::Matches(validation_data, validation_code_and_hash) => {
+				(validation_data, validation_code_and_hash)
 			}
 			AssumptionCheckOutcome::DoesNotMatch => {
 				// If neither the assumption of the occupied core having the para included or the assumption
@@ -308,7 +340,7 @@ async fn spawn_validate_from_chain_state(
 	let validation_result = validate_candidate_exhaustive(
 		validation_host,
 		validation_data,
-		validation_code,
+		validation_code_and_hash,
 		descriptor.clone(),
 		pov,
 		metrics,
@@ -348,7 +380,7 @@ async fn spawn_validate_from_chain_state(
 async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
-	validation_code: ValidationCode,
+	validation_code: ValidationCodeAndHash,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
@@ -359,13 +391,13 @@ async fn validate_candidate_exhaustive(
 		&descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
-		&validation_code,
+		validation_code.hash(),
 	) {
 		return Ok(Ok(ValidationResult::Invalid(e)));
 	}
 
 	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
-		&validation_code.0,
+		&validation_code.code().0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
 		Ok(code) => code,
@@ -470,15 +502,14 @@ impl ValidationBackend for &'_ mut ValidationHost {
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
-#[tracing::instrument(level = "trace", skip(pov, validation_code), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(pov), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,
 	pov: &PoV,
-	validation_code: &ValidationCode,
+	validation_code_hash: &Hash,
 ) -> Result<(), InvalidCandidate> {
 	let pov_hash = pov.hash();
-	let validation_code_hash = validation_code.hash();
 
 	let encoded_pov_size = pov.encoded_size();
 	if encoded_pov_size > max_pov_size as usize {
@@ -489,7 +520,7 @@ fn perform_basic_checks(
 		return Err(InvalidCandidate::PoVHashMismatch);
 	}
 
-	if validation_code_hash != candidate.validation_code_hash {
+	if *validation_code_hash != candidate.validation_code_hash {
 		return Err(InvalidCandidate::CodeHashMismatch);
 	}
 
@@ -594,7 +625,7 @@ impl metrics::Metrics for Metrics {
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers as test_helpers;
-	use polkadot_primitives::v1::{HeadData, UpwardMessage};
+	use polkadot_primitives::v1::{HeadData, UpwardMessage, ValidationCode};
 	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
@@ -617,7 +648,7 @@ mod tests {
 	#[test]
 	fn correctly_checks_included_assumption() {
 		let validation_data: PersistedValidationData = Default::default();
-		let validation_code: ValidationCode = vec![1, 2, 3].into();
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![1, 2, 3].into());
 
 		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
@@ -659,19 +690,35 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(validation_code.clone())));
+					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
 				}
 			);
 
-			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
-				assert_eq!(o, validation_data);
-				assert_eq!(v, validation_code);
-			});
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeByHash(h, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(h, *validation_code.hash());
+
+					let _ = tx.send(Ok(Some(validation_code.code().clone())));
+				}
+			);
+
+			assert_matches!(
+				check_result.await.unwrap(),
+				AssumptionCheckOutcome::Matches(o, v) => {
+					assert_eq!(o, validation_data);
+					assert_eq!(v, validation_code);
+				}
+			);
 		};
 
 		let test_fut = future::join(test_fut, check_fut);
@@ -681,7 +728,7 @@ mod tests {
 	#[test]
 	fn correctly_checks_timed_out_assumption() {
 		let validation_data: PersistedValidationData = Default::default();
-		let validation_code: ValidationCode = vec![1, 2, 3].into();
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![1, 2, 3].into());
 
 		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
@@ -723,19 +770,35 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(validation_code.clone())));
+					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
 				}
 			);
 
-			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
-				assert_eq!(o, validation_data);
-				assert_eq!(v, validation_code);
-			});
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeByHash(h, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(h, *validation_code.hash());
+
+					let _ = tx.send(Ok(Some(validation_code.code().clone())));
+				}
+			);
+
+			assert_matches!(
+				check_result.await.unwrap(),
+				AssumptionCheckOutcome::Matches(o, v) => {
+					assert_eq!(o, validation_data);
+					assert_eq!(v, validation_code);
+				}
+			);
 		};
 
 		let test_fut = future::join(test_fut, check_fut);
@@ -789,7 +852,7 @@ mod tests {
 	}
 
 	#[test]
-	fn check_is_bad_request_if_no_validation_code() {
+	fn check_is_bad_request_if_no_validation_code_hash() {
 		let validation_data: PersistedValidationData = Default::default();
 		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
@@ -831,7 +894,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -846,6 +909,83 @@ mod tests {
 		let test_fut = future::join(test_fut, check_fut);
 		executor::block_on(test_fut);
 	}
+
+	// NOTE: This situation should never happen as a validation code should be stored for the
+	// validation code hash.
+	#[test]
+	fn check_is_bad_request_if_no_validation_code() {
+		let validation_data: PersistedValidationData = Default::default();
+		let persisted_validation_data_hash = validation_data.hash();
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
+		candidate.para_id = para_id;
+		candidate.validation_code_hash = validation_code.hash().clone();
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			OccupiedCoreAssumption::TimedOut,
+		).remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::TimedOut,
+						tx
+					),
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Ok(Some(validation_data.clone())));
+				}
+			);
+
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
+				}
+			);
+
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCodeByHash(h, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(h, *validation_code.hash());
+
+					let _ = tx.send(Ok(None));
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
 
 	#[test]
 	fn check_does_not_match() {
@@ -921,19 +1061,19 @@ mod tests {
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 		let head_data = HeadData(vec![1, 1, 1]);
-		let validation_code = ValidationCode(vec![2; 16]);
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
 		descriptor.para_head = head_data.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let check = perform_basic_checks(
 			&descriptor,
 			validation_data.max_pov_size,
 			&pov,
-			&validation_code,
+			validation_code.hash(),
 		);
 		assert!(check.is_ok());
 
@@ -972,18 +1112,18 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
-		let validation_code = ValidationCode(vec![2; 16]);
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let check = perform_basic_checks(
 			&descriptor,
 			validation_data.max_pov_size,
 			&pov,
-			&validation_code,
+			validation_code.hash(),
 		);
 		assert!(check.is_ok());
 
@@ -1008,18 +1148,18 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
-		let validation_code = ValidationCode(vec![2; 16]);
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let check = perform_basic_checks(
 			&descriptor,
 			validation_data.max_pov_size,
 			&pov,
-			&validation_code,
+			validation_code.hash(),
 		);
 		assert!(check.is_ok());
 
@@ -1043,7 +1183,7 @@ mod tests {
 		let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
-		let validation_code = ValidationCode(vec![2; 16]);
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
@@ -1054,7 +1194,7 @@ mod tests {
 			&descriptor,
 			validation_data.max_pov_size,
 			&pov,
-			&validation_code,
+			validation_code.hash(),
 		);
 		assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
@@ -1085,13 +1225,14 @@ mod tests {
 			&raw_code,
 			VALIDATION_CODE_BOMB_LIMIT,
 		)
-			.map(ValidationCode)
+			.map(Into::into)
+			.map(ValidationCodeAndHash::compute_from_code)
 			.unwrap();
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
 		descriptor.para_head = head_data.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let validation_result = WasmValidationResult {
@@ -1127,13 +1268,14 @@ mod tests {
 			&raw_code,
 			VALIDATION_CODE_BOMB_LIMIT + 1,
 		)
-			.map(ValidationCode)
+			.map(Into::into)
+			.map(ValidationCodeAndHash::compute_from_code)
 			.unwrap();
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
 		descriptor.para_head = head_data.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let validation_result = WasmValidationResult {
@@ -1177,12 +1319,12 @@ mod tests {
 			.map(|raw| PoV { block_data: BlockData(raw) })
 			.unwrap();
 
-		let validation_code = ValidationCode(vec![2; 16]);
+		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov.hash();
 		descriptor.para_head = head_data.hash();
-		descriptor.validation_code_hash = validation_code.hash();
+		descriptor.validation_code_hash = validation_code.hash().clone();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		let validation_result = WasmValidationResult {
