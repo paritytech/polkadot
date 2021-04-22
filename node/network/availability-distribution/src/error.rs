@@ -23,30 +23,30 @@ use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::{Err, Error as UtilError, runtime, unwrap_non_fatal};
+use polkadot_node_subsystem_util::{PolkaErr, Error as UtilError, runtime, unwrap_non_fatal};
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
 use crate::LOG_TARGET;
 
 #[derive(Debug, Error)]
 #[error(transparent)]
-pub struct Error(pub Err<NonFatal, Fatal>);
+pub struct Error(pub PolkaErr<NonFatal, Fatal>);
 
 impl From<NonFatal> for Error {
 	fn from(e: NonFatal) -> Self {
-		Self(Err::from_non_fatal(e))
+		Self(PolkaErr::from_non_fatal(e))
 	}
 }
 
 impl From<Fatal> for Error {
 	fn from(f: Fatal) -> Self {
-		Self(Err::from_fatal(f))
+		Self(PolkaErr::from_fatal(f))
 	}
 }
 
 impl From<runtime::Error> for Error {
 	fn from(o: runtime::Error) -> Self {
-		Self(Err::from_other(o))
+		Self(PolkaErr::from_other(o))
 	}
 }
 

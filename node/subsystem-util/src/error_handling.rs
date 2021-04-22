@@ -44,42 +44,61 @@ use thiserror::Error;
 /// Usage pattern:
 ///
 /// ```
-/// # use thiserror::Error;
-/// # use polkadot_node_subsystem::errors::RuntimeApiError;
-/// # use polkadot_primitives::v1::SessionIndex;
-/// # use futures::channel::oneshot;
-/// # use polkadot_node_subsystem_util::Err;
-/// type Error = Err<NonFatal, Fatal>;
+/// use thiserror::Error;
+/// use polkadot_node_subsystem::errors::RuntimeApiError;
+/// use polkadot_primitives::v1::SessionIndex;
+/// use futures::channel::oneshot;
+/// use polkadot_node_subsystem_util::{PolkaErr, runtime};
 ///
+/// #[derive(Debug, Error)]
+/// #[error(transparent)]
+/// pub struct Error(pub PolkaErr<NonFatal, Fatal>);
+///
+/// pub type Result<T> = std::result::Result<T, Error>;
+/// pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
+/// pub type FatalResult<T> = std::result::Result<T, Fatal>;
+///
+/// // Make an error from a `NonFatal` one.
 /// impl From<NonFatal> for Error {
-///   	fn from(e: NonFatal) -> Self {
-///   		Self::from_non_fatal(e)
-///  	}
+/// 	fn from(e: NonFatal) -> Self {
+/// 		Self(PolkaErr::from_non_fatal(e))
+/// 	}
 /// }
-///
+/// 
+/// // Make an Error from a `Fatal` one.
 /// impl From<Fatal> for Error {
 /// 	fn from(f: Fatal) -> Self {
-/// 		Self::from_fatal(f)
+/// 		Self(PolkaErr::from_fatal(f))
+/// 	}
+/// }
+/// 
+/// // Easy conversion from sub error types from other modules:
+/// impl From<runtime::Error> for Error {
+/// 	fn from(o: runtime::Error) -> Self {
+/// 		Self(PolkaErr::from_other(o))
 /// 	}
 /// }
 ///
 /// #[derive(Debug, Error)]
 /// pub enum Fatal {
-///		/// Runtime API subsystem is down, which means we're shutting down.
-///		#[error("Runtime request got canceled - system is shutting down.")]
-///		RuntimeRequestCanceled(oneshot::Canceled),
+///		/// Really fatal stuff.
+///		#[error("Something fatal happened.")]
+///		SomeFatalError,
+///		/// Errors coming from runtime::Runtime.
+///		#[error("Error while accessing runtime information")]
+///		Runtime(#[from] #[source] runtime::Fatal),
 /// }
 ///
 /// #[derive(Debug, Error)]
 /// pub enum NonFatal {
-///		/// Some request to the runtime failed.
+///		/// Some non fatal error.
 ///		/// For example if we prune a block we're requesting info about.
-///		#[error("Runtime API error")]
-///		RuntimeRequest(RuntimeApiError),
-
-///		/// We tried fetching a session info which was not available.
-///		#[error("There was no session with the given index")]
-///		NoSuchSession(SessionIndex),
+///		#[error("Non fatal error happened.")]
+///		SomeNonFatalError,
+///
+///		/// Errors coming from runtime::Runtime.
+///		#[error("Error while accessing runtime information")]
+///		Runtime(#[from] #[source] runtime::NonFatal),
 /// }
 /// ```
 /// Then mostly use `Error` in functions, you may also use `NonFatal` and `Fatal` directly in
@@ -87,7 +106,7 @@ use thiserror::Error;
 /// can automatically converted into the above defined `Error`.
 /// ```
 #[derive(Debug, Error)]
-pub enum Err<E, F>
+pub enum PolkaErr<E, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + 'static, {
@@ -106,30 +125,30 @@ pub enum Err<E, F>
 /// Due to typesystem constraints we cannot implement the following methods as standard
 /// `From::from` implementations. So no auto conversions by default, a simple `Result::map_err` is
 /// not too bad though.
-impl<E, F> Err<E, F>
+impl<E, F> PolkaErr<E, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + 'static,
 {
-	/// Build an `Err` from compatible fatal error.
+	/// Build an `PolkaErr` from compatible fatal error.
 	pub fn from_fatal<F1: Into<F>>(f: F1) -> Self {
 		Self::Fatal(f.into())
 	}
 
-	/// Build an `Err` from compatible non fatal error.
+	/// Build an `PolkaErr` from compatible non fatal error.
 	pub fn from_non_fatal<E1: Into<E>>(e: E1) -> Self {
 		Self::Err(e.into())
 	}
 
-	/// Build an `Err` from a compatible other `Err`.
-	pub fn from_other<E1, F1>(e: Err<E1, F1>) -> Self
+	/// Build an `PolkaErr` from a compatible other `PolkaErr`.
+	pub fn from_other<E1, F1>(e: PolkaErr<E1, F1>) -> Self
 	where
 		E1: Into<E> + std::fmt::Debug + std::error::Error + 'static,
 		F1: Into<F> + std::fmt::Debug + std::error::Error + 'static,
 	{
 		match e {
-			Err::Fatal(f) => Self::from_fatal(f),
-			Err::Err(e) => Self::from_non_fatal(e),
+			PolkaErr::Fatal(f) => Self::from_fatal(f),
+			PolkaErr::Err(e) => Self::from_non_fatal(e),
 		}
 	}
 }
@@ -143,7 +162,7 @@ impl<E, F> Err<E, F>
 ///
 /// ```no_run
 /// # use thiserror::Error;
-/// # use polkadot_node_subsystem_util::{Err, unwrap_non_fatal};
+/// # use polkadot_node_subsystem_util::{PolkaErr, unwrap_non_fatal};
 /// # use polkadot_node_subsystem::SubsystemError;
 /// # #[derive(Error, Debug)]
 /// # enum Fatal {
@@ -151,7 +170,7 @@ impl<E, F> Err<E, F>
 /// # #[derive(Error, Debug)]
 /// # enum NonFatal {
 /// # }
-/// # fn computation() -> Result<(), Err<NonFatal, Fatal>> {
+/// # fn computation() -> Result<(), PolkaErr<NonFatal, Fatal>> {
 /// # 	panic!();
 /// # }
 /// #
@@ -169,14 +188,14 @@ impl<E, F> Err<E, F>
 /// }
 ///
 /// ```
-pub fn unwrap_non_fatal<E,F>(result: Result<(), Err<E,F>>) -> Result<Option<E>, F>
+pub fn unwrap_non_fatal<E,F>(result: Result<(), PolkaErr<E,F>>) -> Result<Option<E>, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + Send + Sync + 'static
 {
 	match result {
 		Ok(()) => Ok(None),
-		Err(Err::Fatal(f)) => Err(f),
-		Err(Err::Err(e)) => Ok(Some(e)),
+		Err(PolkaErr::Fatal(f)) => Err(f),
+		Err(PolkaErr::Err(e)) => Ok(Some(e)),
 	}
 }
