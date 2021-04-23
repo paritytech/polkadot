@@ -29,5 +29,5 @@ pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "ro
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 parity-scale-codec = { version = "2.0.0", default-features = false }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1-unprotected" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1-unprotected" }
