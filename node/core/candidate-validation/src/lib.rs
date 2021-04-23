@@ -986,7 +986,6 @@ mod tests {
 		executor::block_on(test_fut);
 	}
 
-
 	#[test]
 	fn check_does_not_match() {
 		let validation_data: PersistedValidationData = Default::default();
