@@ -47,6 +47,7 @@ pub mod time {
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
@@ -90,6 +91,16 @@ pub mod fee {
 			}]
 		}
 	}
+}
+
+/// Parachains-related.
+pub mod paras {
+	/// Maximum parachain code blob size.
+	pub const MAX_CODE_SIZE: u32 = 10 * 1024 * 1024;
+	/// Maximum parachain head size.
+	pub const MAX_HEAD_SIZE: u32 = 20 * 1024;
+	/// Maximum PoV size.
+	pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 }
 
 #[cfg(test)]

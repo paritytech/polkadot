@@ -783,7 +783,7 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const ParaDeposit: Balance = 20 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
 	pub const MaxCodeSize: u32 = 5 * 1024 * 1024; // 10 MB
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
@@ -815,13 +815,20 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const WestendLocation: MultiLocation = MultiLocation::Null;
-	pub const WestendNetwork: NetworkId = NetworkId::Polkadot;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub struct GetWestendNetworkId;
+
+impl frame_support::pallet_prelude::Get<NetworkId> for GetWestendNetworkId {
+	fn get() -> NetworkId {
+		NetworkId::Named(b"Westend".to_vec())
+	}
 }
 
 pub type LocationConverter = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<WestendNetwork, AccountId>,
+	AccountId32Aliases<GetWestendNetworkId, AccountId>,
 );
 
 pub type LocalAssetTransactor =
@@ -839,7 +846,7 @@ pub type LocalAssetTransactor =
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<WestendNetwork, Origin>,
+	SignedAccountId32AsNative<GetWestendNetworkId, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
@@ -976,8 +983,8 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 0,
 			hrmp_open_request_ttl: 2,
-			hrmp_sender_deposit: deposit(4, 128),
-			hrmp_recipient_deposit: deposit(4, 128),
+			hrmp_sender_deposit: deposit(1004, 100 * 1024),
+			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
 			hrmp_channel_max_capacity: 1000,
 			hrmp_channel_max_total_size: 100 * 1024,
 			hrmp_max_parachain_inbound_channels: 10,
@@ -987,8 +994,8 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			parathread_cores: 0,
 			parathread_retries: 0,
 			group_rotation_frequency: 1 * MINUTES,
-			chain_availability_period: 1 * MINUTES,
-			thread_availability_period: 1 * MINUTES,
+			chain_availability_period: MINUTES / 2,
+			thread_availability_period: MINUTES / 2,
 			scheduling_lookahead: 1,
 			max_validators_per_core: Some(5),
 			max_validators: Some(200),

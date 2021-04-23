@@ -103,7 +103,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*};
+use constants::{time::*, currency::*, fee::*, paras::*};
 
 // Weights used in the runtime.
 mod weights;
@@ -1029,9 +1029,9 @@ impl parachains_initializer::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 5 * DOLLARS;
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
+	pub const ParaDeposit: Balance = deposit(10, MAX_CODE_SIZE + MAX_HEAD_SIZE);
+	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
+	pub const MaxHeadSize: u32 = MAX_HEAD_SIZE;
 }
 
 impl paras_registrar::Config for Runtime {
@@ -1048,7 +1048,7 @@ impl paras_registrar::Config for Runtime {
 
 parameter_types! {
 	// 6 weeks
-	pub const LeasePeriod: BlockNumber = 6 * 7 * DAYS;
+	pub const LeasePeriod: BlockNumber = 6 * WEEKS;
 }
 
 impl slots::Config for Runtime {
@@ -1061,7 +1061,7 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const KusamaLocation: MultiLocation = MultiLocation::Null;
-	pub const KusamaNetwork: NetworkId = NetworkId::Polkadot;
+	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
@@ -1090,7 +1090,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 100_000;
+	pub const BaseXcmWeight: Weight = 1_000_000_000;
 	pub const KusamaFee: (MultiLocation, u128) = (KusamaLocation::get(), 1 * CENTS);
 }
 
@@ -1099,6 +1099,18 @@ parameter_types! {
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
 	xcm_sender::ChildParachainRouter<Runtime>,
+);
+
+pub struct All<T>(sp_std::marker::PhantomData<T>);
+impl<T: Ord> frame_support::traits::Contains<T> for All<T> {
+	fn contains(_: &T) -> bool { true }
+	fn sorted_members() -> Vec<T> { vec![] }
+}
+
+use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom};
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
 );
 
 pub struct XcmConfig;
@@ -1110,7 +1122,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = ();
+	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfConcreteFungible<KusamaFee>;
 	type ResponseHandler = ();
@@ -1227,14 +1239,14 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			hrmp_max_message_num_per_candidate: 10,
 			validation_upgrade_frequency: 1 * DAYS,
 			validation_upgrade_delay: EPOCH_DURATION_IN_BLOCKS,
-			max_pov_size: 5 * 1024 * 1024,
+			max_pov_size: MAX_POV_SIZE,
 			max_downward_message_size: 50 * 1024,
 			preferred_dispatchable_upward_messages_step_weight: 0,
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 0,
 			hrmp_open_request_ttl: 2,
-			hrmp_sender_deposit: deposit(4, 128),
-			hrmp_recipient_deposit: deposit(4, 128),
+			hrmp_sender_deposit: deposit(1004, 100 * 1024),
+			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
 			hrmp_channel_max_capacity: 1000,
 			hrmp_channel_max_total_size: 100 * 1024,
 			hrmp_max_parachain_inbound_channels: 10,
@@ -1254,9 +1266,9 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 1 * HOURS,
 			no_show_slots: 2,
-			n_delay_tranches: 40,
+			n_delay_tranches: 89,
 			zeroth_delay_tranche_width: 0,
-			needed_approvals: 15,
+			needed_approvals: 30,
 			relay_vrf_modulo_samples: 1,
 		};
 
