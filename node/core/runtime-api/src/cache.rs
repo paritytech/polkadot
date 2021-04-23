@@ -18,8 +18,8 @@ use polkadot_primitives::v1::{
 	BlockNumber, CandidateCommitments, CommittedCandidateReceipt, CandidateEvent,
 	CoreState, GroupRotationInfo, InboundDownwardMessage, InboundHrmpMessage, Hash,
 	PersistedValidationData, Id as ParaId, OccupiedCoreAssumption,
-	SessionIndex, SessionInfo, ValidationCode, ValidatorId, ValidatorIndex,
-	AuthorityDiscoveryId, ValidationCodeAndHash,
+	SessionIndex, SessionInfo, ValidationCodeAndHash, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId,
 };
 use sp_consensus_babe::Epoch;
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
@@ -39,7 +39,6 @@ const SESSION_INDEX_FOR_CHILD_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
 const VALIDATION_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
 const HISTORICAL_VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
-const VALIDATION_CODE_BY_HASH_CACHE_SIZE: usize = 10 * 1024 * 1024;
 const CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE: usize = 64 * 1024;
 const CANDIDATE_EVENTS_CACHE_SIZE: usize = 64 * 1024;
 const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
@@ -84,7 +83,6 @@ pub(crate) struct RequestResultCache {
 	validation_code: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), ResidentSizeOf<Option<ValidationCodeAndHash>>>,
 	validation_code_hash: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), ResidentSizeOf<Option<Hash>>>,
 	historical_validation_code: MemoryLruCache<(Hash, ParaId, BlockNumber), ResidentSizeOf<Option<ValidationCodeAndHash>>>,
-	validation_code_by_hash: MemoryLruCache<(Hash, Hash), ResidentSizeOf<Option<ValidationCode>>>,
 	candidate_pending_availability: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
 	session_info: MemoryLruCache<(Hash, SessionIndex), ResidentSizeOf<Option<SessionInfo>>>,
@@ -106,7 +104,6 @@ impl Default for RequestResultCache {
 			validation_code: MemoryLruCache::new(VALIDATION_CODE_CACHE_SIZE),
 			validation_code_hash: MemoryLruCache::new(VALIDATION_CODE_HASH_CACHE_SIZE),
 			historical_validation_code: MemoryLruCache::new(HISTORICAL_VALIDATION_CODE_CACHE_SIZE),
-			validation_code_by_hash: MemoryLruCache::new(VALIDATION_CODE_BY_HASH_CACHE_SIZE),
 			candidate_pending_availability: MemoryLruCache::new(CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE),
 			candidate_events: MemoryLruCache::new(CANDIDATE_EVENTS_CACHE_SIZE),
 			session_info: MemoryLruCache::new(SESSION_INFO_CACHE_SIZE),
@@ -198,14 +195,6 @@ impl RequestResultCache {
 		self.historical_validation_code.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn validation_code_by_hash(&mut self, key: (Hash, Hash)) -> Option<&Option<ValidationCode>> {
-		self.validation_code_by_hash.get(&key).map(|v| &v.0)
-	}
-
-	pub(crate) fn cache_validation_code_by_hash(&mut self, key: (Hash, Hash), value: Option<ValidationCode>) {
-		self.validation_code_by_hash.insert(key, ResidentSizeOf(value));
-	}
-
 	pub(crate) fn candidate_pending_availability(&mut self, key: (Hash, ParaId)) -> Option<&Option<CommittedCandidateReceipt>> {
 		self.candidate_pending_availability.get(&key).map(|v| &v.0)
 	}
@@ -266,7 +255,6 @@ pub(crate) enum RequestResult {
 	ValidationCode(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeAndHash>),
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<Hash>),
 	HistoricalValidationCode(Hash, ParaId, BlockNumber, Option<ValidationCodeAndHash>),
-	ValidationCodeByHash(Hash, Hash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),

@@ -911,13 +911,6 @@ sp_api::decl_runtime_apis! {
 		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCodeAndHash>;
 
-		/// Get the validation code from its hash.
-		///
-		/// The current code and future code of registered para is available. Past code of para is
-		/// available for a limited number of block.
-		#[skip_initialize_block]
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode>;
-
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
 		#[skip_initialize_block]
@@ -937,6 +930,10 @@ sp_api::decl_runtime_apis! {
 		/// messages in them are also included.
 		#[skip_initialize_block]
 		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
+
+		/// Get the validation code from its hash.
+		#[skip_initialize_block]
+		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode>;
 	}
 }
 
