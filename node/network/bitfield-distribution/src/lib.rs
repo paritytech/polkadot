@@ -508,7 +508,7 @@ where
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peerid, role) => {
+		NetworkBridgeEvent::PeerConnected(peerid, role, _) => {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?peerid,
@@ -1335,7 +1335,7 @@ mod test {
 				&mut ctx,
 				&mut state,
 				&Default::default(),
-				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
 			));
 
 			// make peer b interested

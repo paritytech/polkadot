@@ -28,9 +28,7 @@ mod error;
 pub use error::Error;
 use error::{Result, log_error};
 
-/// Runtime requests.
-mod runtime;
-use runtime::Runtime;
+use polkadot_node_subsystem_util::runtime::Runtime;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;

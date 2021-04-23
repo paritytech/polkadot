@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Convenient interface to the runtime.
+//! Convenient interface to runtime information.
 
 use lru::LruCache;
 
@@ -22,18 +22,20 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_node_subsystem_util::{
+use polkadot_primitives::v1::{GroupIndex, Hash, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
+use polkadot_node_subsystem::SubsystemContext;
+
+use crate::{
 	request_session_index_for_child, request_session_info,
 };
-use polkadot_primitives::v1::{GroupIndex, Hash, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
-use polkadot_subsystem::SubsystemContext;
 
-use super::{
-	error::recv_runtime,
-	Error,
-};
+/// Errors that can happen on runtime fetches.
+mod error;
 
-/// Caching of session info as needed by availability distribution.
+use error::{recv_runtime, Result};
+pub use error::Error;
+
+/// Caching of session info.
 ///
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
 pub struct Runtime {
@@ -72,8 +74,8 @@ impl Runtime {
 	/// Create a new `Runtime` for convenient runtime fetches.
 	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
 		Self {
-			// 5 relatively conservative, 1 to 2 should suffice:
-			session_index_cache: LruCache::new(5),
+			// Adjust, depending on how many forks we want to support.
+			session_index_cache: LruCache::new(10),
 			// We need to cache the current and the last session the most:
 			session_info_cache: LruCache::new(2),
 			keystore,
@@ -85,7 +87,7 @@ impl Runtime {
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
-	) -> Result<SessionIndex, Error>
+	) -> Result<SessionIndex>
 	where
 		Context: SubsystemContext,
 	{
@@ -106,7 +108,7 @@ impl Runtime {
 		&'a mut self,
 		ctx: &mut Context,
 		parent: Hash,
-	) -> Result<&'a ExtendedSessionInfo, Error>
+	) -> Result<&'a ExtendedSessionInfo>
 	where
 		Context: SubsystemContext,
 	{
@@ -124,7 +126,7 @@ impl Runtime {
 		ctx: &mut Context,
 		parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<&'a ExtendedSessionInfo, Error>
+	) -> Result<&'a ExtendedSessionInfo>
 	where
 		Context: SubsystemContext,
 	{
@@ -155,7 +157,7 @@ impl Runtime {
 	async fn get_validator_info(
 		&self,
 		session_info: &SessionInfo,
-	) -> Result<ValidatorInfo, Error>
+	) -> Result<ValidatorInfo>
 	{
 		if let Some(our_index) = self.get_our_index(&session_info.validators).await {
 			// Get our group index:
