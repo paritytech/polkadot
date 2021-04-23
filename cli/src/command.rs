@@ -91,6 +91,7 @@ impl SubstrateCli for Cli {
 			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			"wococo" => Box::new(service::chain_spec::wococo_config()?),
+			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -141,7 +142,7 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 }
 
 const DEV_ONLY_ERROR_PATTERN: &'static str =
-	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev], got ";
+	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev, wococo-dev], got ";
 
 fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
 	if spec.is_dev() {
