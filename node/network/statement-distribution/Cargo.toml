@@ -9,13 +9,15 @@ edition = "2018"
 futures = "0.3.12"
 tracing = "0.1.25"
 polkadot-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
 indexmap = "1.6.1"
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
@@ -24,4 +26,6 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+futures-timer = "3.0.2"

@@ -18,12 +18,15 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::request_response::request::RequestError;
+use polkadot_primitives::v1::SessionIndex;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::v1::SessionIndex;
+use polkadot_node_subsystem_util::{
+	runtime,
+	Error as UtilError,
+};
 use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
 
 use crate::LOG_TARGET;
@@ -74,10 +77,6 @@ pub enum Error {
 	#[error("Runtime API error")]
 	RuntimeRequest(RuntimeApiError),
 
-	/// We tried fetching a session info which was not available.
-	#[error("There was no session with the given index")]
-	NoSuchSession(SessionIndex),
-
 	/// Fetching PoV failed with `RequestError`.
 	#[error("FetchPoV request error")]
 	FetchPoV(#[source] RequestError),
@@ -92,9 +91,23 @@ pub enum Error {
 	/// No validator with the index could be found in current session.
 	#[error("Given validator index could not be found")]
 	InvalidValidatorIndex,
+
+	/// We tried fetching a session info which was not available.
+	#[error("There was no session with the given index")]
+	NoSuchSession(SessionIndex),
+
+	/// Errors coming from runtime::Runtime.
+	#[error("Error while accessing runtime information")]
+	Runtime(#[source] runtime::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<runtime::Error> for Error {
+	fn from(err: runtime::Error) -> Self {
+		Self::Runtime(err)
+	}
+}
 
 impl From<SubsystemError> for Error {
 	fn from(err: SubsystemError) -> Self {

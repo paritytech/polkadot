@@ -162,7 +162,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub storage ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -563,8 +563,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
 /// The payload being signed in transactions.

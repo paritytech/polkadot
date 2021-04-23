@@ -31,10 +31,10 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	mmr as mmr_common,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
-	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight, OffchainSolutionWeightLimit,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
+	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 use sp_runtime::{
@@ -42,7 +42,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
@@ -172,7 +172,7 @@ impl pallet_scheduler::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub const ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
@@ -267,18 +267,6 @@ parameter_types! {
 	pub const Offset: BlockNumber = 0;
 }
 
-// TODO [ToDr] Remove while BEEFY runtime upgrade is done.
-impl_opaque_keys! {
-	pub struct OldSessionKeys {
-		pub grandpa: Grandpa,
-		pub babe: Babe,
-		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
-		pub authority_discovery: AuthorityDiscovery,
-	}
-}
-
 impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
@@ -287,28 +275,6 @@ impl_opaque_keys! {
 		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
 		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
-		pub beefy: Beefy,
-	}
-}
-
-fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
-	SessionKeys {
-		grandpa: old.grandpa,
-		babe: old.babe,
-		im_online: old.im_online,
-		para_validator: old.para_validator,
-		para_assignment: old.para_assignment,
-		authority_discovery: old.authority_discovery,
-		beefy: runtime_common::dummy_beefy_id_from_account_id(v),
-	}
-}
-
-// When this is removed, should also remove `OldSessionKeys`.
-pub struct UpgradeSessionKeys;
-impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
-		Perbill::from_percent(50) * BlockWeights::get().max_block
 	}
 }
 
@@ -337,7 +303,7 @@ impl pallet_session::historical::Config for Runtime {
 parameter_types! {
 	// no signed phase for now, just unsigned.
 	pub const SignedPhase: u32 = 0;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
@@ -365,7 +331,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
+	type MinerMaxWeight = OffchainSolutionWeightLimit;
+	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
@@ -603,7 +570,7 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+	pub const MinVestedTransfer: Balance = 1 * DOLLARS;
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -617,24 +584,6 @@ impl pallet_vesting::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
-}
-
-impl pallet_beefy::Config for Runtime {
-	type AuthorityId = BeefyId;
-}
-
-impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
-	type Hashing = Keccak256;
-	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
-	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
-	type WeightInfo = ();
-	type LeafData = mmr_common::Pallet<Runtime>;
-}
-
-impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
-	type ParachainHeads = ();
 }
 
 parameter_types! {
@@ -795,26 +744,12 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
-
-		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage} = 28,
-		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
-		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
 	}
 }
 
 impl pallet_babe::migrations::BabePalletPrefix for Runtime {
 	fn pallet_prefix() -> &'static str {
 		"Babe"
-	}
-}
-
-pub struct BabeEpochConfigMigrations;
-impl frame_support::traits::OnRuntimeUpgrade for BabeEpochConfigMigrations {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_babe::migrations::add_epoch_configuration::<Runtime>(
-			BABE_GENESIS_EPOCH_CONFIG,
-		)
 	}
 }
 
@@ -840,8 +775,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -849,7 +782,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(BabeEpochConfigMigrations, UpgradeSessionKeys),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -984,40 +917,33 @@ sp_api::impl_runtime_apis! {
 
 	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
-			Beefy::validator_set()
+			// dummy implementation due to lack of BEEFY pallet.
+			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
 		}
 	}
 
 	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
-		fn generate_proof(leaf_index: u64)
+		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			Mmr::generate_proof(leaf_index)
-				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::GenerateProof)
 		}
 
-		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
+		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			pub type Leaf = <
-				<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider
-			>::LeafData;
-
-			let leaf: Leaf = leaf
-				.into_opaque_leaf()
-				.try_decode()
-				.ok_or(mmr::Error::Verify)?;
-			Mmr::verify_leaf(leaf, proof)
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
 		}
 
 		fn verify_proof_stateless(
-			root: Hash,
-			leaf: mmr::EncodableOpaqueLeaf,
-			proof: mmr::Proof<Hash>
+			_root: Hash,
+			_leaf: mmr::EncodableOpaqueLeaf,
+			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
-			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
 		}
 	}
 

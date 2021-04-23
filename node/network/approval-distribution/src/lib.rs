@@ -191,7 +191,7 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -442,20 +442,15 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
+		let lucky = util::gen_ratio_sqrt_subset(self.peer_views.len(), util::MIN_GOSSIP_PEERS);
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
+			?lucky,
 			"Peer view change",
 		);
-		Self::unify_with_peer(
-			ctx,
-			metrics,
-			&mut self.blocks,
-			peer_id.clone(),
-			view.clone(),
-		).await;
 		let finalized_number = view.finalized_number;
-		let old_view = self.peer_views.insert(peer_id.clone(), view);
+		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -465,7 +460,7 @@ impl State {
 		// but we need to make sure the range is not empty, otherwise it will panic
 		// it shouldn't be, we make sure of this in the network bridge
 		let range = old_finalized_number..=finalized_number;
-		if !range.is_empty() {
+		if !range.is_empty() && !blocks.is_empty() {
 			self.blocks_by_number
 			.range(range)
 			.map(|(_number, hashes)| hashes)
@@ -476,6 +471,18 @@ impl State {
 				}
 			});
 		}
+
+		if !lucky {
+			return;
+		}
+
+		Self::unify_with_peer(
+			ctx,
+			metrics,
+			&mut self.blocks,
+			peer_id.clone(),
+			view,
+		).await;
 	}
 
 	fn handle_block_finalized(
