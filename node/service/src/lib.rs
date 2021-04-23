@@ -807,7 +807,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link, _beefy_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_link) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
