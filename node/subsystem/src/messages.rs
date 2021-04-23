@@ -470,7 +470,7 @@ pub enum RuntimeApiRequest {
 	ValidationCode(
 		ParaId,
 		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationCode>>,
+		RuntimeApiSender<Option<ValidationCodeAndHash>>,
 	),
 	/// Get the validation code hash for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
@@ -488,7 +488,7 @@ pub enum RuntimeApiRequest {
 	HistoricalValidationCode(
 		ParaId,
 		BlockNumber,
-		RuntimeApiSender<Option<ValidationCode>>,
+		RuntimeApiSender<Option<ValidationCodeAndHash>>,
 	),
 	/// Get the validation code of a para from its hash.
 	ValidationCodeByHash(

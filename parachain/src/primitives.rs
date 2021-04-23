@@ -65,7 +65,8 @@ impl ValidationCode {
 /// Parachain validation code and its hash.
 ///
 /// The hash is as resulting from [`ValidationCode::hash`].
-#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCodeAndHash {
 	code: ValidationCode,
 	hash: Hash,
@@ -98,6 +99,28 @@ impl ValidationCodeAndHash {
 	/// Get a reference to the validation code hash.
 	pub fn hash(&self) -> &Hash {
 		&self.hash
+	}
+
+	/// Convert into validation code and the hash
+	pub fn into_parts(self) -> (ValidationCode, Hash) {
+		(self.code, self.hash)
+	}
+
+	/// Convert into validation code
+	pub fn into_code(self) -> ValidationCode {
+		self.code
+	}
+}
+
+impl From<ValidationCodeAndHash> for ValidationCode {
+	fn from(x: ValidationCodeAndHash) -> Self {
+		x.into_code()
+	}
+}
+
+impl Default for ValidationCodeAndHash {
+	fn default() -> Self {
+		Self::compute_from_code(Default::default())
 	}
 }
 

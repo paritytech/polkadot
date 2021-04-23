@@ -890,7 +890,7 @@ sp_api::decl_runtime_apis! {
 		/// To fetch the hash of the code use [`Self::validation_code_hash`].
 		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode>;
+			-> Option<ValidationCodeAndHash>;
 
 		/// Fetch the hash of the validation code used by a para, making the given
 		/// `OccupiedCoreAssumption`.
@@ -909,7 +909,7 @@ sp_api::decl_runtime_apis! {
 		/// state the runtime API is executed.
 		#[skip_initialize_block]
 		fn historical_validation_code(para_id: Id, context_height: N)
-			-> Option<ValidationCode>;
+			-> Option<ValidationCodeAndHash>;
 
 		/// Get the validation code from its hash.
 		///

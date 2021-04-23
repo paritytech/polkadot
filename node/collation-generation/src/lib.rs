@@ -528,6 +528,7 @@ mod tests {
 		};
 		use polkadot_primitives::v1::{
 			CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
+			ValidationCodeAndHash,
 		};
 		use std::pin::Pin;
 
@@ -775,7 +776,9 @@ mod tests {
 								tx,
 							),
 						))) => {
-							tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
+							let code = vec![1, 3, 3].into();
+							let code = ValidationCodeAndHash::compute_from_code(code);
+							tx.send(Ok(Some(code))).unwrap();
 						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)

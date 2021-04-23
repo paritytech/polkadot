@@ -29,7 +29,7 @@ use primitives::v1::{
 	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
-	SessionInfo as SessionInfoData,
+	SessionInfo as SessionInfoData, ValidationCodeAndHash,
 };
 use runtime_common::{
 	mmr as mmr_common,
@@ -979,7 +979,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode> {
+			-> Option<ValidationCodeAndHash> {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
@@ -988,7 +988,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn historical_validation_code(para_id: Id, context_height: BlockNumber)
-			-> Option<ValidationCode>
+			-> Option<ValidationCodeAndHash>
 		{
 			runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
 		}

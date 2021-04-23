@@ -437,6 +437,7 @@ mod tests {
 		Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 		BlockNumber, InboundHrmpMessage, SessionInfo, AuthorityDiscoveryId,
+		ValidationCodeAndHash
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -529,8 +530,9 @@ mod tests {
 				&self,
 				para: ParaId,
 				_assumption: OccupiedCoreAssumption,
-			) -> Option<ValidationCode> {
-				self.validation_code.get(&para).map(|c| c.clone())
+			) -> Option<ValidationCodeAndHash> {
+				self.validation_code.get(&para)
+					.map(|c| ValidationCodeAndHash::compute_from_code(c.clone()))
 			}
 
 			fn validation_code_hash(
@@ -545,12 +547,12 @@ mod tests {
 				&self,
 				para: ParaId,
 				at: BlockNumber,
-			) -> Option<ValidationCode> {
+			) -> Option<ValidationCodeAndHash> {
 				self.historical_validation_code.get(&para).and_then(|h_code| {
 					h_code.iter()
 						.take_while(|(changed_at, _)| changed_at <= &at)
 						.last()
-						.map(|(_, code)| code.clone())
+						.map(|(_, code)| ValidationCodeAndHash::compute_from_code(code.clone()))
 				})
 			}
 
@@ -1228,7 +1230,10 @@ mod tests {
 					)
 				}).await;
 
-				assert_eq!(rx.await.unwrap().unwrap(), Some(ValidationCode::from(vec![1, 2, 3])));
+				assert_eq!(
+					rx.await.unwrap().unwrap(),
+					Some(ValidationCodeAndHash::compute_from_code(vec![1, 2, 3].into()))
+				);
 			}
 
 			{
@@ -1240,7 +1245,10 @@ mod tests {
 					)
 				}).await;
 
-				assert_eq!(rx.await.unwrap().unwrap(), Some(ValidationCode::from(vec![4, 5, 6])));
+				assert_eq!(
+					rx.await.unwrap().unwrap(),
+					Some(ValidationCodeAndHash::compute_from_code(vec![4, 5, 6].into()))
+				);
 			}
 
 			{

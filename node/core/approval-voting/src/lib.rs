@@ -37,7 +37,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
+	ValidationCodeAndHash, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex,
 };
 use polkadot_node_primitives::{ValidationResult, PoV};
@@ -302,7 +302,7 @@ enum BackgroundRequest {
 	ApprovalVote(ApprovalVoteRequest),
 	CandidateValidation(
 		PersistedValidationData,
-		ValidationCode,
+		ValidationCodeAndHash,
 		CandidateDescriptor,
 		Arc<PoV>,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,

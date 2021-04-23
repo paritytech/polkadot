@@ -189,7 +189,6 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	/// Contains \[persisted validation data, validation code, hash of validation code\].
 	Matches(PersistedValidationData, ValidationCodeAndHash),
 	DoesNotMatch,
 	BadRequest,
@@ -224,57 +223,26 @@ async fn check_assumption_validation_data(
 
 	let persisted_validation_data_hash = validation_data.hash();
 
-	if descriptor.persisted_validation_data_hash != persisted_validation_data_hash {
-		return Ok(AssumptionCheckOutcome::DoesNotMatch)
-	}
-
-	let validation_code_hash = {
-		let (tx, rx) = oneshot::channel();
-		let validation_code_hash = runtime_api_request(
-			ctx,
-			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCodeHash(
-				descriptor.para_id,
-				assumption,
-				tx,
-			),
-			rx,
-		).await?;
-
-		match validation_code_hash {
-			Ok(None) | Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
-			Ok(Some(validation_code_hash)) => validation_code_hash,
-		}
-	};
-
-	let validation_code = {
-		let (tx, rx) = oneshot::channel();
+	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
+		let (code_tx, code_rx) = oneshot::channel();
 		let validation_code = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCodeByHash(
-				validation_code_hash,
-				tx,
+			RuntimeApiRequest::ValidationCode(
+				descriptor.para_id,
+				assumption,
+				code_tx,
 			),
-			rx,
+			code_rx,
 		).await?;
 
 		match validation_code {
-			Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
-			Ok(None) => {
-				tracing::error!(target: LOG_TARGET, "No validation code found from its hash");
-				return Ok(AssumptionCheckOutcome::BadRequest)
-			},
-			Ok(Some(validation_code)) => validation_code,
+			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
+			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
 		}
-	};
-	
-	let validation_code_and_hash = ValidationCodeAndHash::new(
-		validation_code,
-		validation_code_hash,
-	);
-
-	Ok(AssumptionCheckOutcome::Matches(validation_data, validation_code_and_hash))
+	} else {
+		AssumptionCheckOutcome::DoesNotMatch
+	})
 }
 
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
@@ -690,25 +658,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
-				}
-			);
-
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					rp,
-					RuntimeApiRequest::ValidationCodeByHash(h, tx)
-				)) => {
-					assert_eq!(rp, relay_parent);
-					assert_eq!(h, *validation_code.hash());
-
-					let _ = tx.send(Ok(Some(validation_code.code().clone())));
+					let _ = tx.send(Ok(Some(validation_code.clone())));
 				}
 			);
 
@@ -770,25 +725,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
-				}
-			);
-
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					rp,
-					RuntimeApiRequest::ValidationCodeByHash(h, tx)
-				)) => {
-					assert_eq!(rp, relay_parent);
-					assert_eq!(h, *validation_code.hash());
-
-					let _ = tx.send(Ok(Some(validation_code.code().clone())));
+					let _ = tx.send(Ok(Some(validation_code.clone())));
 				}
 			);
 
@@ -852,67 +794,6 @@ mod tests {
 	}
 
 	#[test]
-	fn check_is_bad_request_if_no_validation_code_hash() {
-		let validation_data: PersistedValidationData = Default::default();
-		let persisted_validation_data_hash = validation_data.hash();
-		let relay_parent = [2; 32].into();
-		let para_id = 5.into();
-
-		let mut candidate = CandidateDescriptor::default();
-		candidate.relay_parent = relay_parent;
-		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-		candidate.para_id = para_id;
-
-		let pool = TaskExecutor::new();
-		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
-
-		let (check_fut, check_result) = check_assumption_validation_data(
-			&mut ctx,
-			&candidate,
-			OccupiedCoreAssumption::TimedOut,
-		).remote_handle();
-
-		let test_fut = async move {
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					rp,
-					RuntimeApiRequest::PersistedValidationData(
-						p,
-						OccupiedCoreAssumption::TimedOut,
-						tx
-					),
-				)) => {
-					assert_eq!(rp, relay_parent);
-					assert_eq!(p, para_id);
-
-					let _ = tx.send(Ok(Some(validation_data.clone())));
-				}
-			);
-
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					rp,
-					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
-				)) => {
-					assert_eq!(rp, relay_parent);
-					assert_eq!(p, para_id);
-
-					let _ = tx.send(Ok(None));
-				}
-			);
-
-			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
-		};
-
-		let test_fut = future::join(test_fut, check_fut);
-		executor::block_on(test_fut);
-	}
-
-	// NOTE: This situation should never happen as a validation code should be stored for the
-	// validation code hash.
-	#[test]
 	fn check_is_bad_request_if_no_validation_code() {
 		let validation_data: PersistedValidationData = Default::default();
 		let persisted_validation_data_hash = validation_data.hash();
@@ -957,23 +838,10 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCodeHash(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
-
-					let _ = tx.send(Ok(Some(validation_code.hash().clone())));
-				}
-			);
-
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					rp,
-					RuntimeApiRequest::ValidationCodeByHash(h, tx)
-				)) => {
-					assert_eq!(rp, relay_parent);
-					assert_eq!(h, *validation_code.hash());
 
 					let _ = tx.send(Ok(None));
 				}

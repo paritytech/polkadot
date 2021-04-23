@@ -25,7 +25,7 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
+	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash, ValidationCodeAndHash,
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -266,7 +266,7 @@ pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discover
 pub fn validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<ValidationCode> {
+) -> Option<ValidationCodeAndHash> {
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
@@ -290,7 +290,7 @@ pub fn validation_code_hash<T: initializer::Config>(
 pub fn historical_validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	context_height: T::BlockNumber,
-) -> Option<ValidationCode> {
+) -> Option<ValidationCodeAndHash> {
 	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
 }
 

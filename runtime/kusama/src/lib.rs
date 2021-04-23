@@ -29,7 +29,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	InboundDownwardMessage, InboundHrmpMessage, SessionInfo, ValidationCodeAndHash,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
@@ -1168,7 +1168,7 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
+		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCodeAndHash> {
 			None
 		}
 
@@ -1176,7 +1176,7 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
+		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCodeAndHash> {
 			None
 		}
 

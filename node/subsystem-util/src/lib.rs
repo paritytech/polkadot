@@ -39,7 +39,7 @@ use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId, GroupIndex,
+	AuthorityDiscoveryId, GroupIndex, ValidationCodeAndHash,
 };
 use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
@@ -176,7 +176,7 @@ specialize_requests! {
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
-	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCodeAndHash>; ValidationCode;
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<Hash>; ValidationCodeHash;
 	fn request_validation_code_by_hash(hash: Hash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
