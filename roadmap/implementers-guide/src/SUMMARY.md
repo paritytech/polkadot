@@ -29,6 +29,8 @@
   - [Persisted Validation Data](runtime-api/persisted-validation-data.md)
   - [Session Index](runtime-api/session-index.md)
   - [Validation Code](runtime-api/validation-code.md)
+  - [Validation Code Hash](runtime-api/validation-code-hash.md)
+  - [Validation Code By Hash](runtime-api/validation-code-by-hash.md)
   - [Candidate Pending Availability](runtime-api/candidate-pending-availability.md)
   - [Candidate Events](runtime-api/candidate-events.md)
   - [Disputes Info](runtime-api/disputes-info.md)
