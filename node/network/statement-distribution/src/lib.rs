@@ -2807,14 +2807,11 @@ mod tests {
 		let peer_b = PeerId::random(); // Bob
 		let peer_c = PeerId::random(); // Charlie
 		let peer_bad = PeerId::random(); // No validator
-		let peer_other_group = PeerId::random(); //Dave
 
 		let validators = vec![
 			Sr25519Keyring::Alice.pair(),
 			Sr25519Keyring::Bob.pair(),
 			Sr25519Keyring::Charlie.pair(),
-			// other group
-			Sr25519Keyring::Dave.pair(),
 			// We:
 			Sr25519Keyring::Ferdie.pair(),
 		];
@@ -2907,15 +2904,6 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None)
 				)
 			}).await;
-			handle.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(
-						peer_other_group.clone(),
-						ObservedRole::Full,
-						Some(Sr25519Keyring::Dave.public().into())
-					)
-				)
-			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
@@ -2936,11 +2924,6 @@ mod tests {
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a])
-				)
-			}).await;
-			handle.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a])
 				)
 			}).await;
 
@@ -3189,7 +3172,7 @@ mod tests {
 						"Recipients received"
 					);
 					recipients.sort();
-					let mut expected = vec![peer_b, peer_c, peer_other_group, peer_bad];
+					let mut expected = vec![peer_b, peer_c, peer_bad];
 					expected.sort();
 					assert_eq!(recipients, expected);
 					assert_eq!(meta.relay_parent, hash_a);
