@@ -1600,7 +1600,7 @@ impl StatementDistribution {
 						result.ok_or(Fatal::ResponderReceiverFinished)?
 					)
 					.await;
-					log_error(result, "handle_responder_message")?;
+					log_error(result.map_err(From::from), "handle_responder_message")?;
 				}
 			};
 		}
@@ -1613,7 +1613,7 @@ impl StatementDistribution {
 		peers: &HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		message: ResponderMessage,
-	) -> Result<()> {
+	) -> NonFatalResult<()> {
 		match message {
 			ResponderMessage::GetData {
 				requesting_peer,
@@ -1628,7 +1628,7 @@ impl StatementDistribution {
 					&candidate_hash
 				) {
 					return Err(
-						From::from(NonFatal::RequestedUnannouncedCandidate(requesting_peer, candidate_hash))
+						NonFatal::RequestedUnannouncedCandidate(requesting_peer, candidate_hash)
 					)
 				}
 
@@ -1640,7 +1640,7 @@ impl StatementDistribution {
 					Some(LargeStatementStatus::Fetched(committed)) => committed.clone(),
 					_ => {
 						return Err(
-							From::from(NonFatal::NoSuchFetchedLargeStatement(relay_parent, candidate_hash))
+							NonFatal::NoSuchFetchedLargeStatement(relay_parent, candidate_hash)
 						)
 					}
 				};
