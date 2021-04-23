@@ -1,0 +1,34 @@
+[package]
+name = "storage-proof-fuzzer"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.1" }
+finality-grandpa = "0.12.3"
+hash-db = "0.15.2"
+honggfuzz = "0.5.54"
+log = "0.4.0"
+env_logger = "0.8.3"
+
+# Bridge Dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain" }
+bp-runtime = { path = "../../primitives/runtime" }
+bp-test-utils = { path = "../../primitives/test-utils" }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }

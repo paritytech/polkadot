@@ -10,12 +10,19 @@ on:
     tags:
       - v*
     paths-ignore:
-      - '**/README.md'
+      - '**.md'
       - diagrams/*
       - docs/*
 jobs:
   cargo-deny:
     runs-on:            ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+    # Prevent sudden announcement of a new advisory from failing CI:
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
     steps:
       - name:           Cancel Previous Runs
         uses:           styfle/cancel-workflow-action@0.4.1
@@ -29,4 +36,4 @@ jobs:
       - name:           Cargo deny
         uses:           EmbarkStudios/cargo-deny-action@v1
         with:
-          command:      "check --hide-inclusion-graph"
+          command:      check ${{ matrix.checks }}

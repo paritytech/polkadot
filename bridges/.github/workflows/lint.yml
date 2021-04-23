@@ -8,7 +8,7 @@ on:
     tags:
       - v*
     paths-ignore:
-      - '**/README.md'
+      - '**.md'
       - diagrams/*
       - docs/*
   schedule:             # Weekly build
@@ -21,17 +21,21 @@ jobs:
     env:
       RUST_BACKTRACE:   full
     steps:
+      
       - name:           Cancel Previous Runs
         uses:           styfle/cancel-workflow-action@0.4.1
         with:
           access_token: ${{ github.token }}
+      
       - name:           Checkout sources & submodules
         uses:           actions/checkout@master
         with:
           fetch-depth:  5
           submodules:   recursive
+      
       - name:           Add rustfmt
         run:            rustup component add rustfmt
+      
       - name:           rust-fmt check
         uses:           actions-rs/cargo@master
         with:
