@@ -928,7 +928,7 @@ async fn circulate_statement(
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
-	let peers_to_send: Vec<PeerId> = peers.iter().filter_map(|(peer, data)| {
+	let mut peers_to_send: Vec<PeerId> = peers.iter().filter_map(|(peer, data)| {
 		if data.can_send(&relay_parent, &fingerprint) {
 			Some(peer.clone())
 		} else {
@@ -937,13 +937,26 @@ async fn circulate_statement(
 	}).collect();
 
 	let good_peers: HashSet<&PeerId> = peers_to_send.iter().collect();
+	// Only take priority peers we can send data to:
 	priority_peers.retain(|p| good_peers.contains(p));
+
+	// Avoid duplicates:
+	let priority_set: HashSet<&PeerId> = priority_peers.iter().collect();
+	peers_to_send.retain(|p| !priority_set.contains(p));
 
 	let mut peers_to_send =
 		util::choose_random_sqrt_subset(peers_to_send, MIN_GOSSIP_PEERS);
-	// Don't be too noisy, so get rid of additional peers:
-	peers_to_send.truncate(usize::saturating_sub(peers_to_send.len(), priority_peers.len()));
-	peers_to_send.append(&mut priority_peers);
+	// We don't want to use less peers, than we would without any priority peers:
+	let min_size = std::cmp::max(peers_to_send.len(), MIN_GOSSIP_PEERS);
+	// Make set full:
+	let needed_peers = min_size as i64 - priority_peers.len() as i64;
+	if needed_peers > 0 {
+		peers_to_send.truncate(needed_peers as usize);
+		priority_peers.append(&mut peers_to_send);
+	}
+	peers_to_send = priority_peers;
+	// We must not have duplicates:
+	debug_assert!(peers_to_send.len() == peers_to_send.clone().into_iter().collect::<HashSet<_>>().len());
 	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send.into_iter()
 		.map(|peer_id| {
 			let new = peers.get_mut(&peer_id)
@@ -1836,7 +1849,7 @@ impl StatementDistribution {
 										return None
 									}
 									let authority_id = &session_info.discovery_keys[i.0 as usize];
-									authorities.get(authority_id).map(|p| p.clone())
+									authorities.get(authority_id).map(|p| *p)
 								})
 								.collect()
 						} else {
@@ -2027,7 +2040,7 @@ mod tests {
 	use super::*;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
-	use sp_application_crypto::AppKey;
+	use sp_application_crypto::{AppKey, sr25519::Pair, Pair as TraitPair};
 	use polkadot_node_primitives::Statement;
 	use polkadot_primitives::v1::{CommittedCandidateReceipt, ValidationCode, SessionInfo};
 	use assert_matches::assert_matches;
@@ -2632,12 +2645,12 @@ mod tests {
 		let peer_b = PeerId::random();
 
 		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Alice.pair(),
+			Sr25519Keyring::Bob.pair(),
+			Sr25519Keyring::Charlie.pair(),
 		];
 
-		let session_info = make_session_info(validators);
+		let session_info = make_session_info(validators, vec![]);
 
 		let session_index = 1;
 
@@ -2790,18 +2803,26 @@ mod tests {
 			c
 		};
 
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-		let peer_c = PeerId::random();
-		let peer_bad = PeerId::random();
+		let peer_a = PeerId::random(); // Alice
+		let peer_b = PeerId::random(); // Bob
+		let peer_c = PeerId::random(); // Charlie
+		let peer_bad = PeerId::random(); // No validator
+		let peer_other_group = PeerId::random(); //Dave
 
 		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Alice.pair(),
+			Sr25519Keyring::Bob.pair(),
+			Sr25519Keyring::Charlie.pair(),
+			// other group
+			Sr25519Keyring::Dave.pair(),
+			// We:
+			Sr25519Keyring::Ferdie.pair(),
 		];
 
-		let session_info = make_session_info(validators);
+		let session_info = make_session_info(
+			validators,
+			vec![vec![0,1,2,4], vec![3]]
+		);
 
 		let session_index = 1;
 
@@ -2809,7 +2830,7 @@ mod tests {
 		let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		let bg = async move {
-			let s = StatementDistribution { metrics: Default::default(), keystore: Arc::new(LocalKeystore::in_memory())};
+			let s = StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore()};
 			s.run(ctx).await.unwrap();
 		};
 
@@ -2855,23 +2876,44 @@ mod tests {
 			// notify of peers and view
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None)
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Alice.public().into())
+					)
 				)
 			}).await;
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None)
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Bob.public().into())
+					)
 				)
 			}).await;
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_c.clone(), ObservedRole::Full, None)
+					NetworkBridgeEvent::PeerConnected(
+						peer_c.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Charlie.public().into())
+					)
 				)
 			}).await;
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None)
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_other_group.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Dave.public().into())
+					)
 				)
 			}).await;
 
@@ -2894,6 +2936,11 @@ mod tests {
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a])
 				)
 			}).await;
 
@@ -3136,7 +3183,15 @@ mod tests {
 						),
 					)
 				) => {
-					assert_eq!(recipients.sort(), vec![peer_b.clone(), peer_c.clone()].sort());
+					tracing::debug!(
+						target: LOG_TARGET,
+						?recipients,
+						"Recipients received"
+					);
+					recipients.sort();
+					let mut expected = vec![peer_b, peer_c, peer_other_group, peer_bad];
+					expected.sort();
+					assert_eq!(recipients, expected);
 					assert_eq!(meta.relay_parent, hash_a);
 					assert_eq!(meta.candidate_hash, statement.payload().candidate_hash());
 					assert_eq!(meta.signed_by, statement.validator_index());
@@ -3207,9 +3262,280 @@ mod tests {
 		executor::block_on(future::join(test_fut, bg));
 	}
 
-	fn make_session_info(validators: Vec<Sr25519Keyring>) -> SessionInfo {
+	#[test]
+	fn share_prioritizes_backing_group() {
+		sp_tracing::try_init_simple();
+		let hash_a = Hash::repeat_byte(1);
 
-		let validator_groups: Vec<Vec<ValidatorIndex>> = [vec![5, 0, 3], vec![1, 6, 2, 4]]
+		let candidate = {
+			let mut c = CommittedCandidateReceipt::default();
+			c.descriptor.relay_parent = hash_a;
+			c.descriptor.para_id = 1.into();
+			c.commitments.new_validation_code = Some(ValidationCode(vec![1,2,3]));
+			c
+		};
+
+		let peer_a = PeerId::random(); // Alice
+		let peer_b = PeerId::random(); // Bob
+		let peer_c = PeerId::random(); // Charlie
+		let peer_bad = PeerId::random(); // No validator
+		let peer_other_group = PeerId::random(); //Ferdie
+
+		let mut validators = vec![
+			Sr25519Keyring::Alice.pair(),
+			Sr25519Keyring::Bob.pair(),
+			Sr25519Keyring::Charlie.pair(),
+			// other group
+			Sr25519Keyring::Dave.pair(),
+			// We:
+			Sr25519Keyring::Ferdie.pair(),
+		];
+
+		// Strictly speaking we only need MIN_GOSSIP_PEERS - 3 to make sure only priority peers
+		// will be served, but by using a larger value we test for overflow errors:
+		let dummy_count = MIN_GOSSIP_PEERS;
+
+		// We artificially inflate our group, so there won't be any free slots for other peers. (We
+		// want to test that our group is prioritized):
+		let dummy_pairs: Vec<_> = std::iter::repeat_with(|| Pair::generate().0).take(dummy_count).collect();
+		let dummy_peers: Vec<_> = std::iter::repeat_with(|| PeerId::random()).take(dummy_count).collect();
+
+		validators = validators.into_iter().chain(dummy_pairs.clone()).collect();
+
+		let mut first_group = vec![0,1,2,4];
+		first_group.append(&mut (0..dummy_count as u32).map(|v| v + 5).collect());
+		let session_info = make_session_info(
+			validators,
+			vec![first_group, vec![3]]
+		);
+
+		let session_index = 1;
+
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+		let bg = async move {
+			let s = StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore()};
+			s.run(ctx).await.unwrap();
+		};
+
+		let (mut tx_reqs, rx_reqs) = mpsc::channel(1);
+
+		let test_fut = async move {
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs)
+			}).await;
+
+			// register our active heads.
+			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: vec![ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
+				deactivated: vec![].into(),
+			}))).await;
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+				)
+					if r == hash_a
+				=> {
+					let _ = tx.send(Ok(session_index));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+				)
+					if r == hash_a && sess_index == session_index
+				=> {
+					let _ = tx.send(Ok(Some(session_info)));
+				}
+			);
+
+			// notify of dummy peers and view
+			for (peer, pair) in dummy_peers.clone().into_iter().zip(dummy_pairs) {
+				handle.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerConnected(
+							peer,
+							ObservedRole::Full,
+							Some(pair.public().into()),
+						)
+					)
+				}).await;
+
+				handle.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerViewChange(peer, view![hash_a])
+					)
+				}).await;
+			}
+
+			// notify of peers and view
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Alice.public().into())
+					)
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Bob.public().into())
+					)
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_c.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Charlie.public().into())
+					)
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None)
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_other_group.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Dave.public().into())
+					)
+				)
+			}).await;
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a])
+				)
+			}).await;
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a])
+				)
+			}).await;
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a])
+				)
+			}).await;
+
+			// receive a seconded statement from peer A, which does not provide the request data,
+			// then get that data from peer C. It should be propagated onwards to peer B and to
+			// candidate backing.
+			let statement = {
+				let signing_context = SigningContext {
+					parent_hash: hash_a,
+					session_index,
+				};
+
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let ferdie_public = CryptoStore::sr25519_generate_new(
+					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Ferdie.to_seed())
+				).await.unwrap();
+
+				SignedFullStatement::sign(
+					&keystore,
+					Statement::Seconded(candidate.clone()),
+					&signing_context,
+					ValidatorIndex(4),
+					&ferdie_public.into(),
+				).await.ok().flatten().expect("should be signed")
+			};
+
+			let metadata =
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::Share(hash_a, statement.clone())
+			}).await;
+
+			// Messages should go out:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(
+						mut recipients,
+						protocol_v1::ValidationProtocol::StatementDistribution(
+							protocol_v1::StatementDistributionMessage::LargeStatement(meta)
+						),
+					)
+				) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?recipients,
+						"Recipients received"
+					);
+					recipients.sort();
+					// We expect only our backing group to be the recipients, du to the inflated
+					// test group above:
+					let mut expected: Vec<_> = vec![peer_a, peer_b, peer_c].into_iter().chain(dummy_peers).collect();
+					expected.sort();
+					assert_eq!(recipients.len(), expected.len());
+					assert_eq!(recipients, expected);
+					assert_eq!(meta.relay_parent, hash_a);
+					assert_eq!(meta.candidate_hash, statement.payload().candidate_hash());
+					assert_eq!(meta.signed_by, statement.validator_index());
+					assert_eq!(&meta.signature, statement.signature());
+				}
+			);
+
+			// Now that it has the candidate it should answer requests accordingly:
+
+			let (pending_response, response_rx) = oneshot::channel();
+			let inner_req = StatementFetchingRequest {
+				relay_parent: metadata.relay_parent,
+				candidate_hash: metadata.candidate_hash,
+			};
+			let req = sc_network::config::IncomingRequest {
+				peer: peer_b,
+				payload: inner_req.encode(),
+				pending_response,
+			};
+			tx_reqs.send(req).await.unwrap();
+			let StatementFetchingResponse::Statement(committed) =
+				Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
+			assert_eq!(committed, candidate);
+
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(bg);
+
+		executor::block_on(future::join(test_fut, bg));
+	}
+
+	fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
+
+		let validator_groups: Vec<Vec<ValidatorIndex>> = groups
 			.iter().map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect()).collect();
 
 		SessionInfo {
@@ -3217,8 +3543,8 @@ mod tests {
 			// Not used:
 			n_cores: validator_groups.len() as u32,
 			validator_groups,
-			// Not used values:
 			validators: validators.iter().map(|k| k.public().into()).collect(),
+			// Not used values:
 			assignment_keys: Vec::new(),
 			zeroth_delay_tranche_width: 0,
 			relay_vrf_modulo_samples: 0,
@@ -3226,5 +3552,16 @@ mod tests {
 			no_show_slots: 0,
 			needed_approvals: 0,
 		}
-}
+	}
+
+	pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			ValidatorId::ID,
+			Some(&Sr25519Keyring::Ferdie.to_seed()),
+			)
+			.expect("Insert key into keystore");
+		keystore
+	}
 }

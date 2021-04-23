@@ -530,6 +530,7 @@ where
 			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
+			keystore.clone(),
 			Metrics::register(registry)?,
 		),
 		approval_distribution: ApprovalDistributionSubsystem::new(
