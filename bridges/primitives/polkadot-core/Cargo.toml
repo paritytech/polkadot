@@ -1,0 +1,43 @@
+[package]
+name = "bp-polkadot-core"
+description = "Primitives of Polkadot-like runtime."
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+
+# Bridge Dependencies
+
+bp-messages = { path = "../messages", default-features = false }
+bp-runtime = { path = "../runtime", default-features = false }
+
+# Substrate Based Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+[dev-dependencies]
+hex = "0.4"
+
+[features]
+default = ["std"]
+std = [
+	"bp-messages/std",
+	"bp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"parity-scale-codec/std",
+	"sp-api/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-version/std",
+]

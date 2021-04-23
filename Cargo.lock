@@ -682,21 +682,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-kusama"
+name = "bp-header-chain"
 version = "0.1.0"
 dependencies = [
- "bp-message-lane",
- "bp-runtime",
+ "bp-test-utils",
+ "finality-grandpa",
  "frame-support",
- "frame-system",
- "sp-api",
+ "parity-scale-codec",
+ "serde",
  "sp-core",
+ "sp-finality-grandpa",
  "sp-runtime",
  "sp-std",
 ]
 
 [[package]]
-name = "bp-message-lane"
+name = "bp-kusama"
+version = "0.1.0"
+dependencies = [
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "sp-api",
+ "sp-std",
+]
+
+[[package]]
+name = "bp-messages"
 version = "0.1.0"
 dependencies = [
  "bp-runtime",
@@ -710,14 +722,43 @@ dependencies = [
 name = "bp-polkadot"
 version = "0.1.0"
 dependencies = [
- "bp-message-lane",
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "sp-api",
+ "sp-std",
+]
+
+[[package]]
+name = "bp-polkadot-core"
+version = "0.1.0"
+dependencies = [
+ "bp-messages",
  "bp-runtime",
  "frame-support",
  "frame-system",
+ "hex",
+ "parity-scale-codec",
  "sp-api",
  "sp-core",
  "sp-runtime",
  "sp-std",
+ "sp-version",
+]
+
+[[package]]
+name = "bp-rococo"
+version = "0.1.0"
+dependencies = [
+ "bp-header-chain",
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -725,12 +766,44 @@ name = "bp-runtime"
 version = "0.1.0"
 dependencies = [
  "frame-support",
+ "hash-db",
  "num-traits",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
  "sp-std",
+ "sp-trie",
+]
+
+[[package]]
+name = "bp-test-utils"
+version = "0.1.0"
+dependencies = [
+ "bp-header-chain",
+ "ed25519-dalek",
+ "finality-grandpa",
+ "parity-scale-codec",
+ "sp-application-crypto",
+ "sp-finality-grandpa",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "bp-westend"
+version = "0.1.0"
+dependencies = [
+ "bp-header-chain",
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]

@@ -49,7 +49,7 @@ kCharlie.
 
    1. kAlice prepares Kusama transaction:
       ```rust
-      kusama::Call::MessageLane::<Instance=Polkadot>::send_message(
+      kusama::Call::Messages::<Instance=Polkadot>::send_message(
         // dot-transfer-lane (truncated to 4bytes)
         lane_id,
         payload: MessagePayload {
@@ -124,7 +124,7 @@ kCharlie.
     Lanes contains `latest_generated_nonce` and `latest_received_nonce` respectively. The relayer
     syncs messages between that range.
 
-1. The relayer gets a proof for every message in that range (using the RPC of message lanes module)
+1. The relayer gets a proof for every message in that range (using the RPC of messages module)
 
 1. The relayer creates a message delivery transaction (but it has weight, size, and count limits).
     The count limit is there to make the loop of delivery code bounded.

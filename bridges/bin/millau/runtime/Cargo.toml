@@ -10,21 +10,21 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 hex-literal = "0.3"
-serde = { version = "1.0.123", optional = true, features = ["derive"] }
+serde = { version = "1.0.124", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
 bp-header-chain = { path = "../../../primitives/header-chain", default-features = false }
-bp-message-lane = { path = "../../../primitives/message-lane", default-features = false }
-bp-millau = { path = "../../../primitives/millau", default-features = false }
-bp-rialto = { path = "../../../primitives/rialto", default-features = false }
+bp-messages = { path = "../../../primitives/messages", default-features = false }
+bp-millau = { path = "../../../primitives/chain-millau", default-features = false }
+bp-rialto = { path = "../../../primitives/chain-rialto", default-features = false }
 bp-runtime = { path = "../../../primitives/runtime", default-features = false }
+bp-westend = { path = "../../../primitives/chain-westend", default-features = false }
 bridge-runtime-common = { path = "../../runtime-common", default-features = false }
-pallet-bridge-call-dispatch = { path = "../../../modules/call-dispatch", default-features = false }
-pallet-finality-verifier = { path = "../../../modules/finality-verifier", default-features = false }
-pallet-message-lane = { path = "../../../modules/message-lane", default-features = false }
+pallet-bridge-dispatch = { path = "../../../modules/dispatch", default-features = false }
+pallet-bridge-grandpa = { path = "../../../modules/grandpa", default-features = false }
+pallet-bridge-messages = { path = "../../../modules/messages", default-features = false }
 pallet-shift-session-manager = { path = "../../../modules/shift-session-manager", default-features = false }
-pallet-substrate-bridge = { path = "../../../modules/substrate", default-features = false }
 
 # Substrate Dependencies
 
@@ -40,12 +40,13 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
@@ -61,36 +62,37 @@ wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.
 default = ["std"]
 std = [
 	"bp-header-chain/std",
-	"bp-message-lane/std",
+	"bp-messages/std",
 	"bp-millau/std",
 	"bp-rialto/std",
 	"bp-runtime/std",
+	"bp-westend/std",
 	"bridge-runtime-common/std",
 	"codec/std",
 	"frame-executive/std",
 	"frame-support/std",
-	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
+	"frame-system/std",
 	"pallet-aura/std",
 	"pallet-balances/std",
-	"pallet-bridge-call-dispatch/std",
-	"pallet-finality-verifier/std",
+	"pallet-bridge-dispatch/std",
+	"pallet-bridge-grandpa/std",
+	"pallet-bridge-messages/std",
 	"pallet-grandpa/std",
-	"pallet-message-lane/std",
 	"pallet-randomness-collective-flip/std",
-	"pallet-shift-session-manager/std",
 	"pallet-session/std",
-	"pallet-substrate-bridge/std",
+	"pallet-shift-session-manager/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
+	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"serde",
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",
 	"sp-core/std",
-	"sp-inherents/std",
 	"sp-finality-grandpa/std",
+	"sp-inherents/std",
 	"sp-offchain/std",
 	"sp-runtime/std",
 	"sp-session/std",
@@ -99,3 +101,6 @@ std = [
 	"sp-trie/std",
 	"sp-version/std",
 ]
+# TODO: https://github.com/paritytech/parity-bridges-common/issues/390
+# I've left the feature flag here to test our CI configuration
+runtime-benchmarks = []
