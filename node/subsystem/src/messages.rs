@@ -45,7 +45,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCodeAndHash, ValidatorId, CandidateHash,
+	ValidationCode, ValidationCodeAndHash, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
 };
@@ -489,6 +489,11 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		BlockNumber,
 		RuntimeApiSender<Option<ValidationCodeAndHash>>,
+	),
+	/// Get the validation code of a para from its hash.
+	ValidationCodeByHash(
+		Hash,
+		RuntimeApiSender<Option<ValidationCode>>,
 	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),

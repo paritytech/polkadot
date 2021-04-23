@@ -123,6 +123,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_validation_code_hash((relay_parent, para_id, assumption), code_hash),
 			HistoricalValidationCode(relay_parent, para_id, n, code) =>
 				self.requests_cache.cache_historical_validation_code((relay_parent, para_id, n), code),
+			ValidationCodeByHash(relay_parent, code_hash, code) =>
+				self.requests_cache.cache_validation_code_by_hash((relay_parent, code_hash), code),
 			CandidatePendingAvailability(relay_parent, para_id, candidate) =>
 				self.requests_cache.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
@@ -191,6 +193,9 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			Request::HistoricalValidationCode(para, at, sender) =>
 				query!(historical_validation_code(para, at), sender)
 					.map(|sender| Request::HistoricalValidationCode(para, at, sender)),
+			Request::ValidationCodeByHash(validation_code_hash, sender) =>
+				query!(validation_code_by_hash(validation_code_hash), sender)
+					.map(|sender| Request::ValidationCodeByHash(validation_code_hash, sender)),
 			Request::CandidatePendingAvailability(para, sender) =>
 				query!(candidate_pending_availability(para), sender)
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
@@ -352,6 +357,8 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), sender),
 		Request::HistoricalValidationCode(para, at, sender) =>
 			query!(HistoricalValidationCode, historical_validation_code(para, at), sender),
+		Request::ValidationCodeByHash(code_hash, sender) =>
+			query!(ValidationCodeByHash, validation_code_by_hash(code_hash), sender),
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(CandidatePendingAvailability, candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(CandidateEvents, candidate_events(), sender),
@@ -576,9 +583,9 @@ mod tests {
 
 			fn validation_code_by_hash(
 				&self,
-				_hash: Hash,
+				hash: Hash,
 			) -> Option<ValidationCode> {
-				unreachable!("not used in tests");
+				self.validation_code.values().find(|c| c.hash() == hash).cloned()
 			}
 		}
 
@@ -943,6 +950,48 @@ mod tests {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::ValidationCodeHash(para_b, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_validation_code_by_hash() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		let mut runtime_api = MockRuntimeApi::default();
+		runtime_api.validation_code.insert(para_a, Default::default());
+		let runtime_api = Arc::new(runtime_api);
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeByHash(ValidationCode::default().hash(), tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeByHash(ValidationCode::from(vec![1, 2, 3]).hash(), tx)
 				),
 			}).await;
 
