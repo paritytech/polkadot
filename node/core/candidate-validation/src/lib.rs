@@ -268,7 +268,7 @@ async fn find_assumed_validation_data(
 		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
 
 		match outcome {
-			AssumptionCheckOutcome::Matches(..) => return Ok(outcome),
+			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
 			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
 			AssumptionCheckOutcome::DoesNotMatch => continue,
 		}
@@ -289,10 +289,10 @@ async fn spawn_validate_from_chain_state(
 	pov: Arc<PoV>,
 	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	let (validation_data, validation_code_and_hash) =
+	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code_and_hash) => {
-				(validation_data, validation_code_and_hash)
+			AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
+				(validation_data, validation_code)
 			}
 			AssumptionCheckOutcome::DoesNotMatch => {
 				// If neither the assumption of the occupied core having the para included or the assumption
@@ -308,7 +308,7 @@ async fn spawn_validate_from_chain_state(
 	let validation_result = validate_candidate_exhaustive(
 		validation_host,
 		validation_data,
-		validation_code_and_hash,
+		validation_code,
 		descriptor.clone(),
 		pov,
 		metrics,
@@ -793,13 +793,11 @@ mod tests {
 		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
-		let validation_code = ValidationCodeAndHash::compute_from_code(vec![2; 16].into());
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
 		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
-		candidate.validation_code_hash = validation_code.hash().clone();
 
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
