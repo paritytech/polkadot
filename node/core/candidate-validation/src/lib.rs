@@ -667,13 +667,10 @@ mod tests {
 				}
 			);
 
-			assert_matches!(
-				check_result.await.unwrap(),
-				AssumptionCheckOutcome::Matches(o, v) => {
-					assert_eq!(o, validation_data);
-					assert_eq!(v, validation_code);
-				}
-			);
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+				assert_eq!(o, validation_data);
+				assert_eq!(v, validation_code);
+			});
 		};
 
 		let test_fut = future::join(test_fut, check_fut);
@@ -734,13 +731,10 @@ mod tests {
 				}
 			);
 
-			assert_matches!(
-				check_result.await.unwrap(),
-				AssumptionCheckOutcome::Matches(o, v) => {
-					assert_eq!(o, validation_data);
-					assert_eq!(v, validation_code);
-				}
-			);
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+				assert_eq!(o, validation_data);
+				assert_eq!(v, validation_code);
+			});
 		};
 
 		let test_fut = future::join(test_fut, check_fut);
