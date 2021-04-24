@@ -112,6 +112,11 @@ pub fn rococo_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
+/// This is a temporary testnet that uses the same runtime as rococo.
+pub fn wococo_config() -> Result<PolkadotChainSpec, String> {
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
+}
+
 fn polkadot_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
@@ -155,7 +160,6 @@ fn westend_session_keys(
 	para_validator: ValidatorId,
 	para_assignment: AssignmentId,
 	authority_discovery: AuthorityDiscoveryId,
-	beefy: BeefyId,
 ) -> westend::SessionKeys {
 	westend::SessionKeys {
 		babe,
@@ -164,7 +168,6 @@ fn westend_session_keys(
 		para_validator,
 		para_assignment,
 		authority_discovery,
-		beefy,
 	}
 }
 
@@ -296,7 +299,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 	// for i in 1 2 3 4; do for j in grandpa; do subkey --ed25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in im_online; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
 	// for i in 1 2 3 4; do for j in para_validator para_assignment; do subkey --sr25519 inspect "$SECRET//$i//$j"; done; done
-	// for i in 1 2 3 4; do for j in beefy; do subkey --ecdsa inspect "$SECRET//$i//$j"; done; done
 	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
@@ -306,7 +308,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
-		BeefyId,
 	)> = vec![
 		(
 			//5FZoQhgUCmqBxnkHX7jCqThScS2xQWiwiF61msg63CFL3Y8f
@@ -325,8 +326,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			hex!["0810d2113438bb14856b06383a4f0da4e5cc2f92a3fc18ef03a54b34c6007662"].unchecked_into(),
 			//5CkAdj1MpkMtQikrGXuzgzrRLvUnfLQH2JsnZa16u4cK2Xhf
 			hex!["1e18b5a9f872727189934a6988ff2a6732c87b9e31e2d694dd011aff9dfb2332"].unchecked_into(),
-			//5E6ogZEZyc5YZ3ijWUPB9M6Xtx6E9FabhmP9J4rwcEH6pLGv
-			hex!["0293be7cdb81f25039dfd01aac905da8a5e50113366bc4b5dc5eb888cf5552b8a9"].unchecked_into(),
 		),
 		(
 			//5G1ojzh47Yt8KoYhuAjXpHcazvsoCXe3G8LZchKDvumozJJJ
@@ -345,8 +344,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			hex!["d6a113804a98728bb2af4f3721ab31a3644731292bffe0268995d8f8fb073b57"].unchecked_into(),
 			//5DUrcztb1pRz6DfA8Vo8JSUSpoQVr27Yo6gjPmnumhhubLeN
 			hex!["3ea7a06009d1b9b1d4233dea3e6bb6494b9aeda91edc443629a28afa9fab8c62"].unchecked_into(),
-			//5HUYyVYXjm5mdEpDiykmhxZGzQjY4LLxyTPD7hfMjfLUy3VT
-			hex!["020e0ba5e112f0d3356ff8c78a37e2d7f76f90ab8dc9ed2eac98c87c5ffb2b0ebe"].unchecked_into(),
 		),
 		(
 			//5HYYWyhyUQ7Ae11f8fCid58bhJ7ikLHM9bU8A6Ynwoc3dStR
@@ -365,8 +362,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			hex!["0e5e1fb2c0fa7db11cd83fef3493900292badf02f35812ba738efeab9978a46c"].unchecked_into(),
 			//5GvKehGrFVea8rywSeJhTopmpBDNHSFBoZp32g3CecppYa3V
 			hex!["d6c8735316211321cd85ccd7c583222ab024393b8c86c7c8d1192a1d4f35bb2e"].unchecked_into(),
-			//5FpX3V5qCGehdTBRxkpHzGjwK9nvihLYj6gwR4NWn8DjbAoL
-			hex!["020b4bc2972761bd1abf20d5f83f79ff546ef63094e193d21758566c58dea9642f"].unchecked_into(),
 		),
 		(
 			//5CFPcUJgYgWryPaV1aYjSbTpbTLu42V32Ytw1L9rfoMAsfGh
@@ -385,8 +380,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			hex!["c4390ca0274f0262a4ef7cd4d3aa6cab0875a6efdd40d38c21be4f770b6c4b1a"].unchecked_into(),
 			//5CZd519gfE3gALMtFWa283VHikXwoGFmT92B3Nu3iN7YGcaR
 			hex!["160e0049b62d368c59d286275697e8d5e68d34ee8663ac4c3da646b0abb4a86f"].unchecked_into(),
-			//5Fnu4YYBx9V71ihCBkJyFGsKw9Q2jjNzRQL9kRNpKTPNSAhc
-			hex!["03e9393ee30ae95fc2b7864230f53e45409a807949390140ce2bc77756cdb4bb83"].unchecked_into(),
 		),
 
 	];
@@ -406,7 +399,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		},
-		pallet_beefy: Default::default(),
 		pallet_indices: westend::IndicesConfig { indices: vec![] },
 		pallet_session: westend::SessionConfig {
 			keys: initial_authorities
@@ -422,7 +414,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
-							x.8.clone(),
 						),
 					)
 				})
@@ -1311,7 +1302,6 @@ pub fn westend_testnet_genesis(
 		ValidatorId,
 		AssignmentId,
 		AuthorityDiscoveryId,
-		BeefyId,
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -1333,7 +1323,6 @@ pub fn westend_testnet_genesis(
 				.map(|k| (k.clone(), ENDOWMENT))
 				.collect(),
 		},
-		pallet_beefy: Default::default(),
 		pallet_session: westend::SessionConfig {
 			keys: initial_authorities
 				.iter()
@@ -1348,7 +1337,6 @@ pub fn westend_testnet_genesis(
 							x.5.clone(),
 							x.6.clone(),
 							x.7.clone(),
-							x.8.clone(),
 						),
 					)
 				})
@@ -1515,7 +1503,7 @@ fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfi
 fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed("Alice")],
+		vec![get_authority_keys_from_seed_no_beefy("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
@@ -1634,8 +1622,8 @@ fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
 	westend_testnet_genesis(
 		wasm_binary,
 		vec![
-			get_authority_keys_from_seed("Alice"),
-			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed_no_beefy("Alice"),
+			get_authority_keys_from_seed_no_beefy("Bob"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,

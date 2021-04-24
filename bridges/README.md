@@ -11,6 +11,7 @@ Substrate chains or Ethereum Proof-of-Authority chains.
 🚧 The bridges are currently under construction - a hardhat is recommended beyond this point 🚧
 
 ## Contents
+
 - [Installation](#installation)
 - [High-Level Architecture](#high-level-architecture)
 - [Project Layout](#project-layout)
@@ -19,6 +20,7 @@ Substrate chains or Ethereum Proof-of-Authority chains.
 - [Community](#community)
 
 ## Installation
+
 To get up and running you need both stable and nightly Rust. Rust nightly is used to build the Web
 Assembly (WASM) runtime for the node. You can configure the WASM support as so:
 
@@ -70,6 +72,7 @@ Take a look at [Bridge High Level Documentation](./docs/high-level-overview.md) 
 description of the bridge interaction.
 
 ## Project Layout
+
 Here's an overview of how the project is laid out. The main bits are the `node`, which is the actual
 "blockchain", the `modules` which are used to build the blockchain's logic (a.k.a the runtime) and
 the `relays` which are used to pass messages between chains.
@@ -83,15 +86,16 @@ the `relays` which are used to pass messages between chains.
 │  └──  ...
 ├── modules         // Substrate Runtime Modules (a.k.a Pallets)
 │  ├── ethereum     // Ethereum PoA Header Sync Module
-│  ├── substrate    // Substrate Based Chain Header Sync Module
-│  ├── message-lane // Cross Chain Message Passing
+│  ├── grandpa      // On-Chain GRANDPA Light Client
+│  ├── messages     // Cross Chain Message Passing
+│  ├── dispatch     // Target Chain Message Execution
 │  └──  ...
 ├── primitives      // Code shared between modules, runtimes, and relays
 │  └──  ...
 ├── relays          // Application for sending headers and messages between chains
 │  └──  ...
 └── scripts         // Useful development and maintenence scripts
- ```
+```
 
 ## Running the Bridge
 
@@ -99,9 +103,9 @@ To run the Bridge you need to be able to connect the bridge relay node to the RP
 on each side of the bridge (source and target chain).
 
 There are 3 ways to run the bridge, described below:
- - building & running from source,
- - building or using Docker images for each individual component,
- - running a Docker Compose setup (recommended).
+- building & running from source,
+- building or using Docker images for each individual component,
+- running a Docker Compose setup (recommended).
 
 ### Using the Source
 
@@ -154,20 +158,20 @@ Then we need to initialize and run the relayer:
 
 ```bash
 docker run --network=host -it \
-        paritytech/substrate-relay initialize-rialto-headers-bridge-in-millau \
-        --millau-host localhost \
-        --millau-port 9945 \
-        --rialto-host localhost \
-        --rialto-port 9944 \
-        --millau-signer //Alice
+        paritytech/substrate-relay init-bridge RialtoToMillau \
+        --target-host localhost \
+        --target-port 9945 \
+        --source-host localhost \
+        --source-port 9944 \
+        --target-signer //Alice
 
 docker run --network=host -it \
-        paritytech/substrate-relay rialto-headers-to-millau \
-        --millau-host localhost \
-        --millau-port 9945 \
-        --rialto-host localhost \
-        --rialto-port 9944 \
-        --millau-signer //Bob \
+        paritytech/substrate-relay relay-headers RialtoToMillau \
+        --target-host localhost \
+        --target-port 9945 \
+        --source-host localhost \
+        --source-port 9944 \
+        --target-signer //Bob \
 ```
 
 You should now see the relayer submitting headers from the Millau chain to the Rialto chain.
@@ -196,6 +200,7 @@ monitoring dashboards, etc. see the [Deployments README](./deployments/README.md
 
 A straightforward way to interact with and test the bridge is sending messages. This is explained
 in the [send message](./docs/send-message.md) document.
+
 ## Community
 
 Main hangout for the community is [Element](https://element.io/) (formerly Riot). Element is a chat
@@ -208,4 +213,3 @@ Element channel.
 
 The [Substrate Technical](https://app.element.io/#/room/#substrate-technical:matrix.org) Element
 channel is most suited for discussions regarding Substrate itself.
-
