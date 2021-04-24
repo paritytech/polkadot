@@ -89,6 +89,7 @@ impl SubstrateCli for Cli {
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			"wococo" => Box::new(service::chain_spec::wococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -98,7 +99,7 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || starts_with("rococo") {
+				if self.run.force_rococo || starts_with("rococo") || starts_with("wococo") {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || starts_with("kusama") {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
@@ -116,7 +117,7 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
-		} else if spec.is_rococo() {
+		} else if spec.is_rococo() || spec.is_wococo() {
 			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
