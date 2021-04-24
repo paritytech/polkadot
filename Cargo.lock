@@ -456,7 +456,7 @@ checksum = "6736e2428df2ca2848d846c43e88745121a6654696e349ce0054a420815a7409"
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1-unprotected#3a8e7fe39735654bb3a4edf19664999c475b6194"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1#b0e5f2da52cc9bc9804a23e111d003413b268faf"
 dependencies = [
  "beefy-primitives",
  "futures 0.3.14",
@@ -483,7 +483,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1-unprotected#3a8e7fe39735654bb3a4edf19664999c475b6194"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1#b0e5f2da52cc9bc9804a23e111d003413b268faf"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -504,7 +504,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1-unprotected#3a8e7fe39735654bb3a4edf19664999c475b6194"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1#b0e5f2da52cc9bc9804a23e111d003413b268faf"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -4459,7 +4459,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1-unprotected#3a8e7fe39735654bb3a4edf19664999c475b6194"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=rococo-v1#b0e5f2da52cc9bc9804a23e111d003413b268faf"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -10552,7 +10552,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.7.3",
+ "rand 0.3.23",
  "static_assertions",
 ]
 
