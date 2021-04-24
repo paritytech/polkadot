@@ -14,7 +14,7 @@ serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1-unprotected", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
@@ -36,7 +36,7 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", default-fea
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "rococo-v1" }
 
-pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1-unprotected", default-features = false }
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "rococo-v1", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-v1", default-features = false, optional = true }
