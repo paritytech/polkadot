@@ -63,6 +63,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		Attempted(xcm::v0::Outcome),
+		Sent(MultiLocation, MultiLocation, Xcm<()>),
 	}
 
 	#[pallet::error]
@@ -79,11 +80,12 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location, dest, message)
+			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone())
 				.map_err(|e| match e {
 					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
 					_ => Error::<T>::SendFailure,
 				})?;
+			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
 

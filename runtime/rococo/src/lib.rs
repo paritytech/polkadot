@@ -110,7 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 231,
+	spec_version: 232,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -870,8 +870,8 @@ impl pallet_collective::Config for Runtime {
 	type Event = Event;
 	type MotionDuration = MotionDuration;
 	type MaxProposals = MaxProposals;
-	type MaxMembers = MaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type MaxMembers = MaxMembers;
 	type WeightInfo = ();
 }
 

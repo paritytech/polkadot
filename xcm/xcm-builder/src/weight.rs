@@ -25,10 +25,11 @@ use xcm_executor::{Assets, traits::{WeightBounds, WeightTrader}};
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
 	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		let min = match message {
+		Ok(match message {
 			Xcm::Transact { call, .. } => {
 				call.ensure_decoded()?.get_dispatch_info().weight + T::get()
 			}
+			Xcm::RelayedFrom { ref mut message, .. } => T::get() + Self::shallow(message.as_mut())?,
 			Xcm::WithdrawAsset { effects, .. }
 			| Xcm::ReserveAssetDeposit { effects, .. }
 			| Xcm::TeleportAsset { effects, .. } => {
@@ -47,16 +48,16 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 				T::get() + inner
 			}
 			_ => T::get(),
-		};
-		Ok(min)
+		})
 	}
 	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		let mut extra = 0;
-		match message {
-			Xcm::Transact { .. } => {}
+		Ok(match message {
+			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
 			Xcm::WithdrawAsset { effects, .. }
 			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			| Xcm::TeleportAsset { effects, .. }
+			=> {
+				let mut extra = 0;
 				for effect in effects.iter_mut() {
 					match effect {
 						Order::BuyExecution { xcm, .. } => {
@@ -67,10 +68,10 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 						_ => {}
 					}
 				}
-			}
-			_ => {}
-		};
-		Ok(extra)
+				extra
+			},
+			_ => 0,
+		})
 	}
 }
 
@@ -100,10 +101,10 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		let required = MultiAsset::ConcreteFungible { amount, id };
-		let (used, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
+		let (unused, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
-		Ok(used)
+		Ok(unused)
 	}
 	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
 		let (id, units_per_second) = T::get();
@@ -139,7 +140,7 @@ impl<
 	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
 > WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
 	fn new() -> Self { Self(0, Zero::zero(), PhantomData) }
-	
+
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let amount = WeightToFee::calc(&weight);
 		let required = MultiAsset::ConcreteFungible {
