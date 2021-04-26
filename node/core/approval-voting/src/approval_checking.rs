@@ -317,10 +317,7 @@ pub fn tranches_to_approve(
 	tranches_with_gaps_filled
 		.scan(Some(initial_state), |state, (tranche, assignments)| {
 			// The `Option` here is used for early exit.
-			let s = match state.take() {
-				None => return None,
-				Some(s) => s,
-			};
+			let s = state.take()?;
 
 			let clock_drift = s.clock_drift(no_show_duration);
 			let drifted_tick_now = tick_now.saturating_sub(clock_drift);

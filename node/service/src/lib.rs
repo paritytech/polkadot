@@ -151,7 +151,7 @@ pub enum Error {
 	DatabasePathRequired,
 }
 
-/// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
+/// Can be called for a `Configuration` to identify which network the configuration targets.
 pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
@@ -161,6 +161,9 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Rococo` network.
 	fn is_rococo(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Wococo` test network.
+	fn is_wococo(&self) -> bool;
 
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
@@ -175,6 +178,9 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 	fn is_rococo(&self) -> bool {
 		self.id().starts_with("rococo") || self.id().starts_with("rco")
+	}
+	fn is_wococo(&self) -> bool {
+		self.id().starts_with("wococo") || self.id().starts_with("wco")
 	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
@@ -680,7 +686,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_rococo() {
+		if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
 			// production to 1 block per hour.
@@ -715,7 +721,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if config.chain_spec.is_rococo() {
+	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -921,19 +927,25 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
-	// We currently only run the BEEFY gadget on Rococo.
-	if chain_spec.is_rococo() {
+	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
+	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
 			keystore_container.sync_keystore(),
 			network.clone(),
 			beefy_link,
 			network.clone(),
-			8,
+			if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry.clone()
 		);
 
-		task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
+		// bring the node down with it to make sure it is noticed.
+		if chain_spec.is_wococo() {
+			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+		} else {
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+		}
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -1165,7 +1177,7 @@ pub fn new_chain_ops(
 >
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	if config.chain_spec.is_rococo() {
+	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
 			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config, jaeger_agent, None)?;
 		Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
@@ -1189,7 +1201,7 @@ pub fn build_light(config: Configuration) -> Result<(
 	TaskManager,
 	RpcHandlers,
 ), Error> {
-	if config.chain_spec.is_rococo() {
+	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else if config.chain_spec.is_kusama() {
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
@@ -1208,7 +1220,7 @@ pub fn build_full(
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<NewFull<Client>, Error> {
-	if config.chain_spec.is_rococo() {
+	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
