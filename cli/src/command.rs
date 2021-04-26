@@ -89,6 +89,7 @@ impl SubstrateCli for Cli {
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			"wococo" => Box::new(service::chain_spec::wococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -98,7 +99,7 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || starts_with("rococo") {
+				if self.run.force_rococo || starts_with("rococo") || starts_with("wococo") {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || starts_with("kusama") {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
@@ -116,7 +117,7 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
-		} else if spec.is_rococo() {
+		} else if spec.is_rococo() || spec.is_wococo() {
 			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
@@ -142,7 +143,11 @@ const DEV_ONLY_ERROR_PATTERN: &'static str =
 	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev], got ";
 
 fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
-	if spec.is_dev() { Ok(()) } else { Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id())) }
+	if spec.is_dev() {
+		Ok(())
+	} else {
+		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
+	}
 }
 
 /// Parses polkadot specific CLI arguments and run the service.
@@ -298,12 +303,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
-			if chain_spec.is_polkadot() {
-				Ok(runner.sync_run(|config| {
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
-						.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			} else if chain_spec.is_kusama() {
+			if chain_spec.is_kusama() {
 				Ok(runner.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
@@ -314,7 +314,11 @@ pub fn run() -> Result<()> {
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
 			} else {
-				Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, chain_spec.id()).into())
+				// else we assume it is polkadot.
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
 			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
@@ -332,14 +336,7 @@ pub fn run() -> Result<()> {
 			).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
-			if chain_spec.is_polkadot() {
-				runner.async_run(|config| {
-					Ok((cmd.run::<
-						service::polkadot_runtime::Block,
-						service::PolkadotExecutor,
-					>(config).map_err(Error::SubstrateCli), task_manager))
-				})
-			} else if chain_spec.is_kusama() {
+			if chain_spec.is_kusama() {
 				runner.async_run(|config| {
 					Ok((cmd.run::<
 						service::kusama_runtime::Block,
@@ -354,7 +351,13 @@ pub fn run() -> Result<()> {
 					>(config).map_err(Error::SubstrateCli), task_manager))
 				})
 			} else {
-				Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, chain_spec.id()).into())
+				// else we assume it is polkadot.
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::polkadot_runtime::Block,
+						service::PolkadotExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
 			}
 		}
 	}?;

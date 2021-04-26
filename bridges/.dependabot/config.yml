@@ -14,6 +14,8 @@ update_configs:
           dependency_name: "frame-*"
       - match:
           dependency_name: "pallet-*"
+      - match:
+          dependency_name: "node-inspect"
     automerged_updates:
       - match:
           update_type: "all"

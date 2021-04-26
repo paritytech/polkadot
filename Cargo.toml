@@ -26,8 +26,10 @@ tempfile = "3.2.0"
 
 [workspace]
 members = [
-	"bridges/primitives/kusama",
-	"bridges/primitives/polkadot",
+	"bridges/primitives/chain-kusama",
+	"bridges/primitives/chain-polkadot",
+	"bridges/primitives/chain-rococo",
+	"bridges/primitives/chain-westend",
 	"bridges/primitives/runtime",
 	"cli",
 	"core-primitives",
