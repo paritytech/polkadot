@@ -628,10 +628,6 @@ parameter_types! {
 		];
 }
 
-parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![ X1(Parachain{id: 100}), X1(Parachain{id: 110}), X1(Parachain{id: 120}) ];
-}
-
 use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
 pub type Barrier = (
 	TakeWeightCredit,
