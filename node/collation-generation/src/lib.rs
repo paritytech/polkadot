@@ -775,7 +775,7 @@ mod tests {
 								tx,
 							),
 						))) => {
-							tx.send(Ok(Some(ValidationCode(vec![1, 3, 3]).hash()))).unwrap();
+							tx.send(Ok(Some(ValidationCode(vec![1, 2, 3]).hash()))).unwrap();
 						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)
