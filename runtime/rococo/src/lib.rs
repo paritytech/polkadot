@@ -602,18 +602,30 @@ pub type XcmRouter = (
 
 use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
 parameter_types! {
-	pub const RococoForTick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
-	pub const RococoForTrick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
-	pub const RococoForTrack: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+	pub const RococoForTick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
+	pub const RococoForTrick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
+	pub const RococoForTrack: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 1}));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
+	xcm_builder::Case<RococoForStatemint>,
 );
 
 parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![ X1(Parachain{id: 100}), X1(Parachain{id: 110}), X1(Parachain{id: 120}) ];
+	pub AllowUnpaidFrom: Vec<MultiLocation> = 
+		vec![
+			X1(Parachain{id: 100}),
+			X1(Parachain{id: 110}),
+			X1(Parachain{id: 120}),
+			X1(Parachain{id: 1})
+		];
 }
 
 use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
