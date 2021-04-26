@@ -173,6 +173,7 @@ build-adder-collator:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
     - time cargo build --release --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -292,6 +293,7 @@ publish-adder-collator-image:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-adder-collator
       artifacts:                   true

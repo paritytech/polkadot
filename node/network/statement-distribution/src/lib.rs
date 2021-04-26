@@ -1308,12 +1308,7 @@ async fn handle_incoming_message<'a>(
 		ctx,
 		req_sender,
 		metrics,
-	).await;
-
-	let statement = match statement {
-		None => return None,
-		Some(statement) => statement,
-	};
+	).await?;
 
 	match active_head.check_useful_or_unknown(statement.clone()) {
 		Ok(()) => {},
