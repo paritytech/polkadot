@@ -56,7 +56,7 @@ use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::{IndexSet, IndexMap, map::Entry as IEntry};
 use sp_keystore::SyncCryptoStorePtr;
-use util::{PolkaErr, runtime::RuntimeInfo};
+use util::{Fault, runtime::RuntimeInfo};
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
@@ -1583,8 +1583,8 @@ impl StatementDistribution {
 					match result {
 						Ok(true) => break,
 						Ok(false) => {}
-						Err(Error(PolkaErr::Fatal(f))) => return Err(f), 
-						Err(Error(PolkaErr::Err(error))) =>
+						Err(Error(Fault::Fatal(f))) => return Err(f), 
+						Err(Error(Fault::Err(error))) =>
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
 				}

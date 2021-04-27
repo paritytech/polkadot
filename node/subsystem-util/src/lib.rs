@@ -58,7 +58,7 @@ pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 mod error_handling;
 
 /// Error classification.
-pub use error_handling::{PolkaErr, unwrap_non_fatal};
+pub use error_handling::{Fault, unwrap_non_fatal};
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {

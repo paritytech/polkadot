@@ -22,7 +22,7 @@ use polkadot_primitives::v1::{CandidateHash, Hash};
 use polkadot_subsystem::SubsystemError;
 use thiserror::Error;
 
-use polkadot_node_subsystem_util::{PolkaErr, runtime, unwrap_non_fatal};
+use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
 
 use crate::LOG_TARGET;
 
@@ -36,23 +36,23 @@ pub type FatalResult<T> = std::result::Result<T, Fatal>;
 /// Errors for statement distribution.
 #[derive(Debug, Error)]
 #[error(transparent)]
-pub struct Error(pub PolkaErr<NonFatal, Fatal>);
+pub struct Error(pub Fault<NonFatal, Fatal>);
 
 impl From<NonFatal> for Error {
 	fn from(e: NonFatal) -> Self {
-		Self(PolkaErr::from_non_fatal(e))
+		Self(Fault::from_non_fatal(e))
 	}
 }
 
 impl From<Fatal> for Error {
 	fn from(f: Fatal) -> Self {
-		Self(PolkaErr::from_fatal(f))
+		Self(Fault::from_fatal(f))
 	}
 }
 
 impl From<runtime::Error> for Error {
 	fn from(o: runtime::Error) -> Self {
-		Self(PolkaErr::from_other(o))
+		Self(Fault::from_other(o))
 	}
 }
 

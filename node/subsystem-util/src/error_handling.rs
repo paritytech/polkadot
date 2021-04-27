@@ -48,11 +48,11 @@ use thiserror::Error;
 /// use polkadot_node_subsystem::errors::RuntimeApiError;
 /// use polkadot_primitives::v1::SessionIndex;
 /// use futures::channel::oneshot;
-/// use polkadot_node_subsystem_util::{PolkaErr, runtime};
+/// use polkadot_node_subsystem_util::{Fault, runtime};
 ///
 /// #[derive(Debug, Error)]
 /// #[error(transparent)]
-/// pub struct Error(pub PolkaErr<NonFatal, Fatal>);
+/// pub struct Error(pub Fault<NonFatal, Fatal>);
 ///
 /// pub type Result<T> = std::result::Result<T, Error>;
 /// pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
@@ -61,21 +61,21 @@ use thiserror::Error;
 /// // Make an error from a `NonFatal` one.
 /// impl From<NonFatal> for Error {
 /// 	fn from(e: NonFatal) -> Self {
-/// 		Self(PolkaErr::from_non_fatal(e))
+/// 		Self(Fault::from_non_fatal(e))
 /// 	}
 /// }
 /// 
 /// // Make an Error from a `Fatal` one.
 /// impl From<Fatal> for Error {
 /// 	fn from(f: Fatal) -> Self {
-/// 		Self(PolkaErr::from_fatal(f))
+/// 		Self(Fault::from_fatal(f))
 /// 	}
 /// }
 /// 
 /// // Easy conversion from sub error types from other modules:
 /// impl From<runtime::Error> for Error {
 /// 	fn from(o: runtime::Error) -> Self {
-/// 		Self(PolkaErr::from_other(o))
+/// 		Self(Fault::from_other(o))
 /// 	}
 /// }
 ///
@@ -106,7 +106,7 @@ use thiserror::Error;
 /// can automatically converted into the above defined `Error`.
 /// ```
 #[derive(Debug, Error)]
-pub enum PolkaErr<E, F>
+pub enum Fault<E, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + 'static, {
@@ -125,30 +125,30 @@ pub enum PolkaErr<E, F>
 /// Due to typesystem constraints we cannot implement the following methods as standard
 /// `From::from` implementations. So no auto conversions by default, a simple `Result::map_err` is
 /// not too bad though.
-impl<E, F> PolkaErr<E, F>
+impl<E, F> Fault<E, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + 'static,
 {
-	/// Build an `PolkaErr` from compatible fatal error.
+	/// Build an `Fault` from compatible fatal error.
 	pub fn from_fatal<F1: Into<F>>(f: F1) -> Self {
 		Self::Fatal(f.into())
 	}
 
-	/// Build an `PolkaErr` from compatible non fatal error.
+	/// Build an `Fault` from compatible non fatal error.
 	pub fn from_non_fatal<E1: Into<E>>(e: E1) -> Self {
 		Self::Err(e.into())
 	}
 
-	/// Build an `PolkaErr` from a compatible other `PolkaErr`.
-	pub fn from_other<E1, F1>(e: PolkaErr<E1, F1>) -> Self
+	/// Build an `Fault` from a compatible other `Fault`.
+	pub fn from_other<E1, F1>(e: Fault<E1, F1>) -> Self
 	where
 		E1: Into<E> + std::fmt::Debug + std::error::Error + 'static,
 		F1: Into<F> + std::fmt::Debug + std::error::Error + 'static,
 	{
 		match e {
-			PolkaErr::Fatal(f) => Self::from_fatal(f),
-			PolkaErr::Err(e) => Self::from_non_fatal(e),
+			Fault::Fatal(f) => Self::from_fatal(f),
+			Fault::Err(e) => Self::from_non_fatal(e),
 		}
 	}
 }
@@ -162,7 +162,7 @@ impl<E, F> PolkaErr<E, F>
 ///
 /// ```no_run
 /// # use thiserror::Error;
-/// # use polkadot_node_subsystem_util::{PolkaErr, unwrap_non_fatal};
+/// # use polkadot_node_subsystem_util::{Fault, unwrap_non_fatal};
 /// # use polkadot_node_subsystem::SubsystemError;
 /// # #[derive(Error, Debug)]
 /// # enum Fatal {
@@ -170,7 +170,7 @@ impl<E, F> PolkaErr<E, F>
 /// # #[derive(Error, Debug)]
 /// # enum NonFatal {
 /// # }
-/// # fn computation() -> Result<(), PolkaErr<NonFatal, Fatal>> {
+/// # fn computation() -> Result<(), Fault<NonFatal, Fatal>> {
 /// # 	panic!();
 /// # }
 /// #
@@ -188,14 +188,14 @@ impl<E, F> PolkaErr<E, F>
 /// }
 ///
 /// ```
-pub fn unwrap_non_fatal<E,F>(result: Result<(), PolkaErr<E,F>>) -> Result<Option<E>, F>
+pub fn unwrap_non_fatal<E,F>(result: Result<(), Fault<E,F>>) -> Result<Option<E>, F>
 	where
 		E: std::fmt::Debug + std::error::Error + 'static,
 		F: std::fmt::Debug + std::error::Error + Send + Sync + 'static
 {
 	match result {
 		Ok(()) => Ok(None),
-		Err(PolkaErr::Fatal(f)) => Err(f),
-		Err(PolkaErr::Err(e)) => Ok(Some(e)),
+		Err(Fault::Fatal(f)) => Err(f),
+		Err(Fault::Err(e)) => Ok(Some(e)),
 	}
 }

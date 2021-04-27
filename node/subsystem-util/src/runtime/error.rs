@@ -23,12 +23,12 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
 
-use crate::PolkaErr;
+use crate::Fault;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors for `Runtime` cache.
-pub type Error = PolkaErr<NonFatal, Fatal>;
+pub type Error = Fault<NonFatal, Fatal>;
 
 impl From<NonFatal> for Error {
 	fn from(e: NonFatal) -> Self {
