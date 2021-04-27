@@ -8351,6 +8351,8 @@ name = "rococo-runtime"
 version = "0.9.0"
 dependencies = [
  "beefy-primitives",
+ "bp-rococo",
+ "bp-wococo",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -8362,6 +8364,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-beefy",
+ "pallet-bridge-grandpa",
  "pallet-collective",
  "pallet-grandpa",
  "pallet-im-online",
