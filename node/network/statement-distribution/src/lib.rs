@@ -952,6 +952,9 @@ async fn circulate_statement(
 	let needed_peers = min_size as i64 - priority_peers.len() as i64;
 	if needed_peers > 0 {
 		peers_to_send.truncate(needed_peers as usize);
+		// Order important here - priority peers are placed first, so will be sent first.
+		// This gives backers a chance to be among the first in requesting any large statement
+		// data.
 		priority_peers.append(&mut peers_to_send);
 	}
 	peers_to_send = priority_peers;
@@ -1856,7 +1859,6 @@ impl StatementDistribution {
 							Vec::new()
 						}
 					};
-
 					circulate_statement_and_dependents(
 						peers,
 						active_heads,
