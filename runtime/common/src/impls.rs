@@ -30,8 +30,8 @@ where
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
-		let author = <pallet_authorship::Module<R>>::author();
-		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		let author = <pallet_authorship::Pallet<R>>::author();
+		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Pallet<R>>::author(), amount);
 		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
@@ -85,6 +85,7 @@ mod tests {
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
