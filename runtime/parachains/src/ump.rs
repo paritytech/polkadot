@@ -69,7 +69,7 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<Call>, Call> UmpSink for XcmSink<XcmExecut
 		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut msg) {
 			match versioned_xcm_message {
 				VersionedXcm::V0(xcm_message) => {
-					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
+					let xcm_junction: Junction = Junction::Parachain(origin.into());
 					let xcm_location: MultiLocation = xcm_junction.into();
 					match XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight) {
 						Outcome::Complete(w) | Outcome::Incomplete(w, _) => Some(w),

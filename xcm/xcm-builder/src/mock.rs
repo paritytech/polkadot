@@ -144,11 +144,11 @@ impl TransactAsset for TestAssetTransactor {
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 	Ok(match l {
 		// Siblings at 2000+id
-		X2(Parent, Parachain { id }) => 2000 + id as u64,
+		X2(Parent, Parachain(id)) => 2000 + id as u64,
 		// Accounts are their number
 		X1(AccountIndex64 { index, .. }) => index,
 		// Children at 1000+id
-		X1(Parachain { id }) => 1000 + id as u64,
+		X1(Parachain(id)) => 1000 + id as u64,
 		// Self at 3000
 		Null => 3000,
 		// Parent at 3000
@@ -160,11 +160,11 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<TestOrigin, MultiLocation> {
-		use {OriginKind::*};
+		use OriginKind::*;
 		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
-			(Native, X1(Parachain { id })) => Ok(TestOrigin::Parachain(id)),
+			(Native, X1(Parachain(id))) => Ok(TestOrigin::Parachain(id)),
 			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
 			(Native, X1(AccountIndex64 {index, ..})) => Ok(TestOrigin::Signed(index)),
 			(_, origin) => Err(origin),
@@ -243,7 +243,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: MultiLocation = X1(Parachain{id: 42});
+	pub TestAncestry: MultiLocation = X1(Parachain(42));
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
