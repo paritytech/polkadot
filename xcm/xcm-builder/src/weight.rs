@@ -107,6 +107,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
 	}
+
 	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
