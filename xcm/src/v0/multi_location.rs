@@ -479,76 +479,51 @@ impl MultiLocation {
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
 	pub fn parent_count(&self) -> usize {
+		use Junction::Parent;
 		match self {
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, Junction::Parent
-			) => 8,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 8,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, ..
-			) => 7,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent
-			) => 7,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, ..) => 7,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 7,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent
-			) => 6,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, Parent) => 6,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X5(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent
-			) => 5,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, Parent) => 5,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent) => 4,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X4(Parent, Parent, Parent, Parent) => 4,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, Junction::Parent) => 3,
+			MultiLocation::X8(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X7(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X6(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X5(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X4(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X3(Parent, Parent, Parent) => 3,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X2(Junction::Parent, Junction::Parent) => 2,
+			MultiLocation::X8(Parent, Parent, ..) => 2,
+			MultiLocation::X7(Parent, Parent, ..) => 2,
+			MultiLocation::X6(Parent, Parent, ..) => 2,
+			MultiLocation::X5(Parent, Parent, ..) => 2,
+			MultiLocation::X4(Parent, Parent, ..) => 2,
+			MultiLocation::X3(Parent, Parent, ..) => 2,
+			MultiLocation::X2(Parent, Parent) => 2,
 
-			MultiLocation::X8(Junction::Parent, ..) => 1,
-			MultiLocation::X7(Junction::Parent, ..) => 1,
-			MultiLocation::X6(Junction::Parent, ..) => 1,
-			MultiLocation::X5(Junction::Parent, ..) => 1,
-			MultiLocation::X4(Junction::Parent, ..) => 1,
-			MultiLocation::X3(Junction::Parent, ..) => 1,
-			MultiLocation::X2(Junction::Parent, ..) => 1,
-			MultiLocation::X1(Junction::Parent) => 1,
+			MultiLocation::X8(Parent, ..) => 1,
+			MultiLocation::X7(Parent, ..) => 1,
+			MultiLocation::X6(Parent, ..) => 1,
+			MultiLocation::X5(Parent, ..) => 1,
+			MultiLocation::X4(Parent, ..) => 1,
+			MultiLocation::X3(Parent, ..) => 1,
+			MultiLocation::X2(Parent, ..) => 1,
+			MultiLocation::X1(Parent) => 1,
 			_ => 0,
 		}
 	}
