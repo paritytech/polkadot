@@ -959,7 +959,10 @@ async fn circulate_statement(
 	}
 	peers_to_send = priority_peers;
 	// We must not have duplicates:
-	debug_assert!(peers_to_send.len() == peers_to_send.clone().into_iter().collect::<HashSet<_>>().len());
+	debug_assert!(
+		peers_to_send.len() == peers_to_send.clone().into_iter().collect::<HashSet<_>>().len(),
+		"We filter out duplicates above. qed.",
+	);
 	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send.into_iter()
 		.map(|peer_id| {
 			let new = peers.get_mut(&peer_id)
