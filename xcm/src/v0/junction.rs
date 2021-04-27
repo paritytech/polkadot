@@ -94,9 +94,6 @@ pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
 	/// Generally used when the context is a Polkadot Relay-chain.
-	///
-	/// There is also `Parachain` which can be used in tests to avoid the faffy `{ id: ... }` syntax. Production
-	/// code should use this.
 	Parachain(#[codec(compact)] u32),
 	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
