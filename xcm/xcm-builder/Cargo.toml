@@ -16,6 +16,7 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", de
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }
@@ -33,4 +34,5 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"polkadot-parachain/std",
+	"pallet-transaction-payment/std",
 ]

@@ -463,8 +463,7 @@ impl State {
 		if !range.is_empty() && !blocks.is_empty() {
 			self.blocks_by_number
 			.range(range)
-			.map(|(_number, hashes)| hashes)
-			.flatten()
+			.flat_map(|(_number, hashes)| hashes)
 			.for_each(|hash| {
 				if let Some(entry) = blocks.get_mut(hash) {
 					entry.known_by.remove(&peer_id);

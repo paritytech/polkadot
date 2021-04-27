@@ -28,10 +28,10 @@ fn basic_setup_works() {
 		&X1(Parent),
 	));
 
-	assert_eq!(to_account(X1(Parachain{id:1})), Ok(1001));
-	assert_eq!(to_account(X1(Parachain{id:50})), Ok(1050));
-	assert_eq!(to_account(X2(Parent, Parachain{id:1})), Ok(2001));
-	assert_eq!(to_account(X2(Parent, Parachain{id:50})), Ok(2050));
+	assert_eq!(to_account(X1(Parachain(1))), Ok(1001));
+	assert_eq!(to_account(X1(Parachain(50))), Ok(1050));
+	assert_eq!(to_account(X2(Parent, Parachain(1))), Ok(2001));
+	assert_eq!(to_account(X2(Parent, Parachain(50))), Ok(2050));
 	assert_eq!(to_account(X1(AccountIndex64{index:1, network:Any})), Ok(1));
 	assert_eq!(to_account(X1(AccountIndex64{index:42, network:Any})), Ok(42));
 	assert_eq!(to_account(Null), Ok(3000));
@@ -88,7 +88,7 @@ fn allow_unpaid_should_work() {
 	AllowUnpaidFrom::set(vec![ X1(Parent) ]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&X1(Parachain { id: 1 }),
+		&X1(Parachain(1)),
 		true,
 		&mut message,
 		10,
@@ -116,7 +116,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&X1(Parachain { id: 1 }),
+		&X1(Parachain(1)),
 		true,
 		&mut message,
 		10,
@@ -150,7 +150,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&X1(Parachain { id: 1 }),
+		&X1(Parachain(1)),
 		true,
 		&mut paying_message,
 		30,
@@ -191,12 +191,12 @@ fn paying_reserve_deposit_should_work() {
 #[test]
 fn transfer_should_work() {
 	// we'll let them have message execution for free.
-	AllowUnpaidFrom::set(vec![ X1(Parachain{id:1}) ]);
+	AllowUnpaidFrom::set(vec![ X1(Parachain(1)) ]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(1001, ConcreteFungible { id: Null, amount: 1000 });
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		X1(Parachain{id:1}),
+		X1(Parachain(1)),
 		Xcm::TransferAsset {
 			assets: vec![ ConcreteFungible { id: Null, amount: 100 } ],
 			dest: X1(AccountIndex64{index:3, network:Any}),
@@ -211,7 +211,7 @@ fn transfer_should_work() {
 
 #[test]
 fn reserve_transfer_should_work() {
-	AllowUnpaidFrom::set(vec![ X1(Parachain{id:1}) ]);
+	AllowUnpaidFrom::set(vec![ X1(Parachain(1)) ]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(1001, ConcreteFungible { id: Null, amount: 1000 });
 	// The remote account owned by gav.
@@ -220,10 +220,10 @@ fn reserve_transfer_should_work() {
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		X1(Parachain{id:1}),
+		X1(Parachain(1)),
 		Xcm::TransferReserveAsset {
 			assets: vec![ ConcreteFungible { id: Null, amount: 100 } ],
-			dest: X1(Parachain{id:2}),
+			dest: X1(Parachain(2)),
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three.clone() } ],
 		},
 		50,
@@ -232,7 +232,7 @@ fn reserve_transfer_should_work() {
 
 	assert_eq!(assets(1002), vec![ ConcreteFungible { id: Null, amount: 100 } ]);
 	assert_eq!(sent_xcm(), vec![(
-		X1(Parachain { id: 2 }),
+		X1(Parachain(2)),
 		Xcm::ReserveAssetDeposit {
 			assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three } ],

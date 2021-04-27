@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 use bp_millau::derive_account_from_rialto_id;
 use millau_runtime::{
-	AccountId, AuraConfig, BalancesConfig, BridgeRialtoConfig, GenesisConfig, GrandpaConfig, SessionConfig,
+	AccountId, AuraConfig, BalancesConfig, BridgeWestendGrandpaConfig, GenesisConfig, GrandpaConfig, SessionConfig,
 	SessionKeys, Signature, SudoConfig, SystemConfig, WASM_BINARY,
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -122,7 +122,10 @@ impl Alternative {
 							get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 							get_account_id_from_seed::<sr25519::Public>("George//stash"),
 							get_account_id_from_seed::<sr25519::Public>("Harry//stash"),
-							pallet_message_lane::Module::<millau_runtime::Runtime, pallet_message_lane::DefaultInstance>::relayer_fund_account_id(),
+							pallet_bridge_messages::Pallet::<
+								millau_runtime::Runtime,
+								pallet_bridge_messages::DefaultInstance,
+							>::relayer_fund_account_id(),
 							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
 								get_account_id_from_seed::<sr25519::Public>("Dave"),
 							)),
@@ -151,31 +154,33 @@ fn testnet_genesis(
 	_enable_println: bool,
 ) -> GenesisConfig {
 	GenesisConfig {
-		frame_system: Some(SystemConfig {
+		frame_system: SystemConfig {
 			code: WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
-		}),
-		pallet_balances: Some(BalancesConfig {
+		},
+		pallet_balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 50)).collect(),
-		}),
-		pallet_aura: Some(AuraConfig {
+		},
+		pallet_aura: AuraConfig {
 			authorities: Vec::new(),
-		}),
-		pallet_grandpa: Some(GrandpaConfig {
+		},
+		pallet_grandpa: GrandpaConfig {
 			authorities: Vec::new(),
-		}),
-		pallet_substrate_bridge: Some(BridgeRialtoConfig {
-			// We'll initialize the pallet with a dispatchable instead.
-			init_data: None,
-			owner: Some(root_key.clone()),
-		}),
-		pallet_sudo: Some(SudoConfig { key: root_key }),
-		pallet_session: Some(SessionConfig {
+		},
+		pallet_sudo: SudoConfig { key: root_key },
+		pallet_session: SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone())))
 				.collect::<Vec<_>>(),
-		}),
+		},
+		pallet_bridge_grandpa_Instance1: BridgeWestendGrandpaConfig {
+			// for our deployments to avoid multiple same-nonces transactions:
+			// //Alice is already used to initialize Rialto<->Millau bridge
+			// => let's use //George to initialize Westend->Millau bridge
+			owner: Some(get_account_id_from_seed::<sr25519::Public>("George")),
+			..Default::default()
+		},
 	}
 }
 

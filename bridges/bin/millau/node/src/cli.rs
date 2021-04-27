@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -31,6 +31,7 @@ pub struct Cli {
 pub enum Subcommand {
 	/// Key management cli utilities
 	Key(sc_cli::KeySubcommand),
+
 	/// Verify a signature for a message, provided on STDIN, with a given (public or secret) key.
 	Verify(sc_cli::VerifyCmd),
 
@@ -61,7 +62,9 @@ pub enum Subcommand {
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
-	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+	/// Inspect blocks or extrinsics.
+	Inspect(node_inspect::cli::InspectCmd),
+
+	/// Benchmark runtime pallets.
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 }

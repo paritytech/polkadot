@@ -60,7 +60,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::WeightLimitReached);
 		}
 		let mut trader = Config::Trader::new();
-		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
+		let result = Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader);
+		drop(trader);
+		match result {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
 			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
 			//  we'll needlessly be disregarding block execution time.
@@ -76,7 +78,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		assets.into_assets_iter().collect::<Vec<_>>()
 	}
 
-	/// Execute the XCM and return any unexpected and unknowable surplus weight.
+	/// Execute the XCM and return the portion of weight of `shallow_weight + deep_weight` that `message` did not use.
+	///
+	/// NOTE: The amount returned must be less than `shallow_weight + deep_weight` of `message`.
 	fn do_execute_xcm(
 		origin: MultiLocation,
 		top_level: bool,
@@ -95,8 +99,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			.map_err(|()| XcmError::Barrier)?;
 
 		// The surplus weight, defined as the amount by which `shallow_weight` plus all nested
-		// `shallow_weight` values (ensuring no double-counting) is an overestimate of the actual weight
-		// consumed.
+		// `shallow_weight` values (ensuring no double-counting and also known as `deep_weight`) is an
+		// over-estimate of the actual weight consumed.
 		let mut total_surplus: Weight = 0;
 
 		let maybe_holding_effects = match (origin.clone(), message) {
