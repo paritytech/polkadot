@@ -99,7 +99,8 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 	fn new() -> Self { Self(0, 0, PhantomData) }
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / frame_support::weights::constants::WEIGHT_PER_SECOND;
+		use frame_support::weights::constants::WEIGHT_PER_SECOND;
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		let required = MultiAsset::ConcreteFungible { amount, id };
 		let (unused, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
