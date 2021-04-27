@@ -1254,6 +1254,28 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl bp_rococo::RococoFinalityApi<Block> for Runtime {
+		fn best_finalized() -> (bp_rococo::BlockNumber, bp_rococo::Hash) {
+			let header = BridgeRococoGrandpa::best_finalized();
+			(header.number, header.hash())
+		}
+
+		fn is_known_header(hash: bp_rococo::Hash) -> bool {
+			BridgeRococoGrandpa::is_known_header(hash)
+		}
+	}
+
+	impl bp_wococo::WococoFinalityApi<Block> for Runtime {
+		fn best_finalized() -> (bp_wococo::BlockNumber, bp_wococo::Hash) {
+			let header = BridgeWococoGrandpa::best_finalized();
+			(header.number, header.hash())
+		}
+
+		fn is_known_header(hash: bp_wococo::Hash) -> bool {
+			BridgeWococoGrandpa::is_known_header(hash)
+		}
+	}
+
 	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
 		fn account_nonce(account: AccountId) -> Nonce {
 			System::account_nonce(account)
