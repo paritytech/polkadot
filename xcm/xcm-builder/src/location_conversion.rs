@@ -64,7 +64,7 @@ impl<
 	AccountId: Clone,
 > Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::X1(Junction::Parachain { id }) = location.borrow() {
+		if let &MultiLocation::X1(Junction::Parachain(id)) = location.borrow() {
 			Ok(ParaId::from(id).into_account())
 		} else {
 			Err(())
@@ -73,7 +73,7 @@ impl<
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(Junction::Parachain { id: id.into() }.into())
+			Ok(Junction::Parachain(id.into()).into())
 		} else {
 			Err(())
 		}
@@ -87,7 +87,7 @@ impl<
 	AccountId: Clone,
 > Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::X2(Junction::Parent, Junction::Parachain { id }) = location.borrow() {
+		if let &MultiLocation::X2(Junction::Parent, Junction::Parachain(id)) = location.borrow() {
 			Ok(ParaId::from(id).into_account())
 		} else {
 			Err(())
@@ -96,7 +96,7 @@ impl<
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok([Junction::Parent, Junction::Parachain { id: id.into() }].into())
+			Ok([Junction::Parent, Junction::Parachain(id.into())].into())
 		} else {
 			Err(())
 		}
