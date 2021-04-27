@@ -594,3 +594,21 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::MultiLocation::*;
+
+	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+
+	#[test]
+	fn match_and_split_works() {
+		let m = X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 });
+		assert_eq!(m.match_and_split(&X1(Parent)), None);
+		assert_eq!(
+			m.match_and_split(&X2(Parent, Parachain { id: 42 })),
+			Some(&AccountIndex64 { network: Any, index: 23 })
+		);
+		assert_eq!(m.match_and_split(&m), None);
+	}
+}
