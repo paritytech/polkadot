@@ -28,7 +28,7 @@ mod error;
 pub use error::{Fatal, NonFatal};
 use error::{Result, log_error};
 
-use polkadot_node_subsystem_util::runtime::Runtime;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;
@@ -59,7 +59,7 @@ pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Easy and efficient runtime access for this subsystem.
-	runtime: Runtime,
+	runtime: RuntimeInfo,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -85,7 +85,7 @@ impl AvailabilityDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = Runtime::new(keystore.clone());
+		let runtime = RuntimeInfo::new(keystore.clone());
 		Self { keystore, runtime,  metrics }
 	}
 

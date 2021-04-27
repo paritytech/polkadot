@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
-use polkadot_node_subsystem_util::runtime::{Runtime, ValidatorInfo};
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, ValidatorInfo};
 
 use crate::error::{Fatal, NonFatal};
 use crate::LOG_TARGET;
@@ -64,7 +64,7 @@ impl PoVRequester {
 	pub async fn update_connected_validators<Context>(
 		&mut self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		update: &ActiveLeavesUpdate,
 	) -> super::Result<()>
 	where
@@ -88,7 +88,7 @@ impl PoVRequester {
 	pub async fn fetch_pov<Context>(
 		&self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		parent: Hash,
 		from_validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
@@ -171,7 +171,7 @@ async fn do_fetch_pov(
 }
 
 /// Get the session indeces for the given relay chain parents.
-async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>)
+async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut RuntimeInfo, new_heads: impl Iterator<Item = &Hash>)
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
 	Context: SubsystemContext,
@@ -186,7 +186,7 @@ where
 /// Connect to validators of our validator group.
 async fn connect_to_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex
 )
@@ -211,7 +211,7 @@ where
 /// Return: `None` if not a validator.
 async fn determine_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex,
 )
@@ -280,7 +280,7 @@ mod tests {
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
 		let keystore = make_ferdie_keystore();
-		let mut runtime = polkadot_node_subsystem_util::runtime::Runtime::new(keystore);
+		let mut runtime = polkadot_node_subsystem_util::runtime::RuntimeInfo::new(keystore);
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {

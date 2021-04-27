@@ -56,7 +56,7 @@ use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
 use indexmap::{IndexSet, IndexMap, map::Entry as IEntry};
 use sp_keystore::SyncCryptoStorePtr;
-use util::{PolkaErr, runtime::Runtime};
+use util::{PolkaErr, runtime::RuntimeInfo};
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
@@ -1555,7 +1555,7 @@ impl StatementDistribution {
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 
-		let mut runtime = Runtime::new(self.keystore.clone());
+		let mut runtime = RuntimeInfo::new(self.keystore.clone());
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
@@ -1770,7 +1770,7 @@ impl StatementDistribution {
 	async fn handle_subsystem_message(
 		&self,
 		ctx: &mut impl SubsystemContext,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
