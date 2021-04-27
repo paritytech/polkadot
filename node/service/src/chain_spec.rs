@@ -1509,6 +1509,15 @@ fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisCon
 	)
 }
 
+fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![get_authority_keys_from_seed("Alice")],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// Polkadot development config (single validator Alice)
 pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
@@ -1555,6 +1564,49 @@ pub fn westend_development_config() -> Result<WestendChainSpec, String> {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// Rococo development config (single validator Alice)
+pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Development",
+		"rococo_dev",
+		ChainType::Development,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// Wococo development config (single validator Alice)
+pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
+	const WOCOCO_DEV_PROTOCOL_ID: &str = "woco";
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Development",
+		"wococo_dev",
+		ChainType::Development,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(WOCOCO_DEV_PROTOCOL_ID),
 		None,
 		Default::default(),
 	))
