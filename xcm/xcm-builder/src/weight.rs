@@ -119,6 +119,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		result
 	}
 }
+
 impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcreteFungible<T, R> {
 	fn drop(&mut self) {
 		let revenue = MultiAsset::ConcreteFungible { amount: self.1, id: T::get().0 };
