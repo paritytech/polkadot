@@ -97,6 +97,7 @@ pub struct FixedRateOfConcreteFungible<
 >(Weight, u128, PhantomData<(T, R)>);
 impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfConcreteFungible<T, R> {
 	fn new() -> Self { Self(0, 0, PhantomData) }
+
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
 		use frame_support::weights::constants::WEIGHT_PER_SECOND;
