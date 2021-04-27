@@ -92,7 +92,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
-	FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32
+	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
 use constants::{time::*, currency::*, fee::*, size::*};
 use frame_support::traits::InstanceFilter;
@@ -110,7 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 231,
+	spec_version: 232,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -602,18 +602,30 @@ pub type XcmRouter = (
 
 use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
 parameter_types! {
-	pub const RococoForTick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
-	pub const RococoForTrick: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
-	pub const RococoForTrack: (MultiAsset, MultiLocation) = (AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+	pub const RococoForTick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
+	pub const RococoForTrick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
+	pub const RococoForTrack: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain{id: 1}));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
+	xcm_builder::Case<RococoForStatemint>,
 );
 
 parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> = vec![ X1(Parachain{id: 100}), X1(Parachain{id: 110}), X1(Parachain{id: 120}) ];
+	pub AllowUnpaidFrom: Vec<MultiLocation> = 
+		vec![
+			X1(Parachain{id: 100}),
+			X1(Parachain{id: 110}),
+			X1(Parachain{id: 120}),
+			X1(Parachain{id: 1})
+		];
 }
 
 use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
@@ -634,7 +646,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
 
@@ -645,7 +657,8 @@ parameter_types! {
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
 	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
@@ -869,8 +882,8 @@ impl pallet_collective::Config for Runtime {
 	type Event = Event;
 	type MotionDuration = MotionDuration;
 	type MaxProposals = MaxProposals;
-	type MaxMembers = MaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type MaxMembers = MaxMembers;
 	type WeightInfo = ();
 }
 

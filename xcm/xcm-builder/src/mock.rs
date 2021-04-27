@@ -272,6 +272,6 @@ impl Config for TestConfig {
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
-	type Trader = FixedRateOfConcreteFungible<WeightPrice>;
+	type Trader = FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }
