@@ -44,7 +44,7 @@ pub use polkadot_parachain::primitives::{
 // Export some basic parachain primitives from v0.
 pub use crate::v0::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
-	ValidatorSignature, SigningContext, Signed, ValidityAttestation,
+	ValidatorSignature, SigningContext, Signed, UncheckedSigned, ValidityAttestation,
 	CompactStatement, SignedStatement, EncodeAs,
 };
 
@@ -463,9 +463,13 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
 pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
+/// A signed bitfield with signature not yet checked.
+pub type UncheckedSignedAvailabilityBitfield = UncheckedSigned<AvailabilityBitfield>;
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
+/// A set of unchecked signed availability bitfields. Should be sorted by validator index, ascending.
+pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityBitfield>;
 
 /// A backed (or backable, depending on context) candidate.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -1120,7 +1124,7 @@ pub struct DisputeState<N = BlockNumber> {
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct InherentData<HDR: HeaderT = Header> {
 	/// Signed bitfields by validators about availability.
-	pub bitfields: SignedAvailabilityBitfields,
+	pub bitfields: UncheckedSignedAvailabilityBitfields,
 	/// Backed candidates for inclusion in the block.
 	pub backed_candidates: Vec<BackedCandidate<HDR::Hash>>,
 	/// Sets of dispute votes for inclusion,
