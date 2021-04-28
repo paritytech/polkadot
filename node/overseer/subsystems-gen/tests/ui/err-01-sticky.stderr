@@ -1,0 +1,8 @@
+error[E0599]: no method named `replace_b` found for struct `AllSubsystems<u8, u16>` in the current scope
+  --> $DIR/err-01-sticky.rs:20:16
+   |
+6  | struct AllSubsystems<A=(),B=A> {
+   | ------------------------------ method `replace_b` not found for this
+...
+20 |     let all = all.replace_b(1999u16);
+   |                   ^^^^^^^^^ help: there is an associated function with a similar name: `replace_a`
