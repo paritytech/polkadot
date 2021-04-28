@@ -33,12 +33,12 @@ use crate::{
 mod error;
 
 use error::{recv_runtime, Result};
-pub use error::Error;
+pub use error::{Error, NonFatal, Fatal};
 
 /// Caching of session info.
 ///
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
-pub struct Runtime {
+pub struct RuntimeInfo {
 	/// Get the session index for a given relay parent.
 	///
 	/// We query this up to a 100 times per block, so caching it here without roundtrips over the
@@ -70,8 +70,8 @@ pub struct ValidatorInfo {
 	pub our_group: Option<GroupIndex>,
 }
 
-impl Runtime {
-	/// Create a new `Runtime` for convenient runtime fetches.
+impl RuntimeInfo {
+	/// Create a new `RuntimeInfo` for convenient runtime fetches.
 	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
 		Self {
 			// Adjust, depending on how many forks we want to support.
@@ -134,7 +134,7 @@ impl Runtime {
 			let session_info =
 				recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 					.await?
-					.ok_or(Error::NoSuchSession(session_index))?;
+					.ok_or(NonFatal::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;
 
 			let full_info = ExtendedSessionInfo {

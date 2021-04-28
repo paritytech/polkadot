@@ -72,6 +72,8 @@ pub enum Error {
 	NotWithdrawable,
 	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
 	LocationCannotHold,
+	/// The assets given to purchase weight is are insufficient for the weight desired.
+	TooExpensive,
 }
 
 impl From<()> for Error {
