@@ -37,7 +37,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	self as util, MIN_GOSSIP_PEERS,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, UncheckedSignedFullStatement, Statement};
 use polkadot_primitives::v1::{
 	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, AuthorityDiscoveryId,
@@ -720,15 +720,15 @@ impl ActiveHeadData {
 
 	/// Returns an error if the statement is already known or not useful
 	/// without modifying the internal state.
-	fn check_useful_or_unknown(&self, statement: SignedFullStatement)
+	fn check_useful_or_unknown(&self, statement: UncheckedSignedFullStatement)
 		-> std::result::Result<(), DeniedStatement>
 	{
-		let validator_index = statement.validator_index();
-		let compact = statement.payload().to_compact();
+		let validator_index = statement.unchecked_validator_index();
+		let compact = statement.unchecked_payload().to_compact();
 		let comparator = StoredStatementComparator {
 			compact: compact.clone(),
 			validator_index,
-			signature: statement.signature().clone(),
+			signature: statement.unchecked_signature().clone(),
 		};
 
 		let stored = StoredStatement {
@@ -801,16 +801,16 @@ impl ActiveHeadData {
 fn check_statement_signature(
 	head: &ActiveHeadData,
 	relay_parent: Hash,
-	statement: &SignedFullStatement,
-) -> std::result::Result<(), ()> {
+	statement: &UncheckedSignedFullStatement,
+) -> std::result::Result<SignedFullStatement, ()> {
 	let signing_context = SigningContext {
 		session_index: head.session_index,
 		parent_hash: relay_parent,
 	};
 
-	head.validators.get(statement.validator_index().0 as usize)
+	head.validators.get(statement.unchecked_validator_index().0 as usize)
 		.ok_or(())
-		.and_then(|v| statement.check_signature(&signing_context, v))
+		.and_then(|v| statement.into_checked(&signing_context, v))
 }
 
 /// Places the statement in storage if it is new, and then
@@ -887,7 +887,7 @@ fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 			}
 		)
 	} else {
-		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement)
+		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
 	};
 
 	protocol_v1::ValidationProtocol::StatementDistribution(msg)
@@ -1092,7 +1092,7 @@ async fn retrieve_statement_from_message<'a>(
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<SignedFullStatement> {
+) -> Option<UncheckedSignedFullStatement> {
 
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = *fingerprint.0.candidate_hash();
@@ -1100,7 +1100,7 @@ async fn retrieve_statement_from_message<'a>(
 	// Immediately return any Seconded statement:
 	let message =
 		if let protocol_v1::StatementDistributionMessage::Statement(h, s) = message {
-			if let Statement::Seconded(_) = s.payload() {
+			if let Statement::Seconded(_) = s.unchecked_payload() {
 				return Some(s)
 			}
 			protocol_v1::StatementDistributionMessage::Statement(h, s)
@@ -1148,40 +1148,12 @@ async fn retrieve_statement_from_message<'a>(
 							return Some(s)
 						}
 						protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
-
-							let validator_id = active_head.validators.get(metadata.signed_by.0 as usize);
-
-							if let Some(validator_id) = validator_id {
-								let signing_context = SigningContext {
-									session_index: active_head.session_index,
-									parent_hash: metadata.relay_parent,
-								};
-
-								let statement = SignedFullStatement::new(
-									Statement::Seconded(committed.clone()),
+							return Some(UncheckedSignedFullStatement::new(
+								Statement::Seconded(
+									committed.clone()),
 									metadata.signed_by,
 									metadata.signature.clone(),
-									&signing_context,
-									validator_id,
-								);
-
-								if let Some(statement) = statement {
-									return Some(statement)
-								} else {
-									tracing::debug!(
-										target: LOG_TARGET,
-										validator_index = ?metadata.signed_by,
-										"Building statement failed - invalid signature!"
-									);
-									report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
-								}
-							} else {
-								tracing::debug!(
-									target: LOG_TARGET,
-									validator_index = ?metadata.signed_by,
-									"Error loading statement, could not find key for validator."
-								);
-							}
+							))
 						}
 					}
 				}
@@ -1368,16 +1340,19 @@ async fn handle_incoming_message<'a>(
 	}
 
 	// check the signature on the statement.
-	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer,
-			?statement,
-			"Invalid statement signature"
-		);
-		report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
-		return None;
-	}
+	let statement = match check_statement_signature(&active_head, relay_parent, &statement) {
+		Err(()) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?statement,
+				"Invalid statement signature"
+			);
+			report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+			return None
+		}
+		Ok(statement) => statement,
+	};
 
 	// Ensure the statement is stored in the peer data.
 	//
@@ -2746,7 +2721,7 @@ mod tests {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()),
+						protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()),
 					)
 				)
 			}).await;
@@ -2777,7 +2752,7 @@ mod tests {
 				) => {
 					assert_eq!(recipients, vec![peer_b.clone()]);
 					assert_eq!(r, hash_a);
-					assert_eq!(s, statement);
+					assert_eq!(s, statement.into());
 				}
 			);
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
@@ -2951,7 +2926,7 @@ mod tests {
 			};
 
 			let metadata =
-				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()).get_metadata();
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
