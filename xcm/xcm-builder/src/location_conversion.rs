@@ -144,6 +144,38 @@ impl<
 }
 
 /// Simple location inverter; give it this location's ancestry and it'll figure out the inverted location.
+///
+/// # Example
+/// ## Network Topology
+/// ```txt
+///                    v Source
+/// Relay -> Para 1 -> Account20
+///       -> Para 2 -> Account32
+///                    ^ Target
+/// ```
+/// ```rust
+/// # use frame_support::parameter_types;
+/// # use xcm::v0::{MultiLocation::{self, *}, Junction::*, NetworkId::Any};
+/// # use xcm_builder::LocationInverter;
+/// # use xcm_executor::traits::InvertLocation;
+/// # fn main() {
+/// parameter_types!{
+/// 	pub Ancestry: MultiLocation = X2(
+/// 		Parachain(1),
+/// 		AccountKey20 { network: Any, key: Default::default()},
+/// 	);
+/// }
+///
+/// let input = X4(Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
+/// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+/// assert_eq!(inverted, X4(
+/// 	Parent,
+/// 	Parent,
+/// 	Parachain(1),
+/// 	AccountKey20 { network: Any, key: Default::default() },
+/// ));
+/// # }
+/// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
 	fn invert_location(location: &MultiLocation) -> MultiLocation {
@@ -159,5 +191,46 @@ impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry>
 			*result.at_mut(i).expect("location and result begin equal; same size; qed") = j;
 		}
 		result
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use frame_support::parameter_types;
+	use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+
+	// Network Topology
+	//                                     v Source
+	// Relay -> Para 1 -> SmartContract -> Account
+	//       -> Para 2 -> Account
+	//                    ^ Target
+	//
+	// Inputs and outputs written as file paths:
+	//
+	// input location (source to target): ../../../para_2/account32_default
+	// ancestry (root to source): para_1/account20_default/account20_default
+	// =>
+	// output (target to source): ../../para_1/account20_default/account20_default
+	#[test]
+	fn location_inverter() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X3(
+				Parachain(1),
+				AccountKey20 { network: Any, key: Default::default() },
+				AccountKey20 { network: Any, key: Default::default() },
+			);
+		}
+
+		let input = X5(Parent, Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X5(
+			Parent,
+			Parent,
+			Parachain(1),
+			AccountKey20 { network: Any, key: Default::default() },
+			AccountKey20 { network: Any, key: Default::default() },
+		));
 	}
 }
