@@ -528,10 +528,10 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalised form is returned, removing any
+	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalised form is returned, removing any
 	/// internal `Parent`s.
 	///
-	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
 	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
 		let mut prefix = suffix;
 		core::mem::swap(self, &mut prefix);
@@ -610,5 +610,20 @@ mod tests {
 			Some(&AccountIndex64 { network: Any, index: 23 })
 		);
 		assert_eq!(m.match_and_split(&m), None);
+	}
+
+	#[test]
+	fn append_with_works() {
+		let mut m = X2(Parent, Parachain { id: 42 });
+		assert_eq!(m.append_with(X1(AccountIndex64 { network: Any, index: 23 })), Ok(()));
+		assert_eq!(m, X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 }));
+	}
+
+	#[test]
+	fn prepend_with_works() {
+		let mut m = X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 });
+		// prepend drops any redundant parents
+		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
+		assert_eq!(m, X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 }));
 	}
 }
