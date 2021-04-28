@@ -254,27 +254,8 @@ impl MultiAsset {
 
 	/// Returns true if `self` is a super-set of the given `inner`.
 	///
-	/// # Examples
-	///
-	/// ```rust
-	/// # use xcm::v0::MultiAsset;
-	# fn main() {
-	// trivial case: all contains anything
-	assert!(MultiAsset::All.contains(MultiAsset::None));
-	assert!(MultiAsset::All.contains(MultiAsset::AllFungible));
-
-	// trivial case: none contains nothing
-	assert!(!MultiAsset::None.contains(MultiAsset::None));
-	assert!(!MultiAsset::None.contains(MultiAsset::AllFungible));
-
-	// A bit more sneaky: Nothing can contains All, even All.
-	// TODO: I think this is inconsistent, there should be an exception for this case.
-	assert!(!MultiAsset::All.contains(MultiAsset::All));
-	// but AllFungible and AllNonFungible contain themselves.
-	assert!(MultiAsset::AllFungible.contains(MultiAsset::AllFungible));
-	assert!(MultiAsset::AllNonFungible.contains(MultiAsset::AllNonFungible));
-	# }
-	/// ```
+	/// Typically, any wildcard is never contained in anything else, and a wildcard can contain any other non-wildcard.
+	/// For more details, see the implementation and tests.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use MultiAsset::*;
 
@@ -299,15 +280,18 @@ impl MultiAsset {
 			AllConcreteNonFungible { class } => inner.is_concrete_non_fungible(class),
 			AllAbstractNonFungible { class } => inner.is_abstract_non_fungible(class),
 
+			// TODO: should it not be `if i == id && amount >= a`? for self to contain `inner`, self should contain
+			// larger quantities than inner.
 			ConcreteFungible { id, amount }
 			=> matches!(inner, ConcreteFungible { id: i , amount: a } if i == id && a >= amount),
 			AbstractFungible { id, amount }
 			=> matches!(inner, AbstractFungible { id: i , amount: a } if i == id && a >= amount),
 			ConcreteNonFungible { class, instance }
-			=> matches!(inner, ConcreteNonFungible { class: i , instance: a } if i == class && a == instance),
+			=> matches!(inner, ConcreteNonFungible { class: c , instance: i } if c == class && i == instance),
 			AbstractNonFungible { class, instance }
-			=> matches!(inner, AbstractNonFungible { class: i , instance: a } if i == class && a == instance),
-
+			=> matches!(inner, AbstractNonFungible { class: c , instance: i } if c == class && i == instance),
+			// ConcreteNonFungible { .. } => self == inner,
+			// AbstractNonFungible { .. } => self == inner,
 			_ => false,
 		}
 	}
@@ -337,5 +321,62 @@ impl TryFrom<VersionedMultiAsset> for MultiAsset {
 		match x {
 			VersionedMultiAsset::V0(x) => Ok(x),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn contains_works() {
+		use alloc::vec;
+		use MultiAsset::*;
+		// trivial case: all contains any non-wildcard.
+		assert!(All.contains(&None));
+		assert!(All.contains(&AbstractFungible { id: alloc::vec![99u8], amount: 1 }));
+
+		// trivial case: none contains nothing, except itself.
+		assert!(None.contains(&None));
+		assert!(!None.contains(&AllFungible));
+		assert!(!None.contains(&All));
+
+		// A bit more sneaky: Nothing can contain wildcard, even All ir the thing itself.
+		assert!(!All.contains(&All));
+		assert!(!All.contains(&AllFungible));
+		assert!(!AllFungible.contains(&AllFungible));
+		assert!(!AllNonFungible.contains(&AllNonFungible));
+
+		// For fungibles, containing is basically equality, or equal with higher amount.
+		assert!(
+			!AbstractFungible { id: vec![99u8], amount: 9 }
+			.contains(&AbstractFungible { id: vec![98u8], amount: 99 })
+		);
+		assert!(
+			AbstractFungible { id: vec![99u8], amount: 9 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 99 })
+		);
+		assert!(
+			AbstractFungible { id: vec![99u8], amount: 9 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 9 })
+		);
+		assert!(
+			!AbstractFungible { id: vec![99u8], amount: 9 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 1 })
+		);
+
+		// For non-fungibles, containing is equality.
+		assert!(
+			!AbstractNonFungible {class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
+			.contains(&AbstractNonFungible { class: vec![98u8], instance: AssetInstance::Index { id: 9 } })
+		);
+		assert!(
+			!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 8 } }
+			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
+		);
+		assert!(
+			AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
+			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
+		);
 	}
 }

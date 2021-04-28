@@ -132,8 +132,8 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// impl ConvertOrigin<u32> for BumpParaId {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
 /// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain { id }) => {
-/// 				Err(MultiLocation::X1(Junction::Parachain { id: id + 1 }))
+/// 			MultiLocation::X1(Junction::Parachain(id)) => {
+/// 				Err(MultiLocation::X1(Junction::Parachain(id + 1)))
 /// 			}
 /// 			_ => unreachable!()
 /// 		}
@@ -144,7 +144,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// impl ConvertOrigin<u32> for AcceptPara7 {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
 /// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain { id }) if id == 7 => {
+/// 			MultiLocation::X1(Junction::Parachain(id)) if id == 7 => {
 /// 				Ok(7)
 /// 			}
 /// 			_ => Err(origin)
@@ -152,7 +152,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// 	}
 /// }
 /// # fn main() {
-///	let origin = MultiLocation::X1(Junction::Parachain { id: 6 });
+///	let origin = MultiLocation::X1(Junction::Parachain(6));
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()
