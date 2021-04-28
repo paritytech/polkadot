@@ -1509,7 +1509,7 @@ impl StatementDistribution {
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 
-		let mut runtime = RuntimeInfo::new(self.keystore.clone());
+		let mut runtime = RuntimeInfo::new(Some(self.keystore.clone()));
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);

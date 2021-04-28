@@ -49,7 +49,7 @@ pub struct RuntimeInfo {
 	session_info_cache: LruCache<SessionIndex, ExtendedSessionInfo>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
-	keystore: SyncCryptoStorePtr,
+	keystore: Option<SyncCryptoStorePtr>,
 }
 
 /// SessionInfo with additional useful data for validator nodes.
@@ -72,7 +72,7 @@ pub struct ValidatorInfo {
 
 impl RuntimeInfo {
 	/// Create a new `RuntimeInfo` for convenient runtime fetches.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: Option<SyncCryptoStorePtr>) -> Self {
 		Self {
 			// Adjust, depending on how many forks we want to support.
 			session_index_cache: LruCache::new(10),
@@ -187,8 +187,9 @@ impl RuntimeInfo {
 	///
 	/// Returns: None if we are not a validator.
 	async fn get_our_index(&self, validators: &[ValidatorId]) -> Option<ValidatorIndex> {
+		let keystore = self.keystore.as_ref()?;
 		for (i, v) in validators.iter().enumerate() {
-			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
+			if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
 				.await
 			{
 				return Some(ValidatorIndex(i as u32));
