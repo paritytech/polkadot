@@ -23,7 +23,6 @@ use xcm::v0::{MultiLocation, NetworkId, Junction};
 use xcm_executor::traits::{InvertLocation, Convert};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
-
 impl<
 	Network: Get<NetworkId>,
 	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
@@ -37,6 +36,8 @@ impl<
 	}
 }
 
+/// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
+/// default value of `AccountId` (e.g. all zeros for `AccountId32`).
 pub struct ParentIsDefault<AccountId>(PhantomData<AccountId>);
 impl<
 	AccountId: Default + Eq + Clone,
@@ -81,7 +82,6 @@ impl<
 }
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-
 impl<
 	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
 	AccountId: Clone,
@@ -103,6 +103,7 @@ impl<
 	}
 }
 
+/// Extracts the `AccountId32` from the passed `location` if the network matches.
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<
 	Network: Get<NetworkId>,
