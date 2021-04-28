@@ -603,10 +603,10 @@ mod tests {
 
 	#[test]
 	fn match_and_split_works() {
-		let m = X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 });
+		let m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
 		assert_eq!(m.match_and_split(&X1(Parent)), None);
 		assert_eq!(
-			m.match_and_split(&X2(Parent, Parachain { id: 42 })),
+			m.match_and_split(&X2(Parent, Parachain(42))),
 			Some(&AccountIndex64 { network: Any, index: 23 })
 		);
 		assert_eq!(m.match_and_split(&m), None);
@@ -614,16 +614,16 @@ mod tests {
 
 	#[test]
 	fn append_with_works() {
-		let mut m = X2(Parent, Parachain { id: 42 });
+		let mut m = X2(Parent, Parachain(42));
 		assert_eq!(m.append_with(X1(AccountIndex64 { network: Any, index: 23 })), Ok(()));
-		assert_eq!(m, X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 }));
+		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
 	}
 
 	#[test]
 	fn prepend_with_works() {
-		let mut m = X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 });
+		let mut m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
 		// prepend drops any redundant parents
 		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
-		assert_eq!(m, X3(Parent, Parachain { id: 42 }, AccountIndex64 { network: Any, index: 23 }));
+		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
 	}
 }
