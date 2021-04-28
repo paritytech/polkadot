@@ -973,6 +973,15 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		}
 	}
 
+	/// Check whether this checked signed is equal to some unchecked one.
+	pub fn equals_unchecked(&self, unchecked: &UncheckedSigned<Payload, RealPayload>) -> bool 
+		where
+			Payload: PartialEq + Eq,
+			RealPayload: PartialEq + Eq,
+	{
+		self.0 == unchecked.0
+	}
+
 	/// Immutably access the payload.
 	#[inline]
 	pub fn payload(&self) -> &Payload {
