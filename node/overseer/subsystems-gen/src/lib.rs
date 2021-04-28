@@ -19,9 +19,9 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use syn::{AttrStyle, Error, GenericParam, Ident, Result, Type, parse2};
+use syn::{Error, GenericParam, Ident, Result, Type, parse2};
 
-#[proc_macro_derive(AllSubsystemsGen, attributes(sticky))]
+#[proc_macro_derive(AllSubsystemsGen)]
 pub fn subsystems_gen(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let item: TokenStream = item.into();
 	impl_subsystems_gen(item).unwrap_or_else(|err| err.to_compile_error()).into()
@@ -77,16 +77,8 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 				let field_ident = field.ident.clone().ok_or_else(|| Error::new(span, "Member field must have a name."))?;
 				let ty = field.ty.clone();
 				let ntt = NameTyTup { field: field_ident, ty };
-				// skip list: avoid those annotated with #[sticky]
-				if field
-					.attrs
-					.iter()
-					.filter(|&attr| attr.style == AttrStyle::Outer)
-					.find_map(|attr| attr.path.get_ident().filter(|ident| *ident == "sticky"))
-					.is_none()
-				{
-					replacable_items.push(ntt.clone());
-				}
+
+				replacable_items.push(ntt.clone());
 
 
 				// assure every generic is used exactly once
@@ -169,7 +161,6 @@ mod tests {
 			pub struct AllSubsystems<A,B,CD> {
 				pub a: A,
 				pub beee: B,
-				#[sticky]
 				pub dj: CD,
 			}
 		};

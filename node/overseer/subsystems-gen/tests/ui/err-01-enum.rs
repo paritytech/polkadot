@@ -6,8 +6,8 @@ use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 enum AllSubsystems<A,B> {
 	A(A),
 
-    #[sticky]
-    B(B),
+	#[sticky]
+	B(B),
 }
 
 fn main() {

@@ -5,7 +5,7 @@ use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 #[derive(Clone, AllSubsystemsGen)]
 struct AllSubsystems<X> {
 	a: X,
-    b: X,
+	b: X,
 }
 
 fn main() {

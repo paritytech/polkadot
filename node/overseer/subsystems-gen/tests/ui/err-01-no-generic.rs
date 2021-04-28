@@ -6,7 +6,7 @@ use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 struct AllSubsystems {
 	a: f32,
 	#[sticky]
-    b: u16,
+	b: u16,
 }
 
 fn main() {
