@@ -545,8 +545,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned, removing any
-	/// internal `Parent`s.
+	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned,
+	/// removing any internal `Parent`s.
 	///
 	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
 	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
@@ -614,15 +614,21 @@ mod tests {
 
 	#[test]
 	fn append_with_works() {
+		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = X2(Parent, Parachain(42));
-		assert_eq!(m.append_with(X1(AccountIndex64 { network: Any, index: 23 })), Ok(()));
-		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
+		assert_eq!(m.append_with(X2(PalletInstance(3), acc.clone())), Ok(()));
+		assert_eq!(m, X4(Parent, Parachain(42), PalletInstance(3), acc.clone()));
+
+		// cannot append to create overly long multilocation
+		let acc = AccountIndex64 { network: Any, index: 23 };
+		let mut m = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parachain(42));
+		let suffix = X2(PalletInstance(3), acc.clone());
+		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
 	}
 
 	#[test]
 	fn prepend_with_works() {
 		let mut m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
-		// prepend drops any redundant parents
 		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
 		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
 	}
