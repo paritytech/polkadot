@@ -965,11 +965,11 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		unchecked: UncheckedSigned<Payload, RealPayload>,
 		context: &SigningContext<H>,
 		key: &ValidatorId
-	) -> Option<Self> {
+	) -> Result<Self, UncheckedSigned<Payload, RealPayload>> {
 		if unchecked.0.check_signature(context, key).is_ok() {
-			Some(Self(unchecked.0))
+			Ok(Self(unchecked.0))
 		} else {
-			None
+			Err(unchecked)
 		}
 	}
 
@@ -1028,7 +1028,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		self,
 		context: &SigningContext<H>,
 		key: &ValidatorId
-	) -> Option<Signed<Payload, RealPayload>> {
+	) -> Result<Signed<Payload, RealPayload>, Self> {
 		Signed::from_unchecked(self, context, key)
 	}
 
