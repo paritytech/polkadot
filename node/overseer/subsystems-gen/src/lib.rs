@@ -66,7 +66,7 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 				return Err(Error::new(strukt_ty.span(), "struct must have at least one generic parameter."))
 			}
 
-			// collect all fields that exist, and all fields that are replacable
+			// collect all fields that exist, and all fields that are replaceable
 			let mut replacable_items = Vec::<NameTyTup>::with_capacity(64);
 			let mut all_fields = replacable_items.clone();
 
