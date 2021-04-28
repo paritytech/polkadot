@@ -94,5 +94,48 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
+	/// Called by the iniitalizer to initialize the disputes module.
+	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		let config = <configuration::Module<T>>::config();
 
+		let mut weight = 0;
+		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
+			weight += T::DbWeight::get().reads_writes(1, 0);
+
+			if dispute.concluded_at.is_none()
+				&& dispute.start + config.dispute_conclusion_by_time_out_period < now
+			{
+				dispute.concluded_at = Some(now);
+				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
+
+				// mildly punish all validators involved. they've failed to make
+				// data available to others, so this is most likely spam.
+				SpamSlots::mutate(session_index, |spam_slots| {
+					let participating = (dispute.validators_for | dispute.validators_against);
+					for validator_index in participating {
+						// TODO [now]: slight punishment.
+
+						// also reduce spam slots for all validators involved. this does
+						// open us up to more spam, but only for validators who are willing
+						// to be punished more.
+						if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
+							*occupied = occupied.saturating_sub(1);
+						}
+					}
+				});
+
+				weight += T::DbWeight::get().reads_writes(1, 2);
+			}
+		}
+
+		weight
+	}
+
+	/// Called by the iniitalizer to finalize the disputes module.
+	pub(crate) fn initializer_finalize(now: T::BlockNumber) { }
+
+	/// Called by the iniitalizer to note a new session in the disputes module.
+	pub(crate) fn initializer_on_new_session(now: T::BlockNumber) {
+
+	}
 }
