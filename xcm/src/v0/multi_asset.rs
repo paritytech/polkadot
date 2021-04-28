@@ -286,12 +286,8 @@ impl MultiAsset {
 			=> matches!(inner, ConcreteFungible { id: i , amount: a } if i == id && a >= amount),
 			AbstractFungible { id, amount }
 			=> matches!(inner, AbstractFungible { id: i , amount: a } if i == id && a >= amount),
-			ConcreteNonFungible { class, instance }
-			=> matches!(inner, ConcreteNonFungible { class: c , instance: i } if c == class && i == instance),
-			AbstractNonFungible { class, instance }
-			=> matches!(inner, AbstractNonFungible { class: c , instance: i } if c == class && i == instance),
-			// ConcreteNonFungible { .. } => self == inner,
-			// AbstractNonFungible { .. } => self == inner,
+			ConcreteNonFungible { .. } => self == inner,
+			AbstractNonFungible { .. } => self == inner,
 			_ => false,
 		}
 	}
