@@ -61,35 +61,34 @@ pub enum AssetInstance {
 /// ### Abstract identifiers
 ///
 /// Abstract identifiers are absolute identifiers that represent a notional asset which can exist within multiple
-/// consensus systems. These tend to be simpler to deal with since their broad meaning is unchanged regardless stay
-/// of the consensus system in which it is interpreted.
+/// consensus systems. These tend to be simpler to deal with since their broad meaning is unchanged regardless stay of
+/// the consensus system in which it is interpreted.
 ///
 /// However, in the attempt to provide uniformity across consensus systems, they may conflate different instantiations
 /// of some notional asset (e.g. the reserve asset and a local reserve-backed derivative of it) under the same name,
-/// leading to confusion. It also implies that one notional asset is accounted for locally in only one way. This may
-/// not be the case, e.g. where there are multiple bridge instances each providing a bridged "BTC" token yet none
-/// being fungible between the others.
+/// leading to confusion. It also implies that one notional asset is accounted for locally in only one way. This may not
+/// be the case, e.g. where there are multiple bridge instances each providing a bridged "BTC" token yet none being
+/// fungible between the others.
 ///
-/// Since they are meant to be absolute and universal, a global registry is needed to ensure that name collisions
-/// do not occur.
+/// Since they are meant to be absolute and universal, a global registry is needed to ensure that name collisions do not
+/// occur.
 ///
 /// An abstract identifier is represented as a simple variable-size byte string. As of writing, no global registry
 /// exists and no proposals have been put forth for asset labeling.
 ///
 /// ### Concrete identifiers
 ///
-/// Concrete identifiers are *relative identifiers* that specifically identify a single asset through its location in
-/// a consensus system relative to the context interpreting. Use of a `MultiLocation` ensures that similar but non
-/// fungible variants of the same underlying asset can be properly distinguished, and obviates the need for any kind
-/// of central registry.
+/// Concrete identifiers are *relative identifiers* that specifically identify a single asset through its location in a
+/// consensus system relative to the context interpreting. Use of a `MultiLocation` ensures that similar but non
+/// fungible variants of the same underlying asset can be properly distinguished, and obviates the need for any kind of
+/// central registry.
 ///
-/// The limitation is that the asset identifier cannot be trivially copied between consensus
-/// systems and must instead be "re-anchored" whenever being moved to a new consensus system, using the two systems'
-/// relative paths.
+/// The limitation is that the asset identifier cannot be trivially copied between consensus systems and must instead be
+/// "re-anchored" whenever being moved to a new consensus system, using the two systems' relative paths.
 ///
-/// Throughout XCM, messages are authored such that *when interpreted from the receiver's point of view* they will
-/// have the desired meaning/effect. This means that relative paths should always by constructed to be read from the
-/// point of view of the receiving system, *which may be have a completely different meaning in the authoring system*.
+/// Throughout XCM, messages are authored such that *when interpreted from the receiver's point of view* they will have
+/// the desired meaning/effect. This means that relative paths should always by constructed to be read from the point of
+/// view of the receiving system, *which may be have a completely different meaning in the authoring system*.
 ///
 /// Concrete identifiers are the preferred way of identifying an asset since they are entirely unambiguous.
 ///
@@ -99,8 +98,8 @@ pub enum AssetInstance {
 ///
 /// - `<chain>/PalletInstance(<id>)` for a Frame chain with a single-asset pallet instance (such as an instance of the
 ///   Balances pallet).
-/// - `<chain>/PalletInstance(<id>)/GeneralIndex(<index>)` for a Frame chain with an indexed multi-asset pallet
-///   instance (such as an instance of the Assets pallet).
+/// - `<chain>/PalletInstance(<id>)/GeneralIndex(<index>)` for a Frame chain with an indexed multi-asset pallet instance
+///   (such as an instance of the Assets pallet).
 /// - `<chain>/AccountId32` for an ERC-20-style single-asset smart-contract on a Frame-based contracts chain.
 /// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
 ///
@@ -147,6 +146,9 @@ pub enum MultiAsset {
 }
 
 impl MultiAsset {
+	/// Returns `true` if the `MultiAsset` is a wildcard and can refer to classes of assets, instead of just one.
+	///
+	/// Typically can also be inferred by the name staring with `All`.
 	pub fn is_wildcard(&self) -> bool {
 		match self {
 			MultiAsset::None
@@ -178,6 +180,7 @@ impl MultiAsset {
 		}
 	}
 
+	// TODO: `All` is both fungible and non-fungible, and I think it should be none.
 	fn is_fungible(&self) -> bool {
 		match self {
 			MultiAsset::All
@@ -209,7 +212,6 @@ impl MultiAsset {
 	fn is_concrete_fungible(&self, id: &MultiLocation) -> bool {
 		match self {
 			MultiAsset::AllFungible => true,
-
 			MultiAsset::AllConcreteFungible { id: i }
 			| MultiAsset::ConcreteFungible { id: i, .. }
 			=> i == id,
@@ -250,8 +252,32 @@ impl MultiAsset {
 
 	fn is_all(&self) -> bool { matches!(self, MultiAsset::All) }
 
+	/// Returns true if `self` is a super-set of the given `inner`.
+	///
+	/// # Examples
+	///
+	/// ```rust
+	/// # use xcm::v0::MultiAsset;
+	# fn main() {
+	// trivial case: all contains anything
+	assert!(MultiAsset::All.contains(MultiAsset::None));
+	assert!(MultiAsset::All.contains(MultiAsset::AllFungible));
+
+	// trivial case: none contains nothing
+	assert!(!MultiAsset::None.contains(MultiAsset::None));
+	assert!(!MultiAsset::None.contains(MultiAsset::AllFungible));
+
+	// A bit more sneaky: Nothing can contains All, even All.
+	// TODO: I think this is inconsistent, there should be an exception for this case.
+	assert!(!MultiAsset::All.contains(MultiAsset::All));
+	// but AllFungible and AllNonFungible contain themselves.
+	assert!(MultiAsset::AllFungible.contains(MultiAsset::AllFungible));
+	assert!(MultiAsset::AllNonFungible.contains(MultiAsset::AllNonFungible));
+	# }
+	/// ```
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use MultiAsset::*;
+
 		// Inner cannot be wild
 		if inner.is_wildcard() { return false }
 		// Everything contains nothing.

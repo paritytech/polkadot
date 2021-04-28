@@ -28,8 +28,8 @@ use xcm::v0::{
 
 pub mod traits;
 use traits::{
-	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, WeightBounds, WeightTrader, ShouldExecute,
-	OnResponse
+	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, WeightBounds, WeightTrader,
+	ShouldExecute, OnResponse
 };
 
 mod assets;
@@ -37,10 +37,12 @@ pub use assets::{Assets, AssetId};
 mod config;
 pub use config::Config;
 
+/// The XCM executor.
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	type Call = Config::Call;
+	/// execute an XCM call with the given weight limit.
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Config::Call>, weight_limit: Weight) -> Outcome {
 		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
@@ -52,13 +54,16 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			Ok(x) => x,
 			Err(()) => return Outcome::Error(XcmError::WeightNotComputable),
 		};
+
 		let maximum_weight = match shallow_weight.checked_add(deep_weight) {
 			Some(x) => x,
-			None => return Outcome::Error(XcmError::WeightLimitReached),
+			None => return Outcome::Error(XcmError::WeightLimitReached), // TODO: this is overflow... but anyhow.
 		};
+
 		if maximum_weight > weight_limit {
 			return Outcome::Error(XcmError::WeightLimitReached);
 		}
+
 		let mut trader = Config::Trader::new();
 		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),

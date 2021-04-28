@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Types and helpers for creating XCM configuration.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]

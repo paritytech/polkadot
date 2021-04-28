@@ -619,7 +619,7 @@ pub type TrustedTeleporters = (
 );
 
 parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> = 
+	pub AllowUnpaidFrom: Vec<MultiLocation> =
 		vec![
 			X1(Parachain{id: 100}),
 			X1(Parachain{id: 110}),
