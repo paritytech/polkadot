@@ -298,7 +298,7 @@ impl<T: Config> Module<T> {
 					unchecked_bitfield.into_checked(
 						&signing_context,
 						validator_public,
-					).ok_or(Error::<T>::InvalidBitfieldSignature)?
+					).map_err(|_| Error::<T>::InvalidBitfieldSignature)?
 				);
 			}
 			signed_bitfields
