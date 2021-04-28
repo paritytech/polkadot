@@ -22,11 +22,12 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_primitives::v1::{GroupIndex, Hash, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
+use polkadot_primitives::v1::{CoreState, GroupIndex, Hash, OccupiedCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
 use polkadot_node_subsystem::SubsystemContext;
 
 use crate::{
 	request_session_index_for_child, request_session_info,
+	request_availability_cores,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -197,4 +198,36 @@ impl RuntimeInfo {
 		}
 		None
 	}
+}
+
+/// Request availability cores from the runtime.
+pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
+	-> Result<Vec<CoreState>> 
+	where
+		Context: SubsystemContext,
+{
+	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
+}
+
+/// Variant of `request_availability_cores` that only returns occupied ones.
+pub async fn get_occupied_cores<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+) -> Result<Vec<OccupiedCore>>
+where
+	Context: SubsystemContext,
+{
+	let cores = get_availability_cores(ctx, relay_parent).await?;
+
+	Ok(cores
+		.into_iter()
+		.filter_map(|core_state| {
+			if let CoreState::Occupied(occupied) = core_state {
+				Some(occupied)
+			} else {
+				None
+			}
+		})
+		.collect()
+	)
 }
