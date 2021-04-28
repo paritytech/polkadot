@@ -29,7 +29,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
-	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_node_primitives::{
 	Statement, SignedFullStatement, ValidationResult, PoV, AvailableData,
@@ -195,7 +195,6 @@ const fn group_quorum(n_validators: usize) -> usize {
 
 #[derive(Default)]
 struct TableContext {
-	signing_context: SigningContext,
 	validator: Option<Validator>,
 	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
 	validators: Vec<ValidatorId>,
@@ -1187,7 +1186,6 @@ impl util::JobTrait for CandidateBackingJob {
 			let table_context = TableContext {
 				groups,
 				validators,
-				signing_context,
 				validator,
 			};
 
@@ -1641,14 +1639,9 @@ mod tests {
 				AllMessages::StatementDistribution(
 					StatementDistributionMessage::Share(
 						parent_hash,
-						signed_statement,
+						_signed_statement,
 					)
-				) if parent_hash == test_state.relay_parent => {
-					signed_statement.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[0],
-					).unwrap();
-				}
+				) if parent_hash == test_state.relay_parent => {}
 			);
 
 			assert_matches!(
@@ -1691,11 +1684,6 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-			let public0 = CryptoStore::sr25519_generate_new(
-				&*test_state.keystore,
-				ValidatorId::ID,
-				Some(&test_state.validators[0].to_seed()),
-			).await.expect("Insert key into keystore");
 			let public1 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
 				ValidatorId::ID,
@@ -1778,10 +1766,9 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(hash, stmt)
+					StatementDistributionMessage::Share(hash, _stmt)
 				) => {
 					assert_eq!(test_state.relay_parent, hash);
-					stmt.check_signature(&test_state.signing_context, &public0.into()).expect("Is signed correctly");
 				}
 			);
 
@@ -2075,11 +2062,6 @@ mod tests {
 						signed_statement,
 					)
 				) if relay_parent == test_state.relay_parent => {
-					signed_statement.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[0],
-					).unwrap();
-
 					assert_eq!(*signed_statement.payload(), Statement::Valid(candidate_a_hash));
 				}
 			);
@@ -2240,11 +2222,6 @@ mod tests {
 						signed_statement,
 					)
 				) if parent_hash == test_state.relay_parent => {
-					signed_statement.check_signature(
-						&test_state.signing_context,
-						&test_state.validator_public[0],
-					).unwrap();
-
 					assert_eq!(*signed_statement.payload(), Statement::Seconded(candidate_b));
 				}
 			);
@@ -2576,10 +2553,7 @@ mod tests {
 		use sp_core::Encode;
 		use std::convert::TryFrom;
 
-		let relay_parent = [1; 32].into();
 		let para_id = ParaId::from(10);
-		let session_index = 5;
-		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
 		let validators = vec![
 			Sr25519Keyring::Alice,
 			Sr25519Keyring::Bob,
@@ -2597,7 +2571,6 @@ mod tests {
 		};
 
 		let table_context = TableContext {
-			signing_context,
 			validator: None,
 			groups: validator_groups,
 			validators: validator_public.clone(),
