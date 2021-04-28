@@ -33,7 +33,7 @@ pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
+use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode, ValidatorIndex};
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
@@ -113,6 +113,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
+
+/// Variant of `SignedFullStatement` where the signature has not yet been verified.
+pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
 
 /// Candidate invalidity details
 #[derive(Debug)]
