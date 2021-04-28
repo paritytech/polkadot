@@ -479,84 +479,59 @@ impl MultiLocation {
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
 	pub fn parent_count(&self) -> usize {
+		use Junction::Parent;
 		match self {
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, Junction::Parent
-			) => 8,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 8,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, ..
-			) => 7,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent
-			) => 7,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, ..) => 7,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 7,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent
-			) => 6,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, Parent) => 6,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X5(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent
-			) => 5,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, Parent) => 5,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent) => 4,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X4(Parent, Parent, Parent, Parent) => 4,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, Junction::Parent) => 3,
+			MultiLocation::X8(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X7(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X6(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X5(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X4(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X3(Parent, Parent, Parent) => 3,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X2(Junction::Parent, Junction::Parent) => 2,
+			MultiLocation::X8(Parent, Parent, ..) => 2,
+			MultiLocation::X7(Parent, Parent, ..) => 2,
+			MultiLocation::X6(Parent, Parent, ..) => 2,
+			MultiLocation::X5(Parent, Parent, ..) => 2,
+			MultiLocation::X4(Parent, Parent, ..) => 2,
+			MultiLocation::X3(Parent, Parent, ..) => 2,
+			MultiLocation::X2(Parent, Parent) => 2,
 
-			MultiLocation::X8(Junction::Parent, ..) => 1,
-			MultiLocation::X7(Junction::Parent, ..) => 1,
-			MultiLocation::X6(Junction::Parent, ..) => 1,
-			MultiLocation::X5(Junction::Parent, ..) => 1,
-			MultiLocation::X4(Junction::Parent, ..) => 1,
-			MultiLocation::X3(Junction::Parent, ..) => 1,
-			MultiLocation::X2(Junction::Parent, ..) => 1,
-			MultiLocation::X1(Junction::Parent) => 1,
+			MultiLocation::X8(Parent, ..) => 1,
+			MultiLocation::X7(Parent, ..) => 1,
+			MultiLocation::X6(Parent, ..) => 1,
+			MultiLocation::X5(Parent, ..) => 1,
+			MultiLocation::X4(Parent, ..) => 1,
+			MultiLocation::X3(Parent, ..) => 1,
+			MultiLocation::X2(Parent, ..) => 1,
+			MultiLocation::X1(Parent) => 1,
 			_ => 0,
 		}
 	}
 
-	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalised form is returned, removing any
+	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalised form is returned, removing any
 	/// internal `Parent`s.
 	///
-	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
 	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
 		let mut prefix = suffix;
 		core::mem::swap(self, &mut prefix);
@@ -617,5 +592,38 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 		match x {
 			VersionedMultiLocation::V0(x) => Ok(x),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::MultiLocation::*;
+
+	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+
+	#[test]
+	fn match_and_split_works() {
+		let m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
+		assert_eq!(m.match_and_split(&X1(Parent)), None);
+		assert_eq!(
+			m.match_and_split(&X2(Parent, Parachain(42))),
+			Some(&AccountIndex64 { network: Any, index: 23 })
+		);
+		assert_eq!(m.match_and_split(&m), None);
+	}
+
+	#[test]
+	fn append_with_works() {
+		let mut m = X2(Parent, Parachain(42));
+		assert_eq!(m.append_with(X1(AccountIndex64 { network: Any, index: 23 })), Ok(()));
+		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
+	}
+
+	#[test]
+	fn prepend_with_works() {
+		let mut m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
+		// prepend drops any redundant parents
+		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
+		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
 	}
 }
