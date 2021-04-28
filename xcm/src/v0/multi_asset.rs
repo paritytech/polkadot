@@ -148,7 +148,7 @@ pub enum MultiAsset {
 impl MultiAsset {
 	/// Returns `true` if the `MultiAsset` is a wildcard and can refer to classes of assets, instead of just one.
 	///
-	/// Typically can also be inferred by the name staring with `All`.
+	/// Typically can also be inferred by the name starting with `All`.
 	pub fn is_wildcard(&self) -> bool {
 		match self {
 			MultiAsset::None
