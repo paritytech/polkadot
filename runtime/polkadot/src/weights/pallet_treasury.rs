@@ -44,26 +44,26 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 	fn propose_spend() -> Weight {
-		(41_419_000 as Weight)
+		(40_531_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn reject_proposal() -> Weight {
-		(51_744_000 as Weight)
+		(50_720_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn approve_proposal(p: u32, ) -> Weight {
-		(11_705_000 as Weight)
+		(11_110_000 as Weight)
 			// Standard Error: 0
-			.saturating_add((33_000 as Weight).saturating_mul(p as Weight))
+			.saturating_add((35_000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn on_initialize_proposals(p: u32, ) -> Weight {
-		(46_880_000 as Weight)
-			// Standard Error: 31_000
-			.saturating_add((62_733_000 as Weight).saturating_mul(p as Weight))
+		(42_949_000 as Weight)
+			// Standard Error: 17_000
+			.saturating_add((60_715_000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(p as Weight)))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
