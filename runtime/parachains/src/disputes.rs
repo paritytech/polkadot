@@ -132,10 +132,28 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Called by the iniitalizer to finalize the disputes module.
-	pub(crate) fn initializer_finalize(now: T::BlockNumber) { }
+	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the iniitalizer to note a new session in the disputes module.
-	pub(crate) fn initializer_on_new_session(now: T::BlockNumber) {
+	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		let config = <configuration::Module<T>>::config();
 
+		if notification.session_index <= config.dispute_period + 1 {
+			return
+		}
+
+		let pruning_target = notification.session_index - config.dispute_period - 1;
+
+		LastPrunedSession::mutate(|last_pruned| {
+			if let Some(last_pruned) = last_pruned {
+				for to_prune in *last_pruned + 1 ..= pruning_target {
+					<Disputes<T>>::remove_prefix(to_prune);
+					<Included<T>>::remove_prefix(to_prune);
+					SpamSlots::remove(to_prune);
+				}
+			}
+
+			*last_pruned = Some(pruning_target);
+		});
 	}
 }
