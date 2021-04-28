@@ -870,7 +870,6 @@ impl CandidateBackingJob {
 					.with_candidate(statement.payload().candidate_hash())
 					.with_relay_parent(_relay_parent);
 
-				self.check_statement_signature(&statement)?;
 				match self.maybe_validate_and_import(&root_span, sender, statement).await {
 					Err(Error::ValidationFailed(_)) => return Ok(()),
 					Err(e) => return Err(e),
@@ -1026,22 +1025,6 @@ impl CandidateBackingJob {
 			.flatten()?;
 		self.metrics.on_statement_signed();
 		Some(signed)
-	}
-
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
-		let idx = statement.validator_index().0 as usize;
-
-		if self.table_context.validators.len() > idx {
-			statement.check_signature(
-				&self.table_context.signing_context,
-				&self.table_context.validators[idx],
-			).map_err(|_| Error::InvalidSignature)?;
-		} else {
-			return Err(Error::InvalidSignature);
-		}
-
-		Ok(())
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
