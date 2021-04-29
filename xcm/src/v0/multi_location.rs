@@ -238,8 +238,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the first element
-	/// (second item in tuple) or `None` if it was empty.
+	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the
+	/// first element (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -254,8 +254,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
-	/// (second item in tuple) or `None` if it was empty.
+	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the
+	/// last element (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -288,8 +288,8 @@ impl MultiLocation {
 		tail
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the
+	/// original value of `self` in case of overflow.
 	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
@@ -304,8 +304,8 @@ impl MultiLocation {
 		})
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the
+	/// original value of `self` in case of overflow.
 	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
@@ -442,8 +442,18 @@ impl MultiLocation {
 		MultiLocationReverseIterator(self)
 	}
 
-	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following. If
-	/// so, returns a reference to this `Junction` item.
+	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following.
+	/// If so, returns a reference to this `Junction` item.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # fn main() {
+	/// let mut m = X3(Parent, PalletInstance(3), OnlyChild);
+	/// assert_eq!(m.match_and_split(&X2(Parent, PalletInstance(3))), Some(&OnlyChild));
+	/// assert_eq!(m.match_and_split(&X1(Parent)), None);
+	/// # }
+	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
 		if prefix.len() + 1 != self.len() {
 			return None
@@ -528,10 +538,20 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalised form is returned, removing any
-	/// internal `Parent`s.
+	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalised form is returned,
+	/// removing any internal [Non-Parent, `Parent`]  combinations.
 	///
 	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # fn main() {
+	/// let mut m = X3(Parent, Parachain(21), OnlyChild);
+	/// assert_eq!(m.append_with(X2(Parent, PalletInstance(3))), Ok(()));
+	/// assert_eq!(m, X3(Parent, Parachain(21), PalletInstance(3)));
+	/// # }
+	/// ```
 	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
 		let mut prefix = suffix;
 		core::mem::swap(self, &mut prefix);
@@ -546,9 +566,19 @@ impl MultiLocation {
 	}
 
 	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned,
-	/// removing any internal `Parent`s.
+	/// removing any internal [Non-Parent, `Parent`] combinations.
 	///
 	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # fn main() {
+	/// let mut m = X3(Parent, Parent, PalletInstance(3));
+	/// assert_eq!(m.prepend_with(X3(Parent, Parachain(21), OnlyChild)), Ok(()));
+	/// assert_eq!(m, X2(Parent, PalletInstance(3)));
+	/// # }
+	/// ```
 	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
 		let self_parents = self.parent_count();
 		let prefix_rest = prefix.len() - prefix.parent_count();
@@ -559,7 +589,7 @@ impl MultiLocation {
 
 		let mut prefix = prefix;
 		while match (prefix.last(), self.first()) {
-			(Some(x), Some(Junction::Parent)) if x != &Junction::Parent => {
+			(Some(x), Some(Junction::Parent)) if x.is_interior() => {
 				prefix.take_last();
 				self.take_first();
 				true
@@ -573,8 +603,20 @@ impl MultiLocation {
 		Ok(())
 	}
 
-	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s for which
-	/// `Junction::is_interior` returns `false`. This
+	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s
+	/// for which `Junction::is_interior` returns `false`. This is generally true, except for the
+	/// `Parent` item.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # fn main() {
+	/// let parent = X1(Parent);
+	/// assert_eq!(parent.is_interior(), false);
+	/// let m = X2(PalletInstance(12), AccountIndex64 { network: Any, index: 23 });
+	/// assert_eq!(m.is_interior(), true);
+	/// # }
+	/// ```
 	pub fn is_interior(&self) -> bool {
 		self.iter().all(Junction::is_interior)
 	}
@@ -631,5 +673,10 @@ mod tests {
 		let mut m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
 		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
 		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
+
+		// cannot prepend to create overly long multilocation
+		let mut m = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parachain(42));
+		let prefix = X2(Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 	}
 }
