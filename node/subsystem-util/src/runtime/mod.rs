@@ -22,12 +22,13 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_primitives::v1::{CoreState, GroupIndex, Hash, OccupiedCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
+use polkadot_primitives::v1::{CoreState, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
 use polkadot_node_subsystem::SubsystemContext;
 
 use crate::{
 	request_session_index_for_child, request_session_info,
 	request_availability_cores,
+	request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -230,4 +231,16 @@ where
 		})
 		.collect()
 	)
+}
+
+/// Get group rotation info based on the given relay_parent.
+pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
+	-> Result<GroupRotationInfo>
+	where
+		Context: SubsystemContext
+{
+	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
+	// fetch them in the first place.
+	let (_, info) = recv_runtime(request_validator_groups(relay_parent, ctx.sender()).await).await?;
+	Ok(info)
 }
