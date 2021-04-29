@@ -915,6 +915,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
+			justification_sync_link: network.clone(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			force_authoring,
 			backoff_authoring_blocks,
