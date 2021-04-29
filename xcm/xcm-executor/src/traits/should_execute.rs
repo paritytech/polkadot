@@ -26,7 +26,7 @@ pub trait ShouldExecute {
 	/// Returns `true` if the given `message` may be executed.
 	///
 	/// - `origin`: The origin (sender) of the message.
-	/// - `top_level`: `true`` indicates the initial XCM coming from the `origin`, `false` indicates an embedded XCM
+	/// - `top_level`: `true` indicates the initial XCM coming from the `origin`, `false` indicates an embedded XCM
 	///   executed internally as part of another message or an `Order`.
 	/// - `message`: The message itself.
 	/// - `shallow_weight`: The weight of the non-negotiable execution of the message. This does not include any
@@ -54,7 +54,7 @@ impl ShouldExecute for Tuple {
 	) -> Result<(), ()> {
 		for_tuples!( #(
 			match Tuple::should_execute(origin, top_level, message, shallow_weight, weight_credit) {
-				o @ Ok(()) => return o,
+				Ok(()) => return Ok(()),
 				_ => (),
 			}
 		)* );
