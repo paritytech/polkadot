@@ -43,7 +43,9 @@ pub enum Error {
 	BadOrigin,
 	ExceedsMaxMessageSize,
 	FailedToTransactAsset(#[codec(skip)] &'static str),
-	WeightLimitReached,
+	/// Execution of the XCM would potentially result in a greater weight used than the pre-specified
+	/// weight limit. The amount that is potentially required is the parameter.
+	WeightLimitReached(Weight),
 	Wildcard,
 	/// The case where an XCM message has specified a optional weight limit and the weight required for
 	/// processing is too great.

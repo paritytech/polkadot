@@ -57,11 +57,11 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 		let maximum_weight = match shallow_weight.checked_add(deep_weight) {
 			Some(x) => x,
-			None => return Outcome::Error(XcmError::WeightLimitReached), // TODO: this is overflow... but anyhow.
+			None => return Outcome::Error(XcmError::Overflow),
 		};
 
 		if maximum_weight > weight_limit {
-			return Outcome::Error(XcmError::WeightLimitReached);
+			return Outcome::Error(XcmError::WeightLimitReached(maximum_weight));
 		}
 
 		let mut trader = Config::Trader::new();
