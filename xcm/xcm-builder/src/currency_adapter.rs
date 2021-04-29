@@ -42,6 +42,39 @@ impl From<Error> for XcmError {
 	}
 }
 
+/// Simple adapter to use a currency as asset transactor. This type can be used as `type AssetTransactor` in
+/// `xcm::Config`.
+///
+/// # Example
+/// ```
+/// use frame_support::parameter_types;
+/// use xcm::v0::{MultiLocation, Junction};
+/// use xcm_builder::{ParentIsDefault, CurrencyAdapter, IsConcrete};
+///
+/// /// Our chain's account id. We need to name it explicitly:
+/// type AccountId = sp_runtime::AccountId32;
+///
+/// /// Our relay chain's location.
+/// parameter_types! {
+/// 	RelayChain: MultiLocation = MultiLocation::X1(Junction::Parent);
+/// }
+///
+/// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
+/// /// messages from the parent (relay chain).
+/// pub type LocationConvertor = (ParentIsDefault<RelayChain>);
+///
+/// /// Final current adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
+/// pub type AssetTransactor = CurrencyAdapter<
+/// 	// Use this currency:
+/// 	u128,
+/// 	// This is your matcher: use the currency when the asset is a concrete asset in our relay chain.
+/// 	IsConcrete<RelayChain>,
+/// 	// Do a simple punn to convert an AccountId32 MultiLocation into a native chain account ID:
+/// 	LocationConvertor,
+/// 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
+/// 	AccountId,
+/// >;
+/// ```
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Currency, Matcher, AccountIdConverter, AccountId)>
 );
