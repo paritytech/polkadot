@@ -54,7 +54,7 @@ impl ShouldExecute for Tuple {
 	) -> Result<(), ()> {
 		for_tuples!( #(
 			match Tuple::should_execute(origin, top_level, message, shallow_weight, weight_credit) {
-				Ok(()) => return Ok(())
+				Ok(()) => return Ok(()),
 				_ => (),
 			}
 		)* );

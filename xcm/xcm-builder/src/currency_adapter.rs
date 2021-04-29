@@ -33,12 +33,11 @@ enum Error {
 
 impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
+		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => XcmError::FailedToTransactAsset("AssetNotFound"),
-			Error::AccountIdConversionFailed =>
-				XcmError::FailedToTransactAsset("AccountIdConversionFailed"),
-			Error::AmountToBalanceConversionFailed =>
-				XcmError::FailedToTransactAsset("AmountToBalanceConversionFailed"),
+			Error::AssetNotFound => FailedToTransactAsset("AssetNotFound"),
+			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
+			Error::AmountToBalanceConversionFailed => FailedToTransactAsset("AmountToBalanceConversionFailed"),
 		}
 	}
 }
@@ -51,9 +50,8 @@ impl<
 	Matcher: MatchesFungible<Currency::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	Currency: frame_support::traits::Currency<AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
+	AccountId: Clone, // can't get away without it since Currency is generic over it.
 > TransactAsset for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId> {
-
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
 		let amount: u128 = Matcher::matches_fungible(&what)

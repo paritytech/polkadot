@@ -33,21 +33,19 @@ pub enum Error {
 
 impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
+		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => XcmError::FailedToTransactAsset("AssetNotFound"),
-			Error::AccountIdConversionFailed =>
-				XcmError::FailedToTransactAsset("AccountIdConversionFailed"),
-			Error::AmountToBalanceConversionFailed =>
-				XcmError::FailedToTransactAsset("AmountToBalanceConversionFailed"),
-			Error::AssetIdConversionFailed =>
-				XcmError::FailedToTransactAsset("AssetIdConversionFailed"),
+			Error::AssetNotFound => FailedToTransactAsset("AssetNotFound"),
+			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
+			Error::AmountToBalanceConversionFailed => FailedToTransactAsset("AmountToBalanceConversionFailed"),
+			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
 		}
 	}
 }
 
-/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be TryFrom/TryInto<u128>)
-/// into a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will
-/// typically be a `PalletInstance` junction.
+/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be TryFrom/TryInto<u128>) into
+/// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
+/// `PalletInstance` junction.
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(PhantomData<(Prefix, AssetId, ConvertAssetId)>);
 impl<
 	Prefix: Get<MultiLocation>,
@@ -167,7 +165,7 @@ impl<
 	Assets: fungibles::Mutate<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
+	AccountId: Clone, // can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
@@ -202,7 +200,6 @@ impl<
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
-
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::deposit_asset(what, who)
 	}
