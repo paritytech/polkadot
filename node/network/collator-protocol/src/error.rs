@@ -18,6 +18,7 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::PeerId;
+use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_primitives::v1::{CandidateHash, Hash};
 use polkadot_subsystem::SubsystemError;
 use thiserror::Error;
@@ -75,9 +76,9 @@ pub enum Fatal {
 /// Errors for fetching of runtime information.
 #[derive(Debug, Error)]
 pub enum NonFatal {
-	/// Relay parent was not present in active heads.
-	#[error("Relay parent could not be found in active heads")]
-	NoSuchHead(Hash),
+	/// Signature was invalid on received statement.
+	#[error("CollationSeconded contained statement with invalid signature.")]
+	InvalidStatementSignature(UncheckedSignedFullStatement),
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
@@ -92,7 +93,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str)
 	-> FatalResult<()>
 {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::debug!(target: LOG_TARGET, error = ?error, ctx)
+		tracing::warn!(target: LOG_TARGET, error = ?error, ctx)
 	}
 	Ok(())
 }

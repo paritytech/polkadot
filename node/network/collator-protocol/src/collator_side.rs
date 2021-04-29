@@ -14,28 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet};
-
-use super::{LOG_TARGET,  Result};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use futures::{select, FutureExt, channel::oneshot, channel::mpsc};
 use sp_core::Pair;
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, Hash,
-	Id as ParaId, AuthorityDiscoveryId,
-};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
 use polkadot_subsystem::{FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger, messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage}};
 use polkadot_node_network_protocol::{
 	OurView, PeerId, View, peer_set::PeerSet,
 	request_response::{IncomingRequest, v1::{CollationFetchingRequest, CollationFetchingResponse}},
 	v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info},
-};
+use polkadot_node_subsystem_util::{metrics::{self, prometheus}, runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}};
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
+
+use crate::error::{Fatal, NonFatal, log_error};
+use super::{LOG_TARGET,  Result};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 
@@ -55,11 +50,6 @@ impl Metrics {
 		}
 	}
 
-	/// Provide a timer for handling `ConnectionRequest` which observes on drop.
-	fn time_handle_connection_request(&self) -> Option<prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.handle_connection_request.start_timer())
-	}
-
 	/// Provide a timer for `process_msg` which observes on drop.
 	fn time_process_msg(&self) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
@@ -70,7 +60,6 @@ impl Metrics {
 struct MetricsInner {
 	advertisements_made: prometheus::Counter<prometheus::U64>,
 	collations_sent: prometheus::Counter<prometheus::U64>,
-	handle_connection_request: prometheus::Histogram,
 	process_msg: prometheus::Histogram,
 }
 
@@ -90,15 +79,6 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_collations_sent_total",
 					"A number of collations sent to validators.",
-				)?,
-				registry,
-			)?,
-			handle_connection_request: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_collator_protocol_collator_handle_connection_request",
-						"Time spent within `collator_protocol_collator::handle_connection_request`",
-					)
 				)?,
 				registry,
 			)?,
@@ -122,6 +102,7 @@ impl metrics::Metrics for Metrics {
 /// This structure is responsible for keeping track of which validators belong to a certain group for a para. It also
 /// stores a mapping from [`PeerId`] to [`ValidatorId`] as we learn about it over the lifetime of this object. Besides
 /// that it also keeps track to which validators we advertised our collation.
+#[derive(Debug)]
 struct ValidatorGroup {
 	/// All [`AuthorityDiscoveryId`]'s that are assigned to us in this group.
 	discovery_ids: HashSet<AuthorityDiscoveryId>,
@@ -224,8 +205,8 @@ struct State {
 	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s by `PeerConnected` events.
 	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
 
-	/// The connection handles to validators per relay parent.
-	connection_handles: HashMap<Hash, HashMap<ParaId, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>,
+	/// The connection handles to validators per group we are interested in.
+	connection_handles: HashMap<GroupIndex, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -246,6 +227,7 @@ impl State {
 			collations: Default::default(),
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
+			peer_ids: Default::default(),
 			connection_handles: Default::default(),
 		}
 	}
@@ -320,7 +302,7 @@ async fn distribute_collation(
 	// Determine the group on that core and the next group on that core.
 	let (current_validators, next_validators) = determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
-	if current_validators.is_empty() && next_validators.is_empty() {
+	if current_validators.validators.is_empty() && next_validators.validators.is_empty() {
 		tracing::warn!(
 			target: LOG_TARGET,
 			core = ?our_core,
@@ -341,16 +323,26 @@ async fn distribute_collation(
 		?next_validators,
 		"Accepted collation, connecting to validators."
 	);
-	// Issue a discovery request for the validators of the current group and the next group.
+
+	// Drop obsolete connections:
+	let new_groups: HashSet<_> = vec![current_validators.group, next_validators.group].into_iter().collect();
+	state.connection_handles.retain(|k, _| new_groups.contains(k));
+
+	let validator_group: HashSet<_> = current_validators.validators.iter().map(Clone::clone).collect();
+
+	// Issue a discovery request for the validators of the current group and the next group:
 	connect_to_validators(
 		ctx,
-		relay_parent,
-		id,
 		state,
-		current_validators.union(&next_validators).cloned().collect(),
+		current_validators,
+	).await;
+	connect_to_validators(
+		ctx,
+		state,
+		next_validators,
 	).await;
 
-	state.our_validators_groups.insert(relay_parent, current_validators.into());
+	state.our_validators_groups.insert(relay_parent, validator_group.into());
 
 	if let Some(result_sender) = result_sender {
 		state.collation_result_senders.insert(receipt.hash(), result_sender);
@@ -386,6 +378,15 @@ async fn determine_core(
 	Ok(None)
 }
 
+/// Validators of a particular group index.
+#[derive(Debug)]
+struct GroupValidators {
+	/// The group those validators belong to.
+	group: GroupIndex,
+	/// The validators of above group (their discovery keys).
+	validators: Vec<AuthorityDiscoveryId>,
+}
+
 /// Figure out current and next group of validators assigned to the para being collated on.
 ///
 /// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
@@ -396,7 +397,7 @@ async fn determine_our_validators(
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<(HashSet<AuthorityDiscoveryId>, HashSet<AuthorityDiscoveryId>)> {
+) -> Result<(GroupValidators, GroupValidators)> {
 	let info = &runtime.get_session_info(ctx, relay_parent).await?.session_info;
 	let groups = &info.validator_groups;
 	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
@@ -411,6 +412,15 @@ async fn determine_our_validators(
 
 	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+
+	let current_validators = GroupValidators {
+		group: current_group_index,
+		validators: current_validators,
+	};
+	let next_validators = GroupValidators {
+		group: GroupIndex(next_group_idx as u32),
+		validators: next_validators,
+	};
 
 	Ok((current_validators, next_validators))
 }
@@ -445,25 +455,18 @@ async fn declare(
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators(
 	ctx: &mut impl SubsystemContext,
-	relay_parent: Hash,
-	para_id: ParaId,
 	state: &mut State,
-	validator_ids: Vec<AuthorityDiscoveryId>,
+	group: GroupValidators,
 )  {
-	let (tx, rx) = mpsc::channel(0);
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids, peer_set: PeerSet::Collation, connected: tx
-	})).await;
-
-	if let Some(old) = state.connection_handles
-		.entry(relay_parent)
-		.or_insert(Default::default())
-		.insert(para_id, rx) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?old,
-			"Connection handle for para was already present"
-		);
+	match state.connection_handles.entry(group.group) {
+		Entry::Occupied(occupied) => {}
+		Entry::Vacant(vacant) => {
+			let (tx, rx) = mpsc::channel(0);
+			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+				validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
+			})).await;
+			vacant.insert(rx);
+		}
 	}
 }
 
@@ -592,7 +595,7 @@ async fn process_msg(
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
 			);
 		}
-		NotifyCollationSeconded(_, _) => {
+		NotifyCollationSeconded(_, _, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"NotifyCollationSeconded message is not expected on the collator side of the protocol",
@@ -601,6 +604,7 @@ async fn process_msg(
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
 				ctx,
+				runtime,
 				state,
 				event,
 			).await {
@@ -672,9 +676,10 @@ async fn send_collation(
 }
 
 /// A networking messages switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message(
 	ctx: &mut impl SubsystemContext,
+	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
@@ -710,22 +715,31 @@ async fn handle_incoming_peer_message(
 				NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation).into()
 			).await;
 		}
-		CollationSeconded(statement) => {
-			if !matches!(statement.payload(), Statement::Seconded(_)) {
+		CollationSeconded(relay_parent, statement) => {
+			if !matches!(statement.unchecked_payload(), Statement::Seconded(_)) {
 				tracing::warn!(
 					target: LOG_TARGET,
 					?statement,
 					?origin,
 					"Collation seconded message received with none-seconded statement.",
 				);
-			} else if let Some(sender) = state.collation_result_senders.remove(&statement.payload().candidate_hash()) {
-				tracing::trace!(
-					target: LOG_TARGET,
-					?statement,
-					?origin,
-					"received a `CollationSeconded`",
-				);
-				let _ = sender.send(statement);
+			} else {
+				let statement = runtime.check_signature(ctx, relay_parent, statement)
+					.await?
+					.map_err(NonFatal::InvalidStatementSignature)?;
+
+				let removed = state.collation_result_senders
+					.remove(&statement.payload().candidate_hash());
+
+				if let Some(sender) = removed {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?statement,
+						?origin,
+						"received a `CollationSeconded`",
+					);
+					let _ = sender.send(statement);
+				}
 			}
 		}
 	}
@@ -753,9 +767,10 @@ async fn handle_peer_view_change(
 }
 
 /// Bridge messages switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
 ) -> Result<()> {
@@ -810,7 +825,7 @@ async fn handle_network_msg(
 			handle_our_view_change(state, view).await?;
 		}
 		PeerMessage(remote, msg) => {
-			handle_incoming_peer_message(ctx, state, remote, msg).await?;
+			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		}
 	}
 
@@ -851,8 +866,6 @@ async fn handle_our_view_change(
 			}
 		}
 		state.our_validators_groups.remove(removed);
-		// TODO: Make sure they stay alive until we connected to new ones.
-		state.connection_handles.remove(removed);
 		state.span_per_relay_parent.remove(removed);
 	}
 
@@ -876,28 +889,17 @@ pub(crate) async fn run(
 	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
-		select! {
-			res = state.connection_requests.next().fuse() => {
-				let _timer = state.metrics.time_handle_connection_request();
-
-				handle_validator_connected(
-					&mut ctx,
-					&mut state,
-					res.peer_id,
-					res.validator_id,
-					res.relay_parent,
-				).await;
+		let msg = ctx.recv().fuse().await.map_err(Fatal::SubsystemReceive)?;
+		match msg {
+			Communication { msg } => {
+				log_error(
+					process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
+					"Failed to process message"
+				);
 			},
-			msg = ctx.recv().fuse() => match msg? {
-				Communication { msg } => {
-					if let Err(e) = process_msg(&mut ctx, &mut runtime, &mut state, msg).await {
-						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message");
-					}
-				},
-				Signal(ActiveLeaves(_update)) => {}
-				Signal(BlockFinalized(..)) => {}
-				Signal(Conclude) => return Ok(()),
-			}
+			Signal(ActiveLeaves(_update)) => {}
+			Signal(BlockFinalized(..)) => {}
+			Signal(Conclude) => return Ok(()),
 		}
 	}
 }
@@ -921,10 +923,7 @@ mod tests {
 		request_response::request::IncomingRequest,
 	};
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use polkadot_primitives::v1::{
-		AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo,
-		ScheduledCore, SessionIndex, SessionInfo, ValidatorIndex,
-	};
+	use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
 	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem::{
 		jaeger,

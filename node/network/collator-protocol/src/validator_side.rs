@@ -934,7 +934,7 @@ where
 		NoteGoodCollation(id) => {
 			note_good_collation(ctx, &state.peer_data, id).await;
 		}
-		NotifyCollationSeconded(id, statement) => {
+		NotifyCollationSeconded(id, relay_parent, statement) => {
 			notify_collation_seconded(ctx, &state.peer_data, id, statement).await;
 		}
 		NetworkBridgeUpdateV1(event) => {

@@ -405,7 +405,7 @@ pub mod v1 {
 		AdvertiseCollation(Hash),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
-		CollationSeconded(UncheckedSignedFullStatement),
+		CollationSeconded(Hash, UncheckedSignedFullStatement),
 	}
 
 	/// All network messages on the validation peer-set.
