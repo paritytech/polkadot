@@ -1,4 +1,4 @@
-error: Generic type parameters may only be used once have at least one generic parameter.
+error: Generic type parameters may only be used for exactly one field, but is used more than once.
  --> $DIR/err-01-generic-used-twice.rs:7:5
   |
 7 |     a: X,

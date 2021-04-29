@@ -6179,6 +6179,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-procmacro-overseer-subsystems-gen",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -6227,6 +6228,17 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
+]
+
+[[package]]
+name = "polkadot-procmacro-overseer-subsystems-gen"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
 ]
 
 [[package]]

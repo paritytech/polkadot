@@ -5,7 +5,6 @@ use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 #[derive(Clone, AllSubsystemsGen)]
 struct AllSubsystems {
 	a: f32,
-	#[sticky]
 	b: u16,
 }
 
