@@ -14,25 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Substrate-to-substrate relay entrypoint.
+use crate::cli::{encode_message, CliChain};
+use frame_support::weights::Weight;
+use relay_wococo_client::Wococo;
+use sp_version::RuntimeVersion;
 
-#![warn(missing_docs)]
+impl CliChain for Wococo {
+	const RUNTIME_VERSION: RuntimeVersion = bp_wococo::VERSION;
 
-mod chains;
-mod cli;
-mod finality_pipeline;
-mod finality_target;
-mod headers_initialize;
-mod messages_lane;
-mod messages_source;
-mod messages_target;
-mod on_demand_headers;
+	type KeyPair = sp_core::sr25519::Pair;
+	type MessagePayload = ();
 
-fn main() {
-	let command = cli::parse_args();
-	let run = command.run();
-	let result = async_std::task::block_on(run);
-	if let Err(error) = result {
-		log::error!(target: "bridge", "Failed to start relay: {}", error);
+	fn ss58_format() -> u16 {
+		42
+	}
+
+	fn max_extrinsic_weight() -> Weight {
+		0
+	}
+
+	fn encode_message(_message: encode_message::MessagePayload) -> Result<Self::MessagePayload, String> {
+		Err("Sending messages from Wococo is not yet supported.".into())
 	}
 }

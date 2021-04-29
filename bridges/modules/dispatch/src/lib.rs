@@ -314,8 +314,7 @@ impl<T: Config<I>, I: Instance> MessageDispatch<T::MessageId> for Pallet<T, I> {
 
 		// finally dispatch message
 		let origin = RawOrigin::Signed(origin_account).into();
-
-		log::trace!(target: "runtime::bridge-dispatch", "Message being dispatched is: {:?}", &call);
+		log::trace!(target: "runtime::bridge-dispatch", "Message being dispatched is: {:.4096?}", &call);
 		let dispatch_result = call.dispatch(origin);
 		let actual_call_weight = extract_actual_weight(&dispatch_result, &dispatch_info);
 

@@ -85,8 +85,8 @@ jobs:
       matrix:
         toolchain:
           - stable
-          #- beta
-          - nightly
+            #- beta
+          - nightly-2021-04-10
     runs-on:                       ubuntu-latest
     env:
       RUST_BACKTRACE:              full

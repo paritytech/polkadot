@@ -126,8 +126,8 @@ both Substrate chains it must be run last.
 
 ```bash
 # In `parity-bridges-common` folder
-./deployments/local-scripts/run-rialto-bridge-node.sh
-./deployments/local-scripts/run-millau-bridge-node.sh
+./deployments/local-scripts/run-rialto-node.sh
+./deployments/local-scripts/run-millau-node.sh
 ./deployments/local-scripts/relay-millau-to-rialto.sh
 ```
 

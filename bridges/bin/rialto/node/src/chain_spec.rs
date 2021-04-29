@@ -19,6 +19,7 @@ use rialto_runtime::{
 	AccountId, AuraConfig, BalancesConfig, BridgeKovanConfig, BridgeRialtoPoAConfig, GenesisConfig, GrandpaConfig,
 	SessionConfig, SessionKeys, Signature, SudoConfig, SystemConfig, WASM_BINARY,
 };
+use serde_json::json;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -67,6 +68,15 @@ pub fn get_authority_keys_from_seed(s: &str) -> (AccountId, AuraId, GrandpaId) {
 impl Alternative {
 	/// Get an actual chain config from one of the alternatives.
 	pub(crate) fn load(self) -> ChainSpec {
+		let properties = Some(
+			json!({
+				"tokenDecimals": 9,
+				"tokenSymbol": "RLT",
+			})
+			.as_object()
+			.expect("Map given; qed")
+			.clone(),
+		);
 		match self {
 			Alternative::Development => ChainSpec::from_genesis(
 				"Development",
@@ -88,7 +98,7 @@ impl Alternative {
 				vec![],
 				None,
 				None,
-				None,
+				properties,
 				None,
 			),
 			Alternative::LocalTestnet => ChainSpec::from_genesis(
@@ -136,7 +146,7 @@ impl Alternative {
 				vec![],
 				None,
 				None,
-				None,
+				properties,
 				None,
 			),
 		}

@@ -67,6 +67,15 @@ pub fn get_authority_keys_from_seed(s: &str) -> (AccountId, AuraId, GrandpaId) {
 impl Alternative {
 	/// Get an actual chain config from one of the alternatives.
 	pub(crate) fn load(self) -> ChainSpec {
+		let properties = Some(
+			serde_json::json!({
+				"tokenDecimals": 9,
+				"tokenSymbol": "MLAU",
+			})
+			.as_object()
+			.expect("Map given; qed")
+			.clone(),
+		);
 		match self {
 			Alternative::Development => ChainSpec::from_genesis(
 				"Development",
@@ -88,7 +97,7 @@ impl Alternative {
 				vec![],
 				None,
 				None,
-				None,
+				properties,
 				None,
 			),
 			Alternative::LocalTestnet => ChainSpec::from_genesis(
@@ -136,7 +145,7 @@ impl Alternative {
 				vec![],
 				None,
 				None,
-				None,
+				properties,
 				None,
 			),
 		}

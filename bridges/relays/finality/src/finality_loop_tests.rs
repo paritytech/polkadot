@@ -106,7 +106,7 @@ impl RelayClient for TestSourceClient {
 
 #[async_trait]
 impl SourceClient<TestFinalitySyncPipeline> for TestSourceClient {
-	type FinalityProofsStream = Pin<Box<dyn Stream<Item = TestFinalityProof>>>;
+	type FinalityProofsStream = Pin<Box<dyn Stream<Item = TestFinalityProof> + 'static + Send>>;
 
 	async fn best_finalized_block_number(&self) -> Result<TestNumber, TestError> {
 		let mut data = self.data.lock();
@@ -197,6 +197,7 @@ fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync
 		data: clients_data.clone(),
 	};
 	let sync_params = FinalitySyncParams {
+		is_on_demand_task: false,
 		tick: Duration::from_secs(0),
 		recent_finality_proofs_limit: 1024,
 		stall_timeout: Duration::from_secs(1),

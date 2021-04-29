@@ -1407,6 +1407,8 @@ mod tests {
 
 	#[test]
 	fn transaction_payment_works_with_zero_multiplier() {
+		use sp_runtime::traits::Zero;
+
 		assert_eq!(
 			transaction_payment(
 				100,
@@ -1424,6 +1426,8 @@ mod tests {
 
 	#[test]
 	fn transaction_payment_works_with_non_zero_multiplier() {
+		use sp_runtime::traits::One;
+
 		assert_eq!(
 			transaction_payment(
 				100,
