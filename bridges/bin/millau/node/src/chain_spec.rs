@@ -164,7 +164,7 @@ fn testnet_genesis(
 ) -> GenesisConfig {
 	GenesisConfig {
 		frame_system: SystemConfig {
-			code: WASM_BINARY.to_vec(),
+			code: WASM_BINARY.expect("Millau development WASM not available").to_vec(),
 			changes_trie_config: Default::default(),
 		},
 		pallet_balances: BalancesConfig {
