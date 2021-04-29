@@ -16,6 +16,9 @@
 
 use xcm::v0::{MultiAsset, MultiLocation};
 
+/// Filters assets/location pairs.
+///
+/// Can be amalgamated into tuples. If any item returns `true`, it short-circuits, else `false` is returned.
 pub trait FilterAssetLocation {
 	/// A filter to distinguish between asset/location pairs.
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;

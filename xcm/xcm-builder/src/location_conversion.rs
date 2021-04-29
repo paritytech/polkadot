@@ -23,7 +23,6 @@ use xcm::v0::{MultiLocation, NetworkId, Junction};
 use xcm_executor::traits::{InvertLocation, Convert};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
-
 impl<
 	Network: Get<NetworkId>,
 	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
@@ -81,7 +80,6 @@ impl<
 }
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-
 impl<
 	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
 	AccountId: Clone,
