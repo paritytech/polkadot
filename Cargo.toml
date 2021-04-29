@@ -31,6 +31,7 @@ members = [
 	"bridges/primitives/chain-rococo",
 	"bridges/primitives/chain-westend",
 	"bridges/primitives/runtime",
+	"bridges/relays/bin-substrate",
 	"cli",
 	"core-primitives",
 	"erasure-coding",
