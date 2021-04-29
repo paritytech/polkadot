@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
-use futures::{select, FutureExt, channel::oneshot, channel::mpsc};
+use futures::{FutureExt, channel::oneshot, channel::mpsc};
 use sp_core::Pair;
 
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
@@ -26,7 +26,10 @@ use polkadot_node_network_protocol::{
 	request_response::{IncomingRequest, v1::{CollationFetchingRequest, CollationFetchingResponse}},
 	v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
-use polkadot_node_subsystem_util::{metrics::{self, prometheus}, runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}
+};
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
 use crate::error::{Fatal, NonFatal, log_error};
@@ -232,16 +235,11 @@ impl State {
 		}
 	}
 
-	/// Returns `true` if the given `peer` is interested in the leaf that is represented by `relay_parent`.
-	fn peer_interested_in_leaf(&self, peer: &PeerId, relay_parent: &Hash) -> bool {
-		self.peer_views.get(peer).map(|v| v.contains(relay_parent)).unwrap_or(false)
-	}
-
 	/// Get all peers which have the given relay parent in their view.
 	fn peers_interested_in_leaf(&self, relay_parent: &Hash) -> Vec<PeerId> {
 		self.peer_views
 			.iter()
-			.filter(|(peer, v)| v.contains(relay_parent))
+			.filter(|(_, v)| v.contains(relay_parent))
 			.map(|(peer, _)| *peer)
 			.collect()
 	}
@@ -459,7 +457,7 @@ async fn connect_to_validators(
 	group: GroupValidators,
 )  {
 	match state.connection_handles.entry(group.group) {
-		Entry::Occupied(occupied) => {}
+		Entry::Occupied(_) => {}
 		Entry::Vacant(vacant) => {
 			let (tx, rx) = mpsc::channel(0);
 			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
@@ -895,7 +893,7 @@ pub(crate) async fn run(
 				log_error(
 					process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
 					"Failed to process message"
-				);
+				)?;
 			},
 			Signal(ActiveLeaves(_update)) => {}
 			Signal(BlockFinalized(..)) => {}

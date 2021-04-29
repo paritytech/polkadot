@@ -22,22 +22,20 @@
 
 use std::time::Duration;
 
-use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use thiserror::Error;
+use futures::{FutureExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
-use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
 use polkadot_primitives::v1::CollatorPair;
 use polkadot_subsystem::{
-	errors::RuntimeApiError,
 	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
 	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 
 mod error;
-use error::{Result, Error};
+use error::Result;
+
 mod collator_side;
 mod validator_side;
 

@@ -17,9 +17,7 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_primitives::v1::{CandidateHash, Hash};
 use polkadot_subsystem::SubsystemError;
 use thiserror::Error;
 
@@ -30,6 +28,7 @@ use crate::LOG_TARGET;
 /// General result.
 pub type Result<T> = std::result::Result<T, Error>;
 /// Result for non fatal only failures.
+#[allow(dead_code)]
 pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 /// Result for fatal only failures.
 pub type FatalResult<T> = std::result::Result<T, Fatal>;
@@ -60,10 +59,6 @@ impl From<runtime::Error> for Error {
 /// Fatal runtime errors.
 #[derive(Debug, Error)]
 pub enum Fatal {
-	/// Spawning a running task failed.
-	#[error("Spawning subsystem task failed")]
-	SpawnTask(#[source] SubsystemError),
-
 	/// Receiving subsystem message from overseer failed.
 	#[error("Receiving message from overseer failed")]
 	SubsystemReceive(#[source] SubsystemError),
