@@ -66,6 +66,8 @@ pub enum MultiLocation {
 	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
+pub const MAX_MULTILOCATION_LENGTH: usize = 8;
+
 impl From<Junction> for MultiLocation {
 	fn from(x: Junction) -> Self {
 		MultiLocation::X1(x)
@@ -583,7 +585,7 @@ impl MultiLocation {
 		let self_parents = self.parent_count();
 		let prefix_rest = prefix.len() - prefix.parent_count();
 		let skipped = self_parents.min(prefix_rest);
-		if self.len() + prefix.len() - 2 * skipped > 4 {
+		if self.len() + prefix.len() - 2 * skipped > MAX_MULTILOCATION_LENGTH {
 			return Err(prefix);
 		}
 
@@ -598,7 +600,7 @@ impl MultiLocation {
 		} {}
 
 		for j in prefix.into_iter_rev() {
-			self.push_front(j).expect("len + prefix minus 2*skipped is less than 4; qed");
+			self.push_front(j).expect("len + prefix minus 2*skipped is less than max length; qed");
 		}
 		Ok(())
 	}
