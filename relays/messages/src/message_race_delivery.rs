@@ -292,7 +292,16 @@ impl<P: MessageLane> RaceStrategy<SourceHeaderIdOf<P>, TargetHeaderIdOf<P>, P::M
 	}
 
 	fn required_source_header_at_target(&self, current_best: &SourceHeaderIdOf<P>) -> Option<SourceHeaderIdOf<P>> {
-		self.strategy.required_source_header_at_target(current_best)
+		let header_required_for_messages_delivery = self.strategy.required_source_header_at_target(current_best);
+		let header_required_for_reward_confirmations_delivery =
+			self.latest_confirmed_nonces_at_source.back().map(|(id, _)| id.clone());
+		match (
+			header_required_for_messages_delivery,
+			header_required_for_reward_confirmations_delivery,
+		) {
+			(Some(id1), Some(id2)) => Some(if id1.0 > id2.0 { id1 } else { id2 }),
+			(a, b) => a.or(b),
+		}
 	}
 
 	fn best_at_source(&self) -> Option<MessageNonce> {
@@ -874,6 +883,48 @@ mod tests {
 		assert_eq!(
 			strategy.select_nonces_to_deliver(&state),
 			Some(((20..=23), proof_parameters(true, 4)))
+		);
+	}
+
+	#[test]
+	fn source_header_is_requied_when_confirmations_are_required() {
+		// let's prepare situation when:
+		// - all messages [20; 23] have been generated at source block#1;
+		let (mut state, mut strategy) = prepare_strategy();
+		// - messages [20; 21] have been delivered, but messages [11; 20] can't be delivered because of unrewarded
+		//   relayers vector capacity;
+		strategy.max_unconfirmed_nonces_at_target = 2;
+		assert_eq!(
+			strategy.select_nonces_to_deliver(&state),
+			Some(((20..=21), proof_parameters(false, 2)))
+		);
+		strategy.finalized_target_nonces_updated(
+			TargetClientNonces {
+				latest_nonce: 21,
+				nonces_data: DeliveryRaceTargetNoncesData {
+					confirmed_nonce: 19,
+					unrewarded_relayers: UnrewardedRelayersState {
+						unrewarded_relayer_entries: 2,
+						messages_in_oldest_entry: 2,
+						total_messages: 2,
+					},
+				},
+			},
+			&mut state,
+		);
+		assert_eq!(strategy.select_nonces_to_deliver(&state), None);
+		// - messages [1; 10] receiving confirmation has been delivered at source block#2;
+		strategy.source_nonces_updated(
+			header_id(2),
+			SourceClientNonces {
+				new_nonces: BTreeMap::new(),
+				confirmed_nonce: Some(21),
+			},
+		);
+		// - so now we'll need to relay source block#11 to be able to accept messages [11; 20].
+		assert_eq!(
+			strategy.required_source_header_at_target(&header_id(1)),
+			Some(header_id(2))
 		);
 	}
 }

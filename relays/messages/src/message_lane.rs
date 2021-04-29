@@ -23,7 +23,7 @@ use relay_utils::{BlockNumberBase, HeaderId};
 use std::fmt::Debug;
 
 /// One-way message lane.
-pub trait MessageLane: Clone + Send + Sync {
+pub trait MessageLane: 'static + Clone + Send + Sync {
 	/// Name of the messages source.
 	const SOURCE_NAME: &'static str;
 	/// Name of the messages target.
