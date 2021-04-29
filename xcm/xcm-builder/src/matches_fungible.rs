@@ -54,6 +54,25 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 	}
 }
 
+/// Same as [`IsConcrete`] but for a fungible with abstract location.
+///
+/// # Example
+///
+/// ```
+/// use xcm::v0::{MultiAsset};
+/// use xcm_builder::IsAbstract;
+/// use xcm_executor::traits::MatchesFungible;
+///
+/// frame_support::parameter_types! {
+/// 	pub TargetLocation: &'static [u8] = &[7u8];
+/// }
+///
+/// # fn main() {
+/// let asset = MultiAsset::AbstractFungible { id: vec![7u8], amount: 999u128 };
+/// // match `asset` if it is a concrete asset in `TargetLocation`.
+/// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
+/// # }
+/// ```
 pub struct IsAbstract<T>(PhantomData<T>);
 impl<T: Get<&'static [u8]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
