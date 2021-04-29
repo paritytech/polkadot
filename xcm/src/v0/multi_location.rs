@@ -642,7 +642,6 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 #[cfg(test)]
 mod tests {
 	use super::MultiLocation::*;
-
 	use crate::opaque::v0::{Junction::*, NetworkId::Any};
 
 	#[test]

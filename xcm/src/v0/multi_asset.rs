@@ -180,7 +180,6 @@ impl MultiAsset {
 		}
 	}
 
-	// TODO: `All` is both fungible and non-fungible, and I think it should be none.
 	fn is_fungible(&self) -> bool {
 		match self {
 			MultiAsset::All
