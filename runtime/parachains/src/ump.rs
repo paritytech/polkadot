@@ -73,7 +73,7 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<Call>, Call> UmpSink for XcmSink<XcmExecut
 					let xcm_location: MultiLocation = xcm_junction.into();
 					match XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight) {
 						Outcome::Complete(w) | Outcome::Incomplete(w, _) => Some(w),
-						Outcome::Error(XcmError::WeightLimitReached) => None,
+						Outcome::Error(XcmError::WeightLimitReached(..)) => None,
 						Outcome::Error(_) => Some(0),
 					}
 				}
