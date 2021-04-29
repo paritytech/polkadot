@@ -36,26 +36,12 @@ use polkadot_subsystem::{
 	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
 
+mod error;
+use error::{Result, Error};
 mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
-
-#[derive(Debug, Error)]
-enum Error {
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-	#[error(transparent)]
-	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	Prometheus(#[from] prometheus::PrometheusError),
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
@@ -124,9 +110,7 @@ impl CollatorProtocolSubsystem {
 				collator_pair,
 				metrics,
 			).await,
-		}.map_err(|e| {
-			SubsystemError::with_origin("collator-protocol", e).into()
-		})
+		}
 	}
 }
 

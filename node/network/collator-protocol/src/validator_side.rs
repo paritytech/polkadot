@@ -552,7 +552,7 @@ async fn notify_collation_seconded(
 	}
 
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
+		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement.into());
 
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(

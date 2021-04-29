@@ -18,29 +18,22 @@ use std::collections::{HashMap, HashSet};
 
 use super::{LOG_TARGET,  Result};
 
-use futures::{select, FutureExt, channel::oneshot};
+use futures::{select, FutureExt, channel::oneshot, channel::mpsc};
 use sp_core::Pair;
 
 use polkadot_primitives::v1::{
 	CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, Hash,
-	Id as ParaId, ValidatorId
+	Id as ParaId, AuthorityDiscoveryId,
 };
-use polkadot_subsystem::{
-	jaeger, PerLeafSpan,
-	FromOverseer, OverseerSignal, SubsystemContext,
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage, NetworkBridgeEvent},
-};
+use polkadot_subsystem::{FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger, messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage}};
 use polkadot_node_network_protocol::{
 	OurView, PeerId, View, peer_set::PeerSet,
 	request_response::{IncomingRequest, v1::{CollationFetchingRequest, CollationFetchingResponse}},
 	v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
 use polkadot_node_subsystem_util::{
-	validator_discovery,
-	request_validators,
-	request_validator_groups,
-	request_availability_cores,
 	metrics::{self, prometheus},
+	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info},
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
@@ -130,49 +123,34 @@ impl metrics::Metrics for Metrics {
 /// stores a mapping from [`PeerId`] to [`ValidatorId`] as we learn about it over the lifetime of this object. Besides
 /// that it also keeps track to which validators we advertised our collation.
 struct ValidatorGroup {
-	/// All [`ValidatorId`]'s that are assigned to us in this group.
-	validator_ids: HashSet<ValidatorId>,
-	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s from the
-	/// authority discovery. It is not ensured that this will contain *all* validators of this group.
-	peer_ids: HashMap<PeerId, ValidatorId>,
+	/// All [`AuthorityDiscoveryId`]'s that are assigned to us in this group.
+	discovery_ids: HashSet<AuthorityDiscoveryId>,
 	/// All [`ValidatorId`]'s of the current group to that we advertised our collation.
-	advertised_to: HashSet<ValidatorId>,
+	advertised_to: HashSet<AuthorityDiscoveryId>,
 }
 
 impl ValidatorGroup {
 	/// Returns `true` if we should advertise our collation to the given peer.
-	fn should_advertise_to(&self, peer: &PeerId) -> bool {
-		match self.peer_ids.get(peer) {
-			Some(validator_id) => !self.advertised_to.contains(validator_id),
+	fn should_advertise_to(&self, peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>, peer: &PeerId)
+		-> bool {
+		match peer_ids.get(peer) {
+			Some(discovery_id) => !self.advertised_to.contains(discovery_id),
 			None => false,
 		}
 	}
 
 	/// Should be called after we advertised our collation to the given `peer` to keep track of it.
-	fn advertised_to_peer(&mut self, peer: &PeerId) {
-		if let Some(validator_id) = self.peer_ids.get(peer) {
+	fn advertised_to_peer(&mut self, peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>, peer: &PeerId) {
+		if let Some(validator_id) = peer_ids.get(peer) {
 			self.advertised_to.insert(validator_id.clone());
-		}
-	}
-
-	/// Add a [`PeerId`] that belongs to the given [`ValidatorId`].
-	///
-	/// This returns `true` if the given validator belongs to this group and we could insert its [`PeerId`].
-	fn add_peer_id_for_validator(&mut self, peer_id: &PeerId, validator_id: &ValidatorId) -> bool {
-		if !self.validator_ids.contains(validator_id) {
-			false
-		} else {
-			self.peer_ids.insert(peer_id.clone(), validator_id.clone());
-			true
 		}
 	}
 }
 
-impl From<HashSet<ValidatorId>> for ValidatorGroup {
-	fn from(validator_ids: HashSet<ValidatorId>) -> Self {
+impl From<HashSet<AuthorityDiscoveryId>> for ValidatorGroup {
+	fn from(discovery_ids: HashSet<AuthorityDiscoveryId>) -> Self {
 		Self {
-			validator_ids,
-			peer_ids: HashMap::new(),
+			discovery_ids,
 			advertised_to: HashSet::new(),
 		}
 	}
@@ -243,8 +221,11 @@ struct State {
 	/// Our validator groups per active leaf.
 	our_validators_groups: HashMap<Hash, ValidatorGroup>,
 
-	/// The connection requests to validators per relay parent.
-	connection_requests: validator_discovery::ConnectionRequests,
+	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s by `PeerConnected` events.
+	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
+
+	/// The connection handles to validators per relay parent.
+	connection_handles: HashMap<Hash, HashMap<ParaId, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -265,13 +246,22 @@ impl State {
 			collations: Default::default(),
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
-			connection_requests: Default::default(),
+			connection_handles: Default::default(),
 		}
 	}
 
 	/// Returns `true` if the given `peer` is interested in the leaf that is represented by `relay_parent`.
 	fn peer_interested_in_leaf(&self, peer: &PeerId, relay_parent: &Hash) -> bool {
 		self.peer_views.get(peer).map(|v| v.contains(relay_parent)).unwrap_or(false)
+	}
+
+	/// Get all peers which have the given relay parent in their view.
+	fn peers_interested_in_leaf(&self, relay_parent: &Hash) -> Vec<PeerId> {
+		self.peer_views
+			.iter()
+			.filter(|(peer, v)| v.contains(relay_parent))
+			.map(|(peer, _)| *peer)
+			.collect()
 	}
 }
 
@@ -283,9 +273,10 @@ impl State {
 /// or the relay-parent isn't in the active-leaves set, we ignore the message
 /// as it must be invalid in that case - although this indicates a logic error
 /// elsewhere in the node.
-#[tracing::instrument(level = "trace", skip(ctx, state, pov), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, runtime, state, pov), fields(subsystem = LOG_TARGET))]
 async fn distribute_collation(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext,
+	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	id: ParaId,
 	receipt: CandidateReceipt,
@@ -327,7 +318,7 @@ async fn distribute_collation(
 	};
 
 	// Determine the group on that core and the next group on that core.
-	let (current_validators, next_validators) = determine_our_validators(ctx, our_core, num_cores, relay_parent).await?;
+	let (current_validators, next_validators) = determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
 	if current_validators.is_empty() && next_validators.is_empty() {
 		tracing::warn!(
@@ -357,7 +348,7 @@ async fn distribute_collation(
 		id,
 		state,
 		current_validators.union(&next_validators).cloned().collect(),
-	).await?;
+	).await;
 
 	state.our_validators_groups.insert(relay_parent, current_validators.into());
 
@@ -367,6 +358,11 @@ async fn distribute_collation(
 
 	state.collations.insert(relay_parent, Collation { receipt, pov, status: CollationStatus::Created });
 
+	// Make sure already connected peers get collations:
+	for peer_id in state.peers_interested_in_leaf(&relay_parent) {
+		advertise_collation(ctx, state, relay_parent, peer_id).await;
+	}
+
 	Ok(())
 }
 
@@ -374,11 +370,11 @@ async fn distribute_collation(
 /// and the total number of cores.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_core(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext,
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>> {
-	let cores = request_availability_cores(relay_parent, ctx.sender()).await.await??;
+	let cores = get_availability_cores(ctx, relay_parent).await?;
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
@@ -387,31 +383,31 @@ async fn determine_core(
 			}
 		}
 	}
-
 	Ok(None)
 }
 
 /// Figure out current and next group of validators assigned to the para being collated on.
 ///
 /// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, runtime), fields(subsystem = LOG_TARGET))]
 async fn determine_our_validators(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext,
+	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<(HashSet<ValidatorId>, HashSet<ValidatorId>)> {
-	let groups = request_validator_groups(relay_parent, ctx.sender()).await;
+) -> Result<(HashSet<AuthorityDiscoveryId>, HashSet<AuthorityDiscoveryId>)> {
+	let info = &runtime.get_session_info(ctx, relay_parent).await?.session_info;
+	let groups = &info.validator_groups;
+	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
 
-	let groups = groups.await??;
+	let current_group_index = rotation_info.group_for_core(core_index, cores);
+	let current_validators = groups.get(current_group_index.0 as usize).map(|v| v.as_slice()).unwrap_or_default();
 
-	let current_group_index = groups.1.group_for_core(core_index, cores);
-	let current_validators = groups.0.get(current_group_index.0 as usize).map(|v| v.as_slice()).unwrap_or_default();
+	let next_group_idx = (current_group_index.0 as usize + 1) % groups.len();
+	let next_validators = groups.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
 
-	let next_group_idx = (current_group_index.0 as usize + 1) % groups.0.len();
-	let next_validators = groups.0.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
-
-	let validators = request_validators(relay_parent, ctx.sender()).await.await??;
+	let validators = &info.discovery_keys;
 
 	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
@@ -448,22 +444,27 @@ async fn declare(
 /// revoke the previous connection request.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
 	para_id: ParaId,
 	state: &mut State,
-	validators: Vec<ValidatorId>,
-) -> Result<()> {
-	let request = validator_discovery::connect_to_validators(
-		ctx,
-		relay_parent,
-		validators,
-		PeerSet::Collation,
-	).await?;
+	validator_ids: Vec<AuthorityDiscoveryId>,
+)  {
+	let (tx, rx) = mpsc::channel(0);
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+		validator_ids, peer_set: PeerSet::Collation, connected: tx
+	})).await;
 
-	state.connection_requests.put(relay_parent, para_id, request);
-
-	Ok(())
+	if let Some(old) = state.connection_handles
+		.entry(relay_parent)
+		.or_insert(Default::default())
+		.insert(para_id, rx) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?old,
+			"Connection handle for para was already present"
+		);
+	}
 }
 
 /// Advertise collation to the given `peer`.
@@ -472,14 +473,14 @@ async fn connect_to_validators(
 /// set as validator for our para at the given `relay_parent`.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn advertise_collation(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext,
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
 ) {
 	let should_advertise = state.our_validators_groups
 		.get(&relay_parent)
-		.map(|g| g.should_advertise_to(&peer))
+		.map(|g| g.should_advertise_to(&state.peer_ids, &peer))
 		.unwrap_or(false);
 
 	match (state.collations.get_mut(&relay_parent), should_advertise) {
@@ -524,16 +525,17 @@ async fn advertise_collation(
 	)).await;
 
 	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
-		validators.advertised_to_peer(&peer);
+		validators.advertised_to_peer(&state.peer_ids, &peer);
 	}
 
 	state.metrics.on_advertisment_made();
 }
 
 /// The main incoming message dispatching switch.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	msg: CollatorProtocolMessage,
 ) -> Result<()> {
@@ -561,7 +563,7 @@ async fn process_msg(
 					);
 				}
 				Some(id) => {
-					distribute_collation(ctx, state, id, receipt, pov, result_sender).await?;
+					distribute_collation(ctx, runtime, state, id, receipt, pov, result_sender).await?;
 				}
 				None => {
 					tracing::warn!(
@@ -750,37 +752,6 @@ async fn handle_peer_view_change(
 	}
 }
 
-/// A validator is connected.
-///
-/// `Declare` that we are a collator with a given `CollatorId`.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
-async fn handle_validator_connected(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
-	state: &mut State,
-	peer_id: PeerId,
-	validator_id: ValidatorId,
-	relay_parent: Hash,
-) {
-	tracing::trace!(
-		target: LOG_TARGET,
-		?validator_id,
-		"Connected to requested validator"
-	);
-
-	// Store the PeerId and find out if we should advertise to this peer.
-	//
-	// If this peer does not belong to the para validators, we also don't need to try to advertise our collation.
-	let advertise = if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
-		validators.add_peer_id_for_validator(&peer_id, &validator_id)
-	} else {
-		false
-	};
-
-	if advertise && state.peer_interested_in_leaf(&peer_id, &relay_parent) {
-		advertise_collation(ctx, state, relay_parent, peer_id).await;
-	}
-}
-
 /// Bridge messages switch.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg(
@@ -791,7 +762,7 @@ async fn handle_network_msg(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, observed_role, _) => {
+		PeerConnected(peer_id, observed_role, maybe_authority) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			tracing::trace!(
@@ -800,9 +771,17 @@ async fn handle_network_msg(
 				?observed_role,
 				"Peer connected",
 			);
+			if let Some(authority) = maybe_authority {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?authority,
+					?peer_id,
+					"Connected to requested validator"
+				);
+				state.peer_ids.insert(peer_id, authority);
 
-			// Always declare to every peer. We should be connecting only to validators.
-			declare(ctx, state, peer_id.clone()).await;
+				declare(ctx, state, peer_id).await;
+			}
 		}
 		PeerViewChange(peer_id, view) => {
 			tracing::trace!(
@@ -820,6 +799,7 @@ async fn handle_network_msg(
 				"Peer disconnected",
 			);
 			state.peer_views.remove(&peer_id);
+			state.peer_ids.remove(&peer_id);
 		}
 		OurViewChange(view) => {
 			tracing::trace!(
@@ -871,7 +851,8 @@ async fn handle_our_view_change(
 			}
 		}
 		state.our_validators_groups.remove(removed);
-		state.connection_requests.remove_all(removed);
+		// TODO: Make sure they stay alive until we connected to new ones.
+		state.connection_handles.remove(removed);
 		state.span_per_relay_parent.remove(removed);
 	}
 
@@ -892,6 +873,7 @@ pub(crate) async fn run(
 	use OverseerSignal::*;
 
 	let mut state = State::new(local_peer_id, collator_pair, metrics);
+	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
 		select! {
@@ -908,7 +890,7 @@ pub(crate) async fn run(
 			},
 			msg = ctx.recv().fuse() => match msg? {
 				Communication { msg } => {
-					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
+					if let Err(e) = process_msg(&mut ctx, &mut runtime, &mut state, msg).await {
 						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message");
 					}
 				},
