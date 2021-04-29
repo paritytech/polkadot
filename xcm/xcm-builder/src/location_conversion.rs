@@ -143,7 +143,8 @@ impl<
 	}
 }
 
-/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted location.
+/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted
+/// location.
 ///
 /// # Example
 /// ## Network Topology
@@ -160,19 +161,19 @@ impl<
 /// # use xcm_executor::traits::InvertLocation;
 /// # fn main() {
 /// parameter_types!{
-/// 	pub Ancestry: MultiLocation = X2(
-/// 		Parachain(1),
-/// 		AccountKey20 { network: Any, key: Default::default()},
-/// 	);
+///     pub Ancestry: MultiLocation = X2(
+///         Parachain(1),
+///         AccountKey20 { network: Any, key: Default::default() },
+///     );
 /// }
 ///
 /// let input = X4(Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
 /// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 /// assert_eq!(inverted, X4(
-/// 	Parent,
-/// 	Parent,
-/// 	Parachain(1),
-/// 	AccountKey20 { network: Any, key: Default::default() },
+///     Parent,
+///     Parent,
+///     Parachain(1),
+///     AccountKey20 { network: Any, key: Default::default() },
 /// ));
 /// # }
 /// ```
@@ -201,6 +202,14 @@ mod tests {
 	use frame_support::parameter_types;
 	use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
 
+	fn account20() -> Junction {
+		AccountKey20 { network: Any, key: Default::default() }
+	}
+
+	fn account32() -> Junction {
+		AccountId32 { network: Any, id: Default::default() }
+	}
+
 	// Network Topology
 	//                                     v Source
 	// Relay -> Para 1 -> SmartContract -> Account
@@ -214,23 +223,43 @@ mod tests {
 	// =>
 	// output (target to source): ../../para_1/account20_default/account20_default
 	#[test]
-	fn location_inverter() {
+	fn inverter_works_in_tree() {
 		parameter_types!{
-			pub Ancestry: MultiLocation = X3(
-				Parachain(1),
-				AccountKey20 { network: Any, key: Default::default() },
-				AccountKey20 { network: Any, key: Default::default() },
-			);
+			pub Ancestry: MultiLocation = X3(Parachain(1), account20(), account20());
 		}
 
-		let input = X5(Parent, Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
+		let input = X5(Parent, Parent, Parent, Parachain(2), account32());
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-		assert_eq!(inverted, X5(
-			Parent,
-			Parent,
-			Parachain(1),
-			AccountKey20 { network: Any, key: Default::default() },
-			AccountKey20 { network: Any, key: Default::default() },
-		));
+		assert_eq!(inverted, X5(Parent, Parent, Parachain(1), account20(), account20()));
+	}
+
+	// Network Topology
+	//                                     v Source
+	// Relay -> Para 1 -> SmartContract -> Account
+	//          ^ Target
+	#[test]
+	fn inverter_uses_ancestry_as_inverted_location() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X2(account20(), account20());
+		}
+
+		let input = X2(Parent, Parent);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X2(account20(), account20()));
+	}
+
+	// Network Topology
+	//                                        v Source
+	// Relay -> Para 1 -> CollectivePallet -> Plurality
+	//          ^ Target
+	#[test]
+	fn inverter_uses_only_child_on_missing_ancestry() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X1(PalletInstance(5));
+		}
+
+		let input = X2(Parent, Parent);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild));
 	}
 }
