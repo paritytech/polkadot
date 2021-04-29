@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
+
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
 use frame_support::traits::{Get, tokens::fungibles};
@@ -71,6 +73,7 @@ impl<
 	}
 }
 
+// TODO: Comparing with `MatchesFungible`, this seems quite misplaced.
 pub trait MatchesFungibles<AssetId, Balance> {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error>;
 }
@@ -198,7 +201,7 @@ impl<
 	Assets: fungibles::Mutate<AccountId> + fungibles::Transfer<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
+	AccountId: Clone, // can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::deposit_asset(what, who)

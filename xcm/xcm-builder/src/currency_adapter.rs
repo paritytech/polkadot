@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Adapters to work with `frame_support::traits::Currency` through XCM.
+
 use sp_std::{result, convert::TryInto, marker::PhantomData};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation};
 use sp_runtime::traits::SaturatedConversion;
