@@ -80,7 +80,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -102,7 +102,6 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*, paras::*};
-use frame_support::traits::All;
 
 // Weights used in the runtime.
 mod weights;

@@ -18,13 +18,13 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS;
-	pub const CENTS: Balance = DOLLARS / 100;
+	pub const UNITS: Balance = 1_000_000_000_000;
+	pub const CENTS: Balance = UNITS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
+	pub const GRAND: Balance = CENTS * 100_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 1 * DOLLARS + (bytes as Balance) * 5 * MILLICENTS
+		items as Balance * 100 * CENTS + (bytes as Balance) * 5 * MILLICENTS
 	}
 }
 

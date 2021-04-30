@@ -57,11 +57,10 @@ use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 use xcm::v0::{MultiLocation, NetworkId};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
-	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
-	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
-	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
-	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
-};
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
+	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,};
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -82,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -233,7 +232,7 @@ impl pallet_babe::Config for Runtime {
 }
 
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * DOLLARS;
+	pub const IndexDeposit: Balance = 100 * CENTS;
 }
 
 impl pallet_indices::Config for Runtime {
@@ -420,7 +419,7 @@ parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
 	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
-	pub const MinimumDeposit: Balance = 1 * DOLLARS;
+	pub const MinimumDeposit: Balance = 100 * CENTS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
 	// One cent: $10,000 / MB
@@ -535,9 +534,9 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 
 parameter_types! {
 	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
-	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
+	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
 	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
 	pub const MaxSubAccounts: u32 = 100;
 	pub const MaxAdditionalFields: u32 = 100;
 	pub const MaxRegistrars: u32 = 20;
@@ -583,10 +582,10 @@ impl pallet_multisig::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ConfigDepositBase: Balance = 5 * DOLLARS;
+	pub const ConfigDepositBase: Balance = 500 * CENTS;
 	pub const FriendDepositFactor: Balance = 50 * CENTS;
 	pub const MaxFriends: u16 = 9;
-	pub const RecoveryDeposit: Balance = 5 * DOLLARS;
+	pub const RecoveryDeposit: Balance = 500 * CENTS;
 }
 
 impl pallet_recovery::Config for Runtime {
@@ -600,7 +599,7 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MinVestedTransfer: Balance = 1 * DOLLARS;
+	pub const MinVestedTransfer: Balance = 100 * CENTS;
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -767,7 +766,7 @@ impl parachains_initializer::Config for Runtime {
 impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 20 * DOLLARS;
+	pub const ParaDeposit: Balance = 2000 * CENTS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
 	pub const MaxCodeSize: u32 = 5 * 1024 * 1024; // 10 MB
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
@@ -798,21 +797,14 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WestendLocation: MultiLocation = MultiLocation::Null;
+	pub const WndLocation: MultiLocation = MultiLocation::Null;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
-}
-
-pub struct GetWestendNetworkId;
-
-impl frame_support::pallet_prelude::Get<NetworkId> for GetWestendNetworkId {
-	fn get() -> NetworkId {
-		NetworkId::Named(b"Westend".to_vec())
-	}
+	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 }
 
 pub type LocationConverter = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<GetWestendNetworkId, AccountId>,
+	AccountId32Aliases<WestendNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor =
@@ -820,7 +812,7 @@ pub type LocalAssetTransactor =
 		// Use this currency:
 		Balances,
 		// Use this currency when it is a fungible asset matching the given location or name:
-		IsConcrete<WestendLocation>,
+		IsConcrete<WndLocation>,
 		// We can convert the MultiLocations with our converter above:
 		LocationConverter,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -830,13 +822,12 @@ pub type LocalAssetTransactor =
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<GetWestendNetworkId, Origin>,
+	SignedAccountId32AsNative<WestendNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 100_000;
-	pub const WestendFee: (MultiLocation, u128) = (WestendLocation::get(), 1 * CENTS);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -844,6 +835,16 @@ parameter_types! {
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
 	xcm_sender::ChildParachainRouter<Runtime>,
+);
+
+/// The barriers one of which must be passed for an XCM message to be executed.
+pub type Barrier = (
+	// Weight that is paid for may be consumed.
+	TakeWeightCredit,
+	// If the message is one that immediately attemps to pay for execution, then allow it.
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	// Messages coming from system parachains need not pay for execution.
+	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
 
 pub struct XcmConfig;
@@ -857,7 +858,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = ();
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<WestendFee>;
+	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
 
