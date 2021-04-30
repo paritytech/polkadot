@@ -928,11 +928,19 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
+	// if the node isn't actively participating in consensus then it doesn't
+	// need a keystore, regardless of which protocol we use below.
+	let keystore_opt = if role.is_authority() {
+		Some(keystore_container.sync_keystore())
+	} else {
+		None
+	};
+
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
 	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
-			keystore_container.sync_keystore(),
+			keystore_opt.clone(),
 			network.clone(),
 			beefy_link,
 			network.clone(),
@@ -948,14 +956,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
 		}
 	}
-
-	// if the node isn't actively participating in consensus then it doesn't
-	// need a keystore, regardless of which protocol we use below.
-	let keystore_opt = if role.is_authority() {
-		Some(keystore_container.sync_keystore())
-	} else {
-		None
-	};
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
