@@ -44,8 +44,8 @@ pub use polkadot_parachain::primitives::{
 // Export some basic parachain primitives from v0.
 pub use crate::v0::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
-	ValidatorSignature, SigningContext, Signed, UncheckedSigned, ValidityAttestation,
-	CompactStatement, SignedStatement, EncodeAs,
+	ValidatorSignature, SigningContext,  ValidityAttestation,
+	CompactStatement,
 };
 
 #[cfg(feature = "std")]
@@ -57,6 +57,10 @@ pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+
+/// Signed data.
+mod signed;
+pub use signed::{Signed, UncheckedSigned, EncodeAs};
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
@@ -168,6 +172,7 @@ pub mod well_known_keys {
 		})
 	}
 }
+
 
 /// Unique identifier for the Parachains Inherent
 pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
@@ -460,6 +465,10 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 		AvailabilityBitfield(inner)
 	}
 }
+
+
+/// A signed compact statement, suitable to be sent to the chain.
+pub type SignedStatement = Signed<CompactStatement>;
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
 pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
