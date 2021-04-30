@@ -89,15 +89,15 @@ mod tests {
 	use frame_support::weights::WeightToFeePolynomial;
 	use runtime_common::{MAXIMUM_BLOCK_WEIGHT, ExtrinsicBaseWeight};
 	use super::fee::WeightToFee;
-	use super::currency::{CENTS, DOLLARS, MILLICENTS};
+	use super::currency::{CENTS, MILLICENTS};
 
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
 	fn full_block_fee_is_correct() {
-		// A full block should cost 16 DOLLARS
+		// A full block should cost 1,600 CENTS
 		println!("Base: {}", ExtrinsicBaseWeight::get());
 		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * DOLLARS;
+		let y = 16 * 100 * CENTS;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}
 
