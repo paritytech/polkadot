@@ -34,7 +34,7 @@ const LOG_TARGET: &str = "parachain::validator-discovery";
 
 /// An abstraction over the authority discovery service.
 #[async_trait]
-pub trait AuthorityDiscovery: Send + 'static {
+pub trait AuthorityDiscovery: Send + Clone + 'static {
 	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
@@ -307,16 +307,15 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	}
 
 	/// Should be called when a peer connected.
-	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn on_peer_connected(
 		&mut self,
 		peer_id: PeerId,
 		peer_set: PeerSet,
-		authority_discovery_service: &mut AD,
+		maybe_authority: Option<AuthorityDiscoveryId>,
 	) {
 		let state = &mut self.state[peer_set];
 		// check if it's an authority we've been waiting for
-		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for request in state.non_revoked_discovery_requests.iter_mut() {
 				let _ = request.on_authority_connected(&authority, &peer_id);
@@ -359,7 +358,7 @@ mod tests {
 		peers_set: HashSet<Multiaddr>,
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
@@ -469,7 +468,8 @@ mod tests {
 			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
 			let (sender, mut receiver) = mpsc::channel(2);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let _ = service.on_request(
 				req1,
@@ -509,12 +509,14 @@ mod tests {
 			).await;
 
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
 			let reply1 = receiver.next().await.unwrap();
 			assert_eq!(reply1.0, authority_ids[0]);
 			assert_eq!(reply1.1, peer_ids[0]);
 
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 			let reply2 = receiver.next().await.unwrap();
 			assert_eq!(reply2.0, authority_ids[1]);
 			assert_eq!(reply2.1, peer_ids[1]);
@@ -534,8 +536,10 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone()],
@@ -580,8 +584,10 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone(), authority_ids[2].clone()],
@@ -645,7 +651,8 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(validator_peer_id.clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(validator_peer_id).await;
+			service.on_peer_connected(validator_peer_id.clone(), PeerSet::Validation, maybe_authority).await;
 
 			let address = known_multiaddr()[0].clone().with(Protocol::P2p(validator_peer_id.clone().into()));
 			ads.by_peer_id.insert(validator_peer_id.clone(), validator_id.clone());

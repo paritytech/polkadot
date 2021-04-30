@@ -20,7 +20,7 @@ use futures::{SinkExt, channel::{mpsc, oneshot}};
 
 use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange,
-    request_response::{
+	request_response::{
 		OutgoingRequest, Recipient, Requests,
 		v1::{
 			StatementFetchingRequest, StatementFetchingResponse
@@ -178,6 +178,11 @@ pub async fn fetch(
 		// All our peers failed us - try getting new ones before trying again:
 		match try_get_new_peers(relay_parent, candidate_hash, &mut sender, &span).await {
 			Ok(Some(mut peers)) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?peers,
+					"Received new peers."
+				);
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
 			}

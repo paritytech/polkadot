@@ -55,6 +55,11 @@ pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
+mod error_handling;
+
+/// Error classification.
+pub use error_handling::{Fault, unwrap_non_fatal};
+
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
 	pub use sp_core::traits::SpawnNamed;
@@ -64,6 +69,9 @@ pub mod reexports {
 		SubsystemContext,
 	};
 }
+
+/// Convenient and efficient runtime info access.
+pub mod runtime;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);

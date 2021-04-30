@@ -60,7 +60,7 @@ impl<
 > ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -75,7 +75,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -92,7 +92,7 @@ impl<
 > ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X1(Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
@@ -108,7 +108,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}

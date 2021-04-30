@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Module for checking GRANDPA Finality Proofs.
+//! Pallet for checking GRANDPA Finality Proofs.
 //!
 //! Adapted copy of substrate/client/finality-grandpa/src/justification.rs. If origin
 //! will ever be moved to the sp_finality_grandpa, we should reuse that implementation.
@@ -25,7 +25,7 @@ use frame_support::RuntimeDebug;
 use sp_finality_grandpa::{AuthorityId, AuthoritySignature, SetId};
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use sp_std::prelude::Vec;
+use sp_std::prelude::*;
 
 /// Justification verification error.
 #[derive(RuntimeDebug, PartialEq)]
@@ -57,16 +57,12 @@ pub fn decode_justification_target<Header: HeaderT>(
 pub fn verify_justification<Header: HeaderT>(
 	finalized_target: (Header::Hash, Header::Number),
 	authorities_set_id: SetId,
-	authorities_set: VoterSet<AuthorityId>,
-	raw_justification: &[u8],
+	authorities_set: &VoterSet<AuthorityId>,
+	justification: &GrandpaJustification<Header>,
 ) -> Result<(), Error>
 where
 	Header::Number: finality_grandpa::BlockNumberOps,
 {
-	// Decode justification first
-	let justification =
-		GrandpaJustification::<Header>::decode(&mut &*raw_justification).map_err(|_| Error::JustificationDecode)?;
-
 	// Ensure that it is justification for the expected header
 	if (justification.commit.target_hash, justification.commit.target_number) != finalized_target {
 		return Err(Error::InvalidJustificationTarget);
@@ -76,7 +72,7 @@ where
 	// signatures are valid. We'll check the validity of the signatures later since they're more
 	// resource intensive to verify.
 	let ancestry_chain = AncestryChain::new(&justification.votes_ancestries);
-	match finality_grandpa::validate_commit(&justification.commit, &authorities_set, &ancestry_chain) {
+	match finality_grandpa::validate_commit(&justification.commit, authorities_set, &ancestry_chain) {
 		Ok(ref result) if result.ghost().is_some() => {}
 		_ => return Err(Error::InvalidJustificationCommit),
 	}
@@ -130,7 +126,7 @@ where
 ///
 /// This particular proof is used to prove that headers on a bridged chain
 /// (so not our chain) have been finalized correctly.
-#[derive(Encode, Decode, RuntimeDebug)]
+#[derive(Encode, Decode, RuntimeDebug, Clone, PartialEq, Eq)]
 pub struct GrandpaJustification<Header: HeaderT> {
 	/// The round (voting period) this justification is valid for.
 	pub round: u64,
@@ -138,6 +134,12 @@ pub struct GrandpaJustification<Header: HeaderT> {
 	pub commit: finality_grandpa::Commit<Header::Hash, Header::Number, AuthoritySignature, AuthorityId>,
 	/// A proof that the chain of blocks in the commit are related to each other.
 	pub votes_ancestries: Vec<Header>,
+}
+
+impl<H: HeaderT> crate::FinalityProof<H::Number> for GrandpaJustification<H> {
+	fn target_header_number(&self) -> H::Number {
+		self.commit.target_number
+	}
 }
 
 /// A utility trait implementing `finality_grandpa::Chain` using a given set of headers.

@@ -3,10 +3,11 @@ FROM debian:buster-slim
 # metadata
 ARG VCS_REF
 ARG BUILD_DATE
+ARG IMAGE_NAME
 
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
-	io.parity.image.title="parity/polkadot" \
+	io.parity.image.title="${IMAGE_NAME}" \
 	io.parity.image.description="polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
@@ -18,7 +19,6 @@ ENV RUST_BACKTRACE 1
 
 # install tools and dependencies
 RUN apt-get update && \
-	DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
 	DEBIAN_FRONTEND=noninteractive apt-get install -y \
 		libssl1.1 \
 		ca-certificates \
@@ -45,4 +45,3 @@ EXPOSE 30333 9933 9944
 VOLUME ["/polkadot"]
 
 ENTRYPOINT ["/usr/local/bin/polkadot"]
-

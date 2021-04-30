@@ -442,6 +442,20 @@ impl MultiLocation {
 		MultiLocationReverseIterator(self)
 	}
 
+	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following. If
+	/// so, returns a reference to this `Junction` item.
+	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
+		if prefix.len() + 1 != self.len() {
+			return None
+		}
+		for i in 0..prefix.len() {
+			if prefix.at(i) != self.at(i) {
+				return None
+			}
+		}
+		return self.at(prefix.len())
+	}
+
 	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
@@ -564,7 +578,7 @@ impl MultiLocation {
 		let self_parents = self.parent_count();
 		let prefix_rest = prefix.len() - prefix.parent_count();
 		let skipped = self_parents.min(prefix_rest);
-		if self.len() + prefix.len() - 2 * skipped > 4 {
+		if self.len() + prefix.len() - 2 * skipped > 8 {
 			return Err(prefix);
 		}
 
