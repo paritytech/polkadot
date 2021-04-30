@@ -883,7 +883,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 				return true
 			}
 			// No runtime upgrade, now we need to be more nuanced:
-			let size = statement.encoded_size();
+			let size = statement.as_unchecked().encoded_size();
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =

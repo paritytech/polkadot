@@ -894,24 +894,18 @@ impl<T: Encode> EncodeAs<T> for T {
 
 /// Signed data with signature already verified.
 ///
-/// NOTE: This type does have an Encode/Decode instance because we are encoding/decoding accross
-/// trusted bundaries for runtime communication (inherent data), so care must be taken to never use
-/// those instances on untrusted boundaries as they render our valid signatures guarantees invalid.
-/// Instead use `UncheckedSigned` on such boundaries, `Signed` can easily be converted into
-/// `UncheckedSigned` and conversion back via `into_signed` enforces a valid signature again.
+/// NOTE: This type does not have an Encode/Decode instance, as this would cancel out our
+/// valid signature guarantees. If you need to encode/decode you have to convert into an
+/// `UncheckedSigned` first.
+///
+/// `Signed` can easily be converted into `UncheckedSigned` and conversion back via `into_signed`
+/// enforces a valid signature again.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct Signed<Payload, RealPayload = Payload>(SignedImpl<Payload, RealPayload>);
+pub struct Signed<Payload, RealPayload = Payload>(UncheckedSigned<Payload, RealPayload>);
 
 /// Unsigned data, can be converted to `Signed` by checking the signature.
-#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct UncheckedSigned<Payload, RealPayload = Payload>(SignedImpl<Payload, RealPayload>);
-
-/// A signed type which encapsulates the common desire to sign some data and validate a signature.
-///
-/// Note that the internal fields are not public; they are all accessable by immutable getters.
-/// This reduces the chance that they are accidentally mutated, invalidating the signature.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug, Encode, Decode)]
-struct SignedImpl<Payload, RealPayload = Payload> {
+pub struct UncheckedSigned<Payload, RealPayload = Payload> {
 	/// The payload is part of the signed data. The rest is the signing context,
 	/// which is known both at signing and at validation.
 	payload: Payload,
@@ -935,7 +929,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		context: &SigningContext<H>,
 		key: &ValidatorId,
 	) -> Option<Self> {
-		let s = SignedImpl {
+		let s = UncheckedSigned {
 			payload,
 			validator_index,
 			signature,
@@ -956,7 +950,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		validator_index: ValidatorIndex,
 		key: &ValidatorId,
 	) -> Result<Option<Self>, KeystoreError> {
-		let r = SignedImpl::sign(keystore, payload, context, validator_index, key).await?;
+		let r = UncheckedSigned::sign(keystore, payload, context, validator_index, key).await?;
 		Ok(r.map(Self))
 	}
 
@@ -966,20 +960,16 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		context: &SigningContext<H>,
 		key: &ValidatorId
 	) -> Result<Self, UncheckedSigned<Payload, RealPayload>> {
-		if unchecked.0.check_signature(context, key).is_ok() {
-			Ok(Self(unchecked.0))
+		if unchecked.check_signature(context, key).is_ok() {
+			Ok(Self(unchecked))
 		} else {
 			Err(unchecked)
 		}
 	}
 
-	/// Check whether this checked signed is equal to some unchecked one.
-	pub fn equals_unchecked(&self, unchecked: &UncheckedSigned<Payload, RealPayload>) -> bool 
-		where
-			Payload: PartialEq + Eq,
-			RealPayload: PartialEq + Eq,
-	{
-		self.0 == unchecked.0
+	/// Get a reference to data as unchecked.
+	pub fn as_unchecked(&self) -> &UncheckedSigned<Payload, RealPayload> {
+		&self.0
 	}
 
 	/// Immutably access the payload.
@@ -1008,10 +998,14 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Convert `Payload` into `RealPayload`.
 	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
-		Signed(self.0.convert_payload())
+		Signed(self.0.unchecked_convert_payload())
 	}
 }
 
+// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
+// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
+// own trait which does what we need: EncodeAs.
 impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payload, RealPayload> {
 	/// Used to create a `UncheckedSigned` from already existing parts.
 	///
@@ -1022,14 +1016,12 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		validator_index: ValidatorIndex,
 		signature: ValidatorSignature,
 	) -> Self {
-		let s = SignedImpl {
+		Self {
 			payload,
 			validator_index,
 			signature,
 			real_payload: std::marker::PhantomData,
-		};
-
-		Self(s)
+		}
 	}
 
 	/// Check signature and convert to `Signed` if successful.
@@ -1044,44 +1036,37 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	/// Immutably access the payload.
 	#[inline]
 	pub fn unchecked_payload(&self) -> &Payload {
-		&self.0.payload
+		&self.payload
 	}
 
 	/// Immutably access the validator index.
 	#[inline]
 	pub fn unchecked_validator_index(&self) -> ValidatorIndex {
-		self.0.validator_index
+		self.validator_index
 	}
 
 	/// Immutably access the signature.
 	#[inline]
 	pub fn unchecked_signature(&self) -> &ValidatorSignature {
-		&self.0.signature
+		&self.signature
 	}
 
 	/// Discard signing data, get the payload
 	#[inline]
-	pub fn into_unchecked_payload(self) -> Payload {
-		self.0.payload
+	pub fn unchecked_into_payload(self) -> Payload {
+		self.payload
 	}
 
 	/// Convert `Payload` into `RealPayload`.
-	pub fn convert_unchecked_payload(&self) -> UncheckedSigned<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
-		UncheckedSigned(self.0.convert_payload())
+	pub fn unchecked_convert_payload(&self) -> UncheckedSigned<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+		UncheckedSigned {
+			signature: self.signature.clone(),
+			validator_index: self.validator_index,
+			payload: (&self.payload).into(),
+			real_payload: sp_std::marker::PhantomData,
+		}
 	}
-}
 
-impl<Payload, RealPayload> From<Signed<Payload, RealPayload>> for UncheckedSigned<Payload, RealPayload> {
-	fn from(signed: Signed<Payload, RealPayload>) -> Self {
-		Self(signed.0)
-	}
-}
-
-// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
-// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
-// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
-// own trait which does what we need: EncodeAs.
-impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> SignedImpl<Payload, RealPayload> {
 	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
 		// equivalent to (real_payload, context).encode()
 		let mut out = payload.encode_as();
@@ -1125,100 +1110,11 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> SignedImpl<Payload, Re
 		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
 	}
 
-	/// Convert `Payload` into `RealPayload`.
-	fn convert_payload(&self) -> SignedImpl<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
-		SignedImpl {
-			signature: self.signature.clone(),
-			validator_index: self.validator_index,
-			payload: (&self.payload).into(),
-			real_payload: sp_std::marker::PhantomData,
-		}
-	}
 }
 
-/// Dummy implementation (derive does not do the right thing):
-impl<Payload, RealPayload> Encode for Signed<Payload, RealPayload> 
-	where
-		Payload: Encode
-{
-	fn size_hint(&self) -> usize {
-		self.0.size_hint()
-	}
-
-	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
-		self.0.encode_to(dest)
-	}
-
-	fn encode(&self) -> Vec<u8> {
-		self.0.encode()
-	}
-
-	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-		self.0.using_encoded(f)
-	}
-
-	fn encoded_size(&self) -> usize {
-		self.0.encoded_size()
-	}
-}
-
-/// Dummy implementation (derive does not do the right thing):
-impl<Payload, RealPayload> Encode for UncheckedSigned<Payload, RealPayload> 
-	where
-		Payload: Encode,
-{
-	fn size_hint(&self) -> usize {
-		self.0.size_hint()
-	}
-
-	fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
-		self.0.encode_to(dest)
-	}
-
-	fn encode(&self) -> Vec<u8> {
-		self.0.encode()
-	}
-
-	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-		self.0.using_encoded(f)
-	}
-
-	fn encoded_size(&self) -> usize {
-		self.0.encoded_size()
-	}
-}
-
-impl<Payload, RealPayload> Decode for Signed<Payload, RealPayload> 
-	where
-		Payload: Decode,
-{
-	fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		<SignedImpl<Payload, RealPayload> as Decode>::decode(input).map(Self)
-	}
-
-	fn skip<I: parity_scale_codec::Input>(input: &mut I) -> Result<(), parity_scale_codec::Error> {
-		<SignedImpl<Payload, RealPayload> as Decode>::skip(input)
-	}
-
-	fn encoded_fixed_size() -> Option<usize> {
-		<SignedImpl<Payload, RealPayload> as Decode>::encoded_fixed_size()
-	}
-}
-
-impl<Payload, RealPayload> Decode for UncheckedSigned<Payload, RealPayload> 
-	where
-		Payload: Decode,
-{
-	fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		<SignedImpl<Payload, RealPayload> as Decode>::decode(input).map(Self)
-	}
-
-	fn skip<I: parity_scale_codec::Input>(input: &mut I) -> Result<(), parity_scale_codec::Error> {
-		<SignedImpl<Payload, RealPayload> as Decode>::skip(input)
-	}
-
-	fn encoded_fixed_size() -> Option<usize> {
-		<SignedImpl<Payload, RealPayload> as Decode>::encoded_fixed_size()
+impl<Payload, RealPayload> From<Signed<Payload, RealPayload>> for UncheckedSigned<Payload, RealPayload> {
+	fn from(signed: Signed<Payload, RealPayload>) -> Self {
+		signed.0
 	}
 }
 

@@ -22,7 +22,6 @@
 
 #![deny(unused_crate_dependencies)]
 
-use parity_scale_codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
@@ -49,7 +48,7 @@ const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct BitfieldGossipMessage {
 	/// The relay parent this message is relative to.
 	relay_parent: Hash,
@@ -479,7 +478,7 @@ where
 			?validator_index,
 			"already received a message for validator",
 		);
-		if old_message.signed_availability.equals_unchecked(&bitfield) {
+		if old_message.signed_availability.as_unchecked() == &bitfield {
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 		}
 		return;
