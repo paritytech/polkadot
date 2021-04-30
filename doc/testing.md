@@ -22,11 +22,11 @@ Launching small scale networks, with multiple adversarial nodes without any furt
 This should include tests around the thresholds in order to evaluate the error handling once certain
 assumed invariants fail.
 
-### Scale testing
+### Testing at scale
 
 Launching many nodes with configurable network speed and node features in a cluster of nodes.
 At this scale the [`simnet`][simnet] comes into play which launches a full cluster of nodes.
-Asserts are made based on metrics.
+Asserts are(?) made based on metrics.
 
 ---
 
@@ -45,22 +45,40 @@ https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.htm
 rustup component add llvm-tools-preview
 cargo install grcov miniserve
 
+export CARGO_INCREMENTAL=0
 # wasm is not happy with the instrumentation
 export SKIP_BUILD_WASM=true
+export BUILD_DUMMY_WASM_BINARY=true
 # the actully collected coverage data
 export LLVM_PROFILE_FILE="llvmcoveragedata-%p-%m.profraw"
-# required rustc flags
+# build wasm without instrumentation
+export WASM_TARGET_DIRECTORY=/tmp/wasm
+cargo +nightly build
+# required rust flags
 export RUSTFLAGS="-Zinstrument-coverage"
 # assure target dir is clean
 cargo clean
-# build
-cargo +nightly build
 # run tests to get coverage data
 cargo +nightly test --all
-# create the report out of all the test binaries
+
+# create the *html* report out of all the test binaries
+# mostly useful for local inspection
 grcov . --binary-path ./target/debug -s . -t html --branch --ignore-not-existing -o ./coverage/
 miniserve -r ./coverage
+
+# create a *codecov* compatible report
+grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
 ```
+
+The test coverage in `lcov` can the be published to <codecov.io>.
+
+```sh
+bash <(curl -s https://codecov.io/bash) -f lcov.info
+```
+
+or just printed as part of the PR using a gh action i.e. [jest-lcov-reporter](https://github.com/marketplace/actions/jest-lcov-reporter).
+
+For full examples on how to use [grcov /w polkadot specifics see the gh repo](https://github.com/mozilla/grcov#coverallscodecov-output).
 
 ## Fuzzing
 
@@ -89,8 +107,52 @@ Requirements:
 * spawn nodes with preconfigured behaviours
 * allow multiple types of configuration to be specified
 * allow extensability via external crates
-*...
+* ...
 
 ---
+
+
+## Implementation of different behaviour strain nodes.
+
+### Goals
+
+The main goals are is to allow creating a test node which
+exhibits a certain behaviour by utilizing a subset of _wrapped_ or _replaced_ subsystems easily.
+The runtime must not matter at all for these tests and should be simplistic.
+The execution must be fast, this mostly means to assure a close to zero network latency as
+well as shorting the block time and epoch times down to a few `100ms` and a few dozend blocks per epoch.
+
+### Approach
+
+`AllSubsystems` is an intermediate mocking type. As such it is a prime target for modification.
+`AllSubsystemsGen` is a proc-macro that should be extended as needed for per subsystem specific
+logic that would otherwise cause significant boilerplate additions.
+
+There are common patterns, where i.e. a subsystem produces garbage, or does not produce any output.
+These most be provided by default for re-usability. Another option would be a `CopyCat` node that
+picks one other node and just repeats whatever the initial node does. These are just _ideas_
+and might not prove viable or yield signifcant outcomes.
+
+### Impl
+
+```rust
+launch_integration_testcase!{
+"TestRuntime" =>
+"Alice": SubsystemsAll<GenericParam=DropAll,..>,
+"Bob": SubsystemsAll<GenericParam=DropSome,..>,
+"Charles": Default,
+"David": "Bob",
+"Eve": "Bob",
+}
+```
+
+> TODO format sucks, revise, how does cli interact with it? Do we want configurable profiles?
+
+The coordination of multiple subsystems across nodes must be made possible via
+a side-channel. That means those nodes most be able to prepare attacks that
+are collaborative based on each others actions.
+
+> TODO
+
 
 [simnet]: https://github.com/paritytech/simnet_scripts
