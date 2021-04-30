@@ -162,7 +162,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	/// Check signature and convert to `Signed` if successful.
-	pub fn into_checked<H: Encode>(
+	pub fn try_into_checked<H: Encode>(
 		self,
 		context: &SigningContext<H>,
 		key: &ValidatorId

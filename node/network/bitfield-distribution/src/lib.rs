@@ -483,7 +483,7 @@ where
 		}
 		return;
 	}
-	let signed_availability = match bitfield.into_checked(&signing_context, &validator) {
+	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
 			modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
 			return;

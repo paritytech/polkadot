@@ -791,7 +791,7 @@ fn check_statement_signature(
 	head.validators
 		.get(statement.unchecked_validator_index().0 as usize)
 		.ok_or_else(|| statement.clone())
-		.and_then(|v| statement.into_checked(&signing_context, v))
+		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
 
 /// Places the statement in storage if it is new, and then

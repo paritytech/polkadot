@@ -238,7 +238,7 @@ where
 	session_info.validators
 		.get(signed.unchecked_validator_index().0 as usize)
 		.ok_or_else(|| signed.clone())
-		.and_then(|v| signed.into_checked(&signing_context, v))
+		.and_then(|v| signed.try_into_checked(&signing_context, v))
 }
 
 /// Request availability cores from the runtime.

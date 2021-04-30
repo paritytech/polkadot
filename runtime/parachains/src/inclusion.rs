@@ -295,7 +295,7 @@ impl<T: Config> Module<T> {
 				last_index = Some(unchecked_bitfield.unchecked_validator_index());
 
 				signed_bitfields.push(
-					unchecked_bitfield.into_checked(
+					unchecked_bitfield.try_into_checked(
 						&signing_context,
 						validator_public,
 					).map_err(|_| Error::<T>::InvalidBitfieldSignature)?
