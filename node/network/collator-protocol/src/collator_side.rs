@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet, hash_map::Entry};
 use futures::{FutureExt, channel::oneshot, channel::mpsc};
 use sp_core::Pair;
 
-use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger,
 	messages::{
@@ -1057,24 +1057,6 @@ mod tests {
 
 		fn current_group_validator_authority_ids(&self) -> Vec<AuthorityDiscoveryId> {
 			self.current_group_validator_indices()
-				.iter()
-				.map(|i| self.session_info.discovery_keys[i.0 as usize].clone())
-				.collect()
-		}
-
-		fn current_group_validator_ids(&self) -> Vec<ValidatorId> {
-			self.current_group_validator_indices()
-				.iter()
-				.map(|i| self.session_info.validators[i.0 as usize].clone())
-				.collect()
-		}
-
-		fn next_group_validator_indices(&self) -> &[ValidatorIndex] {
-			&self.session_info.validator_groups[1]
-		}
-
-		fn next_group_validator_authority_ids(&self) -> Vec<AuthorityDiscoveryId> {
-			self.next_group_validator_indices()
 				.iter()
 				.map(|i| self.session_info.discovery_keys[i.0 as usize].clone())
 				.collect()
