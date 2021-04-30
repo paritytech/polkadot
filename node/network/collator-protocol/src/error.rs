@@ -27,9 +27,7 @@ use crate::LOG_TARGET;
 
 /// General result.
 pub type Result<T> = std::result::Result<T, Error>;
-/// Result for non fatal only failures.
-#[allow(dead_code)]
-pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
+
 /// Result for fatal only failures.
 pub type FatalResult<T> = std::result::Result<T, Fatal>;
 
