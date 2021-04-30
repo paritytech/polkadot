@@ -564,7 +564,7 @@ parameter_types! {
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
-pub type LocationConverter = (
+pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<RococoNetwork, AccountId>,
 );
@@ -576,13 +576,13 @@ pub type LocalAssetTransactor =
 		// Use this currency when it is a fungible asset matching the given location or name:
 		IsConcrete<RocLocation>,
 		// We can convert the MultiLocations with our converter above:
-		LocationConverter,
+		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
 	>;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	SignedAccountId32AsNative<RococoNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,

@@ -18,30 +18,22 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 300;
-	pub const CENTS: Balance = DOLLARS / 100;
+	pub const UNITS: Balance = 1_000_000_000_000;
+	pub const CENTS: Balance = UNITS / 30_000;
+	pub const GRAND: Balance = CENTS * 100_000;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 20 * DOLLARS + (bytes as Balance) * 100 * MILLICENTS
+		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
 	}
 }
 
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{Moment, BlockNumber};
-	// Kusama & mainnet
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
-	// Testnet
-//	pub const MILLISECS_PER_BLOCK: Moment = 1000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	// Kusama
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
-	// Mainnet
-//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
-	// Testnet
-//	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 10 * MINUTES;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);

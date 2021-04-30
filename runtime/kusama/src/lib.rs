@@ -32,11 +32,9 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, CurrencyToVote, paras_registrar, xcm_sender, slots,
-	impls::DealWithFees,
-	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
-	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
-	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
+	claims, SlowAdjustingFeeUpdate, CurrencyToVote, paras_registrar, xcm_sender, slots, impls::DealWithFees,
+	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
+	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder, ToAuthor,
 };
 
 use runtime_parachains::origin as parachains_origin;
@@ -55,12 +53,11 @@ use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
 use xcm::v0::{MultiLocation, NetworkId};
-
 use xcm_builder::{
-	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
-	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
-	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
-	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
+	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 use sp_runtime::{
@@ -105,6 +102,7 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*, paras::*};
+use frame_support::traits::All;
 
 // Weights used in the runtime.
 mod weights;
@@ -241,7 +239,7 @@ impl pallet_babe::Config for Runtime {
 }
 
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * DOLLARS;
+	pub const IndexDeposit: Balance = 100 * CENTS;
 }
 
 impl pallet_indices::Config for Runtime {
@@ -437,7 +435,7 @@ parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
 	pub const VotingPeriod: BlockNumber = 7 * DAYS;
 	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
-	pub const MinimumDeposit: Balance = 1 * DOLLARS;
+	pub const MinimumDeposit: Balance = 100 * CENTS;
 	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
 	// One cent: $10,000 / MB
@@ -515,7 +513,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 1 * DOLLARS;
+	pub const CandidacyBond: Balance = 100 * CENTS;
 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
 	pub const VotingBondBase: Balance = deposit(1, 64);
 	// additional data per vote is 32 bytes (account id).
@@ -581,21 +579,21 @@ impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
-	pub const ProposalBondMinimum: Balance = 20 * DOLLARS;
+	pub const ProposalBondMinimum: Balance = 2000 * CENTS;
 	pub const SpendPeriod: BlockNumber = 6 * DAYS;
 	pub const Burn: Permill = Permill::from_perthousand(2);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
-	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
+	pub const TipReportDepositBase: Balance = 100 * CENTS;
 	pub const DataDepositPerByte: Balance = 1 * CENTS;
-	pub const BountyDepositBase: Balance = 1 * DOLLARS;
+	pub const BountyDepositBase: Balance = 100 * CENTS;
 	pub const BountyDepositPayoutDelay: BlockNumber = 4 * DAYS;
 	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-	pub const BountyValueMinimum: Balance = 2 * DOLLARS;
+	pub const BountyValueMinimum: Balance = 200 * CENTS;
 	pub const MaxApprovals: u32 = 100;
 }
 
@@ -766,9 +764,9 @@ impl claims::Config for Runtime {
 
 parameter_types! {
 	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
-	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
+	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
 	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
 	pub const MaxSubAccounts: u32 = 100;
 	pub const MaxAdditionalFields: u32 = 100;
 	pub const MaxRegistrars: u32 = 20;
@@ -814,10 +812,10 @@ impl pallet_multisig::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ConfigDepositBase: Balance = 5 * DOLLARS;
+	pub const ConfigDepositBase: Balance = 500 * CENTS;
 	pub const FriendDepositFactor: Balance = 50 * CENTS;
 	pub const MaxFriends: u16 = 9;
-	pub const RecoveryDeposit: Balance = 5 * DOLLARS;
+	pub const RecoveryDeposit: Balance = 500 * CENTS;
 }
 
 impl pallet_recovery::Config for Runtime {
@@ -831,11 +829,11 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 10 * DOLLARS;
-	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
+	pub const CandidateDeposit: Balance = 1000 * CENTS;
+	pub const WrongSideDeduction: Balance = 200 * CENTS;
 	pub const MaxStrikes: u32 = 10;
 	pub const RotationPeriod: BlockNumber = 7 * DAYS;
-	pub const PeriodSpend: Balance = 500 * DOLLARS;
+	pub const PeriodSpend: Balance = 50000 * CENTS;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
 	pub const MaxCandidateIntake: u32 = 1;
@@ -861,7 +859,7 @@ impl pallet_society::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MinVestedTransfer: Balance = 1 * DOLLARS;
+	pub const MinVestedTransfer: Balance = 100 * CENTS;
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -1066,38 +1064,57 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
-	pub const KusamaLocation: MultiLocation = MultiLocation::Null;
+	/// The location of the KSM token, from the context of this chain. Since this token is native to this
+	/// chain, we make it synonymous with it and thus it is the `Null` location, which means "equivalent to
+	/// the context".
+	pub const KsmLocation: MultiLocation = MultiLocation::Null;
+	/// The Kusama network ID. This is named.
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
+	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
+	/// Kusama is a top-level relay-chain, there is no ancestry.
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
-pub type LocationConverter = (
+/// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
+/// the sovereign account controlled by a location.
+pub type SovereignAccountOf = (
+	// We can convert a child parachain using the standard `AccountId` conversion.
 	ChildParachainConvertsVia<ParaId, AccountId>,
+	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<KusamaNetwork, AccountId>,
 );
 
+/// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
+/// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
+///
+/// Ours is only aware of the Balances pallet, which is mapped to `KsmLocation`.
 pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<
 		// Use this currency:
 		Balances,
 		// Use this currency when it is a fungible asset matching the given location or name:
-		IsConcrete<KusamaLocation>,
+		IsConcrete<KsmLocation>,
 		// We can convert the MultiLocations with our converter above:
-		LocationConverter,
+		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
 	>;
 
+/// The means that we convert an the XCM message origin location into a local dispatch origin.
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
+	// A `Signed` origin of the sovereign account that the original location controls.
+	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	// A child parachain, natively expressed, has the `Parachain` origin.
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	// The AccountId32 location type can be expressed natively as a `Signed` origin.
 	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
 parameter_types! {
+	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
-	pub const KusamaFee: (MultiLocation, u128) = (KusamaLocation::get(), 1 * CENTS);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -1107,16 +1124,14 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
-pub struct All<T>(sp_std::marker::PhantomData<T>);
-impl<T: Ord> frame_support::traits::Contains<T> for All<T> {
-	fn contains(_: &T) -> bool { true }
-	fn sorted_members() -> Vec<T> { vec![] }
-}
-
-use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom};
+/// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
+	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
+	// If the message is one that immediately attemps to pay for execution, then allow it.
 	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	// Messages coming from system parachains need not pay for execution.
+	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
 
 pub struct XcmConfig;
@@ -1130,7 +1145,8 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<KusamaFee>;
+	// The weight trader piggybacks on the existing transaction-fee conversion logic.
+	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
 
@@ -1244,7 +1260,7 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			max_upward_message_num_per_candidate: 10,
 			hrmp_max_message_num_per_candidate: 10,
 			validation_upgrade_frequency: 1 * DAYS,
-			validation_upgrade_delay: EPOCH_DURATION_IN_BLOCKS,
+			validation_upgrade_delay: EPOCH_DURATION_IN_SLOTS,
 			max_pov_size: MAX_POV_SIZE,
 			max_downward_message_size: 50 * 1024,
 			preferred_dispatchable_upward_messages_step_weight: 0,
