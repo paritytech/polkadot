@@ -102,6 +102,7 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
+use sp_runtime::traits::Keccak256;
 
 // Weights used in the runtime
 mod weights;
@@ -615,6 +616,24 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+impl pallet_beefy::Config for Runtime {
+	type AuthorityId = BeefyId;
+}
+
+impl pallet_mmr::Config for Runtime {
+	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	type Hashing = Keccak256;
+	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
+	type LeafData = mmr_common::Pallet<Runtime>;
+	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
+	type WeightInfo = ();
+}
+
+impl mmr_common::Config for Runtime {
+	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
+	type ParachainHeads = ();
+}
+
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = deposit(1, 8);
@@ -961,7 +980,7 @@ impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigra
 			max_upward_message_num_per_candidate: 10,
 			hrmp_max_message_num_per_candidate: 10,
 			validation_upgrade_frequency: 1 * DAYS,
-			validation_upgrade_delay: EPOCH_DURATION_IN_BLOCKS,
+			validation_upgrade_delay: EPOCH_DURATION_IN_SLOTS,
 			max_pov_size: 5 * 1024 * 1024,
 			max_downward_message_size: 50 * 1024,
 			preferred_dispatchable_upward_messages_step_weight: 0,
