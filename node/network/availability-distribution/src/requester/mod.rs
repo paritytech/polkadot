@@ -32,14 +32,14 @@ use futures::{
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_node_subsystem_util::request_availability_cores;
-use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
+use polkadot_node_subsystem_util::runtime::get_occupied_cores;
+use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, LOG_TARGET, Metrics};
-use crate::error::Error;
+use super::{session_cache::SessionCache, LOG_TARGET, Metrics};
+
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -125,7 +125,7 @@ impl Requester {
 		Context: SubsystemContext,
 	{
 		for ActivatedLeaf { hash: leaf, .. } in new_heads {
-			let cores = query_occupied_cores(ctx, leaf).await?;
+			let cores = get_occupied_cores(ctx, leaf).await?;
 			tracing::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
@@ -226,25 +226,3 @@ impl Stream for Requester {
 	}
 }
 
-/// Query all hashes and descriptors of candidates pending availability at a particular block.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_occupied_cores<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<Vec<OccupiedCore>, Error>
-where
-	Context: SubsystemContext,
-{
-	let cores = recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await?;
-
-	Ok(cores
-		.into_iter()
-		.filter_map(|core_state| {
-			if let CoreState::Occupied(occupied) = core_state {
-				Some(occupied)
-			} else {
-				None
-			}
-		})
-		.collect())
-}

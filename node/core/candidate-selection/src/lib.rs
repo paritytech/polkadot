@@ -249,12 +249,12 @@ impl CandidateSelectionJob {
 						.with_relay_parent(_relay_parent);
 					self.handle_invalid(sender, candidate_receipt).await;
 				}
-				Some(CandidateSelectionMessage::Seconded(_relay_parent, statement)) => {
+				Some(CandidateSelectionMessage::Seconded(relay_parent, statement)) => {
 					let _span = span.child("handle-seconded")
 						.with_stage(jaeger::Stage::CandidateSelection)
 						.with_candidate(statement.payload().candidate_hash())
-						.with_relay_parent(_relay_parent);
-					self.handle_seconded(sender, statement).await;
+						.with_relay_parent(relay_parent);
+					self.handle_seconded(sender, relay_parent, statement).await;
 				}
 				None => break,
 			}
@@ -345,6 +345,7 @@ impl CandidateSelectionJob {
 	async fn handle_seconded(
 		&mut self,
 		sender: &mut impl SubsystemSender,
+		relay_parent: Hash,
 		statement: SignedFullStatement,
 	) {
 		let received_from = match &self.seconded_candidate {
@@ -368,7 +369,11 @@ impl CandidateSelectionJob {
 			.await;
 
 		sender.send_message(
-			CollatorProtocolMessage::NotifyCollationSeconded(received_from.clone(), statement).into()
+			CollatorProtocolMessage::NotifyCollationSeconded(
+				received_from.clone(),
+				relay_parent,
+				statement
+			).into()
 		).await;
 	}
 }

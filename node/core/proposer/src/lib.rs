@@ -213,7 +213,7 @@ where
 
 			let parachains_inherent_data = match self.get_provisioner_data().await {
 				Ok(pd) => ParachainsInherentData {
-					bitfields: pd.bitfields,
+					bitfields: pd.bitfields.into_iter().map(Into::into).collect(),
 					backed_candidates: pd.backed_candidates,
 					disputes: pd.disputes,
 					parent_header: self.parent_header,

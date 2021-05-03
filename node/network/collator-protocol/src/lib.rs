@@ -22,40 +22,24 @@
 
 use std::time::Duration;
 
-use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use thiserror::Error;
+use futures::{FutureExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
-use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
 use polkadot_primitives::v1::CollatorPair;
 use polkadot_subsystem::{
-	errors::RuntimeApiError,
 	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
 	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 };
+
+mod error;
+use error::Result;
 
 mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
-
-#[derive(Debug, Error)]
-enum Error {
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-	#[error(transparent)]
-	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	Prometheus(#[from] prometheus::PrometheusError),
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
@@ -124,9 +108,7 @@ impl CollatorProtocolSubsystem {
 				collator_pair,
 				metrics,
 			).await,
-		}.map_err(|e| {
-			SubsystemError::with_origin("collator-protocol", e).into()
-		})
+		}
 	}
 }
 
