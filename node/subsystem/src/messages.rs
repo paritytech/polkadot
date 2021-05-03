@@ -224,9 +224,13 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
 	/// Send a batch of validation messages.
+	///
+	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
 	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
 
 	/// Send a batch of collation messages.
+	///
+	/// NOTE: Messages will be processed in order.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.

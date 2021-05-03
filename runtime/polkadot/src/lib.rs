@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 31,
+	spec_version: 900,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -126,7 +126,7 @@ impl Filter<Call> for BaseFilter {
 		match call {
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
-			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::ElectionsPhragmen(_) |
+			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::PhragmenElection(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) | Call::Balances(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
@@ -546,14 +546,14 @@ parameter_types! {
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
-	pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
+	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than `MaxMembers` members elected via phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
 impl pallet_elections_phragmen::Config for Runtime {
 	type Event = Event;
-	type PalletId = ElectionsPhragmenPalletId;
+	type PalletId = PhragmenElectionPalletId;
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
@@ -597,7 +597,7 @@ impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 	type MaxMembers = TechnicalMaxMembers;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_membership::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -617,6 +617,7 @@ parameter_types! {
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
+	pub const MaxApprovals: u32 = 100;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -638,6 +639,7 @@ impl pallet_treasury::Config for Runtime {
 	type Burn = Burn;
 	type BurnDestination = ();
 	type SpendFunds = Bounties;
+	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
@@ -657,7 +659,7 @@ impl pallet_tips::Config for Runtime {
 	type Event = Event;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
-	type Tippers = ElectionsPhragmen;
+	type Tippers = PhragmenElection;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
@@ -901,7 +903,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Democracy(..) |
 				Call::Council(..) |
 				Call::TechnicalCommittee(..) |
-				Call::ElectionsPhragmen(..) |
+				Call::PhragmenElection(..) |
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
 				Call::Bounties(..) |
@@ -919,7 +921,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Democracy(..) |
 				Call::Council(..) |
 				Call::TechnicalCommittee(..) |
-				Call::ElectionsPhragmen(..) |
+				Call::PhragmenElection(..) |
 				Call::Treasury(..) |
 				Call::Bounties(..) |
 				Call::Tips(..) |
@@ -998,7 +1000,7 @@ construct_runtime! {
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config, Event<T>} = 14,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
-		ElectionsPhragmen: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 18,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 19,
 
@@ -1393,13 +1395,15 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			// Polkadot
+			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
+			// in the generated file.
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
-			add_benchmark!(params, batches, pallet_elections_phragmen, ElectionsPhragmen);
+			add_benchmark!(params, batches, pallet_elections_phragmen, PhragmenElection);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 			add_benchmark!(params, batches, pallet_identity, Identity);
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);

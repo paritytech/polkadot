@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset};
+use xcm::v0::{Xcm, MultiAsset, Error};
 use frame_support::weights::Weight;
 use crate::Assets;
 
@@ -46,18 +46,25 @@ pub trait WeightBounds<Call> {
 }
 
 /// Charge for weight in order to execute XCM.
-pub trait WeightTrader {
+pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
 
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
 	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+}
+
+impl WeightTrader for () {
+	fn new() -> Self { () }
+	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
+		Err(Error::Unimplemented)
+	}
 }
