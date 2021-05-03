@@ -200,7 +200,7 @@ pub enum CollatorProtocolMessage {
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
 	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, SignedFullStatement),
+	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),

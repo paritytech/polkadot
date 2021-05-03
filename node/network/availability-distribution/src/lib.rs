@@ -85,7 +85,7 @@ impl AvailabilityDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = RuntimeInfo::new(keystore.clone());
+		let runtime = RuntimeInfo::new(Some(keystore.clone()));
 		Self { keystore, runtime,  metrics }
 	}
 

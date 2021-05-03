@@ -79,7 +79,7 @@ impl ParachainsInherentDataProvider {
 
 		let inherent_data = match res {
 			Ok(pd) => ParachainsInherentData {
-				bitfields: pd.bitfields,
+				bitfields: pd.bitfields.into_iter().map(Into::into).collect(),
 				backed_candidates: pd.backed_candidates,
 				disputes: pd.disputes,
 				parent_header,
