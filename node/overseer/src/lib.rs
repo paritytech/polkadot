@@ -445,7 +445,6 @@ impl OverseerHandler {
 	}
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
-	/// This method is used for external code like `Proposer` that doesn't subscribe to Overseer's signals.
 	///
 	/// The response channel responds if the hash was activated and is closed if the hash was deactivated.
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
