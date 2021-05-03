@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -24,8 +24,13 @@ use sp_io::hashing::blake2_256;
 use sp_std::convert::TryFrom;
 
 pub use chain::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
+pub use storage_proof::{Error as StorageProofError, StorageProofChecker};
+
+#[cfg(feature = "std")]
+pub use storage_proof::craft_valid_storage_proof;
 
 mod chain;
+mod storage_proof;
 
 /// Use this when something must be shared among all instances.
 pub const NO_INSTANCE_ID: InstanceId = [0, 0, 0, 0];
@@ -42,11 +47,14 @@ pub const POLKADOT_BRIDGE_INSTANCE: InstanceId = *b"pdot";
 /// Bridge-with-Kusama instance id.
 pub const KUSAMA_BRIDGE_INSTANCE: InstanceId = *b"ksma";
 
-/// Call-dispatch module prefix.
-pub const CALL_DISPATCH_MODULE_PREFIX: &[u8] = b"pallet-bridge/call-dispatch";
+/// Bridge-with-Rococo instance id.
+pub const ROCOCO_BRIDGE_INSTANCE: InstanceId = *b"roco";
 
-/// Message-lane module prefix.
-pub const MESSAGE_LANE_MODULE_PREFIX: &[u8] = b"pallet-bridge/message-lane";
+/// Bridge-with-Westend instance id.
+pub const WESTEND_BRIDGE_INSTANCE: InstanceId = *b"wend";
+
+/// Call-dispatch module prefix.
+pub const CALL_DISPATCH_MODULE_PREFIX: &[u8] = b"pallet-bridge/dispatch";
 
 /// A unique prefix for entropy when generating cross-chain account IDs.
 pub const ACCOUNT_DERIVATION_PREFIX: &[u8] = b"pallet-bridge/account-derivation/account";
@@ -55,16 +63,16 @@ pub const ACCOUNT_DERIVATION_PREFIX: &[u8] = b"pallet-bridge/account-derivation/
 pub const ROOT_ACCOUNT_DERIVATION_PREFIX: &[u8] = b"pallet-bridge/account-derivation/root";
 
 /// Id of deployed module instance. We have a bunch of pallets that may be used in
-/// different bridges. E.g. message-lane pallet may be deployed twice in the same
+/// different bridges. E.g. messages pallet may be deployed twice in the same
 /// runtime to bridge ThisChain with Chain1 and Chain2. Sometimes we need to be able
 /// to identify deployed instance dynamically. This type is used for that.
 pub type InstanceId = [u8; 4];
 
 /// Type of accounts on the source chain.
 pub enum SourceAccount<T> {
-	/// An account that belongs to Root (privileged origin).
+	/// An account that belongs to Root (priviledged origin).
 	Root,
-	/// A non-privileged account.
+	/// A non-priviledged account.
 	///
 	/// The embedded account ID may or may not have a private key depending on the "owner" of the
 	/// account (private key, pallet, proxy, etc.).
@@ -97,7 +105,7 @@ where
 ///
 /// This account is used to collect fees for relayers that are passing messages across the bridge.
 ///
-/// The account ID can be the same across different instances of `message-lane` if the same
+/// The account ID can be the same across different instances of `pallet-bridge-messages` if the same
 /// `bridge_id` is used.
 pub fn derive_relayer_fund_account_id(bridge_id: InstanceId) -> H256 {
 	("relayer-fund-account", bridge_id).using_encoded(blake2_256).into()

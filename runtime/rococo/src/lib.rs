@@ -41,7 +41,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness},
+	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
 	weights::Weight,
 	PalletId
 };
@@ -85,15 +85,16 @@ use runtime_parachains::scheduler as parachains_scheduler;
 pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
-use xcm::v0::{MultiLocation, NetworkId};
+
+use xcm::v0::{Xcm, MultiLocation, NetworkId, BodyId};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
-	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative,
-	SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
-	IsConcrete, FixedWeightBounds, FixedRateOfConcreteFungible,
+	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
+	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
+	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
-use constants::{time::*, currency::*, fee::*};
+use constants::{time::*, currency::*, fee::*, size::*};
 use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
@@ -107,9 +108,9 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 /// Runtime version (Rococo).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
-	impl_name: create_runtime_str!("parity-rococo-v1-1"),
+	impl_name: create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 228,
+	spec_version: 232,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -157,8 +158,6 @@ pub type SignedExtra = (
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -166,22 +165,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	UpgradeSessionKeys,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-// TODO [ToDr] Remove while BEEFY runtime upgrade is done.
-impl_opaque_keys! {
-	pub struct OldSessionKeys {
-		pub grandpa: Grandpa,
-		pub babe: Babe,
-		pub im_online: ImOnline,
-		pub para_validator: Initializer,
-		pub para_assignment: SessionInfo,
-		pub authority_discovery: AuthorityDiscovery,
-	}
-}
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
@@ -192,27 +179,6 @@ impl_opaque_keys! {
 		pub para_assignment: SessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 		pub beefy: Beefy,
-	}
-}
-
-fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
-	SessionKeys {
-		grandpa: old.grandpa,
-		babe: old.babe,
-		im_online: old.im_online,
-		para_validator: old.para_validator,
-		para_assignment: old.para_assignment,
-		authority_discovery: old.authority_discovery,
-		beefy: runtime_common::dummy_beefy_id_from_account_id(v),
-	}
-}
-
-// When this is removed, should also remove `OldSessionKeys`.
-pub struct UpgradeSessionKeys;
-impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
-		Perbill::from_percent(50) * BlockWeights::get().max_block
 	}
 }
 
@@ -248,7 +214,7 @@ construct_runtime! {
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage},
@@ -272,6 +238,10 @@ construct_runtime! {
 
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
+
+		// A "council"
+		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 80,
+		Membership: pallet_membership::{Pallet, Call, Storage, Event<T>, Config<T>} = 81,
 
 		Utility: pallet_utility::{Pallet, Call, Event} = 90,
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
@@ -431,15 +401,10 @@ parameter_types! {
 	pub const MaxRetries: u32 = 3;
 }
 
-parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
-}
-
 impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = ();
-	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
 impl pallet_authority_discovery::Config for Runtime {}
@@ -594,7 +559,7 @@ parameter_types! {
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
-pub type LocationConverter = (
+pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<RococoNetwork, AccountId>,
 );
@@ -606,13 +571,13 @@ pub type LocalAssetTransactor =
 		// Use this currency when it is a fungible asset matching the given location or name:
 		IsConcrete<RocLocation>,
 		// We can convert the MultiLocations with our converter above:
-		LocationConverter,
+		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
 	>;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	SignedAccountId32AsNative<RococoNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
@@ -630,6 +595,41 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
+use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
+parameter_types! {
+	pub const RococoForTick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain(100)));
+	pub const RococoForTrick: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain(110)));
+	pub const RococoForTrack: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain(120)));
+	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain(1)));
+}
+pub type TrustedTeleporters = (
+	xcm_builder::Case<RococoForTick>,
+	xcm_builder::Case<RococoForTrick>,
+	xcm_builder::Case<RococoForTrack>,
+	xcm_builder::Case<RococoForStatemint>,
+);
+
+parameter_types! {
+	pub AllowUnpaidFrom: Vec<MultiLocation> =
+		vec![
+			X1(Parachain(100)),
+			X1(Parachain(110)),
+			X1(Parachain(120)),
+			X1(Parachain(1))
+		];
+}
+
+use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,	// <- Trusted parachains get free execution
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -637,25 +637,83 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
-	type IsTeleporter = ();
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = ();
+	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
+}
+
+parameter_types! {
+	pub const CollectiveBodyId: BodyId = BodyId::Unit;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
+	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
 );
+
+pub struct OnlyWithdrawTeleportForAccounts;
+impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
+	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
+		use xcm::v0::{
+			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
+			MultiAsset::{All, ConcreteFungible}, Junction::AccountId32,
+		};
+		match origin {
+			// Root is allowed to execute anything.
+			Null => true,
+			X1(AccountId32 { .. }) => {
+				// An account ID trying to send a message. We ensure that it's sensible.
+				// This checks that it's of the form:
+				// WithdrawAsset {
+				//   assets: [ ConcreteFungible { id: Null } ],
+				//   effects: [ BuyExecution, InitiateTeleport {
+				//     assets: All,
+				//     dest: Parachain,
+				//     effects: [ BuyExecution, DepositAssets {
+				//       assets: All,
+				//       dest: AccountId32,
+				//     } ]
+				//   } ]
+				// }
+				matches!(msg, WithdrawAsset { ref assets, ref effects }
+					if assets.len() == 1
+					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& effects.len() == 2
+					&& matches!(effects[0], BuyExecution { .. })
+					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+						if assets.len() == 1
+						&& matches!(assets[0], All)
+						&& effects.len() == 2
+						&& matches!(effects[0], BuyExecution { .. })
+						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+							if assets.len() == 1
+							&& matches!(assets[0], All)
+						)
+					)
+				)
+			}
+			// Nobody else is allowed to execute anything.
+			_ => false,
+		}
+	}
+}
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
-	// Right now nobody but root is allowed to dispatch local XCM messages.
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
+	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
@@ -692,7 +750,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
+	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
 	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
@@ -854,6 +912,36 @@ impl pallet_proxy::Config for Runtime {
 	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
+parameter_types! {
+	pub const MotionDuration: BlockNumber = 5;
+	pub const MaxProposals: u32 = 100;
+	pub const MaxMembers: u32 = 100;
+}
+
+impl pallet_collective::Config for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
+	type Event = Event;
+	type MotionDuration = MotionDuration;
+	type MaxProposals = MaxProposals;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type MaxMembers = MaxMembers;
+	type WeightInfo = ();
+}
+
+impl pallet_membership::Config for Runtime {
+	type Event = Event;
+	type AddOrigin = EnsureRoot<AccountId>;
+	type RemoveOrigin = EnsureRoot<AccountId>;
+	type SwapOrigin = EnsureRoot<AccountId>;
+	type ResetOrigin = EnsureRoot<AccountId>;
+	type PrimeOrigin = EnsureRoot<AccountId>;
+	type MembershipInitialized = Collective;
+	type MembershipChanged = Collective;
+	type MaxMembers = MaxMembers;
+	type WeightInfo = ();
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]

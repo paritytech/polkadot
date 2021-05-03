@@ -257,6 +257,10 @@ impl<T: Config> ProvideInherent for Module<T> {
 
 		Some(Call::enter(inherent_data))
 	}
+
+	fn is_inherent(call: &Self::Call) -> bool {
+		matches!(call, Call::enter(..))
+	}
 }
 
 #[cfg(test)]

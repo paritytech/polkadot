@@ -12,6 +12,7 @@ futures = "0.3.12"
 futures-timer = "3.0.2"
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
+polkadot-procmacro-overseer-subsystems-gen = { path = "./subsystems-gen" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 tracing = "0.1.25"

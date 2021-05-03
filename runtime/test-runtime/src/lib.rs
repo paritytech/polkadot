@@ -64,7 +64,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}, weights::Weight};
+use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
@@ -162,7 +162,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_BLOCKS as u64;
+	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub storage ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 }
 
@@ -402,15 +402,10 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-parameter_types! {
-	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
-}
-
 impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
-	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
 impl pallet_authority_discovery::Config for Runtime {}
@@ -563,8 +558,6 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
 /// The payload being signed in transactions.

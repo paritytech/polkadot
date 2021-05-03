@@ -11,7 +11,7 @@ matrix:
   # Create a user - log that user in using a post request
   # curl -XPOST -d '{"type": "m.login.password",
   #                  "user":"grafana",
-  #                  "password":"2m4ny53cr3t5"}'
+  #                  "password":"dummy-password"}'
   #      "https://my-matrix-server/_matrix/client/r0/login"
   # Fill that access token in here
   access_token: "<access_token>"

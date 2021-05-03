@@ -31,12 +31,13 @@ mod origin_conversion;
 pub use origin_conversion::{
 	SovereignSignedViaLocation, ParentAsSuperuser, ChildSystemParachainAsSuperuser, SiblingSystemParachainAsSuperuser,
 	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative,
-	SignedAccountKey20AsNative, EnsureXcmOrigin, SignedToAccountId32
+	SignedAccountKey20AsNative, EnsureXcmOrigin, SignedToAccountId32, BackingToPlurality,
 };
 
 mod barriers;
 pub use barriers::{
 	TakeWeightCredit, AllowUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom, AllowKnownQueryResponses,
+	IsChildSystemParachain,
 };
 
 mod currency_adapter;
@@ -46,7 +47,7 @@ mod fungibles_adapter;
 pub use fungibles_adapter::FungiblesAdapter;
 
 mod weight;
-pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds};
+pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds, UsingComponents};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};

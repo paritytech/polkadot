@@ -90,7 +90,7 @@ message dispatch.
 
 #### Message Lanes Delivery
 
-The [Message delivery pallet](../modules/message-lane/src/lib.rs) is responsible for queueing up
+The [Message delivery pallet](../modules/messages/src/lib.rs) is responsible for queueing up
 messages and delivering them in order on the target chain. It also dispatches messages, but we will
 cover that in the next section.
 
@@ -131,7 +131,7 @@ require bi-directional header sync (i.e. you can't use message delivery with one
 
 #### Dispatching Messages
 
-The [Message dispatch pallet](../modules/call-dispatch/src/lib.rs) is used to perform the actions
+The [Message dispatch pallet](../modules/dispatch/src/lib.rs) is used to perform the actions
 specified by messages which have come over the bridge. For Substrate-based chains this means
 interpreting the source chain's message as a `Call` on the target chain.
 
@@ -172,6 +172,6 @@ source chain needs to prove ownership of this account by using their target chai
 sign: `(Call, SourceChainAccountId).encode()`. This will be included in the message payload and
 verified by the target chain before dispatch.
 
-See [`CallOrigin` documentation](../modules/call-dispatch/src/lib.rs) for more details.
+See [`CallOrigin` documentation](../modules/dispatch/src/lib.rs) for more details.
 
 #### Message Relayers Strategy

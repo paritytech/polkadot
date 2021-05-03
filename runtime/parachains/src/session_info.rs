@@ -73,7 +73,7 @@ pub trait AuthorityDiscoveryConfig {
 
 impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
-		<pallet_authority_discovery::Module<T>>::current_authorities()
+		<pallet_authority_discovery::Pallet<T>>::current_authorities()
 	}
 }
 

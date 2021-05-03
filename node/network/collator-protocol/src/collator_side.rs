@@ -791,7 +791,7 @@ async fn handle_network_msg(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, observed_role) => {
+		PeerConnected(peer_id, observed_role, _) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			tracing::trace!(
@@ -1343,6 +1343,7 @@ mod tests {
 				NetworkBridgeEvent::PeerConnected(
 					peer.clone(),
 					polkadot_node_network_protocol::ObservedRole::Authority,
+					None,
 				),
 			),
 		).await;

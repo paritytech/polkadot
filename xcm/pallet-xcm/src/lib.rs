@@ -20,9 +20,10 @@
 
 use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
 use codec::{Encode, Decode};
-use xcm::v0::{BodyId, MultiLocation::{self, X1}, Junction::Plurality};
+use xcm::v0::{BodyId, OriginKind, MultiLocation, Junction::Plurality};
+use xcm_executor::traits::ConvertOrigin;
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
-use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get};
+use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get, Contains};
 
 pub use pallet::*;
 
@@ -54,6 +55,9 @@ pub mod pallet {
 		/// which exists as an interior location within this chain's XCM context.
 		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
 
+		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<Self::Call>)>;
+
 		/// Something to execute an XCM message.
 		type XcmExecutor: ExecuteXcm<Self::Call>;
 	}
@@ -62,12 +66,15 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		Attempted(xcm::v0::Outcome),
+		Sent(MultiLocation, MultiLocation, Xcm<()>),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		Unreachable,
 		SendFailure,
+		/// The message execution fails the filter.
+		Filtered,
 	}
 
 	#[pallet::hooks]
@@ -78,11 +85,12 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location, dest, message)
+			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone())
 				.map_err(|e| match e {
 					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
 					_ => Error::<T>::SendFailure,
 				})?;
+			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
 
@@ -102,7 +110,10 @@ pub mod pallet {
 			-> DispatchResult
 		{
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, *message, max_weight);
+			let value = (origin_location, *message);
+			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, message) = value;
+			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
 			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}
@@ -149,10 +160,11 @@ pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigi
 /// plurality.
 ///
 /// May reasonably be used with `EnsureXcm`.
-pub struct IsMajorityOfBody<Body>(PhantomData<Body>);
-impl<Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Body> {
+pub struct IsMajorityOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation> for IsMajorityOfBody<Prefix, Body> {
 	fn filter(l: &MultiLocation) -> bool {
-		matches!(l, X1(Plurality { id, part }) if id == &Body::get() && part.is_majority())
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
 	}
 }
 
@@ -178,5 +190,19 @@ impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> fo
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
 		O::from(Origin::Xcm(MultiLocation::Null))
+	}
+}
+
+/// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
+/// this crate's `Origin::Xcm` value.
+pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
+impl<
+	Origin: From<crate::Origin>,
+> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(OriginKind::Xcm, l) => Ok(crate::Origin::Xcm(l).into()),
+			(_, origin) => Err(origin),
+		}
 	}
 }

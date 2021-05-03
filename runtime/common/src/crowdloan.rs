@@ -1056,7 +1056,7 @@ mod tests {
 			let e = Error::<Test>::LastPeriodBeforeFirstPeriod;
 			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 4, 1, 9, None), e);
 			let e = Error::<Test>::LastPeriodTooFarInFuture;
-			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 5, 9, None), e);
+			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 9, 9, None), e);
 
 			// Cannot create a crowdloan without some deposit funds
 			assert_ok!(TestRegistrar::<Test>::register(1337, ParaId::from(1234), Default::default(), Default::default()));

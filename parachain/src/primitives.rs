@@ -131,11 +131,6 @@ impl Id {
 	pub const fn new(id: u32) -> Self {
 		Self(id)
 	}
-
-	/// Returns `true` if this parachain runs with system-level privileges.
-	/// Use IsSystem instead.
-	#[deprecated]
-	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
 }
 
 pub trait IsSystem {
