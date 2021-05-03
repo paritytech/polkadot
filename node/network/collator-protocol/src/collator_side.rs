@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores,
 	metrics::{self, prometheus},
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement, PoV, CompressedPoV};
+use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 
@@ -660,27 +660,6 @@ async fn send_collation(
 	receipt: CandidateReceipt,
 	pov: PoV,
 ) {
-	let pov = match CompressedPoV::compress(&pov) {
-		Ok(compressed) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				size = %pov.block_data.0.len(),
-				compressed = %compressed.len(),
-				peer_id = ?request.peer,
-				"Sending collation."
-			);
-			compressed
-		},
-		Err(error) => {
-			tracing::error!(
-				target: LOG_TARGET,
-				?error,
-				"Failed to create `CompressedPov`",
-			);
-			return
-		}
-	};
-
 	if let Err(_) = request.send_response(CollationFetchingResponse::Collation(receipt, pov)) {
 		tracing::warn!(
 			target: LOG_TARGET,
@@ -812,7 +791,7 @@ async fn handle_network_msg(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, observed_role) => {
+		PeerConnected(peer_id, observed_role, _) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			tracing::trace!(
@@ -1364,6 +1343,7 @@ mod tests {
 				NetworkBridgeEvent::PeerConnected(
 					peer.clone(),
 					polkadot_node_network_protocol::ObservedRole::Authority,
+					None,
 				),
 			),
 		).await;
@@ -1519,7 +1499,7 @@ mod tests {
 					)
 					.expect("Decoding should work");
 					assert_eq!(receipt, candidate);
-					assert_eq!(pov.decompress().unwrap(), pov_block);
+					assert_eq!(pov, pov_block);
 				}
 			);
 

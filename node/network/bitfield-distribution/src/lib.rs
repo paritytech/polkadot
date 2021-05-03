@@ -462,32 +462,35 @@ where
 		return;
 	};
 
+	let one_per_validator = &mut (job_data.one_per_validator);
+
+	// only relay_message a message of a validator once
+	if let Some(old_message) = one_per_validator.get(&validator) {
+		tracing::trace!(
+			target: LOG_TARGET,
+			validator_index,
+			"already received a message for validator",
+		);
+		if old_message.signed_availability == message.signed_availability {
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
+		}
+		return;
+	}
 	if message
 		.signed_availability
 		.check_signature(&signing_context, &validator)
-		.is_ok()
+		.is_err()
 	{
-		metrics.on_bitfield_received();
-		let one_per_validator = &mut (job_data.one_per_validator);
-
-		// only relay_message a message of a validator once
-		if one_per_validator.get(&validator).is_some() {
-			tracing::trace!(
-				target: LOG_TARGET,
-				validator_index,
-				"already received a message for validator",
-			);
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
-			return;
-		}
-		one_per_validator.insert(validator.clone(), message.clone());
-
-		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
-
-		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
-	} else {
-		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await
+		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
+		return;
 	}
+
+	metrics.on_bitfield_received();
+	one_per_validator.insert(validator.clone(), message.clone());
+
+	relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
+
+	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
@@ -505,7 +508,7 @@ where
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peerid, role) => {
+		NetworkBridgeEvent::PeerConnected(peerid, role, _) => {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?peerid,
@@ -596,7 +599,15 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
-
+	let lucky = util::gen_ratio_sqrt_subset(state.peer_views.len(), util::MIN_GOSSIP_PEERS);
+	if !lucky {
+		tracing::trace!(
+			target: LOG_TARGET,
+			?origin,
+			"Peer view change is ignored",
+		);
+		return;
+	}
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
@@ -926,22 +937,47 @@ mod test {
 		// another validator not part of the validatorset
 		let keystore : SyncCryptoStorePtr = Arc::new(KeyStore::new());
 		let malicious = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
-								.expect("Malicious key created");
-		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
-								.expect("Malicious key created");
+			.expect("Malicious key created");
+		let validator_0 = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
+			.expect("key created");
+		let validator_1 = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
+			.expect("key created");
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+		let invalid_signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
 			&keystore,
-			payload,
+			payload.clone(),
 			&signing_context,
 			ValidatorIndex(0),
 			&malicious.into(),
 		)).ok().flatten().expect("should be signed");
+		let invalid_signed_2 = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload.clone(),
+			&signing_context,
+			ValidatorIndex(1),
+			&malicious.into(),
+		)).ok().flatten().expect("should be signed");
 
-		let msg = BitfieldGossipMessage {
+		let valid_signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			ValidatorIndex(0),
+			&validator_0.into(),
+		)).ok().flatten().expect("should be signed");
+
+		let invalid_msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
-			signed_availability: signed.clone(),
+			signed_availability: invalid_signed.clone(),
+		};
+		let invalid_msg_2 = BitfieldGossipMessage {
+			relay_parent: hash_a.clone(),
+			signed_availability: invalid_signed_2.clone(),
+		};
+		let valid_msg = BitfieldGossipMessage {
+			relay_parent: hash_a.clone(),
+			signed_availability: valid_signed.clone(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -949,21 +985,34 @@ mod test {
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		let mut state = prewarmed_state(
-			validator.into(),
+			validator_0.into(),
 			signing_context.clone(),
-			msg.clone(),
+			valid_msg,
 			vec![peer_b.clone()],
 		);
+		state.per_relay_parent.get_mut(&hash_a)
+			.unwrap()
+			.validator_set
+			.push(validator_1.into());
 
 		executor::block_on(async move {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
 				&Default::default(),
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message()),
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg.into_network_message()),
 			));
 
-			// reputation change due to invalid validator index
+			// reputation doesn't change due to one_job_per_validator check
+			assert!(handle.recv().timeout(Duration::from_millis(10)).await.is_none());
+
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				&Default::default(),
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg_2.into_network_message()),
+			));
+			// reputation change due to invalid signature
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -1286,7 +1335,7 @@ mod test {
 				&mut ctx,
 				&mut state,
 				&Default::default(),
-				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
 			));
 
 			// make peer b interested

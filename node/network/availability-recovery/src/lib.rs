@@ -142,10 +142,7 @@ impl RequestFromBackersPhase {
 		);
 		loop {
 			// Pop the next backer, and proceed to next phase if we're out.
-			let validator_index = match self.shuffled_backers.pop() {
-				None => return Err(RecoveryError::Unavailable),
-				Some(i) => i,
-			};
+			let validator_index = self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
 
 			// Request data.
 			let (req, res) = OutgoingRequest::new(

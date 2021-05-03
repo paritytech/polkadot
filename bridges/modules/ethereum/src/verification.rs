@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -144,7 +144,7 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 
 	// the heaviest, but rare operation - we do not want invalid receipts in the pool
 	if let Some(receipts) = receipts {
-		frame_support::debug::trace!(target: "runtime", "Got receipts! {:?}", receipts);
+		log::trace!(target: "runtime", "Got receipts! {:?}", receipts);
 		if header.check_receipts_root(receipts).is_err() {
 			return Err(Error::TransactionsReceiptsMismatch);
 		}
@@ -166,7 +166,7 @@ pub fn verify_aura_header<S: Storage, CT: ChainTime>(
 
 	// the rest of checks requires access to the parent header
 	let context = storage.import_context(submitter, &header.parent_hash).ok_or_else(|| {
-		frame_support::debug::warn!(
+		log::warn!(
 			target: "runtime",
 			"Missing parent PoA block: ({:?}, {})",
 			header.number.checked_sub(1),

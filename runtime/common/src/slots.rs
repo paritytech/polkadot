@@ -103,35 +103,13 @@ decl_event!(
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
 		/// \[parachain_id, leaser, period_begin, period_count, extra_reseved, total_amount\]
 		Leased(ParaId, AccountId, LeasePeriod, LeasePeriod, Balance, Balance),
-		/// A para ID value has been claimed.
-		Claimed(ParaId),
 	}
 );
 
 decl_error! {
 	pub enum Error for Module<T: Config> {
-		/// The lease period is in the past.
-		LeasePeriodInPast,
-		/// The origin for this call must be a parachain.
-		NotParaOrigin,
 		/// The parachain ID is not onboarding.
 		ParaNotOnboarding,
-		/// The origin for this call must be the origin who registered the parachain.
-		InvalidOrigin,
-		/// Parachain is already registered.
-		AlreadyRegistered,
-		/// The code must correspond to the hash.
-		InvalidCode,
-		/// Deployment data has not been set for this parachain.
-		UnsetDeployData,
-		/// The bid must overlap all intersecting ranges.
-		NonIntersectingRange,
-		/// Given code size is too large.
-		CodeTooLarge,
-		/// Given initial head data is too large.
-		HeadDataTooLarge,
-		/// The Id given is already in use.
-		InUse,
 		/// There was an error with the lease.
 		LeaseError,
 	}

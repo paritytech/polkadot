@@ -19,9 +19,6 @@ enum ObservedRole {
 	Full,
 	Light,
 }
-
-/// SCALE and zstd encoded `PoV`.
-struct CompressedPoV(Vec<u8>);
 ```
 
 ## V1 Network Subsystem Message Types
@@ -84,8 +81,8 @@ enum PoVDistributionV1Message {
 	/// specific relay-parent hash.
 	Awaiting(Hash, Vec<Hash>),
 	/// Notification of an awaited PoV, in a given relay-parent context.
-	/// (relay_parent, pov_hash, compressed_pov)
-	SendPoV(Hash, Hash, CompressedPoV),
+	/// (relay_parent, pov_hash, pov)
+	SendPoV(Hash, Hash, PoV),
 }
 ```
 

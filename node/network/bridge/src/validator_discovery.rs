@@ -16,10 +16,10 @@
 
 //! A validator discovery service for the Network Bridge.
 
+use crate::Network;
+
 use core::marker::PhantomData;
-use std::borrow::Cow;
 use std::collections::{HashSet, HashMap, hash_map};
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::channel::mpsc;
@@ -27,38 +27,18 @@ use futures::channel::mpsc;
 use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
 
-/// An abstraction over networking for the purposes of validator discovery service.
-#[async_trait]
-pub trait Network: Send + 'static {
-	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
-	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	/// Remove the peers from the priority group.
-	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-}
-
 /// An abstraction over the authority discovery service.
 #[async_trait]
-pub trait AuthorityDiscovery: Send + 'static {
+pub trait AuthorityDiscovery: Send + Clone + 'static {
 	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
 	async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId>;
-}
-
-#[async_trait]
-impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
-	async fn add_peers_to_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
-	}
-
-	async fn remove_peers_from_reserved_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol, multiaddresses)
-	}
 }
 
 #[async_trait]
@@ -300,14 +280,14 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
-		if let Err(e) = network_service.add_peers_to_reserved_set(
+		if let Err(e) = network_service.add_to_peers_set(
 			peer_set.into_protocol_name(),
 			multiaddr_to_add.clone(),
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
-		let _ = network_service.remove_peers_from_reserved_set(
+		let _ = network_service.remove_from_peers_set(
 			peer_set.into_protocol_name(),
 			multiaddr_to_remove.clone()
 		).await;
@@ -327,16 +307,15 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	}
 
 	/// Should be called when a peer connected.
-	#[tracing::instrument(level = "trace", skip(self, authority_discovery_service), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn on_peer_connected(
 		&mut self,
 		peer_id: PeerId,
 		peer_set: PeerSet,
-		authority_discovery_service: &mut AD,
+		maybe_authority: Option<AuthorityDiscoveryId>,
 	) {
 		let state = &mut self.state[peer_set];
 		// check if it's an authority we've been waiting for
-		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for request in state.non_revoked_discovery_requests.iter_mut() {
 				let _ = request.on_authority_connected(&authority, &peer_id);
@@ -357,12 +336,14 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::network::{Network, NetworkAction};
 
-	use futures::stream::StreamExt as _;
+	use std::{borrow::Cow, pin::Pin};
+	use futures::{sink::Sink, stream::{BoxStream, StreamExt as _}};
 	use sc_network::multiaddr::Protocol;
-
+	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
-
+	use polkadot_node_network_protocol::request_response::request::Requests;
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
 		Service::new()
@@ -372,12 +353,12 @@ mod tests {
 		(TestNetwork::default(), TestAuthorityDiscovery::new())
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	struct TestNetwork {
 		peers_set: HashSet<Multiaddr>,
 	}
 
-	#[derive(Default)]
+	#[derive(Default, Clone)]
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
@@ -402,14 +383,27 @@ mod tests {
 
 	#[async_trait]
 	impl Network for TestNetwork {
-		async fn add_peers_to_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
+			panic!()
+		}
+
+		async fn add_to_peers_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.extend(multiaddresses.into_iter());
 			Ok(())
 		}
 
-		async fn remove_peers_from_reserved_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
 			Ok(())
+		}
+
+		fn action_sink<'a>(&'a mut self)
+			-> Pin<Box<dyn Sink<NetworkAction, Error = polkadot_subsystem::SubsystemError> + Send + 'a>>
+		{
+			panic!()
+		}
+
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
 		}
 	}
 
@@ -474,7 +468,8 @@ mod tests {
 			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
 			let (sender, mut receiver) = mpsc::channel(2);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let _ = service.on_request(
 				req1,
@@ -514,12 +509,14 @@ mod tests {
 			).await;
 
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
 			let reply1 = receiver.next().await.unwrap();
 			assert_eq!(reply1.0, authority_ids[0]);
 			assert_eq!(reply1.1, peer_ids[0]);
 
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 			let reply2 = receiver.next().await.unwrap();
 			assert_eq!(reply2.0, authority_ids[1]);
 			assert_eq!(reply2.1, peer_ids[1]);
@@ -539,8 +536,10 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone()],
@@ -585,8 +584,10 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, &mut ads).await;
-			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[0]).await;
+			service.on_peer_connected(peer_ids[0].clone(), PeerSet::Validation, maybe_authority).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(peer_ids[1]).await;
+			service.on_peer_connected(peer_ids[1].clone(), PeerSet::Validation, maybe_authority).await;
 
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone(), authority_ids[2].clone()],
@@ -650,7 +651,8 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (sender, mut receiver) = mpsc::channel(1);
 
-			service.on_peer_connected(validator_peer_id.clone(), PeerSet::Validation, &mut ads).await;
+			let maybe_authority = ads.get_authority_id_by_peer_id(validator_peer_id).await;
+			service.on_peer_connected(validator_peer_id.clone(), PeerSet::Validation, maybe_authority).await;
 
 			let address = known_multiaddr()[0].clone().with(Protocol::P2p(validator_peer_id.clone().into()));
 			ads.by_peer_id.insert(validator_peer_id.clone(), validator_id.clone());

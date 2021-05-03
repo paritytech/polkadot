@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use crate::cli::{Cli, Subcommand};
 use crate::service;
 use crate::service::new_partial;
-use millau_runtime::Block;
+use millau_runtime::{Block, RuntimeApi};
 use sc_cli::{ChainSpec, Role, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 
@@ -153,6 +153,10 @@ pub fn run() -> sc_cli::Result<()> {
 				} = new_partial(&config)?;
 				Ok((cmd.run(client, backend), task_manager))
 			})
+		}
+		Some(Subcommand::Inspect(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			runner.sync_run(|config| cmd.run::<Block, RuntimeApi, service::Executor>(config))
 		}
 		None => {
 			let runner = cli.create_runner(&cli.run)?;

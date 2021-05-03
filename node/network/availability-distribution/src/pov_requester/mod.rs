@@ -33,8 +33,10 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, ValidatorInfo};
 
-use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
+use crate::error::{Fatal, NonFatal};
+use crate::LOG_TARGET;
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -62,7 +64,7 @@ impl PoVRequester {
 	pub async fn update_connected_validators<Context>(
 		&mut self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		update: &ActiveLeavesUpdate,
 	) -> super::Result<()>
 	where
@@ -86,7 +88,7 @@ impl PoVRequester {
 	pub async fn fetch_pov<Context>(
 		&self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		parent: Hash,
 		from_validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
@@ -98,7 +100,7 @@ impl PoVRequester {
 	{
 		let info = &runtime.get_session_info(ctx, parent).await?.session_info;
 		let authority_id = info.discovery_keys.get(from_validator.0 as usize)
-			.ok_or(Error::InvalidValidatorIndex)?
+			.ok_or(NonFatal::InvalidValidatorIndex)?
 			.clone();
 		let (req, pending_response) = OutgoingRequest::new(
 			Recipient::Authority(authority_id),
@@ -124,7 +126,8 @@ impl PoVRequester {
 			.with_relay_parent(parent);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
-			.map_err(|e| Error::SpawnTask(e))
+			.map_err(|e| Fatal::SpawnTask(e))?;
+		Ok(())
 	}
 }
 
@@ -135,10 +138,13 @@ async fn fetch_pov_job(
 	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 ) {
-	log_error(
-		do_fetch_pov(pov_hash, pending_response, span, tx).await,
-		"fetch_pov_job",
-	)
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx).await {
+		tracing::warn!(
+			target: LOG_TARGET,
+			?err,
+			"fetch_pov_job"
+		);
+	}
 }
 
 /// Do the actual work of waiting for the response.
@@ -148,26 +154,24 @@ async fn do_fetch_pov(
 	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 )
-	-> super::Result<()>
+	-> std::result::Result<(), NonFatal>
 {
-	let response = pending_response.await.map_err(Error::FetchPoV)?;
+	let response = pending_response.await.map_err(NonFatal::FetchPoV)?;
 	let pov = match response {
-		PoVFetchingResponse::PoV(compressed) => {
-			compressed.decompress().map_err(Error::PoVDecompression)?
-		}
+		PoVFetchingResponse::PoV(pov) => pov,
 		PoVFetchingResponse::NoSuchPoV => {
-			return Err(Error::NoSuchPoV)
+			return Err(NonFatal::NoSuchPoV)
 		}
 	};
 	if pov.hash() == pov_hash {
-		tx.send(pov).map_err(|_| Error::SendResponse)
+		tx.send(pov).map_err(|_| NonFatal::SendResponse)
 	} else {
-		Err(Error::UnexpectedPoV)
+		Err(NonFatal::UnexpectedPoV)
 	}
 }
 
 /// Get the session indeces for the given relay chain parents.
-async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>)
+async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut RuntimeInfo, new_heads: impl Iterator<Item = &Hash>)
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
 	Context: SubsystemContext,
@@ -182,7 +186,7 @@ where
 /// Connect to validators of our validator group.
 async fn connect_to_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex
 )
@@ -207,7 +211,7 @@ where
 /// Return: `None` if not a validator.
 async fn determine_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex,
 )
@@ -244,7 +248,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
-	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 
@@ -276,7 +280,7 @@ mod tests {
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
 		let keystore = make_ferdie_keystore();
-		let mut runtime = crate::runtime::Runtime::new(keystore);
+		let mut runtime = polkadot_node_subsystem_util::runtime::RuntimeInfo::new(keystore);
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {
@@ -315,9 +319,8 @@ mod tests {
 							reqs.pop(),
 							Some(Requests::PoVFetching(outgoing)) => {outgoing}
 						);
-						req.pending_response.send(Ok(PoVFetchingResponse::PoV(
-							CompressedPoV::compress(&pov).unwrap()).encode()
-						)).unwrap();
+						req.pending_response.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
+							.unwrap();
 						break
 					},
 					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),

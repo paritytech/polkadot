@@ -55,6 +55,11 @@ pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
+mod error_handling;
+
+/// Error classification.
+pub use error_handling::{Fault, unwrap_non_fatal};
+
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
 	pub use sp_core::traits::SpawnNamed;
@@ -64,6 +69,9 @@ pub mod reexports {
 		SubsystemContext,
 	};
 }
+
+/// Convenient and efficient runtime info access.
+pub mod runtime;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -216,10 +224,24 @@ pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
 	let mut rng = rand::thread_rng();
 	v.shuffle(&mut rng);
 
-	let len_sqrt = (v.len() as f64).sqrt() as usize;
-	let len = std::cmp::max(min, len_sqrt);
+	let len = max_of_min_and_sqrt_len(v.len(), min);
 	v.truncate(len);
 	v
+}
+
+/// Returns bool with a probability of `max(len.sqrt(), min) / len`
+/// being true.
+pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
+	use rand::Rng as _;
+	let mut rng = rand::thread_rng();
+	let threshold = max_of_min_and_sqrt_len(len, min);
+	let n = rng.gen_range(0..len);
+	n < threshold
+}
+
+fn max_of_min_and_sqrt_len(len: usize, min: usize) -> usize {
+	let len_sqrt = (len as f64).sqrt() as usize;
+	std::cmp::max(min, len_sqrt)
 }
 
 /// Local validator information
