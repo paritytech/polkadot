@@ -49,10 +49,10 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

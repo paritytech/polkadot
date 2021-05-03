@@ -56,7 +56,7 @@ members = [
 	"node/core/candidate-selection",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
-	"node/core/proposer",
+	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
 	"node/core/runtime-api",
