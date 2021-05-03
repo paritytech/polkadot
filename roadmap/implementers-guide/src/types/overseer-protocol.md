@@ -564,9 +564,6 @@ enum ProvisionerMessage {
   /// advancing the state of parachain consensus in a block building upon the given hash.
   ///
   /// If called at different points in time, this may give different results.
-  ///
-  /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the ParaInherent.
   RequestInherentData(Hash, oneshot::Sender<ParaInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
