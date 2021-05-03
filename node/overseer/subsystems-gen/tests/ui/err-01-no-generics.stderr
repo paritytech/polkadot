@@ -1,0 +1,14 @@
+error: Generic type parameters may only be used once have at least one generic parameter.
+ --> $DIR/err-01-no-generics.rs:7:5
+  |
+7 |     a: X,
+  |        ^
+
+error[E0599]: no method named `replace_a` found for struct `AllSubsystems<u16>` in the current scope
+  --> $DIR/err-01-no-generics.rs:16:17
+   |
+6  | struct AllSubsystems<X> {
+   | ----------------------- method `replace_a` not found for this
+...
+16 |     let _all = all.replace_a(77u8);
+   |                    ^^^^^^^^^ method not found in `AllSubsystems<u16>`

@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 31,
+	spec_version: 900,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -615,6 +615,7 @@ parameter_types! {
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
+	pub const MaxApprovals: u32 = 100;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -636,6 +637,7 @@ impl pallet_treasury::Config for Runtime {
 	type Burn = Burn;
 	type BurnDestination = ();
 	type SpendFunds = Bounties;
+	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
@@ -1391,6 +1393,8 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 			// Polkadot
+			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
+			// in the generated file.
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);

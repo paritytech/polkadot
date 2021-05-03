@@ -28,7 +28,7 @@ use polkadot_subsystem::{
 	SubsystemContext, jaeger,
 };
 
-use crate::error::{Error, Result};
+use crate::error::{NonFatal, Result};
 use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
 
 /// Variant of `answer_pov_request` that does Prometheus metric and logging on errors.
@@ -107,7 +107,7 @@ where
 		}
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
 	Ok(result)
 }
 
@@ -144,7 +144,7 @@ where
 		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
 	Ok(result)
 }
 
@@ -164,7 +164,7 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| {
+	let result = rx.await.map_err(|e| {
 		tracing::trace!(
 			target: LOG_TARGET,
 			?validator_index,
@@ -172,8 +172,9 @@ where
 			error = ?e,
 			"Error retrieving chunk",
 		);
-		Error::QueryChunkResponseChannel(e)
-	})
+		NonFatal::QueryChunkResponseChannel(e)
+	})?;
+	Ok(result)
 }
 
 /// Query PoV from the availability store.
@@ -191,5 +192,6 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| Error::QueryAvailableDataResponseChannel(e))
+	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;
+	Ok(result)
 }

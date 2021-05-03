@@ -25,10 +25,10 @@ use polkadot_subsystem::{
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-pub use error::Error;
+pub use error::{Fatal, NonFatal};
 use error::{Result, log_error};
 
-use polkadot_node_subsystem_util::runtime::Runtime;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;
@@ -59,7 +59,7 @@ pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Easy and efficient runtime access for this subsystem.
-	runtime: Runtime,
+	runtime: RuntimeInfo,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -85,12 +85,12 @@ impl AvailabilityDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = Runtime::new(keystore.clone());
+		let runtime = RuntimeInfo::new(keystore.clone());
 		Self { keystore, runtime,  metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> Result<()>
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
@@ -108,10 +108,10 @@ impl AvailabilityDistributionSubsystem {
 			// Handle task messages sending:
 			let message = match action {
 				Either::Left(subsystem_msg) => {
-					subsystem_msg.map_err(|e| Error::IncomingMessageChannel(e))?
+					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?
 				}
 				Either::Right(from_task) => {
-					let from_task = from_task.ok_or(Error::RequesterExhausted)?;
+					let from_task = from_task.ok_or(Fatal::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
 					continue;
 				}
@@ -133,7 +133,7 @@ impl AvailabilityDistributionSubsystem {
 					log_error(
 						requester.get_mut().update_fetching_heads(&mut ctx, update).await,
 						"Error in Requester::update_fetching_heads"
-					);
+					)?;
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
@@ -169,7 +169,7 @@ impl AvailabilityDistributionSubsystem {
 							tx,
 						).await,
 						"PoVRequester::fetch_pov"
-					);
+					)?;
 				}
 			}
 		}
