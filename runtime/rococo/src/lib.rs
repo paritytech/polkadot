@@ -110,7 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 232,
+	spec_version: 9000,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -664,11 +664,11 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
 		use xcm::v0::{
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
-			MultiAsset::{All, ConcreteFungible}, Junction::AccountId32,
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
 		};
 		match origin {
-			// Root is allowed to execute anything.
-			Null => true,
+			// Root and collective are allowed to execute anything.
+			Null | X1(Plurality { .. }) => true,
 			X1(AccountId32 { .. }) => {
 				// An account ID trying to send a message. We ensure that it's sensible.
 				// This checks that it's of the form:
