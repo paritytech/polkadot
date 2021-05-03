@@ -200,6 +200,7 @@ runtime-benchmarks = [
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
+	"pallet-xcm/runtime-benchmarks",
 	"frame-system-benchmarking",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
