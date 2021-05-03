@@ -1238,12 +1238,6 @@ construct_runtime! {
 	}
 }
 
-impl pallet_babe::migrations::BabePalletPrefix for Runtime {
-	fn pallet_prefix() -> &'static str {
-		"Babe"
-	}
-}
-
 pub struct ParachainHostConfigurationMigration;
 impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
