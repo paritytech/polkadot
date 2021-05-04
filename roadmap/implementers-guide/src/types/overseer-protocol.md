@@ -83,7 +83,7 @@ enum ApprovalVotingMessage {
     ///
     /// The base number is typically the number of the last finalized block, but in GRANDPA it is
     /// possible for the base to be slightly higher than the last finalized block.
-    /// 
+    ///
     /// The `BlockNumber` provided is the number of the block's ancestor which is the
     /// earliest possible vote.
     ///
@@ -91,7 +91,7 @@ enum ApprovalVotingMessage {
     /// Return `None` if the input hash is unrecognized.
     ApprovedAncestor {
         target_hash: Hash,
-        base_number: BlockNumber, 
+        base_number: BlockNumber,
         rx: ResponseChannel<Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>)>)>>
     },
 }
@@ -334,7 +334,7 @@ enum CollatorProtocolMessage {
     /// Note a collator as having provided a good collation.
     NoteGoodCollation(CollatorId, SignedFullStatement),
     /// Notify a collator that its collation was seconded.
-    NotifyCollationSeconded(CollatorId, SignedFullStatement),
+    NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 }
 ```
 
@@ -378,7 +378,7 @@ enum DisputeCoordinatorMessage {
     /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
     IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
     /// Determine the highest undisputed block within the given chain, based on where candidates
-    /// were included. If even the base block should not be finalized due to a dispute, 
+    /// were included. If even the base block should not be finalized due to a dispute,
     /// then `None` should be returned on the channel.
     ///
     /// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`

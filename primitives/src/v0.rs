@@ -18,8 +18,6 @@
 //! perspective.
 
 use sp_std::prelude::*;
-#[cfg(feature = "std")]
-use sp_std::convert::TryInto;
 use sp_std::cmp::Ordering;
 
 use parity_scale_codec::{Encode, Decode};
@@ -29,13 +27,9 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
-#[cfg(feature = "std")]
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
-#[cfg(feature = "std")]
-use application_crypto::AppKey;
 use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
@@ -731,9 +725,6 @@ impl CompactStatement {
 	}
 }
 
-/// A signed compact statement, suitable to be sent to the chain.
-pub type SignedStatement = Signed<CompactStatement>;
-
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
@@ -864,156 +855,6 @@ pub mod id {
 
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
-}
-
-/// This helper trait ensures that we can encode Statement as CompactStatement,
-/// and anything as itself.
-///
-/// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
-/// EncodeLike is a marker trait which asserts at the typesystem level that
-/// one type's encoding is a valid encoding for another type. It doesn't
-/// perform any type conversion when encoding.
-///
-/// This trait, on the other hand, provides a method which can be used to
-/// simultaneously convert and encode one type as another.
-pub trait EncodeAs<T> {
-	/// Convert Self into T, then encode T.
-	///
-	/// This is useful when T is a subset of Self, reducing encoding costs;
-	/// its signature also means that we do not need to clone Self in order
-	/// to retain ownership, as we would if we were to do
-	/// `self.clone().into().encode()`.
-	fn encode_as(&self) -> Vec<u8>;
-}
-
-impl<T: Encode> EncodeAs<T> for T {
-	fn encode_as(&self) -> Vec<u8> {
-		self.encode()
-	}
-}
-
-/// A signed type which encapsulates the common desire to sign some data and validate a signature.
-///
-/// Note that the internal fields are not public; they are all accessable by immutable getters.
-/// This reduces the chance that they are accidentally mutated, invalidating the signature.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-pub struct Signed<Payload, RealPayload = Payload> {
-	/// The payload is part of the signed data. The rest is the signing context,
-	/// which is known both at signing and at validation.
-	payload: Payload,
-	/// The index of the validator signing this statement.
-	validator_index: ValidatorIndex,
-	/// The signature by the validator of the signed payload.
-	signature: ValidatorSignature,
-	/// This ensures the real payload is tracked at the typesystem level.
-	real_payload: sp_std::marker::PhantomData<RealPayload>,
-}
-
-// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
-// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
-// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
-// own trait which does what we need: EncodeAs.
-impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
-	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
-		// equivalent to (real_payload, context).encode()
-		let mut out = payload.encode_as();
-		out.extend(context.encode());
-		out
-	}
-
-	/// Used to create a `Signed` from already existing parts.
-	#[cfg(feature = "std")]
-	pub fn new<H: Encode>(
-		payload: Payload,
-		validator_index: ValidatorIndex,
-		signature: ValidatorSignature,
-		context: &SigningContext<H>,
-		key: &ValidatorId,
-	) -> Option<Self> {
-		let s = Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		};
-
-		s.check_signature(context, key).ok()?;
-
-		Some(s)
-	}
-
-	/// Sign this payload with the given context and key, storing the validator index.
-	#[cfg(feature = "std")]
-	pub async fn sign<H: Encode>(
-		keystore: &SyncCryptoStorePtr,
-		payload: Payload,
-		context: &SigningContext<H>,
-		validator_index: ValidatorIndex,
-		key: &ValidatorId,
-	) -> Result<Option<Self>, KeystoreError> {
-		let data = Self::payload_data(&payload, context);
-		let signature = CryptoStore::sign_with(
-			&**keystore,
-			ValidatorId::ID,
-			&key.into(),
-			&data,
-		).await?;
-
-		let signature = match signature {
-			Some(sig) => sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}))
-	}
-
-	/// Validate the payload given the context and public key.
-	pub fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
-		let data = Self::payload_data(&self.payload, context);
-		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
-	}
-
-	/// Immutably access the payload.
-	#[inline]
-	pub fn payload(&self) -> &Payload {
-		&self.payload
-	}
-
-	/// Immutably access the validator index.
-	#[inline]
-	pub fn validator_index(&self) -> ValidatorIndex {
-		self.validator_index
-	}
-
-	/// Immutably access the signature.
-	#[inline]
-	pub fn signature(&self) -> &ValidatorSignature {
-		&self.signature
-	}
-
-	/// Discard signing data, get the payload
-	// Note: can't `impl<P, R> From<Signed<P, R>> for P` because the orphan rule exception doesn't
-	// handle this case yet. Likewise can't `impl<P, R> Into<P> for Signed<P, R>` because it might
-	// potentially conflict with the global blanket impl, even though it currently doesn't.
-	#[inline]
-	pub fn into_payload(self) -> Payload {
-		self.payload
-	}
-
-	/// Convert `Payload` into `RealPayload`.
-	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
-		Signed {
-			signature: self.signature.clone(),
-			validator_index: self.validator_index,
-			payload: self.payload().into(),
-			real_payload: sp_std::marker::PhantomData,
-		}
-	}
 }
 
 /// Custom validity errors used in Polkadot while validating transactions.
