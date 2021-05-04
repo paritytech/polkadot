@@ -257,7 +257,7 @@ parameter_types! {
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		pub grandpa: Grandpa,
+		pub grandpa: GrandpaFinality,
 		pub babe: Babe,
 		pub para_validator: Initializer,
 		pub para_assignment: SessionInfo,
@@ -512,7 +512,7 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Call, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+		GrandpaFinality: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
 
 		// Claims. Usable initially.
@@ -736,7 +736,7 @@ sp_api::impl_runtime_apis! {
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
-			Grandpa::grandpa_authorities()
+			GrandpaFinality::grandpa_authorities()
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(

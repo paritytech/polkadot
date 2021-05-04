@@ -130,7 +130,7 @@ impl Filter<Call> for BaseFilter {
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) | Call::Balances(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
-			Call::Session(_) | Call::Grandpa(_) | Call::ImOnline(_) |
+			Call::Session(_) | Call::GrandpaFinality(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
 			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
@@ -288,7 +288,7 @@ impl pallet_authorship::Config for Runtime {
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		pub grandpa: Grandpa,
+		pub grandpa: GrandpaFinality,
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
@@ -892,7 +892,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
-				Call::Grandpa(..) |
+				Call::GrandpaFinality(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
 				Call::Democracy(..) |
@@ -987,7 +987,7 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 8,
 		Historical: session_historical::{Pallet} = 33,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 9,
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 11,
+		GrandpaFinality: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 11,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 12,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 13,
 
@@ -1217,7 +1217,7 @@ sp_api::impl_runtime_apis! {
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
-			Grandpa::grandpa_authorities()
+			GrandpaFinality::grandpa_authorities()
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
@@ -1229,7 +1229,7 @@ sp_api::impl_runtime_apis! {
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			Grandpa::submit_unsigned_equivocation_report(
+			GrandpaFinality::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)

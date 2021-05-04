@@ -172,7 +172,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
-		pub grandpa: Grandpa,
+		pub grandpa: GrandpaFinality,
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub para_validator: Initializer,
@@ -203,7 +203,7 @@ construct_runtime! {
 		Offences: pallet_offences::{Pallet, Call, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
+		GrandpaFinality: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
 
@@ -1078,7 +1078,7 @@ sp_api::impl_runtime_apis! {
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
-			Grandpa::grandpa_authorities()
+			GrandpaFinality::grandpa_authorities()
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
@@ -1090,7 +1090,7 @@ sp_api::impl_runtime_apis! {
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			Grandpa::submit_unsigned_equivocation_report(
+			GrandpaFinality::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)
