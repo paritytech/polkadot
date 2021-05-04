@@ -81,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
