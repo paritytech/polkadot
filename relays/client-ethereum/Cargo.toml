@@ -10,8 +10,8 @@ bp-eth-poa = { path = "../../primitives/ethereum-poa" }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 headers-relay = { path = "../headers" }
 hex-literal = "0.3"
-jsonrpsee-proc-macros = "=0.2.0-alpha.5"
-jsonrpsee-ws-client = "=0.2.0-alpha.5"
+jsonrpsee-proc-macros = "=0.2.0-alpha.6"
+jsonrpsee-ws-client = "=0.2.0-alpha.6"
 libsecp256k1 = { version = "0.3.4", default-features = false, features = ["hmac"] }
 log = "0.4.11"
 relay-utils = { path = "../utils" }
