@@ -96,6 +96,9 @@ macro_rules! select_bridge {
 				type LeftToRightMessages = crate::chains::millau_messages_to_rialto::MillauMessagesToRialto;
 				type RightToLeftMessages = crate::chains::rialto_messages_to_millau::RialtoMessagesToMillau;
 
+				const MAX_MISSING_LEFT_HEADERS_AT_RIGHT: bp_millau::BlockNumber = bp_millau::SESSION_LENGTH;
+				const MAX_MISSING_RIGHT_HEADERS_AT_LEFT: bp_rialto::BlockNumber = bp_rialto::SESSION_LENGTH;
+
 				use crate::chains::millau_messages_to_rialto::run as left_to_right_messages;
 				use crate::chains::rialto_messages_to_millau::run as right_to_left_messages;
 
@@ -131,11 +134,13 @@ impl RelayHeadersAndMessages {
 				left_client.clone(),
 				right_client.clone(),
 				LeftToRightFinality::new(right_client.clone(), right_sign.clone()),
+				MAX_MISSING_LEFT_HEADERS_AT_RIGHT,
 			);
 			let right_to_left_on_demand_headers = OnDemandHeadersRelay::new(
 				right_client.clone(),
 				left_client.clone(),
 				RightToLeftFinality::new(left_client.clone(), left_sign.clone()),
+				MAX_MISSING_RIGHT_HEADERS_AT_LEFT,
 			);
 
 			let left_to_right_messages = left_to_right_messages(MessagesRelayParams {

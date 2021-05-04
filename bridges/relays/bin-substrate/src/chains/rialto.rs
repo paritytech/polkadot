@@ -21,9 +21,9 @@ use crate::cli::{
 	encode_call::{self, Call, CliEncodeCall},
 	encode_message, send_message, CliChain,
 };
+use bp_message_dispatch::{CallOrigin, MessagePayload};
 use codec::Decode;
 use frame_support::weights::{GetDispatchInfo, Weight};
-use pallet_bridge_dispatch::{CallOrigin, MessagePayload};
 use relay_rialto_client::Rialto;
 use sp_version::RuntimeVersion;
 

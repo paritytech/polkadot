@@ -172,6 +172,6 @@ source chain needs to prove ownership of this account by using their target chai
 sign: `(Call, SourceChainAccountId).encode()`. This will be included in the message payload and
 verified by the target chain before dispatch.
 
-See [`CallOrigin` documentation](../modules/dispatch/src/lib.rs) for more details.
+See [`CallOrigin` documentation](../primitives/message-dispatch/src/lib.rs) for more details.
 
 #### Message Relayers Strategy

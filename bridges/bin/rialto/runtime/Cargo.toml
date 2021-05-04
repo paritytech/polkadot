@@ -68,7 +68,7 @@ sp-version = { git = "https://github.com/paritytech/substrate", branch = "master
 libsecp256k1 = { version = "0.3.4", features = ["hmac"] }
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
+substrate-wasm-builder = "3.0.0"
 
 [features]
 default = ["std"]
