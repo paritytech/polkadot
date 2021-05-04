@@ -108,3 +108,5 @@ could also limit the total amount of messages regardless of candidate by any
 given peer to some sane upper limit or check signatures early, the problem with
 all these is that it likely won't help as the event stream we get from
 networking is an unbounded channel, so an atte
+
+- Sending to own group first
