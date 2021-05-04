@@ -31,7 +31,7 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	mmr as mmr_common, paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
+	paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
@@ -60,7 +60,8 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
 	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,};
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,
+};
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -102,7 +103,6 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
-use sp_runtime::traits::Keccak256;
 
 // Weights used in the runtime
 mod weights;
@@ -304,7 +304,6 @@ impl_opaque_keys! {
 		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
 		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
-		pub beefy: Beefy,
 	}
 }
 
@@ -613,24 +612,6 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl pallet_beefy::Config for Runtime {
-	type AuthorityId = BeefyId;
-}
-
-impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
-	type Hashing = Keccak256;
-	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
-	type LeafData = mmr_common::Pallet<Runtime>;
-	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
-	type WeightInfo = ();
-}
-
-impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
-	type ParachainHeads = ();
-}
-
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = deposit(1, 8);
@@ -932,11 +913,6 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
-
-		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage} = 28,
-		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
-		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
 
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
