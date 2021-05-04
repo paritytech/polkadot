@@ -15,12 +15,17 @@ Boring, small scale correctness tests of individual functions.
 One particular subsystem (subsystem under test) interacts with a
 mocked overseer that is made to assert incoming and outgoing messages
 of the subsystem under test.
+This is largely present today, but has some fragmentation in the evolved
+integration test implmentation. A proc-macro/macro+rules would allow
+for more consistent implementation and structure.
 
 ### System tests
 
 Launching small scale networks, with multiple adversarial nodes without any further tooling required.
 This should include tests around the thresholds in order to evaluate the error handling once certain
 assumed invariants fail.
+
+For this purpose based on `AllSubsystems` and proc-macro `AllSubsystemsGen`.
 
 ### Testing at scale
 
@@ -35,8 +40,9 @@ Asserts are(?) made based on metrics.
 Coverage gives a _hint_ of the actually covered source lines by tests and test applications.
 
 The state of the art is currently [tarpaulin][tarpaulin] which unfortunately yields a
-lot false negatives (lines that are in fact covered, marked as uncovered, which leads to
-lower coverage percentages).
+lot of false negatives. Lines that are in fact covered, marked as uncovered due to a mere linebreak in a statment can cause these artifacts. This leads to
+lower coverage percentages than there actually is.
+
 Since late 2020 rust has gained [MIR based coverage tooling](
 https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html).
 
@@ -57,7 +63,7 @@ cargo +nightly build
 # required rust flags
 export RUSTFLAGS="-Zinstrument-coverage"
 # assure target dir is clean
-cargo clean
+rm -r target/{debug,tests}
 # run tests to get coverage data
 cargo +nightly test --all
 
@@ -99,6 +105,23 @@ Other candidates to implement fuzzing are:
 
 * `rpc`
 * ...
+
+## Performance metrics
+
+There are various ways of performance metrics.
+
+* timing with `criterion`
+* cache hits/misses w/ `iai` harness or `criterion-perf`
+* `coz` a performance based compiler
+
+Most of them are standard tools to aid in the creation of statistical tests regarding change in time of certain unit tests.
+
+`coz` is meant for runtime. In our case, the system is far too large to yield a sufficent number of measurements in finite time.
+An alternative approach could be to record incoming package streams per subsystem and store dumps of them, which in return could be replayed repeatedly at an
+accelerated speed, with which enough metrics could be obtained to yield
+information on which areas would improve the metrics.
+This unfortunately will not yield much information, since most if not all of the subsystem code is linear based on the input to generate one or multiple output messages, it is unlikely to get any useful metrics without mocking a sufficiently large part of the other subsystem which overlaps with [#Integration tests] which is unfortunately not repeatable as of now.
+As such the effort gain seems low and this is not pursued at the current time.
 
 ## Writing small scope integration tests with preconfigured workers
 
@@ -146,13 +169,18 @@ launch_integration_testcase!{
 }
 ```
 
-> TODO format sucks, revise, how does cli interact with it? Do we want configurable profiles?
+> There was a suggestion about adding predefined profiles at runtime,
+> which would be a nice thing to have for integration and re-usability
+> with [simnet][simnet] rather than a tool that yields anything by itself.
 
 The coordination of multiple subsystems across nodes must be made possible via
 a side-channel. That means those nodes most be able to prepare attacks that
-are collaborative based on each others actions.
+are collaborative based on each others actions or sync deliberately based on a
+attack leader.
 
-> TODO
+> There must be clear picture on what kind of
+> scenerios we want to test this way which scenarios
+> are out of scope and should be handled by [simnet][simnet].
 
 
 [simnet]: https://github.com/paritytech/simnet_scripts
