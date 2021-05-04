@@ -37,11 +37,6 @@ use crate::{
 	shared,
 	initializer::SessionChangeNotification,
 };
-use sp_core::RuntimeDebug;
-
-#[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
-
 pub trait Config:
 	frame_system::Config +
 	configuration::Config
@@ -124,7 +119,7 @@ impl<T: Config> Module<T> {
 				// mildly punish all validators involved. they've failed to make
 				// data available to others, so this is most likely spam.
 				SpamSlots::mutate(session_index, |spam_slots| {
-					let participating = (dispute.validators_for | dispute.validators_against);
+					let participating = dispute.validators_for | dispute.validators_against;
 					for validator_index in participating {
 						// TODO [now]: slight punishment.
 
