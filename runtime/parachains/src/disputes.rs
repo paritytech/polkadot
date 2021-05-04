@@ -22,7 +22,7 @@ use sp_std::result;
 use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
-	DisputeState,
+	DisputeState, DisputeStatementSet, MultiDisputeStatementSet,
 };
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use frame_system::ensure_root;
@@ -155,5 +155,18 @@ impl<T: Config> Module<T> {
 
 			*last_pruned = Some(pruning_target);
 		});
+	}
+
+	/// Handle sets of dispute statements corresponding to 0 or more candidates.
+	pub(crate) fn provide_multi_dispute_data(statements: MultiDisputeStatementSet)
+		-> Vec<(SessionIndex, CandidateHash)>
+	{
+		unimplemented!()
+	}
+
+	/// Handle a set of dispute statements corresponding to a single candidate.
+	fn provide_dispute_data() -> bool {
+		unimplemented!()
+		// TODO [now]
 	}
 }
