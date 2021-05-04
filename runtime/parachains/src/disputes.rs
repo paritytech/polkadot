@@ -24,7 +24,7 @@ use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet,
 };
-use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
+use sp_runtime::{traits::{One, Saturating}, DispatchResult, DispatchError, SaturatedConversion};
 use frame_system::ensure_root;
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure,
@@ -32,7 +32,11 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
-use crate::{configuration, shared, initializer::SessionChangeNotification};
+use crate::{
+	configuration::{self, HostConfiguration},
+	shared,
+	initializer::SessionChangeNotification,
+};
 use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
@@ -93,6 +97,15 @@ decl_module! {
 	}
 }
 
+decl_error! {
+	pub enum Error for Module<T: Config> {
+		/// Duplicate dispute statement sets provided.
+		DuplicateDisputeStatementSets,
+		/// Ancient dispute statement provided.
+		AncientDisputeStatement,
+	}
+}
+
 impl<T: Config> Module<T> {
 	/// Called by the iniitalizer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -136,7 +149,7 @@ impl<T: Config> Module<T> {
 
 	/// Called by the iniitalizer to note a new session in the disputes module.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		if notification.session_index <= config.dispute_period + 1 {
 			return
@@ -158,15 +171,63 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
-	pub(crate) fn provide_multi_dispute_data(statements: MultiDisputeStatementSet)
-		-> Vec<(SessionIndex, CandidateHash)>
+	pub(crate) fn provide_multi_dispute_data(statement_sets: MultiDisputeStatementSet)
+		-> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>
 	{
-		unimplemented!()
+		let config = <configuration::Pallet<T>>::config();
+
+		// Deduplicate.
+		{
+			let mut targets: Vec<_> = statement_sets.iter()
+				.map(|set| (set.candidate_hash.0, set.session))
+				.collect();
+
+			targets.sort();
+
+			let submitted = targets.len();
+			targets.dedup();
+
+			ensure!(submitted == targets.len(), Error::<T>::DuplicateDisputeStatementSets);
+		}
+
+		let mut fresh = Vec::with_capacity(statement_sets.len());
+		for statement_set in statement_sets {
+			let dispute_target = (statement_set.session, statement_set.candidate_hash);
+			if Self::provide_dispute_data(&config, statement_set)? {
+				fresh.push(dispute_target);
+			}
+		}
+
+		Ok(fresh)
 	}
 
 	/// Handle a set of dispute statements corresponding to a single candidate.
-	fn provide_dispute_data() -> bool {
+	///
+	/// Fails if the dispute data is invalid. Returns a bool indicating whether the
+	/// dispute is fresh.
+	fn provide_dispute_data(config: &HostConfiguration<T::BlockNumber>, set: DisputeStatementSet)
+		-> Result<bool, DispatchError>
+	{
+		// Dispute statement sets on any dispute which concluded
+		// before this point are to be rejected.
+		let oldest_accepted = <frame_system::Pallet<T>>::block_number()
+			.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+
+		// Check for ancient.
+		let fresh = if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
+			ensure!(
+				dispute_state.concluded_at.as_ref().map_or(true, |c| c >= &oldest_accepted),
+				Error::<T>::AncientDisputeStatement,
+			);
+
+			false
+		} else {
+			true
+		};
+
 		unimplemented!()
 		// TODO [now]
+
+		fresh
 	}
 }
