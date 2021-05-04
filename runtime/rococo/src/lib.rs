@@ -604,7 +604,7 @@ parameter_types! {
 	pub const RococoForTrack: (MultiAsset, MultiLocation) =
 		(AllConcreteFungible { id: Null }, X1(Parachain(120)));
 	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1)));
+		(AllConcreteFungible { id: Null }, X1(Parachain(1001)));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -619,7 +619,7 @@ parameter_types! {
 			X1(Parachain(100)),
 			X1(Parachain(110)),
 			X1(Parachain(120)),
-			X1(Parachain(1))
+			X1(Parachain(1001))
 		];
 }
 
