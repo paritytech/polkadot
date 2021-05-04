@@ -5582,7 +5582,6 @@ dependencies = [
  "futures 0.3.14",
  "log",
  "maplit",
- "parity-scale-codec",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
