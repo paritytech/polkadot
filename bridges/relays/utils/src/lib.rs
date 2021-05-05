@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -15,6 +15,8 @@
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Utilities used by different relays.
+
+pub use relay_loop::{relay_loop, relay_metrics};
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use futures::future::FutureExt;

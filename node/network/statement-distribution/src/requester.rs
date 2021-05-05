@@ -20,7 +20,7 @@ use futures::{SinkExt, channel::{mpsc, oneshot}};
 
 use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange,
-    request_response::{
+	request_response::{
 		OutgoingRequest, Recipient, Requests,
 		v1::{
 			StatementFetchingRequest, StatementFetchingResponse

@@ -2,6 +2,8 @@ version: '3.5'
 services:
   prometheus-metrics:
     image: prom/prometheus:v2.20.1
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
 
@@ -11,6 +13,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASS:-admin}
       GF_SERVER_ROOT_URL: ${GRAFANA_SERVER_ROOT_URL}
       GF_SERVER_DOMAIN: ${GRAFANA_SERVER_DOMAIN}
+    volumes:
+       - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
     ports:
       - "3000:3000"
     depends_on:

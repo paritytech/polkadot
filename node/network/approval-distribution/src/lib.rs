@@ -191,7 +191,7 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -463,8 +463,7 @@ impl State {
 		if !range.is_empty() && !blocks.is_empty() {
 			self.blocks_by_number
 			.range(range)
-			.map(|(_number, hashes)| hashes)
-			.flatten()
+			.flat_map(|(_number, hashes)| hashes)
 			.for_each(|hash| {
 				if let Some(entry) = blocks.get_mut(hash) {
 					entry.known_by.remove(&peer_id);

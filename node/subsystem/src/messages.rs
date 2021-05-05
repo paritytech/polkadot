@@ -200,7 +200,7 @@ pub enum CollatorProtocolMessage {
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
 	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, SignedFullStatement),
+	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
@@ -224,9 +224,13 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
 	/// Send a batch of validation messages.
+	///
+	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
 	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
 
 	/// Send a batch of collation messages.
+	///
+	/// NOTE: Messages will be processed in order.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.

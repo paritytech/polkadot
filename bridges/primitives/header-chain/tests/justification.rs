@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -16,26 +16,91 @@
 
 //! Tests for Grandpa Justification code.
 
-use bp_header_chain::justification::{verify_justification, Error, GrandpaJustification};
+use bp_header_chain::justification::{verify_justification, Error};
 use bp_test_utils::*;
-use codec::Encode;
 
 type TestHeader = sp_runtime::testing::Header;
 
-fn make_justification_for_header_1() -> GrandpaJustification<TestHeader> {
-	make_justification_for_header(
-		&test_header(1),
-		TEST_GRANDPA_ROUND,
-		TEST_GRANDPA_SET_ID,
-		&authority_list(),
-	)
+#[test]
+fn valid_justification_accepted() {
+	let authorities = vec![(ALICE, 1), (BOB, 1), (CHARLIE, 1), (DAVE, 1), (EVE, 1)];
+	let params = JustificationGeneratorParams {
+		header: test_header(1),
+		round: TEST_GRANDPA_ROUND,
+		set_id: TEST_GRANDPA_SET_ID,
+		authorities: authorities.clone(),
+		votes: 7,
+		forks: 3,
+	};
+
+	let justification = make_justification_for_header::<TestHeader>(params.clone());
+	assert_eq!(
+		verify_justification::<TestHeader>(
+			header_id::<TestHeader>(1),
+			TEST_GRANDPA_SET_ID,
+			&voter_set(),
+			&justification,
+		),
+		Ok(()),
+	);
+
+	assert_eq!(justification.commit.precommits.len(), authorities.len());
+	assert_eq!(justification.votes_ancestries.len(), params.votes as usize);
 }
 
 #[test]
-fn justification_with_invalid_encoding_rejected() {
+fn valid_justification_accepted_with_single_fork() {
+	let params = JustificationGeneratorParams {
+		header: test_header(1),
+		round: TEST_GRANDPA_ROUND,
+		set_id: TEST_GRANDPA_SET_ID,
+		authorities: vec![(ALICE, 1), (BOB, 1), (CHARLIE, 1), (DAVE, 1), (EVE, 1)],
+		votes: 5,
+		forks: 1,
+	};
+
 	assert_eq!(
-		verify_justification::<TestHeader>(header_id::<TestHeader>(1), TEST_GRANDPA_SET_ID, voter_set(), &[],),
-		Err(Error::JustificationDecode),
+		verify_justification::<TestHeader>(
+			header_id::<TestHeader>(1),
+			TEST_GRANDPA_SET_ID,
+			&voter_set(),
+			&make_justification_for_header::<TestHeader>(params)
+		),
+		Ok(()),
+	);
+}
+
+#[test]
+fn valid_justification_accepted_with_arbitrary_number_of_authorities() {
+	use finality_grandpa::voter_set::VoterSet;
+	use sp_finality_grandpa::AuthorityId;
+
+	let n = 15;
+	let authorities = accounts(n).iter().map(|k| (*k, 1)).collect::<Vec<_>>();
+
+	let params = JustificationGeneratorParams {
+		header: test_header(1),
+		round: TEST_GRANDPA_ROUND,
+		set_id: TEST_GRANDPA_SET_ID,
+		authorities: authorities.clone(),
+		votes: n.into(),
+		forks: n.into(),
+	};
+
+	let authorities = authorities
+		.iter()
+		.map(|(id, w)| (AuthorityId::from(*id), *w))
+		.collect::<Vec<(AuthorityId, _)>>();
+	let voter_set = VoterSet::new(authorities).unwrap();
+
+	assert_eq!(
+		verify_justification::<TestHeader>(
+			header_id::<TestHeader>(1),
+			TEST_GRANDPA_SET_ID,
+			&voter_set,
+			&make_justification_for_header::<TestHeader>(params)
+		),
+		Ok(()),
 	);
 }
 
@@ -45,8 +110,8 @@ fn justification_with_invalid_target_rejected() {
 		verify_justification::<TestHeader>(
 			header_id::<TestHeader>(2),
 			TEST_GRANDPA_SET_ID,
-			voter_set(),
-			&make_justification_for_header_1().encode(),
+			&voter_set(),
+			&make_default_justification::<TestHeader>(&test_header(1)),
 		),
 		Err(Error::InvalidJustificationTarget),
 	);
@@ -54,15 +119,15 @@ fn justification_with_invalid_target_rejected() {
 
 #[test]
 fn justification_with_invalid_commit_rejected() {
-	let mut justification = make_justification_for_header_1();
+	let mut justification = make_default_justification::<TestHeader>(&test_header(1));
 	justification.commit.precommits.clear();
 
 	assert_eq!(
 		verify_justification::<TestHeader>(
 			header_id::<TestHeader>(1),
 			TEST_GRANDPA_SET_ID,
-			voter_set(),
-			&justification.encode(),
+			&voter_set(),
+			&justification,
 		),
 		Err(Error::InvalidJustificationCommit),
 	);
@@ -70,15 +135,15 @@ fn justification_with_invalid_commit_rejected() {
 
 #[test]
 fn justification_with_invalid_authority_signature_rejected() {
-	let mut justification = make_justification_for_header_1();
+	let mut justification = make_default_justification::<TestHeader>(&test_header(1));
 	justification.commit.precommits[0].signature = Default::default();
 
 	assert_eq!(
 		verify_justification::<TestHeader>(
 			header_id::<TestHeader>(1),
 			TEST_GRANDPA_SET_ID,
-			voter_set(),
-			&justification.encode(),
+			&voter_set(),
+			&justification,
 		),
 		Err(Error::InvalidAuthoritySignature),
 	);
@@ -86,29 +151,41 @@ fn justification_with_invalid_authority_signature_rejected() {
 
 #[test]
 fn justification_with_invalid_precommit_ancestry() {
-	let mut justification = make_justification_for_header_1();
+	let mut justification = make_default_justification::<TestHeader>(&test_header(1));
 	justification.votes_ancestries.push(test_header(10));
 
 	assert_eq!(
 		verify_justification::<TestHeader>(
 			header_id::<TestHeader>(1),
 			TEST_GRANDPA_SET_ID,
-			voter_set(),
-			&justification.encode(),
+			&voter_set(),
+			&justification,
 		),
 		Err(Error::InvalidPrecommitAncestries),
 	);
 }
 
 #[test]
-fn valid_justification_accepted() {
+fn justification_is_invalid_if_we_dont_meet_threshold() {
+	// Need at least three authorities to sign off or else the voter set threshold can't be reached
+	let authorities = vec![(ALICE, 1), (BOB, 1)];
+
+	let params = JustificationGeneratorParams {
+		header: test_header(1),
+		round: TEST_GRANDPA_ROUND,
+		set_id: TEST_GRANDPA_SET_ID,
+		authorities: authorities.clone(),
+		votes: 2 * authorities.len() as u32,
+		forks: 2,
+	};
+
 	assert_eq!(
 		verify_justification::<TestHeader>(
 			header_id::<TestHeader>(1),
 			TEST_GRANDPA_SET_ID,
-			voter_set(),
-			&make_justification_for_header_1().encode(),
+			&voter_set(),
+			&make_justification_for_header::<TestHeader>(params)
 		),
-		Ok(()),
+		Err(Error::InvalidJustificationCommit),
 	);
 }

@@ -101,8 +101,7 @@ fn check_fetch_retry() {
 	let valid_candidate_hashes: HashSet<_> = state.cores
 		.get(&state.relay_chain[1])
 		.iter()
-		.map(|v| v.iter())
-		.flatten()
+		.flat_map(|v| v.iter())
 		.filter_map(|c| {
 			match c {
 				CoreState::Occupied(core) => Some(core.candidate_hash),

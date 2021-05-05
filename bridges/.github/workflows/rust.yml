@@ -8,7 +8,7 @@ on:
     tags:
       - v*
     paths-ignore:
-      - '**/README.md'
+      - '**.md'
       - diagrams/*
       - docs/*
   schedule:                        # Weekly build
@@ -23,27 +23,30 @@ jobs:
         toolchain:
           - stable
           #- beta
-          - nightly
+          - nightly-2021-04-10
     runs-on:                       ubuntu-latest
     env:
       RUST_BACKTRACE:              full
-      NIGHTLY:                     nightly #if necessary, specify the version, nightly-2020-10-04, etc.
+      NIGHTLY:                     nightly-2021-04-10 #if necessary, specify the version, nightly-2020-10-04, etc.
     steps:
+
       - name:                      Cancel Previous Runs
         uses:                      styfle/cancel-workflow-action@0.4.1
         with:
           access_token:            ${{ github.token }}
+
       - name:                      Checkout sources & submodules
         uses:                      actions/checkout@master
         with:
           fetch-depth:             5
           submodules:              recursive
+
       - name:                      Install Toolchain
         run:                       rustup toolchain add $NIGHTLY
+
       - name:                      Add WASM Utilities
         run:                       rustup target add wasm32-unknown-unknown --toolchain $NIGHTLY
-      - name:                      Rust Cache
-        uses:                      Swatinem/rust-cache@v1.2.0
+
       - name:                      Checking rust-${{ matrix.toolchain }}
         uses:                      actions-rs/cargo@master
         with:
@@ -66,13 +69,14 @@ jobs:
         with:
           command:                 check
           toolchain:               ${{ matrix.toolchain }}
-          args:                    --manifest-path ./bin/rialto/node/Cargo.toml --no-default-features --features runtime-benchmarks --verbose
+          args:                    -p rialto-runtime --features runtime-benchmarks --verbose
+
       - name:                      Check Millau benchmarks runtime ${{ matrix.platform }} rust-${{ matrix.toolchain }}
         uses:                      actions-rs/cargo@master
         with:
           command:                 check
           toolchain:               ${{ matrix.toolchain }}
-          args:                    --manifest-path ./bin/millau/node/Cargo.toml --no-default-features --features runtime-benchmarks --verbose
+          args:                    -p millau-runtime --features runtime-benchmarks --verbose
 
 ## Build Stage
   build:
@@ -86,23 +90,26 @@ jobs:
     runs-on:                       ubuntu-latest
     env:
       RUST_BACKTRACE:              full
-      NIGHTLY:                     nightly #if necessary, specify the version, nightly-2020-10-04, etc.
+      NIGHTLY:                     nightly-2021-04-10 #if necessary, specify the version, nightly-2020-10-04, etc.
     steps:
+
       - name:                      Cancel Previous Runs
         uses:                      styfle/cancel-workflow-action@0.4.1
         with:
           access_token:            ${{ github.token }}
+
       - name:                      Checkout sources & submodules
         uses:                      actions/checkout@master
         with:
           fetch-depth:             5
           submodules:              recursive
+
       - name:                      Install Toolchain
         run:                       rustup toolchain add $NIGHTLY
+
       - name:                      Add WASM Utilities
         run:                       rustup target add wasm32-unknown-unknown --toolchain $NIGHTLY
-      - name:                      Rust Cache
-        uses:                      Swatinem/rust-cache@v1.2.0
+
       - name:                      Building rust-${{ matrix.toolchain }}
         uses:                      actions-rs/cargo@master
         if:                        github.ref == 'refs/heads/master'
@@ -110,6 +117,7 @@ jobs:
           command:                 build
           toolchain:               ${{ matrix.toolchain }}
           args:                    --all --verbose
+
       - name:                      Prepare artifacts
         if:                        github.ref == 'refs/heads/master'
         run:                       |
@@ -119,6 +127,7 @@ jobs:
           mv -v target/debug/ethereum-poa-relay ./artifacts/;
           mv -v target/debug/substrate-relay ./artifacts/;
         shell:                     bash
+
       - name:                      Upload artifacts
         if:                        github.ref == 'refs/heads/master'
         uses:                      actions/upload-artifact@v1
@@ -132,28 +141,35 @@ jobs:
     runs-on:                       ubuntu-latest
     env:
       RUST_BACKTRACE:              full
-      NIGHTLY:                     nightly #if necessary, specify the version, nightly-2020-10-04, etc.
+      NIGHTLY:                     nightly-2021-04-10 #if necessary, specify the version, nightly-2020-10-04, etc.
     steps:
+
       - name:                      Cancel Previous Runs
         uses:                      styfle/cancel-workflow-action@0.4.1
         with:
           access_token:            ${{ github.token }}
+
       - name:                      Checkout sources & submodules
         uses:                      actions/checkout@master
         with:
           fetch-depth:             5
           submodules:              recursive
+
       - name:                      Install Toolchain
         run:                       rustup toolchain add $NIGHTLY
+
       - name:                      Add WASM Utilities
         run:                       rustup target add wasm32-unknown-unknown --toolchain $NIGHTLY
+
       - name:                      Add clippy
         run:                       rustup component add clippy --toolchain $NIGHTLY
+
       - name:                      Rust Cache
         uses:                      Swatinem/rust-cache@v1.2.0
+
       - name:                      Clippy
         uses:                      actions-rs/cargo@master
         with:
           command:                 clippy
-          toolchain:               nightly #if necessary, specify the version, nightly-2020-10-04, etc.
+          toolchain:               nightly-2021-04-10 #if necessary, specify the version, nightly-2020-10-04, etc.
           args:                    --all-targets -- -D warnings

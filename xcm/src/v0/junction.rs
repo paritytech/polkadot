@@ -94,11 +94,7 @@ pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
 	/// Generally used when the context is a Polkadot Relay-chain.
-	///
-	/// There is also `Parachain` which can be used in tests to avoid the faffy `{ id: ... }` syntax. Production
-	/// code should use this.
-	// TODO: parity-scale-codec#262: Change to be `Parachain(#[codec(compact)] u32)`
-	Parachain { #[codec(compact)] id: u32 },
+	Parachain(#[codec(compact)] u32),
 	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
@@ -148,7 +144,7 @@ impl Junction {
 		match self {
 			Junction::Parent => false,
 
-			Junction::Parachain { .. }
+			Junction::Parachain(..)
 			| Junction::AccountId32 { .. }
 			| Junction::AccountIndex64 { .. }
 			| Junction::AccountKey20 { .. }
