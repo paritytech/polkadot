@@ -8,7 +8,7 @@ messages module into your runtime. Basic prerequisites of these helpers are:
 - all message lanes are identical and may be used to transfer the same messages;
 - the messages sent over the bridge are dispatched using
   [call dispatch module](../../modules/dispatch/README.md);
-- the messages are `pallet_bridge_dispatch::MessagePayload` structures, where `call` field is
+- the messages are `bp_message_dispatch::MessagePayload` structures, where `call` field is
   encoded `Call` of the target chain. This means that the `Call` is opaque to the
   [messages module](../../modules/messages/README.md) instance at the source chain.
   It is pre-encoded by the message submitter;
@@ -118,7 +118,7 @@ are: `maximal_message_size`, `verify_chain_message`, `verify_messages_delivery_p
 `estimate_message_dispatch_and_delivery_fee`.
 
 `FromThisChainMessagePayload` is a message that the sender sends through our bridge. It is the
-`pallet_bridge_dispatch::MessagePayload`, where `call` field is encoded target chain call. So
+`bp_message_dispatch::MessagePayload`, where `call` field is encoded target chain call. So
 at this chain we don't see internals of this call - we just know its size.
 
 `FromThisChainMessageVerifier` is an implementation of `bp_messages::LaneMessageVerifier`. It
@@ -131,8 +131,8 @@ has following checks in its `verify_message` method:
 
 1. it'll reject a message if it has the wrong dispatch origin declared. Like if the submitter is not
    the root of this chain, but it tries to dispatch the message at the target chain using
-   `pallet_bridge_dispatch::CallOrigin::SourceRoot` origin. Or he has provided wrong signature
-   in the `pallet_bridge_dispatch::CallOrigin::TargetAccount` origin;
+   `bp_message_dispatch::CallOrigin::SourceRoot` origin. Or he has provided wrong signature
+   in the `bp_message_dispatch::CallOrigin::TargetAccount` origin;
 
 1. it'll reject a message if the delivery and dispatch fee that the submitter wants to pay is lesser
    than the fee that is computed using the `estimate_message_dispatch_and_delivery_fee` function.

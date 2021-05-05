@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Westend-to-Rococo headers sync entrypoint.
+//! Wococo-to-Rococo headers sync entrypoint.
 
 use crate::finality_pipeline::{SubstrateFinalitySyncPipeline, SubstrateFinalityToSubstrate};
 
@@ -23,14 +23,14 @@ use codec::Encode;
 use relay_rococo_client::{Rococo, SigningParams as RococoSigningParams};
 use relay_substrate_client::{Chain, TransactionSignScheme};
 use relay_utils::metrics::MetricsParams;
-use relay_westend_client::{SyncHeader as WestendSyncHeader, Westend};
+use relay_wococo_client::{SyncHeader as WococoSyncHeader, Wococo};
 use sp_core::{Bytes, Pair};
 
-/// Westend-to-Rococo finality sync pipeline.
-pub(crate) type WestendFinalityToRococo = SubstrateFinalityToSubstrate<Westend, Rococo, RococoSigningParams>;
+/// Wococo-to-Rococo finality sync pipeline.
+pub(crate) type WococoFinalityToRococo = SubstrateFinalityToSubstrate<Wococo, Rococo, RococoSigningParams>;
 
-impl SubstrateFinalitySyncPipeline for WestendFinalityToRococo {
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str = bp_westend::BEST_FINALIZED_WESTEND_HEADER_METHOD;
+impl SubstrateFinalitySyncPipeline for WococoFinalityToRococo {
+	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str = bp_wococo::BEST_FINALIZED_WOCOCO_HEADER_METHOD;
 
 	type TargetChain = Rococo;
 
@@ -45,10 +45,10 @@ impl SubstrateFinalitySyncPipeline for WestendFinalityToRococo {
 	fn make_submit_finality_proof_transaction(
 		&self,
 		transaction_nonce: <Rococo as Chain>::Index,
-		header: WestendSyncHeader,
-		proof: GrandpaJustification<bp_westend::Header>,
+		header: WococoSyncHeader,
+		proof: GrandpaJustification<bp_wococo::Header>,
 	) -> Bytes {
-		let call = bp_rococo::Call::BridgeGrandpaWestend(bp_rococo::BridgeGrandpaCall::submit_finality_proof(
+		let call = bp_rococo::Call::BridgeGrandpaWococo(bp_rococo::BridgeGrandpaWococoCall::submit_finality_proof(
 			header.into_inner(),
 			proof,
 		));
