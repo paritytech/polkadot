@@ -1199,7 +1199,7 @@ mod tests {
 		virtual_overseer: &mut VirtualOverseer,
 		test_state: &TestState,
 		// whether or not we expect a connection request or not.
-		already_connected: bool,
+		should_connect: bool,
 	) -> DistributeCollation {
 		// Now we want to distribute a PoVBlock
 		let pov_block = PoV {
@@ -1270,9 +1270,7 @@ mod tests {
 			}
 		}
 
-		let connected = if already_connected {
-			Vec::new()
-		} else {
+		let connected = if should_connect {
 			let connected_current = assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
@@ -1292,6 +1290,8 @@ mod tests {
 				) => { connected }
 			);
 			vec![connected_current, connected_next]
+		} else {
+			Vec::new()
 		};
 
 		DistributeCollation {
