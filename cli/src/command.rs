@@ -189,6 +189,7 @@ pub fn run() -> Result<()> {
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
+						if cli.run.disable_beefy { true } else { false },
 						jaeger_agent,
 						None,
 					).map(|full| full.task_manager)
