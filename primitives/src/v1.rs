@@ -822,6 +822,22 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+/// A vote of approval on a candidate.
+#[derive(Clone, RuntimeDebug)]
+pub struct ApprovalVote(pub CandidateHash);
+
+impl ApprovalVote {
+	/// Yields the signing payload for this approval vote.
+	pub fn signing_payload(
+		&self,
+		session_index: SessionIndex,
+	) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"APPR";
+
+		(MAGIC, &self.0, session_index).encode()
+	}
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
