@@ -467,16 +467,13 @@ async fn connect_to_validators(
 	state: &mut State,
 	group: GroupValidators,
 )  {
-	match state.connection_handles.entry(group.group) {
-		Entry::Occupied(_) => {}
-		Entry::Vacant(vacant) => {
-			let (tx, rx) = mpsc::channel(0);
-			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
-			})).await;
-			vacant.insert(rx);
-		}
-	}
+	let (tx, rx) = mpsc::channel(0);
+	// Reconnect in all cases, as authority discovery cache might not have been fully populated
+	// last time:
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+		validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
+	})).await;
+	state.connection_handles.insert(group.group, rx);
 }
 
 /// Advertise collation to the given `peer`.
