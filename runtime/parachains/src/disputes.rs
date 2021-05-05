@@ -32,14 +32,18 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Encode, Decode};
+use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use crate::{
 	configuration::{self, HostConfiguration},
-	shared,
 	initializer::SessionChangeNotification,
+	shared,
+	session_info,
 };
+
 pub trait Config:
 	frame_system::Config +
-	configuration::Config
+	configuration::Config +
+	session_info::Config
 {
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
 }
@@ -205,24 +209,42 @@ impl<T: Config> Module<T> {
 	{
 		// Dispute statement sets on any dispute which concluded
 		// before this point are to be rejected.
-		let oldest_accepted = <frame_system::Pallet<T>>::block_number()
-			.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+		let now = <frame_system::Pallet<T>>::block_number();
+		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
 
-		// Check for ancient.
-		let fresh = if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
-			ensure!(
-				dispute_state.concluded_at.as_ref().map_or(true, |c| c >= &oldest_accepted),
-				Error::<T>::AncientDisputeStatement,
-			);
-
-			false
-		} else {
-			true
+		// Load session info to access validators
+		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
+			Some(s) => s,
+			None => return Err(Error::<T>::AncientDisputeStatement.into()),
 		};
 
-		unimplemented!()
+		let n_validators = session_info.validators.len();
+
+		// Check for ancient.
+		let (fresh, dispute_state) = {
+			if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
+				ensure!(
+					dispute_state.concluded_at.as_ref().map_or(true, |c| c >= &oldest_accepted),
+					Error::<T>::AncientDisputeStatement,
+				);
+
+				(false, dispute_state)
+			} else {
+				(
+					true,
+					DisputeState {
+						validators_for: bitvec![BitOrderLsb0, u8; 0; n_validators],
+						validators_against: bitvec![BitOrderLsb0, u8; 0; n_validators],
+						start: now,
+						concluded_at: None,
+					}
+				)
+			}
+		};
+
+		unimplemented!();
 		// TODO [now]
 
-		fresh
+		Ok(fresh)
 	}
 }
