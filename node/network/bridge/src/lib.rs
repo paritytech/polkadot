@@ -1998,15 +1998,15 @@ mod tests {
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
 
-			network_handle.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full).await;
-			network_handle.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full).await;
-
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::StatementDistribution(
 					StatementDistributionMessage::StatementFetchingReceiver(_)
 				)
 			);
+
+			network_handle.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full).await;
 
 			// bridge will inform about all connected peers.
 			{

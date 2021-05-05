@@ -227,7 +227,7 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 	/// # Panic
 	///
 	/// This function panics if any member is not set properly.
-	fn check_consistency(&self) {
+	pub fn check_consistency(&self) {
 		if self.group_rotation_frequency.is_zero() {
 			panic!("`group_rotation_frequency` must be non-zero!")
 		}
@@ -717,6 +717,13 @@ impl<T: Config> Module<T> {
 	/// Return the session index that should be used for any future scheduled changes.
 	fn scheduled_session() -> SessionIndex {
 		shared::Module::<T>::scheduled_session()
+	}
+
+	/// Forcibly set the active config. This should be used with extreme care, and typically
+	/// only when enabling parachains runtime modules for the first time on a chain which has
+	/// been running without them.
+	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
+		<Self as Store>::ActiveConfig::set(config);
 	}
 
 	// NOTE: Explicitly tell rustc not to inline this because otherwise heuristics note the incoming

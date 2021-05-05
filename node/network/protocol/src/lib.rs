@@ -291,18 +291,23 @@ pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature};
+	use polkadot_primitives::v1::{
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature,
+		CompactStatement, Hash, Id as ParaId, UncheckedSignedAvailabilityBitfield,
+		ValidatorIndex, ValidatorSignature
+	};
 	use polkadot_node_primitives::{
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
-		SignedFullStatement,
+		UncheckedSignedFullStatement,
 	};
 
+	
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
 		#[codec(index = 0)]
-		Bitfield(Hash, SignedAvailabilityBitfield),
+		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
 	}
 
 	/// Network messages used by the statement distribution subsystem.
@@ -310,7 +315,7 @@ pub mod v1 {
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
-		Statement(Hash, SignedFullStatement),
+		Statement(Hash, UncheckedSignedFullStatement),
 		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
@@ -338,9 +343,9 @@ pub mod v1 {
 			match self {
 				Self::Statement(relay_parent, statement) => StatementMetadata {
 					relay_parent: *relay_parent,
-					candidate_hash: statement.payload().candidate_hash(),
-					signed_by: statement.validator_index(),
-					signature: statement.signature().clone(),
+					candidate_hash: statement.unchecked_payload().candidate_hash(),
+					signed_by: statement.unchecked_validator_index(),
+					signature: statement.unchecked_signature().clone(),
 				},
 				Self::LargeStatement(metadata) => metadata.clone(),
 			}
@@ -350,7 +355,7 @@ pub mod v1 {
 		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
 			match self {
 				Self::Statement(_, statement) =>
-					(statement.payload().to_compact(), statement.validator_index()),
+					(statement.unchecked_payload().to_compact(), statement.unchecked_validator_index()),
 				Self::LargeStatement(meta) =>
 					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
 			}
@@ -400,7 +405,7 @@ pub mod v1 {
 		AdvertiseCollation(Hash),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
-		CollationSeconded(SignedFullStatement),
+		CollationSeconded(Hash, UncheckedSignedFullStatement),
 	}
 
 	/// All network messages on the validation peer-set.
