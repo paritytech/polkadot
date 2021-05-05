@@ -12,6 +12,10 @@ Boring, small scale correctness tests of individual functions.
 
 ### Integration tests
 
+There are two variants of integration tests:
+
+#### Subsystem tests
+
 One particular subsystem (subsystem under test) interacts with a
 mocked overseer that is made to assert incoming and outgoing messages
 of the subsystem under test.
@@ -19,13 +23,15 @@ This is largely present today, but has some fragmentation in the evolved
 integration test implmentation. A proc-macro/macro+rules would allow
 for more consistent implementation and structure.
 
-### System tests
+#### Behavior tests
 
 Launching small scale networks, with multiple adversarial nodes without any further tooling required.
 This should include tests around the thresholds in order to evaluate the error handling once certain
 assumed invariants fail.
 
 For this purpose based on `AllSubsystems` and proc-macro `AllSubsystemsGen`.
+
+This assumes a simplistic test runtime.
 
 ### Testing at scale
 
