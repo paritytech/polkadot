@@ -1115,7 +1115,7 @@ pub enum InvalidDisputeStatementKind {
 }
 
 /// An explicit statement on a candidate issued as part of a dispute.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+#[derive(Clone, PartialEq, RuntimeDebug)]
 pub struct ExplicitDisputeStatement {
 	/// Whether the candidate is valid
 	pub valid: bool,
@@ -1123,6 +1123,15 @@ pub struct ExplicitDisputeStatement {
 	pub candidate_hash: CandidateHash,
 	/// The session index of the candidate.
 	pub session: SessionIndex,
+}
+
+impl ExplicitDisputeStatement {
+	/// Produce the payload used for signing this type of statement.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"DISP";
+
+		(MAGIC, self.valid, self.candidate_hash, self.session).encode()
+	}
 }
 
 /// A set of statements about a specific candidate.
