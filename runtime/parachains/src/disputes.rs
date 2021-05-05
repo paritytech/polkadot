@@ -22,7 +22,9 @@ use sp_std::result;
 use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
-	DisputeState, DisputeStatementSet, MultiDisputeStatementSet,
+	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
+	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
+	ExplicitDisputeStatement,
 };
 use sp_runtime::{traits::{One, Saturating}, DispatchResult, DispatchError, SaturatedConversion};
 use frame_system::ensure_root;
@@ -102,7 +104,24 @@ decl_error! {
 		DuplicateDisputeStatementSets,
 		/// Ancient dispute statement provided.
 		AncientDisputeStatement,
+		/// Validator index on statement is out of bounds for session.
+		ValidatorIndexOutOfBounds,
+		/// Invalid signature on statement.
+		InvalidSignature,
 	}
+}
+
+// The maximum number of validators `f` which may safely be faulty.
+//
+// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
+fn byzantine_threshold(n: usize) -> usize {
+	n.saturating_sub(1) / 3
+}
+
+// The supermajority threshold of validators which is required to
+// conclude a dispute.
+fn supermajority_threshold(n: usize) -> usize {
+	n - byzantine_threshold(n)
 }
 
 impl<T: Config> Module<T> {
@@ -242,9 +261,43 @@ impl<T: Config> Module<T> {
 			}
 		};
 
-		unimplemented!();
-		// TODO [now]
+		// Check all statement signatures
+		for (statement, validator_index, signature) in &set.statements {
+			let validator_public = session_info.validators.get(validator_index.0 as usize)
+				.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
+
+			check_signature(
+				&validator_public,
+				set.candidate_hash,
+				set.session,
+				statement,
+				signature,
+			).map_err(|()| Error::<T>::InvalidSignature)?;
+		}
+
+		let byzantine_threshold = byzantine_threshold(n_validators);
+		let supermajority_threshold = supermajority_threshold(n_validators);
+
+		// TODO [now]: update `DisputeInfo` and determine:
+		// 1. Spam slot changes. Bail early if too many spam slots occupied.
+		// 2. Dispute state change. Bail early if duplicate
+
+		// TODO [now]: Reward statements based on conclusion.
+
+		// TODO [now]: Slash one side if fresh supermajority on the other.
+
+		// TODO [now]: Freeze if just concluded local.
 
 		Ok(fresh)
 	}
+}
+
+fn check_signature(
+	validator_public: &ValidatorId,
+	candidate_hash: CandidateHash,
+	session: SessionIndex,
+	statement: &DisputeStatement,
+	validator_signature: &ValidatorSignature,
+) -> Result<(), ()> {
+	unimplemented!()
 }

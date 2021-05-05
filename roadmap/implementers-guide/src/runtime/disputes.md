@@ -65,7 +65,6 @@ Frozen: bool,
 ## Routines
 
 * `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
-  1. Fail if any disputes in the set are duplicate or concluded before the `config.dispute_post_conclusion_acceptance_period` window relative to now.
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
   1. Return a list of all candidates who just had disputes initiated.
 
@@ -75,13 +74,13 @@ Frozen: bool,
   1. If there is no dispute under `Disputes`, create a new `DisputeState` with blank bitfields.
   1. If `concluded_at` is `Some`, and is `concluded_at + config.post_conclusion_acceptance_period < now`, return false.
   1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is fewer in number than `byzantine_threshold + 1` and the candidate is not present in the `Included` map
-    1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary.
-    1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.
+      1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary.
+      1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.
   1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is at least `byzantine_threshold + 1`, the `DisputeState` has fewer than `byzantine_threshold + 1` validators, and the candidate is not present in the `Included` map, decrement `SpamSlots` for each validator in the `DisputeState`.
-  1. Import all statements into the dispute. This should fail if any statements are duplicate; if the corresponding bit for the corresponding validator is set in the dispute already.
-  1. If `concluded_at` is `None`, reward all statements slightly less.
+  1. Import all statements into the dispute. This should fail if any statements are duplicate or if the corresponding bit for the corresponding validator is set in the dispute already.
+  1. If `concluded_at` is `None`, reward all statements.
   1. If `concluded_at` is `Some`, reward all statements slightly less.
-  1. If either side now has supermajority, slash the other side. This may be both sides, and we support this possibility in code, but note that this requires validators to participate on both sides which has negative expected value. Set `concluded_at` to `Some(now)`.
+  1. If either side now has supermajority and did not previously, slash the other side. This may be both sides, and we support this possibility in code, but note that this requires validators to participate on both sides which has negative expected value. Set `concluded_at` to `Some(now)` if it was `None`.
   1. If just concluded against the candidate and the `Included` map contains `(session, candidate)`: invoke `revert_and_freeze` with the stored block number.
   1. Return true if just initiated, false otherwise.
 
