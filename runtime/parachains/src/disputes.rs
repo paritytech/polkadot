@@ -24,9 +24,12 @@ use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	ExplicitDisputeStatement,
+	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote,
 };
-use sp_runtime::{traits::{One, Saturating}, DispatchResult, DispatchError, SaturatedConversion};
+use sp_runtime::{
+	traits::{One, Saturating, AppVerify},
+	DispatchResult, DispatchError, SaturatedConversion,
+};
 use frame_system::ensure_root;
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure,
@@ -299,5 +302,41 @@ fn check_signature(
 	statement: &DisputeStatement,
 	validator_signature: &ValidatorSignature,
 ) -> Result<(), ()> {
-	unimplemented!()
+	let payload = match *statement {
+		DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
+			ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash,
+				session,
+			}.signing_payload()
+		},
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent)) => {
+			CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+				session_index: session,
+				parent_hash: inclusion_parent,
+			})
+		},
+		DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) => {
+			CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
+				session_index: session,
+				parent_hash: inclusion_parent,
+			})
+		},
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) => {
+			ApprovalVote(candidate_hash).signing_payload(session)
+		},
+		DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) => {
+			ExplicitDisputeStatement {
+				valid: false,
+				candidate_hash,
+				session,
+			}.signing_payload()
+		},
+	};
+
+	if validator_signature.verify(&payload[..] , &validator_public) {
+		Ok(())
+	} else {
+		Err(())
+	}
 }
