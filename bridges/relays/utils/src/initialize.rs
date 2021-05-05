@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -16,44 +16,80 @@
 
 //! Relayer initialization functions.
 
-use std::io::Write;
+use std::{fmt::Display, io::Write};
 
 /// Initialize relay environment.
 pub fn initialize_relay() {
+	initialize_logger(true);
+}
+
+/// Initialize Relay logger instance.
+pub fn initialize_logger(with_timestamp: bool) {
 	let mut builder = env_logger::Builder::new();
-
-	let filters = match std::env::var("RUST_LOG") {
-		Ok(env_filters) => format!("bridge=info,{}", env_filters),
-		Err(_) => "bridge=info".into(),
-	};
-
-	builder.parse_filters(&filters);
-	builder.format(move |buf, record| {
-		writeln!(buf, "{}", {
+	builder.filter_level(log::LevelFilter::Warn);
+	builder.filter_module("bridge", log::LevelFilter::Info);
+	builder.parse_default_env();
+	if with_timestamp {
+		builder.format(move |buf, record| {
 			let timestamp = time::OffsetDateTime::try_now_local()
 				.unwrap_or_else(|_| time::OffsetDateTime::now_utc())
 				.format("%Y-%m-%d %H:%M:%S %z");
-			if cfg!(windows) {
-				format!("{} {} {} {}", timestamp, record.level(), record.target(), record.args())
+
+			let log_level = color_level(record.level());
+			let log_target = color_target(record.target());
+			let timestamp = if cfg!(windows) {
+				Either::Left(timestamp)
 			} else {
-				use ansi_term::Colour as Color;
-				let log_level = match record.level() {
-					log::Level::Error => Color::Fixed(9).bold().paint(record.level().to_string()),
-					log::Level::Warn => Color::Fixed(11).bold().paint(record.level().to_string()),
-					log::Level::Info => Color::Fixed(10).paint(record.level().to_string()),
-					log::Level::Debug => Color::Fixed(14).paint(record.level().to_string()),
-					log::Level::Trace => Color::Fixed(12).paint(record.level().to_string()),
-				};
-				format!(
-					"{} {} {} {}",
-					Color::Fixed(8).bold().paint(timestamp),
-					log_level,
-					Color::Fixed(8).paint(record.target()),
-					record.args()
-				)
-			}
-		})
-	});
+				Either::Right(ansi_term::Colour::Fixed(8).bold().paint(timestamp))
+			};
+
+			writeln!(buf, "{} {} {} {}", timestamp, log_level, log_target, record.args(),)
+		});
+	} else {
+		builder.format(move |buf, record| {
+			let log_level = color_level(record.level());
+			let log_target = color_target(record.target());
+
+			writeln!(buf, "{} {} {}", log_level, log_target, record.args(),)
+		});
+	}
 
 	builder.init();
+}
+
+enum Either<A, B> {
+	Left(A),
+	Right(B),
+}
+impl<A: Display, B: Display> Display for Either<A, B> {
+	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+		match self {
+			Self::Left(a) => write!(fmt, "{}", a),
+			Self::Right(b) => write!(fmt, "{}", b),
+		}
+	}
+}
+
+fn color_target(target: &str) -> impl Display + '_ {
+	if cfg!(windows) {
+		Either::Left(target)
+	} else {
+		Either::Right(ansi_term::Colour::Fixed(8).paint(target))
+	}
+}
+
+fn color_level(level: log::Level) -> impl Display {
+	if cfg!(windows) {
+		Either::Left(level)
+	} else {
+		let s = level.to_string();
+		use ansi_term::Colour as Color;
+		Either::Right(match level {
+			log::Level::Error => Color::Fixed(9).bold().paint(s),
+			log::Level::Warn => Color::Fixed(11).bold().paint(s),
+			log::Level::Info => Color::Fixed(10).paint(s),
+			log::Level::Debug => Color::Fixed(14).paint(s),
+			log::Level::Trace => Color::Fixed(12).paint(s),
+		})
+	}
 }

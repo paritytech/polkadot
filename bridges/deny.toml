@@ -48,14 +48,14 @@ notice = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
+	# generic-array lifetime errasure. If all upstream crates upgrade to >=0.14.0
+	# we can remove this.
+	"RUSTSEC-2020-0146",
 	# yaml-rust < clap. Not feasible to upgrade and also not possible to trigger in practice.
 	"RUSTSEC-2018-0006",
 	# We need to wait until Substrate updates their `wasmtime` dependency to fix this.
 	# TODO: See issue #676: https://github.com/paritytech/parity-bridges-common/issues/676
 	"RUSTSEC-2021-0013",
-	# We need to wait until Substrate updates their `libp2p` dependency to fix this.
-	# TODO: See issue #681: https://github.com/paritytech/parity-bridges-common/issues/681
-	"RUSTSEC-2020-0123",
 	# We need to wait until Substrate updates their `hyper` dependency to fix this.
 	# TODO: See issue #710: https://github.com/paritytech/parity-bridges-common/issues/681
 	"RUSTSEC-2021-0020",

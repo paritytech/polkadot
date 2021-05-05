@@ -55,8 +55,6 @@ As with most other subsystems, we track the active leaves set by following `Acti
 
 For the purposes of actually distributing a collation, we need to be connected to the validators who are interested in collations on that `ParaId` at this point in time. We assume that there is a discovery API for connecting to a set of validators.
 
-> TODO: design & expose the discovery API not just for connecting to such peers but also to determine which of our current peers are validators.
-
 As seen in the [Scheduler Module][SCH] of the runtime, validator groups are fixed for an entire session and their rotations across cores are predictable. Collators will want to do these things when attempting to distribute collations at a given relay-parent:
   * Determine which core the para collated-on is assigned to.
   * Determine the group on that core and the next group on that core.
@@ -100,7 +98,7 @@ digraph G {
 }
 ```
 
-When peers connect to us, they can `Declare` that they represent a collator with given public key. Once they've declared that, and we checked their signature, they can begin to send advertisements of collations. The peers should not send us any advertisements for collations that are on a relay-parent outside of our view.
+When peers connect to us, they can `Declare` that they represent a collator with given public key and intend to collate on a specific para ID. Once they've declared that, and we checked their signature, they can begin to send advertisements of collations. The peers should not send us any advertisements for collations that are on a relay-parent outside of our view or for a para outside of the one they've declared.
 
 The protocol tracks advertisements received and the source of the advertisement. The advertisement source is the `PeerId` of the peer who sent the message. We accept one advertisement per collator per source per relay-parent.
 

@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Block, Hash, Header,
+	Block, Hash, Header, InherentData as ParachainsInherentData,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_telemetry::TelemetryHandle;
@@ -40,8 +40,12 @@ use sp_transaction_pool::TransactionPool;
 use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
-/// How long proposal can take before we give up and err out
-const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(2500);
+/// How long proposing can take, before we give up and err out. We need a relatively large timeout
+/// here as long as we have large payload in statement distribution. Assuming we can reach most
+/// nodes within two hops, we will take about 2 seconds for transferring statements (data transfer
+/// only). If necessary, we could be able to reduce this to 3 seconds. To consider: The lower the
+/// riskier that we will not be able to include a candidate.
+const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_millis(4000);
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
@@ -201,34 +205,40 @@ where
 		mut inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: time::Duration,
+		block_size_limit: Option<usize>,
 	) -> Self::Proposal {
 		async move {
 			let span = jaeger::Span::new(self.parent_header_hash, "propose");
 			let _span = span.child("get-provisioner");
 
-			let provisioner_data = match self.get_provisioner_data().await {
-				Ok(pd) => pd,
+			let parachains_inherent_data = match self.get_provisioner_data().await {
+				Ok(pd) => ParachainsInherentData {
+					bitfields: pd.bitfields.into_iter().map(Into::into).collect(),
+					backed_candidates: pd.backed_candidates,
+					disputes: pd.disputes,
+					parent_header: self.parent_header,
+				},
 				Err(err) => {
 					tracing::warn!(err = ?err, "could not get provisioner inherent data; injecting default data");
-					Default::default()
+					ParachainsInherentData {
+						bitfields: Vec::new(),
+						backed_candidates: Vec::new(),
+						disputes: Vec::new(),
+						parent_header: self.parent_header,
+					}
 				}
 			};
 
 			drop(_span);
 
-			let inclusion_inherent_data = (
-				provisioner_data.0,
-				provisioner_data.1,
-				self.parent_header,
-			);
 			inherent_data.put_data(
-				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
-				&inclusion_inherent_data,
+				polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER,
+				&parachains_inherent_data,
 			)?;
 
 			let _span = span.child("authorship-propose");
 			self.inner
-				.propose(inherent_data, inherent_digests, max_duration)
+				.propose(inherent_data, inherent_digests, max_duration, block_size_limit)
 				.await
 				.map_err(Into::into)
 		}

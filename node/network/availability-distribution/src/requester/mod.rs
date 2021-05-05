@@ -23,7 +23,6 @@ use std::collections::{
 };
 use std::iter::IntoIterator;
 use std::pin::Pin;
-use std::sync::Arc;
 
 use futures::{
 	channel::mpsc,
@@ -33,14 +32,14 @@ use futures::{
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_node_subsystem_util::request_availability_cores_ctx;
-use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
+use polkadot_node_subsystem_util::runtime::get_occupied_cores;
+use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, jaeger, SubsystemContext,
+	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, LOG_TARGET, Metrics};
-use crate::error::NonFatalError;
+use super::{session_cache::SessionCache, LOG_TARGET, Metrics};
+
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -55,6 +54,8 @@ pub struct Requester {
 	///
 	/// We keep those around as long as a candidate is pending availability on some leaf, so we
 	/// won't fetch chunks multiple times.
+	///
+	/// We remove them on failure, so we get retries on the next block still pending availability.
 	fetches: HashMap<CandidateHash, FetchTask>,
 
 	/// Localized information about sessions we are currently interested in.
@@ -77,10 +78,7 @@ impl Requester {
 	/// by advancing the stream.
 	#[tracing::instrument(level = "trace", skip(keystore, metrics), fields(subsystem = LOG_TARGET))]
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		// All we do is forwarding messages, no need to make this big.
-		// Each sender will get one slot, see
-		// [here](https://docs.rs/futures/0.3.13/futures/channel/mpsc/fn.channel.html).
-		let (tx, rx) = mpsc::channel(0);
+		let (tx, rx) = mpsc::channel(1);
 		Requester {
 			fetches: HashMap::new(),
 			session_cache: SessionCache::new(keystore),
@@ -97,7 +95,7 @@ impl Requester {
 		&mut self,
 		ctx: &mut Context,
 		update: ActiveLeavesUpdate,
-	) -> super::Result<Option<NonFatalError>>
+	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
@@ -112,35 +110,30 @@ impl Requester {
 		} = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		let err = self.start_requesting_chunks(ctx, activated.into_iter()).await?;
+		self.start_requesting_chunks(ctx, activated.into_iter()).await?;
 		self.stop_requesting_chunks(deactivated.into_iter());
-		Ok(err)
+		Ok(())
 	}
 
 	/// Start requesting chunks for newly imported heads.
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
-		new_heads: impl Iterator<Item = (Hash, Arc<jaeger::Span>)>,
-	) -> super::Result<Option<NonFatalError>>
+		new_heads: impl Iterator<Item = ActivatedLeaf>,
+	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
-		for (leaf, _) in new_heads {
-			let cores = match query_occupied_cores(ctx, leaf).await {
-				Err(err) => return Ok(Some(err)),
-				Ok(cores) => cores,
-			};
+		for ActivatedLeaf { hash: leaf, .. } in new_heads {
+			let cores = get_occupied_cores(ctx, leaf).await?;
 			tracing::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
 				"Query occupied core"
 			);
-			if let Some(err) = self.add_cores(ctx, leaf, cores).await? {
-				return Ok(Some(err));
-			}
+			self.add_cores(ctx, leaf, cores).await?;
 		}
-		Ok(None)
+		Ok(())
 	}
 
 	/// Stop requesting chunks for obsolete heads.
@@ -165,7 +158,7 @@ impl Requester {
 		ctx: &mut Context,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) -> super::Result<Option<NonFatalError>>
+	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
@@ -180,7 +173,7 @@ impl Requester {
 					let tx = self.tx.clone();
 					let metrics = self.metrics.clone();
 
-					let task_cfg = match self
+					let task_cfg = self
 						.session_cache
 						.with_session_info(
 							ctx,
@@ -190,11 +183,7 @@ impl Requester {
 							leaf,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
-						.await
-					{
-						Err(err) => return Ok(Some(err)),
-						Ok(task_cfg) => task_cfg,
-					};
+						.await?;
 
 					if let Some(task_cfg) = task_cfg {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
@@ -203,7 +192,7 @@ impl Requester {
 				}
 			}
 		}
-		Ok(None)
+		Ok(())
 	}
 }
 
@@ -224,6 +213,10 @@ impl Stream for Requester {
 				}
 				Poll::Ready(Some(FromFetchTask::Concluded(None))) =>
 					continue,
+				Poll::Ready(Some(FromFetchTask::Failed(candidate_hash))) => {
+					// Make sure we retry on next block still pending availability.
+					self.fetches.remove(&candidate_hash);
+				}
 				Poll::Ready(None) =>
 					return Poll::Ready(None),
 				Poll::Pending =>
@@ -233,25 +226,3 @@ impl Stream for Requester {
 	}
 }
 
-/// Query all hashes and descriptors of candidates pending availability at a particular block.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_occupied_cores<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<Vec<OccupiedCore>, NonFatalError>
-where
-	Context: SubsystemContext,
-{
-	let cores = recv_runtime(request_availability_cores_ctx(relay_parent, ctx).await).await?;
-
-	Ok(cores
-		.into_iter()
-		.filter_map(|core_state| {
-			if let CoreState::Occupied(occupied) = core_state {
-				Some(occupied)
-			} else {
-				None
-			}
-		})
-		.collect())
-}

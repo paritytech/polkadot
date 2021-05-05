@@ -19,9 +19,6 @@ enum ObservedRole {
 	Full,
 	Light,
 }
-
-/// SCALE and zstd encoded `PoV`.
-struct CompressedPoV(Vec<u8>);
 ```
 
 ## V1 Network Subsystem Message Types
@@ -84,8 +81,8 @@ enum PoVDistributionV1Message {
 	/// specific relay-parent hash.
 	Awaiting(Hash, Vec<Hash>),
 	/// Notification of an awaited PoV, in a given relay-parent context.
-	/// (relay_parent, pov_hash, compressed_pov)
-	SendPoV(Hash, Hash, CompressedPoV),
+	/// (relay_parent, pov_hash, pov)
+	SendPoV(Hash, Hash, PoV),
 }
 ```
 
@@ -102,16 +99,12 @@ enum StatementDistributionV1Message {
 
 ```rust
 enum CollatorProtocolV1Message {
-	/// Declare the intent to advertise collations under a collator ID, attaching a
+	/// Declare the intent to advertise collations under a collator ID and `Para`, attaching a
 	/// signature of the `PeerId` of the node using the given collator ID key.
-	Declare(CollatorId, CollatorSignature),
+	Declare(CollatorId, ParaId, CollatorSignature),
 	/// Advertise a collation to a validator. Can only be sent once the peer has
 	/// declared that they are a collator with given ID.
-	AdvertiseCollation(Hash, ParaId),
-	/// Request the advertised collation at that relay-parent.
-	RequestCollation(RequestId, Hash, ParaId),
-	/// A requested collation.
-	Collation(RequestId, CandidateReceipt, CompressedPoV),
+	AdvertiseCollation(Hash),
 	/// A collation sent to a validator was seconded.
 	CollationSeconded(SignedFullStatement),
 }

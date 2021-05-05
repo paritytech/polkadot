@@ -15,11 +15,11 @@ hash-db = { version = "0.15.2", default-features = false }
 # Bridge dependencies
 
 bp-message-dispatch = { path = "../../primitives/message-dispatch", default-features = false }
-bp-message-lane = { path = "../../primitives/message-lane", default-features = false }
+bp-messages = { path = "../../primitives/messages", default-features = false }
 bp-runtime = { path = "../../primitives/runtime", default-features = false }
-pallet-bridge-call-dispatch = { path = "../../modules/call-dispatch", default-features = false }
-pallet-message-lane = { path = "../../modules/message-lane", default-features = false }
-pallet-substrate-bridge = { path = "../../modules/substrate", default-features = false }
+pallet-bridge-dispatch = { path = "../../modules/dispatch", default-features = false }
+pallet-bridge-grandpa = { path = "../../modules/grandpa", default-features = false }
+pallet-bridge-messages = { path = "../../modules/messages", default-features = false }
 
 # Substrate dependencies
 
@@ -34,14 +34,14 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" ,
 default = ["std"]
 std = [
 	"bp-message-dispatch/std",
-	"bp-message-lane/std",
+	"bp-messages/std",
 	"bp-runtime/std",
 	"codec/std",
 	"frame-support/std",
 	"hash-db/std",
-	"pallet-bridge-call-dispatch/std",
-	"pallet-message-lane/std",
-	"pallet-substrate-bridge/std",
+	"pallet-bridge-dispatch/std",
+	"pallet-bridge-grandpa/std",
+	"pallet-bridge-messages/std",
 	"sp-core/std",
 	"sp-runtime/std",
 	"sp-state-machine/std",
@@ -50,7 +50,7 @@ std = [
 ]
 runtime-benchmarks = [
 	"ed25519-dalek/u64_backend",
-	"pallet-message-lane/runtime-benchmarks",
-	"pallet-substrate-bridge/runtime-benchmarks",
+	"pallet-bridge-grandpa/runtime-benchmarks",
+	"pallet-bridge-messages/runtime-benchmarks",
 	"sp-state-machine",
 ]
