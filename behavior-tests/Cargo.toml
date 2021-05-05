@@ -1,0 +1,16 @@
+[package]
+name = "behavior-tests"
+version = "0.1.0"
+authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1"
+polkadot-service = { path = "../node/service", default-features = false }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+log = "0.4"
+env_logger = "0.8"
