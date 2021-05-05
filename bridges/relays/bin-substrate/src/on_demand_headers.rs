@@ -20,14 +20,22 @@ use crate::finality_pipeline::{SubstrateFinalitySyncPipeline, SubstrateFinalityT
 use crate::finality_target::SubstrateFinalityTarget;
 
 use bp_header_chain::justification::GrandpaJustification;
-use finality_relay::TargetClient as FinalityTargetClient;
+use finality_relay::{
+	FinalitySyncPipeline, SourceClient as FinalitySourceClient, TargetClient as FinalityTargetClient,
+};
 use futures::{
 	channel::{mpsc, oneshot},
 	select, FutureExt, StreamExt,
 };
-use num_traits::Zero;
-use relay_substrate_client::{BlockNumberOf, Chain, Client, HashOf, HeaderIdOf, SyncHeader};
-use relay_utils::{metrics::MetricsParams, BlockNumberBase, HeaderId};
+use num_traits::{CheckedSub, Zero};
+use relay_substrate_client::{
+	finality_source::FinalitySource as SubstrateFinalitySource, BlockNumberOf, Chain, Client, HashOf, HeaderIdOf,
+	SyncHeader,
+};
+use relay_utils::{
+	metrics::MetricsParams, relay_loop::Client as RelayClient, BlockNumberBase, FailedClient, HeaderId,
+	MaybeConnectionError,
+};
 use std::fmt::Debug;
 
 /// On-demand Substrate <-> Substrate headers relay.
@@ -49,6 +57,7 @@ impl<SourceChain: Chain> OnDemandHeadersRelay<SourceChain> {
 		source_client: Client<SourceChain>,
 		target_client: Client<TargetChain>,
 		pipeline: SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign>,
+		maximal_headers_difference: SourceChain::BlockNumber,
 	) -> Self
 	where
 		SourceChain: Chain + Debug,
@@ -68,7 +77,14 @@ impl<SourceChain: Chain> OnDemandHeadersRelay<SourceChain> {
 	{
 		let (required_header_tx, required_header_rx) = mpsc::channel(1);
 		async_std::task::spawn(async move {
-			background_task(source_client, target_client, pipeline, required_header_rx).await;
+			background_task(
+				source_client,
+				target_client,
+				pipeline,
+				maximal_headers_difference,
+				required_header_rx,
+			)
+			.await;
 		});
 
 		let background_task_name = format!(
@@ -100,6 +116,7 @@ async fn background_task<SourceChain, TargetChain, TargetSign>(
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
 	pipeline: SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign>,
+	maximal_headers_difference: SourceChain::BlockNumber,
 	mut required_header_rx: mpsc::Receiver<HeaderIdOf<SourceChain>>,
 ) where
 	SourceChain: Chain + Debug,
@@ -118,7 +135,11 @@ async fn background_task<SourceChain, TargetChain, TargetSign>(
 		FinalityTargetClient<SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign>>,
 {
 	let relay_task_name = on_demand_headers_relay_name::<SourceChain, TargetChain>();
-	let finality_target = SubstrateFinalityTarget::new(target_client.clone(), pipeline.clone());
+	let mut finality_source = SubstrateFinalitySource::<
+		_,
+		SubstrateFinalityToSubstrate<SourceChain, TargetChain, TargetSign>,
+	>::new(source_client.clone());
+	let mut finality_target = SubstrateFinalityTarget::new(target_client.clone(), pipeline.clone());
 
 	let mut active_headers_relay = None;
 	let mut required_header_number = Zero::zero();
@@ -150,30 +171,45 @@ async fn background_task<SourceChain, TargetChain, TargetSign>(
 			},
 		}
 
-		// read best finalized source block from target
-		let available_header_number = match finality_target.best_finalized_source_block_number().await {
-			Ok(available_header_number) => available_header_number,
-			Err(error) => {
-				log::error!(
-					target: "bridge",
-					"Failed to read best finalized {} header from {} in {} relay: {:?}",
-					SourceChain::NAME,
-					TargetChain::NAME,
-					relay_task_name,
-					error,
-				);
+		// read best finalized source header number from source
+		let best_finalized_source_header_at_source =
+			best_finalized_source_header_at_source(&finality_source, &relay_task_name).await;
+		if matches!(best_finalized_source_header_at_source, Err(ref e) if e.is_connection_error()) {
+			relay_utils::relay_loop::reconnect_failed_client(
+				FailedClient::Source,
+				relay_utils::relay_loop::RECONNECT_DELAY,
+				&mut finality_source,
+				&mut finality_target,
+			)
+			.await;
+			continue;
+		}
 
-				// we don't know what's happening with target client, so better to stop on-demand relay than
-				// submit unneeded transactions
-				// => assume that required header is known to the target node
-				required_header_number
-			}
-		};
+		// read best finalized source header number from target
+		let best_finalized_source_header_at_target =
+			best_finalized_source_header_at_target::<SourceChain, _, _>(&finality_target, &relay_task_name).await;
+		if matches!(best_finalized_source_header_at_target, Err(ref e) if e.is_connection_error()) {
+			relay_utils::relay_loop::reconnect_failed_client(
+				FailedClient::Target,
+				relay_utils::relay_loop::RECONNECT_DELAY,
+				&mut finality_source,
+				&mut finality_target,
+			)
+			.await;
+			continue;
+		}
 
 		// start or stop headers relay if required
-		let activate = required_header_number > available_header_number;
-		match (activate, active_headers_relay.is_some()) {
-			(true, false) => {
+		let action = select_on_demand_relay_action::<SourceChain>(
+			best_finalized_source_header_at_source.ok(),
+			best_finalized_source_header_at_target.ok(),
+			required_header_number,
+			maximal_headers_difference,
+			&relay_task_name,
+			active_headers_relay.is_some(),
+		);
+		match action {
+			OnDemandRelayAction::Start => {
 				let (relay_exited_tx, new_relay_exited_rx) = oneshot::channel();
 				active_headers_relay = start_on_demand_headers_relay(
 					relay_task_name.clone(),
@@ -186,11 +222,124 @@ async fn background_task<SourceChain, TargetChain, TargetSign>(
 					relay_exited_rx = new_relay_exited_rx.right_future();
 				}
 			}
-			(false, true) => {
+			OnDemandRelayAction::Stop => {
 				stop_on_demand_headers_relay(active_headers_relay.take()).await;
 			}
-			_ => (),
+			OnDemandRelayAction::None => (),
 		}
+	}
+}
+
+/// Read best finalized source block number from source client.
+///
+/// Returns `None` if we have failed to read the number.
+async fn best_finalized_source_header_at_source<SourceChain: Chain, P>(
+	finality_source: &SubstrateFinalitySource<SourceChain, P>,
+	relay_task_name: &str,
+) -> Result<SourceChain::BlockNumber, <SubstrateFinalitySource<SourceChain, P> as RelayClient>::Error>
+where
+	SubstrateFinalitySource<SourceChain, P>: FinalitySourceClient<P>,
+	P: FinalitySyncPipeline<Number = SourceChain::BlockNumber>,
+{
+	finality_source.best_finalized_block_number().await.map_err(|error| {
+		log::error!(
+			target: "bridge",
+			"Failed to read best finalized source header from source in {} relay: {:?}",
+			relay_task_name,
+			error,
+		);
+
+		error
+	})
+}
+
+/// Read best finalized source block number from target client.
+///
+/// Returns `None` if we have failed to read the number.
+async fn best_finalized_source_header_at_target<SourceChain: Chain, TargetChain: Chain, P>(
+	finality_target: &SubstrateFinalityTarget<TargetChain, P>,
+	relay_task_name: &str,
+) -> Result<SourceChain::BlockNumber, <SubstrateFinalityTarget<TargetChain, P> as RelayClient>::Error>
+where
+	SubstrateFinalityTarget<TargetChain, P>: FinalityTargetClient<P>,
+	P: FinalitySyncPipeline<Number = SourceChain::BlockNumber>,
+{
+	finality_target
+		.best_finalized_source_block_number()
+		.await
+		.map_err(|error| {
+			log::error!(
+				target: "bridge",
+				"Failed to read best finalized source header from target in {} relay: {:?}",
+				relay_task_name,
+				error,
+			);
+
+			error
+		})
+}
+
+/// What to do with the on-demand relay task?
+#[derive(Debug, PartialEq)]
+enum OnDemandRelayAction {
+	Start,
+	Stop,
+	None,
+}
+
+fn select_on_demand_relay_action<C: Chain>(
+	best_finalized_source_header_at_source: Option<C::BlockNumber>,
+	best_finalized_source_header_at_target: Option<C::BlockNumber>,
+	mut required_source_header_at_target: C::BlockNumber,
+	maximal_headers_difference: C::BlockNumber,
+	relay_task_name: &str,
+	is_active: bool,
+) -> OnDemandRelayAction {
+	// if we have been unable to read header number from the target, then let's assume
+	// that it is the same as required header number. Otherwise we risk submitting
+	// unneeded transactions
+	let best_finalized_source_header_at_target =
+		best_finalized_source_header_at_target.unwrap_or(required_source_header_at_target);
+
+	// if we have been unable to read header number from the source, then let's assume
+	// that it is the same as at the target
+	let best_finalized_source_header_at_source =
+		best_finalized_source_header_at_source.unwrap_or(best_finalized_source_header_at_target);
+
+	// if there are too many source headers missing from the target node, require some
+	// new headers at target
+	//
+	// why do we need that? When complex headers+messages relay is used, it'll normally only relay
+	// headers when there are undelivered messages/confirmations. But security model of the
+	// `pallet-bridge-grandpa` module relies on the fact that headers are synced in real-time and
+	// that it'll see authorities-change header before unbonding period will end for previous
+	// authorities set.
+	let current_headers_difference = best_finalized_source_header_at_source
+		.checked_sub(&best_finalized_source_header_at_target)
+		.unwrap_or_else(Zero::zero);
+	if current_headers_difference > maximal_headers_difference {
+		required_source_header_at_target = best_finalized_source_header_at_source;
+
+		// don't log if relay is already running
+		if !is_active {
+			log::trace!(
+				target: "bridge",
+				"Too many {} headers missing at target in {} relay ({} vs {}). Going to sync up to the {}",
+				C::NAME,
+				relay_task_name,
+				best_finalized_source_header_at_source,
+				best_finalized_source_header_at_target,
+				best_finalized_source_header_at_source,
+			);
+		}
+	}
+
+	// now let's select what to do with relay
+	let needs_to_be_active = required_source_header_at_target > best_finalized_source_header_at_target;
+	match (needs_to_be_active, is_active) {
+		(true, false) => OnDemandRelayAction::Start,
+		(false, true) => OnDemandRelayAction::Stop,
+		_ => OnDemandRelayAction::None,
 	}
 }
 
@@ -219,7 +368,7 @@ where
 	TargetSign: 'static,
 {
 	let headers_relay_future =
-		crate::finality_pipeline::run(pipeline, source_client, target_client, MetricsParams::disabled());
+		crate::finality_pipeline::run(pipeline, source_client, target_client, true, MetricsParams::disabled());
 	let closure_task_name = task_name.clone();
 	async_std::task::Builder::new()
 		.name(task_name.clone())
@@ -251,5 +400,54 @@ async fn stop_on_demand_headers_relay(task: Option<async_std::task::JoinHandle<(
 		log::trace!(target: "bridge", "Cancelling {} headers relay", task_name);
 		task.cancel().await;
 		log::info!(target: "bridge", "Cancelled {} headers relay", task_name);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	type TestChain = relay_millau_client::Millau;
+
+	const AT_SOURCE: Option<bp_millau::BlockNumber> = Some(10);
+	const AT_TARGET: Option<bp_millau::BlockNumber> = Some(1);
+
+	#[test]
+	fn starts_relay_when_headers_are_required() {
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, 5, 100, "test", false),
+			OnDemandRelayAction::Start,
+		);
+
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, 5, 100, "test", true),
+			OnDemandRelayAction::None,
+		);
+	}
+
+	#[test]
+	fn starts_relay_when_too_many_headers_missing() {
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, 0, 5, "test", false),
+			OnDemandRelayAction::Start,
+		);
+
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, 0, 5, "test", true),
+			OnDemandRelayAction::None,
+		);
+	}
+
+	#[test]
+	fn stops_relay_if_required_header_is_synced() {
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, AT_TARGET.unwrap(), 100, "test", true),
+			OnDemandRelayAction::Stop,
+		);
+
+		assert_eq!(
+			select_on_demand_relay_action::<TestChain>(AT_SOURCE, AT_TARGET, AT_TARGET.unwrap(), 100, "test", false),
+			OnDemandRelayAction::None,
+		);
 	}
 }

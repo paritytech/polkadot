@@ -63,7 +63,7 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	/// Inspect blocks or extrinsics.
-	Inspect(node_inspect::cli::InspectCmd),
+	Inspect(node_inspect::cli::InspectKeyCmd),
 
 	/// Benchmark runtime pallets.
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),

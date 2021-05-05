@@ -13,7 +13,7 @@ Every message that is being dispatched has three main characteristics:
 - `id` is the unique id of the message within the given bridge. For messages coming from the
   [messages module](../messages/README.md), it may worth to use a tuple
   `(LaneId, MessageNonce)` to identify a message;
-- `message` is the `pallet_bridge_dispatch::MessagePayload` structure. The `call` field is set
+- `message` is the `bp_message_dispatch::MessagePayload` structure. The `call` field is set
   to the (potentially) encoded `Call` of this chain.
 
 The easiest way to understand what is happening when a `Call` is being dispatched, is to look at the
@@ -33,7 +33,7 @@ module events set:
   chain storage has been corrupted. The `Call` is decoded after `spec_version` check, so we'll never
   try to decode `Call` from other runtime version;
 - `MessageSignatureMismatch` event is emitted if submitter has chose to dispatch message using
-  specified this chain account (`pallet_bridge_dispatch::CallOrigin::TargetAccount` origin),
+  specified this chain account (`bp_message_dispatch::CallOrigin::TargetAccount` origin),
   but he has failed to prove that he owns the private key for this account;
 - `MessageCallRejected` event is emitted if the module has been deployed with some call filter and
   this filter has rejected the `Call`. In your bridge you may choose to reject all messages except
