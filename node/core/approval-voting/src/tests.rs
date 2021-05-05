@@ -231,7 +231,7 @@ fn sign_approval(
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
 ) -> ValidatorSignature {
-	key.sign(&super::approval_signing_payload(ApprovalVote(candidate_hash), session_index)).into()
+	key.sign(&ApprovalVote(candidate_hash).signing_payload(session_index)).into()
 }
 
 #[derive(Clone)]
