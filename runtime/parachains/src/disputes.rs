@@ -24,7 +24,7 @@ use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote,
+	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
 };
 use sp_runtime::{
 	traits::{One, Saturating, AppVerify},
@@ -125,6 +125,90 @@ fn byzantine_threshold(n: usize) -> usize {
 // conclude a dispute.
 fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
+}
+
+enum SpamSlotChange {
+	Dec,
+	Inc,
+}
+
+bitflags::bitflags! {
+	#[derive(Default)]
+	struct DisputeStateFlags: u8 {
+		const CONFIRMED = 0b0001;
+		const FOR_SUPERMAJORITY = 0b0010;
+		const AGAINST_SUPERMAJORITY = 0b0100;
+		const CONCLUDED = 0b1000;
+	}
+}
+
+impl DisputeStateFlags {
+	fn from_state<BlockNumber>(
+		state: &DisputeState<BlockNumber>,
+	) -> Self {
+		let n = state.validators_for.len();
+
+		let byzantine_threshold = byzantine_threshold(n);
+		let supermajority_threshold = supermajority_threshold(n);
+
+		let mut flags = DisputeStateFlags::default();
+		let all_participants = {
+			let mut a = state.validators_for.clone();
+			*a |= state.validators_against.iter().by_val();
+			a
+		};
+		if all_participants.count_ones() > byzantine_threshold {
+			flags |= DisputeStateFlags::CONFIRMED;
+		}
+
+		if state.concluded_at.is_some() {
+			flags |= DisputeStateFlags::CONCLUDED;
+		}
+
+		if state.validators_for.count_ones() >= supermajority_threshold {
+			flags |= DisputeStateFlags::FOR_SUPERMAJORITY;
+		}
+
+		if state.validators_against.count_ones() >= supermajority_threshold {
+			flags |= DisputeStateFlags::AGAINST_SUPERMAJORITY;
+		}
+
+		flags
+	}
+}
+
+struct DisputeStateMutator<BlockNumber> {
+	state: DisputeState<BlockNumber>,
+	pre_flags: DisputeStateFlags,
+}
+
+impl<BlockNumber> DisputeStateMutator<BlockNumber> {
+	fn initialize(
+		state: DisputeState<BlockNumber>,
+	) -> Self {
+		let pre_flags = DisputeStateFlags::from_state(&state);
+
+		DisputeStateMutator {
+			state,
+			pre_flags,
+		}
+	}
+
+	fn push(&mut self, validator: ValidatorIndex, valid: bool)
+		-> Result<(), DispatchError>
+	{
+		// TODO [now]: fail if duplicate.
+
+		Ok(())
+	}
+
+	fn conclude(self) -> DisputeState<BlockNumber> {
+		let post_flags = DisputeStateFlags::from_state(&self.state);
+
+		// TODO [now]: prepare update to spam slots, rewarding, and slashing.
+
+		self.state
+	}
 }
 
 impl<T: Config> Module<T> {
