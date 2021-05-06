@@ -48,7 +48,7 @@ impl SubstrateFinalitySyncPipeline for WestendFinalityToRococo {
 		header: WestendSyncHeader,
 		proof: GrandpaJustification<bp_westend::Header>,
 	) -> Bytes {
-		let call = bp_rococo::Call::BridgeGrandpaWestend(bp_rococo::BridgeGrandpaWestendCall::submit_finality_proof(
+		let call = bp_rococo::Call::BridgeGrandpaWestend(bp_rococo::BridgeGrandpaCall::submit_finality_proof(
 			header.into_inner(),
 			proof,
 		));

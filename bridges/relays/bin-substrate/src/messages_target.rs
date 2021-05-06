@@ -93,7 +93,7 @@ impl<C, P, R, I> RelayClient for SubstrateMessagesTarget<C, P, R, I>
 where
 	C: Chain,
 	P: SubstrateMessageLane,
-	R: Send + Sync,
+	R: 'static + Send + Sync,
 	I: Send + Sync + Instance,
 {
 	type Error = SubstrateError;

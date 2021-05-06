@@ -23,7 +23,7 @@ use codec::{Encode, Decode};
 use xcm::v0::{BodyId, OriginKind, MultiLocation, Junction::Plurality};
 use xcm_executor::traits::ConvertOrigin;
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
-use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get};
+use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get, Contains};
 
 pub use pallet::*;
 
@@ -55,6 +55,9 @@ pub mod pallet {
 		/// which exists as an interior location within this chain's XCM context.
 		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
 
+		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<Self::Call>)>;
+
 		/// Something to execute an XCM message.
 		type XcmExecutor: ExecuteXcm<Self::Call>;
 	}
@@ -70,6 +73,8 @@ pub mod pallet {
 	pub enum Error<T> {
 		Unreachable,
 		SendFailure,
+		/// The message execution fails the filter.
+		Filtered,
 	}
 
 	#[pallet::hooks]
@@ -105,7 +110,10 @@ pub mod pallet {
 			-> DispatchResult
 		{
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, *message, max_weight);
+			let value = (origin_location, *message);
+			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, message) = value;
+			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
 			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}

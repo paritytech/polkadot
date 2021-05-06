@@ -31,6 +31,7 @@ use frame_support::{
 	dispatch::DispatchResultWithPostInfo,
 	weights::{DispatchClass, Weight},
 	traits::Get,
+	inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent},
 };
 use frame_system::ensure_none;
 use crate::{
@@ -38,7 +39,6 @@ use crate::{
 	scheduler::{self, FreedReason},
 	ump,
 };
-use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.

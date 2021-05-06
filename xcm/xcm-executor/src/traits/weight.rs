@@ -61,3 +61,10 @@ pub trait WeightTrader: Sized {
 	/// Default implementation refunds nothing.
 	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
 }
+
+impl WeightTrader for () {
+	fn new() -> Self { () }
+	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
+		Err(Error::Unimplemented)
+	}
+}

@@ -578,7 +578,7 @@ impl MultiLocation {
 		let self_parents = self.parent_count();
 		let prefix_rest = prefix.len() - prefix.parent_count();
 		let skipped = self_parents.min(prefix_rest);
-		if self.len() + prefix.len() - 2 * skipped > 4 {
+		if self.len() + prefix.len() - 2 * skipped > 8 {
 			return Err(prefix);
 		}
 
