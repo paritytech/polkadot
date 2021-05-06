@@ -21,11 +21,11 @@ Output:
 
 Implemented as a gossip protocol. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
-It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement.
+It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer in the same backing group, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement. On receiving `StatementDistributionMessage::Share` we make sure to send messages to our backing group in addition to random other peers, to ensure a fast backing process and getting all statements quickly for distribtution.
 
 Track equivocating validators and stop accepting information from them. Establish a data-dependency order:
 
-- In order to receive a `Seconded` message we have the on corresponding chain head in our view
+- In order to receive a `Seconded` message we have the corresponding chain head in our view
 - In order to receive an `Valid` message we must have received the corresponding `Seconded` message.
 
 And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
@@ -41,6 +41,13 @@ A: Initial State. Receive `SignedFullStatement(Statement::Second)`: extract `Sta
 B: Receive any `SignedFullStatement`: check signature and determine whether the statement is new to us. if new, forward to Candidate Backing and circulate to other peers. Receive `OverseerMessage::StopWork`: proceed to C.
 
 C: Receive any message for this block: drop it.
+
+For large statements (see below), we also keep track of the total received large
+statements per peer and have a hard limit on that number for flood protection.
+This is necessary as in the current code we only forward statements once we have
+all the data, therefore flood protection for large statement is a bit more
+subtle. This will become an obsolete problem once [off chain code
+upgrades](https://github.com/paritytech/polkadot/issues/2979) are implemented.
 
 ## Peer Knowledge Tracking
 
@@ -76,7 +83,7 @@ We also track how many statements we have received per peer, per candidate, and 
 Seconded statements can become quite large on parachain runtime upgrades for
 example. For this reason, there exists a `LargeStatement` constructor for
 `StatementDistributionMessage`, which only contains light metadata of a
-statement, the actual candidate data is not included. This message type is used
+statement. The actual candidate data is not included. This message type is used
 whenever a message is deemed large. The receiver of such a message needs to
 request the actual payload via request/response by means of a
 `StatementFetching` request.
@@ -89,7 +96,7 @@ peer early and immediately move on to a different peer for fetching the data.
 This mechanism should result in a good load distribution and therefore a rather
 optimal distribution path.
 
-With these optimizations distribution of payloads in the size of up to 3 to 4
+With these optimizations, distribution of payloads in the size of up to 3 to 4
 MB should work with Kusama validator specifications. For scaling up even more,
 runtime upgrades and message passing should be done off chain at some point.
 
@@ -97,16 +104,3 @@ Flood protection considerations: For making DoS attacks slightly harder on this
 subsystem nodes will only responde large statement requests, when they
 previously notified that peer via gossip. So, it is not possible to DoS nodes at
 scale, by requesting candidate data over and over again.
-
-The gossip flood protection is slightly weekened by this extension, as data is
-only marked as received from a particular peer after its candidate payload has
-been fetched. By making up non valid meta data an attacker could try to fill up
-the nodes memory. That's not necessarily a particular easy task as that would
-need to happen in a 6 second slot time window. The easiest way to mitigate
-this kind of attack would be to limit bandwidth on the notification stream. We
-could also limit the total amount of messages regardless of candidate by any
-given peer to some sane upper limit or check signatures early, the problem with
-all these is that it likely won't help as the event stream we get from
-networking is an unbounded channel, so an atte
-
-- Sending to own group first
