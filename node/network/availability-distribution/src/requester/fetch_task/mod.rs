@@ -35,7 +35,7 @@ use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
 	error::{Fatal, Result},
-	session_cache::{BadValidators, SessionInfo},
+	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
