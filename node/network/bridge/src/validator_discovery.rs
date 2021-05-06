@@ -24,6 +24,7 @@ use std::collections::{HashSet, HashMap, hash_map};
 use async_trait::async_trait;
 use futures::channel::mpsc;
 
+use polkadot_subsystem::messages::ConnectMessage;
 use sc_network::{config::parse_addr, multiaddr::Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
@@ -56,7 +57,7 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 struct NonRevokedConnectionRequestState {
 	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
-	receiver: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+	receiver: mpsc::Receiver<ConnectMessage>,
 }
 
 impl NonRevokedConnectionRequestState {
@@ -64,12 +65,12 @@ impl NonRevokedConnectionRequestState {
 	pub fn new(
 		requested: Vec<AuthorityDiscoveryId>,
 		pending: HashSet<AuthorityDiscoveryId>,
-		sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		receiver: mpsc::Receiver<ConnectMessage>,
 	) -> Self {
 		Self {
 			requested,
 			pending,
-			sender,
+			receiver,
 		}
 	}
 
