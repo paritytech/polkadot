@@ -30,9 +30,7 @@ use futures::{
 	Stream,
 };
 
-use sp_keystore::SyncCryptoStorePtr;
-
-use polkadot_node_subsystem_util::runtime::get_occupied_cores;
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, get_occupied_cores};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
@@ -76,12 +74,12 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
-	#[tracing::instrument(level = "trace", skip(keystore, metrics), fields(subsystem = LOG_TARGET))]
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	#[tracing::instrument(level = "trace", skip(metrics), fields(subsystem = LOG_TARGET))]
+	pub fn new(metrics: Metrics) -> Self {
 		let (tx, rx) = mpsc::channel(1);
 		Requester {
 			fetches: HashMap::new(),
-			session_cache: SessionCache::new(keystore),
+			session_cache: SessionCache::new(),
 			tx,
 			rx,
 			metrics,
@@ -90,10 +88,11 @@ impl Requester {
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunks for availabilty distribution.
-	#[tracing::instrument(level = "trace", skip(self, ctx, update), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, ctx, runtime, update), fields(subsystem = LOG_TARGET))]
 	pub async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		update: ActiveLeavesUpdate,
 	) -> super::Result<()>
 	where
@@ -110,7 +109,7 @@ impl Requester {
 		} = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, activated.into_iter()).await?;
+		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
@@ -119,6 +118,7 @@ impl Requester {
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		new_heads: impl Iterator<Item = ActivatedLeaf>,
 	) -> super::Result<()>
 	where
@@ -131,7 +131,7 @@ impl Requester {
 				occupied_cores = ?cores,
 				"Query occupied core"
 			);
-			self.add_cores(ctx, leaf, cores).await?;
+			self.add_cores(ctx, runtime, leaf, cores).await?;
 		}
 		Ok(())
 	}
@@ -156,6 +156,7 @@ impl Requester {
 	async fn add_cores<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
 	) -> super::Result<()>
@@ -177,6 +178,7 @@ impl Requester {
 						.session_cache
 						.with_session_info(
 							ctx,
+							runtime,
 							// We use leaf here, as relay_parent must be in the same session as the
 							// leaf. (Cores are dropped at session boundaries.) At the same time,
 							// only leaves are guaranteed to be fetchable by the state trie.
