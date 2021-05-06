@@ -205,19 +205,19 @@ struct PeerRelayParentKnowledge {
 	/// https://github.com/paritytech/polkadot/issues/2979 implemented also no longer necessary.
 	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
 	/// statements and never provides the data, we will keep it around for the slot duration. Not
-	/// even signature checking would help, as the sender if a validator can just sign arbitrary
+	/// even signature checking would help, as the sender, if a validator, can just sign arbitrary
 	/// invalid statements and will not face any consequences as long as it won't provide the
 	/// payload.
 	///
 	/// Quick and temporary fix, only accept `MAX_LARGE_STATEMENTS_PER_SENDER` per connected node.
 	///
-	/// Large statements should be rare, if they are not we would run into problems anyways as we
-	/// would not be able to distribute them in a timely manner. So
+	/// Large statements should be rare, if they were not, we would run into problems anyways, as
+	/// we would not be able to distribute them in a timely manner. Therefore
 	/// `MAX_LARGE_STATEMENTS_PER_SENDER` can be set to a relatively small number. It is also not
 	/// per candidate hash, but in total as candidate hashes can be made up, as illustrated above.
 	///
 	/// An attacker could still try to fill up our memory, by repeatedly disconnecting and
-	/// connecting again with new peer ids, but we assume that the resulting bandwidth
+	/// connecting again with new peer ids, but we assume that the resulting effective bandwidth
 	/// for such an attack would be too low.
 	large_statement_count: usize,
 }
