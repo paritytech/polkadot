@@ -165,7 +165,7 @@ and might not prove viable or yield signifcant outcomes.
 ### Impl
 
 ```rust
-launch_integration_testcase!{
+behavior_testcase!{
 "TestRuntime" =>
 "Alice": SubsystemsAll<GenericParam=DropAll,..>,
 "Bob": SubsystemsAll<GenericParam=DropSome,..>,

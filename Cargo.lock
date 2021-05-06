@@ -522,12 +522,15 @@ name = "behavior-tests"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.8.2",
+ "futures 0.3.14",
  "log",
  "polkadot-service",
+ "sc-chain-spec",
  "sc-service",
  "sp-core",
  "test-runner",
  "thiserror",
+ "tokio 0.2.21",
 ]
 
 [[package]]
@@ -6298,6 +6301,17 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
+]
+
+[[package]]
+name = "polkadot-procmacro-overseer-gen"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
 ]
 
 [[package]]

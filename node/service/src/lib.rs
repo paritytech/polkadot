@@ -420,7 +420,7 @@ fn new_partial<RuntimeApi, Executor>(
 }
 
 #[cfg(feature = "full-node")]
-fn real_overseer<Spawner, RuntimeClient>(
+fn real_overseer<Spawner, RuntimeClient, SubsystemSelection: SubsystemSelection>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: Arc<LocalKeystore>,
 	runtime_client: Arc<RuntimeClient>,
@@ -434,13 +434,12 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 	is_collator: IsCollator,
 	candidate_validation_config: CandidateValidationConfig,
-) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+) -> Result<(Overseer<Spawner, Arc<RuntimeClient>, SubsystemSelection>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
-	use polkadot_node_subsystem_util::metrics::Metrics;
 
 	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
 	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
@@ -675,7 +674,7 @@ where
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
 #[cfg(feature = "full-node")]
-pub fn new_full<RuntimeApi, Executor>(
+pub fn new_full<RuntimeApi, Executor, SubsystemSelection>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
@@ -864,7 +863,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		let (overseer, overseer_handler) = real_overseer(
+		let (overseer, overseer_handler) = real_overseer::<_,_,SubsystemSelection>(
 			active_leaves,
 			keystore,
 			overseer_client.clone(),

@@ -49,6 +49,7 @@ use polkadot_node_network_protocol::{
 		request::RequestError,
 	},
 };
+use polkadot_node_subsystem_util::metrics::Metrics;
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 mod error;
@@ -67,6 +68,7 @@ const LRU_SIZE: usize = 16;
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
+	metrics: Metrics,
 }
 
 struct RequestFromBackersPhase {
@@ -742,13 +744,13 @@ async fn query_full_data(
 
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to request data from backers.
-	pub fn with_fast_path() -> Self {
-		Self { fast_path: true }
+	pub fn with_fast_path(metrics: Metrics) -> Self {
+		Self { fast_path: true, metrics }
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
-	pub fn with_chunks_only() -> Self {
-		Self { fast_path: false }
+	pub fn with_chunks_only(metrics: Metrics) -> Self {
+		Self { fast_path: false, metrics }
 	}
 
 	async fn run(

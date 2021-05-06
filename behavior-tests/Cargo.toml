@@ -11,6 +11,9 @@ thiserror = "1"
 polkadot-service = { path = "../node/service", default-features = false }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 test-runner = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 log = "0.4"
 env_logger = "0.8"
+tokio = { version = "0.2.21", features = [ "signal", "rt-core", "rt-threaded", "blocking" ] }
+futures = "0.3"
