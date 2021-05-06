@@ -93,6 +93,9 @@ const VC_THRESHOLD: usize = 2;
 
 const LOG_TARGET: &str = "parachain::statement-distribution";
 
+/// Large statements should be rare.
+const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
+
 /// The statement distribution subsystem.
 pub struct StatementDistribution {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
@@ -194,6 +197,29 @@ struct PeerRelayParentKnowledge {
 	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
 	/// How many statements we've received for each candidate that we're aware of.
 	received_message_count: HashMap<CandidateHash, usize>,
+
+
+	/// How many large statements this peer already sent us.
+	///
+	/// Flood protection for large statements is rather hard and as soon as we get
+	/// https://github.com/paritytech/polkadot/issues/2979 implemented also no longer necessary.
+	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
+	/// statements and never provides the data, we will keep it around for the slot duration. Not
+	/// even signature checking would help, as the sender if a validator can just sign arbitrary
+	/// invalid statements and will not face any consequences as long as it won't provide the
+	/// payload.
+	///
+	/// Quick and temporary fix, only accept `MAX_LARGE_STATEMENTS_PER_SENDER` per connected node.
+	///
+	/// Large statements should be rare, if they are not we would run into problems anyways as we
+	/// would not be able to distribute them in a timely manner. So
+	/// `MAX_LARGE_STATEMENTS_PER_SENDER` can be set to a relatively small number. It is also not
+	/// per candidate hash, but in total as candidate hashes can be made up, as illustrated above.
+	///
+	/// An attacker could still try to fill up our memory, by repeatedly disconnecting and
+	/// connecting again with new peer ids, but we assume that the resulting bandwidth
+	/// for such an attack would be too low.
+	large_statement_count: usize,
 }
 
 impl PeerRelayParentKnowledge {
@@ -316,6 +342,15 @@ impl PeerRelayParentKnowledge {
 
 		self.received_statements.insert(fingerprint.clone());
 		Ok(self.received_candidates.insert(candidate_hash.clone()))
+	}
+
+	/// Note a received large statement metadata.
+	fn receive_large_statement(&mut self) -> std::result::Result<(), Rep> {
+		if self.large_statement_count >= MAX_LARGE_STATEMENTS_PER_SENDER {
+			return Err(COST_APPARENT_FLOOD);
+		}
+		self.large_statement_count += 1;
+		Ok(())
 	}
 
 	/// This method does the same checks as `receive` without modifying the internal state.
@@ -457,6 +492,17 @@ impl PeerData {
 			.get(relay_parent)
 			.ok_or(COST_UNEXPECTED_STATEMENT)?
 			.check_can_receive(fingerprint, max_message_count)
+	}
+
+	/// Basic flood protection for large statements.
+	fn receive_large_statement(
+		&mut self,
+		relay_parent: &Hash,
+	) -> std::result::Result<(), Rep> {
+		self.view_knowledge
+			.get_mut(relay_parent)
+			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.receive_large_statement()
 	}
 }
 
@@ -1277,6 +1323,20 @@ async fn handle_incoming_message<'a>(
 			return None
 		}
 	};
+
+	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
+		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?message,
+				?rep,
+				"Unexpected large statement.",
+			);
+			report_peer(ctx, peer, rep).await;
+			return None;
+		}
+	}
 
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = fingerprint.0.candidate_hash().clone();
