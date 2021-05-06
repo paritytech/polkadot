@@ -81,10 +81,10 @@ We also track how many statements we have received per peer, per candidate, and 
 ## Large statements
 
 Seconded statements can become quite large on parachain runtime upgrades for
-example. For this reason, there exists a `LargeStatement` constructor for
-`StatementDistributionMessage`, which only contains light metadata of a
-statement. The actual candidate data is not included. This message type is used
-whenever a message is deemed large. The receiver of such a message needs to
+example. For this reason, there exists a `LargeStatement` constructor for the
+`StatementDistributionMessage` wire message, which only contains light metadata
+of a statement. The actual candidate data is not included. This message type is
+used whenever a message is deemed large. The receiver of such a message needs to
 request the actual payload via request/response by means of a
 `StatementFetching` request.
 
@@ -101,6 +101,7 @@ MB should work with Kusama validator specifications. For scaling up even more,
 runtime upgrades and message passing should be done off chain at some point.
 
 Flood protection considerations: For making DoS attacks slightly harder on this
-subsystem nodes will only responde large statement requests, when they
-previously notified that peer via gossip. So, it is not possible to DoS nodes at
-scale, by requesting candidate data over and over again.
+subsystem, nodes will only respond to large statement requests, when they
+previously notified that peer via gossip about that statement. So, it is not
+possible to DoS nodes at scale, by requesting candidate data over and over
+again.
