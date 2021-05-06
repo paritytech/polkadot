@@ -237,22 +237,43 @@ pub enum NetworkBridgeMessage {
 	/// Second parameter, tells what to do if we are not yet connected to the peer.
 	SendRequests(Vec<Requests>, IfDisconnected),
 
-	/// Connect to peers who represent the given `validator_ids`.
+	/// Connect to peers.
 	///
-	/// Also ask the network to stay connected to these peers at least
-	/// until the request is revoked.
-	/// This can be done by dropping the receiver.
-	ConnectToValidators {
-		/// Ids of the validators to connect to.
-		validator_ids: Vec<AuthorityDiscoveryId>,
-		/// The underlying protocol to use for this request.
+	/// Also ask the network to stay connected to these peers at least until the request is
+	/// revoked.  This can be done by dropping the corresponding `requests` sender.
+	ConnectPeers {
+		/// The underlying protocol to use for requests.
 		peer_set: PeerSet,
-		/// Response sender by which the issuer can learn the `PeerId`s of
-		/// the validators as they are connected.
-		/// The response is sent immediately for already connected peers.
-		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+
+		/// Actual connection requests are gathered via this receiver.
+		///
+		/// It is possible to add more and more authorities we want to be connected to over time,
+		/// all managed by sending `ConnectToValidators` message. This is mostly useful if some
+		/// authorities could not be resolved (sent via the `not_found` oneshot) as they can be
+		/// tried again at a later point.
+		///
+		/// All connections added over time via `ConnectMessage::ConnectToValidators` will get
+		/// closed when the last sender corresponding to this receiver gets closed.
+		requests: mpsc::Receiver<ConnectMessage>,
 	},
 }
+
+/// Used within the `requests` mpsc in `NetworkBridgeMessage::ConnectPeers` to add validators we
+/// want to stay connected to.
+#[derive(Debug)]
+pub enum ConnectMessage {
+	/// Connect to the given validators by their `AuthorityDiscoveryId`.
+	 ConnectToValidators{
+		 /// Ask bridge to connect to those given validators.
+		 validators: Vec<AuthorityDiscoveryId>,
+
+		 /// Receive any validators whose `AuthorityDiscoveryId` could not be resolved.
+		 ///
+		 /// Initiater might try those again at some later point in time.
+		 not_found: oneshot::Sender<Vec<AuthorityDiscoveryId>>,
+	 }
+}
+
 
 impl NetworkBridgeMessage {
 	/// If the current variant contains the relay parent hash, return it.
@@ -264,7 +285,7 @@ impl NetworkBridgeMessage {
 			Self::SendCollationMessage(_, _) => None,
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
-			Self::ConnectToValidators { .. } => None,
+			Self::ConnectPeers { .. } => None,
 			Self::SendRequests { .. } => None,
 		}
 	}

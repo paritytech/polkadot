@@ -56,7 +56,7 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 struct NonRevokedConnectionRequestState {
 	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
-	sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+	receiver: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 }
 
 impl NonRevokedConnectionRequestState {
