@@ -64,7 +64,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}};
+use frame_support::{parameter_types, construct_runtime, traits::KeyOwnerProofSystem};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
@@ -605,10 +605,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed().0
 		}
 	}
 

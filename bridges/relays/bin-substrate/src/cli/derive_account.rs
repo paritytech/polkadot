@@ -91,11 +91,11 @@ mod tests {
 
 		assert_eq!(
 			format!("{}", rialto_derived),
-			"73gLnUwrAdH4vMjbXCiNEpgyz1PLk9JxCaY4cKzvfSZT73KE"
+			"74GNQjmkcfstRftSQPJgMREchqHM56EvAUXRc266cZ1NYVW5"
 		);
 		assert_eq!(
 			format!("{}", millau_derived),
-			"5rpTJqGv1BPAYy2sXzkPpc3Wx1ZpQtgfuBsrDpNV4HsXAmbi"
+			"5rERgaT1Z8nM3et2epA5i1VtEBfp5wkhwHtVE8HK7BRbjAH2"
 		);
 		assert_eq!(millau_derived, millau2_derived);
 	}

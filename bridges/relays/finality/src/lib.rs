@@ -28,7 +28,7 @@ mod finality_loop;
 mod finality_loop_tests;
 
 /// Finality proofs synchronization pipeline.
-pub trait FinalitySyncPipeline: Clone + Debug + Send + Sync {
+pub trait FinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {
 	/// Name of the finality proofs source.
 	const SOURCE_NAME: &'static str;
 	/// Name of the finality proofs target.

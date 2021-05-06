@@ -31,12 +31,11 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	mmr as mmr_common, paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
+	paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
-	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 
 use runtime_parachains::origin as parachains_origin;
@@ -54,13 +53,14 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation, NetworkId};
+use xcm::v0::{MultiLocation, NetworkId, Xcm};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
-	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,};
+	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	IsChildSystemParachain, UsingComponents, SignedToAccountId32,
+};
 
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -81,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -102,7 +102,6 @@ pub use pallet_balances::Call as BalancesCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
-use sp_runtime::traits::Keccak256;
 
 // Weights used in the runtime
 mod weights;
@@ -116,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 900,
+	spec_version: 9000,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -301,10 +300,9 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
+		pub para_validator: ParasInitializer,
+		pub para_assignment: ParasSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
-		pub beefy: Beefy,
 	}
 }
 
@@ -343,6 +341,7 @@ parameter_types! {
 
 	// miner configs
 	pub const MinerMaxIterations: u32 = 10;
+	pub OffchainRepeat: BlockNumber = 5;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -361,8 +360,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = OffchainSolutionWeightLimit;
+	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
+	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
@@ -609,24 +609,6 @@ impl pallet_vesting::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
-}
-
-impl pallet_beefy::Config for Runtime {
-	type AuthorityId = BeefyId;
-}
-
-impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
-	type Hashing = Keccak256;
-	type Hash = <Keccak256 as sp_runtime::traits::Hash>::Output;
-	type LeafData = mmr_common::Pallet<Runtime>;
-	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
-	type WeightInfo = ();
-}
-
-impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
-	type ParachainHeads = ();
 }
 
 parameter_types! {
@@ -876,6 +858,72 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = ();
 }
 
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
+);
+
+pub struct OnlyWithdrawTeleportForAccounts;
+impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
+	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
+		use xcm::v0::{
+			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Parachain},
+			MultiLocation::{Null, X1},
+		};
+		match origin {
+			// Root is allowed to execute anything.
+			Null => true,
+			X1(AccountId32 { .. }) => {
+				// An account ID trying to send a message. We ensure that it's sensible.
+				// This checks that it's of the form:
+				// WithdrawAsset {
+				//   assets: [ ConcreteFungible { id: Null } ],
+				//   effects: [ BuyExecution, InitiateTeleport {
+				//     assets: All,
+				//     dest: Parachain,
+				//     effects: [ BuyExecution, DepositAssets {
+				//       assets: All,
+				//       dest: AccountId32,
+				//     } ]
+				//   } ]
+				// }
+				matches!(msg, WithdrawAsset { ref assets, ref effects }
+					if assets.len() == 1
+					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& effects.len() == 2
+					&& matches!(effects[0], BuyExecution { .. })
+					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+						if assets.len() == 1
+						&& matches!(assets[0], All)
+						&& effects.len() == 2
+						&& matches!(effects[0], BuyExecution { .. })
+						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+							if assets.len() == 1
+							&& matches!(assets[0], All)
+						)
+					)
+				)
+			}
+			// Nobody else is allowed to execute anything.
+			_ => false,
+		}
+	}
+}
+
+impl pallet_xcm::Config for Runtime {
+	type Event = Event;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type XcmRouter = XcmRouter;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
+	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -931,11 +979,6 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
 
-		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage} = 28,
-		Beefy: pallet_beefy::{Pallet, Config<T>, Storage} = 29,
-		MmrLeaf: mmr_common::{Pallet, Storage} = 30,
-
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
@@ -954,12 +997,9 @@ construct_runtime! {
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
-	}
-}
 
-impl pallet_babe::migrations::BabePalletPrefix for Runtime {
-	fn pallet_prefix() -> &'static str {
-		"Babe"
+		// Pallet for sending XCM.
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
 	}
 }
 
@@ -1088,10 +1128,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 

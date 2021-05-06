@@ -39,9 +39,9 @@ pub struct TransactionProofsRelayState<BlockNumber> {
 }
 
 /// Transactions proofs relay storage.
-pub trait TransactionProofsRelayStorage: Clone {
+pub trait TransactionProofsRelayStorage: 'static + Clone + Send + Sync {
 	/// Associated block number.
-	type BlockNumber;
+	type BlockNumber: 'static + Send + Sync;
 
 	/// Get relay state.
 	fn state(&self) -> TransactionProofsRelayState<Self::BlockNumber>;
@@ -64,7 +64,7 @@ impl<BlockNumber> InMemoryStorage<BlockNumber> {
 	}
 }
 
-impl<BlockNumber: Clone + Copy> TransactionProofsRelayStorage for InMemoryStorage<BlockNumber> {
+impl<BlockNumber: 'static + Clone + Copy + Send + Sync> TransactionProofsRelayStorage for InMemoryStorage<BlockNumber> {
 	type BlockNumber = BlockNumber;
 
 	fn state(&self) -> TransactionProofsRelayState<BlockNumber> {
@@ -89,7 +89,7 @@ pub async fn run<P: TransactionProofPipeline>(
 	source_client: impl SourceClient<P>,
 	target_client: impl TargetClient<P>,
 	metrics_params: MetricsParams,
-	exit_signal: impl Future<Output = ()>,
+	exit_signal: impl Future<Output = ()> + 'static + Send,
 ) -> Result<(), String> {
 	let exit_signal = exit_signal.shared();
 
@@ -99,7 +99,7 @@ pub async fn run<P: TransactionProofPipeline>(
 		.standalone_metric(|registry, prefix| GlobalMetrics::new(registry, prefix))?
 		.expose()
 		.await?
-		.run(|source_client, target_client, metrics| {
+		.run(metrics_prefix::<P>(), move |source_client, target_client, metrics| {
 			run_until_connection_lost(
 				storage.clone(),
 				source_client,
@@ -117,7 +117,7 @@ async fn run_until_connection_lost<P: TransactionProofPipeline>(
 	source_client: impl SourceClient<P>,
 	target_client: impl TargetClient<P>,
 	metrics_exch: Option<ExchangeLoopMetrics>,
-	exit_signal: impl Future<Output = ()>,
+	exit_signal: impl Future<Output = ()> + Send,
 ) -> Result<(), FailedClient> {
 	let mut retry_backoff = retry_backoff();
 	let mut state = storage.state();

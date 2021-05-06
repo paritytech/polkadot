@@ -32,7 +32,6 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
-	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
@@ -41,7 +40,7 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::{AuxStore, ExecutorProvider},
 	sc_keystore::LocalKeystore,
-	babe_primitives::BabeApi,
+	sp_consensus_babe::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
@@ -263,8 +262,6 @@ fn new_partial<RuntimeApi, Executor>(
 	set_prometheus_registry(config)?;
 
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	let telemetry = config.telemetry_endpoints.clone()
 		.filter(|x| !x.is_empty())
 		.map(move |endpoints| -> Result<_, telemetry::Error> {
@@ -331,13 +328,24 @@ fn new_partial<RuntimeApi, Executor>(
 		client.clone(),
 	)?;
 
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					*timestamp,
+					slot_duration,
+				);
+
+			Ok((timestamp, slot))
+		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
@@ -407,7 +415,6 @@ fn new_partial<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, telemetry)
 	})
 }
@@ -708,7 +715,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent, telemetry_worker_handle)?;
 
@@ -893,21 +899,25 @@ pub fn new_full<RuntimeApi, Executor>(
 		}));
 
 		Some(overseer_handler)
-	} else { None };
+	} else {
+		None
+	};
 
 	if role.is_authority() {
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-		let proposer = ProposerFactory::new(
+		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
-			overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone(),
 			prometheus_registry.as_ref(),
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
+		let client_clone = client.clone();
+		let overseer_handler = overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
+		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
@@ -915,7 +925,32 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
-			inherent_data_providers: inherent_data_providers.clone(),
+			create_inherent_data_providers: move |parent, ()| {
+				let client_clone = client_clone.clone();
+				let overseer_handler = overseer_handler.clone();
+				async move {
+					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
+						&*client_clone,
+						overseer_handler,
+						parent,
+					).await.map_err(|e| Box::new(e))?;
+
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client_clone,
+						parent,
+					)?;
+
+					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+							*timestamp,
+							slot_duration,
+						);
+
+					Ok((timestamp, slot, uncles, parachain))
+				}
+			},
 			force_authoring,
 			backoff_authoring_blocks,
 			babe_link,
@@ -1096,16 +1131,25 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		client.clone(),
 	)?;
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					*timestamp,
+					slot_duration,
+				);
+
+			Ok((timestamp, slot))
+		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
 		consensus_common::NeverCanAuthor,

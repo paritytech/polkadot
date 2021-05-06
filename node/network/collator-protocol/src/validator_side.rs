@@ -47,6 +47,8 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
 
+use crate::error::Fatal;
+
 use super::{modify_reputation, Result, LOG_TARGET};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -540,6 +542,7 @@ async fn notify_collation_seconded(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
+	relay_parent: Hash,
 	statement: SignedFullStatement,
 ) {
 	if !matches!(statement.payload(), Statement::Seconded(_)) {
@@ -552,7 +555,7 @@ async fn notify_collation_seconded(
 	}
 
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
+		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(
@@ -782,7 +785,7 @@ where
 				}
 			}
 		}
-		CollationSeconded(_) => {
+		CollationSeconded(_, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				peer_id = ?origin,
@@ -934,8 +937,8 @@ where
 		NoteGoodCollation(id) => {
 			note_good_collation(ctx, &state.peer_data, id).await;
 		}
-		NotifyCollationSeconded(id, statement) => {
-			notify_collation_seconded(ctx, &state.peer_data, id, statement).await;
+		NotifyCollationSeconded(id, relay_parent, statement) => {
+			notify_collation_seconded(ctx, &state.peer_data, id, relay_parent, statement).await;
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
@@ -1003,7 +1006,7 @@ pub(crate) async fn run<Context>(
 
 			if let Poll::Ready(res) = futures::poll!(s) {
 				Some(match res {
-					Either::Left((msg, _)) => Either::Left(msg?),
+					Either::Left((msg, _)) => Either::Left(msg.map_err(Fatal::SubsystemReceive)?),
 					Either::Right((_, _)) => Either::Right(()),
 				})
 			} else {

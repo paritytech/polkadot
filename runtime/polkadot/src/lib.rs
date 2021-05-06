@@ -58,7 +58,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 900,
+	spec_version: 9000,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -331,6 +331,7 @@ parameter_types! {
 
 	// miner configs
 	pub const MinerMaxIterations: u32 = 10;
+	pub OffchainRepeat: BlockNumber = 5;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -349,8 +350,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = OffchainSolutionWeightLimit;
+	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
+	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
@@ -1025,12 +1027,6 @@ construct_runtime! {
 	}
 }
 
-impl pallet_babe::migrations::BabePalletPrefix for Runtime {
-	fn pallet_prefix() -> &'static str {
-		"Babe"
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1106,10 +1102,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 

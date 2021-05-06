@@ -53,7 +53,7 @@ macro_rules! select_full_bridge {
 
 				// Derive-account
 				#[allow(unused_imports)]
-				use bp_millau::derive_account_from_rialto_id as derive_account;
+				use bp_rialto::derive_account_from_millau_id as derive_account;
 
 				// Relay-messages
 				#[allow(unused_imports)]
@@ -75,7 +75,7 @@ macro_rules! select_full_bridge {
 
 				// Derive-account
 				#[allow(unused_imports)]
-				use bp_rialto::derive_account_from_millau_id as derive_account;
+				use bp_millau::derive_account_from_rialto_id as derive_account;
 
 				// Relay-messages
 				#[allow(unused_imports)]

@@ -23,7 +23,7 @@
 use sp_std::prelude::*;
 use primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
-	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
+	AvailabilityBitfield as AvailabilityBitfield, UncheckedSignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
 	CandidateReceipt, HeadData, CandidateHash,
 };
@@ -236,7 +236,7 @@ impl<T: Config> Module<T> {
 	/// becoming available.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
-		signed_bitfields: SignedAvailabilityBitfields,
+		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> Result<Vec<CoreIndex>, DispatchError> {
 		let validators = shared::Module::<T>::active_validator_keys();
@@ -247,12 +247,13 @@ impl<T: Config> Module<T> {
 			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
 			.collect();
 
+
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
 		// 2. bitfields are ascending by validator index.
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
-		{
+		let signed_bitfields = {
 			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record.iter()
 				.map(|p| p.as_ref()
 					.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
@@ -266,37 +267,42 @@ impl<T: Config> Module<T> {
 				session_index,
 			};
 
-			for signed_bitfield in &signed_bitfields {
+			let mut signed_bitfields = Vec::with_capacity(unchecked_bitfields.len());
+
+			for unchecked_bitfield in unchecked_bitfields {
 				ensure!(
-					signed_bitfield.payload().0.len() == expected_bits,
+					unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
 					Error::<T>::WrongBitfieldSize,
 				);
 
 				ensure!(
-					last_index.map_or(true, |last| last < signed_bitfield.validator_index()),
+					last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
 					Error::<T>::BitfieldDuplicateOrUnordered,
 				);
 
 				ensure!(
-					(signed_bitfield.validator_index().0 as usize) < validators.len(),
+					(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
 				ensure!(
-					occupied_bitmask.clone() & signed_bitfield.payload().0.clone() == signed_bitfield.payload().0,
+					occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() == unchecked_bitfield.unchecked_payload().0,
 					Error::<T>::UnoccupiedBitInBitfield,
 				);
 
-				let validator_public = &validators[signed_bitfield.validator_index().0 as usize];
+				let validator_public = &validators[unchecked_bitfield.unchecked_validator_index().0 as usize];
 
-				signed_bitfield.check_signature(
-					&signing_context,
-					validator_public,
-				).map_err(|_| Error::<T>::InvalidBitfieldSignature)?;
+				last_index = Some(unchecked_bitfield.unchecked_validator_index());
 
-				last_index = Some(signed_bitfield.validator_index());
+				signed_bitfields.push(
+					unchecked_bitfield.try_into_checked(
+						&signing_context,
+						validator_public,
+					).map_err(|_| Error::<T>::InvalidBitfieldSignature)?
+				);
 			}
-		}
+			signed_bitfields
+		};
 
 		let now = <frame_system::Pallet<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
@@ -902,7 +908,7 @@ mod tests {
 
 	use std::sync::Arc;
 	use futures::executor::block_on;
-	use primitives::v0::PARACHAIN_KEY_TYPE_ID;
+	use primitives::{v0::PARACHAIN_KEY_TYPE_ID, v1::UncheckedSignedAvailabilityBitfield};
 	use primitives::v1::{BlockNumber, Hash};
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
@@ -1257,7 +1263,7 @@ mod tests {
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
-					vec![signed],
+					vec![signed.into()],
 					&core_lookup,
 				).is_err());
 			}
@@ -1275,7 +1281,7 @@ mod tests {
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits() + 1,
-					vec![signed],
+					vec![signed.into()],
 					&core_lookup,
 				).is_err());
 			}
@@ -1283,13 +1289,14 @@ mod tests {
 			// duplicate.
 			{
 				let bare_bitfield = default_bitfield();
-				let signed = block_on(sign_bitfield(
-					&keystore,
-					&validators[0],
-					ValidatorIndex(0),
-					bare_bitfield,
-					&signing_context,
-				));
+				let signed: UncheckedSignedAvailabilityBitfield =
+					block_on(sign_bitfield(
+						&keystore,
+						&validators[0],
+						ValidatorIndex(0),
+						bare_bitfield,
+						&signing_context,
+				)).into();
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
@@ -1307,7 +1314,7 @@ mod tests {
 					ValidatorIndex(0),
 					bare_bitfield.clone(),
 					&signing_context,
-				));
+				)).into();
 
 				let signed_1 = block_on(sign_bitfield(
 					&keystore,
@@ -1315,7 +1322,7 @@ mod tests {
 					ValidatorIndex(1),
 					bare_bitfield,
 					&signing_context,
-				));
+				)).into();
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
@@ -1338,7 +1345,7 @@ mod tests {
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
-					vec![signed],
+					vec![signed.into()],
 					&core_lookup,
 				).is_err());
 			}
@@ -1356,7 +1363,7 @@ mod tests {
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
-					vec![signed],
+					vec![signed.into()],
 					&core_lookup,
 				).is_ok());
 			}
@@ -1391,7 +1398,7 @@ mod tests {
 
 				assert!(Inclusion::process_bitfields(
 					expected_bits(),
-					vec![signed],
+					vec![signed.into()],
 					&core_lookup,
 				).is_ok());
 
@@ -1430,7 +1437,7 @@ mod tests {
 				assert_eq!(
 					Inclusion::process_bitfields(
 						expected_bits(),
-						vec![signed],
+						vec![signed.into()],
 						&core_lookup,
 					),
 					Ok(vec![]),
@@ -1549,7 +1556,7 @@ mod tests {
 					ValidatorIndex(i as _),
 					to_sign,
 					&signing_context,
-				)))
+				)).into())
 			}).collect();
 
 			assert!(Inclusion::process_bitfields(

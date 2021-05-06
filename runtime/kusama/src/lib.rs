@@ -34,7 +34,7 @@ use primitives::v1::{
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote, paras_registrar, xcm_sender, slots, impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
-	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder, ToAuthor,
+	ToAuthor,
 };
 
 use runtime_parachains::origin as parachains_origin;
@@ -52,12 +52,12 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation, NetworkId};
+use xcm::v0::{MultiLocation, NetworkId, BodyId, Xcm};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
-	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
-	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, UsingComponents,
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
+	IsConcrete, FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32
 };
 use xcm_executor::XcmExecutor;
 use sp_runtime::{
@@ -80,7 +80,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -115,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 900,
+	spec_version: 9000,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -306,8 +306,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
+		pub para_validator: ParasInitializer,
+		pub para_assignment: ParasSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -346,6 +346,7 @@ parameter_types! {
 
 	// miner configs
 	pub const MinerMaxIterations: u32 = 10;
+	pub OffchainRepeat: BlockNumber = 5;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -364,8 +365,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
-	type MinerMaxWeight = OffchainSolutionWeightLimit;
+	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
+	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
@@ -1144,6 +1146,79 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = ();
 }
 
+parameter_types! {
+	pub const CouncilBodyId: BodyId = BodyId::Executive;
+}
+
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
+	BackingToPlurality<Origin, pallet_collective::Origin<Runtime, CouncilCollective>, CouncilBodyId>,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
+);
+
+pub struct OnlyWithdrawTeleportForAccounts;
+impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
+	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
+		use xcm::v0::{
+			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality, Parachain},
+			MultiLocation::{Null, X1},
+		};
+		match origin {
+			// Root and council are are allowed to execute anything.
+			Null | X1(Plurality { .. }) => true,
+			X1(AccountId32 { .. }) => {
+				// An account ID trying to send a message. We ensure that it's sensible.
+				// This checks that it's of the form:
+				// WithdrawAsset {
+				//   assets: [ ConcreteFungible { id: Null } ],
+				//   effects: [ BuyExecution, InitiateTeleport {
+				//     assets: All,
+				//     dest: Parachain,
+				//     effects: [ BuyExecution, DepositAssets {
+				//       assets: All,
+				//       dest: AccountId32,
+				//     } ]
+				//   } ]
+				// }
+				matches!(msg, WithdrawAsset { ref assets, ref effects }
+					if assets.len() == 1
+					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& effects.len() == 2
+					&& matches!(effects[0], BuyExecution { .. })
+					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+						if assets.len() == 1
+						&& matches!(assets[0], All)
+						&& effects.len() == 2
+						&& matches!(effects[0], BuyExecution { .. })
+						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+							if assets.len() == 1
+							&& matches!(assets[0], All)
+						)
+					)
+				)
+			}
+			// Nobody else is allowed to execute anything.
+			_ => false,
+		}
+	}
+}
+
+impl pallet_xcm::Config for Runtime {
+	type Event = Event;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type XcmRouter = XcmRouter;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
+	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1233,12 +1308,9 @@ construct_runtime! {
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 71,
-	}
-}
 
-impl pallet_babe::migrations::BabePalletPrefix for Runtime {
-	fn pallet_prefix() -> &'static str {
-		"Babe"
+		// Pallet for sending XCM.
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
 	}
 }
 
@@ -1367,10 +1439,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
