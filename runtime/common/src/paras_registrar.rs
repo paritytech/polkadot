@@ -113,6 +113,9 @@ decl_storage! {
 		/// The given account ID is responsible for registering the code and initial head data, but may only do
 		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
 		pub Paras: map hasher(twox_64_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
+
+		/// The next free `ParaId`.
+		pub NextFreeParaId: ParaId;
 	}
 }
 
@@ -185,7 +188,15 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(id >= LOWEST_USER_ID, Error::<T>::InvalidParaId);
+			let valid_id = NextFreeParaId::mutate(|id| {
+				if *id < LOWEST_USER_ID {
+					*id = LOWEST_USER_ID
+				}
+				let result = *id;
+				*id = *id + 1;
+				result
+			});
+			ensure!(id == valid_id, Error::<T>::InvalidParaId);
 			Self::do_register(who, None, id, genesis_head, validation_code)
 		}
 
@@ -270,6 +281,35 @@ decl_module! {
 		fn force_remove_lock(origin, para: ParaId) {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
+		}
+
+		/// Register a Para Id on the relay chain.
+		///
+		/// This function will queue the new Para Id to be a parathread.
+		/// Using the Slots pallet, a parathread can then be upgraded to get a
+		/// parachain slot.
+		///
+		/// This function must be called by a signed origin.
+		///
+		/// The origin must pay a deposit for the registration information,
+		/// including the genesis information and validation code. ParaId
+		/// must be greater than or equal to 1000.
+		#[weight = T::WeightInfo::register()]
+		pub fn register_next(
+			origin,
+			genesis_head: HeadData,
+			validation_code: ValidationCode,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = NextFreeParaId::mutate(|id| {
+				if *id < LOWEST_USER_ID {
+					*id = LOWEST_USER_ID
+				}
+				let result = *id;
+				*id = *id + 1;
+				result
+			});
+			Self::do_register(who, None, id, genesis_head, validation_code)
 		}
 	}
 }
