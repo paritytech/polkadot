@@ -155,6 +155,14 @@ impl sp_std::ops::Add<u32> for Id {
 	}
 }
 
+impl sp_std::ops::Sub<u32> for Id {
+	type Output = Self;
+
+	fn sub(self, other: u32) -> Self {
+		Self(self.0 - other)
+	}
+}
+
 #[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
 pub struct Sibling(pub Id);
 
