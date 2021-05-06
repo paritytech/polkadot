@@ -1027,6 +1027,36 @@ construct_runtime! {
 	}
 }
 
+pub struct GrandpaStoragePrefixMigration;
+impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::traits::PalletInfo;
+		if let Some(name) = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>() {
+			pallet_grandpa::migrations::v4::migrate::<Runtime, Grandpa, _>(name)
+		} else {
+			log::warn!("Grandpa storage prefix migration skipped: unable to fetch name");
+			0
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		if let Some(name) = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>() {
+			pallet_grandpa::migrations::v4::pre_migration::<Grandpa, _>(name);
+		} else {
+			log::warn!("Grandpa storage prefix migration pre-upgrade skipped: unable to fetch name");
+		}
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_grandpa::migrations::v4::post_migration::<Grandpa>();
+		Ok(())
+	}
+}
+
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1057,7 +1087,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	GrandpaStoragePrefixMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
