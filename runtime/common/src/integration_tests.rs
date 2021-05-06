@@ -292,6 +292,8 @@ fn last_event() -> Event {
 #[test]
 fn basic_end_to_end_works() {
 	new_test_ext().execute_with(|| {
+		let para_1 = LOWEST_PUBLIC_ID;
+		let para_2 = LOWEST_PUBLIC_ID + 1;
 		assert!(System::block_number().is_one());
 		// User 1 and 2 will own parachains
 		Balances::make_free_balance_be(&1, 1_000);
@@ -301,7 +303,7 @@ fn basic_end_to_end_works() {
 		let validation_code = Registrar::worst_validation_code();
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			ParaId::from(para_1),
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
@@ -313,8 +315,8 @@ fn basic_end_to_end_works() {
 		));
 
 		// Paras should be onboarding
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Onboarding));
 
 		// Start a new auction in the future
 		let duration = 99u32;
@@ -323,21 +325,21 @@ fn basic_end_to_end_works() {
 
 		// 2 sessions later they are parathreads
 		run_to_session(2);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 
 		// Para 1 will bid directly for slot 1, 2
 		// Open a crowdloan for Para 2 for slot 3, 4
 		assert_ok!(Crowdloan::create(
 			Origin::signed(2),
-			ParaId::from(2001),
+			ParaId::from(para_2),
 			1_000, // Cap
 			lease_period_index_start + 2, // First Slot
 			lease_period_index_start + 3, // Last Slot
 			200, // Block End
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2001));
+		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(para_2));
 
 		// Auction ending begins on block 100, so we make a bid before then.
 		run_to_block(90);
@@ -348,7 +350,7 @@ fn basic_end_to_end_works() {
 		// User 10 will bid directly for parachain 1
 		assert_ok!(Auctions::bid(
 			Origin::signed(10),
-			ParaId::from(2000),
+			ParaId::from(para_1),
 			1, // Auction Index
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 1, // Last slot
@@ -357,13 +359,13 @@ fn basic_end_to_end_works() {
 
 		// User 2 will be a contribute to crowdloan for parachain 2
 		Balances::make_free_balance_be(&2, 1_000);
-		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(2001), 920, None));
+		assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(para_2), 920, None));
 
 		// Auction ends at block 110
 		run_to_block(109);
 		assert_eq!(
 			last_event(),
-			crowdloan::RawEvent::HandleBidResult(ParaId::from(2001), Ok(())).into(),
+			crowdloan::RawEvent::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
 		);
 		run_to_block(110);
 		assert_eq!(
@@ -373,12 +375,12 @@ fn basic_end_to_end_works() {
 
 		// Paras should have won slots
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(ParaId::from(para_1)),
 			// -- 1 --- 2 --- 3 --------- 4 ------------ 5 --------
 			vec![None, None, None, Some((10, 910)), Some((10, 910))],
 		);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2001)),
+			slots::Leases::<Test>::get(ParaId::from(para_2)),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
 			vec![None, None, None, None, None, Some((crowdloan_account, 920)), Some((crowdloan_account, 920))],
 		);
@@ -392,43 +394,43 @@ fn basic_end_to_end_works() {
 		run_to_block(lease_start_block);
 
 		// First slot, Para 1 should be transitioning to Parachain
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::UpgradingParathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::UpgradingParathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 
 		// Two sessions later, it has upgraded
 		run_to_block(lease_start_block + 20);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parachain));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 
 		// Second slot nothing happens :)
 		run_to_block(lease_start_block + 100);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parachain));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 
 		// Third slot, Para 2 should be upgrading, and Para 1 is downgrading
 		run_to_block(lease_start_block + 200);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::DowngradingParachain));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::UpgradingParathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::DowngradingParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::UpgradingParathread));
 
 		// Two sessions later, they have transitioned
 		run_to_block(lease_start_block + 220);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parachain));
 
 		// Fourth slot nothing happens :)
 		run_to_block(lease_start_block + 300);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parachain));
 
 		// Fifth slot, Para 2 is downgrading
 		run_to_block(lease_start_block + 400);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::DowngradingParachain));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::DowngradingParachain));
 
 		// Two sessions later, Para 2 is downgraded
 		run_to_block(lease_start_block + 420);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
 	});
 }
 
@@ -436,6 +438,7 @@ fn basic_end_to_end_works() {
 fn basic_errors_fail() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
+		let para_id = LOWEST_PUBLIC_ID;
 		// Can't double register
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
@@ -444,13 +447,13 @@ fn basic_errors_fail() {
 		let validation_code = Registrar::worst_validation_code();
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			para_id,
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
 		assert_noop!(Registrar::register(
 			Origin::signed(2),
-			ParaId::from(2000),
+			para_id,
 			genesis_head,
 			validation_code,
 		), paras_registrar::Error::<Test>::InvalidParaId);
@@ -463,7 +466,7 @@ fn basic_errors_fail() {
 		// Cannot create a crowdloan if you do not own the para
 		assert_noop!(Crowdloan::create(
 			Origin::signed(2),
-			ParaId::from(2000),
+			para_id,
 			1_000, // Cap
 			lease_period_index_start + 2, // First Slot
 			lease_period_index_start + 3, // Last Slot
@@ -479,6 +482,7 @@ fn competing_slots() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
 		let max_bids = 10u32;
+		let para_id = LOWEST_PUBLIC_ID;
 
 		// Create n paras and owners
 		for n in 1 ..= max_bids {
@@ -487,7 +491,7 @@ fn competing_slots() {
 			let validation_code = Registrar::worst_validation_code();
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
-				ParaId::from(2000 + n - 1),
+				para_id + n - 1,
 				genesis_head,
 				validation_code,
 			));
@@ -524,7 +528,7 @@ fn competing_slots() {
 			// Users will bid directly for parachain
 			assert_ok!(Auctions::bid(
 				Origin::signed(n * 10),
-				ParaId::from(2000 + n - 1),
+				para_id + n - 1,
 				1, // Auction Index
 				lease_period_index_start + start, // First Slot
 				lease_period_index_start + end, // Last slot
@@ -539,18 +543,18 @@ fn competing_slots() {
 		// 900 + 4500 + 2x 8100 = 21,600
 		// 900 + 4500 + 7200 + 9000 = 21,600
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(para_id),
 			// -- 1 --- 2 --- 3 ---------- 4 ------
 			vec![None, None, None, Some((10, 900))],
 		);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2004)),
+			slots::Leases::<Test>::get(para_id + 4),
 			// -- 1 --- 2 --- 3 --- 4 ---------- 5 -------
 			vec![None, None, None, None, Some((50, 4500))],
 		);
 		// TODO: Is this right?
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2008)),
+			slots::Leases::<Test>::get(para_id + 8),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------- 6 --------------- 7 -------
 			vec![None, None, None, None, None, Some((90, 8100)), Some((90, 8100))],
 		);
