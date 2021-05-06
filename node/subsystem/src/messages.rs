@@ -263,7 +263,7 @@ pub enum NetworkBridgeMessage {
 #[derive(Debug)]
 pub enum ConnectMessage {
 	/// Connect to the given validators by their `AuthorityDiscoveryId`.
-	 ConnectToValidators{
+	 ConnectToValidators {
 		 /// Ask bridge to connect to those given validators.
 		 validators: Vec<AuthorityDiscoveryId>,
 
