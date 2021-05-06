@@ -248,12 +248,13 @@ pub enum NetworkBridgeMessage {
 		/// Actual connection requests are gathered via this receiver.
 		///
 		/// It is possible to add more and more authorities we want to be connected to over time,
-		/// all managed by sending `ConnectToValidators` message. This is mostly useful if some
-		/// authorities could not be resolved (sent via the `not_found` oneshot) as they can be
-		/// tried again at a later point.
+		/// sending `ConnectMessage::ConnectToValidators` messages. This is mostly useful if some
+		/// authorities could not be resolved (sent via the `not_found` oneshot) as those
+		/// validators can be tried again at a later point by sending another
+		/// `ConnectMessage::ConnectToValidators` with those received `AuthorityDiscoveryId`s.
 		///
 		/// All connections added over time via `ConnectMessage::ConnectToValidators` will get
-		/// closed when the last sender corresponding to this receiver gets closed.
+		/// closed when the last sender corresponding to the requests receiver gets closed.
 		requests: mpsc::Receiver<ConnectMessage>,
 	},
 }
