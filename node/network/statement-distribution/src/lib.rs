@@ -3531,6 +3531,176 @@ mod tests {
 		executor::block_on(future::join(test_fut, bg));
 	}
 
+	#[test]
+	fn peer_cant_flood_with_large_statements() {
+		sp_tracing::try_init_simple();
+		let hash_a = Hash::repeat_byte(1);
+
+		let candidate = {
+			let mut c = CommittedCandidateReceipt::default();
+			c.descriptor.relay_parent = hash_a;
+			c.descriptor.para_id = 1.into();
+			c.commitments.new_validation_code = Some(ValidationCode(vec![1,2,3]));
+			c
+		};
+
+		let peer_a = PeerId::random(); // Alice
+
+		let validators = vec![
+			Sr25519Keyring::Alice.pair(),
+			Sr25519Keyring::Bob.pair(),
+			Sr25519Keyring::Charlie.pair(),
+			// other group
+			Sr25519Keyring::Dave.pair(),
+			// We:
+			Sr25519Keyring::Ferdie.pair(),
+		];
+
+		let first_group = vec![0,1,2,4];
+		let session_info = make_session_info(
+			validators,
+			vec![first_group, vec![3]]
+		);
+
+		let session_index = 1;
+
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+		let bg = async move {
+			let s = StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore()};
+			s.run(ctx).await.unwrap();
+		};
+
+		let (_, rx_reqs) = mpsc::channel(1);
+
+		let test_fut = async move {
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs)
+			}).await;
+
+			// register our active heads.
+			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: vec![ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
+				deactivated: vec![].into(),
+			}))).await;
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+				)
+					if r == hash_a
+				=> {
+					let _ = tx.send(Ok(session_index));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+				)
+					if r == hash_a && sess_index == session_index
+				=> {
+					let _ = tx.send(Ok(Some(session_info)));
+				}
+			);
+
+			// notify of peers and view
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Alice.public().into())
+					)
+				)
+			}).await;
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a])
+				)
+			}).await;
+			
+			// receive a seconded statement from peer A.
+			let statement = {
+				let signing_context = SigningContext {
+					parent_hash: hash_a,
+					session_index,
+				};
+
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let alice_public = CryptoStore::sr25519_generate_new(
+					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+				).await.unwrap();
+
+				SignedFullStatement::sign(
+					&keystore,
+					Statement::Seconded(candidate.clone()),
+					&signing_context,
+					ValidatorIndex(0),
+					&alice_public.into(),
+				).await.ok().flatten().expect("should be signed")
+			};
+
+			let metadata =
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()).get_metadata();
+
+			for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
+				handle.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerMessage(
+							peer_a.clone(),
+							protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						)
+					)
+				}).await;
+			}
+
+			// We should try to fetch the data:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendRequests(
+						mut reqs, IfDisconnected::ImmediateError
+					)
+				) => {
+					let reqs = reqs.pop().unwrap();
+					let outgoing = match reqs {
+						Requests::StatementFetching(outgoing) => outgoing,
+						_ => panic!("Unexpected request"),
+					};
+					let req = outgoing.payload;
+					assert_eq!(req.relay_parent, metadata.relay_parent);
+					assert_eq!(req.candidate_hash, metadata.candidate_hash);
+					assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+					// Just drop request - should trigger error.
+				}
+			);
+
+			// Then we should punish peer:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(p, r)
+				) if p == peer_a && r == COST_APPARENT_FLOOD => {}
+			);
+
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(bg);
+
+		executor::block_on(future::join(test_fut, bg));
+	}
+
 	fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
 
 		let validator_groups: Vec<Vec<ValidatorIndex>> = groups
