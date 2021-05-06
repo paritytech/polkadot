@@ -171,9 +171,14 @@ decl_module! {
 
 		/// Register a Para Id on the relay chain.
 		///
-		/// This function will queue the new Para Id to be a parathread.
+		/// This function will queue the new Para `id` to be a parathread.
 		/// Using the Slots pallet, a parathread can then be upgraded to get a
 		/// parachain slot.
+		///
+		/// The `id` *MUST* equal the value of `NextFreeParaId`.
+		///
+		/// DEPRECATED: This function should generally not be used and is provided for backwards compatibility
+		/// only. Use `register_next` instead.
 		///
 		/// This function must be called by a signed origin.
 		///
