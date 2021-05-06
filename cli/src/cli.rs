@@ -100,7 +100,7 @@ pub struct RunCmd {
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
-	/// Disable BEEFY
+	/// Disable BEEFY gadget.
 	#[structopt(long)]
 	pub no_beefy: bool,
 
