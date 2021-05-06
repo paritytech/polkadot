@@ -26,10 +26,6 @@ tempfile = "3.2.0"
 
 [workspace]
 members = [
-	"bridges/primitives/*",
-	"bridges/bin/*/runtime",
-	"bridges/bin/*/node",
-	"bridges/relays/bin-substrate",
 	"cli",
 	"core-primitives",
 	"erasure-coding",
