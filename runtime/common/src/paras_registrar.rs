@@ -26,7 +26,7 @@ use frame_support::{
 };
 use frame_system::{self, ensure_root, ensure_signed};
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, LOWEST_USER_ID,
+	Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	paras::{
@@ -188,16 +188,12 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let valid_id = NextFreeParaId::mutate(|id| {
-				if *id < LOWEST_USER_ID {
-					*id = LOWEST_USER_ID
-				}
-				let result = *id;
-				*id = *id + 1;
-				result
-			});
+			let valid_id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
 			ensure!(id == valid_id, Error::<T>::InvalidParaId);
-			Self::do_register(who, None, id, genesis_head, validation_code)
+			Self::do_register(who, None, id, genesis_head, validation_code)?;
+
+			NextFreeParaId::set(id + 1);
+			Ok(())
 		}
 
 		/// Force the registration of a Para Id on the relay chain.
@@ -301,15 +297,10 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let id = NextFreeParaId::mutate(|id| {
-				if *id < LOWEST_USER_ID {
-					*id = LOWEST_USER_ID
-				}
-				let result = *id;
-				*id = *id + 1;
-				result
-			});
-			Self::do_register(who, None, id, genesis_head, validation_code)
+			let id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
+			Self::do_register(who, None, id, genesis_head, validation_code)?;
+			NextFreeParaId::set(id + 1);
+			Ok(())
 		}
 	}
 }

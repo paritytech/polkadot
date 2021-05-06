@@ -38,7 +38,7 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
+	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.

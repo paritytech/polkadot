@@ -122,9 +122,13 @@ impl From<i32> for Id {
 }
 
 const USER_INDEX_START: u32 = 1000;
+const PUBLIC_INDEX_START: u32 = 2000;
 
 /// The ID of the first user (non-system) parachain.
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
+/// The ID of the first publicly registerable parachain.
+pub const LOWEST_PUBLIC_ID: Id = Id(PUBLIC_INDEX_START);
 
 impl Id {
 	/// Create an `Id`.
