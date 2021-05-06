@@ -992,7 +992,7 @@ mod benchmarking {
 		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
 
 		register {
-			let para = ParaId::from(1337);
+			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
@@ -1020,7 +1020,7 @@ mod benchmarking {
 		}
 
 		deregister {
-			let para = register_para::<T>(1337);
+			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
@@ -1029,8 +1029,8 @@ mod benchmarking {
 		}
 
 		swap {
-			let parathread = register_para::<T>(1337);
-			let parachain = register_para::<T>(1338);
+			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
+			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 
 			let parachain_origin = para_origin(parachain.into());
 
