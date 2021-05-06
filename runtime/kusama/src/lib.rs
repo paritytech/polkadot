@@ -594,6 +594,8 @@ parameter_types! {
 	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
+	pub const MaxActiveSubBountyCount: u32 = 10;
+	pub const MinimumCurationFee: Balance = 100 * CENTS;
 	pub const BountyValueMinimum: Balance = 200 * CENTS;
 	pub const MaxApprovals: u32 = 100;
 }
@@ -630,8 +632,15 @@ impl pallet_bounties::Config for Runtime {
 	type BountyValueMinimum = BountyValueMinimum;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
+	type MaxActiveSubBountyCount = MaxActiveSubBountyCount;
+	type MinimumCurationFee = MinimumCurationFee;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
 
+impl pallet_bounties::subbounty_migration::SubBountyMigration for Runtime {
+	type AccountId = AccountId;
+	type BlockNumber = BlockNumber;
+	type Balance = Balance;
 }
 
 impl pallet_tips::Config for Runtime {
@@ -982,6 +991,13 @@ impl pallet_proxy::Config for Runtime {
 	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_bounties::subbounty_migration::apply::<Runtime>()
+	}
 }
 
 impl parachains_origin::Config for Runtime {}
@@ -1394,7 +1410,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	ParachainHostConfigurationMigration,
+	(CustomOnRuntimeUpgrade,ParachainHostConfigurationMigration)
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
