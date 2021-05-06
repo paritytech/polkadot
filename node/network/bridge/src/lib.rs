@@ -573,7 +573,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 				Some(NetworkEvent::Dht(_))
 				| Some(NetworkEvent::SyncConnected { .. })
 				| Some(NetworkEvent::SyncDisconnected { .. }) => {}
-				Some(NetworkEvent::NotificationStreamOpened { remote: peer, protocol, role }) => {
+				Some(NetworkEvent::NotificationStreamOpened { remote: peer, protocol, role, .. }) => {
 					let role = ObservedRole::from(role);
 					let peer_set = match PeerSet::try_from_protocol_name(&protocol) {
 						None => continue,
@@ -1287,6 +1287,7 @@ mod tests {
 			self.send_network_event(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
 				protocol: peer_set.into_protocol_name(),
+				negotiated_fallback: None,
 				role: role.into(),
 			}).await;
 		}
