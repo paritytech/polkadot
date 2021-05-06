@@ -42,9 +42,6 @@ use pov_requester::PoVRequester;
 mod responder;
 use responder::{answer_chunk_request_log, answer_pov_request_log};
 
-/// Cache for session information.
-mod session_cache;
-
 mod metrics;
 /// Prometheus `Metrics` for availability distribution.
 pub use metrics::Metrics;

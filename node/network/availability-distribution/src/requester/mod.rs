@@ -36,7 +36,11 @@ use polkadot_subsystem::{
 	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
-use super::{session_cache::SessionCache, LOG_TARGET, Metrics};
+use super::{LOG_TARGET, Metrics};
+
+/// Cache for session information.
+mod session_cache;
+use session_cache::SessionCache;
 
 
 /// A task fetching a particular chunk.
