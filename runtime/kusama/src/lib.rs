@@ -595,7 +595,7 @@ parameter_types! {
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const MaxActiveSubBountyCount: u32 = 10;
-	pub const MinimumCurationFee: Balance = 1 * DOLLARS;
+	pub const MinimumCurationFee: Balance = 100 * CENTS;
 	pub const BountyValueMinimum: Balance = 200 * CENTS;
 	pub const MaxApprovals: u32 = 100;
 }
