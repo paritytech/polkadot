@@ -37,3 +37,5 @@ pub mod pallet_treasury;
 pub mod pallet_utility;
 pub mod pallet_vesting;
 pub mod runtime_common_claims;
+pub mod runtime_common_paras_registrar;
+pub mod runtime_common_slots;

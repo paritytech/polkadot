@@ -16,7 +16,11 @@
 
 //! Relayer initialization functions.
 
-use std::{fmt::Display, io::Write};
+use std::{cell::RefCell, fmt::Display, io::Write};
+
+async_std::task_local! {
+	pub(crate) static LOOP_NAME: RefCell<String> = RefCell::new(String::default());
+}
 
 /// Initialize relay environment.
 pub fn initialize_relay() {
@@ -43,18 +47,54 @@ pub fn initialize_logger(with_timestamp: bool) {
 				Either::Right(ansi_term::Colour::Fixed(8).bold().paint(timestamp))
 			};
 
-			writeln!(buf, "{} {} {} {}", timestamp, log_level, log_target, record.args(),)
+			writeln!(
+				buf,
+				"{}{} {} {} {}",
+				loop_name_prefix(),
+				timestamp,
+				log_level,
+				log_target,
+				record.args(),
+			)
 		});
 	} else {
 		builder.format(move |buf, record| {
 			let log_level = color_level(record.level());
 			let log_target = color_target(record.target());
 
-			writeln!(buf, "{} {} {}", log_level, log_target, record.args(),)
+			writeln!(
+				buf,
+				"{}{} {} {}",
+				loop_name_prefix(),
+				log_level,
+				log_target,
+				record.args(),
+			)
 		});
 	}
 
 	builder.init();
+}
+
+/// Initialize relay loop. Must only be called once per every loop task.
+pub(crate) fn initialize_loop(loop_name: String) {
+	LOOP_NAME.with(|g_loop_name| *g_loop_name.borrow_mut() = loop_name);
+}
+
+/// Returns loop name prefix to use in logs. The prefix is initialized with the `initialize_loop` call.
+fn loop_name_prefix() -> String {
+	// try_with to avoid panic outside of async-std task context
+	LOOP_NAME
+		.try_with(|loop_name| {
+			// using borrow is ok here, because loop is only initialized once (=> borrow_mut will only be called once)
+			let loop_name = loop_name.borrow();
+			if loop_name.is_empty() {
+				String::new()
+			} else {
+				format!("[{}] ", loop_name)
+			}
+		})
+		.unwrap_or_else(|_| String::new())
 }
 
 enum Either<A, B> {

@@ -39,6 +39,7 @@ pub use origin_conversion::{
 mod barriers;
 pub use barriers::{
 	TakeWeightCredit, AllowUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom, AllowKnownQueryResponses,
+	IsChildSystemParachain,
 };
 
 mod currency_adapter;

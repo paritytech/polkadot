@@ -17,9 +17,10 @@
 //! Various implementations for `ShouldExecute`.
 
 use sp_std::{result::Result, marker::PhantomData};
-use xcm::v0::{Xcm, Order, MultiLocation};
+use xcm::v0::{Xcm, Order, MultiLocation, Junction};
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
+use polkadot_parachain::primitives::IsSystem;
 
 /// Execution barrier that just takes `shallow_weight` from `weight_credit`.
 pub struct TakeWeightCredit;
@@ -76,6 +77,16 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		Ok(())
+	}
+}
+
+/// Allows a message only if it is from a system-level child parachain.
+pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
+impl<
+	ParaId: IsSystem + From<u32>,
+> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
+	fn contains(l: &MultiLocation) -> bool {
+		matches!(l, MultiLocation::X1(Junction::Parachain(id)) if ParaId::from(*id).is_system())
 	}
 }
 

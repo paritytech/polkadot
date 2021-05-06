@@ -25,6 +25,7 @@ use super::{MultiLocation, Xcm};
 pub enum Error {
 	Undefined,
 	Overflow,
+	/// The operation is intentionally unsupported.
 	Unimplemented,
 	UnhandledXcmVersion,
 	UnhandledXcmMessage,
