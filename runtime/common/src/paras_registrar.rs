@@ -26,7 +26,7 @@ use frame_support::{
 };
 use frame_system::{self, ensure_root, ensure_signed};
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, LOWEST_USER_ID,
+	Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
 	paras::{
@@ -113,6 +113,9 @@ decl_storage! {
 		/// The given account ID is responsible for registering the code and initial head data, but may only do
 		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
 		pub Paras: map hasher(twox_64_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
+
+		/// The next free `ParaId`.
+		pub NextFreeParaId: ParaId;
 	}
 }
 
@@ -168,9 +171,14 @@ decl_module! {
 
 		/// Register a Para Id on the relay chain.
 		///
-		/// This function will queue the new Para Id to be a parathread.
+		/// This function will queue the new Para `id` to be a parathread.
 		/// Using the Slots pallet, a parathread can then be upgraded to get a
 		/// parachain slot.
+		///
+		/// The `id` *MUST* equal the value of `NextFreeParaId`.
+		///
+		/// DEPRECATED: This function should generally not be used and is provided for backwards compatibility
+		/// only. Use `register_next` instead.
 		///
 		/// This function must be called by a signed origin.
 		///
@@ -185,8 +193,12 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(id >= LOWEST_USER_ID, Error::<T>::InvalidParaId);
-			Self::do_register(who, None, id, genesis_head, validation_code)
+			let valid_id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
+			ensure!(id == valid_id, Error::<T>::InvalidParaId);
+			Self::do_register(who, None, id, genesis_head, validation_code)?;
+
+			NextFreeParaId::set(id + 1);
+			Ok(())
 		}
 
 		/// Force the registration of a Para Id on the relay chain.
@@ -270,6 +282,30 @@ decl_module! {
 		fn force_remove_lock(origin, para: ParaId) {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
+		}
+
+		/// Register a Para Id on the relay chain.
+		///
+		/// This function will queue the new Para Id to be a parathread.
+		/// Using the Slots pallet, a parathread can then be upgraded to get a
+		/// parachain slot.
+		///
+		/// This function must be called by a signed origin.
+		///
+		/// The origin must pay a deposit for the registration information,
+		/// including the genesis information and validation code. ParaId
+		/// must be greater than or equal to 1000.
+		#[weight = T::WeightInfo::register()]
+		pub fn register_next(
+			origin,
+			genesis_head: HeadData,
+			validation_code: ValidationCode,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
+			Self::do_register(who, None, id, genesis_head, validation_code)?;
+			NextFreeParaId::set(id + 1);
+			Ok(())
 		}
 	}
 }
@@ -649,40 +685,41 @@ mod tests {
 	#[test]
 	fn end_to_end_scenario_works() {
 		new_test_ext().execute_with(|| {
+			let para_id = LOWEST_PUBLIC_ID;
 			run_to_block(1);
-			// 1032 is not yet registered
-			assert!(!Parachains::is_parathread(1032.into()));
+			// first para is not yet registered
+			assert!(!Parachains::is_parathread(para_id));
 			// We register the Para ID
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
 			// It is now a parathread.
-			assert!(Parachains::is_parathread(1032.into()));
-			assert!(!Parachains::is_parachain(1032.into()));
+			assert!(Parachains::is_parathread(para_id));
+			assert!(!Parachains::is_parachain(para_id));
 			// Some other external process will elevate parathread to parachain
-			assert_ok!(Registrar::make_parachain(1032.into()));
+			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(4);
 			// It is now a parachain.
-			assert!(!Parachains::is_parathread(1032.into()));
-			assert!(Parachains::is_parachain(1032.into()));
+			assert!(!Parachains::is_parathread(para_id));
+			assert!(Parachains::is_parachain(para_id));
 			// Turn it back into a parathread
-			assert_ok!(Registrar::make_parathread(1032.into()));
+			assert_ok!(Registrar::make_parathread(para_id));
 			run_to_session(6);
-			assert!(Parachains::is_parathread(1032.into()));
-			assert!(!Parachains::is_parachain(1032.into()));
+			assert!(Parachains::is_parathread(para_id));
+			assert!(!Parachains::is_parachain(para_id));
 			// Deregister it
 			assert_ok!(Registrar::deregister(
 				Origin::root(),
-				1032.into(),
+				para_id,
 			));
 			run_to_session(8);
 			// It is nothing
-			assert!(!Parachains::is_parathread(1032.into()));
-			assert!(!Parachains::is_parachain(1032.into()));
+			assert!(!Parachains::is_parathread(para_id));
+			assert!(!Parachains::is_parachain(para_id));
 		});
 	}
 
@@ -690,15 +727,16 @@ mod tests {
 	fn register_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert!(!Parachains::is_parathread(1032.into()));
+			let para_id = LOWEST_PUBLIC_ID;
+			assert!(!Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Parachains::is_parathread(1032.into()));
+			assert!(Parachains::is_parathread(para_id));
 			assert_eq!(
 				Balances::reserved_balance(&1),
 				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
@@ -717,30 +755,31 @@ mod tests {
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			), Error::<Test>::InvalidParaId);
 
-			// Successfully register 1032
+			// Successfully register para
+			let para_id = LOWEST_PUBLIC_ID;
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
 
 			run_to_session(2);
 
-			assert_ok!(Registrar::deregister(Origin::root(), 1032.into()));
+			assert_ok!(Registrar::deregister(Origin::root(), para_id));
 
-			// Can't do it again until offboarded from the paras backend
+			// Can't do it again
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), Error::<Test>::AlreadyRegistered);
+			), Error::<Test>::InvalidParaId);
 
 			// Head Size Check
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
-				1023.into(),
+				para_id + 1,
 				test_genesis_head((<Test as super::Config>::MaxHeadSize::get() + 1) as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			), Error::<Test>::HeadDataTooLarge);
@@ -748,7 +787,7 @@ mod tests {
 			// Code Size Check
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
-				1023.into(),
+				para_id + 1,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code((<Test as super::Config>::MaxCodeSize::get() + 1) as usize),
 			), Error::<Test>::CodeTooLarge);
@@ -756,7 +795,7 @@ mod tests {
 			// Needs enough funds for deposit
 			assert_noop!(Registrar::register(
 				Origin::signed(1337),
-				1023.into(),
+				para_id + 1,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			), BalancesError::<Test, _>::InsufficientBalance);
@@ -767,10 +806,11 @@ mod tests {
 	fn deregister_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert!(!Parachains::is_parathread(1032.into()));
+			let para_id = LOWEST_PUBLIC_ID;
+			assert!(!Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
@@ -779,13 +819,13 @@ mod tests {
 				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
 			);
 			run_to_session(2);
-			assert!(Parachains::is_parathread(1032.into()));
+			assert!(Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::deregister(
 				Origin::root(),
-				1032.into(),
+				para_id,
 			));
 			run_to_session(4);
-			assert!(paras::Module::<Test>::lifecycle(1032.into()).is_none());
+			assert!(paras::Module::<Test>::lifecycle(para_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
 		});
 	}
@@ -794,26 +834,27 @@ mod tests {
 	fn deregister_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert!(!Parachains::is_parathread(1032.into()));
+			let para_id = LOWEST_PUBLIC_ID;
+			assert!(!Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1032.into(),
+				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Parachains::is_parathread(1032.into()));
+			assert!(Parachains::is_parathread(para_id));
 			// Owner check
 			assert_noop!(Registrar::deregister(
 				Origin::signed(2),
-				1032.into(),
+				para_id,
 			), BadOrigin);
-			assert_ok!(Registrar::make_parachain(1032.into()));
+			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(4);
 			// Cant directly deregister parachain
 			assert_noop!(Registrar::deregister(
 				Origin::root(),
-				1032.into(),
+				para_id,
 			), Error::<Test>::NotParathread);
 		});
 	}
@@ -821,97 +862,59 @@ mod tests {
 	#[test]
 	fn swap_works() {
 		new_test_ext().execute_with(|| {
-			// Successfully register 1023 and 1032
+			// Successfully register first two parachains
+			let para_1 = LOWEST_PUBLIC_ID;
+			let para_2 = LOWEST_PUBLIC_ID + 1;
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1023.into(),
+				para_1,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
 			assert_ok!(Registrar::register(
 				Origin::signed(2),
-				1032.into(),
+				para_2,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
 			run_to_session(2);
 
 			// Upgrade 1023 into a parachain
-			assert_ok!(Registrar::make_parachain(1023.into()));
+			assert_ok!(Registrar::make_parachain(para_1));
 
 			run_to_session(4);
 
 			// Roles are as we expect
-			assert!(Parachains::is_parachain(1023.into()));
-			assert!(!Parachains::is_parathread(1023.into()));
-			assert!(!Parachains::is_parachain(1032.into()));
-			assert!(Parachains::is_parathread(1032.into()));
+			assert!(Parachains::is_parachain(para_1));
+			assert!(!Parachains::is_parathread(para_1));
+			assert!(!Parachains::is_parachain(para_2));
+			assert!(Parachains::is_parathread(para_2));
 
 			// Both paras initiate a swap
 			assert_ok!(Registrar::swap(
-				para_origin(1023.into()),
-				1023.into(),
-				1032.into(),
+				para_origin(para_1),
+				para_1,
+				para_2,
 			));
 			assert_ok!(Registrar::swap(
-				para_origin(1032.into()),
-				1032.into(),
-				1023.into(),
+				para_origin(para_2),
+				para_2,
+				para_1,
 			));
 
 			run_to_session(6);
 
 			// Deregister a parathread that was originally a parachain
-			assert_eq!(Parachains::lifecycle(1023.into()), Some(ParaLifecycle::Parathread));
-			assert_ok!(Registrar::deregister(runtime_parachains::Origin::Parachain(1023.into()).into(), 1023.into()));
+			assert_eq!(Parachains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
+			assert_ok!(Registrar::deregister(runtime_parachains::Origin::Parachain(para_1).into(), para_1));
 
 			run_to_block(21);
 
 			// Roles are swapped
-			assert!(!Parachains::is_parachain(1023.into()));
-			assert!(Parachains::is_parathread(1023.into()));
-			assert!(Parachains::is_parachain(1032.into()));
-			assert!(!Parachains::is_parathread(1032.into()));
-		});
-	}
-
-	#[test]
-	fn cannot_register_until_para_is_cleaned_up() {
-		new_test_ext().execute_with(|| {
-			run_to_block(1);
-
-			assert_ok!(Registrar::register(
-				Origin::signed(1),
-				1001.into(),
-				vec![1; 3].into(),
-				vec![1, 2, 3].into()
-			));
-
-			// 2 session changes to fully onboard.
-			run_to_session(2);
-
-			assert_eq!(Parachains::lifecycle(1001.into()), Some(ParaLifecycle::Parathread));
-			assert_ok!(Registrar::deregister(Origin::root(), 1001.into()));
-
-			// Cannot register while it is offboarding.
-			run_to_session(3);
-
-			assert_noop!(Registrar::register(
-				Origin::signed(1),
-				1001.into(),
-				vec![1; 3].into(),
-				vec![1, 2, 3].into()
-			), Error::<Test>::AlreadyRegistered);
-
-			// By session 4, it is offboarded, and we can register again.
-			run_to_session(4);
-
-			assert_ok!(Registrar::register(
-				Origin::signed(1),
-				1001.into(),
-				vec![1; 3].into(),
-				vec![1, 2, 3].into()
-			));
+			assert!(!Parachains::is_parachain(para_1));
+			assert!(Parachains::is_parathread(para_1));
+			assert!(Parachains::is_parachain(para_2));
+			assert!(!Parachains::is_parathread(para_2));
 		});
 	}
 
@@ -919,26 +922,27 @@ mod tests {
 	fn para_lock_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
+			let para_id = LOWEST_PUBLIC_ID;
 
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				1001.into(),
+				para_id,
 				vec![1; 3].into(),
 				vec![1, 2, 3].into(),
 			));
 
 			// Owner can call swap
-			assert_ok!(Registrar::swap(Origin::signed(1), 1001.into(), 1002.into()));
+			assert_ok!(Registrar::swap(Origin::signed(1), para_id, para_id + 1));
 
 			// 2 session changes to fully onboard.
 			run_to_session(2);
-			assert_eq!(Parachains::lifecycle(1001.into()), Some(ParaLifecycle::Parathread));
+			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
 
 			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::make_parachain(1001.into()));
+			assert_ok!(Registrar::make_parachain(para_id));
 
 			// Owner cannot call swap anymore
-			assert_noop!(Registrar::swap(Origin::signed(1), 1001.into(), 1003.into()), BadOrigin);
+			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
 		});
 	}
 }
@@ -988,7 +992,7 @@ mod benchmarking {
 		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
 
 		register {
-			let para = ParaId::from(1337);
+			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
@@ -1016,7 +1020,7 @@ mod benchmarking {
 		}
 
 		deregister {
-			let para = register_para::<T>(1337);
+			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
@@ -1025,8 +1029,8 @@ mod benchmarking {
 		}
 
 		swap {
-			let parathread = register_para::<T>(1337);
-			let parachain = register_para::<T>(1338);
+			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
+			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 
 			let parachain_origin = para_origin(parachain.into());
 
