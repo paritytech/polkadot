@@ -14,7 +14,6 @@ struct AwesomeSubSys;
 struct TequilaInABar;
 
 
-#[derive(Clone, AllSubsystemsGen)]
 #[overlord(Wrapper)]
 struct Overseer {
 	#[subsystem(X)]

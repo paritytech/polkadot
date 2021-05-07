@@ -46,6 +46,7 @@ pub(crate) fn impl_builder(
 			}
 		}
 
+		#[derive(Debug, Clone, Default)]
 		struct #builder #generics {
 			#(
 				#field_name : ::std::option::Option< #field_ty >,
