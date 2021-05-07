@@ -240,8 +240,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the
-	/// first element (second item in tuple) or `None` if it was empty.
+	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the first element
+	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -256,8 +256,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the
-	/// last element (second item in tuple) or `None` if it was empty.
+	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
+	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -290,8 +290,8 @@ impl MultiLocation {
 		tail
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the
-	/// original value of `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
+	/// `self` in case of overflow.
 	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
@@ -306,8 +306,8 @@ impl MultiLocation {
 		})
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the
-	/// original value of `self` in case of overflow.
+	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
+	/// `self` in case of overflow.
 	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),

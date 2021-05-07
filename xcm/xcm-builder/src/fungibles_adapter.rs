@@ -73,7 +73,8 @@ impl<
 	}
 }
 
-// TODO: Comparing with `MatchesFungible`, this seems quite misplaced.
+// TODO: Comparing with `MatchesFungible`, this seems quite misplaced. It should be in xcm-executor
+// traits and implemented here.
 pub trait MatchesFungibles<AssetId, Balance> {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error>;
 }
