@@ -18,13 +18,12 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::request_response::request::RequestError;
-use polkadot_primitives::v1::SessionIndex;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::{Fault, Error as UtilError, runtime, unwrap_non_fatal};
-use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
+use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
+use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
 
@@ -57,10 +56,6 @@ pub enum Fatal {
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
 
-	/// Runtime API subsystem is down, which means we're shutting down.
-	#[error("Runtime request canceled")]
-	RuntimeRequestCanceled(oneshot::Canceled),
-
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	RequesterExhausted,
@@ -88,23 +83,9 @@ pub enum NonFatal {
 	#[error("Session is not cached.")]
 	NoSuchCachedSession,
 
-	/// We tried reporting bad validators, although we are not a validator ourselves.
-	#[error("Not a validator.")]
-	NotAValidator,
-
 	/// Sending request response failed (Can happen on timeouts for example).
 	#[error("Sending a request's response failed.")]
 	SendResponse,
-
-	/// Some request to utility functions failed.
-	/// This can be either `RuntimeRequestCanceled` or `RuntimeApiError`.
-	#[error("Utility request failed")]
-	UtilRequest(UtilError),
-
-	/// Some request to the runtime failed.
-	/// For example if we prune a block we're requesting info about.
-	#[error("Runtime API error")]
-	RuntimeRequest(RuntimeApiError),
 
 	/// Fetching PoV failed with `RequestError`.
 	#[error("FetchPoV request error")]
@@ -120,10 +101,6 @@ pub enum NonFatal {
 	/// No validator with the index could be found in current session.
 	#[error("Given validator index could not be found")]
 	InvalidValidatorIndex,
-
-	/// We tried fetching a session info which was not available.
-	#[error("There was no session with the given index")]
-	NoSuchSession(SessionIndex),
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
@@ -143,14 +120,4 @@ pub fn log_error(result: Result<()>, ctx: &'static str)
 		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
 	}
 	Ok(())
-}
-
-/// Receive a response from a runtime request and convert errors.
-pub(crate) async fn recv_runtime<V>(
-	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-) -> Result<V> {
-	let result = r.await
-		.map_err(Fatal::RuntimeRequestCanceled)?
-		.map_err(NonFatal::RuntimeRequest)?;
-	Ok(result)
 }

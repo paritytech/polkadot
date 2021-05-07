@@ -25,7 +25,7 @@ use polkadot_subsystem::{
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-pub use error::{Fatal, NonFatal};
+use error::Fatal;
 use error::{Result, log_error};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
@@ -42,9 +42,6 @@ use pov_requester::PoVRequester;
 mod responder;
 use responder::{answer_chunk_request_log, answer_pov_request_log};
 
-/// Cache for session information.
-mod session_cache;
-
 mod metrics;
 /// Prometheus `Metrics` for availability distribution.
 pub use metrics::Metrics;
@@ -56,8 +53,6 @@ const LOG_TARGET: &'static str = "parachain::availability-distribution";
 
 /// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
-	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: SyncCryptoStorePtr,
 	/// Easy and efficient runtime access for this subsystem.
 	runtime: RuntimeInfo,
 	/// Prometheus metrics.
@@ -85,8 +80,8 @@ impl AvailabilityDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = RuntimeInfo::new(Some(keystore.clone()));
-		Self { keystore, runtime,  metrics }
+		let runtime = RuntimeInfo::new(Some(keystore));
+		Self { runtime,  metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -94,7 +89,7 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut requester = Requester::new(self.keystore.clone(), self.metrics.clone()).fuse();
+		let mut requester = Requester::new(self.metrics.clone()).fuse();
 		let mut pov_requester = PoVRequester::new();
 		loop {
 			let action = {
@@ -131,7 +126,7 @@ impl AvailabilityDistributionSubsystem {
 						);
 					}
 					log_error(
-						requester.get_mut().update_fetching_heads(&mut ctx, update).await,
+						requester.get_mut().update_fetching_heads(&mut ctx, &mut self.runtime, update).await,
 						"Error in Requester::update_fetching_heads"
 					)?;
 				}
