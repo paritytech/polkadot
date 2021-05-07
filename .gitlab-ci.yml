@@ -388,3 +388,4 @@ trigger-simnet:
   script:
     # API trigger for a simnet job
     - ./scripts/gitlab/trigger_pipeline.sh
+  allow_failure:                   true
