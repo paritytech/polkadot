@@ -922,6 +922,8 @@ impl pallet_xcm::Config for Runtime {
 	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
 	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
 construct_runtime! {
