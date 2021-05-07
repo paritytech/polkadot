@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
+use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box};
 use codec::{Encode, Decode};
 use xcm::v0::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
