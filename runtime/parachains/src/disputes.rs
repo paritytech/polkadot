@@ -111,6 +111,8 @@ decl_error! {
 		ValidatorIndexOutOfBounds,
 		/// Invalid signature on statement.
 		InvalidSignature,
+		/// Validator vote submitted more than once to dispute.
+		DuplicateStatement,
 	}
 }
 
@@ -127,18 +129,12 @@ fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
-enum SpamSlotChange {
-	Dec,
-	Inc,
-}
-
 bitflags::bitflags! {
 	#[derive(Default)]
 	struct DisputeStateFlags: u8 {
 		const CONFIRMED = 0b0001;
 		const FOR_SUPERMAJORITY = 0b0010;
 		const AGAINST_SUPERMAJORITY = 0b0100;
-		const CONCLUDED = 0b1000;
 	}
 }
 
@@ -161,10 +157,6 @@ impl DisputeStateFlags {
 			flags |= DisputeStateFlags::CONFIRMED;
 		}
 
-		if state.concluded_at.is_some() {
-			flags |= DisputeStateFlags::CONCLUDED;
-		}
-
 		if state.validators_for.count_ones() >= supermajority_threshold {
 			flags |= DisputeStateFlags::FOR_SUPERMAJORITY;
 		}
@@ -177,37 +169,153 @@ impl DisputeStateFlags {
 	}
 }
 
-struct DisputeStateMutator<BlockNumber> {
+enum SpamSlotChange {
+	Inc,
+	Dec,
+}
+
+struct ImportSummary<BlockNumber> {
+	// The new state, with all votes imported.
 	state: DisputeState<BlockNumber>,
+	// Changes to spam slots. Validator index paired with directional change.
+	spam_slot_changes: Vec<(ValidatorIndex, SpamSlotChange)>,
+	// Validators to slash for being (wrongly) on the AGAINST side.
+	slash_against: Vec<ValidatorIndex>,
+	// Validators to slash for being (wrongly) on the FOR side.
+	slash_for: Vec<ValidatorIndex>,
+}
+
+enum VoteImportError {
+	ValidatorIndexOutOfBounds,
+	DuplicateStatement,
+}
+
+struct DisputeStateImporter<BlockNumber> {
+	state: DisputeState<BlockNumber>,
+	now: BlockNumber,
+	new_participants: bitvec::vec::BitVec<BitOrderLsb0, u8>,
 	pre_flags: DisputeStateFlags,
 }
 
-impl<BlockNumber> DisputeStateMutator<BlockNumber> {
+impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 	fn initialize(
 		state: DisputeState<BlockNumber>,
+		now: BlockNumber,
 	) -> Self {
 		let pre_flags = DisputeStateFlags::from_state(&state);
+		let new_participants = bitvec::bitvec![BitOrderLsb0, u8; 0; state.validators_for.len()];
 
-		DisputeStateMutator {
+		DisputeStateImporter {
 			state,
+			now,
+			new_participants,
 			pre_flags,
 		}
 	}
 
 	fn push(&mut self, validator: ValidatorIndex, valid: bool)
-		-> Result<(), DispatchError>
+		-> Result<(), VoteImportError>
 	{
-		// TODO [now]: fail if duplicate.
+		let (bits, other_bits) = if valid {
+			(&mut self.state.validators_for, &mut self.state.validators_against)
+		} else {
+			(&mut self.state.validators_against, &mut self.state.validators_for)
+		};
+
+		// out of bounds or already participated
+		match bits.get(validator.0 as usize).map(|b| *b) {
+			None => return Err(VoteImportError::ValidatorIndexOutOfBounds),
+			Some(true) => return Err(VoteImportError::DuplicateStatement),
+			Some(false) => {}
+		}
+
+		// inefficient, and just for extra sanity.
+		if validator.0 as usize >= self.new_participants.len() {
+			return Err(VoteImportError::ValidatorIndexOutOfBounds);
+		}
+
+		bits.set(validator.0 as usize, true);
+
+		// New participants tracks those which didn't appear on either
+		// side of the dispute until now. So we check the other side
+		// and checked the first side before.
+		if other_bits.get(validator.0 as usize).map_or(false, |b| !*b) {
+			self.new_participants.set(validator.0 as usize, true);
+		}
 
 		Ok(())
 	}
 
-	fn conclude(self) -> DisputeState<BlockNumber> {
+	fn conclude(mut self) -> ImportSummary<BlockNumber> {
+		let pre_flags = self.pre_flags;
 		let post_flags = DisputeStateFlags::from_state(&self.state);
 
-		// TODO [now]: prepare update to spam slots, rewarding, and slashing.
+		let pre_post_contains = |flags| (pre_flags.contains(flags), post_flags.contains(flags));
 
-		self.state
+		// 1. Act on confirmed flag state to inform spam slots changes.
+		let spam_slot_changes: Vec<_> = match pre_post_contains(DisputeStateFlags::CONFIRMED) {
+			(false, false) => {
+				// increment spam slots for all new participants.
+				self.new_participants.iter_ones()
+					.map(|i| (ValidatorIndex(i as _), SpamSlotChange::Inc))
+					.collect()
+			}
+			(false, true) => {
+				let prev_participants = {
+					// all participants
+					let mut a = self.state.validators_for.clone();
+					*a |= self.state.validators_against.iter().by_val();
+
+					// which are not new participants
+					*a &= self.new_participants.iter().by_val().map(|b| !b);
+
+					a
+				};
+
+				prev_participants.iter_ones()
+					.map(|i| (ValidatorIndex(i as _), SpamSlotChange::Dec))
+					.collect()
+			}
+			(true, true) | (true, false) => {
+				// nothing to do. (true, false) is also impossible.
+				Vec::new()
+			}
+		};
+
+		// 2. Check for fresh FOR supermajority.
+		let slash_against = if let (false, true) = pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+			if self.state.concluded_at.is_none() {
+				self.state.concluded_at = Some(self.now.clone());
+			}
+
+			// provide AGAINST voters to slash.
+			self.state.validators_against.iter_ones()
+				.map(|i| ValidatorIndex(i as _))
+				.collect()
+		} else {
+			Vec::new()
+		};
+
+		// 3. Check for fresh AGAINST supermajority.
+		let slash_for = if let (false, true) = pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+			if self.state.concluded_at.is_none() {
+				self.state.concluded_at = Some(self.now);
+			}
+
+			// provide FOR voters to slash.
+			self.state.validators_for.iter_ones()
+				.map(|i| ValidatorIndex(i as _))
+				.collect()
+		} else {
+			Vec::new()
+		};
+
+		ImportSummary {
+			state: self.state,
+			spam_slot_changes,
+			slash_against,
+			slash_for,
+		}
 	}
 }
 
