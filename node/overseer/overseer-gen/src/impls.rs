@@ -9,6 +9,7 @@ use syn::Field;
 use syn::FieldsNamed;
 use syn::Variant;
 use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
+use syn::spanned::Spanned;
 
 use super::*;
 #[derive(Clone)]
@@ -22,7 +23,7 @@ pub(crate) struct SubSysField {
 	/// Type to be consumed by the subsystem.
 	pub(crate) consumes: Vec<Ident>,
 	/// Consumes is a set of messages, are these to be dispatched?
-	pub(crate) dispatchable: Vec<bool>,
+	pub(crate) no_dispatch: bool,
 }
 
 fn try_type_to_ident(ty: Type, span: Span) -> Result<Ident> {
@@ -54,24 +55,11 @@ use syn::token::Paren;
 use syn::Token;
 
 
-pub(crate) struct SubSystemTagInner {
-	pub(crate) no_dispatch: Option<syn::punctuated::Pair::Punctuated(Token![no_dispatch], Token![,])>,
-	pub(crate) consumes: Punctuated<Ident, Token![|]>,
-}
-
-impl Parse for SubSystemTagInner {
-	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
-		Ok(Self {
-			no_dispatch: input.parse().map(|v| true)?,
-			consumes: input.parse()?,
-		})
-	}
-}
-
 pub(crate) struct SubSystemTag {
 	pub(crate) attrs: Vec<Attribute>,
 	pub(crate) paren_token: Paren,
-	pub(crate) inner: SubSystemTagInner,
+	pub(crate) no_dispatch: bool,
+	pub(crate) consumes: Punctuated<Ident, Token![|]>,
 }
 
 impl Parse for SubSystemTag {
@@ -80,7 +68,8 @@ impl Parse for SubSystemTag {
 		Ok(Self {
 			attrs: Attribute::parse_outer(input)?,
 			paren_token: syn::parenthesized!(content in input),
-			inner: content.parse_terminated(SubSystemTagInner::parse)?,
+			no_dispatch: false, // FIXME
+			consumes: content.parse_terminated(Ident::parse)?,
 		})
 	}
 }
@@ -90,36 +79,57 @@ pub(crate) fn parse_overseer_struct_field(
 	baggage_generics: HashSet<Ident>,
 	fields: FieldsNamed,
 ) -> Result<(Vec<SubSysField>, Vec<BaggageField>)> {
+	let span = Span::call_site();
 	let n = fields.named.len();
 	let mut subsystems = Vec::with_capacity(n);
 	let mut baggage = Vec::with_capacity(n);
 	for (idx, Field { attrs, vis, ident, ty, .. }) in fields.named.into_iter().enumerate() {
 		let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
-			attr.path.get_ident().filter(|ident| *ident == "subsystem").map(|_ident| {
-				let tokens = attr.tokens.clone();
-				tokens
+			let span = attr.path.span();
+			attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
+				let attr_tokens = attr.tokens.clone();
+				(attr_tokens, span)
 			})
 		});
+		let ident = ident.ok_or_else(|| {
+			Error::new(ty.span(), "Missing identifier for member. BUG")
+		})?;
 
-		let mut consumes_idents = Vec::with_capacity(attrs.len());
-		for tokens in consumes {
-			let variant = syn::parse2::<SubSystemTag>(dbg!(tokens))?;
+		if let Some((attr_tokens, span)) = consumes.next() {
+			if let Some((attr_tokens2, span2)) = consumes.next() {
+				return Err({
+					let mut err = Error::new(span, "The first subsystem annotation is at");
+					err.combine(
+							Error::new(span2, "but another here for the same field.")
+						);
+					err
+				})
+			}
+			let mut consumes_idents = Vec::with_capacity(attrs.len());
+
+			let variant = syn::parse2::<SubSystemTag>(dbg!(attr_tokens.clone()))?;
 			consumes_idents.extend(variant.consumes.into_iter());
-		}
 
-		let ident = ident.unwrap();
-		if !consumes_idents.is_empty() {
+			if consumes_idents.is_empty() {
+				return Err(
+					Error::new(span, "Subsystem must consume at least one message")
+				)
+			}
+			let no_dispatch = variant.no_dispatch;
+
 			subsystems.push(SubSysField {
 				name: ident,
 				generic: Ident::new(format!("Sub{}", idx).as_str(), Span::call_site()),
-				ty: try_type_to_ident(ty, Span::call_site())?,
+				ty: try_type_to_ident(ty, span)?,
 				consumes: consumes_idents,
+				no_dispatch,
 			});
 		} else {
+			let field_ty = try_type_to_ident(ty, Span::call_site())?;
 			baggage.push(BaggageField {
 				field_name: ident,
-				field_ty: try_type_to_ident(ty, Span::call_site())?,
-				generic: false, // XXX FIXME FIXME FIXME
+				generic: !baggage_generics.contains(&field_ty),
+				field_ty,
 			});
 		}
 	}
@@ -292,11 +302,11 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 			let mut additive = impl_overseer_struct(overseer_name.clone(), orig_generics, &subsystems, &baggage)?;
 
-			// additive.extend(impl_messages_wrapper_enum(message_wrapper, &subsystems[..], &baggage[..])?);
-			// additive.extend(impl_channels_out_struct(&subsystems[..], &baggage[..])?);
+			additive.extend(impl_messages_wrapper_enum(message_wrapper, &subsystems[..], &baggage[..])?);
+			additive.extend(impl_channels_out_struct(&subsystems[..], &baggage[..])?);
 			additive.extend(impl_replacable_subsystem(overseer_name, &subsystems[..], &baggage[..]));
 
-			// additive.extend(inc::include_static_rs()?);
+			additive.extend(inc::include_static_rs()?);
 
 			Ok(additive)
 		}

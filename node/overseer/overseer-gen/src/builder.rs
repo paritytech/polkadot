@@ -64,15 +64,19 @@ pub(crate) fn impl_builder(
 				}
 			)*
 
-			fn build(mut self, ctx: Ctx) -> #overseer #generics {
-				#overseer :: #generics {
+			fn build(mut self, ctx: Ctx) -> (#overseer #generics, #handler) {
+				let overseer = #overseer :: #generics {
 					#(
 						#field_name : self. #field_name .unwrap(),
 					)*
 					#(
 						#baggage_name : self. #baggage_name .unwrap(),
 					)*
-				}
+				};
+				let handler = #handler {
+
+				};
+				(overseer, handler)
 			}
 		}
 	};
