@@ -55,6 +55,11 @@ pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
+mod error_handling;
+
+/// Error classification.
+pub use error_handling::{Fault, unwrap_non_fatal};
+
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
 	pub use sp_core::traits::SpawnNamed;
@@ -316,21 +321,6 @@ impl Validator {
 		payload: Payload,
 	) -> Result<Option<Signed<Payload, RealPayload>>, KeystoreError> {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
-	}
-
-	/// Validate the payload with this validator
-	///
-	/// Validation can only succeed if `signed.validator_index() == self.index()`.
-	/// Normally, this will always be the case for a properly operating program,
-	/// but it's double-checked here anyway.
-	pub fn check_payload<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
-		&self,
-		signed: Signed<Payload, RealPayload>,
-	) -> Result<(), ()> {
-		if signed.validator_index() != self.index {
-			return Err(());
-		}
-		signed.check_signature(&self.signing_context, &self.id())
 	}
 }
 

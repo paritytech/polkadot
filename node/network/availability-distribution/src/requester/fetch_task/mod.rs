@@ -34,8 +34,8 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
-	error::{Error, Result},
-	session_cache::{BadValidators, SessionInfo},
+	error::{Fatal, Result},
+	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
@@ -191,7 +191,7 @@ impl FetchTask {
 
 			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
 				.await
-				.map_err(|e| Error::SpawnTask(e))?;
+				.map_err(|e| Fatal::SpawnTask(e))?;
 
 			Ok(FetchTask {
 				live_in,

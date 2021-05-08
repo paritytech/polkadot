@@ -86,13 +86,13 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 
-use xcm::v0::{MultiLocation, NetworkId, BodyId};
+use xcm::v0::{Xcm, MultiLocation, NetworkId, BodyId};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
-	FixedRateOfConcreteFungible, BackingToPlurality, SignedToAccountId32
+	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
 use constants::{time::*, currency::*, fee::*, size::*};
 use frame_support::traits::InstanceFilter;
@@ -110,7 +110,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 231,
+	spec_version: 9000,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -401,15 +401,10 @@ parameter_types! {
 	pub const MaxRetries: u32 = 3;
 }
 
-parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
-}
-
 impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = ();
-	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
 impl pallet_authority_discovery::Config for Runtime {}
@@ -564,7 +559,7 @@ parameter_types! {
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
-pub type LocationConverter = (
+pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<RococoNetwork, AccountId>,
 );
@@ -576,13 +571,13 @@ pub type LocalAssetTransactor =
 		// Use this currency when it is a fungible asset matching the given location or name:
 		IsConcrete<RocLocation>,
 		// We can convert the MultiLocations with our converter above:
-		LocationConverter,
+		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
 	>;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	SignedAccountId32AsNative<RococoNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
@@ -590,7 +585,6 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 100_000;
-	pub const RocFee: (MultiLocation, u128) = (RocLocation::get(), 1 * CENTS);
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -603,13 +597,13 @@ pub type XcmRouter = (
 use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
 parameter_types! {
 	pub const RococoForTick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain{id: 100}));
+		(AllConcreteFungible { id: Null }, X1(Parachain(100)));
 	pub const RococoForTrick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain{id: 110}));
+		(AllConcreteFungible { id: Null }, X1(Parachain(110)));
 	pub const RococoForTrack: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain{id: 120}));
+		(AllConcreteFungible { id: Null }, X1(Parachain(120)));
 	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain{id: 1}));
+		(AllConcreteFungible { id: Null }, X1(Parachain(1001)));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -619,12 +613,12 @@ pub type TrustedTeleporters = (
 );
 
 parameter_types! {
-	pub AllowUnpaidFrom: Vec<MultiLocation> = 
+	pub AllowUnpaidFrom: Vec<MultiLocation> =
 		vec![
-			X1(Parachain{id: 100}),
-			X1(Parachain{id: 110}),
-			X1(Parachain{id: 120}),
-			X1(Parachain{id: 1})
+			X1(Parachain(100)),
+			X1(Parachain(110)),
+			X1(Parachain(120)),
+			X1(Parachain(1001))
 		];
 }
 
@@ -646,7 +640,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<RocFee>;
+	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
 
@@ -657,18 +651,68 @@ parameter_types! {
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
 	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
 );
 
+pub struct OnlyWithdrawTeleportForAccounts;
+impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
+	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
+		use xcm::v0::{
+			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
+		};
+		match origin {
+			// Root and collective are allowed to execute anything.
+			Null | X1(Plurality { .. }) => true,
+			X1(AccountId32 { .. }) => {
+				// An account ID trying to send a message. We ensure that it's sensible.
+				// This checks that it's of the form:
+				// WithdrawAsset {
+				//   assets: [ ConcreteFungible { id: Null } ],
+				//   effects: [ BuyExecution, InitiateTeleport {
+				//     assets: All,
+				//     dest: Parachain,
+				//     effects: [ BuyExecution, DepositAssets {
+				//       assets: All,
+				//       dest: AccountId32,
+				//     } ]
+				//   } ]
+				// }
+				matches!(msg, WithdrawAsset { ref assets, ref effects }
+					if assets.len() == 1
+					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& effects.len() == 2
+					&& matches!(effects[0], BuyExecution { .. })
+					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+						if assets.len() == 1
+						&& matches!(assets[0], All)
+						&& effects.len() == 2
+						&& matches!(effects[0], BuyExecution { .. })
+						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+							if assets.len() == 1
+							&& matches!(assets[0], All)
+						)
+					)
+				)
+			}
+			// Nobody else is allowed to execute anything.
+			_ => false,
+		}
+	}
+}
+
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
-	// Right now nobody but root is allowed to dispatch local XCM messages.
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
+	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
@@ -881,8 +925,8 @@ impl pallet_collective::Config for Runtime {
 	type Event = Event;
 	type MotionDuration = MotionDuration;
 	type MaxProposals = MaxProposals;
-	type MaxMembers = MaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type MaxMembers = MaxMembers;
 	type WeightInfo = ();
 }
 
@@ -939,10 +983,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			pallet_babe::RandomnessFromOneEpochAgo::<Runtime>::random_seed().0
 		}
 	}
 
