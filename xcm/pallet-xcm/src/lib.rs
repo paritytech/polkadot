@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box};
+use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box, vec};
 use codec::{Encode, Decode};
 use xcm::v0::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
@@ -51,8 +51,9 @@ pub mod pallet {
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
 
-		/// Required origin for executing XCM messages. If successful, the it resolves to `MultiLocation`
-		/// which exists as an interior location within this chain's XCM context.
+		/// Required origin for executing XCM messages, includng the teleport functionality. If successful,
+		/// the it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
+		/// context.
 		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
@@ -116,10 +117,10 @@ pub mod pallet {
 		#[pallet::weight({
 			let mut message = Xcm::WithdrawAsset {
 				assets: assets.clone(),
-				effects: vec![ InitiateTeleport {
-					assets: vec![ All ],
+				effects: sp_std::vec![ InitiateTeleport {
+					assets: sp_std::vec![ All ],
 					dest: dest.clone(),
-					effects: vec![],
+					effects: sp_std::vec![],
 				} ]
 			};
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
