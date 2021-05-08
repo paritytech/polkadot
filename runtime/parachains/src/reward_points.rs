@@ -53,3 +53,5 @@ impl<C> crate::inclusion::RewardValidators for RewardValidatorsWithEraPoints<C>
 
 	fn reward_bitfields(_validators: impl IntoIterator<Item=ValidatorIndex>) { }
 }
+
+// TODO [now] implement dispute rewards

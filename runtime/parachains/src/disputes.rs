@@ -45,12 +45,18 @@ use crate::{
 	session_info,
 };
 
+pub trait RewardValidators {
+	// Give each validator a reward, likely small, for participating in the dispute.
+	fn reward_dispute_statement(validators: impl IntoIterator<Item=ValidatorIndex>);
+}
+
 pub trait Config:
 	frame_system::Config +
 	configuration::Config +
 	session_info::Config
 {
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
+	type RewardValidators: RewardValidators;
 }
 
 decl_storage! {
@@ -74,7 +80,7 @@ decl_storage! {
 		// fewer than `byzantine_threshold + 1` validators.
 		//
 		// The i'th entry of the vector corresponds to the i'th validator in the session.
-		SpamSlots: map hasher(twox_64_concat) SessionIndex => Vec<u32>;
+		SpamSlots: map hasher(twox_64_concat) SessionIndex => Option<Vec<u32>>;
 		// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
 		// the chain will not accept any new parachain blocks for backing or inclusion.
 		// It can only be set back to `false` by governance intervention.
@@ -113,6 +119,8 @@ decl_error! {
 		InvalidSignature,
 		/// Validator vote submitted more than once to dispute.
 		DuplicateStatement,
+		/// Too many spam slots used by some specific validator.
+		PotentialSpam,
 	}
 }
 
@@ -183,11 +191,24 @@ struct ImportSummary<BlockNumber> {
 	slash_against: Vec<ValidatorIndex>,
 	// Validators to slash for being (wrongly) on the FOR side.
 	slash_for: Vec<ValidatorIndex>,
+	// New participants in the dispute.
+	new_participants: bitvec::vec::BitVec<BitOrderLsb0, u8>,
+	// Difference in state flags from previous.
+	new_flags: DisputeStateFlags,
 }
 
 enum VoteImportError {
 	ValidatorIndexOutOfBounds,
 	DuplicateStatement,
+}
+
+impl<T: Config> From<VoteImportError> for Error<T> {
+	fn from(e: VoteImportError) -> Self {
+		match e {
+			VoteImportError::ValidatorIndexOutOfBounds => Error::<T>::ValidatorIndexOutOfBounds,
+			VoteImportError::DuplicateStatement => Error::<T>::DuplicateStatement,
+		}
+	}
 }
 
 struct DisputeStateImporter<BlockNumber> {
@@ -198,7 +219,7 @@ struct DisputeStateImporter<BlockNumber> {
 }
 
 impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
-	fn initialize(
+	fn new(
 		state: DisputeState<BlockNumber>,
 		now: BlockNumber,
 	) -> Self {
@@ -213,7 +234,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		}
 	}
 
-	fn push(&mut self, validator: ValidatorIndex, valid: bool)
+	fn import(&mut self, validator: ValidatorIndex, valid: bool)
 		-> Result<(), VoteImportError>
 	{
 		let (bits, other_bits) = if valid {
@@ -246,7 +267,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		Ok(())
 	}
 
-	fn conclude(mut self) -> ImportSummary<BlockNumber> {
+	fn finish(mut self) -> ImportSummary<BlockNumber> {
 		let pre_flags = self.pre_flags;
 		let post_flags = DisputeStateFlags::from_state(&self.state);
 
@@ -282,7 +303,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			}
 		};
 
-		// 2. Check for fresh FOR supermajority.
+		// 2. Check for fresh FOR supermajority. Only if not already concluded.
 		let slash_against = if let (false, true) = pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
 			if self.state.concluded_at.is_none() {
 				self.state.concluded_at = Some(self.now.clone());
@@ -299,7 +320,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		// 3. Check for fresh AGAINST supermajority.
 		let slash_for = if let (false, true) = pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 			if self.state.concluded_at.is_none() {
-				self.state.concluded_at = Some(self.now);
+				self.state.concluded_at = Some(self.now.clone());
 			}
 
 			// provide FOR voters to slash.
@@ -315,6 +336,8 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			spam_slot_changes,
 			slash_against,
 			slash_for,
+			new_participants: self.new_participants,
+			new_flags: post_flags - pre_flags,
 		}
 	}
 }
@@ -337,15 +360,29 @@ impl<T: Config> Module<T> {
 				// mildly punish all validators involved. they've failed to make
 				// data available to others, so this is most likely spam.
 				SpamSlots::mutate(session_index, |spam_slots| {
+					let spam_slots = match spam_slots {
+						Some(ref mut s) => s,
+						None => return,
+					};
+
+					let byzantine_threshold = byzantine_threshold(spam_slots.len());
+
 					let participating = dispute.validators_for | dispute.validators_against;
+					let decrement_spam = participating.count_ones() <= byzantine_threshold;
 					for validator_index in participating {
 						// TODO [now]: slight punishment.
 
-						// also reduce spam slots for all validators involved. this does
-						// open us up to more spam, but only for validators who are willing
+						// also reduce spam slots for all validators involved, if the dispute was unconfirmed.
+						// this does open us up to more spam, but only for validators who are willing
 						// to be punished more.
-						if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
-							*occupied = occupied.saturating_sub(1);
+						//
+						// it would be unexpected for this branch to be hit when the dispute has not concluded
+						// in time, as a dispute guaranteed to have at least one honest participant should
+						// conclude quickly.
+						if decrement_spam {
+							if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
+								*occupied = occupied.saturating_sub(1);
+							}
 						}
 					}
 				});
@@ -456,32 +493,80 @@ impl<T: Config> Module<T> {
 			}
 		};
 
-		// Check all statement signatures
-		for (statement, validator_index, signature) in &set.statements {
-			let validator_public = session_info.validators.get(validator_index.0 as usize)
-				.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
+		// Check and import all votes.
+		let summary = {
+			let mut importer = DisputeStateImporter::new(dispute_state, now);
+			for (statement, validator_index, signature) in &set.statements {
+				let validator_public = session_info.validators.get(validator_index.0 as usize)
+					.ok_or(Error::<T>::ValidatorIndexOutOfBounds)?;
 
-			check_signature(
-				&validator_public,
-				set.candidate_hash,
-				set.session,
-				statement,
-				signature,
-			).map_err(|()| Error::<T>::InvalidSignature)?;
+				// Check signature before importing.
+				check_signature(
+					&validator_public,
+					set.candidate_hash,
+					set.session,
+					statement,
+					signature,
+				).map_err(|()| Error::<T>::InvalidSignature)?;
+
+				let valid = match statement {
+					DisputeStatement::Valid(_) => true,
+					DisputeStatement::Invalid(_) => false,
+				};
+
+				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
+			}
+
+			importer.finish()
+		};
+
+		// Apply spam slot changes. Bail early if too many occupied.
+		{
+			let mut spam_slots: Vec<u32> = SpamSlots::get(&set.session)
+				.unwrap_or_else(|| vec![0; n_validators]);
+
+			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
+				let spam_slot = spam_slots.get_mut(validator_index.0 as usize)
+					.expect("index is in-bounds, as checked above; qed");
+
+				match spam_slot_change {
+					SpamSlotChange::Inc => {
+						ensure!(
+							*spam_slot < config.dispute_max_spam_slots,
+							Error::<T>::PotentialSpam,
+						);
+
+						*spam_slot += 1;
+					}
+					SpamSlotChange::Dec => {
+						*spam_slot = spam_slot.saturating_sub(1);
+					}
+				}
+			}
+
+			SpamSlots::insert(&set.session, spam_slots);
 		}
 
-		let byzantine_threshold = byzantine_threshold(n_validators);
-		let supermajority_threshold = supermajority_threshold(n_validators);
+		// Reward statements.
+		T::RewardValidators::reward_dispute_statement(
+			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _))
+		);
 
-		// TODO [now]: update `DisputeInfo` and determine:
-		// 1. Spam slot changes. Bail early if too many spam slots occupied.
-		// 2. Dispute state change. Bail early if duplicate
+		// Slash participants on a losing side.
+		{
+			// TODO [now]: stash finished dispute and collect `UnsignedTransaction`s later
+			// with nominator info.
+		}
 
-		// TODO [now]: Reward statements based on conclusion.
+		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
 
-		// TODO [now]: Slash one side if fresh supermajority on the other.
-
-		// TODO [now]: Freeze if just concluded local.
+		// Freeze if just concluded against some local candidate
+		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
+				Frozen::set(true);
+				// TODO [now]: dispatch reversion log.
+			}
+		}
 
 		Ok(fresh)
 	}
