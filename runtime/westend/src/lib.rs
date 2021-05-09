@@ -31,7 +31,7 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	paras_sudo_wrapper, paras_registrar, xcm_sender, slots,
+	paras_sudo_wrapper, paras_registrar, xcm_sender, slots, crowdloan, auctions,
 	SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
@@ -80,7 +80,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, RuntimeDebug,
+	parameter_types, construct_runtime, RuntimeDebug, PalletId,
 	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All},
 	weights::Weight,
 };
@@ -794,8 +794,8 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
-	pub const MinContribution: Balance = 1 * DOLLARS;
+	pub const SubmissionDeposit: Balance = 100 * 100 * CENTS;
+	pub const MinContribution: Balance = 100 * CENTS;
 	pub const RemoveKeysLimit: u32 = 500;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
@@ -841,7 +841,7 @@ impl auctions::Config for Runtime {
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
-	type Randomness = ParentHashRandomness;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = auctions::TestWeightInfo;
 }
