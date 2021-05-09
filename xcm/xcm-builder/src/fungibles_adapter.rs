@@ -19,31 +19,7 @@
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
 use frame_support::traits::{Get, tokens::fungibles};
-use xcm_executor::traits::{TransactAsset, Convert};
-
-/// Asset transaction errors.
-pub enum Error {
-	/// Asset not found.
-	AssetNotFound,
-	/// `MultiLocation` to `AccountId` conversion failed.
-	AccountIdConversionFailed,
-	/// `u128` amount to currency `Balance` conversion failed.
-	AmountToBalanceConversionFailed,
-	/// `MultiLocation` to `AssetId` conversion failed.
-	AssetIdConversionFailed,
-}
-
-impl From<Error> for XcmError {
-	fn from(e: Error) -> Self {
-		use XcmError::FailedToTransactAsset;
-		match e {
-			Error::AssetNotFound => FailedToTransactAsset("AssetNotFound"),
-			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
-			Error::AmountToBalanceConversionFailed => FailedToTransactAsset("AmountToBalanceConversionFailed"),
-			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
-		}
-	}
-}
+use xcm_executor::traits::{TransactAsset, Convert, MatchesFungibles, Error as MatchError};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be TryFrom/TryInto<u128>) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -73,25 +49,6 @@ impl<
 	}
 }
 
-// TODO: Comparing with `MatchesFungible`, this seems quite misplaced. It should be in xcm-executor
-// traits and implemented here.
-pub trait MatchesFungibles<AssetId, Balance> {
-	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error>;
-}
-
-#[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<
-	AssetId: Clone,
-	Balance: Clone,
-> MatchesFungibles<AssetId, Balance> for Tuple {
-	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error> {
-		for_tuples!( #(
-			match Tuple::matches_fungibles(a) { o @ Ok(_) => return o, _ => () }
-		)* );
-		Err(Error::AssetNotFound)
-	}
-}
-
 pub struct ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>(
 	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertBalance)>
 );
@@ -103,13 +60,13 @@ impl<
 > MatchesFungibles<AssetId, Balance> for
 	ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
-	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error> {
+	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (id, amount) = match a {
 			MultiAsset::ConcreteFungible { id, amount } => (id, amount),
-			_ => return Err(Error::AssetNotFound),
+			_ => return Err(MatchError::AssetNotFound),
 		};
-		let what = ConvertAssetId::convert_ref(id).map_err(|_| Error::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount).map_err(|_| Error::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
+		let amount = ConvertBalance::convert_ref(amount).map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -125,13 +82,13 @@ impl<
 > MatchesFungibles<AssetId, Balance> for
 	ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
-	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error> {
+	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (id, amount) = match a {
 			MultiAsset::AbstractFungible { id, amount } => (id, amount),
-			_ => return Err(Error::AssetNotFound),
+			_ => return Err(MatchError::AssetNotFound),
 		};
-		let what = ConvertAssetId::convert_ref(id).map_err(|_| Error::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount).map_err(|_| Error::AmountToBalanceConversionFailed)?;
+		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
+		let amount = ConvertBalance::convert_ref(amount).map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
@@ -153,9 +110,9 @@ impl<
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let source = AccountIdConverter::convert_ref(from)
-			.map_err(|()| Error::AccountIdConversionFailed)?;
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
 		let dest = AccountIdConverter::convert_ref(to)
-			.map_err(|()| Error::AccountIdConversionFailed)?;
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
 		Assets::transfer(asset_id, &source, &dest, amount, true)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
@@ -176,7 +133,7 @@ impl<
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| Error::AccountIdConversionFailed)?;
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
 		Assets::mint_into(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
@@ -188,7 +145,7 @@ impl<
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::convert_ref(who)
-			.map_err(|()| Error::AccountIdConversionFailed)?;
+			.map_err(|()| MatchError::AccountIdConversionFailed)?;
 		Assets::burn_from(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())

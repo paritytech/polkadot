@@ -279,12 +279,14 @@ impl MultiAsset {
 			AllConcreteNonFungible { class } => inner.is_concrete_non_fungible(class),
 			AllAbstractNonFungible { class } => inner.is_abstract_non_fungible(class),
 
-			// TODO: should it not be `if i == id && amount >= a`? for self to contain `inner`, self should contain
-			// larger quantities than inner.
-			ConcreteFungible { id, amount }
-			=> matches!(inner, ConcreteFungible { id: i , amount: a } if i == id && a >= amount),
-			AbstractFungible { id, amount }
-			=> matches!(inner, AbstractFungible { id: i , amount: a } if i == id && a >= amount),
+			ConcreteFungible { id, amount } => matches!(
+				inner,
+				ConcreteFungible { id: inner_id , amount: inner_amount } if inner_id == id && amount >= inner_amount
+			),
+			AbstractFungible { id, amount } => matches!(
+				inner,
+				AbstractFungible { id: inner_id , amount: inner_amount } if inner_id == id && amount >= inner_amount
+			),
 			ConcreteNonFungible { .. } => self == inner,
 			AbstractNonFungible { .. } => self == inner,
 			_ => false,
@@ -342,22 +344,22 @@ mod tests {
 		assert!(!AllFungible.contains(&AllFungible));
 		assert!(!AllNonFungible.contains(&AllNonFungible));
 
-		// For fungibles, containing is basically equality, or equal with higher amount.
+		// For fungibles, containing is basically equality, or equal id with higher amount.
 		assert!(
-			!AbstractFungible { id: vec![99u8], amount: 9 }
-			.contains(&AbstractFungible { id: vec![98u8], amount: 99 })
+			!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![1u8], amount: 99 })
 		);
 		assert!(
-			AbstractFungible { id: vec![99u8], amount: 9 }
+			AbstractFungible { id: vec![99u8], amount: 99 }
 			.contains(&AbstractFungible { id: vec![99u8], amount: 99 })
 		);
 		assert!(
-			AbstractFungible { id: vec![99u8], amount: 9 }
+			AbstractFungible { id: vec![99u8], amount: 99 }
 			.contains(&AbstractFungible { id: vec![99u8], amount: 9 })
 		);
 		assert!(
-			!AbstractFungible { id: vec![99u8], amount: 9 }
-			.contains(&AbstractFungible { id: vec![99u8], amount: 1 })
+			!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 100 })
 		);
 
 		// For non-fungibles, containing is equality.
