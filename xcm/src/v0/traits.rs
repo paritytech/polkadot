@@ -128,8 +128,8 @@ impl Outcome {
 
 /// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-	/// The `Call` type for the XCM. Usually just the native `Call` of thw chain. Can also be `()`.
-	type Call;
+//	/// The `Call` type for the XCM. Usually just the native `Call` of thw chain. Can also be `()`.
+//	type Call;
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
@@ -150,7 +150,7 @@ pub trait ExecuteXcm<Call> {
 }
 
 impl<C> ExecuteXcm<C> for () {
-	type Call = C;
+//	type Call = C;
 	fn execute_xcm_in_credit(
 		_origin: MultiLocation,
 		_message: Xcm<C>,
