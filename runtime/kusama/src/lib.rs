@@ -32,7 +32,8 @@ use primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, CurrencyToVote, paras_registrar, xcm_sender, slots, impls::DealWithFees,
+	claims, paras_registrar, xcm_sender, slots, auctions, crowdloan,
+	SlowAdjustingFeeUpdate, CurrencyToVote, impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength, OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
 	ToAuthor,
 };
@@ -1060,6 +1061,65 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 100 * 100 * CENTS;
+	pub const MinContribution: Balance = 100 * CENTS;
+	pub const RemoveKeysLimit: u32 = 500;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type PalletId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
+	type WeightInfo = crowdloan::TestWeightInfo;
+}
+
+#[test]
+fn remove_keys_weight_is_sensible() {
+	use runtime_common::crowdloan::WeightInfo;
+	let max_weight = crowdloan::TestWeightInfo::refund(RemoveKeysLimit::get());
+	// Max remove keys limit should be no more than half the total block weight.
+	assert!(max_weight * 2 < BlockWeights::get().max_block);
+}
+
+parameter_types! {
+	// The average auction is 10 days long, so this will be 30% for ending period.
+	// 3 Days = 43200 Blocks @ 6 sec per block
+	pub const EndingPeriod: BlockNumber = 3 * DAYS;
+	// ~ 2000 samples -> 20 blocks per sample -> 2 minute samples
+	pub const SampleLength: BlockNumber = 2 * MINUTES;
+}
+
+#[test]
+fn sample_size_is_reasonable() {
+	use runtime_common::auctions::WeightInfo;
+	// Need to clean up all samples at the end of an auction.
+	let samples: BlockNumber = EndingPeriod::get() / SampleLength::get();
+	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
+	// Max sample cleanup should be no more than half the total block weight.
+	assert!(max_weight * 2 < BlockWeights::get().max_block);
+	assert!(auctions::TestWeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+}
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type Registrar = Registrar;
+	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
+}
+
+parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
 	/// chain, we make it synonymous with it and thus it is the `Null` location, which means "equivalent to
 	/// the context".
@@ -1308,6 +1368,8 @@ construct_runtime! {
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 71,
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
