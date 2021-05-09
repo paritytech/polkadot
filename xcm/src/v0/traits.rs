@@ -126,8 +126,6 @@ impl Outcome {
 	}
 }
 
-/// Something that can execute an xcm message.
-// TODO: why is this both generic and associated?
 pub trait ExecuteXcm<Call> {
 	type Call;
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
@@ -205,9 +203,9 @@ impl<C> ExecuteXcm<C> for () {
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple
-	/// implementation to exit early without trying other type fields.
+	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
+	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
+	/// trying other type fields.
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
 
