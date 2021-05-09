@@ -216,7 +216,6 @@ parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
 	pub const SubmissionDeposit: Balance = 100;
 	pub const MinContribution: Balance = 1;
-	pub const RetirementPeriod: BlockNumber = 10;
 	pub const RemoveKeysLimit: u32 = 100;
 	pub const MaxMemoLength: u8 = 32;
 }

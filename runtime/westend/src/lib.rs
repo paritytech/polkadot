@@ -793,6 +793,60 @@ impl slots::Config for Runtime {
 }
 
 parameter_types! {
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
+	pub const SubmissionDeposit: Balance = 100 * DOLLARS;
+	pub const MinContribution: Balance = 1 * DOLLARS;
+	pub const RemoveKeysLimit: u32 = 500;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type PalletId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
+	type WeightInfo = crowdloan::TestWeightInfo;
+}
+
+#[test]
+fn remove_keys_weight_is_sensible() {
+	let max_weight = crowdloan::TestWeightInfo::refund(RemoveKeysLimit::get());
+	// Max remove keys limit should be no more than half the total block weight.
+	assert!(max_weight * 2 < BlockWeights::get().max_block);
+}
+
+parameter_types! {
+	pub const EndingPeriod: BlockNumber = 3 * DAYS;
+	pub const SampleLength: BlockNumber = 1;
+}
+
+#[test]
+fn sample_size_is_reasonable() {
+	// Need to clean up all samples at the end of an auction.
+	let samples = EndingPeriod::get() / SampleLength::get();
+	let max_weight = samples * DbWeight::get().reads_writes(1, 1);
+	// Max sample cleanup should be no more than half the total block weight.
+	assert!(max_weight * 2 < BlockWeights::get().max_block);
+	assert!(auctions::TestWeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+}
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type Registrar = Registrar;
+	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
+	type Randomness = ParentHashRandomness;
+	type InitiateOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = auctions::TestWeightInfo;
+}
+
+parameter_types! {
 	pub const WndLocation: MultiLocation = MultiLocation::Null;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
@@ -997,6 +1051,8 @@ construct_runtime! {
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
@@ -1420,8 +1476,10 @@ sp_api::impl_runtime_apis! {
 			// Polkadot
 			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
 			// in the generated file.
-			add_benchmark!(params, batches, runtime_common::slots, Slots);
+			add_benchmark!(params, batches, runtime_common::auctions, Auctions);
+			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
+			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
