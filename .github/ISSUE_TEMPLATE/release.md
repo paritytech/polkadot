@@ -28,13 +28,14 @@ candidate branch.
     runtime logic.
 
 The following checks can be performed after we have forked off to the release-
-candidate branch.
+candidate branch or started an additional release candidate branch (rc-2, rc-3, etc)
 
 - [ ] Verify [new migrations](#new-migrations) complete successfully, and the
     runtime state is correctly updated for any public (non-private/test)
     networks.
 - [ ] Verify [Polkadot JS API](#polkadot-js) are up to date with the latest
     runtime changes.
+- [ ] Push runtime upgrade to Westend and verify network stability.
 
 ### All Releases
 

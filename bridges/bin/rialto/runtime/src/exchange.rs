@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -81,7 +81,7 @@ impl MaybeLockFundsTransaction for EthTransaction {
 
 		// we only accept transactions sending funds directly to the pre-configured address
 		if tx.unsigned.to != Some(LOCK_FUNDS_ADDRESS.into()) {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Failed to parse fund locks transaction. Invalid peer recipient: {:?}",
 				tx.unsigned.to,
@@ -94,7 +94,7 @@ impl MaybeLockFundsTransaction for EthTransaction {
 		match tx.unsigned.payload.len() {
 			32 => recipient_raw.as_fixed_bytes_mut().copy_from_slice(&tx.unsigned.payload),
 			len => {
-				frame_support::debug::trace!(
+				log::trace!(
 					target: "runtime",
 					"Failed to parse fund locks transaction. Invalid recipient length: {}",
 					len,
@@ -106,7 +106,7 @@ impl MaybeLockFundsTransaction for EthTransaction {
 		let amount = tx.unsigned.value.low_u128();
 
 		if tx.unsigned.value != amount.into() {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Failed to parse fund locks transaction. Invalid amount: {}",
 				tx.unsigned.value,

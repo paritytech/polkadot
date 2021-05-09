@@ -17,6 +17,7 @@
 //! Polkadot Client meta trait
 
 use std::sync::Arc;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -31,16 +32,18 @@ use consensus_common::BlockStatus;
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block>
-	+ babe_primitives::BabeApi<Block>
+	+ sp_consensus_babe::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+	+ beefy_primitives::BeefyApi<Block, BeefyId>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
@@ -49,16 +52,18 @@ impl<Api> RuntimeApiCollection for Api
 where
 	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 		+ sp_api::ApiExt<Block>
-		+ babe_primitives::BabeApi<Block>
+		+ sp_consensus_babe::BabeApi<Block>
 		+ grandpa_primitives::GrandpaApi<Block>
 		+ ParachainHost<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+		+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
-		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>,
+		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+		+ beefy_primitives::BeefyApi<Block, BeefyId>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 

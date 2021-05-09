@@ -48,23 +48,27 @@ impl PeerSet {
 	/// network service.
 	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
-		// TODO: lower this limit after https://github.com/paritytech/polkadot/issues/2283 is
-		// done and collations use request-response protocols
-		let max_notification_size = 16 * 1024 * 1024;
+		let max_notification_size = 100 * 1024;
 
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
-					in_peers: 25,
-					out_peers: 0,
+					// we allow full nodes to connect to validators for gossip
+					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
+					// we limit the amount of non-reserved slots to be less
+					// than `MIN_GOSSIP_PEERS` in total
+					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
@@ -122,12 +126,12 @@ impl<T> Index<PeerSet> for PerPeerSet<T> {
 }
 
 impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
-    fn index_mut(&mut self, index: PeerSet) -> &mut T {
-        match index {
+	fn index_mut(&mut self, index: PeerSet) -> &mut T {
+		match index {
 			PeerSet::Validation => &mut self.validation,
 			PeerSet::Collation => &mut self.collation,
 		}
-    }
+	}
 }
 
 /// Get `NonDefaultSetConfig`s for all available peer sets.

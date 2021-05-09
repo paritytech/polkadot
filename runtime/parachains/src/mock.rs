@@ -42,7 +42,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: shared::{Pallet, Call, Storage},
 		Inclusion: inclusion::{Pallet, Call, Storage, Event<T>},
@@ -84,6 +84,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -102,6 +103,7 @@ impl pallet_balances::Config for Test {
 
 impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness<Self>;
+	type ForceOrigin = frame_system::EnsureRoot<u64>;
 }
 
 impl crate::configuration::Config for Test { }
@@ -110,12 +112,18 @@ impl crate::shared::Config for Test { }
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
+	type Event = Event;
 }
 
 impl crate::dmp::Config for Test { }
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl crate::hrmp::Config for Test {
@@ -131,7 +139,7 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::inclusion_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 

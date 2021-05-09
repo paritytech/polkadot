@@ -32,7 +32,7 @@ impl UnifiedReputationChange {
 			Self::CostMajor(_) => -300_000,
 			Self::CostMinorRepeated(_) => -200_000,
 			Self::CostMajorRepeated(_) => -600_000,
-			Self::Malicious(_) => -1_000_000,
+			Self::Malicious(_) => i32::min_value(),
 			Self::BenefitMajorFirst(_) => 300_000,
 			Self::BenefitMajor(_) => 200_000,
 			Self::BenefitMinorFirst(_) => 15_000,
