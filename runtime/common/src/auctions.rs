@@ -504,11 +504,7 @@ impl<T: Config> Module<T> {
 					let auction_counter = AuctionCounter::get();
 					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
 					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
-					let mut i = T::BlockNumber::zero();
-					while i < ending_period {
-						Winning::<T>::remove(i);
-						i += One::one();
-					}
+					Winning::<T>::remove_all();
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
 				}
@@ -1517,6 +1513,7 @@ mod benchmarking {
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
+		// Entire winner map should be full and removed at the end of the benchmark.
 		on_initialize {
 			// Create a new auction
 			let duration: T::BlockNumber = 99u32.into();
@@ -1528,6 +1525,12 @@ mod benchmarking {
 
 			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
+			}
+
+			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			// Make winning map full
+			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
+				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
 			}
 
 			// Move ahead to the block we want to initialize
@@ -1564,7 +1567,7 @@ mod benchmarking {
 			}
 
 			// Make winning map full
-			for i in 0u32 .. T::EndingPeriod::get().saturated_into() {
+			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
 				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
 			}
 			assert!(AuctionInfo::<T>::get().is_some());
