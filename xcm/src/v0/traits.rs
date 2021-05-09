@@ -150,7 +150,6 @@ pub trait ExecuteXcm<Call> {
 }
 
 impl<C> ExecuteXcm<C> for () {
-//	type Call = C;
 	fn execute_xcm_in_credit(
 		_origin: MultiLocation,
 		_message: Xcm<C>,

@@ -40,7 +40,6 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
-//	type Call = Config::Call;
 	fn execute_xcm_in_credit(
 		origin: MultiLocation,
 		message: Xcm<Config::Call>,
