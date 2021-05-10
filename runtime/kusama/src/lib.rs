@@ -721,7 +721,6 @@ impl pallet_bounties::Config for Runtime {
 impl pallet_tips::Config for Runtime {
 	type MaximumReasonLength = MaximumReasonLength;
 	type DataDepositPerByte = DataDepositPerByte;
-	type MaximumReasonLength = MaximumReasonLength;
 	type Tippers = PhragmenElection;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
