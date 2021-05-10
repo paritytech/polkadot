@@ -18,9 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{marker::PhantomData, convert::TryInto, boxed::Box};
+use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box, vec};
 use codec::{Encode, Decode};
-use xcm::v0::{BodyId, OriginKind, MultiLocation, Junction::Plurality};
+use xcm::v0::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 use sp_runtime::{RuntimeDebug, traits::BadOrigin};
 use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get, Contains};
@@ -32,7 +32,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use xcm::v0::{Xcm, MultiLocation, Error as XcmError, SendXcm, ExecuteXcm};
+	use xcm_executor::traits::WeightBounds;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -51,8 +51,9 @@ pub mod pallet {
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
 
-		/// Required origin for executing XCM messages. If successful, the it resolves to `MultiLocation`
-		/// which exists as an interior location within this chain's XCM context.
+		/// Required origin for executing XCM messages, includng the teleport functionality. If successful,
+		/// the it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
+		/// context.
 		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
@@ -60,6 +61,12 @@ pub mod pallet {
 
 		/// Something to execute an XCM message.
 		type XcmExecutor: ExecuteXcm<Self::Call>;
+
+		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
+		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
+
+		/// Means of measuring the weight consumed by an XCM message locally.
+		type Weigher: WeightBounds<Self::Call>;
 	}
 
 	#[pallet::event]
@@ -75,6 +82,8 @@ pub mod pallet {
 		SendFailure,
 		/// The message execution fails the filter.
 		Filtered,
+		/// The message's weight could not be determined.
+		UnweighableMessage,
 	}
 
 	#[pallet::hooks]
@@ -82,7 +91,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1_000)]
+		#[pallet::weight(100_000_000)]
 		fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone())
@@ -91,6 +100,66 @@ pub mod pallet {
 					_ => Error::<T>::SendFailure,
 				})?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			Ok(())
+		}
+
+		/// Teleport some assets from the local chain to some destination chain.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
+		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
+		///   `dest` side.
+		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
+		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		#[pallet::weight({
+			let mut message = Xcm::WithdrawAsset {
+				assets: assets.clone(),
+				effects: sp_std::vec![ InitiateTeleport {
+					assets: sp_std::vec![ All ],
+					dest: dest.clone(),
+					effects: sp_std::vec![],
+				} ]
+			};
+			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+		})]
+		fn teleport_assets(
+			origin: OriginFor<T>,
+			dest: MultiLocation,
+			beneficiary: MultiLocation,
+			assets: Vec<MultiAsset>,
+			dest_weight: Weight,
+		) -> DispatchResult {
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let value = (origin_location, assets);
+			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, assets) = value;
+			let mut message = Xcm::WithdrawAsset {
+				assets,
+				effects: vec![
+					InitiateTeleport {
+						assets: vec![ All ],
+						dest,
+						effects: vec![
+							BuyExecution {
+								fees: All,
+								// Zero weight for additional XCM (since there are none to execute)
+								weight: 0,
+								debt: dest_weight,
+								halt_on_error: false,
+								xcm: vec![],
+							},
+							DepositAsset { assets: vec![ All ], dest: beneficiary },
+						],
+					},
+				],
+			};
+			let weight = T::Weigher::weight(&mut message)
+				.map_err(|()| Error::<T>::UnweighableMessage)?;
+			let outcome = T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}
 
@@ -105,7 +174,7 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(max_weight.saturating_add(1_000u64))]
+		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		fn execute(origin: OriginFor<T>, message: Box<Xcm<T::Call>>, max_weight: Weight)
 			-> DispatchResult
 		{
