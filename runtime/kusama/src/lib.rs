@@ -1062,9 +1062,9 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 100 * 100 * CENTS;
-	pub const MinContribution: Balance = 100 * CENTS;
-	pub const RemoveKeysLimit: u32 = 500;
+	pub const SubmissionDeposit: Balance = 3 * GRAND; // ~ 10 KSM
+	pub const MinContribution: Balance = 3_000 * CENTS; // ~ .1 KSM
+	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
 }
