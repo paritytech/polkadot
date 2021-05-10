@@ -25,15 +25,17 @@ use syn::FieldsNamed;
 use syn::Variant;
 use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
 
-mod builder;
 mod impls;
+mod impl_overseer;
+mod impl_replace;
+mod impl_channels_out;
 mod inc;
-mod replace;
 
-use builder::*;
 use impls::*;
+use impl_overseer::*;
+use impl_replace::*;
+use impl_channels_out::*;
 use inc::*;
-use replace::*;
 
 #[proc_macro_attribute]
 pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {

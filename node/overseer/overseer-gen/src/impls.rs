@@ -12,6 +12,8 @@ use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, 
 use syn::spanned::Spanned;
 
 use super::*;
+
+
 #[derive(Clone)]
 pub(crate) struct SubSysField {
 	/// Name of the field.
@@ -194,77 +196,7 @@ pub(crate) fn impl_messages_wrapper_enum(
 	Ok(x)
 }
 
-pub(crate) fn impl_overseer_struct(
-	overseer_name: Ident,
-	orig_generics: Generics,
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
-) -> Result<proc_macro2::TokenStream> {
-	let mut field_name = &subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>();
 
-	let mut field_ty = &subsystems.iter().map(|ssf| ssf.generic.clone()).collect::<Vec<_>>();
-
-	let mut baggage_name = baggage.iter().map(|bf| bf.field_name.clone());
-	let mut baggage_ty = baggage.iter().map(|bf| bf.field_ty.clone());
-
-	let mut baggage_generic_ty = baggage.iter().filter(|bf| bf.generic).map(|bf| bf.field_ty.clone());
-
-	let generics = quote! {
-		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
-	};
-
-	let where_clause = quote! {
-		where
-			Ctx: SubsystemContext,
-			#( #field_ty : Subsystem<Ctx> )*
-	};
-
-	let mut x = quote! {
-		pub struct #overseer_name #generics {
-			#(
-				#field_name: #field_ty,
-			)*
-
-			#(
-				#baggage_name: #baggage_ty,
-			)*
-		}
-	};
-
-	x.extend(crate::builder::impl_builder(overseer_name, subsystems, baggage)?);
-
-	Ok(x)
-}
-
-/// Implement the helper type `ChannelsOut` and `MessagePacket<T>`.
-pub(crate) fn impl_channels_out_struct(
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
-) -> Result<proc_macro2::TokenStream> {
-	let mut field_name = subsystems.iter().map(|ssf| ssf.name.clone());
-	let mut field_ty = subsystems.iter().map(|ssf| ssf.ty.clone());
-	let x = quote! {
-		#[derive(Debug)]
-		struct MessagePacket<T> {
-			signals_received: usize,
-			message: T,
-		}
-
-		fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
-			MessagePacket {
-				signals_received,
-				message,
-			}
-		}
-
-		pub struct ChannelsOut {
-			#(
-				pub #field_name: ::metered::MeteredSender<MessagePacket< #field_ty >>,
-			)*
-		}
-	};
-	Ok(x)
-}
 
 pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<proc_macro2::TokenStream> {
 	let args = parse_attr(attr)?;
