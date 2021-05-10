@@ -610,6 +610,10 @@ impl<T: Config> Module<T> {
 
 		Ok(fresh)
 	}
+
+	fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+		<Disputes<T>>::iter().collect()
+	}
 }
 
 fn check_signature(
