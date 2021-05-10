@@ -128,8 +128,6 @@ impl Outcome {
 
 /// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-//	/// The `Call` type for the XCM. Usually just the native `Call` of thw chain. Can also be `()`.
-//	type Call;
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
