@@ -382,7 +382,6 @@ fn era_payout(
 	non_gilt_issuance: Balance,
 	max_annual_inflation: Perquintill,
 	period_fraction: Perquintill,
-	gilt_target: Perquintill,
 	auctioned_slots: u64,
 ) -> (Balance, Balance) {
 	use sp_arithmetic::traits::Saturating;
@@ -393,11 +392,11 @@ fn era_payout(
 
 	// 30% reserved for up to 60 slots.
 	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
-	// The gilt proportion is just the gilt target adjusted down by 25%.
-	let gilt_proportion = Perquintill::from_percent(75) * gilt_target;
+
+	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the amount that we expect
+	// to be taken up with auctions less the amount that we expect to be take up with gilts.
 	let ideal_stake = Perquintill::from_percent(75)
-		.saturating_sub(auction_proportion)
-		.saturating_sub(gilt_proportion);
+		.saturating_sub(auction_proportion);
 
 	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
 	let falloff = Perquintill::from_percent(5);
