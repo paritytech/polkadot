@@ -27,7 +27,7 @@ use primitives::v1::{
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
 };
 use sp_runtime::{
-	traits::{One, Saturating, AppVerify},
+	traits::{One, Zero, Saturating, AppVerify},
 	DispatchResult, DispatchError, SaturatedConversion,
 };
 use frame_system::ensure_root;
@@ -378,6 +378,13 @@ impl<T: Config> Module<T> {
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
+				if <Included<T>>::contains_key(&session_index, &candidate_hash) {
+					// Local disputes don't count towards spam.
+
+					weight += T::DbWeight::get().reads_writes(1, 1);
+					continue;
+				}
+
 				// mildly punish all validators involved. they've failed to make
 				// data available to others, so this is most likely spam.
 				SpamSlots::mutate(session_index, |spam_slots| {
@@ -386,24 +393,14 @@ impl<T: Config> Module<T> {
 						None => return,
 					};
 
-					let byzantine_threshold = byzantine_threshold(spam_slots.len());
-
-					let participating = dispute.validators_for | dispute.validators_against;
-					let decrement_spam = participating.count_ones() <= byzantine_threshold;
-					for validator_index in participating.iter_ones() {
-						// also reduce spam slots for all validators involved, if the dispute was unconfirmed.
-						// this does open us up to more spam, but only for validators who are willing
-						// to be punished more.
-						//
-						// it would be unexpected for this branch to be hit when the dispute has not concluded
-						// in time, as a dispute guaranteed to have at least one honest participant should
-						// conclude quickly.
-						if decrement_spam {
-							if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
-								*occupied = occupied.saturating_sub(1);
-							}
-						}
-					}
+					// also reduce spam slots for all validators involved, if the dispute was unconfirmed.
+					// this does open us up to more spam, but only for validators who are willing
+					// to be punished more.
+					//
+					// it would be unexpected for any change here to occur when the dispute has not concluded
+					// in time, as a dispute guaranteed to have at least one honest participant should
+					// conclude quickly.
+					let participating = decrement_spam(spam_slots, &dispute);
 
 					// Slight punishment as these validators have failed to make data available to
 					// others in a timely manner.
@@ -413,7 +410,7 @@ impl<T: Config> Module<T> {
 					);
 				});
 
-				weight += T::DbWeight::get().reads_writes(1, 2);
+				weight += T::DbWeight::get().reads_writes(2, 2);
 			}
 		}
 
@@ -547,7 +544,7 @@ impl<T: Config> Module<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		{
+		if !<Included<T>>::contains_key(&set.session, &set.candidate_hash) {
 			let mut spam_slots: Vec<u32> = SpamSlots::get(&set.session)
 				.unwrap_or_else(|| vec![0; n_validators]);
 
@@ -614,6 +611,52 @@ impl<T: Config> Module<T> {
 	fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 		<Disputes<T>>::iter().collect()
 	}
+
+	fn note_included(session: SessionIndex, candidate_hash: CandidateHash, included_in: T::BlockNumber) {
+		if included_in.is_zero() { return }
+
+		let revert_to = included_in - One::one();
+
+		<Included<T>>::insert(&session, &candidate_hash, revert_to);
+
+		// If we just included a block locally which has a live dispute, decrement spam slots
+		// for any involved validators, if the dispute is not already confirmed by f + 1.
+		if let Some(state) = <Disputes<T>>::get(&session, candidate_hash) {
+			SpamSlots::mutate(&session, |spam_slots| {
+				if let Some(ref mut spam_slots) = *spam_slots {
+					decrement_spam(spam_slots, &state);
+				}
+			});
+
+			let supermajority_threshold = supermajority_threshold(state.validators_against.len());
+			if state.validators_against.count_ones() >= supermajority_threshold {
+				// TODO [now]: revert and freeze.
+			}
+		}
+	}
+}
+
+// If the dispute had not enough validators to confirm, decrement spam slots for all the participating
+// validators.
+//
+// returns the set of participating validators as a bitvec.
+fn decrement_spam<BlockNumber>(
+	spam_slots: &mut [u32],
+	dispute: &DisputeState<BlockNumber>,
+) -> bitvec::vec::BitVec<BitOrderLsb0, u8> {
+	let byzantine_threshold = byzantine_threshold(spam_slots.len());
+
+	let participating = dispute.validators_for.clone() | dispute.validators_against.iter().by_val();
+	let decrement_spam = participating.count_ones() <= byzantine_threshold;
+	for validator_index in participating.iter_ones() {
+		if decrement_spam {
+			if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
+				*occupied = occupied.saturating_sub(1);
+			}
+		}
+	}
+
+	participating
 }
 
 fn check_signature(
