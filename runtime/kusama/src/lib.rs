@@ -57,7 +57,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 	IsConcrete, FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32
+	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32,
 };
 use xcm_executor::XcmExecutor;
 use sp_arithmetic::Perquintill;
@@ -68,7 +68,7 @@ use sp_runtime::{
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
-	}
+	},
 };
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
@@ -377,7 +377,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
-
 fn era_payout(
 	total_staked: Balance,
 	non_gilt_issuance: Balance,
@@ -487,7 +486,6 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
-	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 }
 
