@@ -394,7 +394,7 @@ fn era_payout(
 	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
 
 	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the amount that we expect
-	// to be taken up with auctions less the amount that we expect to be take up with gilts.
+	// to be taken up with auctions.
 	let ideal_stake = Perquintill::from_percent(75)
 		.saturating_sub(auction_proportion);
 
