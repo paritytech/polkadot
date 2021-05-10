@@ -442,7 +442,6 @@ fn era_payout_should_give_sensible_results() {
 		100,
 		Perquintill::from_percent(10),
 		Perquintill::one(),
-		Perquintill::zero(),
 		0,
 	), (10, 0));
 	assert_eq!(era_payout(
@@ -450,7 +449,6 @@ fn era_payout_should_give_sensible_results() {
 		100,
 		Perquintill::from_percent(10),
 		Perquintill::one(),
-		Perquintill::from_percent(0),
 		0,
 	), (6, 4));
 }
@@ -472,7 +470,6 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 			Gilt::issuance().non_gilt,
 			MAX_ANNUAL_INFLATION,
 			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
-			Gilt::target(),
 			AUCTIONED_SLOTS,
 		)
 	}
