@@ -45,9 +45,29 @@ use crate::{
 	session_info,
 };
 
+/// Reward hooks for disputes.
 pub trait RewardValidators {
 	// Give each validator a reward, likely small, for participating in the dispute.
-	fn reward_dispute_statement(validators: impl IntoIterator<Item=ValidatorIndex>);
+	fn reward_dispute_statement(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
+}
+
+impl RewardValidators for () {
+	fn reward_dispute_statement(_: SessionIndex, _: impl IntoIterator<Item=ValidatorIndex>) { }
+}
+
+/// Punishment hooks for disputes.
+pub trait PunishValidators {
+	/// Punish a series of validators who were for an invalid parablock. This is expected to be a major
+	/// punishment.
+	fn punish_for_invalid(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
+
+	/// Punish a series of validators who were against a valid parablock. This is expected to be a minor
+	/// punishment.
+	fn punish_against_valid(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
+
+	/// Punish a series of validators who were part of a dispute which never concluded. This is expected
+	/// to be a minor punishment.
+	fn punish_inconclusive(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
 }
 
 pub trait Config:
@@ -57,6 +77,7 @@ pub trait Config:
 {
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
 	type RewardValidators: RewardValidators;
+	type PunishValidators: PunishValidators;
 }
 
 decl_storage! {
@@ -549,13 +570,27 @@ impl<T: Config> Module<T> {
 
 		// Reward statements.
 		T::RewardValidators::reward_dispute_statement(
-			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _))
+			set.session,
+			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
 		);
 
 		// Slash participants on a losing side.
 		{
-			// TODO [now]: stash finished dispute and collect `UnsignedTransaction`s later
-			// with nominator info.
+			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+				// a valid candidate, according to 2/3. Punish those on the 'against' side.
+				T::PunishValidators::punish_against_valid(
+					set.session,
+					summary.state.validators_against.iter_ones().map(|i| ValidatorIndex(i as _)),
+				);
+			}
+
+			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+				// an invalid candidate, according to 2/3. Punish those on the 'for' side.
+				T::PunishValidators::punish_against_valid(
+					set.session,
+					summary.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)),
+				);
+			}
 		}
 
 		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
