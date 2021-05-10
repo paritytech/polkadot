@@ -105,7 +105,7 @@ decl_storage! {
 		// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
 		// the chain will not accept any new parachain blocks for backing or inclusion.
 		// It can only be set back to `false` by governance intervention.
-		Frozen: bool;
+		Frozen get(fn is_frozen): bool;
 	}
 }
 
@@ -600,19 +600,18 @@ impl<T: Config> Module<T> {
 		// Freeze if just concluded against some local candidate
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
-				Frozen::set(true);
-				// TODO [now]: dispatch reversion log.
+				Self::revert_and_freeze(revert_to);
 			}
 		}
 
 		Ok(fresh)
 	}
 
-	fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 		<Disputes<T>>::iter().collect()
 	}
 
-	fn note_included(session: SessionIndex, candidate_hash: CandidateHash, included_in: T::BlockNumber) {
+	pub(crate) fn note_included(session: SessionIndex, candidate_hash: CandidateHash, included_in: T::BlockNumber) {
 		if included_in.is_zero() { return }
 
 		let revert_to = included_in - One::one();
@@ -628,12 +627,31 @@ impl<T: Config> Module<T> {
 				}
 			});
 
-			let supermajority_threshold = supermajority_threshold(state.validators_against.len());
-			if state.validators_against.count_ones() >= supermajority_threshold {
-				// TODO [now]: revert and freeze.
+			if has_supermajority_against(&state) {
+				Self::revert_and_freeze(revert_to);
 			}
 		}
 	}
+
+	pub(crate) fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+		<Disputes<T>>::get(&session, &candidate_hash).map_or(false, |dispute| {
+			// A dispute that is ongoing or has concluded with supermajority-against.
+			dispute.concluded_at.is_none() || has_supermajority_against(&dispute)
+		})
+	}
+
+	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
+		if Self::is_frozen() { return }
+
+		// TODO [now]: issue digest.
+
+		Frozen::set(true);
+	}
+}
+
+fn has_supermajority_against<BlockNumber>(dispute: &DisputeState<BlockNumber>) -> bool {
+	let supermajority_threshold = supermajority_threshold(dispute.validators_against.len());
+	dispute.validators_against.count_ones() >= supermajority_threshold
 }
 
 // If the dispute had not enough validators to confirm, decrement spam slots for all the participating
