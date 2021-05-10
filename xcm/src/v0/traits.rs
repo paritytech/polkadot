@@ -170,7 +170,7 @@ impl<C> ExecuteXcm<C> for () {
 ///     }
 /// }
 ///
-/// /// A sender that accepts a message from a X1 parent junction, passing through otherwise.
+/// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
@@ -181,7 +181,7 @@ impl<C> ExecuteXcm<C> for () {
 ///     }
 /// }
 ///
-/// // an xcm message to send. We don't really care about this.
+/// // A call to send via XCM. We don't really care about this.
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
