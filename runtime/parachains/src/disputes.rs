@@ -390,9 +390,7 @@ impl<T: Config> Module<T> {
 
 					let participating = dispute.validators_for | dispute.validators_against;
 					let decrement_spam = participating.count_ones() <= byzantine_threshold;
-					for validator_index in participating {
-						// TODO [now]: slight punishment.
-
+					for validator_index in participating.iter_ones() {
 						// also reduce spam slots for all validators involved, if the dispute was unconfirmed.
 						// this does open us up to more spam, but only for validators who are willing
 						// to be punished more.
@@ -406,6 +404,13 @@ impl<T: Config> Module<T> {
 							}
 						}
 					}
+
+					// Slight punishment as these validators have failed to make data available to
+					// others in a timely manner.
+					T::PunishValidators::punish_inconclusive(
+						session_index,
+						participating.iter_ones().map(|i| ValidatorIndex(i as _)),
+					);
 				});
 
 				weight += T::DbWeight::get().reads_writes(1, 2);
