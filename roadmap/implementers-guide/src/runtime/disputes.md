@@ -85,7 +85,7 @@ Frozen: bool,
   1. Return true if just initiated, false otherwise.
 
 * `disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState)>`: Get a list of all disputes and info about dispute state.
-  1. Iterate over all disputes in `Disputes`. Set the flag according to `concluded`.
+  1. Iterate over all disputes in `Disputes` and collect into a vector.
 
 * `note_included(SessionIndex, CandidateHash, included_in: BlockNumber)`:
   1. Add `(SessionIndex, CandidateHash)` to the `Included` map with `included_in - 1` as the value.
