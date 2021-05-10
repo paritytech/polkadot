@@ -1311,7 +1311,7 @@ parameter_types! {
 	pub const MaxQueueLen: u32 = 1000;
 	pub const FifoQueueLen: u32 = 250;
 	pub const GiltPeriod: BlockNumber = 30 * DAYS;
-	pub const MinFreeze: Balance = 10_0s00 * CENTS;
+	pub const MinFreeze: Balance = 10_000 * CENTS;
 	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
 	pub const MaxIntakeBids: u32 = 100;
 }
