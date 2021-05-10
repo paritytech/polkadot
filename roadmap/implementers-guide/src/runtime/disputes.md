@@ -42,7 +42,7 @@ Included: double_map (SessionIndex, CandidateHash) -> Option<BlockNumber>,
 // fewer than `byzantine_threshold + 1` validators.
 //
 // The i'th entry of the vector corresponds to the i'th validator in the session.
-SpamSlots: map SessionIndex -> Vec<u32>,
+SpamSlots: map SessionIndex -> Option<Vec<u32>>,
 // Whether the chain is frozen or not. Starts as `false`. When this is `true`,
 // the chain will not accept any new parachain blocks for backing or inclusion.
 // It can only be set back to `false` by governance intervention.

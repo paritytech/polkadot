@@ -33,8 +33,8 @@ Kinds of dispute statements. Each of these can be combined with a candidate hash
 ```rust
 enum ValidDisputeStatementKind {
     Explicit,
-    BackingSeconded,
-    BackingValid,
+    BackingSeconded(Hash),
+    BackingValid(Hash),
     ApprovalChecking,
 }
 
