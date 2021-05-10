@@ -9,6 +9,8 @@ use super::*;
 pub(crate) fn impl_overseer_struct(
 	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
+	let message_wrapper = &info.message_wrapper.clone();
+	let overseer_name = info.overseer_name.clone();
 	let field_name = &info.subsystem_names();
 
 	let field_ty = &info.subsystem_generic_types();
@@ -28,7 +30,7 @@ pub(crate) fn impl_overseer_struct(
 			#( #field_ty : Subsystem<Ctx> )*
 	};
 
-	let mut x = quote! {
+	let mut ts = quote! {
 		pub struct #overseer_name #generics {
 			#(
 				#field_name: #field_ty,
@@ -40,9 +42,9 @@ pub(crate) fn impl_overseer_struct(
 		}
 
 		impl #generics #overseer_name #generics {
-			pub async fn stop(mut self) -> {
+			pub async fn stop(mut self) {
 				#(
-					let _ = self. #field_name .send_signal(OverseerSignal::Conclude).await
+					let _ = self. #field_name .send_signal(OverseerSignal::Conclude).await;
 				)*
 				loop {
 					select! {
@@ -58,16 +60,16 @@ pub(crate) fn impl_overseer_struct(
 			}
 		}
 
-		async pub fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
+		pub async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
 			#(
-				self. #field_name .send_signal(signal.clone()).await,
+				self. #field_name .send_signal(signal.clone()).await;
 			)*
 			let _ = signal;
 
 			Ok(())
 		}
 
-		async pub fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
+		pub async fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
 			match msg {
 				#(
 					#field_ty (msg) => self. #field_name .send_message(msg).await?,
@@ -77,47 +79,31 @@ pub(crate) fn impl_overseer_struct(
 		}
 	};
 
-	x.extend(impl_builder(overseer_name, subsystems, baggage)?);
-
-	Ok(x)
+	ts.extend(impl_builder(info)?);
+	Ok(ts)
 }
 
 /// Implement a builder pattern.
 pub(crate) fn impl_builder(
-	name: &Ident,
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
+	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
-	let builder = Ident::new((name.to_string() + "Builder").as_str(), Span::call_site());
+	let overseer_name = info.overseer_name.clone();
+	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
+	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
 
-	let overseer = name.clone();
-	let handler = Ident::new(&(overseer.to_string() + "Handler"), overseer.span());
+	let field_name = &info.subsystem_names();
+	let field_ty = &info.subsystem_generic_types();
 
-	let field_name = &subsystems.iter().map(|x| x.name.clone()).collect::<Vec<_>>();
-	let field_ty = &subsystems.iter().map(|x| x.generic.clone()).collect::<Vec<_>>();
+	let channel_name_unbounded = &info.channel_names("_unbounded");
 
-    let _channel_name = subsystems.iter().map(|ssf|
-        ssf.name.clone());
-    let channel_name_unbounded = subsystems.iter().map(|ssf|
-		Ident::new(&(ssf.name.to_string() + "_unbounded"), ssf.name.span())
-	).collect::<Vec<_>>();
-	let channel_name_tx = &subsystems.iter().map(|ssf|
-		Ident::new(&(ssf.name.to_string() + "_tx"), ssf.name.span())
-	).collect::<Vec<_>>();
-	let channel_name_unbounded_tx = &subsystems.iter().map(|ssf|
-		Ident::new(&(ssf.name.to_string() + "_unbounded_tx"), ssf.name.span())
-	).collect::<Vec<_>>();
-	let channel_name_rx = &subsystems.iter().map(|ssf|
-		Ident::new(&(ssf.name.to_string() + "_rx"), ssf.name.span())
-	).collect::<Vec<_>>();
-	let channel_name_unbounded_rx = &subsystems.iter().map(|ssf|
-		Ident::new(&(ssf.name.to_string() + "_unbounded_rx"), ssf.name.span())
-	).collect::<Vec<_>>();
+	let channel_name_tx = &info.channel_names("_tx");
+	let channel_name_unbounded_tx = &info.channel_names("_unbounded_tx");
 
-	let baggage_generic_ty = &baggage.iter().filter(|b| b.generic).map(|b| b.field_ty.clone()).collect::<Vec<_>>();
+	let channel_name_rx = &info.channel_names("_rx");
+	let channel_name_unbounded_rx = &info.channel_names("_unbounded_rx");
 
-	let baggage_name = &baggage.iter().map(|x| x.field_name.clone()).collect::<Vec<_>>();
-	let _baggage_ty = &baggage.iter().map(|x| x.field_ty.clone()).collect::<Vec<_>>();
+	let baggage_generic_ty = &info.baggage_generic_types();
+	let baggage_name = &info.baggage_names();
 
 	let generics = quote! {
 		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
@@ -130,7 +116,7 @@ pub(crate) fn impl_builder(
 
 	let ts = quote! {
 
-		impl #generics #name #generics #where_clause {
+		impl #generics #overseer_name #generics #where_clause {
 			fn builder() -> #builder {
 				#builder :: default()
 			}
@@ -154,8 +140,8 @@ pub(crate) fn impl_builder(
 				}
 			)*
 
-			fn build(mut self, ctx: Ctx) -> (#overseer #generics, #handler) {
-				let overseer = #overseer :: #generics {
+			fn build(mut self, ctx: Ctx) -> (#overseer_name #generics, #handler) {
+				let overseer = #overseer_name :: #generics {
 					#(
 						#field_name : self. #field_name .unwrap(),
 					)*
@@ -172,8 +158,6 @@ pub(crate) fn impl_builder(
 					events_tx: events_tx.clone(),
 				};
 
-
-				let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 
 				let (to_overseer_tx, to_overseer_rx) = metered::unbounded();
 

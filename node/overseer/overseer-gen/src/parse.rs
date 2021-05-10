@@ -16,7 +16,7 @@ use syn::Type;
 
 /// A field of the struct annotated with
 /// `#[subsystem(no_dispatch, A | B | C)]`
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct SubSysField {
 	/// Name of the field.
 	pub(crate) name: Ident,
@@ -75,6 +75,7 @@ impl Parse for SubSystemTag {
 
 
 /// Fields that are _not_ subsystems.
+#[derive(Debug, Clone)]
 pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
 	pub(crate) field_ty: Ident,
@@ -117,15 +118,23 @@ impl OverseerInfo {
 
 
 	pub(crate) fn subsystem_generic_types(&self) -> Vec<Ident> {
-		self.subsystem.iter().map(|sff| sff.generic.clone()).collect::<Vec<_>>()
+		self.subsystems.iter().map(|sff| sff.generic.clone()).collect::<Vec<_>>()
 	}
 
-	pub(crate) fn baggage_generic_ty(&self) -> Vec<Ident> {
+	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
 		self.baggage.iter().filter(|bag| bag.generic).map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
 	}
 
-	pub(crate) fn channels(&self, suffix: &'static str) -> Vec<Ident> {
-		self.subsystems.iter().map(|ssf| Ident::new(ssf.name.to_string() + suffix, ssf.name.span()).collect::<Vec<_>>()
+	pub(crate) fn channel_names(&self, suffix: &'static str) -> Vec<Ident> {
+		self.subsystems.iter()
+		.map(|ssf| Ident::new(&(ssf.name.to_string() + suffix), ssf.name.span()))
+		.collect::<Vec<_>>()
+	}
+
+	pub(crate) fn consumes(&self) -> Vec<Ident> {
+		self.subsystems.iter()
+			.map(|ssf| ssf.consumes.clone())
+			.collect::<Vec<_>>()
 	}
 }
 
@@ -181,7 +190,7 @@ pub(crate) fn parse_overseer_struct_field(
 				name: ident,
 				generic: Ident::new(format!("Sub{}", idx).as_str(), Span::call_site()),
 				ty: try_type_to_ident(ty, span)?,
-				consumes: consumes_idents[0],
+				consumes: consumes_idents[0].clone(),
 				no_dispatch,
 			});
 		} else {

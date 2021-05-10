@@ -70,19 +70,19 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 				})
 				.collect();
 
-			let (subsystem, baggage) = parse_overseer_struct_field(baggage_generic_idents, named)?;
+			let (subsystems, baggage) = parse_overseer_struct_field(baggage_generic_idents, named)?;
 			let info = OverseerInfo {
-				subsystem,
+				subsystems,
 				baggage,
 				overseer_name,
 				message_wrapper,
 			};
 
-			let mut additive = impl_overseer_struct(orig_generics, &info)?;
+			let mut additive = impl_overseer_struct(&info)?;
 
 			additive.extend(impl_message_wrapper_enum(&info)?);
 			additive.extend(impl_channels_out_struct(&info)?);
-			additive.extend(impl_replacable_subsystem(&info));
+			additive.extend(impl_replacable_subsystem(&info)?);
 
 			additive.extend(inc::include_static_rs()?);
 
@@ -113,8 +113,11 @@ mod tests {
 				#[subsystem(Foo)]
 				sub0: FooSubsystem,
 
-				#[subsystem(Bar | Twain)]
-				yyy: BarSubsystem,
+				#[subsystem(Bar)]
+				yyy: BaersBuyBilliardBalls,
+
+				#[subsystem(Twain)]
+				fff: Beeeeep,
 
 				spawner: S,
 				metrics: Metrics,

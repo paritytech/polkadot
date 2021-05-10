@@ -11,10 +11,10 @@ pub(crate) fn impl_channels_out_struct(
 
     let message_wrapper = info.message_wrapper.clone();
 
-    let channel_name = &info.channels("");
-    let channel_name_unbounded = &info.channels("_unbounded");
+    let channel_name = &info.channel_names("");
+    let channel_name_unbounded = &info.channel_names("_unbounded");
 
-	let mut consumes = &info.subsystem.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>();
+	let consumes = &info.consumes();
 
     let ts = quote! {
 		#[derive(Debug)]
@@ -32,10 +32,10 @@ pub(crate) fn impl_channels_out_struct(
 
 		pub struct ChannelsOut {
 			#(
-				pub #channel_name: ::metered::MeteredSender<MessagePacket< #field_ty >>,
+				pub #channel_name: ::metered::MeteredSender<MessagePacket< #consumes >>,
 			)*
             #(
-				pub #channel_name_unbounded: ::metered::UnboundedMeteredSender<MessagePacket< #field_ty >>,
+				pub #channel_name_unbounded: ::metered::UnboundedMeteredSender<MessagePacket< #consumes >>,
 			)*
 		}
 
@@ -47,7 +47,7 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #field_ty (msg) => {
+                    #message_wrapper :: #consumes (msg) => {
                         self. #channel_name .send(
                             make_packet(signals_received, msg)
                         ).await
@@ -56,10 +56,11 @@ pub(crate) fn impl_channels_out_struct(
                 };
 
                 if res.is_err() {
-                    tracing::debug!(
-                        target: LOG_TARGET,
-                        "Failed to send a message to another subsystem",
-                    );
+                    // XXX FIXME
+                    // tracing::debug!(
+                    //     target: LOG_TARGET,
+                    //     "Failed to send a message to another subsystem",
+                    // );
                 }
             }
 
@@ -70,7 +71,7 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #field_ty (msg) => {
+                    #message_wrapper :: #consumes (msg) => {
                         self. #channel_name_unbounded .send(
                             make_packet(signals_received, msg)
                         ).await

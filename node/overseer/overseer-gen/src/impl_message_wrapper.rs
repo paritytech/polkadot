@@ -7,15 +7,15 @@ use super::*;
 pub(crate) fn impl_message_wrapper_enum(
 	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
-	let consumes = info.subsystems.iter().map(|ssf| ssf.consumes.clone()).flatten();
+	let consumes = info.consumes();
 
-    let message_wrapper = info.message_wrapper;
+    let message_wrapper = &info.message_wrapper;
 
 	let msg = "Generated message type wrapper";
 	let x = quote! {
 		#[doc = #msg]
 		#[derive(Debug, Clone)]
-		enum #messages_wrapper {
+		enum #message_wrapper {
 			#(
 				#consumes ( #consumes ),
 			)*

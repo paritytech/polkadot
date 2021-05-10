@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 use syn::Result;
 
 pub(crate) fn include_static_rs() -> Result<proc_macro2::TokenStream> {
