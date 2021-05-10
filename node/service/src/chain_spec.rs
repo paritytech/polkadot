@@ -922,11 +922,11 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			},
 		},
 		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(get_account_id_from_seed::<sr25519::Public>("Dave")),
+			owner: Some(root_key),
 			..Default::default()
 		},
 		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(get_account_id_from_seed::<sr25519::Public>("Eve")),
+			owner: Some(root_key),
 			..Default::default()
 		},
 	}
@@ -1484,11 +1484,11 @@ pub fn rococo_testnet_genesis(
 		    _phdata: Default::default(),
 		},
 		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(get_account_id_from_seed::<sr25519::Public>("Dave")),
+			owner: Some(root_key),
 			..Default::default()
 		},
 		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(get_account_id_from_seed::<sr25519::Public>("Eve")),
+			owner: Some(root_key),
 			..Default::default()
 		},
 	}
