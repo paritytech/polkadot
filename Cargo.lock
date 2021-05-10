@@ -5042,6 +5042,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xcm",
+ "xcm-executor",
 ]
 
 [[package]]
@@ -11376,6 +11377,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
+ "pallet-transaction-payment",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",

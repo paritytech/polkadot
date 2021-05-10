@@ -31,7 +31,7 @@ use polkadot_node_primitives::MAX_POV_SIZE;
 use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 use polkadot_runtime as polkadot;
 use rococo_runtime as rococo;
-use rococo_runtime::constants::currency::DOTS as ROC;
+use rococo_runtime::constants::currency::UNITS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
