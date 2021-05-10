@@ -504,6 +504,8 @@ impl<T: Config> Module<T> {
 					let auction_counter = AuctionCounter::get();
 					Self::deposit_event(RawEvent::WinningOffset(auction_counter, offset));
 					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
+					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
+					// which should be bounded and sensibly configured in the runtime.
 					Winning::<T>::remove_all();
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
@@ -1549,6 +1551,7 @@ mod benchmarking {
 		} verify {
 			let auction_index = AuctionCounter::get();
 			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index).into());
+			assert!(Winning::<T>::iter().count().is_zero());
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and winning data is full.
