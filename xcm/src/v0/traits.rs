@@ -126,14 +126,34 @@ impl Outcome {
 	}
 }
 
+/// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-	type Call;
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
+	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
+	/// other aspects.
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+	}
+
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	///
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
+	/// execution without associated payment.
+	fn execute_xcm_in_credit(
+		origin: MultiLocation,
+		message: Xcm<Call>,
+		weight_limit: Weight,
+		weight_credit: Weight,
+	) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
-	type Call = C;
-	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
+	fn execute_xcm_in_credit(
+		_origin: MultiLocation,
+		_message: Xcm<C>,
+		_weight_limit: Weight,
+		_weight_credit: Weight,
+	) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
