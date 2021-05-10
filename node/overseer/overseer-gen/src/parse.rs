@@ -1,19 +1,21 @@
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
 use std::collections::HashSet;
-
-use quote::ToTokens;
 use syn::AttrStyle;
-use syn::Generics;
+use syn::punctuated::Punctuated;
+use syn::parse::Parse;
+use syn::token::Paren;
+use syn::Token;
 use syn::Field;
 use syn::FieldsNamed;
-use syn::Variant;
-use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
+use syn::Result;
+use syn::Ident;
 use syn::spanned::Spanned;
+use syn::Error;
+use syn::Attribute;
+use syn::Type;
 
-use super::*;
-
-
+/// A field of the struct annotated with
+/// `#[subsystem(no_dispatch, A | B | C)]`
 #[derive(Clone)]
 pub(crate) struct SubSysField {
 	/// Name of the field.
@@ -23,7 +25,7 @@ pub(crate) struct SubSysField {
 	/// Type of the subsystem.
 	pub(crate) ty: Ident,
 	/// Type to be consumed by the subsystem.
-	pub(crate) consumes: Vec<Ident>,
+	pub(crate) consumes: Ident,
 	/// Consumes is a set of messages, are these to be dispatched?
 	pub(crate) no_dispatch: bool,
 }
@@ -37,25 +39,20 @@ fn try_type_to_ident(ty: Type, span: Span) -> Result<Ident> {
 	}
 }
 
+/// Attribute arguments
 pub(crate) struct AttrArgs {
 	pub(crate) wrapper_enum_name: Ident,
 	pub(crate) signal_capacity: usize,
 	pub(crate) message_capacity: usize,
 }
 
-fn parse_attr(_attr: TokenStream) -> Result<AttrArgs> {
+pub(crate) fn parse_attr(_attr: TokenStream) -> Result<AttrArgs> {
 	Ok(AttrArgs {
 		wrapper_enum_name: Ident::new("AllMessages", Span::call_site()),
 		signal_capacity: 64usize,
 		message_capacity: 1024usize,
 	})
 }
-
-use syn::parse::Parse;
-use syn::punctuated::Punctuated;
-use syn::token::Paren;
-use syn::Token;
-
 
 pub(crate) struct SubSystemTag {
 	pub(crate) attrs: Vec<Attribute>,
@@ -76,16 +73,73 @@ impl Parse for SubSystemTag {
 	}
 }
 
+
+/// Fields that are _not_ subsystems.
+pub(crate) struct BaggageField {
+	pub(crate) field_name: Ident,
+	pub(crate) field_ty: Ident,
+	pub(crate) generic: bool,
+}
+
+
+#[derive(Clone, Debug)]
+pub(crate) struct OverseerInfo {
+	/// Fields annotated with `#[subsystem(..)]`.
+	pub(crate) subsystems: Vec<SubSysField>,
+	/// Fields that do not define a subsystem,
+	/// but are mere baggage.
+	pub(crate) baggage: Vec<BaggageField>,
+	/// Name of the wrapping enum for all messages, defaults to `AllMessages`.
+	pub(crate) message_wrapper: Ident,
+	/// Name of the overseer struct, used as a prefix for
+	/// almost all generated types.
+	pub(crate) overseer_name: Ident,
+}
+
+impl OverseerInfo {
+	pub(crate) fn subsystems(&self) -> &[SubSysField] {
+		self.subsystems.as_slice()
+	}
+
+	pub(crate) fn subsystem_names(&self) -> Vec<Ident> {
+		self.subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>()
+	}
+	pub(crate) fn subsystem_types(&self) -> Vec<Ident> {
+		self.subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>()
+	}
+
+	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
+		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
+	}
+	pub(crate) fn baggage_types(&self) -> Vec<Ident> {
+		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
+	}
+
+
+	pub(crate) fn subsystem_generic_types(&self) -> Vec<Ident> {
+		self.subsystem.iter().map(|sff| sff.generic.clone()).collect::<Vec<_>>()
+	}
+
+	pub(crate) fn baggage_generic_ty(&self) -> Vec<Ident> {
+		self.baggage.iter().filter(|bag| bag.generic).map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
+	}
+
+	pub(crate) fn channels(&self, suffix: &'static str) -> Vec<Ident> {
+		self.subsystems.iter().map(|ssf| Ident::new(ssf.name.to_string() + suffix, ssf.name.span()).collect::<Vec<_>>()
+	}
+}
+
+
 /// Creates a list of generic identifiers used for the subsystems
 pub(crate) fn parse_overseer_struct_field(
 	baggage_generics: HashSet<Ident>,
 	fields: FieldsNamed,
 ) -> Result<(Vec<SubSysField>, Vec<BaggageField>)> {
-	let span = Span::call_site();
+	let _span = Span::call_site();
 	let n = fields.named.len();
 	let mut subsystems = Vec::with_capacity(n);
 	let mut baggage = Vec::with_capacity(n);
-	for (idx, Field { attrs, vis, ident, ty, .. }) in fields.named.into_iter().enumerate() {
+	for (idx, Field { attrs, vis: _, ident, ty, .. }) in fields.named.into_iter().enumerate() {
 		let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 			let span = attr.path.span();
 			attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
@@ -98,7 +152,7 @@ pub(crate) fn parse_overseer_struct_field(
 		})?;
 
 		if let Some((attr_tokens, span)) = consumes.next() {
-			if let Some((attr_tokens2, span2)) = consumes.next() {
+			if let Some((_attr_tokens2, span2)) = consumes.next() {
 				return Err({
 					let mut err = Error::new(span, "The first subsystem annotation is at");
 					err.combine(
@@ -110,7 +164,11 @@ pub(crate) fn parse_overseer_struct_field(
 			let mut consumes_idents = Vec::with_capacity(attrs.len());
 
 			let variant = syn::parse2::<SubSystemTag>(dbg!(attr_tokens.clone()))?;
+			if variant.consumes.len() != 1 {
+				return Err(Error::new(attr_tokens.span(), "Currently only exactly one consumes message is supported."))
+			}
 			consumes_idents.extend(variant.consumes.into_iter());
+
 
 			if consumes_idents.is_empty() {
 				return Err(
@@ -123,7 +181,7 @@ pub(crate) fn parse_overseer_struct_field(
 				name: ident,
 				generic: Ident::new(format!("Sub{}", idx).as_str(), Span::call_site()),
 				ty: try_type_to_ident(ty, span)?,
-				consumes: consumes_idents,
+				consumes: consumes_idents[0],
 				no_dispatch,
 			});
 		} else {
@@ -167,84 +225,3 @@ pub(crate) fn parse_overseer_struct_field(
 // 	combined_generics.params.extend(subsys_generics);
 // 	Ok(combined_generics)
 // }
-
-/// Fields that are _not_ subsystems.
-pub(crate) struct BaggageField {
-	pub(crate) field_name: Ident,
-	pub(crate) field_ty: Ident,
-	pub(crate) generic: bool,
-}
-
-/// Generates the wrapper type enum.
-pub(crate) fn impl_messages_wrapper_enum(
-	messages_wrapper: &Ident,
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
-) -> Result<proc_macro2::TokenStream> {
-	let mut consumes = subsystems.iter().map(|ssf| ssf.consumes.clone().into_iter()).flatten();
-
-	let msg = "Generated message type wrapper";
-	let x = quote! {
-		#[doc = #msg]
-		#[derive(Debug, Clone)]
-		enum #messages_wrapper {
-			#(
-				#consumes ( #consumes ),
-			)*
-		}
-	};
-	Ok(x)
-}
-
-
-
-pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<proc_macro2::TokenStream> {
-	let args = parse_attr(attr)?;
-	let message_wrapper = args.wrapper_enum_name;
-
-	let span = proc_macro2::Span::call_site();
-	let ds = parse2::<syn::ItemStruct>(orig.clone())?;
-	match ds.fields {
-		syn::Fields::Named(named) => {
-			let overseer_name = ds.ident.clone();
-
-			// collect the indepedentent subsystem generics
-			// which need to be carried along, there are the non-generated ones
-			let mut orig_generics = ds.generics;
-
-			// remove default types
-			let mut baggage_generic_idents = HashSet::with_capacity(orig_generics.params.len());
-			orig_generics.params = orig_generics
-				.params
-				.into_iter()
-				.map(|mut generic| {
-					match generic {
-						GenericParam::Type(ref mut param) => {
-							baggage_generic_idents.insert(param.ident.clone());
-							param.eq_token = None;
-							param.default = None;
-						}
-						_ => {}
-					}
-					generic
-				})
-				.collect();
-
-			let (subsystems, baggage) = parse_overseer_struct_field(baggage_generic_idents, named)?;
-
-			let mut additive = impl_overseer_struct(&overseer_name, &message_wrapper, orig_generics, &subsystems, &baggage)?;
-
-			additive.extend(impl_messages_wrapper_enum(&message_wrapper, &subsystems[..], &baggage[..])?);
-			additive.extend(impl_channels_out_struct(&message_wrapper, &subsystems[..], &baggage[..])?);
-			additive.extend(impl_replacable_subsystem(overseer_name, &subsystems[..], &baggage[..]));
-
-			additive.extend(inc::include_static_rs()?);
-
-			Ok(additive)
-		}
-		syn::Fields::Unit => Err(Error::new(span, "Must be a struct with named fields. Not an unit struct.")),
-		syn::Fields::Unnamed(_) => {
-			Err(Error::new(span, "Must be a struct with named fields. Not an unnamed fields struct."))
-		}
-	}
-}

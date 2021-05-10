@@ -1,39 +1,28 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Span};
 use quote::quote;
-use std::collections::HashSet;
-
-use quote::ToTokens;
-use syn::AttrStyle;
-use syn::Field;
-use syn::FieldsNamed;
-use syn::Variant;
 use syn::Generics;
-use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
+use syn::{Ident, Result};
 
 use super::*;
 
 
 pub(crate) fn impl_overseer_struct(
-	overseer_name: &Ident,
-	message_wrapper: &Ident,
-	orig_generics: Generics,
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
+	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
-	let mut field_name = &subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>();
+	let field_name = &info.subsystem_names();
 
-	let mut field_ty = &subsystems.iter().map(|ssf| ssf.generic.clone()).collect::<Vec<_>>();
+	let field_ty = &info.subsystem_generic_types();
 
-	let mut baggage_name = &baggage.iter().map(|bf| bf.field_name.clone()).collect::<Vec<_>>();
-	let mut baggage_ty = &baggage.iter().map(|bf| bf.field_ty.clone()).collect::<Vec<_>>();
+	let baggage_name = &info.baggage_names();
+	let baggage_ty = &info.baggage_types();
 
-	let mut baggage_generic_ty = &baggage.iter().filter(|bf| bf.generic).map(|bf| bf.field_ty.clone()).collect::<Vec<_>>();
+	let baggage_generic_ty = &info.baggage_generic_types();
 
 	let generics = quote! {
 		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
 	};
 
-	let where_clause = quote! {
+	let _where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
 			#( #field_ty : Subsystem<Ctx> )*
@@ -107,7 +96,7 @@ pub(crate) fn impl_builder(
 	let field_name = &subsystems.iter().map(|x| x.name.clone()).collect::<Vec<_>>();
 	let field_ty = &subsystems.iter().map(|x| x.generic.clone()).collect::<Vec<_>>();
 
-    let channel_name = subsystems.iter().map(|ssf|
+    let _channel_name = subsystems.iter().map(|ssf|
         ssf.name.clone());
     let channel_name_unbounded = subsystems.iter().map(|ssf|
 		Ident::new(&(ssf.name.to_string() + "_unbounded"), ssf.name.span())
@@ -128,7 +117,7 @@ pub(crate) fn impl_builder(
 	let baggage_generic_ty = &baggage.iter().filter(|b| b.generic).map(|b| b.field_ty.clone()).collect::<Vec<_>>();
 
 	let baggage_name = &baggage.iter().map(|x| x.field_name.clone()).collect::<Vec<_>>();
-	let baggage_ty = &baggage.iter().map(|x| x.field_ty.clone()).collect::<Vec<_>>();
+	let _baggage_ty = &baggage.iter().map(|x| x.field_ty.clone()).collect::<Vec<_>>();
 
 	let generics = quote! {
 		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >

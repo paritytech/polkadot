@@ -1,30 +1,20 @@
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
-use std::collections::HashSet;
 
-use quote::ToTokens;
-use syn::AttrStyle;
-use syn::Generics;
-use syn::Field;
-use syn::FieldsNamed;
-use syn::Variant;
-use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
-use syn::spanned::Spanned;
+use quote::quote;
+use syn::{Ident, Result};
 
 use super::*;
 
 /// Implement the helper type `ChannelsOut` and `MessagePacket<T>`.
 pub(crate) fn impl_channels_out_struct(
-    message_wrapper: &Ident,
-	subsystems: &[SubSysField],
-	baggage: &[BaggageField],
+    info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
-    let mut channel_name = &subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>();
-    let mut channel_name_unbounded = &subsystems.iter().map(|ssf|
-        Ident::new( &(ssf.name.to_string() + "_unbounded"), ssf.name.span())
-    ).collect::<Vec<_>>();
 
-	let mut field_ty = &subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>();
+    let message_wrapper = info.message_wrapper.clone();
+
+    let channel_name = &info.channels("");
+    let channel_name_unbounded = &info.channels("_unbounded");
+
+	let mut consumes = &info.subsystem.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>();
 
     let ts = quote! {
 		#[derive(Debug)]
