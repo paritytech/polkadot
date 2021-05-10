@@ -82,6 +82,7 @@ pub fn new_full(
 		config,
 		is_collator,
 		None,
+		true,
 		None,
 		None,
 		worker_program_path,

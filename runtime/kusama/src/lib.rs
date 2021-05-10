@@ -53,7 +53,7 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation, NetworkId, BodyId, Xcm};
+use xcm::v0::{MultiLocation, NetworkId, BodyId, Xcm, MultiAsset};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
@@ -1078,13 +1078,13 @@ impl crowdloan::Config for Runtime {
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
 	type MaxMemoLength = MaxMemoLength;
-	type WeightInfo = crowdloan::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_crowdloan::WeightInfo<Runtime>;
 }
 
 #[test]
 fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
-	let max_weight = crowdloan::TestWeightInfo::refund(RemoveKeysLimit::get());
+	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
 	// Max remove keys limit should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
 }
@@ -1105,7 +1105,7 @@ fn sample_size_is_reasonable() {
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(auctions::TestWeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
 }
 
 impl auctions::Config for Runtime {
@@ -1115,8 +1115,8 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = auctions::TestWeightInfo;
+	type InitiateOrigin = pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
+	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1277,6 +1277,8 @@ impl pallet_xcm::Config for Runtime {
 	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
 	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
 construct_runtime! {
@@ -1792,6 +1794,8 @@ sp_api::impl_runtime_apis! {
 			// Polkadot
 			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
 			// in the generated file.
+			add_benchmark!(params, batches, runtime_common::auctions, Auctions);
+			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
