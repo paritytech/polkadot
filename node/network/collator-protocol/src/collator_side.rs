@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::collections::{HashMap, HashSet};
 
 use futures::{FutureExt, channel::oneshot, channel::mpsc};
 use sp_core::Pair;
@@ -467,16 +467,13 @@ async fn connect_to_validators(
 	state: &mut State,
 	group: GroupValidators,
 )  {
-	match state.connection_handles.entry(group.group) {
-		Entry::Occupied(_) => {}
-		Entry::Vacant(vacant) => {
-			let (tx, rx) = mpsc::channel(0);
-			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
-			})).await;
-			vacant.insert(rx);
-		}
-	}
+	let (tx, rx) = mpsc::channel(0);
+	// Reconnect in all cases, as authority discovery cache might not have been fully populated
+	// last time:
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+		validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
+	})).await;
+	state.connection_handles.insert(group.group, rx);
 }
 
 /// Advertise collation to the given `peer`.
@@ -1201,8 +1198,8 @@ mod tests {
 	async fn distribute_collation(
 		virtual_overseer: &mut VirtualOverseer,
 		test_state: &TestState,
-		// whether or not the currently active validators are already connected or not.
-		already_connected: bool,
+		// whether or not we expect a connection request or not.
+		should_connect: bool,
 	) -> DistributeCollation {
 		// Now we want to distribute a PoVBlock
 		let pov_block = PoV {
@@ -1273,9 +1270,7 @@ mod tests {
 			}
 		}
 
-		let connected = if already_connected {
-			Vec::new()
-		} else {
+		let connected = if should_connect {
 			let connected_current = assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
@@ -1295,6 +1290,8 @@ mod tests {
 				) => { connected }
 			);
 			vec![connected_current, connected_next]
+		} else {
+			Vec::new()
 		};
 
 		DistributeCollation {
@@ -1420,7 +1417,7 @@ mod tests {
 			setup_system(&mut virtual_overseer, &test_state).await;
 
 			let DistributeCollation { connected: _connected, candidate, pov_block } =
-				distribute_collation(&mut virtual_overseer, &test_state, false).await;
+				distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			for (val, peer) in test_state.current_group_validator_authority_ids()
 				.into_iter()
@@ -1572,7 +1569,7 @@ mod tests {
 			// And let it tell us that it is has the same view.
 			send_peer_view_change(&mut virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
 
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
 
@@ -1611,7 +1608,7 @@ mod tests {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer2).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
 
 			let old_relay_parent = test_state.relay_parent;
 
@@ -1648,7 +1645,7 @@ mod tests {
 			connect_peer(&mut virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 
-			let _ = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			let _ = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
