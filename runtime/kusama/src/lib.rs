@@ -1078,13 +1078,13 @@ impl crowdloan::Config for Runtime {
 	type Registrar = Registrar;
 	type Auctioneer = Auctions;
 	type MaxMemoLength = MaxMemoLength;
-	type WeightInfo = crowdloan::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_crowdloan::WeightInfo<Runtime>;
 }
 
 #[test]
 fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
-	let max_weight = crowdloan::TestWeightInfo::refund(RemoveKeysLimit::get());
+	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
 	// Max remove keys limit should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
 }
@@ -1105,7 +1105,7 @@ fn sample_size_is_reasonable() {
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(auctions::TestWeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
 }
 
 impl auctions::Config for Runtime {
@@ -1116,7 +1116,7 @@ impl auctions::Config for Runtime {
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type InitiateOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = auctions::TestWeightInfo;
+	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
 parameter_types! {
