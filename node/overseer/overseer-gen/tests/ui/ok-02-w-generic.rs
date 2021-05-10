@@ -5,7 +5,7 @@ use polkadot_procmacro_overseer_gen::overlord;
 trait MetaMeta {}
 
 #[derive(Debug)]
-struct MsgStrukt(u8)
+struct MsgStrukt(u8);
 
 #[derive(Default, Clone, Copy)]
 struct AwesomeSubSys;

@@ -177,7 +177,7 @@ pub(crate) struct BaggageField {
 
 /// Generates the wrapper type enum.
 pub(crate) fn impl_messages_wrapper_enum(
-	messages_wrapper: Ident,
+	messages_wrapper: &Ident,
 	subsystems: &[SubSysField],
 	baggage: &[BaggageField],
 ) -> Result<proc_macro2::TokenStream> {
@@ -232,10 +232,10 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 			let (subsystems, baggage) = parse_overseer_struct_field(baggage_generic_idents, named)?;
 
-			let mut additive = impl_overseer_struct(overseer_name.clone(), orig_generics, &subsystems, &baggage)?;
+			let mut additive = impl_overseer_struct(&overseer_name, &message_wrapper, orig_generics, &subsystems, &baggage)?;
 
-			additive.extend(impl_messages_wrapper_enum(message_wrapper, &subsystems[..], &baggage[..])?);
-			additive.extend(impl_channels_out_struct(&subsystems[..], &baggage[..])?);
+			additive.extend(impl_messages_wrapper_enum(&message_wrapper, &subsystems[..], &baggage[..])?);
+			additive.extend(impl_channels_out_struct(&message_wrapper, &subsystems[..], &baggage[..])?);
 			additive.extend(impl_replacable_subsystem(overseer_name, &subsystems[..], &baggage[..]));
 
 			additive.extend(inc::include_static_rs()?);

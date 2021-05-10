@@ -7,12 +7,15 @@ use syn::AttrStyle;
 use syn::Field;
 use syn::FieldsNamed;
 use syn::Variant;
+use syn::Generics;
 use syn::{parse2, Attribute, Error, GenericParam, Ident, PathArguments, Result, Type, TypeParam, WhereClause};
 
 use super::*;
 
+
 pub(crate) fn impl_overseer_struct(
-	overseer_name: Ident,
+	overseer_name: &Ident,
+	message_wrapper: &Ident,
 	orig_generics: Generics,
 	subsystems: &[SubSysField],
 	baggage: &[BaggageField],
@@ -21,10 +24,10 @@ pub(crate) fn impl_overseer_struct(
 
 	let mut field_ty = &subsystems.iter().map(|ssf| ssf.generic.clone()).collect::<Vec<_>>();
 
-	let mut baggage_name = baggage.iter().map(|bf| bf.field_name.clone());
-	let mut baggage_ty = baggage.iter().map(|bf| bf.field_ty.clone());
+	let mut baggage_name = &baggage.iter().map(|bf| bf.field_name.clone()).collect::<Vec<_>>();
+	let mut baggage_ty = &baggage.iter().map(|bf| bf.field_ty.clone()).collect::<Vec<_>>();
 
-	let mut baggage_generic_ty = baggage.iter().filter(|bf| bf.generic).map(|bf| bf.field_ty.clone());
+	let mut baggage_generic_ty = &baggage.iter().filter(|bf| bf.generic).map(|bf| bf.field_ty.clone()).collect::<Vec<_>>();
 
 	let generics = quote! {
 		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
@@ -75,7 +78,7 @@ pub(crate) fn impl_overseer_struct(
 			Ok(())
 		}
 
-		async pub fn route_message(&mut self, msg: #wrapper) -> SubsystemResult<()> {
+		async pub fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
 			match msg {
 				#(
 					#field_ty (msg) => self. #field_name .send_message(msg).await?,
@@ -85,14 +88,14 @@ pub(crate) fn impl_overseer_struct(
 		}
 	};
 
-	x.extend(crate::builder::impl_builder(overseer_name, subsystems, baggage)?);
+	x.extend(impl_builder(overseer_name, subsystems, baggage)?);
 
 	Ok(x)
 }
 
 /// Implement a builder pattern.
 pub(crate) fn impl_builder(
-	name: Ident,
+	name: &Ident,
 	subsystems: &[SubSysField],
 	baggage: &[BaggageField],
 ) -> Result<proc_macro2::TokenStream> {
@@ -101,31 +104,31 @@ pub(crate) fn impl_builder(
 	let overseer = name.clone();
 	let handler = Ident::new(&(overseer.to_string() + "Handler"), overseer.span());
 
-	let mut field_name = &subsystems.iter().map(|x| x.name.clone()).collect::<Vec<_>>();
-	let mut field_ty = &subsystems.iter().map(|x| x.generic.clone()).collect::<Vec<_>>();
+	let field_name = &subsystems.iter().map(|x| x.name.clone()).collect::<Vec<_>>();
+	let field_ty = &subsystems.iter().map(|x| x.generic.clone()).collect::<Vec<_>>();
 
-    let mut channel_name = subsystems.iter().map(|ssf|
+    let channel_name = subsystems.iter().map(|ssf|
         ssf.name.clone());
-    let mut channel_name_unbounded = subsystems.iter().map(|ssf|
-            Ident::new(ssf.name.span(), ssf.name.to_string() + "_unbounded")
-        );
-	let mut channel_name_tx = subsystems.iter().map(|ssf|
-		Ident::new(ssf.name.span(), ssf.name.to_string() + "_tx")
-	);
-	let mut channel_name_unbounded_tx = subsystems.iter().map(|ssf|
-		Ident::new(ssf.name.span(), ssf.name.to_string() + "_unbounded_tx")
-	);
-	let mut channel_name_rx = subsystems.iter().map(|ssf|
-		Ident::new(ssf.name.span(), ssf.name.to_string() + "_rx")
-	);
-	let mut channel_name_unbounded_rx = subsystems.iter().map(|ssf|
-		Ident::new(ssf.name.span(), ssf.name.to_string() + "_unbounded_rx")
-	);
+    let channel_name_unbounded = subsystems.iter().map(|ssf|
+		Ident::new(&(ssf.name.to_string() + "_unbounded"), ssf.name.span())
+	).collect::<Vec<_>>();
+	let channel_name_tx = &subsystems.iter().map(|ssf|
+		Ident::new(&(ssf.name.to_string() + "_tx"), ssf.name.span())
+	).collect::<Vec<_>>();
+	let channel_name_unbounded_tx = &subsystems.iter().map(|ssf|
+		Ident::new(&(ssf.name.to_string() + "_unbounded_tx"), ssf.name.span())
+	).collect::<Vec<_>>();
+	let channel_name_rx = &subsystems.iter().map(|ssf|
+		Ident::new(&(ssf.name.to_string() + "_rx"), ssf.name.span())
+	).collect::<Vec<_>>();
+	let channel_name_unbounded_rx = &subsystems.iter().map(|ssf|
+		Ident::new(&(ssf.name.to_string() + "_unbounded_rx"), ssf.name.span())
+	).collect::<Vec<_>>();
 
-	let mut baggage_generic_ty = &baggage.iter().filter(|b| b.generic).map(|b| b.field_ty.clone()).collect::<Vec<_>>();
+	let baggage_generic_ty = &baggage.iter().filter(|b| b.generic).map(|b| b.field_ty.clone()).collect::<Vec<_>>();
 
-	let mut baggage_name = &baggage.iter().map(|x| x.field_name.clone()).collect::<Vec<_>>();
-	let mut baggage_ty = &baggage.iter().map(|x| x.field_ty.clone()).collect::<Vec<_>>();
+	let baggage_name = &baggage.iter().map(|x| x.field_name.clone()).collect::<Vec<_>>();
+	let baggage_ty = &baggage.iter().map(|x| x.field_ty.clone()).collect::<Vec<_>>();
 
 	let generics = quote! {
 		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
@@ -136,7 +139,7 @@ pub(crate) fn impl_builder(
 			#( #field_ty : Subsystem<Ctx>, )*
 	};
 
-	let x = quote! {
+	let ts = quote! {
 
 		impl #generics #name #generics #where_clause {
 			fn builder() -> #builder {
@@ -174,7 +177,7 @@ pub(crate) fn impl_builder(
 
 				const CHANNEL_CAPACITY: usize = 1024;
 				const SIGNAL_CHANNEL_CAPACITY: usize = 64;
-				let (events_tx, events_rx) = #crate::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+				let (events_tx, events_rx) = ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
 				let handler = #handler {
 					events_tx: events_tx.clone(),
@@ -197,20 +200,14 @@ pub(crate) fn impl_builder(
 						let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) = ::metered::unbounded::<MessagePacket< #field_ty >>();
 					)*
 
-
-					let channels_out = ChannelsOut {
+					ChannelsOut {
 						#(
-							pub #channel_name: #channel_name_tx .clone(),
+							channel_name: #channel_name_tx .clone(),
 						)*
 						#(
-							pub #channel_name_unbounded: #channel_name_tx_unbounded .clone(),
+							#channel_name_unbounded: #channel_name_unbounded_tx .clone(),
 						)*
 					}
-
-					ChannelsOut {
-						// #( #bounded )
-						// #( #unbounded )
-					};
 				}
 
 
@@ -220,5 +217,5 @@ pub(crate) fn impl_builder(
 			}
 		}
 	};
-	Ok(x)
+	Ok(ts)
 }

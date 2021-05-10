@@ -58,3 +58,26 @@ impl SubsystemSender for OverseerSubsystemSender {
 		self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
 	}
 }
+
+#[derive(Clone)]
+struct SubsystemMeters {
+	bounded: metered::Meter,
+	unbounded: metered::Meter,
+	signals: metered::Meter,
+}
+
+impl SubsystemMeters {
+	fn read(&self) -> SubsystemMeterReadouts {
+		SubsystemMeterReadouts {
+			bounded: self.bounded.read(),
+			unbounded: self.unbounded.read(),
+			signals: self.signals.read(),
+		}
+	}
+}
+
+struct SubsystemMeterReadouts {
+	bounded: metered::Readout,
+	unbounded: metered::Readout,
+	signals: metered::Readout,
+}

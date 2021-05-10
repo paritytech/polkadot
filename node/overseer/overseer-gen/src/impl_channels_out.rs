@@ -15,17 +15,18 @@ use super::*;
 
 /// Implement the helper type `ChannelsOut` and `MessagePacket<T>`.
 pub(crate) fn impl_channels_out_struct(
-    wrapper: &Ident,
+    message_wrapper: &Ident,
 	subsystems: &[SubSysField],
 	baggage: &[BaggageField],
 ) -> Result<proc_macro2::TokenStream> {
-    let mut channel_name = subsystems.iter().map(|ssf|
-        ssf.name.clone());
-    let mut channel_name_unbounded = subsystems.iter().map(|ssf|
-            Ident::new(ssf.name.span(), ssf.name.to_string() + "_unbounded")
-        );
-	let mut field_ty = subsystems.iter().map(|ssf| ssf.ty.clone());
-	let ts = quote! {
+    let mut channel_name = &subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>();
+    let mut channel_name_unbounded = &subsystems.iter().map(|ssf|
+        Ident::new( &(ssf.name.to_string() + "_unbounded"), ssf.name.span())
+    ).collect::<Vec<_>>();
+
+	let mut field_ty = &subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>();
+
+    let ts = quote! {
 		#[derive(Debug)]
 		struct MessagePacket<T> {
 			signals_received: usize,
@@ -52,14 +53,16 @@ pub(crate) fn impl_channels_out_struct(
             async pub fn send_and_log_error(
                 &mut self,
                 signals_received: usize,
-                message: #wrapper,
+                message: #message_wrapper,
             ) {
                 let res = match message {
                 #(
-                    #wrapper :: #field_ty (msg) => {
-                        self. #channel_name .send(make_packet(signals_received, msg)).await
+                    #message_wrapper :: #field_ty (msg) => {
+                        self. #channel_name .send(
+                            make_packet(signals_received, msg)
+                        ).await
                     },
-                )
+                )*
                 };
 
                 if res.is_err() {
@@ -70,7 +73,6 @@ pub(crate) fn impl_channels_out_struct(
                 }
             }
 
-
             pub fn send_unbounded_and_log_error(
                 &self,
                 signals_received: usize,
@@ -78,16 +80,16 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #wrapper :: #field_ty (msg) => {
+                    #message_wrapper :: #field_ty (msg) => {
                         self. #channel_name_unbounded .send(
                             make_packet(signals_received, msg)
                         ).await
                     },
-                )
+                )*
                 };
 
                 if res.is_err() {
-                    tracing::debug!(
+                    ::tracing::debug!(
                         target: LOG_TARGET,
                         "Failed to send a message to another subsystem",
                     );
