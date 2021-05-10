@@ -57,7 +57,7 @@ impl PeerSet {
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
-					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers®
+					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
 					// we limit the amount of non-reserved slots to be less
 					// than `MIN_GOSSIP_PEERS` in total
 					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
