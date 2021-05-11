@@ -174,22 +174,20 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		/// Register a Para Id on the relay chain.
+		/// Register head data and validation code for a reserved Para Id.
 		///
-		/// This function will queue the new Para `id` to be a parathread.
-		/// Using the Slots pallet, a parathread can then be upgraded to get a
-		/// parachain slot.
+		/// ## Arguments
+		/// - `origin`: Must be called by a `Signed` origin.
+		/// - `id`: The para ID. Must be owned/managed by the `origin` signing account.
+		/// - `genesis_head`: The genesis head data of the parachain/thread.
+		/// - `validation_code`: The initial validation code of the parachain/thread.
 		///
-		/// The `id` *MUST* equal the value of `NextFreeParaId`.
+		/// ## Deposits/Fees
+		/// The origin signed account must reserve a corresponding deposit for the registration. Anything already
+		/// reserved previously for this para ID is accounted for.
 		///
-		/// DEPRECATED: This function should generally not be used and is provided for backwards compatibility
-		/// only. Use `register_next` instead.
-		///
-		/// This function must be called by a signed origin.
-		///
-		/// The origin must pay a deposit for the registration information,
-		/// including the genesis information and validation code. ParaId
-		/// must be greater than or equal to 1000.
+		/// ## Events
+		/// The `Registered` event is emitted in case of success.
 		#[weight = T::WeightInfo::register()]
 		pub fn register(
 			origin,
@@ -285,17 +283,20 @@ decl_module! {
 			Self::remove_lock(para);
 		}
 
-		/// Register a Para Id on the relay chain.
+		/// Reserve a Para Id on the relay chain.
 		///
-		/// This function will queue the new Para Id to be a parathread.
-		/// Using the Slots pallet, a parathread can then be upgraded to get a
-		/// parachain slot.
+		/// This function will reserve a new Para Id to be owned/managed by the origin account.
+		/// The origin account is able to register head data and validation code using `register` to create
+		/// a parathread. Using the Slots pallet, a parathread can then be upgraded to get a parachain slot.
 		///
-		/// This function must be called by a signed origin.
+		/// ## Arguments
+		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new para ID.
 		///
-		/// The origin must pay a deposit for the registration information,
-		/// including the genesis information and validation code. ParaId
-		/// must be greater than or equal to 1000.
+		/// ## Deposits/Fees
+		/// The origin must reserve a deposit of `ParaDeposit` for the registration.
+		///
+		/// ## Events
+		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
 		#[weight = T::WeightInfo::reserve()]
 		pub fn reserve(origin) -> DispatchResult {
 			let who = ensure_signed(origin)?;
