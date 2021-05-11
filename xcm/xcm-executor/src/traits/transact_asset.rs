@@ -33,6 +33,9 @@ pub trait TransactAsset {
 
 	/// An asset has been teleported in from the given origin. This should do whatever housekeeping is needed.
 	///
+	/// NOTE: This will make only a best-effort at bookkeeping. The caller should ensure that `can_check_in` has
+	/// returned with `Ok` in order to guarantee that this operation proceeds properly.
+	///
 	/// Implementation note: In general this will do one of two things: On chains where the asset is native,
 	/// it will reduce the assets from a special "teleported" account so that a) total-issuance is preserved;
 	/// and b) to ensure that no more assets can be teleported in than were teleported out overall (this should
