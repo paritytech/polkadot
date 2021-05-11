@@ -6173,7 +6173,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
- "polkadot-procmacro-subsystem-dispatch-gen",
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.6.1",
@@ -6324,17 +6323,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
-]
-
-[[package]]
-name = "polkadot-procmacro-subsystem-dispatch-gen"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
 ]
 
 [[package]]
