@@ -70,6 +70,8 @@ decl_error! {
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
+		/// Potentially invalid candidate.
+		CandidateCouldBeInvalid,
 	}
 }
 
@@ -115,6 +117,7 @@ decl_module! {
 			);
 
 			// Handle disputes logic.
+			let current_session = <shared::Module<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
 				let fresh_disputes = <disputes::Module<T>>::provide_multi_dispute_data(disputes)?;
 				if <disputes::Module<T>>::is_frozen() {
@@ -125,13 +128,19 @@ decl_module! {
 					).into());
 				}
 
-				let current_session = <shared::Module<T>>::session_index();
 				let any_current_session_disputes = fresh_disputes.iter()
 					.any(|(s, _)| s == &current_session);
 
 				if any_current_session_disputes {
-					// TODO [now]: inclusion::collect_disputed.
-					unimplemented!();
+					let current_session_disputes: Vec<_> = fresh_disputes.iter()
+						.filter(|(s, _)| s == &current_session)
+						.map(|(_, c)| *c)
+						.collect();
+
+					<inclusion::Module<T>>::collect_disputed(current_session_disputes)
+						.into_iter()
+						.map(|core| (core, FreedReason::Concluded))
+						.collect()
 				} else {
 					Vec::new()
 				}
@@ -146,7 +155,11 @@ decl_module! {
 				<scheduler::Module<T>>::core_para,
 			)?;
 
-			// TODO [now]: Disputes::note_included.
+			// Inform the disputes module of all included candidates.
+			let now = <frame_system::Pallet<T>>::block_number();
+			for (_, candidate_hash) in &freed_concluded {
+				<disputes::Module<T>>::note_included(current_session, *candidate_hash, now);
+			}
 
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
@@ -173,7 +186,16 @@ decl_module! {
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
-			// TODO [now]: check that `Disputes::could_be_invalid` is false for all backed.
+			// Refuse to back any candidates that are disputed or invalid.
+			for candidate in &backed_candidates {
+				ensure!(
+					!<disputes::Module<T>>::could_be_invalid(
+						current_session,
+						candidate.candidate.hash(),
+					),
+					Error::<T>::CandidateCouldBeInvalid,
+				);
+			}
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
