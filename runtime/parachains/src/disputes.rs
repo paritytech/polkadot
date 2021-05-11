@@ -580,21 +580,17 @@ impl<T: Config> Module<T> {
 
 		// Slash participants on a losing side.
 		{
-			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				// a valid candidate, according to 2/3. Punish those on the 'against' side.
-				T::PunishValidators::punish_against_valid(
-					set.session,
-					summary.state.validators_against.iter_ones().map(|i| ValidatorIndex(i as _)),
-				);
-			}
+			// a valid candidate, according to 2/3. Punish those on the 'against' side.
+			T::PunishValidators::punish_against_valid(
+				set.session,
+				summary.slash_against,
+			);
 
-			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-				T::PunishValidators::punish_against_valid(
-					set.session,
-					summary.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)),
-				);
-			}
+			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
+			T::PunishValidators::punish_for_invalid(
+				set.session,
+				summary.slash_for,
+			);
 		}
 
 		<Disputes<T>>::insert(&set.session, &set.candidate_hash, &summary.state);
