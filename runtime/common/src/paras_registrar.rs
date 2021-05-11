@@ -720,6 +720,7 @@ mod tests {
 			// first para is not yet registered
 			assert!(!Parachains::is_parathread(para_id));
 			// We register the Para ID
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -759,6 +760,8 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -777,16 +780,25 @@ mod tests {
 	#[test]
 	fn register_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Can't register system parachain
+			let para_id = LOWEST_PUBLIC_ID;
+
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
-				32.into(),
+				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), Error::<Test>::InvalidParaId);
+			), Error::<Test>::NotReserved);
 
 			// Successfully register para
-			let para_id = LOWEST_PUBLIC_ID;
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+
+			assert_noop!(Registrar::register(
+				Origin::signed(2),
+				para_id,
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), Error::<Test>::NotOwner);
+
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -804,9 +816,10 @@ mod tests {
 				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), Error::<Test>::InvalidParaId);
+			), Error::<Test>::NotReserved);
 
 			// Head Size Check
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
 				para_id + 1,
@@ -823,12 +836,7 @@ mod tests {
 			), Error::<Test>::CodeTooLarge);
 
 			// Needs enough funds for deposit
-			assert_noop!(Registrar::register(
-				Origin::signed(1337),
-				para_id + 1,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), BalancesError::<Test, _>::InsufficientBalance);
+			assert_noop!(Registrar::reserve(Origin::signed(1337)), BalancesError::<Test, _>::InsufficientBalance);
 		});
 	}
 
@@ -838,16 +846,13 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			assert_eq!(
-				Balances::reserved_balance(&1),
-				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
-			);
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::deregister(
@@ -866,6 +871,7 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -895,12 +901,14 @@ mod tests {
 			// Successfully register first two parachains
 			let para_1 = LOWEST_PUBLIC_ID;
 			let para_2 = LOWEST_PUBLIC_ID + 1;
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_1,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_ok!(Registrar::register(
 				Origin::signed(2),
 				para_2,
@@ -952,8 +960,9 @@ mod tests {
 	fn para_lock_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			let para_id = LOWEST_PUBLIC_ID;
 
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			let para_id = LOWEST_PUBLIC_ID;
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -1002,6 +1011,7 @@ mod benchmarking {
 		let validation_code = Registrar::<T>::worst_validation_code();
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		assert_ok!(Registrar::<T>::register(RawOrigin::Signed(caller).into(), para, genesis_head, validation_code));
 		return para;
 	}
@@ -1037,7 +1047,7 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			assert!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()).is_ok());
+			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());

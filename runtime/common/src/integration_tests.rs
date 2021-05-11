@@ -301,12 +301,14 @@ fn basic_end_to_end_works() {
 		// First register 2 parathreads
 		let genesis_head = Registrar::worst_head_data();
 		let validation_code = Registrar::worst_validation_code();
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(para_1),
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -445,18 +447,20 @@ fn basic_errors_fail() {
 
 		let genesis_head = Registrar::worst_head_data();
 		let validation_code = Registrar::worst_validation_code();
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			para_id,
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_noop!(Registrar::register(
 			Origin::signed(2),
 			para_id,
 			genesis_head,
 			validation_code,
-		), paras_registrar::Error::<Test>::InvalidParaId);
+		), paras_registrar::Error::<Test>::NotOwner);
 
 		// Start an auction
 		let duration = 99u32;
@@ -489,6 +493,7 @@ fn competing_slots() {
 			Balances::make_free_balance_be(&n, 1_000);
 			let genesis_head = Registrar::worst_head_data();
 			let validation_code = Registrar::worst_validation_code();
+			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
 				para_id + n - 1,
@@ -577,6 +582,7 @@ fn competing_bids() {
 			Balances::make_free_balance_be(&n, 1_000);
 			let genesis_head = Registrar::worst_head_data();
 			let validation_code = Registrar::worst_validation_code();
+			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
 				ParaId::from(start_para + n),
@@ -652,12 +658,14 @@ fn basic_swap_works() {
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
 		// First register 2 parathreads with different data
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -783,12 +791,14 @@ fn crowdloan_ending_period_bid() {
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
 		// First register 2 parathreads
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -889,6 +899,7 @@ fn auction_bid_requires_registered_para() {
 		), AuctionsError::<Test>::ParaNotRegistered);
 
 		// Now we register the para
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
@@ -935,12 +946,14 @@ fn gap_bids_work() {
 		Balances::make_free_balance_be(&2, 1_000);
 
 		// Now register 2 paras
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
