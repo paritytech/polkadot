@@ -199,7 +199,7 @@ impl<
 		if let Some((asset_id, amount)) = Matcher::matches_fungibles(what) {
 			if CheckAsset::contains(&asset_id) {
 				let checking_account = CheckingAccount::get();
-				Assets::mint_into(asset_id, &checking_account, amount).is_ok();
+				let ok = Assets::mint_into(asset_id, &checking_account, amount).is_ok();
 				debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 			}
 		}
