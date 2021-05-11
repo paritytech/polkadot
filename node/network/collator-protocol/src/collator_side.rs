@@ -1269,24 +1269,24 @@ mod tests {
 			}
 		}
 
-		let connected = if should_connect {
+		let connection_handles = if should_connect {
 			let connected_current = assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
-						connected,
+						keep_alive,
 						..
 					}
-				) => { connected }
+				) => { keep_alive }
 			);
 			let connected_next = assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
-						connected,
+						keep_alive,
 						..
 					}
-				) => { connected }
+				) => { keep_alive }
 			);
 			vec![connected_current, connected_next]
 		} else {
@@ -1294,7 +1294,7 @@ mod tests {
 		};
 
 		DistributeCollation {
-			connected,
+			connection_handles,
 			candidate,
 			pov_block,
 		}
