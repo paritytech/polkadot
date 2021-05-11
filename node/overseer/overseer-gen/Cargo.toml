@@ -6,5 +6,11 @@ edition = "2018"
 description = "Generate an overseer including builder pattern and message wrapper from a single struct."
 
 [dependencies]
-overseer-gen-proc-macro = { package = "polkadot-overseer-gen-proc-macro", path = "./proc-macro" }
 tracing = "0.1"
+futures = "0.3"
+
+overseer-gen-proc-macro = { package = "polkadot-overseer-gen-proc-macro", path = "./proc-macro" }
+metered = { package = "metered-channel", path = "../../metered-channel" }
+
+[dev-dependencies]
+trybuild = "1.0.41"

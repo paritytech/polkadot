@@ -1,6 +1,6 @@
 
 use quote::quote;
-use syn::{Ident, Result};
+use syn::Result;
 
 use super::*;
 
@@ -18,12 +18,12 @@ pub(crate) fn impl_channels_out_struct(
 
     let ts = quote! {
 		#[derive(Debug)]
-		struct MessagePacket<T> {
+		pub struct MessagePacket<T> {
 			signals_received: usize,
 			message: T,
 		}
 
-		fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
+		pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 			MessagePacket {
 				signals_received,
 				message,

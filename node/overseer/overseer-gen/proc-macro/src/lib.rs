@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::TokenStream;
-use syn::{parse2, Error, GenericParam, Result};
+use proc_macro2::Span;
+use syn::{parse2, Error, GenericParam, Result, Ident};
 use std::collections::HashSet;
 
 mod parse;
@@ -23,13 +24,15 @@ mod impl_overseer;
 mod impl_replace;
 mod impl_channels_out;
 mod impl_message_wrapper;
-mod inc;
+mod impl_dispatch;
+// mod inc;
 
 use parse::*;
 use impl_overseer::*;
 use impl_replace::*;
 use impl_channels_out::*;
 use impl_message_wrapper::*;
+use impl_dispatch::*;
 
 #[proc_macro_attribute]
 pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -39,8 +42,8 @@ pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) ->
 }
 
 pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<proc_macro2::TokenStream> {
-	let args = parse_attr(attr)?;
-	let message_wrapper = args.wrapper_enum_name;
+	let args: AttrArgs = syn::parse2(attr)?;
+	let message_wrapper = args.message_wrapper;
 
 	let span = proc_macro2::Span::call_site();
 	let ds = parse2::<syn::ItemStruct>(orig.clone())?;
@@ -76,6 +79,9 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 				baggage,
 				overseer_name,
 				message_wrapper,
+				message_channel_capacity: args.message_channel_capacity,
+				signal_channel_capacity: args.signal_channel_capacity,
+				incoming_event_ty: Ident::new("Network", Span::call_site()), // FIXME
 			};
 
 			let mut additive = impl_overseer_struct(&info)?;
@@ -83,8 +89,9 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 			additive.extend(impl_message_wrapper_enum(&info)?);
 			additive.extend(impl_channels_out_struct(&info)?);
 			additive.extend(impl_replacable_subsystem(&info)?);
+			additive.extend(impl_dispatch(&info)?);
 
-			additive.extend(inc::include_static_rs()?);
+			// additive.extend(inc::include_static_rs()?);
 
 			Ok(additive)
 		}
@@ -95,44 +102,5 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 	}
 }
 
-
-
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use quote::quote;
-
-	#[test]
-	fn basic() {
-		let attr = quote! {
-			overloard(AllMessages, x, y)
-		};
-
-		let item = quote! {
-			pub struct Ooooh<S = Pffffffft> where S: SpawnThat {
-				#[subsystem(Foo)]
-				sub0: FooSubsystem,
-
-				#[subsystem(Bar)]
-				yyy: BaersBuyBilliardBalls,
-
-				#[subsystem(Twain)]
-				fff: Beeeeep,
-
-				spawner: S,
-				metrics: Metrics,
-			}
-		};
-
-		let output = impl_overseer_gen(attr, item).expect("Simple example always works. qed");
-		println!("//generated:");
-		println!("{}", output);
-	}
-
-	#[test]
-	fn ui() {
-		let t = trybuild::TestCases::new();
-		t.compile_fail("tests/ui/err-*.rs");
-		t.pass("tests/ui/ok-*.rs");
-	}
-}
+mod tests;

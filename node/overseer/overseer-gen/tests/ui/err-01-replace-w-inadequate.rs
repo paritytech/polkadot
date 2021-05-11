@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
-use polkadot_procmacro_overseer_gen::overlord;
+use polkadot_overseer_gen_proc_macro::overlord;
 
 struct X;
-struct Z;
 
 struct Orange;
 
@@ -18,7 +17,6 @@ struct TequilaInABar;
 #[overlord(Wrapper)]
 struct Overseer {
 	#[subsystem(X)]
-	#[subsystem(Z)]
 	sub0: AwesomeSubSys,
 
 	#[subsystem(Orange)]

@@ -19,12 +19,13 @@ pub(crate) fn impl_replacable_subsystem(
 	let baggage_name = &info.baggage_names();
 
 	let generics = quote! {
-		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
+			S: SpawnNamed,
 			#( #field_ty : Subsystem<Ctx>, )*
 	};
 

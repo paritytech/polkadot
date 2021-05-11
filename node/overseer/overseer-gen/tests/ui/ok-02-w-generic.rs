@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_procmacro_overseer_gen::overlord;
-
+use polkadot_overseer_gen_proc_macro::overlord;
 trait MetaMeta {}
 
 #[derive(Debug)]
@@ -10,8 +9,8 @@ struct MsgStrukt(u8);
 #[derive(Default, Clone, Copy)]
 struct AwesomeSubSys;
 
-#[derive(Clone)]
 #[overlord(Wrapper)]
+#[derive(Clone)]
 struct Overseer<T: MetaMeta> {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,

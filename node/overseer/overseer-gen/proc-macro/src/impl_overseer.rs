@@ -1,6 +1,4 @@
-use proc_macro2::{Span};
 use quote::quote;
-use syn::Generics;
 use syn::{Ident, Result};
 
 use super::*;
@@ -21,16 +19,26 @@ pub(crate) fn impl_overseer_struct(
 	let baggage_generic_ty = &info.baggage_generic_types();
 
 	let generics = quote! {
-		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
 	};
 
-	let _where_clause = quote! {
+	let where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
+			S: SpawnNamed,
 			#( #field_ty : Subsystem<Ctx> )*
 	};
 
+	let message_channel_capacity = info.message_channel_capacity;
+	let signal_channel_capacity = info.signal_channel_capacity;
+
+	let spawner_doc = "Responsible for driving the subsystem futures.";
+	let running_subsystems_doc = "The set of running subsystems.";
+
 	let mut ts = quote! {
+		const CHANNEL_CAPACITY: usize = #message_channel_capacity;
+		const SIGNAL_CHANNEL_CAPACITY: usize = #signal_channel_capacity;
+
 		pub struct #overseer_name #generics {
 			#(
 				#field_name: #field_ty,
@@ -39,9 +47,16 @@ pub(crate) fn impl_overseer_struct(
 			#(
 				#baggage_name: #baggage_ty,
 			)*
+
+			#[doc = #spawner_doc]
+			spawner: S,
+
+			#[doc = #running_subsystems_doc]
+			running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+
 		}
 
-		impl #generics #overseer_name #generics {
+		impl #generics #overseer_name #generics #where_clause {
 			pub async fn stop(mut self) {
 				#(
 					let _ = self. #field_name .send_signal(OverseerSignal::Conclude).await;
@@ -94,6 +109,7 @@ pub(crate) fn impl_builder(
 	let field_name = &info.subsystem_names();
 	let field_ty = &info.subsystem_generic_types();
 
+	let channel_name = &info.channel_names("");
 	let channel_name_unbounded = &info.channel_names("_unbounded");
 
 	let channel_name_tx = &info.channel_names("_tx");
@@ -106,13 +122,17 @@ pub(crate) fn impl_builder(
 	let baggage_name = &info.baggage_names();
 
 	let generics = quote! {
-		< Ctx, #( #baggage_generic_ty, )* #( #field_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
+			Ctx: SubsystemContext,
+			S: SpawnNamed,
 			#( #field_ty : Subsystem<Ctx>, )*
 	};
+
+	let message_wrapper = &info.message_wrapper;
 
 	let ts = quote! {
 
@@ -130,6 +150,7 @@ pub(crate) fn impl_builder(
 			#(
 				#baggage_name : ::std::option::Option< #baggage_name >,
 			)*
+			spawner: ::std::option::Option<  >,
 		}
 
 		impl #generics #builder #generics #where_clause {
@@ -140,7 +161,14 @@ pub(crate) fn impl_builder(
 				}
 			)*
 
-			fn build(mut self, ctx: Ctx) -> (#overseer_name #generics, #handler) {
+			fn build<F>(mut self, create_ctx: F) -> (#overseer_name #generics, #handler)
+				where F: FnMut(
+					metered::MeteredReceiver<OverseerSignal>,
+					meteted::SubsystemIncomingMessages< #message_wrapper >,
+					ChannelsOut,
+					metered::UnboundedMeteredSender<ToOverseer>,
+				) -> Ctx,
+			{
 				let overseer = #overseer_name :: #generics {
 					#(
 						#field_name : self. #field_name .unwrap(),
@@ -150,8 +178,6 @@ pub(crate) fn impl_builder(
 					)*
 				};
 
-				const CHANNEL_CAPACITY: usize = 1024;
-				const SIGNAL_CHANNEL_CAPACITY: usize = 64;
 				let (events_tx, events_rx) = ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
 				let handler = #handler {
@@ -175,7 +201,7 @@ pub(crate) fn impl_builder(
 
 					ChannelsOut {
 						#(
-							channel_name: #channel_name_tx .clone(),
+							#channel_name: #channel_name_tx .clone(),
 						)*
 						#(
 							#channel_name_unbounded: #channel_name_unbounded_tx .clone(),
@@ -184,6 +210,85 @@ pub(crate) fn impl_builder(
 				};
 
 				// #( #launch subsystem )
+
+				enum TaskKind {
+					Regular,
+					Blocking,
+				}
+
+				let spawner = &mut overseer.spawner;
+
+				let mut spawn = |
+						message_tx: metered::MeteredSender<MessagePacket<M>>,
+						message_rx: SubsystemIncomingMessages<M>,
+						unbounded_meter: metered::Meter,
+						to_subsystems: ChannelsOut,
+						to_overseer_tx: metered::UnboundedMeteredSender<ToOverseer>,
+						s: impl Subsystem<OverseerSubsystemContext<M>>,
+						metrics: &Metrics,
+						futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+						task_kind: TaskKind,
+						| -> SubsystemResult<OverseenSubsystem<M>>
+				{
+					let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
+					let ctx = create_ctx(
+						signal_rx,
+						message_rx,
+						to_subsystems,
+						to_overseer_tx,
+					);
+					let SpawnedSubsystem { future, name } = s.start(ctx);
+
+					let (terminated_tx, terminated_rx) = oneshot::channel();
+
+					let fut = Box::pin(async move {
+						if let Err(e) = future.await {
+							tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+						} else {
+							tracing::debug!(subsystem=name, "subsystem exited without an error");
+						}
+						let _ = terminated_tx.send(());
+					});
+
+					match task_kind {
+						TaskKind::Regular => spawner.spawn(name, fut),
+						TaskKind::Blocking => spawner.spawn_blocking(name, fut),
+					}
+
+					futures.push(Box::pin(terminated_rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
+
+					let instance = Some(SubsystemInstance::< #message_wrapper > {
+						meters: SubsystemMeters {
+							unbounded: unbounded_meter,
+							bounded: message_tx.meter().clone(),
+							signals: signal_tx.meter().clone(),
+						},
+						tx_signal: signal_tx,
+						tx_bounded: message_tx,
+						signals_received: 0,
+						name,
+					});
+
+					Ok(OverseenSubsystem::< #message_wrapper > {
+						instance,
+					})
+				};
+
+
+				#(
+					let #field_name = spawn(
+						#channel_name_tx,
+						stream::select(
+							#channel_name_tx,
+							#channel_name_unbounded_tx,
+						),
+						channels_out.clone(),
+						to_overseer_tx.clone(),
+						#field_name,
+						&mut running_subsystems,
+						TaskKind::Blocking,
+					)?;
+				)*
 
 				(overseer, handler)
 			}

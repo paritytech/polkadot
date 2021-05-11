@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
-use polkadot_procmacro_overseer_gen::overlord;
+use polkadot_overseer_gen_proc_macro::overlord;
 
 struct Msg(u8);
 
 #[derive(Default, Clone, Copy)]
 struct AwesomeSub;
 
-#[derive(Clone, AllSubsystemsGen)]
 #[overlord(Wrapper)]
+#[derive(Clone, AllSubsystemsGen)]
 enum Overseer {
 	#[subsystem(Msg)]
 	Sub0(AwesomeSub),

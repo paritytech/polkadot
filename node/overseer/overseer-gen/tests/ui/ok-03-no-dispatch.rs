@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_procmacro_overseer_gen::overlord;
+use polkadot_overseer_gen_proc_macro::overlord;
 
 #[derive(Debug)]
 struct MsgStrukt(u8);
