@@ -50,6 +50,7 @@ use syn::parse::ParseBuffer;
 #[derive(Clone, Debug)]
 enum AttrItem {
 	ExternEventType(Path),
+	ExternOverseerSignalType(Path),
 	MessageWrapperName(Ident),
 	SignalChannelCapacity(LitInt),
 	MessageChannelCapacity(LitInt),
@@ -62,6 +63,7 @@ impl Spanned for AttrItem {
 			AttrItem::MessageWrapperName(x) => x.span(),
 			AttrItem::SignalChannelCapacity(x) => x.span(),
 			AttrItem::MessageChannelCapacity(x) => x.span(),
+			AttrItem::ExternOverseerSignalType(x) => x.span(),
 		}
 	}
 }
@@ -70,6 +72,7 @@ impl AttrItem {
 	fn key(&self) -> &'static str {
 		match self {
 			AttrItem::ExternEventType(_) => "event",
+			AttrItem::ExternOverseerSignalType(_) => "signal",
 			AttrItem::MessageWrapperName(_) => "gen",
 			AttrItem::SignalChannelCapacity(_) => "signal_capacity",
 			AttrItem::MessageChannelCapacity(_) => "message_capacity",
@@ -80,24 +83,25 @@ impl AttrItem {
 impl Parse for AttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let key = input.parse::<Ident>()?;
-		Ok(if key == "event" {
-			let _ = input.parse::<Token![=]>()?;
+		let span = Span::call_site();
+		let _ = input.parse::<Token![=]>()?;
+		Ok(if key == "signal" {
+			let path = input.parse::<Path>()?;
+			AttrItem::ExternOverseerSignalType(path)
+		} else if  key == "event" {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternEventType(path)
 		} else if  key == "gen" {
-			let _ = input.parse::<Token![=]>()?;
 			let wrapper_message = input.parse::<Ident>()?;
 			AttrItem::MessageWrapperName(wrapper_message)
 		} else if key == "signal_capacity" {
-			let _ = input.parse::<Token![=]>()?;
 			let value = input.parse::<LitInt>()?;
 			AttrItem::SignalChannelCapacity(value)
 		} else if key == "message_capacity" {
-			let _ = input.parse::<Token![=]>()?;
 			let value = input.parse::<LitInt>()?;
 			AttrItem::MessageChannelCapacity(value)
 		} else {
-			return Err(Error::new(Span::call_site(), "Expected one of `gen`, `signal_capacity`, or `message_capacity`."))
+			return Err(Error::new(span, "Expected one of `gen`, `signal_capacity`, or `message_capacity`."))
 		})
 	}
 }
@@ -147,6 +151,12 @@ impl Parse for AttrArgs {
 		} else {
 			1024
 		};
+		let extern_signal_ty = unique.get("signal")
+			.map(|x| if let AttrItem::ExternOverseerSignalType(x) = x { x.clone() } else { unreachable!() } )
+			.ok_or_else(|| {
+				Error::new(span, "Must declare the overseer signals type via `signal=..`.")
+			})?;
+
 		let extern_event_ty = unique.get("event")
 			.map(|x| if let AttrItem::ExternEventType(x) = x { x.clone() } else { unreachable!() } )
 			.ok_or_else(|| {
@@ -156,7 +166,7 @@ impl Parse for AttrArgs {
 		let message_wrapper = unique.get("gen")
 			.map(|x| if let AttrItem::MessageWrapperName(x) = x { x.clone() } else { unreachable!() } )
 			.ok_or_else(|| {
-				Error::new(span, "Must declare the external event type via `event=..`.")
+				Error::new(span, "Must declare the generated type via `gen=..`.")
 			})?;
 
 		Ok(AttrArgs {
@@ -342,15 +352,14 @@ pub(crate) fn parse_overseer_struct_field(
 					Error::new(span, "Subsystem must consume at least one message")
 				)
 			}
-			let no_dispatch = variant.no_dispatch;
 
 			subsystems.push(SubSysField {
 				name: ident,
 				generic: Ident::new(format!("Sub{}", idx).as_str(), Span::call_site()),
 				ty: try_type_to_ident(ty, span)?,
 				consumes: consumes_idents[0].clone(),
-				no_dispatch,
-				blocking: false, // FIXME XXX
+				no_dispatch: variant.no_dispatch,
+				blocking: variant.blocking,
 			});
 		} else {
 			let field_ty = try_type_to_ident(ty, Span::call_site())?;

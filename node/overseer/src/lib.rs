@@ -138,12 +138,7 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
-/// It wraps a system-wide [`AllMessages`] type that represents all possible
-/// messages in the system.
-///
-/// [`AllMessages`]: enum.AllMessages.html
-/// [`Subsystem`]: trait.Subsystem.html
-/// [`Overseer`]: struct.Overseer.html
+/// Used to launch jobs.
 enum ToOverseer {
 	/// A message that wraps something the `Subsystem` is desiring to
 	/// spawn on the overseer and a `oneshot::Sender` to signal the result
@@ -263,10 +258,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 }
 
 
-type SubsystemIncomingMessages<M> = stream::Select<
-	metered::MeteredReceiver<MessagePacket<M>>,
-	metered::UnboundedMeteredReceiver<MessagePacket<M>>,
->;
+type SubsystemIncomingMessages = SubsystemIncomingMessages<OverseerSignal>;
 
 #[derive(Debug, Default, Clone)]
 struct SignalsReceived(Arc<AtomicUsize>);
@@ -522,40 +514,62 @@ struct SubsystemMeterReadouts {
 }
 
 /// The `Overseer` itself.
+#[overlord(event=Event, signal=OverseerSignal, gen=AllMessages)]
 pub struct Overseer<S, SupportsParachains> {
-	/// Handles to all subsystems.
-	subsystems: AllSubsystems<
-		OverseenSubsystem<CandidateValidationMessage>,
-		OverseenSubsystem<CandidateBackingMessage>,
-		OverseenSubsystem<CandidateSelectionMessage>,
-		OverseenSubsystem<StatementDistributionMessage>,
-		OverseenSubsystem<AvailabilityDistributionMessage>,
-		OverseenSubsystem<AvailabilityRecoveryMessage>,
-		OverseenSubsystem<BitfieldSigningMessage>,
-		OverseenSubsystem<BitfieldDistributionMessage>,
-		OverseenSubsystem<ProvisionerMessage>,
-		OverseenSubsystem<RuntimeApiMessage>,
-		OverseenSubsystem<AvailabilityStoreMessage>,
-		OverseenSubsystem<NetworkBridgeMessage>,
-		OverseenSubsystem<ChainApiMessage>,
-		OverseenSubsystem<CollationGenerationMessage>,
-		OverseenSubsystem<CollatorProtocolMessage>,
-		OverseenSubsystem<ApprovalDistributionMessage>,
-		OverseenSubsystem<ApprovalVotingMessage>,
-		OverseenSubsystem<GossipSupportMessage>,
-	>,
+	#[subsystem(no_dispatch, CandidateValidationMessage)]
+	candidate_validation,
 
-	/// Spawner to spawn tasks to.
-	s: S,
+	#[subsystem(no_dispatch, CandidateBackingMessage)]
+	candidate_backing,
 
-	/// Here we keep handles to spawned subsystems to be notified when they terminate.
-	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+	#[subsystem(no_dispatch, CandidateSelectionMessage)]
+	candidate_selection,
 
-	/// Gather running subsystems' outbound streams into one.
-	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<ToOverseer>>,
+	#[subsystem(StatementDistributionMessage)]
+	statement_distribution,
 
-	/// Events that are sent to the overseer from the outside world
-	events_rx: metered::MeteredReceiver<Event>,
+	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
+	availability_distribution,
+
+	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
+	availability_recovery,
+
+	#[subsystem(no_dispatch, BitfieldSigningMessage)]
+	bitfield_signing,
+
+	#[subsystem(BitfieldDistributionMessage)]
+	bitfield_distribution,
+
+	#[subsystem(no_dispatch, ProvisionerMessage)]
+	provisioner,
+
+	#[subsystem(no_dispatch, RuntimeApiMessage)]
+	runtime_api,
+
+	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	availability_store,
+
+	#[subsystem(no_dispatch, NetworkBridgeMessage)]
+	network_bridge,
+
+	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	chain_api,
+
+	#[subsystem(no_dispatch, CollationGenerationMessage)]
+	collation_generation,
+
+	#[subsystem(no_dispatch, CollatorProtocolMessage)]
+	collator_protocol,
+
+	#[subsystem(ApprovalDistributionMessage)]
+	approval_distribution,
+
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	approval_voting,
+
+	#[subsystem(no_dispatch, GossipSupportMessage)]
+	gossip_support,
+
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
@@ -1307,42 +1321,6 @@ where
 		};
 
 		Ok((this, handler))
-	}
-
-	// Stop the overseer.
-	async fn stop(mut self) {
-		let _ = self.subsystems.candidate_validation.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.candidate_backing.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.candidate_selection.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.statement_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_recovery.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.bitfield_signing.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.bitfield_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.provisioner.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.runtime_api.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_store.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.network_bridge.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.chain_api.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.collator_protocol.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.collation_generation.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.approval_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.approval_voting.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.gossip_support.send_signal(OverseerSignal::Conclude).await;
-
-		let mut stop_delay = Delay::new(Duration::from_secs(STOP_DELAY)).fuse();
-
-		loop {
-			select! {
-				_ = self.running_subsystems.next() => {
-					if self.running_subsystems.is_empty() {
-						break;
-					}
-				},
-				_ = stop_delay => break,
-				complete => break,
-			}
-		}
 	}
 
 	/// Run the `Overseer`.

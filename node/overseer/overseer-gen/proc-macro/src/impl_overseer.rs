@@ -32,9 +32,6 @@ pub(crate) fn impl_overseer_struct(
 	let message_channel_capacity = info.message_channel_capacity;
 	let signal_channel_capacity = info.signal_channel_capacity;
 
-	let spawner_doc = "Responsible for driving the subsystem futures.";
-	let running_subsystems_doc = "The set of running subsystems.";
-
 	let mut ts = quote! {
 		const CHANNEL_CAPACITY: usize = #message_channel_capacity;
 		const SIGNAL_CHANNEL_CAPACITY: usize = #signal_channel_capacity;
@@ -48,12 +45,17 @@ pub(crate) fn impl_overseer_struct(
 				#baggage_name: #baggage_ty,
 			)*
 
-			#[doc = #spawner_doc]
+			/// Responsible for driving the subsystem futures.
 			spawner: S,
 
-			#[doc = #running_subsystems_doc]
+			/// The set of running subsystems.
 			running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
+			/// Gather running subsystems' outbound streams into one.
+			to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<ToOverseer>>,
+
+			/// Events that are sent to the overseer from the outside world.
+			events_rx: metered::MeteredReceiver<Event>,
 		}
 
 		impl #generics #overseer_name #generics #where_clause {
@@ -266,15 +268,17 @@ pub(crate) fn impl_builder(
 
 				let overseer = #overseer_name :: #generics {
 					#(
-						#field_name : self. #field_name .unwrap(),
+						#field_name,
 					)*
 
 					#(
 						#baggage_name : self. #baggage_name .unwrap(),
 					)*
 
-					running_instance,
 					spawner,
+					running_instance,
+					events_rx,
+					to_overseer_rx,
 				};
 
 				(overseer, handler)
