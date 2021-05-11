@@ -1188,7 +1188,6 @@ mod tests {
 
 	/// Result of [`distribute_collation`]
 	struct DistributeCollation {
-		connection_handles: Vec<oneshot::Sender<()>>,
 		candidate: CandidateReceipt,
 		pov_block: PoV,
 	}
@@ -1269,32 +1268,26 @@ mod tests {
 			}
 		}
 
-		let connection_handles = if should_connect {
-			let connected_current = assert_matches!(
+		if should_connect {
+			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
-						keep_alive,
 						..
 					}
-				) => { keep_alive }
+				) => {}
 			);
-			let connected_next = assert_matches!(
+			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
-						keep_alive,
 						..
 					}
-				) => { keep_alive }
+				) => {}
 			);
-			vec![connected_current, connected_next]
-		} else {
-			Vec::new()
-		};
+		}
 
 		DistributeCollation {
-			connection_handles,
 			candidate,
 			pov_block,
 		}
