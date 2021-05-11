@@ -173,8 +173,7 @@ impl<
 > TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount> {
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
 		// Check we handle this asset.
-		let (asset_id, amount) = Matcher::matches_fungibles(what)
-			.ok_or(Error::AssetNotFound)?;
+		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		if CheckAsset::contains(&asset_id) {
 			// This is an asset whose teleports we track.
 			let checking_account = CheckingAccount::get();
@@ -186,7 +185,7 @@ impl<
 	}
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
-		if let Some((asset_id, amount)) = Matcher::matches_fungibles(what) {
+		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
 			if CheckAsset::contains(&asset_id) {
 				let checking_account = CheckingAccount::get();
 				let ok = Assets::burn_from(asset_id, &checking_account, amount).is_ok();
@@ -196,7 +195,7 @@ impl<
 	}
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
-		if let Some((asset_id, amount)) = Matcher::matches_fungibles(what) {
+		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
 			if CheckAsset::contains(&asset_id) {
 				let checking_account = CheckingAccount::get();
 				let ok = Assets::mint_into(asset_id, &checking_account, amount).is_ok();
