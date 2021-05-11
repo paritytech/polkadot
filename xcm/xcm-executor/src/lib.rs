@@ -154,6 +154,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(Config::IsTeleporter::filter_asset_location(asset, &origin), XcmError::UntrustedTeleportLocation);
+					// We should check that the asset can actually be teleported in (for this to be in error, there
+					// would need to be an accounting violation by one of the trusted chains, so it's unlikely, but we
+					// don't want to punish a possibly innocent chain/user).
+					Config::AssetTransactor::can_check_in(&origin, asset)?;
+				}
+				for asset in assets.iter() {
+					Config::AssetTransactor::check_in(&origin, asset);
 				}
 				Some((Assets::from(assets), effects))
 			}
@@ -238,6 +245,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
 			Order::InitiateTeleport { assets, dest, effects} => {
+				for asset in assets.iter() {
+					Config::AssetTransactor::check_out(&origin, asset);
+				}
 				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
 			}

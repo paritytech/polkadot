@@ -557,6 +557,7 @@ parameter_types! {
 	pub const RocLocation: MultiLocation = MultiLocation::Null;
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 pub type SovereignAccountOf = (
@@ -574,6 +575,8 @@ pub type LocalAssetTransactor =
 		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
+		// It's a native asset so we keep track of the teleports to maintain total issuance.
+		CheckAccount,
 	>;
 
 type LocalOriginConverter = (

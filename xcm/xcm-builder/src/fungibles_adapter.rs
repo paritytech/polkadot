@@ -169,6 +169,7 @@ impl<
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+	// TODO: check in/out
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
@@ -202,6 +203,7 @@ impl<
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
 > TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+	// TODO: check in/out
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::deposit_asset(what, who)
