@@ -39,7 +39,7 @@ use runtime_parachains::{
 
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, traits::Saturating};
+use sp_runtime::{RuntimeDebug, traits::{Saturating, CheckedSub}};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -55,6 +55,7 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait WeightInfo {
+	fn reserve() -> Weight;
 	fn register() -> Weight;
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
@@ -63,6 +64,7 @@ pub trait WeightInfo {
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
+	fn reserve() -> Weight { 0 }
 	fn register() -> Weight { 0 }
 	fn force_register() -> Weight { 0 }
 	fn deregister() -> Weight { 0 }
@@ -126,6 +128,7 @@ decl_event! {
 	{
 		Registered(ParaId, AccountId),
 		Deregistered(ParaId),
+		Reserved(ParaId, AccountId),
 	}
 }
 
@@ -193,11 +196,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let valid_id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
-			ensure!(id == valid_id, Error::<T>::InvalidParaId);
-			Self::do_register(who, None, id, genesis_head, validation_code)?;
-
-			NextFreeParaId::set(id + 1);
+			Self::do_register(who, None, id, genesis_head, validation_code, true)?;
 			Ok(())
 		}
 
@@ -217,7 +216,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::do_register(who, Some(deposit), id, genesis_head, validation_code)
+			Self::do_register(who, Some(deposit), id, genesis_head, validation_code, false)
 		}
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
@@ -295,15 +294,11 @@ decl_module! {
 		/// The origin must pay a deposit for the registration information,
 		/// including the genesis information and validation code. ParaId
 		/// must be greater than or equal to 1000.
-		#[weight = T::WeightInfo::register()]
-		pub fn register_next(
-			origin,
-			genesis_head: HeadData,
-			validation_code: ValidationCode,
-		) -> DispatchResult {
+		#[weight = T::WeightInfo::reserve()]
+		pub fn reserve(origin) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
-			Self::do_register(who, None, id, genesis_head, validation_code)?;
+			Self::do_reserve(who, None, id)?;
 			NextFreeParaId::set(id + 1);
 			Ok(())
 		}
@@ -353,7 +348,7 @@ impl<T: Config> Registrar for Module<T> {
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 	) -> DispatchResult {
-		Self::do_register(manager, None, id, genesis_head, validation_code)
+		Self::do_register(manager, None, id, genesis_head, validation_code, false)
 	}
 
 	// Deregister a Para ID, free any data, and return any deposits.
@@ -427,6 +422,27 @@ impl<T: Config> Module<T> {
 		})
 	}
 
+	fn do_reserve(
+		who: T::AccountId,
+		deposit_override: Option<BalanceOf<T>>,
+		id: ParaId,
+	) -> DispatchResult {
+		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
+
+		let deposit = deposit_override.unwrap_or(T::ParaDeposit::get());
+		<T as Config>::Currency::reserve(&who, deposit)?;
+		let info = ParaInfo {
+			manager: who.clone(),
+			deposit,
+			locked: false,
+		};
+
+		Paras::<T>::insert(id, info);
+		Self::deposit_event(RawEvent::Reserved(id, who));
+		Ok(())
+	}
+
 	/// Attempt to register a new Para Id under management of `who` in the
 	/// system with the given information.
 	fn do_register(
@@ -435,20 +451,32 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
+		ensure_reserved: bool,
 	) -> DispatchResult {
-		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+		let deposited = if let Some(para_data) = Paras::<T>::get(id) {
+			ensure!(para_data.manager == who, Error::<T>::AlreadyRegistered);
+			ensure!(!para_data.locked, Error::<T>::ParaLocked);
+			para_data.deposit
+		} else {
+			ensure!(!ensure_reserved, Error::<T>::NotOwner);
+			Default::default()
+		};
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) = Self::validate_onboarding_data(
 			genesis_head,
 			validation_code,
 			false
 		)?;
-
 		let deposit = deposit_override.unwrap_or(deposit);
-		<T as Config>::Currency::reserve(&who, deposit)?;
+
+		if let Some(additional) = deposit.checked_sub(&deposited) {
+			<T as Config>::Currency::reserve(&who, additional)?;
+		} else if let Some(rebate) = deposited.checked_sub(&deposit) {
+			<T as Config>::Currency::unreserve(&who, rebate);
+		};
 		let info = ParaInfo {
 			manager: who.clone(),
-			deposit: deposit,
+			deposit,
 			locked: false,
 		};
 
@@ -991,12 +1019,23 @@ mod benchmarking {
 	benchmarks! {
 		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
 
+		reserve {
+			let caller: T::AccountId = whitelisted_caller();
+			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		}: _(RawOrigin::Signed(caller.clone()))
+		verify {
+			assert_last_event::<T>(RawEvent::Reserved(LOWEST_PUBLIC_ID, caller).into());
+			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
+			assert_eq!(paras::Module::<T>::lifecycle(para), None);
+		}
+
 		register {
 			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
