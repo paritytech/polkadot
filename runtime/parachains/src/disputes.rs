@@ -445,6 +445,7 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
+	/// Returns a vector of freshly created disputes.
 	pub(crate) fn provide_multi_dispute_data(statement_sets: MultiDisputeStatementSet)
 		-> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>
 	{

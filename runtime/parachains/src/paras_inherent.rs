@@ -35,8 +35,10 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
+	disputes,
 	inclusion,
 	scheduler::{self, FreedReason},
+	shared,
 	ump,
 };
 
@@ -47,7 +49,7 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: inclusion::Config + scheduler::Config {}
+pub trait Config: disputes::Config + inclusion::Config + scheduler::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
@@ -99,7 +101,7 @@ decl_module! {
 				bitfields: signed_bitfields,
 				backed_candidates,
 				parent_header,
-				disputes: _,
+				disputes,
 			} = data;
 
 			ensure_none(origin)?;
@@ -112,6 +114,29 @@ decl_module! {
 				Error::<T>::InvalidParentHeader,
 			);
 
+			// Handle disputes logic.
+			let freed_disputed: Vec<(_, FreedReason)> = {
+				let fresh_disputes = <disputes::Module<T>>::provide_multi_dispute_data(disputes)?;
+				if <disputes::Module<T>>::is_frozen() {
+					// The relay chain we are currently on is invalid. Proceed no further on parachains.
+					Included::set(Some(()));
+					return Ok(Some(
+						MINIMAL_INCLUSION_INHERENT_WEIGHT
+					).into());
+				}
+
+				let current_session = <shared::Module<T>>::session_index();
+				let any_current_session_disputes = fresh_disputes.iter()
+					.any(|(s, _)| s == &current_session);
+
+				if any_current_session_disputes {
+					// TODO [now]: inclusion::collect_disputed.
+					unimplemented!();
+				} else {
+					Vec::new()
+				}
+			};
+
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
 			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
@@ -120,6 +145,8 @@ decl_module! {
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
 			)?;
+
+			// TODO [now]: Disputes::note_included.
 
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
@@ -130,8 +157,12 @@ decl_module! {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
-				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
+			let mut freed = freed_disputed.into_iter()
+				.chain(freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded)))
+				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+				.collect::<Vec<_>>();
+
+			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Module<T>>::clear();
 			<scheduler::Module<T>>::schedule(
@@ -141,6 +172,8 @@ decl_module! {
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
+
+			// TODO [now]: check that `Disputes::could_be_invalid` is false for all backed.
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
