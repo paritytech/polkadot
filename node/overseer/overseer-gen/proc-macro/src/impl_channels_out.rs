@@ -56,11 +56,10 @@ pub(crate) fn impl_channels_out_struct(
                 };
 
                 if res.is_err() {
-                    // XXX FIXME
-                    // tracing::debug!(
-                    //     target: LOG_TARGET,
-                    //     "Failed to send a message to another subsystem",
-                    // );
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        "Failed to send a message to another subsystem",
+                    );
                 }
             }
 
@@ -80,11 +79,10 @@ pub(crate) fn impl_channels_out_struct(
                 };
 
                 if res.is_err() {
-                    // FIXME
-                    // tracing::debug!(
-                    //     target: LOG_TARGET,
-                    //     "Failed to send a message to another subsystem",
-                    // );
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        "Failed to send a message to another subsystem",
+                    );
                 }
             }
         }

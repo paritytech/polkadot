@@ -181,7 +181,7 @@ pub(crate) fn impl_builder(
 							#channel_name_unbounded: #channel_name_unbounded_tx .clone(),
 						)*
 					}
-				}
+				};
 
 				// #( #launch subsystem )
 

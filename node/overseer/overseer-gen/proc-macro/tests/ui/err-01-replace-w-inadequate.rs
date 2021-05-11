@@ -20,7 +20,7 @@ struct Overseer {
 	sub0: AwesomeSubSys,
 
 	#[subsystem(Orange)]
-	shots_of: TequilaInABar
+	shots_of: TequilaInABar,
 
 	other: Stuff,
 }
