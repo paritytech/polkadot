@@ -6260,6 +6260,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-overseer-gen"
+version = "0.1.0"
+dependencies = [
+ "polkadot-overseer-gen-proc-macro",
+ "tracing",
+]
+
+[[package]]
+name = "polkadot-overseer-gen-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
+]
+
+[[package]]
 name = "polkadot-parachain"
 version = "0.9.1"
 dependencies = [
@@ -6301,18 +6321,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
-]
-
-[[package]]
-name = "polkadot-procmacro-overseer-gen"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
 ]
 
 [[package]]

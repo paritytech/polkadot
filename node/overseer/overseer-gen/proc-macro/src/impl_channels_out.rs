@@ -40,7 +40,7 @@ pub(crate) fn impl_channels_out_struct(
 		}
 
         impl ChannelsOut {
-            async pub fn send_and_log_error(
+            pub async fn send_and_log_error(
                 &mut self,
                 signals_received: usize,
                 message: #message_wrapper,
@@ -80,10 +80,11 @@ pub(crate) fn impl_channels_out_struct(
                 };
 
                 if res.is_err() {
-                    ::tracing::debug!(
-                        target: LOG_TARGET,
-                        "Failed to send a message to another subsystem",
-                    );
+                    // FIXME
+                    // tracing::debug!(
+                    //     target: LOG_TARGET,
+                    //     "Failed to send a message to another subsystem",
+                    // );
                 }
             }
         }
