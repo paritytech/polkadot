@@ -209,8 +209,7 @@ impl<
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
 		let who = AccountIdConverter::convert_ref(who)
 			.map_err(|()| Error::AccountIdConversionFailed)?;
-		let checking_account = CheckingAccount::get();
-		Assets::mint_into(asset_id, &checking_account, amount)
+		Assets::mint_into(asset_id, &who, amount)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))
 	}
 
