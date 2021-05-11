@@ -917,7 +917,7 @@ mod tests {
 	use std::{sync::Arc, time::Duration};
 
 	use assert_matches::assert_matches;
-	use futures::{channel::mpsc, executor, future, Future};
+	use futures::{executor, future, Future};
 
 	use sp_core::{crypto::Pair, Decode};
 	use sp_keyring::Sr25519Keyring;
@@ -1408,7 +1408,7 @@ mod tests {
 
 			setup_system(&mut virtual_overseer, &test_state).await;
 
-			let DistributeCollation { connected: _connected, candidate, pov_block } =
+			let DistributeCollation { candidate, pov_block } =
 				distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			for (val, peer) in test_state.current_group_validator_authority_ids()
@@ -1492,8 +1492,7 @@ mod tests {
 
 			assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 
-			let DistributeCollation { connected: _connected, .. } =
-				distribute_collation(&mut virtual_overseer, &test_state, true).await;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			// Send info about peer's view.
 			overseer_send(
@@ -1561,7 +1560,7 @@ mod tests {
 			// And let it tell us that it is has the same view.
 			send_peer_view_change(&mut virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
 
@@ -1600,14 +1599,14 @@ mod tests {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer2).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			let old_relay_parent = test_state.relay_parent;
 
 			// Advance to a new round, while informing the subsystem that the old and the new relay parent are active.
 			test_state.advance_to_new_round(&mut virtual_overseer, true).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![old_relay_parent]).await;
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, old_relay_parent).await;
@@ -1637,7 +1636,7 @@ mod tests {
 			connect_peer(&mut virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 
-			let _ = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;

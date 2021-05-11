@@ -21,7 +21,7 @@ use lru::LruCache;
 
 use polkadot_subsystem::jaeger;
 use polkadot_node_network_protocol::{
-	PeerId, peer_set::PeerSet,
+	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
 	v1::{PoVFetchingRequest, PoVFetchingResponse}}
 };
