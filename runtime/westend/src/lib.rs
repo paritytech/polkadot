@@ -106,6 +106,9 @@ use constants::{time::*, currency::*, fee::*};
 // Weights used in the runtime
 mod weights;
 
+#[cfg(test)]
+mod tests;
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -813,31 +816,12 @@ impl crowdloan::Config for Runtime {
 	type WeightInfo = weights::runtime_common_crowdloan::WeightInfo<Runtime>;
 }
 
-#[test]
-fn remove_keys_weight_is_sensible() {
-	use runtime_common::crowdloan::WeightInfo;
-	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
-	// Max remove keys limit should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
-}
-
 parameter_types! {
 	// The average auction is 10 days long, so this will be 30% for ending period.
 	// 3 Days = 43200 Blocks @ 6 sec per block
 	pub const EndingPeriod: BlockNumber = 3 * DAYS;
 	// ~ 2000 samples -> 20 blocks per sample -> 2 minute samples
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
-}
-
-#[test]
-fn sample_size_is_reasonable() {
-	use runtime_common::auctions::WeightInfo;
-	// Need to clean up all samples at the end of an auction.
-	let samples: BlockNumber = EndingPeriod::get() / SampleLength::get();
-	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
-	// Max sample cleanup should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
 }
 
 impl auctions::Config for Runtime {
