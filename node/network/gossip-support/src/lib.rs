@@ -26,14 +26,11 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	Subsystem, SpawnedSubsystem, SubsystemContext,
 };
-use polkadot_node_subsystem_util::{
-	validator_discovery,
-	self as util,
-};
+use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{
 	Hash, SessionIndex, AuthorityDiscoveryId,
 };
-use polkadot_node_network_protocol::{peer_set::PeerSet, PeerId};
+use polkadot_node_network_protocol::peer_set::PeerSet;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use sp_application_crypto::{Public, AppKey};
 

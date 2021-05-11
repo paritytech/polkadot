@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use futures::{FutureExt, channel::oneshot, channel::mpsc};
+use futures::{FutureExt, channel::oneshot};
 use sp_core::Pair;
 
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
@@ -218,7 +218,7 @@ struct State {
 	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
 
 	/// The connection handles to validators per group we are interested in.
-	connection_handles: HashMap<GroupIndex, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
+	connection_handles: HashMap<GroupIndex, oneshot::Sender<()>>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -467,13 +467,13 @@ async fn connect_to_validators(
 	state: &mut State,
 	group: GroupValidators,
 )  {
-	let (tx, rx) = mpsc::channel(0);
+	let (keep_alive_handle, keep_alive) = oneshot::channel();
 	// Reconnect in all cases, as authority discovery cache might not have been fully populated
 	// last time:
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
+		validator_ids: group.validators, peer_set: PeerSet::Collation, keep_alive
 	})).await;
-	state.connection_handles.insert(group.group, rx);
+	state.connection_handles.insert(group.group, keep_alive_handle);
 }
 
 /// Advertise collation to the given `peer`.
@@ -1024,7 +1024,7 @@ mod tests {
 				validators,
 				session_info: SessionInfo {
 					validators: validator_public,
-					discovery_keys, 
+					discovery_keys,
 					validator_groups,
 					..Default::default()
 				},
@@ -1188,8 +1188,7 @@ mod tests {
 
 	/// Result of [`distribute_collation`]
 	struct DistributeCollation {
-		/// Should be used to inform the subsystem about connected validators.
-		connected: Vec<mpsc::Sender<(AuthorityDiscoveryId, PeerId)>>,
+		connection_handles: Vec<oneshot::Sender<()>>,
 		candidate: CandidateReceipt,
 		pov_block: PoV,
 	}
@@ -1295,7 +1294,7 @@ mod tests {
 		};
 
 		DistributeCollation {
-			connected, 
+			connected,
 			candidate,
 			pov_block,
 		}
