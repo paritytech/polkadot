@@ -57,14 +57,14 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 	IsConcrete, FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32
+	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32,
 };
 use xcm_executor::XcmExecutor;
+use sp_arithmetic::Perquintill;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
-	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, AccountIdLookup,
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
@@ -105,6 +105,9 @@ use constants::{time::*, currency::*, fee::*, paras::*};
 
 // Weights used in the runtime.
 mod weights;
+
+#[cfg(test)]
+mod tests;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -219,8 +222,6 @@ impl pallet_babe::Config for Runtime {
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
-	type KeyOwnerProofSystem = Historical;
-
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
 		pallet_babe::AuthorityId,
@@ -230,6 +231,8 @@ impl pallet_babe::Config for Runtime {
 		KeyTypeId,
 		pallet_babe::AuthorityId,
 	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = Historical;
 
 	type HandleEquivocation =
 		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
@@ -260,8 +263,8 @@ impl pallet_balances::Config for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type MaxLocks = MaxLocks;
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
+	type MaxLocks = MaxLocks;
 }
 
 parameter_types! {
@@ -361,8 +364,8 @@ sp_npos_elections::generate_solution_type!(
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
+	type SignedPhase = SignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
@@ -370,27 +373,72 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type OnChainAccuracy = Perbill;
 	type CompactSolution = NposCompactSolution24;
+	type OnChainAccuracy = Perbill;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = ();
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
-// TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
-// re-built in case input parameters have changed. The `ideal_stake` should be determined by the
-// amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
-pallet_staking_reward_curve::build! {
-	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
-		min_inflation: 0_025_000,
-		max_inflation: 0_100_000,
-		// 3:2:1 staked : parachains : float.
-		// while there's no parachains, then this is 75% staked : 25% float.
-		ideal_stake: 0_750_000,
-		falloff: 0_050_000,
-		max_piece_count: 40,
-		test_precision: 0_005_000,
-	);
+fn era_payout(
+	total_staked: Balance,
+	non_gilt_issuance: Balance,
+	max_annual_inflation: Perquintill,
+	period_fraction: Perquintill,
+	auctioned_slots: u64,
+) -> (Balance, Balance) {
+	use sp_arithmetic::traits::Saturating;
+	use pallet_staking_reward_fn::compute_inflation;
+
+	let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
+	let delta_annual_inflation = max_annual_inflation.saturating_sub(min_annual_inflation);
+
+	// 30% reserved for up to 60 slots.
+	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
+
+	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the amount that we expect
+	// to be taken up with auctions.
+	let ideal_stake = Perquintill::from_percent(75)
+		.saturating_sub(auction_proportion);
+
+	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
+	let falloff = Perquintill::from_percent(5);
+	let adjustment = compute_inflation(stake, ideal_stake, falloff);
+	let staking_inflation = min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
+
+	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
+	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+	let rest = max_payout.saturating_sub(staking_payout);
+
+	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
+	if total_staked > other_issuance {
+		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
+		// We don't do anything with this, but if we wanted to, we could introduce a cap on the treasury amount
+		// with: `rest = rest.min(cap_rest);`
+	}
+	(staking_payout, rest)
+}
+
+pub struct EraPayout;
+impl pallet_staking::EraPayout<Balance> for EraPayout {
+	fn era_payout(
+		total_staked: Balance,
+		_total_issuance: Balance,
+		era_duration_millis: u64,
+	) -> (Balance, Balance) {
+		// TODO: #2999 Update with Auctions logic when auctions pallet added.
+		const AUCTIONED_SLOTS: u64 = 0;
+		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
+		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
+
+		era_payout(
+			total_staked,
+			Gilt::issuance().non_gilt,
+			MAX_ANNUAL_INFLATION,
+			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
+			AUCTIONED_SLOTS,
+		)
+	}
 }
 
 parameter_types! {
@@ -400,8 +448,7 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
-	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -415,6 +462,7 @@ impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
+	type ElectionProvider = ElectionProviderMultiPhase;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
@@ -425,10 +473,9 @@ impl pallet_staking::Config for Runtime {
 	// A majority of the council or root can cancel the slash.
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type EraPayout = EraPayout;
 	type NextNewSession = Session;
-	type ElectionProvider = ElectionProviderMultiPhase;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -473,6 +520,7 @@ impl pallet_democracy::Config for Runtime {
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 	>;
+	type BlacklistOrigin = EnsureRoot<AccountId>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
 	type CancelProposalOrigin = EnsureOneOf<
@@ -480,17 +528,16 @@ impl pallet_democracy::Config for Runtime {
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
 	>;
-	type BlacklistOrigin = EnsureRoot<AccountId>;
 	// Any single technical committee member may veto a coming council proposal, however they can
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = pallet_collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
+	type OperationalPreimageOrigin = pallet_collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
-	type OperationalPreimageOrigin = pallet_collective::EnsureMember<AccountId, CouncilCollective>;
 	type WeightInfo = weights::pallet_democracy::WeightInfo<Runtime>;
 	type MaxProposals = MaxProposals;
 }
@@ -616,32 +663,31 @@ impl pallet_treasury::Config for Runtime {
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
 	type BurnDestination = Society;
-	type SpendFunds = Bounties;
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+	type SpendFunds = Bounties;
 }
 
 impl pallet_bounties::Config for Runtime {
-	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
 	type DataDepositPerByte = DataDepositPerByte;
+	type Event = Event;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
-
 }
 
 impl pallet_tips::Config for Runtime {
-	type Event = Event;
-	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
+	type DataDepositPerByte = DataDepositPerByte;
 	type Tippers = PhragmenElection;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
+	type Event = Event;
 	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
 }
 
@@ -673,8 +719,6 @@ impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 
-	type KeyOwnerProofSystem = Historical;
-
 	type KeyOwnerProof =
 		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
@@ -682,6 +726,8 @@ impl pallet_grandpa::Config for Runtime {
 		KeyTypeId,
 		GrandpaId,
 	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = Historical;
 
 	type HandleEquivocation =
 		pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
@@ -742,8 +788,8 @@ impl frame_system::offchain::SigningTypes for Runtime {
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 	Call: From<C>,
 {
-	type OverarchingCall = Call;
 	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
 }
 
 parameter_types! {
@@ -771,15 +817,15 @@ parameter_types! {
 impl pallet_identity::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type Slashed = Treasury;
 	type BasicDeposit = BasicDeposit;
 	type FieldDeposit = FieldDeposit;
 	type SubAccountDeposit = SubAccountDeposit;
 	type MaxSubAccounts = MaxSubAccounts;
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
-	type RegistrarOrigin = MoreThanHalfCouncil;
+	type Slashed = Treasury;
 	type ForceOrigin = MoreThanHalfCouncil;
+	type RegistrarOrigin = MoreThanHalfCouncil;
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
@@ -932,7 +978,8 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				Call::Scheduler(..) |
 				Call::Proxy(..) |
-				Call::Multisig(..)
+				Call::Multisig(..) |
+				Call::Gilt(..)
 			),
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) |
@@ -1221,6 +1268,35 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
+parameter_types! {
+	pub IgnoredIssuance: Balance = Treasury::pot();
+	pub const QueueCount: u32 = 300;
+	pub const MaxQueueLen: u32 = 1000;
+	pub const FifoQueueLen: u32 = 250;
+	pub const GiltPeriod: BlockNumber = 30 * DAYS;
+	pub const MinFreeze: Balance = 10_000 * CENTS;
+	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
+	pub const MaxIntakeBids: u32 = 100;
+}
+
+impl pallet_gilt::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type AdminOrigin = MoreThanHalfCouncil;
+	type Deficit = ();	// Mint
+	type Surplus = ();	// Burn
+	type IgnoredIssuance = IgnoredIssuance;
+	type QueueCount = QueueCount;
+	type MaxQueueLen = MaxQueueLen;
+	type FifoQueueLen = FifoQueueLen;
+	type Period = GiltPeriod;
+	type MinFreeze = MinFreeze;
+	type IntakePeriod = IntakePeriod;
+	type MaxIntakeBids = MaxIntakeBids;
+	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1292,6 +1368,9 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
+
+		// Gilts pallet.
+		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1742,6 +1821,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
 			add_benchmark!(params, batches, pallet_elections_phragmen, PhragmenElection);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
+			add_benchmark!(params, batches, pallet_gilt, Gilt);
 			add_benchmark!(params, batches, pallet_identity, Identity);
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 			add_benchmark!(params, batches, pallet_indices, Indices);
