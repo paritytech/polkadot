@@ -433,7 +433,7 @@ impl<T: Config> Module<T> {
 		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 
-		let deposit = deposit_override.unwrap_or(T::ParaDeposit::get());
+		let deposit = deposit_override.unwrap_or_else(T::ParaDeposit::get);
 		<T as Config>::Currency::reserve(&who, deposit)?;
 		let info = ParaInfo {
 			manager: who.clone(),
