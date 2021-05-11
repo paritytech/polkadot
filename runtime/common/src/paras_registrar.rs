@@ -158,6 +158,8 @@ decl_error! {
 		ParaLocked,
 		/// The id you are trying to register is reserved for system parachains.
 		InvalidParaId,
+		/// The ID given for registration has not been reserved.
+		NotReserved,
 	}
 }
 
@@ -454,11 +456,11 @@ impl<T: Config> Module<T> {
 		ensure_reserved: bool,
 	) -> DispatchResult {
 		let deposited = if let Some(para_data) = Paras::<T>::get(id) {
-			ensure!(para_data.manager == who, Error::<T>::AlreadyRegistered);
+			ensure!(para_data.manager == who, Error::<T>::NotOwner);
 			ensure!(!para_data.locked, Error::<T>::ParaLocked);
 			para_data.deposit
 		} else {
-			ensure!(!ensure_reserved, Error::<T>::NotOwner);
+			ensure!(!ensure_reserved, Error::<T>::NotReserved);
 			Default::default()
 		};
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
@@ -1026,7 +1028,7 @@ mod benchmarking {
 		verify {
 			assert_last_event::<T>(RawEvent::Reserved(LOWEST_PUBLIC_ID, caller).into());
 			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
-			assert_eq!(paras::Module::<T>::lifecycle(para), None);
+			assert_eq!(paras::Module::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
 		}
 
 		register {
@@ -1035,7 +1037,7 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()));
+			assert!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()).is_ok());
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
