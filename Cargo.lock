@@ -6263,8 +6263,11 @@ dependencies = [
 name = "polkadot-overseer-gen"
 version = "0.1.0"
 dependencies = [
+ "futures 0.3.14",
+ "metered-channel",
  "polkadot-overseer-gen-proc-macro",
  "tracing",
+ "trybuild",
 ]
 
 [[package]]

@@ -674,63 +674,6 @@ pub enum ApprovalDistributionMessage {
 pub enum GossipSupportMessage {
 }
 
-/// A message type tying together all message types that are used across Subsystems.
-#[subsystem_dispatch_gen(NetworkBridgeEvent<protocol_v1::ValidationProtocol>)]
-#[derive(Debug, derive_more::From)]
-pub enum AllMessages {
-	/// Message for the validation subsystem.
-	#[skip]
-	CandidateValidation(CandidateValidationMessage),
-	/// Message for the candidate backing subsystem.
-	#[skip]
-	CandidateBacking(CandidateBackingMessage),
-	/// Message for the candidate selection subsystem.
-	#[skip]
-	CandidateSelection(CandidateSelectionMessage),
-	/// Message for the Chain API subsystem.
-	#[skip]
-	ChainApi(ChainApiMessage),
-	/// Message for the Collator Protocol subsystem.
-	#[skip]
-	CollatorProtocol(CollatorProtocolMessage),
-	/// Message for the statement distribution subsystem.
-	StatementDistribution(StatementDistributionMessage),
-	/// Message for the availability distribution subsystem.
-	#[skip]
-	AvailabilityDistribution(AvailabilityDistributionMessage),
-	/// Message for the availability recovery subsystem.
-	#[skip]
-	AvailabilityRecovery(AvailabilityRecoveryMessage),
-	/// Message for the bitfield distribution subsystem.
-	BitfieldDistribution(BitfieldDistributionMessage),
-	/// Message for the bitfield signing subsystem.
-	#[skip]
-	BitfieldSigning(BitfieldSigningMessage),
-	/// Message for the Provisioner subsystem.
-	#[skip]
-	Provisioner(ProvisionerMessage),
-	/// Message for the Runtime API subsystem.
-	#[skip]
-	RuntimeApi(RuntimeApiMessage),
-	/// Message for the availability store subsystem.
-	#[skip]
-	AvailabilityStore(AvailabilityStoreMessage),
-	/// Message for the network bridge subsystem.
-	#[skip]
-	NetworkBridge(NetworkBridgeMessage),
-	/// Message for the Collation Generation subsystem.
-	#[skip]
-	CollationGeneration(CollationGenerationMessage),
-	/// Message for the Approval Voting subsystem.
-	#[skip]
-	ApprovalVoting(ApprovalVotingMessage),
-	/// Message for the Approval Distribution subsystem.
-	ApprovalDistribution(ApprovalDistributionMessage),
-	/// Message for the Gossip Support subsystem.
-	#[skip]
-	GossipSupport(GossipSupportMessage),
-}
-
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
 		Self::PoVFetchingRequest(req)
