@@ -174,7 +174,7 @@ pub(crate) fn parse_overseer_struct_field(
 
 			let variant = syn::parse2::<SubSystemTag>(dbg!(attr_tokens.clone()))?;
 			if variant.consumes.len() != 1 {
-				return Err(Error::new(attr_tokens.span(), "Currently only exactly one consumes message is supported."))
+				return Err(Error::new(attr_tokens.span(), "Currently only exactly one message can be consumed per subsystem."))
 			}
 			consumes_idents.extend(variant.consumes.into_iter());
 
