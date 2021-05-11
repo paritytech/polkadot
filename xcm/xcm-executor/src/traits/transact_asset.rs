@@ -24,7 +24,7 @@ use crate::Assets;
 /// account locations such as a `MultiLocation::X1(Junction::Parachain)`. Different chains may handle them in
 /// different ways.
 pub trait TransactAsset {
-	/// Ensure that `teleport_in` will result in `Ok`.
+	/// Ensure that `check_in` will result in `Ok`.
 	///
 	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
 	fn can_check_in(_origin: &MultiLocation, _what: &MultiAsset) -> XcmResult {
@@ -136,4 +136,3 @@ impl TransactAsset for Tuple {
 		Err(XcmError::Unimplemented)
 	}
 }
-
