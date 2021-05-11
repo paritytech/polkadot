@@ -158,7 +158,7 @@ decl_module! {
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
 			let mut freed = freed_disputed.into_iter()
-				.chain(freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded)))
+				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
 

@@ -238,7 +238,7 @@ impl<T: Config> Module<T> {
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<CoreIndex>, DispatchError> {
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Module::<T>::active_validator_keys();
 		let session_index = shared::Module::<T>::session_index();
 
@@ -246,7 +246,6 @@ impl<T: Config> Module<T> {
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
 			.collect();
-
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -368,14 +367,11 @@ impl<T: Config> Module<T> {
 					pending_availability.backing_group,
 				);
 
-				freed_cores.push(pending_availability.core);
+				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
 			}
 		}
-
-		// TODO: pass available candidates onwards to validity module once implemented.
-		// https://github.com/paritytech/polkadot/issues/1251
 
 		Ok(freed_cores)
 	}
