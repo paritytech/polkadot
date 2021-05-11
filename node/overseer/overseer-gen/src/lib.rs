@@ -77,7 +77,8 @@ struct SubsystemInstance<M> {
 }
 
 
-trait MapSubsystem<T> {
+/// A helper trait to map a subsystem to smth. else.
+pub(crate) trait MapSubsystem<T> {
 	type Output;
 
 	fn map_subsystem(&self, sub: T) -> Self::Output;
@@ -91,7 +92,8 @@ impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
 	}
 }
 
-type SubsystemIncomingMessages<M> = ::futures::stream::Select<
+/// Incoming messages from both the bounded and unbounded channel.
+pub type SubsystemIncomingMessages<M> = ::futures::stream::Select<
 	::metered::MeteredReceiver<MessagePacket<M>>,
 	::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;

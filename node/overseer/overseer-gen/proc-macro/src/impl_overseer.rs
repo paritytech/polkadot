@@ -26,7 +26,7 @@ pub(crate) fn impl_overseer_struct(
 		where
 			Ctx: SubsystemContext,
 			S: SpawnNamed,
-			#( #field_ty : Subsystem<Ctx> )*
+			#( #field_ty : Subsystem<Ctx>, )*
 	};
 
 	let message_channel_capacity = info.message_channel_capacity;
@@ -121,6 +121,8 @@ pub(crate) fn impl_builder(
 	let baggage_generic_ty = &info.baggage_generic_types();
 	let baggage_name = &info.baggage_names();
 
+	let blocking = &info.subsystems().iter().map(|x| x.blocking).collect::<Vec<_>>();
+
 	let generics = quote! {
 		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
 	};
@@ -169,14 +171,6 @@ pub(crate) fn impl_builder(
 					metered::UnboundedMeteredSender<ToOverseer>,
 				) -> Ctx,
 			{
-				let overseer = #overseer_name :: #generics {
-					#(
-						#field_name : self. #field_name .unwrap(),
-					)*
-					#(
-						#baggage_name : self. #baggage_name .unwrap(),
-					)*
-				};
 
 				let (events_tx, events_rx) = ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
@@ -186,9 +180,6 @@ pub(crate) fn impl_builder(
 
 
 				let (to_overseer_tx, to_overseer_rx) = metered::unbounded();
-
-				let mut running_subsystems = FuturesUnordered::new();
-
 
 				let channels_out = {
 					#(
@@ -209,86 +200,82 @@ pub(crate) fn impl_builder(
 					}
 				};
 
-				// #( #launch subsystem )
-
-				enum TaskKind {
-					Regular,
-					Blocking,
-				}
-
 				let spawner = &mut overseer.spawner;
 
-				let mut spawn = |
-						message_tx: metered::MeteredSender<MessagePacket<M>>,
-						message_rx: SubsystemIncomingMessages<M>,
-						unbounded_meter: metered::Meter,
-						to_subsystems: ChannelsOut,
-						to_overseer_tx: metered::UnboundedMeteredSender<ToOverseer>,
-						s: impl Subsystem<OverseerSubsystemContext<M>>,
-						metrics: &Metrics,
-						futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-						task_kind: TaskKind,
-						| -> SubsystemResult<OverseenSubsystem<M>>
-				{
-					let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
-					let ctx = create_ctx(
-						signal_rx,
-						message_rx,
-						to_subsystems,
-						to_overseer_tx,
-					);
-					let SpawnedSubsystem { future, name } = s.start(ctx);
-
-					let (terminated_tx, terminated_rx) = oneshot::channel();
-
-					let fut = Box::pin(async move {
-						if let Err(e) = future.await {
-							tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
-						} else {
-							tracing::debug!(subsystem=name, "subsystem exited without an error");
-						}
-						let _ = terminated_tx.send(());
-					});
-
-					match task_kind {
-						TaskKind::Regular => spawner.spawn(name, fut),
-						TaskKind::Blocking => spawner.spawn_blocking(name, fut),
-					}
-
-					futures.push(Box::pin(terminated_rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
-
-					let instance = Some(SubsystemInstance::< #message_wrapper > {
-						meters: SubsystemMeters {
-							unbounded: unbounded_meter,
-							bounded: message_tx.meter().clone(),
-							signals: signal_tx.meter().clone(),
-						},
-						tx_signal: signal_tx,
-						tx_bounded: message_tx,
-						signals_received: 0,
-						name,
-					});
-
-					Ok(OverseenSubsystem::< #message_wrapper > {
-						instance,
-					})
-				};
-
+				let mut running_subsystems = FuturesUnordered::<BoxFuture<'static, SubsystemResult<()>>>::new();
 
 				#(
-					let #field_name = spawn(
-						#channel_name_tx,
-						stream::select(
+					let #field_name: OverseenSubsystem<  #message_wrapper  > = {
+
+						let unbounded_meter = #channel_name_unbounded_tx .meter().clone();
+
+						let message_tx: metered::MeteredSender<MessagePacket< #message_wrapper >> = #channel_name_tx;
+
+						let message_rx: SubsystemIncomingMessages< #message_wrapper > = stream::select(
 							#channel_name_tx,
 							#channel_name_unbounded_tx,
-						),
-						channels_out.clone(),
-						to_overseer_tx.clone(),
-						#field_name,
-						&mut running_subsystems,
-						TaskKind::Blocking,
-					)?;
+						);
+
+						let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
+
+						let ctx = create_ctx(
+							signal_rx,
+							message_rx,
+							channels_out.clone(),
+							to_overseer_tx.clone(),
+						);
+
+						let SpawnedSubsystem { future, name } = #field_name .start(ctx);
+
+						let (terminated_tx, terminated_rx) = oneshot::channel();
+
+						let fut = Box::pin(async move {
+							if let Err(e) = future.await {
+								tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+							} else {
+								tracing::debug!(subsystem=name, "subsystem exited without an error");
+							}
+							let _ = terminated_tx.send(());
+						});
+
+						if #blocking {
+							spawner.spawn_blocking(name, fut);
+						} else {
+							spawner.spawn(name, fut);
+						}
+
+						futures.push(Box::pin(terminated_rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
+
+						let instance = Some(SubsystemInstance::< #message_wrapper > {
+							meters: SubsystemMeters {
+								unbounded: unbounded_meter,
+								bounded: message_tx.meter().clone(),
+								signals: signal_tx.meter().clone(),
+							},
+							tx_signal: signal_tx,
+							tx_bounded: message_tx,
+							signals_received: 0,
+							name,
+						});
+
+						OverseenSubsystem::< #message_wrapper > {
+							instance,
+						}
+					};
 				)*
+
+				let overseer = #overseer_name :: #generics {
+					#(
+						#field_name : self. #field_name .unwrap(),
+					)*
+
+					#(
+						#baggage_name : self. #baggage_name .unwrap(),
+					)*
+
+					running_instance,
+					spawner,
+				};
 
 				(overseer, handler)
 			}
