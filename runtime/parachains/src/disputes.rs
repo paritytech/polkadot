@@ -25,6 +25,7 @@ use primitives::v1::{
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
+	ConsensusLog,
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
@@ -643,7 +644,8 @@ impl<T: Config> Module<T> {
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::is_frozen() { return }
 
-		// TODO [now]: issue digest.
+		let revert_to = revert_to.saturated_into();
+		<frame_system::Pallet<T>>::deposit_log(ConsensusLog::RevertTo(revert_to).into());
 
 		Frozen::set(true);
 	}
