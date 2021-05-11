@@ -94,7 +94,7 @@ type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, Balan
 decl_storage! {
 	trait Store for Module<T: Config> as Auctions {
 		/// Number of auctions started so far.
-		pub AuctionCounter: AuctionIndex;
+		pub AuctionCounter get(fn auction_counter): AuctionIndex;
 
 		/// Information relating to the current auction, if there is one.
 		///

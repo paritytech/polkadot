@@ -427,8 +427,9 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		// TODO: #2999 Update with Auctions logic when auctions pallet added.
-		const AUCTIONED_SLOTS: u64 = 0;
+		// TODO: #3011 Update with proper auctioned slots tracking.
+		// This should be fine for the first year of parachains.
+		let auctioned_slots: u64 = auctions::Pallet::<Runtime>::auction_counter().into();
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
@@ -437,7 +438,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 			Gilt::issuance().non_gilt,
 			MAX_ANNUAL_INFLATION,
 			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
-			AUCTIONED_SLOTS,
+			auctioned_slots,
 		)
 	}
 }
@@ -1129,10 +1130,10 @@ impl crowdloan::Config for Runtime {
 }
 
 parameter_types! {
-	// The average auction is 10 days long, so this will be 30% for ending period.
-	// 3 Days = 43200 Blocks @ 6 sec per block
-	pub const EndingPeriod: BlockNumber = 3 * DAYS;
-	// ~ 2000 samples -> 20 blocks per sample -> 2 minute samples
+	// The average auction is 7 days long, so this will be 70% for ending period.
+	// 5 Days = 72000 Blocks @ 6 sec per block
+	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	// ~ 1000 samples per day -> ~ 20 blocks per sample -> 2 minute samples
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
