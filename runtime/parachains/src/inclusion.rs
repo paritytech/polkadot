@@ -750,6 +750,28 @@ impl<T: Config> Module<T> {
 		cleaned_up_cores
 	}
 
+	/// Cleans up all paras pending availability that are in the given list of disputed candidates.
+	///
+	/// Returns a vector of cleaned-up core IDs.
+	pub(crate) fn collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex> {
+		let mut cleaned_up_ids = Vec::new();
+		let mut cleaned_up_cores = Vec::new();
+
+		for (para_id, pending_record) in <PendingAvailability<T>>::iter() {
+			if disputed.contains(&pending_record.hash) {
+				cleaned_up_ids.push(para_id);
+				cleaned_up_cores.push(pending_record.core);
+			}
+		}
+
+		for para_id in cleaned_up_ids {
+			let _ = <PendingAvailability<T>>::take(&para_id);
+			let _ = <PendingAvailabilityCommitments>::take(&para_id);
+		}
+
+		cleaned_up_cores
+	}
+
 	/// Forcibly enact the candidate with the given ID as though it had been deemed available
 	/// by bitfields.
 	///
@@ -2549,4 +2571,6 @@ mod tests {
 			assert!(<PendingAvailabilityCommitments>::iter().collect::<Vec<_>>().is_empty());
 		});
 	}
+
+	// TODO [now]: test `collect_disputed`
 }
