@@ -3663,34 +3663,41 @@ mod tests {
 				}).await;
 			}
 
-			// We should try to fetch the data:
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
-						mut reqs, IfDisconnected::ImmediateError
-					)
-				) => {
-					let reqs = reqs.pop().unwrap();
-					let outgoing = match reqs {
-						Requests::StatementFetching(outgoing) => outgoing,
-						_ => panic!("Unexpected request"),
-					};
-					let req = outgoing.payload;
-					assert_eq!(req.relay_parent, metadata.relay_parent);
-					assert_eq!(req.candidate_hash, metadata.candidate_hash);
-					assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
-					// Just drop request - should trigger error.
-				}
-			);
+			// We should try to fetch the data and punish the peer (but we don't know what comes
+			// first):
+			let mut requested = false;
+			let mut punished = false;
+			for _ in 0..2 {
+				match handle.recv().await {
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendRequests(
+							mut reqs, IfDisconnected::ImmediateError
+						)
+					) => {
+						let reqs = reqs.pop().unwrap();
+						let outgoing = match reqs {
+							Requests::StatementFetching(outgoing) => outgoing,
+							_ => panic!("Unexpected request"),
+						};
+						let req = outgoing.payload;
+						assert_eq!(req.relay_parent, metadata.relay_parent);
+						assert_eq!(req.candidate_hash, metadata.candidate_hash);
+						assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+						// Just drop request - should trigger error.
+						requested = true;
+					}
 
-			// Then we should punish peer:
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(p, r)
-				) if p == peer_a && r == COST_APPARENT_FLOOD => {}
-			);
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(p, r)
+					) if p == peer_a && r == COST_APPARENT_FLOOD => {
+						punished = true;
+					}
+
+					m => panic!("Unexpected message: {:?}", m),
+				}
+			}
+			assert!(requested, "large data has not been requested.");
+			assert!(punished, "Peer should have been punished for flooding.");
 
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};

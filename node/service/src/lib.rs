@@ -679,6 +679,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	disable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -972,7 +973,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	};
 
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if chain_spec.is_rococo() || chain_spec.is_wococo() {
+	if !disable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
 			client.clone(),
 			keystore_opt.clone(),
@@ -1262,6 +1263,7 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	disable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<NewFull<Client>, Error> {
@@ -1270,6 +1272,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1279,6 +1282,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1288,6 +1292,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1297,6 +1302,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,

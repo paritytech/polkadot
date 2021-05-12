@@ -39,7 +39,7 @@ use runtime_parachains::{
 
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, traits::Saturating};
+use sp_runtime::{RuntimeDebug, traits::{Saturating, CheckedSub}};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -55,6 +55,7 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait WeightInfo {
+	fn reserve() -> Weight;
 	fn register() -> Weight;
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
@@ -63,6 +64,7 @@ pub trait WeightInfo {
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
+	fn reserve() -> Weight { 0 }
 	fn register() -> Weight { 0 }
 	fn force_register() -> Weight { 0 }
 	fn deregister() -> Weight { 0 }
@@ -126,6 +128,7 @@ decl_event! {
 	{
 		Registered(ParaId, AccountId),
 		Deregistered(ParaId),
+		Reserved(ParaId, AccountId),
 	}
 }
 
@@ -155,6 +158,8 @@ decl_error! {
 		ParaLocked,
 		/// The id you are trying to register is reserved for system parachains.
 		InvalidParaId,
+		/// The ID given for registration has not been reserved.
+		NotReserved,
 	}
 }
 
@@ -169,22 +174,20 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-		/// Register a Para Id on the relay chain.
+		/// Register head data and validation code for a reserved Para Id.
 		///
-		/// This function will queue the new Para `id` to be a parathread.
-		/// Using the Slots pallet, a parathread can then be upgraded to get a
-		/// parachain slot.
+		/// ## Arguments
+		/// - `origin`: Must be called by a `Signed` origin.
+		/// - `id`: The para ID. Must be owned/managed by the `origin` signing account.
+		/// - `genesis_head`: The genesis head data of the parachain/thread.
+		/// - `validation_code`: The initial validation code of the parachain/thread.
 		///
-		/// The `id` *MUST* equal the value of `NextFreeParaId`.
+		/// ## Deposits/Fees
+		/// The origin signed account must reserve a corresponding deposit for the registration. Anything already
+		/// reserved previously for this para ID is accounted for.
 		///
-		/// DEPRECATED: This function should generally not be used and is provided for backwards compatibility
-		/// only. Use `register_next` instead.
-		///
-		/// This function must be called by a signed origin.
-		///
-		/// The origin must pay a deposit for the registration information,
-		/// including the genesis information and validation code. ParaId
-		/// must be greater than or equal to 1000.
+		/// ## Events
+		/// The `Registered` event is emitted in case of success.
 		#[weight = T::WeightInfo::register()]
 		pub fn register(
 			origin,
@@ -193,11 +196,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let valid_id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
-			ensure!(id == valid_id, Error::<T>::InvalidParaId);
-			Self::do_register(who, None, id, genesis_head, validation_code)?;
-
-			NextFreeParaId::set(id + 1);
+			Self::do_register(who, None, id, genesis_head, validation_code, true)?;
 			Ok(())
 		}
 
@@ -217,7 +216,7 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::do_register(who, Some(deposit), id, genesis_head, validation_code)
+			Self::do_register(who, Some(deposit), id, genesis_head, validation_code, false)
 		}
 
 		/// Deregister a Para Id, freeing all data and returning any deposit.
@@ -284,26 +283,25 @@ decl_module! {
 			Self::remove_lock(para);
 		}
 
-		/// Register a Para Id on the relay chain.
+		/// Reserve a Para Id on the relay chain.
 		///
-		/// This function will queue the new Para Id to be a parathread.
-		/// Using the Slots pallet, a parathread can then be upgraded to get a
-		/// parachain slot.
+		/// This function will reserve a new Para Id to be owned/managed by the origin account.
+		/// The origin account is able to register head data and validation code using `register` to create
+		/// a parathread. Using the Slots pallet, a parathread can then be upgraded to get a parachain slot.
 		///
-		/// This function must be called by a signed origin.
+		/// ## Arguments
+		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new para ID.
 		///
-		/// The origin must pay a deposit for the registration information,
-		/// including the genesis information and validation code. ParaId
-		/// must be greater than or equal to 1000.
-		#[weight = T::WeightInfo::register()]
-		pub fn register_next(
-			origin,
-			genesis_head: HeadData,
-			validation_code: ValidationCode,
-		) -> DispatchResult {
+		/// ## Deposits/Fees
+		/// The origin must reserve a deposit of `ParaDeposit` for the registration.
+		///
+		/// ## Events
+		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
+		#[weight = T::WeightInfo::reserve()]
+		pub fn reserve(origin) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
-			Self::do_register(who, None, id, genesis_head, validation_code)?;
+			Self::do_reserve(who, None, id)?;
 			NextFreeParaId::set(id + 1);
 			Ok(())
 		}
@@ -353,7 +351,7 @@ impl<T: Config> Registrar for Module<T> {
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 	) -> DispatchResult {
-		Self::do_register(manager, None, id, genesis_head, validation_code)
+		Self::do_register(manager, None, id, genesis_head, validation_code, false)
 	}
 
 	// Deregister a Para ID, free any data, and return any deposits.
@@ -427,6 +425,27 @@ impl<T: Config> Module<T> {
 		})
 	}
 
+	fn do_reserve(
+		who: T::AccountId,
+		deposit_override: Option<BalanceOf<T>>,
+		id: ParaId,
+	) -> DispatchResult {
+		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
+
+		let deposit = deposit_override.unwrap_or_else(T::ParaDeposit::get);
+		<T as Config>::Currency::reserve(&who, deposit)?;
+		let info = ParaInfo {
+			manager: who.clone(),
+			deposit,
+			locked: false,
+		};
+
+		Paras::<T>::insert(id, info);
+		Self::deposit_event(RawEvent::Reserved(id, who));
+		Ok(())
+	}
+
 	/// Attempt to register a new Para Id under management of `who` in the
 	/// system with the given information.
 	fn do_register(
@@ -435,20 +454,32 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
+		ensure_reserved: bool,
 	) -> DispatchResult {
-		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
+		let deposited = if let Some(para_data) = Paras::<T>::get(id) {
+			ensure!(para_data.manager == who, Error::<T>::NotOwner);
+			ensure!(!para_data.locked, Error::<T>::ParaLocked);
+			para_data.deposit
+		} else {
+			ensure!(!ensure_reserved, Error::<T>::NotReserved);
+			Default::default()
+		};
 		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) = Self::validate_onboarding_data(
 			genesis_head,
 			validation_code,
 			false
 		)?;
-
 		let deposit = deposit_override.unwrap_or(deposit);
-		<T as Config>::Currency::reserve(&who, deposit)?;
+
+		if let Some(additional) = deposit.checked_sub(&deposited) {
+			<T as Config>::Currency::reserve(&who, additional)?;
+		} else if let Some(rebate) = deposited.checked_sub(&deposit) {
+			<T as Config>::Currency::unreserve(&who, rebate);
+		};
 		let info = ParaInfo {
 			manager: who.clone(),
-			deposit: deposit,
+			deposit,
 			locked: false,
 		};
 
@@ -690,6 +721,7 @@ mod tests {
 			// first para is not yet registered
 			assert!(!Parachains::is_parathread(para_id));
 			// We register the Para ID
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -729,6 +761,8 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -747,16 +781,25 @@ mod tests {
 	#[test]
 	fn register_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			// Can't register system parachain
+			let para_id = LOWEST_PUBLIC_ID;
+
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
-				32.into(),
+				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), Error::<Test>::InvalidParaId);
+			), Error::<Test>::NotReserved);
 
 			// Successfully register para
-			let para_id = LOWEST_PUBLIC_ID;
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+
+			assert_noop!(Registrar::register(
+				Origin::signed(2),
+				para_id,
+				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
+				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+			), Error::<Test>::NotOwner);
+
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -774,9 +817,10 @@ mod tests {
 				para_id,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), Error::<Test>::InvalidParaId);
+			), Error::<Test>::NotReserved);
 
 			// Head Size Check
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
 				para_id + 1,
@@ -793,12 +837,7 @@ mod tests {
 			), Error::<Test>::CodeTooLarge);
 
 			// Needs enough funds for deposit
-			assert_noop!(Registrar::register(
-				Origin::signed(1337),
-				para_id + 1,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
-			), BalancesError::<Test, _>::InsufficientBalance);
+			assert_noop!(Registrar::reserve(Origin::signed(1337)), BalancesError::<Test, _>::InsufficientBalance);
 		});
 	}
 
@@ -808,16 +847,13 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
-			assert_eq!(
-				Balances::reserved_balance(&1),
-				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
-			);
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
 			assert_ok!(Registrar::deregister(
@@ -836,6 +872,7 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -865,12 +902,14 @@ mod tests {
 			// Successfully register first two parachains
 			let para_1 = LOWEST_PUBLIC_ID;
 			let para_2 = LOWEST_PUBLIC_ID + 1;
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_1,
 				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
 				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
 			));
+			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_ok!(Registrar::register(
 				Origin::signed(2),
 				para_2,
@@ -922,8 +961,9 @@ mod tests {
 	fn para_lock_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			let para_id = LOWEST_PUBLIC_ID;
 
+			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			let para_id = LOWEST_PUBLIC_ID;
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
@@ -972,6 +1012,7 @@ mod benchmarking {
 		let validation_code = Registrar::<T>::worst_validation_code();
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		assert_ok!(Registrar::<T>::register(RawOrigin::Signed(caller).into(), para, genesis_head, validation_code));
 		return para;
 	}
@@ -991,12 +1032,23 @@ mod benchmarking {
 	benchmarks! {
 		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
 
+		reserve {
+			let caller: T::AccountId = whitelisted_caller();
+			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		}: _(RawOrigin::Signed(caller.clone()))
+		verify {
+			assert_last_event::<T>(RawEvent::Reserved(LOWEST_PUBLIC_ID, caller).into());
+			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
+			assert_eq!(paras::Module::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
+		}
+
 		register {
 			let para = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
 			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
