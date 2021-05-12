@@ -143,14 +143,11 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-/// Avoid processing transactions from slots and parachain registrar except by root.
+/// Allow everything.
 pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
-	fn filter(c: &Call) -> bool {
-		!matches!(c,
-			Call::Registrar(..) |
-			Call::Slots(..)
-		)
+	fn filter(_: &Call) -> bool {
+		true
 	}
 }
 
