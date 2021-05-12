@@ -37,7 +37,7 @@ impl ShouldExecute for TakeWeightCredit {
 	}
 }
 
-/// Allows execution from `origin` is origin is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
 /// account.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
