@@ -105,13 +105,13 @@ westend_runtime = get_runtime('westend', polkadot_path)
 
 polkadot_json = JSON.parse(
   File.read(
-    ENV['GITHUB_WORKSPACE'] + '/polkadot-srtool-json/srtool_output.json'
+    "#{ENV['GITHUB_WORKSPACE']}/polkadot-srtool-json/polkadot_srtool_output.json"
   )
 )
 
 kusama_json = JSON.parse(
   File.read(
-    ENV['GITHUB_WORKSPACE'] + '/kusama-srtool-json/srtool_output.json'
+    "#{ENV['GITHUB_WORKSPACE']}/kusama-srtool-json/kusama_srtool_output.json"
   )
 )
 

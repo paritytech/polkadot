@@ -77,6 +77,8 @@ pub enum Error {
 	LocationCannotHold,
 	/// The assets given to purchase weight is are insufficient for the weight desired.
 	TooExpensive,
+	/// The given asset is not handled.
+	AssetNotFound,
 }
 
 impl From<()> for Error {

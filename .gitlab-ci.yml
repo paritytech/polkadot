@@ -363,29 +363,29 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-trigger-simnet:
-  stage:                           deploy
-  image:                           paritytech/tools:latest
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  needs:
-    - job:                         publish-polkadot-image
-    - job:                         publish-adder-collator-image
-  # `build.env` brings here `$IMAGE_NAME` and `$IMAGE_TAG` (`$EXTRATAG` here,
-  # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
-  # can be called by `master` tag.
-  # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for the runs not launched by this job.
-  variables:
-    TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-    TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # simnet project ID
-    DWNSTRM_ID:                    332
-  script:
-    # API trigger for a simnet job
-    - ./scripts/gitlab/trigger_pipeline.sh
-  allow_failure:                   true
+# trigger-simnet:
+#   stage:                           deploy
+#   image:                           paritytech/tools:latest
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#   needs:
+#     - job:                         publish-polkadot-image
+#     - job:                         publish-adder-collator-image
+#   # `build.env` brings here `$IMAGE_NAME` and `$IMAGE_TAG` (`$EXTRATAG` here,
+#   # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+#   # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
+#   # can be called by `master` tag.
+#   # Simnet uses an image published on PRs with this exact version for triggered runs
+#   # on commits. And parity/rococo:rococo-v1 for the runs not launched by this job.
+#   variables:
+#     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
+#     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
+#     # simnet project ID
+#     DWNSTRM_ID:                    332
+#   script:
+#     # API trigger for a simnet job
+#     - ./scripts/gitlab/trigger_pipeline.sh
+#   allow_failure:                   true
