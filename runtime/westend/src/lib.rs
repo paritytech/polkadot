@@ -146,7 +146,7 @@ pub fn native_version() -> NativeVersion {
 /// Allow everything.
 pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
-	fn filter(c: &Call) -> bool {
+	fn filter(_: &Call) -> bool {
 		true
 	}
 }
