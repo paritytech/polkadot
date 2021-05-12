@@ -144,13 +144,12 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-/// Avoid processing transactions from slots and parachain registrar except by root.
+/// Don't allow swaps until parathread story is more mature.
 pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(c: &Call) -> bool {
 		!matches!(c,
-			Call::Registrar(..) |
-			Call::Slots(..)
+			Call::Registrar(paras_registrar::Call::swap(..))
 		)
 	}
 }
