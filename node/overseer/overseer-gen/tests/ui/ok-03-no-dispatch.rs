@@ -8,8 +8,8 @@ struct MsgStrukt(u8);
 #[derive(Default, Clone, Copy)]
 struct AwesomeSubSys;
 
-#[overlord(Wrapper)]
-struct Overseer {
+#[overlord(signal=, gen=AllMessages)]
+struct Overseer<T> {
 	#[subsystem(no_dispatch, MsgStrukt)]
 	sub0: AwesomeSubSys,
 
@@ -19,11 +19,12 @@ struct Overseer {
 #[derive(Debug, Clone, Copy)]
 struct DummySpawner;
 
-fn main() {
-	let overseer = Overseer::<Ctx, Spawner, MsgStrukt>::builder()
-		.sub0(AwesomeSubSys::default())
-		.spawner(DummySpawner)
-		.build(Ctx);
+struct Ctx;
 
-	let overseer = overseer.replace_sub0(TequilaInABar::default());
+fn main() {
+	let overseer = Overseer::builder()
+		.sub0(AwesomeSubSys::default())
+		.something_else(7777u32)
+		.spawner(DummySpawner)
+		.build(|| -> Ctx { Ctx } );
 }

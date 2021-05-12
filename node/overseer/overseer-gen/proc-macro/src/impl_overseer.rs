@@ -3,15 +3,14 @@ use syn::{Ident, Result};
 
 use super::*;
 
-
 pub(crate) fn impl_overseer_struct(
 	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
 	let message_wrapper = &info.message_wrapper.clone();
 	let overseer_name = info.overseer_name.clone();
-	let field_name = &info.subsystem_names();
+	let subsystem_name = &info.subsystem_names();
 
-	let field_ty = &info.subsystem_generic_types();
+	let subsystem_generic_ty = &info.subsystem_generic_types();
 
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
@@ -19,15 +18,17 @@ pub(crate) fn impl_overseer_struct(
 	let baggage_generic_ty = &info.baggage_generic_types();
 
 	let generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
 			S: SpawnNamed,
-			#( #field_ty : Subsystem<Ctx>, )*
+			#( #subsystem_generic_ty : Subsystem<Ctx>, )*
 	};
+
+	let consumes = &info.consumes();
 
 	let message_channel_capacity = info.message_channel_capacity;
 	let signal_channel_capacity = info.signal_channel_capacity;
@@ -37,10 +38,12 @@ pub(crate) fn impl_overseer_struct(
 		const SIGNAL_CHANNEL_CAPACITY: usize = #signal_channel_capacity;
 
 		pub struct #overseer_name #generics {
+			// Subsystem instances.
 			#(
-				#field_name: #field_ty,
+				#subsystem_name: OverseenSubsystem< SubsystemInstance < #consumes > >,
 			)*
 
+			// Non-subsystem members.
 			#(
 				#baggage_name: #baggage_ty,
 			)*
@@ -52,7 +55,7 @@ pub(crate) fn impl_overseer_struct(
 			running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 			/// Gather running subsystems' outbound streams into one.
-			to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<ToOverseer>>,
+			to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver< ToOverseer >>,
 
 			/// Events that are sent to the overseer from the outside world.
 			events_rx: metered::MeteredReceiver<Event>,
@@ -61,7 +64,7 @@ pub(crate) fn impl_overseer_struct(
 		impl #generics #overseer_name #generics #where_clause {
 			pub async fn stop(mut self) {
 				#(
-					let _ = self. #field_name .send_signal(OverseerSignal::Conclude).await;
+					let _ = self. #subsystem_name .send_signal(OverseerSignal::Conclude).await;
 				)*
 				loop {
 					select! {
@@ -79,7 +82,7 @@ pub(crate) fn impl_overseer_struct(
 
 		pub async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
 			#(
-				self. #field_name .send_signal(signal.clone()).await;
+				self. #subsystem_name .send_signal(signal.clone()).await;
 			)*
 			let _ = signal;
 
@@ -89,7 +92,7 @@ pub(crate) fn impl_overseer_struct(
 		pub async fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
 			match msg {
 				#(
-					#field_ty (msg) => self. #field_name .send_message(msg).await?,
+					#message_wrapper :: #consumes (msg) => self. #subsystem_name .send_message(msg).await?,
 				)*
 			}
 			Ok(())
@@ -108,8 +111,8 @@ pub(crate) fn impl_builder(
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
 	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
 
-	let field_name = &info.subsystem_names();
-	let field_ty = &info.subsystem_generic_types();
+	let subsystem_name = &info.subsystem_names();
+	let subsystem_generic_ty = &info.subsystem_generic_types();
 
 	let channel_name = &info.channel_names("");
 	let channel_name_unbounded = &info.channel_names("_unbounded");
@@ -126,46 +129,55 @@ pub(crate) fn impl_builder(
 	let blocking = &info.subsystems().iter().map(|x| x.blocking).collect::<Vec<_>>();
 
 	let generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* #( #field_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* >
+	};
+
+	let builder_generics = quote! {
+		< Ctx, S, #( #baggage_generic_ty, )* #( #subsystem_generic_ty, )* >
+	};
+
+	let builder_additional_generics = quote! {
+		< #( #subsystem_generic_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
 			S: SpawnNamed,
-			#( #field_ty : Subsystem<Ctx>, )*
+			#( #subsystem_generic_ty : Subsystem<Ctx>, )*
 	};
 
+	let consumes = &info.consumes();
 	let message_wrapper = &info.message_wrapper;
 
 	let ts = quote! {
 
 		impl #generics #overseer_name #generics #where_clause {
-			fn builder() -> #builder {
+			fn builder::< #builder_additional_generics >() -> #builder #builder_generics {
 				#builder :: default()
 			}
 		}
 
 		#[derive(Debug, Clone, Default)]
-		struct #builder #generics {
+		struct #builder #builder_generics {
 			#(
-				#field_name : ::std::option::Option< #field_ty >,
+				#subsystem_name : ::std::option::Option< #subsystem_generic_ty >,
 			)*
 			#(
 				#baggage_name : ::std::option::Option< #baggage_name >,
 			)*
-			spawner: ::std::option::Option<  >,
+			spawner: ::std::option::Option< S >,
 		}
 
-		impl #generics #builder #generics #where_clause {
+		impl #builder_generics #builder #builder_generics #where_clause {
 			#(
-				fn #field_name (mut self, new: #field_ty ) -> #builder {
-					self.#field_name = Some( new );
+				fn #subsystem_name (mut self, subsystem: #subsystem_generic_ty ) -> #builder {
+					self.#subsystem_name = Some( new );
 					self
 				}
 			)*
 
-			fn build<F>(mut self, create_ctx: F) -> (#overseer_name #generics, #handler)
+			fn build<F>(mut self, create_subsystem_ctx: F) -> (#overseer_name #generics, #handler)
 				where F: FnMut(
 					metered::MeteredReceiver<OverseerSignal>,
 					meteted::SubsystemIncomingMessages< #message_wrapper >,
@@ -185,11 +197,11 @@ pub(crate) fn impl_builder(
 
 				let channels_out = {
 					#(
-						let (#channel_name_tx, #channel_name_rx) = ::metered::channel::<MessagePacket< #field_ty >>(CHANNEL_CAPACITY);
+						let (#channel_name_tx, #channel_name_rx) = ::metered::channel::<MessagePacket< #consumes >>(CHANNEL_CAPACITY);
 					)*
 
 					#(
-						let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) = ::metered::unbounded::<MessagePacket< #field_ty >>();
+						let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) = ::metered::unbounded::<MessagePacket< #consumes >>();
 					)*
 
 					ChannelsOut {
@@ -207,7 +219,7 @@ pub(crate) fn impl_builder(
 				let mut running_subsystems = FuturesUnordered::<BoxFuture<'static, SubsystemResult<()>>>::new();
 
 				#(
-					let #field_name: OverseenSubsystem<  #message_wrapper  > = {
+					let #subsystem_name: OverseenSubsystem<  #message_wrapper  > = {
 
 						let unbounded_meter = #channel_name_unbounded_tx .meter().clone();
 
@@ -220,14 +232,14 @@ pub(crate) fn impl_builder(
 
 						let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
-						let ctx = create_ctx(
+						let ctx = create_subsystem_ctx(
 							signal_rx,
 							message_rx,
 							channels_out.clone(),
 							to_overseer_tx.clone(),
 						);
 
-						let SpawnedSubsystem { future, name } = #field_name .start(ctx);
+						let SpawnedSubsystem { future, name } = #subsystem_name .start(ctx);
 
 						let (terminated_tx, terminated_rx) = oneshot::channel();
 
@@ -268,7 +280,7 @@ pub(crate) fn impl_builder(
 
 				let overseer = #overseer_name :: #generics {
 					#(
-						#field_name,
+						#subsystem_name,
 					)*
 
 					#(

@@ -52,8 +52,8 @@ pub(crate) fn impl_replacable_subsystem(
 			impl #generics #overseer_name #generics #where_clause {
 				#[doc = #msg]
 				pub fn #fn_name < #new > (self, replacement: #new) -> #overseer_name #modified_generics
-					where
-						#new: Subsystem<Ctx>,
+				where
+					#new: Subsystem<Ctx>,
 				{
 					#overseer_name :: #modified_generics {
 						#replacable_item: replacement,

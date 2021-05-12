@@ -81,7 +81,8 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 				message_wrapper,
 				message_channel_capacity: args.message_channel_capacity,
 				signal_channel_capacity: args.signal_channel_capacity,
-				incoming_event_ty: Ident::new("Network", Span::call_site()), // FIXME
+				extern_event_ty: args.extern_event_ty,
+				extern_signal_ty: args.extern_signal_ty,
 			};
 
 			let mut additive = impl_overseer_struct(&info)?;

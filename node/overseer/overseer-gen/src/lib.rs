@@ -68,13 +68,38 @@ use std::sync::Arc;
 /// A running instance of some [`Subsystem`].
 ///
 /// [`Subsystem`]: trait.Subsystem.html
-struct SubsystemInstance<M> {
+///
+/// `M` here is the inner message type, and not the generated `enum AllMessages`.
+pub struct SubsystemInstance<M> {
 	tx_signal: metered::MeteredSender<OverseerSignal>,
 	tx_bounded: metered::MeteredSender<MessagePacket<M>>,
 	meters: SubsystemMeters,
 	signals_received: usize,
 	name: &'static str,
 }
+
+
+
+/// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
+///
+/// Used to launch jobs.
+pub enum ToOverseer {
+	/// A message that wraps something the `Subsystem` is desiring to
+	/// spawn on the overseer and a `oneshot::Sender` to signal the result
+	/// of the spawn.
+	SpawnJob {
+		name: &'static str,
+		s: BoxFuture<'static, ()>,
+	},
+
+	/// Same as `SpawnJob` but for blocking tasks to be executed on a
+	/// dedicated thread pool.
+	SpawnBlockingJob {
+		name: &'static str,
+		s: BoxFuture<'static, ()>,
+	},
+}
+
 
 
 /// A helper trait to map a subsystem to smth. else.
@@ -97,8 +122,6 @@ pub type SubsystemIncomingMessages<M> = ::futures::stream::Select<
 	::metered::MeteredReceiver<MessagePacket<M>>,
 	::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
-
-
 
 #[derive(Debug, Default, Clone)]
 struct SignalsReceived(Arc<AtomicUsize>);
@@ -136,6 +159,9 @@ struct SubsystemMeterReadouts {
 	unbounded: metered::Readout,
 	signals: metered::Readout,
 }
+
+
+
 
 
 #[cfg(test)]

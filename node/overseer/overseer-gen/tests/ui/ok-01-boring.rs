@@ -7,8 +7,13 @@ struct X;
 #[derive(Default, Clone, Copy)]
 struct AwesomeSubSys;
 
-#[overlord(Wrapper)]
-#[derive(Clone, AllSubsystemsGen)]
+#[derive(Default, Clone, Copy)]
+struct SigSigSig;
+
+#[derive(Default, Clone, Copy)]
+struct EventX;
+
+#[overlord(signal=self::SigSigSig, event=self::EventX, gen=AllMessages)]
 struct Overseer {
 	#[subsystem(X)]
 	sub0: AwesomeSubSys,

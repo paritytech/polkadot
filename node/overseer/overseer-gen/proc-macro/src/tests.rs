@@ -6,7 +6,7 @@ use syn::parse_quote;
 #[test]
 fn basic() {
     let attr = quote! {
-        (event=OverseerSignal,gen=AllMessages)
+        (event=OverseerSignal,signal=SigSigSig, gen=AllMessages)
     };
 
     let item = quote! {
@@ -36,7 +36,7 @@ fn basic() {
 #[test]
 fn attr_parsing_works() {
     let attr: AttrArgs = parse_quote! {
-        (gen=AllMessage, event=::some::why::ExternEvent, signal_capacity=111, message_capacity=222,)
+        (gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,)
     };
     assert_matches!(attr, AttrArgs {
         message_channel_capacity,

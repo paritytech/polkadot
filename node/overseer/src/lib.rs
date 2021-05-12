@@ -92,7 +92,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
 	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
+use polkadot_node_subsystem_util::{TimeoutExt, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
 use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 
@@ -134,26 +134,6 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 		let id = BlockId::Hash(*head);
 		self.runtime_api().has_api::<dyn ParachainHost<Block>>(&id).unwrap_or(false)
 	}
-}
-
-/// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
-///
-/// Used to launch jobs.
-enum ToOverseer {
-	/// A message that wraps something the `Subsystem` is desiring to
-	/// spawn on the overseer and a `oneshot::Sender` to signal the result
-	/// of the spawn.
-	SpawnJob {
-		name: &'static str,
-		s: BoxFuture<'static, ()>,
-	},
-
-	/// Same as `SpawnJob` but for blocking tasks to be executed on a
-	/// dedicated thread pool.
-	SpawnBlockingJob {
-		name: &'static str,
-		s: BoxFuture<'static, ()>,
-	},
 }
 
 
@@ -517,58 +497,58 @@ struct SubsystemMeterReadouts {
 #[overlord(event=Event, signal=OverseerSignal, gen=AllMessages)]
 pub struct Overseer<S, SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
-	candidate_validation,
+	candidate_validation: CandidateValidation,
 
 	#[subsystem(no_dispatch, CandidateBackingMessage)]
-	candidate_backing,
+	candidate_backing: CandidateBacking,
 
 	#[subsystem(no_dispatch, CandidateSelectionMessage)]
-	candidate_selection,
+	candidate_selection: CandidateSelection,
 
 	#[subsystem(StatementDistributionMessage)]
-	statement_distribution,
+	statement_distribution: StatementDistribution,
 
 	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
-	availability_distribution,
+	availability_distribution: AvailabilityDistribution,
 
 	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
-	availability_recovery,
+	availability_recovery: AvailabilityRecovery,
 
 	#[subsystem(no_dispatch, BitfieldSigningMessage)]
-	bitfield_signing,
+	bitfield_signing: BitfieldSigning,
 
 	#[subsystem(BitfieldDistributionMessage)]
-	bitfield_distribution,
+	bitfield_distribution: BitfieldDistribution,
 
 	#[subsystem(no_dispatch, ProvisionerMessage)]
-	provisioner,
+	provisioner: Provisioner,
 
 	#[subsystem(no_dispatch, RuntimeApiMessage)]
-	runtime_api,
+	runtime_api: RuntimeApi,
 
 	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
-	availability_store,
+	availability_store: AvailabilityStore,
 
 	#[subsystem(no_dispatch, NetworkBridgeMessage)]
-	network_bridge,
+	network_bridge: NetworkBridge,
 
 	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
-	chain_api,
+	chain_api: ChainApi,
 
 	#[subsystem(no_dispatch, CollationGenerationMessage)]
-	collation_generation,
+	collation_generation: CollationGeneration,
 
 	#[subsystem(no_dispatch, CollatorProtocolMessage)]
-	collator_protocol,
+	collator_protocol: CollatorProtocol,
 
 	#[subsystem(ApprovalDistributionMessage)]
-	approval_distribution,
+	approval_distribution: ApprovalDistribution,
 
 	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
-	approval_voting,
+	approval_voting: ApprovalVoting,
 
 	#[subsystem(no_dispatch, GossipSupportMessage)]
-	gossip_support,
+	gossip_support: GossipSupport,
 
 
 	/// External listeners waiting for a hash to be in the active-leave set.
@@ -593,6 +573,7 @@ pub struct Overseer<S, SupportsParachains> {
 }
 
 
+#[overlord]
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	S: SpawnNamed,
@@ -682,32 +663,12 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
+	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
-	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
-		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
 	{
 
 		let (overseer, handler) = Overseer::builder()

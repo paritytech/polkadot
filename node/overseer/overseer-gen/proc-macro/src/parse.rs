@@ -111,6 +111,7 @@ impl Parse for AttrItem {
 pub(crate) struct AttrArgs {
 	pub(crate) message_wrapper: Ident,
 	pub(crate) extern_event_ty: Path,
+	pub(crate) extern_signal_ty: Path,
 	pub(crate) signal_channel_capacity: u64,
 	pub(crate) message_channel_capacity: u64,
 }
@@ -173,6 +174,7 @@ impl Parse for AttrArgs {
 			signal_channel_capacity,
 			message_channel_capacity,
 			extern_event_ty,
+			extern_signal_ty,
 			message_wrapper,
 		})
 	}
@@ -258,8 +260,11 @@ pub(crate) struct OverseerInfo {
 	/// Size of the bounded signal channel.
 	pub(crate) signal_channel_capacity: u64,
 
-	/// Incoming event type, commonly from the network bridge.
-	pub(crate) incoming_event_ty: Ident,
+	/// Signals to be sent, sparse information that is used intermittendly.
+	pub(crate) extern_signal_ty: Path,
+
+	/// Incoming event type from the outer world, commonly from the network.
+	pub(crate) extern_event_ty: Path,
 }
 
 impl OverseerInfo {

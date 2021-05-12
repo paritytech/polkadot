@@ -2,7 +2,7 @@
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub struct OverseerHandler<M> {
+pub struct OverseerHandler {
 	events_tx: metered::MeteredSender<Event>,
 }
 
@@ -15,7 +15,7 @@ impl OverseerHandler {
 
 	/// Send some message to one of the `Subsystem`s.
 	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
-	pub async fn send_msg(&mut self, msg: impl Into<M>) {
+	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
 		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
 	}
 
