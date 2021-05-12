@@ -53,6 +53,7 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
@@ -67,6 +68,7 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:

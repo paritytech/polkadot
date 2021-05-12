@@ -18,7 +18,7 @@
 
 use rococo::constants::size::MAX_CODE_SIZE;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use babe_primitives::AuthorityId as BabeId;
+use sp_consensus_babe::AuthorityId as BabeId;
 use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;
@@ -644,6 +644,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
@@ -1282,6 +1283,7 @@ pub fn kusama_testnet_genesis(
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 

@@ -203,7 +203,7 @@ mod tests {
 			// reserved for messages dispatch allows dispatch of non-trivial messages.
 			//
 			// Any significant change in this values should attract additional attention.
-			(1020, 216_583_333_334),
+			(1013, 216_583_333_334),
 		);
 	}
 }

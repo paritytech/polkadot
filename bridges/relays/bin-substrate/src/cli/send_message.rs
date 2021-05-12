@@ -21,9 +21,9 @@ use crate::cli::{
 	Balance, CliChain, ExplicitOrMaximal, HexBytes, HexLaneId, Origins, SourceConnectionParams, SourceSigningParams,
 	TargetSigningParams,
 };
+use bp_message_dispatch::{CallOrigin, MessagePayload};
 use codec::Encode;
 use frame_support::{dispatch::GetDispatchInfo, weights::Weight};
-use pallet_bridge_dispatch::{CallOrigin, MessagePayload};
 use relay_substrate_client::{Chain, TransactionSignScheme};
 use sp_core::{Bytes, Pair};
 use sp_runtime::{traits::IdentifyAccount, AccountId32, MultiSignature, MultiSigner};

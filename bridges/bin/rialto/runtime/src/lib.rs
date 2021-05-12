@@ -61,7 +61,7 @@ use sp_version::RuntimeVersion;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Currency, ExistenceRequirement, Imbalance, KeyOwnerProofSystem, Randomness},
+	traits::{Currency, ExistenceRequirement, Imbalance, KeyOwnerProofSystem},
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, RuntimeDbWeight, Weight},
 	StorageValue,
 };
@@ -409,19 +409,34 @@ impl pallet_session::Config for Runtime {
 }
 
 parameter_types! {
-	// This is a pretty unscientific cap.
-	//
-	// Note that once this is hit the pallet will essentially throttle incoming requests down to one
-	// call per block.
+	/// This is a pretty unscientific cap.
+	///
+	/// Note that once this is hit the pallet will essentially throttle incoming requests down to one
+	/// call per block.
 	pub const MaxRequests: u32 = 50;
+}
 
-	// Number of headers to keep.
-	//
-	// Assuming the worst case of every header being finalized, we will keep headers at least for a
-	// week.
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	/// Number of headers to keep in benchmarks.
+	///
+	/// In benchmarks we always populate with full number of `HeadersToKeep` to make sure that
+	/// pruning is taken into account.
+	///
+	/// Note: This is lower than regular value, to speed up benchmarking setup.
+	pub const HeadersToKeep: u32 = 1024;
+}
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+parameter_types! {
+	/// Number of headers to keep.
+	///
+	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
+	/// week.
 	pub const HeadersToKeep: u32 = 7 * bp_rialto::DAYS as u32;
 }
 
+pub type MillauGrandpaInstance = ();
 impl pallet_bridge_grandpa::Config for Runtime {
 	type BridgedChain = bp_millau::Millau;
 	type MaxRequests = MaxRequests;
@@ -571,10 +586,6 @@ impl_runtime_apis! {
 			data: sp_inherents::InherentData,
 		) -> sp_inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed().0
 		}
 	}
 
@@ -874,7 +885,7 @@ impl_runtime_apis! {
 					params: MessageParams<Self::AccountId>,
 				) -> (millau_messages::ToMillauMessagePayload, Balance) {
 					let message_payload = vec![0; params.size as usize];
-					let dispatch_origin = pallet_bridge_dispatch::CallOrigin::SourceAccount(
+					let dispatch_origin = bp_message_dispatch::CallOrigin::SourceAccount(
 						params.sender_account,
 					);
 
@@ -944,10 +955,10 @@ impl_runtime_apis! {
 						make_millau_outbound_lane_data_key,
 						make_millau_header,
 						call_weight,
-						pallet_bridge_dispatch::MessagePayload {
+						bp_message_dispatch::MessagePayload {
 							spec_version: VERSION.spec_version,
 							weight: call_weight,
-							origin: pallet_bridge_dispatch::CallOrigin::<
+							origin: bp_message_dispatch::CallOrigin::<
 								bp_millau::AccountId,
 								MultiSigner,
 								Signature,

@@ -96,7 +96,7 @@ where
 	SourceChain: Clone + Chain + Debug,
 	BlockNumberOf<SourceChain>: BlockNumberBase,
 	TargetChain: Clone + Chain + Debug,
-	TargetSign: Clone + Send + Sync,
+	TargetSign: 'static + Clone + Send + Sync,
 {
 	const SOURCE_NAME: &'static str = SourceChain::NAME;
 	const TARGET_NAME: &'static str = TargetChain::NAME;
@@ -112,6 +112,7 @@ pub async fn run<SourceChain, TargetChain, P>(
 	pipeline: P,
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
+	is_on_demand_task: bool,
 	metrics_params: MetricsParams,
 ) -> anyhow::Result<()>
 where
@@ -137,6 +138,7 @@ where
 		FinalitySource::new(source_client),
 		SubstrateFinalityTarget::new(target_client, pipeline),
 		FinalitySyncParams {
+			is_on_demand_task,
 			tick: std::cmp::max(SourceChain::AVERAGE_BLOCK_INTERVAL, TargetChain::AVERAGE_BLOCK_INTERVAL),
 			recent_finality_proofs_limit: RECENT_FINALITY_PROOFS_LIMIT,
 			stall_timeout: STALL_TIMEOUT,
