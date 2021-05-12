@@ -152,7 +152,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// 	}
 /// }
 /// # fn main() {
-///	let origin = MultiLocation::X1(Junction::Parachain(6));
+/// let origin = MultiLocation::X1(Junction::Parachain(6));
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()
