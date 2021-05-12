@@ -66,9 +66,9 @@ impl From<Error> for XcmError {
 /// /// messages from the parent (relay chain).
 /// pub type LocationConvertor = (ParentIsDefault<RelayChain>);
 ///
-/// /// Final current adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
+/// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
-///     // Use this currency:
+///     // Use this balance type:
 ///     u128,
 ///     // The matcher: use the currency when the asset is a concrete asset in our relay chain.
 ///     IsConcrete<RelayChain>,

@@ -25,7 +25,7 @@ use xcm::v0::{MultiLocation, OriginKind};
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
 /// the source value.
 ///
-/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` short circuits, otherwise returns
+/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
@@ -152,7 +152,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// 	}
 /// }
 /// # fn main() {
-///	let origin = MultiLocation::X1(Junction::Parachain(6));
+/// let origin = MultiLocation::X1(Junction::Parachain(6));
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()
