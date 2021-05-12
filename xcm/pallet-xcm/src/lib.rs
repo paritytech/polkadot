@@ -26,6 +26,7 @@ use sp_runtime::{RuntimeDebug, traits::BadOrigin};
 use frame_support::traits::{EnsureOrigin, OriginTrait, Filter, Get, Contains};
 
 pub use pallet::*;
+use frame_support::PalletId;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -33,6 +34,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use xcm_executor::traits::WeightBounds;
+	use sp_runtime::traits::AccountIdConversion;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -197,6 +199,11 @@ pub mod pallet {
 				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
 			};
 			T::XcmRouter::send_xcm(dest, message)
+		}
+
+		pub fn check_account() -> T::AccountId {
+			const ID: PalletId = PalletId(*b"py/xcmch");
+			AccountIdConversion::<T::AccountId>::into_account(&ID)
 		}
 	}
 }

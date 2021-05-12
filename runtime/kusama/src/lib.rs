@@ -1164,6 +1164,8 @@ parameter_types! {
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Kusama is a top-level relay-chain, there is no ancestry.
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
+	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 /// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
@@ -1189,6 +1191,8 @@ pub type LocalAssetTransactor =
 		SovereignAccountOf,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,
+		// We track our teleports in/out to keep total issuance correct.
+		CheckAccount,
 	>;
 
 /// The means that we convert an the XCM message origin location into a local dispatch origin.

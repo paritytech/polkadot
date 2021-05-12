@@ -24,6 +24,40 @@ use crate::Assets;
 /// account locations such as a `MultiLocation::X1(Junction::Parachain)`. Different chains may handle them in
 /// different ways.
 pub trait TransactAsset {
+	/// Ensure that `check_in` will result in `Ok`.
+	///
+	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
+	fn can_check_in(_origin: &MultiLocation, _what: &MultiAsset) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
+
+	/// An asset has been teleported in from the given origin. This should do whatever housekeeping is needed.
+	///
+	/// NOTE: This will make only a best-effort at bookkeeping. The caller should ensure that `can_check_in` has
+	/// returned with `Ok` in order to guarantee that this operation proceeds properly.
+	///
+	/// Implementation note: In general this will do one of two things: On chains where the asset is native,
+	/// it will reduce the assets from a special "teleported" account so that a) total-issuance is preserved;
+	/// and b) to ensure that no more assets can be teleported in than were teleported out overall (this should
+	/// not be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains
+	/// where the asset is not native then it will generally just be a no-op.
+	///
+	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// value for `_what` which can cause side-effects for more than one of the type-items.
+	fn check_in(_origin: &MultiLocation, _what: &MultiAsset) {}
+
+	/// An asset has been teleported out to the given destination. This should do whatever housekeeping is needed.
+	///
+	/// Implementation note: In general this will do one of two things: On chains where the asset is native,
+	/// it will increase the assets in a special "teleported" account so that a) total-issuance is preserved; and
+	/// b) to ensure that no more assets can be teleported in than were teleported out overall (this should not
+	/// be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains where
+	/// the asset is not native then it will generally just be a no-op.
+	///
+	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// value for `_what` which can cause side-effects for more than one of the type-items.
+	fn check_out(_origin: &MultiLocation, _what: &MultiAsset) {}
+
 	/// Deposit the `what` asset into the account of `who`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if deposit failed.
@@ -64,6 +98,25 @@ pub trait TransactAsset {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl TransactAsset for Tuple {
+	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> XcmResult {
+		for_tuples!( #(
+			match Tuple::can_check_in(origin, what) {
+				Err(XcmError::AssetNotFound) => (),
+				r => return r,
+			}
+		)* );
+		Err(XcmError::AssetNotFound)
+	}
+	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
+		for_tuples!( #(
+			Tuple::check_in(origin, what);
+		)* );
+	}
+	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
+		for_tuples!( #(
+			Tuple::check_out(dest, what);
+		)* );
+	}
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::deposit_asset(what, who) { o @ Ok(_) => return o, _ => () }
@@ -83,4 +136,3 @@ impl TransactAsset for Tuple {
 		Err(XcmError::Unimplemented)
 	}
 }
-
