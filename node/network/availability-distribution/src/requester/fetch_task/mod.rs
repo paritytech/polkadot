@@ -263,7 +263,7 @@ impl RunningTask {
 	async fn run_inner(mut self) {
 		let mut bad_validators = Vec::new();
 		let mut succeeded = false;
-		let mut retry_count: u32 = 0;
+		let mut count: u32 = 0;
 		let mut _span = self.span.child("fetch-task")
 			.with_chunk_index(self.request.index.0)
 			.with_relay_parent(self.relay_parent);
@@ -271,10 +271,10 @@ impl RunningTask {
 		while let Some(validator) = self.group.pop() {
 			let _try_span = _span.child("try");
 			// Report retries:
-			if retry_count > 0 {
+			if count > 0 {
 				self.metrics.on_retry();
 			}
-			retry_count +=1;
+			count +=1;
 
 			// Send request:
 			let resp = match self.do_request(&validator).await {
@@ -319,7 +319,7 @@ impl RunningTask {
 			_span.add_string_tag("success", "true");
 			break;
 		}
-		_span.add_int_tag("tries", retry_count as _);
+		_span.add_int_tag("tries", count as _);
 		if succeeded {
 			self.metrics.on_fetch(SUCCEEDED);
 			self.conclude(bad_validators).await;

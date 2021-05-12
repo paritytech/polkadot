@@ -59,11 +59,11 @@ impl Meter {
 	}
 
 	fn note_sent(&self) {
-		self.sent.fetch_add(1, Ordering::Release);
+		self.sent.fetch_add(1, Ordering::Relaxed);
 	}
 
 	fn retract_sent(&self) {
-		self.sent.fetch_sub(1, Ordering::Acquire);
+		self.sent.fetch_sub(1, Ordering::Relaxed);
 	}
 
 	fn note_received(&self) {

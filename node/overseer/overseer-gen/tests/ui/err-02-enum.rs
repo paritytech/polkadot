@@ -2,26 +2,31 @@
 
 use polkadot_overseer_gen::overlord;
 
-struct Msg(u8);
+#[derive(Default)]
+struct AwesomeSubSys;
 
-#[derive(Default, Clone, Copy)]
-struct AwesomeSub;
+struct SigSigSig;
 
-#[overlord(Wrapper)]
-#[derive(Clone, AllSubsystemsGen)]
+struct Event;
+
+#[derive(Clone)]
+struct MsgStrukt(u8);
+
+#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
 enum Overseer {
-	#[subsystem(Msg)]
-	Sub0(AwesomeSub),
+	#[subsystem(MsgStrukt)]
+	Sub0(AwesomeSubSys),
 }
 
-struct Spawner;
+#[derive(Debug, Clone)]
+struct DummySpawner;
+
+struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<Spawner, SubSystems<FooSubSys>>::builder()
-		.sub0(FooSubSys::default())
-		.build(Spawner);
-
-	// try to replace one subsystem with another that can not handle `X`.
-	// since it's missing the trait bound.
-	let overseer = overseer.replace_sub0(TequilaInABar::default());
+	let overseer = Overseer::<_,_>::builder()
+		.sub0(AwesomeSubSys::default())
+		.i_like_pie(std::f64::consts::PI)
+		.spawner(DummySpawner)
+		.build(|| -> DummyCtx { DummyCtx } );
 }
