@@ -64,7 +64,7 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 	let mut additive = impl_overseer_struct(&info)?;
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_channels_out_struct(&info)?);
-	additive.extend(impl_replacable_subsystem(&info)?);
+	// additive.extend(impl_replacable_subsystem(&info)?);
 	additive.extend(impl_dispatch(&info)?);
 
 	Ok(additive)

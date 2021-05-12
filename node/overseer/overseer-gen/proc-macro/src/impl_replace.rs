@@ -12,7 +12,7 @@ pub(crate) fn impl_replacable_subsystem(
 
 	let overseer_name = &info.overseer_name;
 
-	let field_ty = &info.subsystem_generic_types();
+	let field_ty = &info.builder_generic_types();
 	let baggage_generic_ty = &info.baggage_generic_types();
 
 	let baggage_name = &info.baggage_names();

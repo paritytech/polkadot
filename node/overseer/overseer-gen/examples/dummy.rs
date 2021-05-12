@@ -17,7 +17,7 @@ impl std::error::Error for Yikes {}
 struct MsgStrukt(u8);
 
 #[overlord(signal=SigSigSig, event=Event, error=Yikes, gen=AllMessages)]
-struct Overseer {
+struct Xxx {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 }
@@ -28,7 +28,7 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<_,_>::builder()
+	let overseer = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
 		.i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)

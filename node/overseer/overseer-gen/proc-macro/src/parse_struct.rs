@@ -151,13 +151,13 @@ impl OverseerInfo {
 		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
 	}
 
-
-	pub(crate) fn subsystem_generic_types(&self) -> Vec<Ident> {
+	/// Generic types per subsystem, in the form `Sub#N`.
+	pub(crate) fn builder_generic_types(&self) -> Vec<Ident> {
 		self.subsystems.iter().map(|sff| sff.generic.clone()).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
-		self.baggage.iter().filter(|bag| bag.generic).map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
+		self.baggage.iter().filter(|bag| bag.generic).map(|bag| dbg!(bag.field_ty.clone())).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names(&self, suffix: &'static str) -> Vec<Ident> {

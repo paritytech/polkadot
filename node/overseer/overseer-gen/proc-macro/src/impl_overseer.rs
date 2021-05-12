@@ -10,7 +10,7 @@ pub(crate) fn impl_overseer_struct(
 	let overseer_name = dbg!(info.overseer_name.clone());
 	let subsystem_name = &info.subsystem_names();
 
-	let subsystem_generic_ty = &info.subsystem_generic_types();
+	let builder_generic_ty = &info.builder_generic_types();
 
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
@@ -25,7 +25,6 @@ pub(crate) fn impl_overseer_struct(
 		where
 			Ctx: SubsystemContext,
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #subsystem_generic_ty : Subsystem<Ctx>, )*
 	};
 
 	let consumes = &info.consumes();
@@ -108,7 +107,7 @@ pub(crate) fn impl_builder(
 	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
 
 	let subsystem_name = &info.subsystem_names();
-	let subsystem_generic_ty = &info.subsystem_generic_types();
+	let builder_generic_ty = &info.builder_generic_types();
 
 	let channel_name = &info.channel_names("");
 	let channel_name_unbounded = &info.channel_names("_unbounded");
@@ -129,18 +128,25 @@ pub(crate) fn impl_builder(
 	};
 
 	let builder_generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* #( #subsystem_generic_ty, )* >
+		< Ctx, S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
 	};
 
 	let builder_additional_generics = quote! {
-		< #( #subsystem_generic_ty, )* >
+		< #( #builder_generic_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #subsystem_generic_ty : Subsystem<Ctx>, )*
+	};
+
+
+	let builder_where_clause = quote! {
+		where
+			Ctx: SubsystemContext,
+			S: ::polkadot_overseer_gen::SpawnNamed,
+			#( #builder_generic_ty : Subsystem<Ctx>, )*
 	};
 
 	let consumes = &info.consumes();
@@ -162,7 +168,7 @@ pub(crate) fn impl_builder(
 		#[derive(Debug, Clone, Default)]
 		struct #builder #builder_generics {
 			#(
-				#subsystem_name : ::std::option::Option< #subsystem_generic_ty >,
+				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
 			)*
 			#(
 				#baggage_name : ::std::option::Option< #baggage_name >,
@@ -170,9 +176,9 @@ pub(crate) fn impl_builder(
 			spawner: ::std::option::Option< S >,
 		}
 
-		impl #builder_generics #builder #builder_generics #where_clause {
+		impl #builder_generics #builder #builder_generics #builder_where_clause {
 			#(
-				pub fn #subsystem_name (mut self, subsystem: #subsystem_generic_ty ) -> Self {
+				pub fn #subsystem_name (mut self, subsystem: #builder_generic_ty ) -> Self {
 					self. #subsystem_name = Some( subsystem );
 					self
 				}
@@ -187,7 +193,7 @@ pub(crate) fn impl_builder(
 				) -> Ctx,
 			{
 
-				let (events_tx, events_rx) = ::polkadot_overseer_gen:metered::channel(SIGNAL_CHANNEL_CAPACITY);
+				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 
 				let handler: #handler = events_tx.clone();
 
@@ -212,7 +218,7 @@ pub(crate) fn impl_builder(
 					}
 				};
 
-				let spawner = &mut overseer.spawner;
+				let spawner = &mut self.spawner;
 
 				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<BoxFuture<'static, SubsystemResult<()>>>::new();
 
@@ -220,7 +226,7 @@ pub(crate) fn impl_builder(
 					// FIXME generate a builder pattern that ensures this
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
 
-					let #subsystem_name: OverseenSubsystem<  #message_wrapper  > = {
+					let #subsystem_name: OverseenSubsystem< #message_wrapper  > = {
 
 						let unbounded_meter = channels_out. #channel_name .meter().clone();
 
@@ -243,7 +249,7 @@ pub(crate) fn impl_builder(
 
 						let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = #subsystem_name .start(ctx);
 
-						let (terminated_tx, terminated_rx) = oneshot::channel();
+						let (terminated_tx, terminated_rx) = ::polkadot_overseer_gen::oneshot::channel();
 
 						let fut = Box::pin(async move {
 							if let Err(e) = future.await {
@@ -282,13 +288,18 @@ pub(crate) fn impl_builder(
 					};
 				)*
 
+
+				#(
+				let #baggage_name = self. #baggage_name .expect("Baggage must initialize");
+				)*
+
 				let overseer = #overseer_name :: #generics {
 					#(
 						#subsystem_name,
 					)*
 
 					#(
-						#baggage_name : self. #baggage_name .unwrap(),
+						#baggage_name,
 					)*
 
 					spawner,

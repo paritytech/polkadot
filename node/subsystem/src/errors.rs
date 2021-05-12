@@ -77,3 +77,66 @@ impl std::fmt::Display for RecoveryError {
 }
 
 impl std::error::Error for RecoveryError {}
+
+
+
+
+/// An error type that describes faults that may happen
+///
+/// These are:
+///   * Channels being closed
+///   * Subsystems dying when they are not expected to
+///   * Subsystems not dying when they are told to die
+///   * etc.
+#[derive(thiserror::Error, Debug)]
+#[allow(missing_docs)]
+pub enum SubsystemError {
+	#[error(transparent)]
+	NotifyCancellation(#[from] oneshot::Canceled),
+
+	#[error(transparent)]
+	QueueError(#[from] mpsc::SendError),
+
+	#[error(transparent)]
+	TaskSpawn(#[from] futures::task::SpawnError),
+
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
+
+	#[error(transparent)]
+	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
+
+	#[error(transparent)]
+	Jaeger(#[from] JaegerError),
+
+	#[error("Failed to {0}")]
+	Context(String),
+
+	#[error("Subsystem stalled: {0}")]
+	SubsystemStalled(&'static str),
+
+	/// Per origin (or subsystem) annotations to wrap an error.
+	#[error("Error originated in {origin}")]
+	FromOrigin {
+		/// An additional anotation tag for the origin of `source`.
+		origin: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
+	},
+}
+
+// impl AnnotateErrorOrigin for SubsystemError {
+// 	fn with_origin(self, origin: &'static str) -> Self {
+// 		Self::FromOrigin {
+// 			origin,
+// 			source: Box::new(self),
+// 		}
+// 	}
+// }
+
+impl SubsystemError {
+	/// Adds a `str` as `origin` to the given error `err`.
+	pub fn with_origin<E: 'static + Send + Sync + std::error::Error>(origin: &'static str, err: E) -> Self {
+		Self::FromOrigin { origin, source: Box::new(err) }
+	}
+}
