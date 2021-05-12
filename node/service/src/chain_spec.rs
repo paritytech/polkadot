@@ -644,6 +644,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
@@ -1282,6 +1283,7 @@ pub fn kusama_testnet_genesis(
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
