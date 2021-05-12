@@ -25,7 +25,7 @@ use xcm::v0::{MultiLocation, OriginKind};
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
 /// the source value.
 ///
-/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` short circuits, otherwise returns
+/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
