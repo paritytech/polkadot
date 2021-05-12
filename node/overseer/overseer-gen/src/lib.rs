@@ -62,23 +62,12 @@
 pub use overseer_gen_proc_macro::*;
 pub use tracing;
 pub use metered;
+pub use sp_core::traits::SpawnNamed;
+
+pub use futures::future::BoxFuture;
+
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
-
-/// A running instance of some [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-///
-/// `M` here is the inner message type, and not the generated `enum AllMessages`.
-pub struct SubsystemInstance<M> {
-	tx_signal: metered::MeteredSender<OverseerSignal>,
-	tx_bounded: metered::MeteredSender<MessagePacket<M>>,
-	meters: SubsystemMeters,
-	signals_received: usize,
-	name: &'static str,
-}
-
-
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -88,14 +77,18 @@ pub enum ToOverseer {
 	/// spawn on the overseer and a `oneshot::Sender` to signal the result
 	/// of the spawn.
 	SpawnJob {
+		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
 
 	/// Same as `SpawnJob` but for blocking tasks to be executed on a
 	/// dedicated thread pool.
 	SpawnBlockingJob {
+		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
 }
@@ -117,35 +110,62 @@ impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
 	}
 }
 
+/// A wrapping type for messages.
+// FIXME XXX elaborate the purpose of this.
+#[derive(Debug)]
+pub struct MessagePacket<T> {
+	signals_received: usize,
+	message: T,
+}
+
+/// Create a packet from its parts.
+pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
+	MessagePacket {
+		signals_received,
+		message,
+	}
+}
+
 /// Incoming messages from both the bounded and unbounded channel.
 pub type SubsystemIncomingMessages<M> = ::futures::stream::Select<
 	::metered::MeteredReceiver<MessagePacket<M>>,
 	::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
 
+
+/// Meter to count the received signals in total.
+// XXX FIXME is there a necessity for this? Seems redundant to `ReadOuts`
 #[derive(Debug, Default, Clone)]
-struct SignalsReceived(Arc<AtomicUsize>);
+pub struct SignalsReceived(Arc<AtomicUsize>);
 
 impl SignalsReceived {
-	fn load(&self) -> usize {
-		self.0.load(atomic::Ordering::SeqCst)
+	/// Load the current value of received signals.
+	pub fn load(&self) -> usize {
+		// off by a few is ok
+		self.0.load(atomic::Ordering::Relaxed)
 	}
 
-	fn inc(&self) {
-		self.0.fetch_add(1, atomic::Ordering::SeqCst);
+	/// Increase the number of signals by one.
+	pub fn inc(&self) {
+		self.0.fetch_add(1, atomic::Ordering::Acquire);
 	}
 }
 
 
+/// Collection of meters related to a subsystem.
 #[derive(Clone)]
-struct SubsystemMeters {
-	bounded: metered::Meter,
-	unbounded: metered::Meter,
-	signals: metered::Meter,
+pub struct SubsystemMeters {
+	#[allow(missing_docs)]
+	pub bounded: metered::Meter,
+	#[allow(missing_docs)]
+	pub unbounded: metered::Meter,
+	#[allow(missing_docs)]
+	pub signals: metered::Meter,
 }
 
 impl SubsystemMeters {
-	fn read(&self) -> SubsystemMeterReadouts {
+	/// Read the values of all subsystem `Meter`s.
+	pub fn read(&self) -> SubsystemMeterReadouts {
 		SubsystemMeterReadouts {
 			bounded: self.bounded.read(),
 			unbounded: self.unbounded.read(),
@@ -154,13 +174,16 @@ impl SubsystemMeters {
 	}
 }
 
-struct SubsystemMeterReadouts {
-	bounded: metered::Readout,
-	unbounded: metered::Readout,
-	signals: metered::Readout,
+
+/// Set of readouts of the `Meter`s of a subsystem.
+pub struct SubsystemMeterReadouts {
+	#[allow(missing_docs)]
+	pub bounded: metered::Readout,
+	#[allow(missing_docs)]
+	pub unbounded: metered::Readout,
+	#[allow(missing_docs)]
+	pub signals: metered::Readout,
 }
-
-
 
 
 

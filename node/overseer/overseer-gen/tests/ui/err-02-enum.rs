@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen_proc_macro::overlord;
+use polkadot_overseer_gen::overlord;
 
 struct Msg(u8);
 

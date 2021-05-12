@@ -100,6 +100,30 @@ pub(crate) fn impl_overseer_struct(
 	};
 
 	ts.extend(impl_builder(info)?);
+	ts.extend(impl_subsystem_instance(info)?);
+
+	Ok(ts)
+}
+
+
+pub(crate) fn impl_subsystem_instance(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+	let extern_signal_ty = &info.extern_signal_ty;
+
+	let ts = quote::quote! {
+		/// A running instance of some [`Subsystem`].
+		///
+		/// [`Subsystem`]: trait.Subsystem.html
+		///
+		/// `M` here is the inner message type, and _not_ the generated `enum AllMessages`.
+		pub struct SubsystemInstance<M> {
+			tx_signal: metered::MeteredSender< #extern_signal_ty >,
+			tx_bounded: metered::MeteredSender<MessagePacket<M>>,
+			meters: SubsystemMeters,
+			signals_received: usize,
+			name: &'static str,
+		}
+	};
+
 	Ok(ts)
 }
 

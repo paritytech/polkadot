@@ -17,19 +17,6 @@ pub(crate) fn impl_channels_out_struct(
 	let consumes = &info.consumes();
 
     let ts = quote! {
-		#[derive(Debug)]
-		pub struct MessagePacket<T> {
-			signals_received: usize,
-			message: T,
-		}
-
-		pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
-			MessagePacket {
-				signals_received,
-				message,
-			}
-		}
-
 		pub struct ChannelsOut {
 			#(
 				pub #channel_name: ::metered::MeteredSender<MessagePacket< #consumes >>,

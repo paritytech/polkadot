@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen_proc_macro::overlord;
+use polkadot_overseer_gen::overlord;
 
 #[derive(Debug)]
 struct MsgStrukt(u8);
@@ -8,7 +8,9 @@ struct MsgStrukt(u8);
 #[derive(Default, Clone, Copy)]
 struct AwesomeSubSys;
 
-#[overlord(signal=, gen=AllMessages)]
+#[derive(Default, Clone, Copy)]
+struct SigSigSig;
+#[overlord(signal=SigSigSig, gen=AllMessages)]
 struct Overseer<T> {
 	#[subsystem(no_dispatch, MsgStrukt)]
 	sub0: AwesomeSubSys,
@@ -22,7 +24,7 @@ struct DummySpawner;
 struct Ctx;
 
 fn main() {
-	let overseer = Overseer::builder()
+	let overseer = Overseer::<_>::builder()
 		.sub0(AwesomeSubSys::default())
 		.something_else(7777u32)
 		.spawner(DummySpawner)

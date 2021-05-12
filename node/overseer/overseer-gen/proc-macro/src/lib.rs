@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::TokenStream;
-use proc_macro2::Span;
-use syn::{parse2, Error, GenericParam, Result, Ident};
+use syn::{parse2, Error, GenericParam, Result};
 use std::collections::HashSet;
 
 mod parse;
