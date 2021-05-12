@@ -1058,22 +1058,17 @@ pub struct GrandpaStoragePrefixMigration;
 impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use frame_support::traits::PalletInfo;
-		if let Some(name) = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>() {
-			pallet_grandpa::migrations::v4::migrate::<Runtime, Grandpa, _>(name)
-		} else {
-			log::warn!("Grandpa storage prefix migration skipped: unable to fetch name");
-			0
-		}
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
+			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_grandpa::migrations::v4::migrate::<Runtime, Grandpa, _>(name)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
 		use frame_support::traits::PalletInfo;
-		if let Some(name) = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>() {
-			pallet_grandpa::migrations::v4::pre_migration::<Grandpa, _>(name);
-		} else {
-			log::warn!("Grandpa storage prefix migration pre-upgrade skipped: unable to fetch name");
-		}
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
+			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_grandpa::migrations::v4::pre_migration::<Runtime, Grandpa, _>(name);
 		Ok(())
 	}
 
