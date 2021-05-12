@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! various implementations of `FilterAssetLocation`.
+//! Various implementations of `FilterAssetLocation`.
 
 use sp_std::marker::PhantomData;
 use xcm::v0::{MultiAsset, MultiLocation};
