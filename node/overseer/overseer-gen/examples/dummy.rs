@@ -1,6 +1,6 @@
-#![allow(dead_code)]
+//! A dummy to be used with cargo expand
 
-use polkadot_overseer_gen::overlord;
+use polkadot_overseer_gen::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
@@ -9,15 +9,17 @@ struct SigSigSig;
 
 struct Event;
 
+struct Yikes;
+
+impl std::error::Error for Yikes {}
+
 #[derive(Clone)]
 struct MsgStrukt(u8);
 
-#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
+#[overlord(signal=SigSigSig, event=Event, error=Yikes, gen=AllMessages)]
 struct Overseer {
-	#[subsystem(no_dispatch, MsgStrukt)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
-
-	i_like_pie: f64,
 }
 
 #[derive(Debug, Clone)]

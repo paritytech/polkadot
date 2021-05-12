@@ -22,9 +22,9 @@ pub(crate) fn impl_message_wrapper_enum(
 		}
 
 		#(
-		impl ::std::from::From<#consumes> for #message_wrapper {
+		impl ::std::convert::From<#consumes> for #message_wrapper {
 			fn from(src: #consumes) -> Self {
-				#message_wrapper :: #consumes ( #consumes )
+				#message_wrapper :: #consumes ( src )
 			}
 		}
 		)*
@@ -35,7 +35,7 @@ pub(crate) fn impl_message_wrapper_enum(
 			signals_received: SignalsReceived,
 		}
 
-		#[async_trait::async_trait]
+		#[::polkadot_overseer_gen::async_trait]
 		impl SubsystemSender for OverseerSubsystemSender {
 			async fn send_message(&mut self, msg: #message_wrapper) {
 				self.channels.send_and_log_error(self.signals_received.load(), msg).await;

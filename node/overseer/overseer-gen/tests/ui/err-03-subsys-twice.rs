@@ -1,39 +1,38 @@
 #![allow(dead_code)]
 
 use polkadot_overseer_gen::overlord;
-struct X;
-struct Z;
 
-struct Orange;
-
-#[derive(Default, Clone, Copy)]
+#[derive(Default)]
 struct AwesomeSubSys;
 
+struct SigSigSig;
 
-#[derive(Default, Clone, Copy)]
-struct TequilaInABar;
+struct Event;
 
+#[derive(Clone)]
+struct MsgStrukt(u8);
 
-#[overlord(Wrapper)]
+#[derive(Clone)]
+struct MsgStrukt2(f64);
+
+#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
 struct Overseer {
-	#[subsystem(X)]
-	#[subsystem(Z)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(Orange)]
-	shots_of: TequilaInABar,
-
-	other: Stuff,
+	#[subsystem(MsgStrukt2)]
+	sub1: AwesomeSubSys,
 }
 
-struct Spawner;
+#[derive(Debug, Clone)]
+struct DummySpawner;
+
+struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<Spawner, SubSystems<FooSubSys>>::builder()
-		.sub0(FooSubSys::default())
-		.build(Spawner);
-
-	// try to replace one subsystem with another that can not handle `X`.
-	// since it's missing the trait bound.
-	let overseer = overseer.replace_sub0(TequilaInABar::default());
+	let overseer = Overseer::<_,_>::builder()
+		.sub0(AwesomeSubSys::default())
+		.i_like_pie(std::f64::consts::PI)
+		.spawner(DummySpawner)
+		.build(|| -> DummyCtx { DummyCtx } );
 }

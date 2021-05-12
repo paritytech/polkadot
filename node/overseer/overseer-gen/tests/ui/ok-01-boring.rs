@@ -2,29 +2,31 @@
 
 use polkadot_overseer_gen::overlord;
 
-struct X;
-
-#[derive(Default, Clone, Copy)]
+#[derive(Default)]
 struct AwesomeSubSys;
 
-#[derive(Default, Clone, Copy)]
 struct SigSigSig;
 
-#[derive(Default, Clone, Copy)]
-struct EventX;
+struct Event;
 
-#[overlord(signal=self::SigSigSig, event=self::EventX, gen=AllMessages)]
+#[derive(Clone)]
+struct MsgStrukt(u8);
+
+#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
 struct Overseer {
-	#[subsystem(X)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 }
 
-struct Spawner;
+#[derive(Debug, Clone)]
+struct DummySpawner;
+
+struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<Spawner, SubSystems<X>>::builder()
+	let overseer = Overseer::<_,_>::builder()
 		.sub0(AwesomeSubSys::default())
-		.build(Spawner);
-
-	let overseer = overseer.replace_sub0(TequilaInABar::default());
+		.i_like_pie(std::f64::consts::PI)
+		.spawner(DummySpawner)
+		.build(|| -> DummyCtx { DummyCtx } );
 }

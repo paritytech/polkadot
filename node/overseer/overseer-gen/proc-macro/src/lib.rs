@@ -15,10 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::TokenStream;
-use syn::{parse2, Error, GenericParam, Result};
+use syn::{parse2, Error, Result};
+use syn::spanned::Spanned;
 use std::collections::HashSet;
 
-mod parse;
+mod parse_struct;
+mod parse_attr;
 mod impl_overseer;
 mod impl_replace;
 mod impl_channels_out;
@@ -26,7 +28,8 @@ mod impl_message_wrapper;
 mod impl_dispatch;
 // mod inc;
 
-use parse::*;
+use parse_struct::*;
+use parse_attr::*;
 use impl_overseer::*;
 use impl_replace::*;
 use impl_channels_out::*;
@@ -41,65 +44,30 @@ pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) ->
 }
 
 pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<proc_macro2::TokenStream> {
-	let args: AttrArgs = syn::parse2(attr)?;
+	let args: AttrArgs = parse2(attr)?;
 	let message_wrapper = args.message_wrapper;
 
-	let span = proc_macro2::Span::call_site();
-	let ds = parse2::<syn::ItemStruct>(orig.clone())?;
-	match ds.fields {
-		syn::Fields::Named(named) => {
-			let overseer_name = ds.ident.clone();
+	let of: OverseerGuts = parse2(orig)?;
 
-			// collect the indepedentent subsystem generics
-			// which need to be carried along, there are the non-generated ones
-			let mut orig_generics = ds.generics;
+	let info = OverseerInfo {
+		subsystems: of.subsystems,
+		baggage: of.baggage,
+		overseer_name: of.name,
+		message_wrapper,
+		message_channel_capacity: args.message_channel_capacity,
+		signal_channel_capacity: args.signal_channel_capacity,
+		extern_event_ty: args.extern_event_ty,
+		extern_signal_ty: args.extern_signal_ty,
+		extern_error_ty: args.extern_error_ty,
+	};
 
-			// remove default types
-			let mut baggage_generic_idents = HashSet::with_capacity(orig_generics.params.len());
-			orig_generics.params = orig_generics
-				.params
-				.into_iter()
-				.map(|mut generic| {
-					match generic {
-						GenericParam::Type(ref mut param) => {
-							baggage_generic_idents.insert(param.ident.clone());
-							param.eq_token = None;
-							param.default = None;
-						}
-						_ => {}
-					}
-					generic
-				})
-				.collect();
+	let mut additive = impl_overseer_struct(&info)?;
+	additive.extend(impl_message_wrapper_enum(&info)?);
+	additive.extend(impl_channels_out_struct(&info)?);
+	additive.extend(impl_replacable_subsystem(&info)?);
+	additive.extend(impl_dispatch(&info)?);
 
-			let (subsystems, baggage) = parse_overseer_struct_field(baggage_generic_idents, named)?;
-			let info = OverseerInfo {
-				subsystems,
-				baggage,
-				overseer_name,
-				message_wrapper,
-				message_channel_capacity: args.message_channel_capacity,
-				signal_channel_capacity: args.signal_channel_capacity,
-				extern_event_ty: args.extern_event_ty,
-				extern_signal_ty: args.extern_signal_ty,
-			};
-
-			let mut additive = impl_overseer_struct(&info)?;
-
-			additive.extend(impl_message_wrapper_enum(&info)?);
-			additive.extend(impl_channels_out_struct(&info)?);
-			additive.extend(impl_replacable_subsystem(&info)?);
-			additive.extend(impl_dispatch(&info)?);
-
-			// additive.extend(inc::include_static_rs()?);
-
-			Ok(additive)
-		}
-		syn::Fields::Unit => Err(Error::new(span, "Must be a struct with named fields. Not an unit struct.")),
-		syn::Fields::Unnamed(_) => {
-			Err(Error::new(span, "Must be a struct with named fields. Not an unnamed fields struct."))
-		}
-	}
+	Ok(additive)
 }
 
 #[cfg(test)]

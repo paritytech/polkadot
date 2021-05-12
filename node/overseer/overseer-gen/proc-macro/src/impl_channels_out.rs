@@ -19,14 +19,15 @@ pub(crate) fn impl_channels_out_struct(
     let ts = quote! {
 		pub struct ChannelsOut {
 			#(
-				pub #channel_name: ::metered::MeteredSender<MessagePacket< #consumes >>,
+				pub #channel_name: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket< #consumes >>,
 			)*
             #(
-				pub #channel_name_unbounded: ::metered::UnboundedMeteredSender<MessagePacket< #consumes >>,
+				pub #channel_name_unbounded: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<MessagePacket< #consumes >>,
 			)*
 		}
 
         impl ChannelsOut {
+            /// Send a message via a bounded channel.
             pub async fn send_and_log_error(
                 &mut self,
                 signals_received: usize,
@@ -34,22 +35,23 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #consumes (msg) => {
+                    #message_wrapper :: #consumes ( message ) => {
                         self. #channel_name .send(
-                            make_packet(signals_received, msg)
+                            ::polkadot_overseer_gen::make_packet(signals_received, message)
                         ).await
                     },
                 )*
                 };
 
                 if res.is_err() {
-                    tracing::debug!(
+                    ::polkadot_overseer_gen::tracing::debug!(
                         target: LOG_TARGET,
                         "Failed to send a message to another subsystem",
                     );
                 }
             }
 
+            /// Send a message to another subsystem via an unbounded channel.
             pub fn send_unbounded_and_log_error(
                 &self,
                 signals_received: usize,
@@ -57,16 +59,16 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #consumes (msg) => {
+                    #message_wrapper :: #consumes (message) => {
                         self. #channel_name_unbounded .send(
-                            make_packet(signals_received, msg)
-                        ).await
+                            make_packet(signals_received, message)
+                        )
                     },
                 )*
                 };
 
                 if res.is_err() {
-                    tracing::debug!(
+                    ::polkadot_overseer_gen::tracing::debug!(
                         target: LOG_TARGET,
                         "Failed to send a message to another subsystem",
                     );

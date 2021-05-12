@@ -36,7 +36,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 
 				#(
 					let mut iter = iter.chain(
-						std::iter::once(
+						::std::iter::once(
 							event.focus().ok().map(|event| {
 								#message_wrapper :: #dispatchable (
 									#dispatchable :: from( event )

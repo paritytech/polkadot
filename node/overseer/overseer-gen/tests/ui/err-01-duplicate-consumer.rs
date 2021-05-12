@@ -5,6 +5,9 @@ use polkadot_overseer_gen::overlord;
 #[derive(Default)]
 struct AwesomeSubSys;
 
+#[derive(Default)]
+struct AwesomeSubSys2;
+
 struct SigSigSig;
 
 struct Event;
@@ -14,10 +17,11 @@ struct MsgStrukt(u8);
 
 #[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
 struct Overseer {
-	#[subsystem(no_dispatch, MsgStrukt)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
-	i_like_pie: f64,
+	#[subsystem(MsgStrukt)]
+	sub1: AwesomeSubSys2,
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +32,6 @@ struct DummyCtx;
 fn main() {
 	let overseer = Overseer::<_,_>::builder()
 		.sub0(AwesomeSubSys::default())
-		.i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)
 		.build(|| -> DummyCtx { DummyCtx } );
 }

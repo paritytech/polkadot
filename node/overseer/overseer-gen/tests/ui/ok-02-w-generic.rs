@@ -1,27 +1,35 @@
 #![allow(dead_code)]
 
 use polkadot_overseer_gen::overlord;
-trait MetaMeta {}
 
-#[derive(Debug)]
-struct MsgStrukt(u8);
-
-#[derive(Default, Clone, Copy)]
+#[derive(Default)]
 struct AwesomeSubSys;
 
-#[overlord(Wrapper)]
+struct SigSigSig;
+
+struct Event;
+
 #[derive(Clone)]
-struct Overseer<T: MetaMeta> {
+struct MsgStrukt(u8);
+
+#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
+struct Overseer<T> {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
 	something_else: T,
 }
 
-struct Spawner;
+#[derive(Debug, Clone)]
+struct DummySpawner;
+
+struct DummyCtx;
+
 
 fn main() {
-	let overseer = Overseer::<Spawner, SubSystems<MsgStrukt>>::builder()
+	let overseer = Overseer::<_,_,_>::builder()
 		.sub0(AwesomeSubSys::default())
-		.build(Spawner);
+		.something_else(7777u32)
+		.spawner(DummySpawner)
+		.build(|| -> DummyCtx { DummyCtx } );
 }

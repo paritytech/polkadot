@@ -60,12 +60,29 @@
 #![warn(missing_docs)]
 
 pub use overseer_gen_proc_macro::*;
+#[doc(hidden)]
 pub use tracing;
+#[doc(hidden)]
 pub use metered;
+#[doc(hidden)]
 pub use sp_core::traits::SpawnNamed;
 
-pub use futures::future::BoxFuture;
+#[doc(hidden)]
+pub use futures::{
+	select,
+	future::{
+		Fuse, Future, BoxFuture
+	},
+	stream::{
+		select, FuturesUnordered
+	},
+	channel::{mpsc, oneshot},
+};
+#[doc(hidden)]
+pub use async_trait::async_trait;
 
+#[doc(hidden)]
+pub use std::time::Duration;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
@@ -128,8 +145,8 @@ pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 
 /// Incoming messages from both the bounded and unbounded channel.
 pub type SubsystemIncomingMessages<M> = ::futures::stream::Select<
-	::metered::MeteredReceiver<MessagePacket<M>>,
-	::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
+	self::metered::MeteredReceiver<MessagePacket<M>>,
+	self::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
 
 
@@ -151,6 +168,72 @@ impl SignalsReceived {
 	}
 }
 
+
+
+/// A trait to support the origin annotation
+/// such that errors across subsystems can be easier tracked.
+pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
+	fn with_origin(self, origin: &'static str) -> Self;
+}
+
+
+/// An asynchronous subsystem task..
+///
+/// In essence it's just a newtype wrapping a `BoxFuture`.
+pub struct SpawnedSubsystem<E>
+where
+E: std::error::Error
+ + 'static
+ + Send
+ + From<SubsystemError>
+{
+	/// Name of the subsystem being spawned.
+	pub name: &'static str,
+	/// The task of the subsystem being spawned.
+	pub future: BoxFuture<'static, Result<(), E>>,
+}
+
+
+/// An error type that describes faults that may happen
+///
+/// These are:
+///   * Channels being closed
+///   * Subsystems dying when they are not expected to
+///   * Subsystems not dying when they are told to die
+///   * etc.
+// FIXME XXX make generic over the source error of FromOrigin
+#[derive(thiserror::Error, Debug)]
+#[allow(missing_docs)]
+pub enum SubsystemError {
+	#[error(transparent)]
+	NotifyCancellation(#[from] oneshot::Canceled),
+
+	#[error(transparent)]
+	QueueError(#[from] mpsc::SendError),
+
+	#[error(transparent)]
+	TaskSpawn(#[from] futures::task::SpawnError),
+
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
+
+	#[error("Failed to {0}")]
+	Context(String),
+
+	#[error("Subsystem stalled: {0}")]
+	SubsystemStalled(&'static str),
+
+	/// Per origin (or subsystem) annotations to wrap an error.
+	#[error("Error originated in {origin}")]
+	FromOrigin {
+		/// An additional anotation tag for the origin of `source`.
+		origin: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
+	},
+}
+
+pub type SubsystemResult<T> = std::result::Result<T, SubsystemError>;
 
 /// Collection of meters related to a subsystem.
 #[derive(Clone)]
@@ -184,8 +267,6 @@ pub struct SubsystemMeterReadouts {
 	#[allow(missing_docs)]
 	pub signals: metered::Readout,
 }
-
-
 
 #[cfg(test)]
 mod tests;
