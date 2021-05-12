@@ -23,7 +23,7 @@ use frame_support::traits::Get;
 use xcm_executor::traits::MatchesFungible;
 
 /// Converts a `MultiAsset` into balance `B` if it is a concrete fungible with an id equal to that
-/// of given by `T`'s `Get`.
+/// given by `T`'s `Get`.
 ///
 /// # Example
 ///
