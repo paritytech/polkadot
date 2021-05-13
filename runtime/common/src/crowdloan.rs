@@ -1645,6 +1645,7 @@ mod benchmarking {
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::execute_pending_transitions();
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
@@ -1722,6 +1723,7 @@ mod benchmarking {
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::execute_pending_transitions();
 
 			Crowdloan::<T>::create(
 				RawOrigin::Signed(caller).into(),
