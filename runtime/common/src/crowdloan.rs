@@ -321,9 +321,9 @@ decl_module! {
 			// There should not be an existing fund.
 			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
 
-			ensure!(T::Registrar::is_registered(para), Error::<T>::InvalidParaId);
 			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
+			ensure!(T::Registrar::is_registered(index), Error::<T>::InvalidParaId);
 
 			let trie_index = Self::next_trie_index();
 			let new_trie_index = trie_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
