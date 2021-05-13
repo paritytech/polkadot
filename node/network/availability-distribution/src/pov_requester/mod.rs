@@ -16,12 +16,12 @@
 
 //! PoV requester takes care of requesting PoVs from validators of a backing group.
 
-use futures::{FutureExt, channel::{mpsc, oneshot}, future::BoxFuture};
+use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 use lru::LruCache;
 
 use polkadot_subsystem::jaeger;
 use polkadot_node_network_protocol::{
-	PeerId, peer_set::PeerSet,
+	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
 	v1::{PoVFetchingRequest, PoVFetchingResponse}}
 };
@@ -46,7 +46,7 @@ pub struct PoVRequester {
 	///
 	/// So we keep an LRU for managing connection requests of size 2.
 	/// Cache will contain `None` if we are not a validator in that session.
-	connected_validators: LruCache<SessionIndex, Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>,
+	connected_validators: LruCache<SessionIndex, Option<oneshot::Sender<()>>>,
 }
 
 impl PoVRequester {
@@ -78,8 +78,8 @@ impl PoVRequester {
 			if self.connected_validators.contains(&session_index) {
 				continue
 			}
-			let rx = connect_to_relevant_validators(ctx, runtime, parent, session_index).await?;
-			self.connected_validators.put(session_index, rx);
+			let tx = connect_to_relevant_validators(ctx, runtime, parent, session_index).await?;
+			self.connected_validators.put(session_index, tx);
 		}
 		Ok(())
 	}
@@ -190,17 +190,16 @@ async fn connect_to_relevant_validators<Context>(
 	parent: Hash,
 	session: SessionIndex
 )
-	-> super::Result<Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>
+	-> super::Result<Option<oneshot::Sender<()>>>
 where
 	Context: SubsystemContext,
 {
 	if let Some(validator_ids) = determine_relevant_validators(ctx, runtime, parent, session).await? {
-		// We don't actually care about `PeerId`s, just keeping receiver so we stay connected:
-		let (tx, rx) = mpsc::channel(0);
+		let (tx, keep_alive) = oneshot::channel();
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-			validator_ids, peer_set: PeerSet::Validation, connected: tx
+			validator_ids, peer_set: PeerSet::Validation, keep_alive
 		})).await;
-		Ok(Some(rx))
+		Ok(Some(tx))
 	} else {
 		Ok(None)
 	}
