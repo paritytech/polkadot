@@ -923,6 +923,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				..Default::default()
 			},
 		},
+		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -1431,7 +1439,7 @@ pub fn rococo_testnet_genesis(
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
-		pallet_sudo: rococo_runtime::SudoConfig { key: root_key },
+		pallet_sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
@@ -1478,6 +1486,14 @@ pub fn rococo_testnet_genesis(
 		parachains_paras: rococo_runtime::ParasConfig {
 			paras: vec![],
 		    _phdata: Default::default(),
+		},
+		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
 		},
 	}
 }

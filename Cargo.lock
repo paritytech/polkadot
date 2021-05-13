@@ -705,17 +705,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-kusama"
-version = "0.1.0"
-dependencies = [
- "bp-messages",
- "bp-polkadot-core",
- "bp-runtime",
- "sp-api",
- "sp-std",
-]
-
-[[package]]
 name = "bp-messages"
 version = "0.1.0"
 dependencies = [
@@ -723,17 +712,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-std",
-]
-
-[[package]]
-name = "bp-polkadot"
-version = "0.1.0"
-dependencies = [
- "bp-messages",
- "bp-polkadot-core",
- "bp-runtime",
- "sp-api",
  "sp-std",
 ]
 
@@ -800,7 +778,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-westend"
+name = "bp-wococo"
 version = "0.1.0"
 dependencies = [
  "bp-header-chain",
@@ -4562,6 +4540,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-bridge-grandpa"
+version = "0.1.0"
+dependencies = [
+ "bp-header-chain",
+ "bp-runtime",
+ "bp-test-utils",
+ "finality-grandpa",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "serde",
+ "sp-finality-grandpa",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
+]
+
+[[package]]
 name = "pallet-collective"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#60eb0c69fa264dd758c91e3d81ac68ef75036b8e"
@@ -7417,6 +7417,8 @@ name = "rococo-runtime"
 version = "0.9.1"
 dependencies = [
  "beefy-primitives",
+ "bp-rococo",
+ "bp-wococo",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -7428,6 +7430,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-beefy",
+ "pallet-bridge-grandpa",
  "pallet-collective",
  "pallet-grandpa",
  "pallet-im-online",
