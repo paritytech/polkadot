@@ -10,6 +10,7 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -42,6 +43,7 @@ std = [
 	"trie/std",
 	"sp-api/std",
 	"sp-authority-discovery/std",
+	"sp-consensus-slots/std",
 	"sp-keystore",
 	"sp-std/std",
 	"sp-io/std",

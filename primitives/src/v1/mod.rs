@@ -57,6 +57,7 @@ pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+pub use sp_consensus_slots::Slot;
 
 /// Signed data.
 mod signed;
@@ -81,6 +82,12 @@ pub mod well_known_keys {
 	//
 	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
 	//
+
+	/// The current slot number.
+	///
+	/// The storage entry should be accessed as a `Slot` encoded value.
+	pub const CURRENT_SLOT: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087f06155b3cd9a8c9e5e9a23fd5dc13a5ed"];
 
 	/// The currently active host configuration.
 	///
