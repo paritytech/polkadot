@@ -64,8 +64,11 @@ pub mod pallet {
 		/// Something to execute an XCM message.
 		type XcmExecutor: ExecuteXcm<Self::Call>;
 
-		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
+		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
+
+		/// Our XCM filter which messages to be reserve-transferred using the dedicated extrinsic must pass.
+		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<Self::Call>;
@@ -156,6 +159,59 @@ pub mod pallet {
 							DepositAsset { assets: vec![ All ], dest: beneficiary },
 						],
 					},
+				],
+			};
+			let weight = T::Weigher::weight(&mut message)
+				.map_err(|()| Error::<T>::UnweighableMessage)?;
+			let outcome = T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			Self::deposit_event(Event::Attempted(outcome));
+			Ok(())
+		}
+
+		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
+		/// a notification XCM.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
+		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
+		///   `dest` side.
+		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
+		///   `ReserveAssetDeposit { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		#[pallet::weight({
+			let mut message = Xcm::TransferReserveAsset {
+				assets: assets.clone(),
+				dest: dest.clone(),
+				effects: sp_std::vec![],
+			};
+			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+		})]
+		fn reserve_transfer_assets(
+			origin: OriginFor<T>,
+			dest: MultiLocation,
+			beneficiary: MultiLocation,
+			assets: Vec<MultiAsset>,
+			dest_weight: Weight,
+		) -> DispatchResult {
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let value = (origin_location, assets);
+			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, assets) = value;
+			let mut message = Xcm::TransferReserveAsset {
+				assets,
+				dest,
+				effects: vec![
+					BuyExecution {
+						fees: All,
+						// Zero weight for additional XCM (since there are none to execute)
+						weight: 0,
+						debt: dest_weight,
+						halt_on_error: false,
+						xcm: vec![],
+					},
+					DepositAsset { assets: vec![ All ], dest: beneficiary },
 				],
 			};
 			let weight = T::Weigher::weight(&mut message)

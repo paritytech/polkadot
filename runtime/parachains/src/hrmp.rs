@@ -299,6 +299,51 @@ decl_storage! {
 		///   block number.
 		HrmpChannelDigests: map hasher(twox_64_concat) ParaId => Vec<(T::BlockNumber, Vec<ParaId>)>;
 	}
+	add_extra_genesis {
+		/// Preopen the given HRMP channels.
+		///
+		/// The values in the tuple corresponds to `(sender, recipient, max_capacity, max_message_size)`,
+		/// i.e. similar to `init_open_channel`. In fact, the initialization is performed as if
+		/// the `init_open_channel` and `accept_open_channel` were called with the respective parameters
+		/// and the session change take place.
+		///
+		/// As such, each channel initializer should satisfy the same constraints, namely:
+		///
+		/// 1. `max_capacity` and `max_message_size` should be within the limits set by the configuration module.
+		/// 2. `sender` and `recipient` must be valid paras.
+		config(preopen_hrmp_channels): Vec<(ParaId, ParaId, u32, u32)>;
+		build(|config| {
+			initialize_storage::<T>(&config.preopen_hrmp_channels);
+		})
+	}
+}
+
+#[cfg(feature = "std")]
+fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, u32)]) {
+	let host_config = configuration::Module::<T>::config();
+	for &(sender, recipient, max_capacity, max_message_size) in preopen_hrmp_channels {
+		if let Err(err) = preopen_hrmp_channel::<T>(sender, recipient, max_capacity, max_message_size) {
+			panic!("failed to initialize the genesis storage: {:?}", err);
+		}
+	}
+	<Module<T>>::process_hrmp_open_channel_requests(&host_config);
+}
+
+#[cfg(feature = "std")]
+fn preopen_hrmp_channel<T: Config>(
+	sender: ParaId,
+	recipient: ParaId,
+	max_capacity: u32,
+	max_message_size: u32
+) -> DispatchResult {
+	<Module<T>>::init_open_channel(
+		sender,
+		recipient,
+		max_capacity,
+		max_message_size,
+	)?;
+	<Module<T>>::accept_open_channel(recipient, sender)?;
+	Ok(())
 }
 
 decl_error! {

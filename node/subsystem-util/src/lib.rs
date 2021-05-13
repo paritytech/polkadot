@@ -51,7 +51,6 @@ use std::{
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
-pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 

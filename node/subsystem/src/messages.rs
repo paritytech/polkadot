@@ -241,16 +241,17 @@ pub enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
-	/// This can be done by dropping the receiver.
+	///
+	/// A caller can learn about validator connections by listening to the
+	/// `PeerConnected` events from the network bridge.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
-		/// Response sender by which the issuer can learn the `PeerId`s of
-		/// the validators as they are connected.
-		/// The response is sent immediately for already connected peers.
-		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		/// A request is revoked by dropping the `keep_alive` sender.
+		/// The revokation takes place upon the next connection request.
+		keep_alive: oneshot::Receiver<()>,
 	},
 }
 
