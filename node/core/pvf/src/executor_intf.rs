@@ -79,7 +79,14 @@ pub fn execute(
 	})?
 }
 
-type HostFunctions = sp_io::SubstrateHostFunctions;
+type HostFunctions = (
+	sp_io::misc::HostFunctions,
+	sp_io::crypto::HostFunctions,
+	sp_io::hashing::HostFunctions,
+	sp_io::allocator::HostFunctions,
+	sp_io::logging::HostFunctions,
+	sp_io::trie::HostFunctions,
+);
 
 /// The validation externalities that will panic on any storage related access.
 struct ValidationExternalities(sp_externalities::Extensions);
