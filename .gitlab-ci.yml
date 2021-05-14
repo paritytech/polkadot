@@ -30,11 +30,8 @@ variables:
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
 
-# Cache the target dir between jobs... should speed things up
-cache:
-  key: "$CI_COMMIT_REF_SLUG"
-  paths:
-    - target/
+default:
+  cache: {}
 
 .collect-artifacts:                &collect-artifacts
   artifacts:
@@ -43,6 +40,7 @@ cache:
     expire_in:                     28 days
     paths:
       - ./artifacts/
+      - ./target/
 
 .kubernetes-env:                   &kubernetes-env
   tags:
@@ -109,16 +107,6 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
-# Checks that runtime WASMs are still bit-for-bit deterministic. In check stage
-# since building runtimes is quick and it is crucial that runtimes are deterministic.
-test-deterministic-wasm:
-  stage:                           check
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
-
 # TODO: why does this check exist?
 check-web-wasm:
   stage:                           check
@@ -142,27 +130,6 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
-# TODO: why does this check exist?
-build-adder-collator:
-  stage:                           check
-  <<:                              *collect-artifacts
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  script:
-    - time cargo build --release --verbose -p test-parachain-adder-collator
-    - sccache -s
-    # pack artifacts
-    - mkdir -p ./artifacts
-    - mv ./target/release/adder-collator ./artifacts/.
-    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
-    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
-    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
 # Time-consuming, heavy build processes like the full compilation
@@ -203,6 +170,28 @@ build-linux-stable:
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - cp -r scripts/docker/* ./artifacts
+
+# TODO: why does this check exist?
+build-adder-collator:
+  stage:                           check
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  script:
+    - time cargo build --release --verbose -p test-parachain-adder-collator
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/adder-collator ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/docker/* ./artifacts
 
 # TODO: Why does this job exist?
@@ -255,6 +244,15 @@ check-transaction-versions:
     - git fetch origin release
   script:
     - scripts/gitlab/check_extrinsics_ordering.sh
+
+# Checks that runtime WASMs are still bit-for-bit deterministic.
+test-deterministic-wasm:
+  stage:                           check
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  script:
+    - ./scripts/gitlab/test_deterministic_wasm.sh
 
 #### stage:                        publish
 
