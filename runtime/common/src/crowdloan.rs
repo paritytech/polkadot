@@ -323,6 +323,7 @@ decl_module! {
 
 			let manager = T::Registrar::manager_of(index).ok_or(Error::<T>::InvalidParaId)?;
 			ensure!(depositor == manager, Error::<T>::InvalidOrigin);
+			ensure!(T::Registrar::is_registered(index), Error::<T>::InvalidParaId);
 
 			let trie_index = Self::next_trie_index();
 			let new_trie_index = trie_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
@@ -1644,6 +1645,7 @@ mod benchmarking {
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::execute_pending_transitions();
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
@@ -1721,6 +1723,7 @@ mod benchmarking {
 
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 			T::Registrar::register(caller.clone(), para_id, head_data, validation_code)?;
+			T::Registrar::execute_pending_transitions();
 
 			Crowdloan::<T>::create(
 				RawOrigin::Signed(caller).into(),

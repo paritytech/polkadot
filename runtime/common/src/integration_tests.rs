@@ -570,10 +570,6 @@ fn competing_bids() {
 	// This test will verify that competing bids, from different sources will resolve appropriately.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
-		// Start a new auction in the future
-		let duration = 99u32;
-		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
 		let start_para = LOWEST_PUBLIC_ID - 1;
 		// Create 3 paras and owners
@@ -588,7 +584,18 @@ fn competing_bids() {
 				genesis_head,
 				validation_code,
 			));
+		}
 
+		// Finish registration of paras.
+		run_to_session(2);
+
+		// Start a new auction in the future
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		for n in 1 ..= 3 {
 			// Create a crowdloan for each para
 			assert_ok!(Crowdloan::create(
 				Origin::signed(n),
@@ -603,7 +610,7 @@ fn competing_bids() {
 
 		for n in 1 ..= 9 {
 			// Increment block number
-			run_to_block(n * 10);
+			run_to_block(starting_block + n * 10);
 
 			Balances::make_free_balance_be(&(n * 10), n * 1_000);
 
@@ -631,7 +638,7 @@ fn competing_bids() {
 		}
 
 		// Auction should be done
-		run_to_block(110);
+		run_to_block(starting_block + 110);
 
 		// Appropriate Paras should have won slots
 		let crowdloan_2 = Crowdloan::fund_account_id(ParaId::from(2001));
