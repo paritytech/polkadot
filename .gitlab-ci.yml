@@ -358,7 +358,7 @@ publish-polkadot-image:
 publish-s3-release:                &publish-s3
   stage:                           publish
   needs:
-    - job:                         test-build-linux-stable
+    - job:                         build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
   image:                           paritytech/awscli:latest
