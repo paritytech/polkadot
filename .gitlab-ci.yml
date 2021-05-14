@@ -40,7 +40,7 @@ default:
     expire_in:                     28 days
     paths:
       - ./artifacts/
-      - ./target/
+#       - ./target/
 
 .kubernetes-env:                   &kubernetes-env
   tags:
