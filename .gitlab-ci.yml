@@ -174,7 +174,7 @@ build-linux-stable:
 
 # TODO: why does this check exist?
 build-adder-collator:
-  stage:                           check
+  stage:                           build
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
@@ -247,7 +247,7 @@ check-transaction-versions:
 
 # Checks that runtime WASMs are still bit-for-bit deterministic.
 test-deterministic-wasm:
-  stage:                           check
+  stage:                           test
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *compiler-info
