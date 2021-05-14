@@ -325,7 +325,7 @@ publish-polkadot-image:
         DOCKER_USER:               ${Docker_Hub_User_Parity}
         DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
   needs:
-    - job:                         test-build-linux-stable
+    - job:                         build-linux-stable
       artifacts:                   true
 
 # publish-adder-collator-image:
