@@ -317,6 +317,9 @@ mod tests {
 		let path = Path::new("/test");
 		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
 
-		assert_eq!(ArtifactId::new(hash).path(path).to_str(), Some("/test/wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234"));
+		assert_eq!(
+			ArtifactId::new(hash).path(path).to_str(),
+			Some("/test/wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234"),
+		);
 	}
 }
