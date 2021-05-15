@@ -87,7 +87,18 @@ pub async fn start_work(
 		renice(pid, NICENESS_BACKGROUND);
 	}
 
-	if let Err(err) = send_request(&mut stream, code).await {
+	let mut parent = artifact_path.clone();
+	parent.pop();
+
+	let path_bytes = path_to_bytes(&parent);
+
+	let mut payload = Vec::with_capacity(code.len() + path_bytes.len() + 1);
+
+	payload.extend_from_slice(&[path_bytes.len() as u8]);
+	payload.extend_from_slice(path_bytes);
+	payload.extend_from_slice(code.as_slice());
+
+	if let Err(err) = send_request(&mut stream, Arc::new(payload)).await {
 		tracing::warn!("failed to send a prepare request to pid={}: {:?}", pid, err);
 		return Outcome::DidntMakeIt;
 	}
@@ -168,12 +179,56 @@ fn renice(pid: u32, niceness: i32) {
 	}
 }
 
+pub async fn tmpfile2(prefix: &str, dir: PathBuf) -> io::Result<PathBuf> {
+	fn tmppath(prefix: &str, dir: &PathBuf) -> PathBuf {
+		use rand::distributions::Alphanumeric;
+		use rand::Rng;
+
+		const DESCRIMINATOR_LEN: usize = 10;
+
+		let mut buf = Vec::with_capacity(prefix.len() + DESCRIMINATOR_LEN);
+		buf.extend(prefix.as_bytes());
+		buf.extend(
+			rand::thread_rng()
+				.sample_iter(&Alphanumeric)
+				.take(DESCRIMINATOR_LEN),
+		);
+
+		let s = std::str::from_utf8(&buf)
+			.expect("the string is collected from a valid utf-8 sequence; qed");
+
+		let mut temp_dir = dir.clone();
+		temp_dir.push(s);
+		temp_dir
+	}
+
+	const NUM_RETRIES: usize = 50;
+
+	for _ in 0..NUM_RETRIES {
+		let candidate_path = tmppath(prefix, &dir);
+		if !candidate_path.exists().await {
+			return Ok(candidate_path)
+		}
+	}
+
+	Err(
+		io::Error::new(io::ErrorKind::Other, "failed to create a temporary file")
+	)
+}
+
 /// The entrypoint that the spawned prepare worker should start with. The socket_path specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {
 		loop {
-			let code = recv_request(&mut stream).await?;
+			let payload = recv_request(&mut stream).await?;
+			let path_len = payload[0] as usize;
+			let path = &payload[1..path_len];
+			let code = payload[1 + path_len..].to_vec();
+
+			let path = bytes_to_path(path).unwrap();
+
+			let _ = async_std::fs::create_dir_all(path.clone()).await;
 
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -183,7 +238,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let artifact_bytes = prepare_artifact(&code).serialize();
 
 			// Write the serialized artifact into into a temp file.
-			let dest = tmpfile("prepare-artifact-").await?;
+			let dest = tmpfile2("prepare-artifact-", path).await?;
 			tracing::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
