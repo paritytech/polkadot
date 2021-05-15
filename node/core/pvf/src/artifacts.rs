@@ -82,7 +82,7 @@ impl ArtifactId {
 
 	/// Returns the expected path to this artifact given the root of the cache.
 	pub fn path(&self, cache_path: &Path) -> PathBuf {
-		let file_name = format!("{}{}", Self::PREFIX, self.code_hash.to_string());
+		let file_name = format!("{}{:#x}", Self::PREFIX, self.code_hash);
 		cache_path.join(file_name)
 	}
 }
@@ -317,6 +317,6 @@ mod tests {
 		let path = Path::new("/test");
 		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
 
-		assert_eq!(ArtifactId::new(hash).path(path).to_str(), Some("/test/1234567890123456789012345678901234567890123456789012345678901234"));
+		assert_eq!(ArtifactId::new(hash).path(path).to_str(), Some("/test/wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234"));
 	}
 }
