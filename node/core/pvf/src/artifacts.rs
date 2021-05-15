@@ -276,7 +276,10 @@ async fn scan_for_known_artifacts(
 
 #[cfg(test)]
 mod tests {
+	use async_std::path::Path;
 	use super::ArtifactId;
+	use sp_core::H256;
+	use std::str::FromStr;
 
 	#[test]
 	fn ensure_wasmtime_version() {
@@ -307,5 +310,13 @@ mod tests {
 				.into()
 			)),
 		);
+	}
+
+	#[test]
+	fn path() {
+		let path = Path::new("/test");
+		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
+
+		assert_eq!(ArtifactId::new(hash).path(path).to_str(), Some("/test/1234567890123456789012345678901234567890123456789012345678901234"));
 	}
 }
