@@ -203,11 +203,15 @@ pub mod pallet {
 
 	#[pallet::extra_constants]
 	impl<T: Config> Pallet<T> {
-		fn slot_range_count() -> u32 {
+		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
+		#[allow(non_snake_case)]
+		fn SlotRangeCount() -> u32 {
 			SlotRange::SLOT_RANGE_COUNT as u32
 		}
 
-		fn lease_periods_per_slot() -> u32 {
+		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
+		#[allow(non_snake_case)]
+		fn LeasePeriodsPerSlot() -> u32 {
 			SlotRange::LEASE_PERIODS_PER_SLOT as u32
 		}
 	}
