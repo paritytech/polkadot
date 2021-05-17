@@ -5,13 +5,29 @@ use polkadot_overseer_gen::*;
 #[derive(Default)]
 struct AwesomeSubSys;
 
+#[derive(Debug)]
 struct SigSigSig;
 
+
+#[derive(Debug)]
 struct Event;
 
+#[derive(Debug)]
 struct Yikes;
 
+impl std::fmt::Display for Yikes {
+	fn fmt(f: std::fmt::Formatter) -> std::fmt::Result {
+		writeln!(f, "yikes!")
+	}
+}
+
 impl std::error::Error for Yikes {}
+
+impl From<polkadot_overseer_gen::SubsystemError> for Yikes {
+	fn from(_: polkadot_overseer_gen::SubsystemError) -> Yikes {
+		Yikes
+	}
+}
 
 #[derive(Clone)]
 struct MsgStrukt(u8);

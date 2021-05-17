@@ -49,7 +49,7 @@
 //!                         V                                       V
 //!             ..................| Overseer "runs" these |.......................
 //!             .  +--------------------+               +---------------------+  .
-//!             .  | SubsystemInstance1 |               | SubsystemInstance2  |  .
+//!             .  | SubsystemInstance1 | <-- bidir --> | SubsystemInstance2  |  .
 //!             .  +--------------------+               +---------------------+  .
 //!             ..................................................................
 //! ```
@@ -57,7 +57,7 @@
 // #![deny(unused_results)]
 // unused dependencies can not work for test and examples at the same time
 // yielding false positives
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 pub use overseer_gen_proc_macro::*;
 #[doc(hidden)]
@@ -173,6 +173,13 @@ impl SignalsReceived {
 /// A trait to support the origin annotation
 /// such that errors across subsystems can be easier tracked.
 pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
+	/// Annotate the error with a origin `str`.
+	///
+	/// Commonly this is used to create nested enum variants.
+	///
+	/// ```rust,ignore
+	/// E::WithOrigin("I am originally from Cowtown.", E::Variant)
+	/// ```
 	fn with_origin(self, origin: &'static str) -> Self;
 }
 
@@ -233,6 +240,7 @@ pub enum SubsystemError {
 	},
 }
 
+/// Alias for a result with error type `SubsystemError`.
 pub type SubsystemResult<T> = std::result::Result<T, SubsystemError>;
 
 /// Collection of meters related to a subsystem.

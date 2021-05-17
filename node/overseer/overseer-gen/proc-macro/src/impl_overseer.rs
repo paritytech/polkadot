@@ -68,24 +68,24 @@ pub(crate) fn impl_overseer_struct(
 			pub async fn stop(mut self) {
 				unimplemented!("Stopping is not yet implemented")
 			}
-		}
 
-		pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> SubsystemResult<()> {
-			#(
-				self. #subsystem_name .send_signal(signal.clone()).await;
-			)*
-			let _ = signal;
-
-			Ok(())
-		}
-
-		pub async fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
-			match msg {
+			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> SubsystemResult<()> {
 				#(
-					#message_wrapper :: #consumes (msg) => self. #subsystem_name .send_message(msg).await?,
+					self. #subsystem_name .send_signal(signal.clone()).await;
 				)*
+				let _ = signal;
+
+				Ok(())
 			}
-			Ok(())
+
+			pub async fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
+				match msg {
+					#(
+						#message_wrapper :: #consumes (msg) => self. #subsystem_name .send_message(msg).await?,
+					)*
+				}
+				Ok(())
+			}
 		}
 	};
 
