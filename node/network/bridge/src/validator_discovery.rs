@@ -191,6 +191,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
+		// in case of key rotation, a new `AuthorityId` might point to an old `PeerId`
+		// we don't want to disconnect from that `PeerId` in that case
+		multiaddr_to_remove.retain(|a| !multiaddr_to_add.contains(a));
+
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service.add_to_peers_set(
