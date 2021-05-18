@@ -254,7 +254,7 @@ pub(crate) fn impl_builder(
 					// FIXME generate a builder pattern that ensures this
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
 
-					let #subsystem_name: OverseenSubsystem< #message_wrapper  > = {
+					let #subsystem_name: OverseenSubsystem< #message_wrapper > = {
 
 						let unbounded_meter = channels_out. #channel_name .meter().clone();
 
@@ -294,7 +294,10 @@ pub(crate) fn impl_builder(
 							spawner.spawn(name, fut);
 						}
 
-						running_subsystems.push(Box::pin(terminated_rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
+						running_subsystems.push(Box::pin(terminated_rx.map(|e| {
+							::polkadot_overseer_gen::tracing::warn!(err = ?e, "dropping error");
+							Ok(())
+						})));
 
 						let instance = Some(
 							SubsystemInstance::< #message_wrapper > {
