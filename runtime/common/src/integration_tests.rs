@@ -371,7 +371,7 @@ fn basic_end_to_end_works() {
 		run_to_block(110);
 		assert_eq!(
 			last_event(),
-			auctions::RawEvent::AuctionClosed(1).into(),
+			auctions::Event::<Test>::AuctionClosed(1).into(),
 		);
 
 		// Paras should have won slots
