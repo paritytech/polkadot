@@ -8,7 +8,7 @@ echo "Triggering Simnet pipeline."
 curl --silent \
     -X POST \
     -F "token=${CI_JOB_TOKEN}" \
-    -F "ref=master" \
+    -F "ref=v1" \
     -F "variables[TRGR_PROJECT]=${TRGR_PROJECT}" \
     -F "variables[TRGR_REF]=${TRGR_REF}" \
     -F "variables[IMAGE_NAME]=${IMAGE_NAME}" \
