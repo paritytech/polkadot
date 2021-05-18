@@ -863,6 +863,13 @@ async fn circulate_statement_and_dependents(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
+	tracing::debug!(
+		target: LOG_TARGET,
+		candidate_hash= ?statement.payload().candidate_hash(),
+		?relay_parent,
+		"Circulating statement for"
+	);
+
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
