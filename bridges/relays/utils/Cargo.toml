@@ -22,4 +22,4 @@ time = "0.2"
 
 # Substrate dependencies
 
-substrate-prometheus-endpoint = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }

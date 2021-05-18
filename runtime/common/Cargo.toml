@@ -15,32 +15,32 @@ serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
 beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "polkadot-v0.9.1", default-features = false }
-sp-api = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-io = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-session = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-staking = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
 
-pallet-authorship = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-balances = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-session = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-frame-support = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-staking = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-frame-system = {git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-vesting = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-offences = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
-pallet-treasury = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+frame-system = {git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
 
 pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "polkadot-v0.9.1", default-features = false }
-pallet-mmr = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false }
+pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features = false, optional = true }
-pallet-babe = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", default-features=false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features = false, optional = true }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.5", default-features = false }
@@ -51,15 +51,15 @@ xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
-keyring = { package = "sp-keyring", git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-application-crypto = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-frame-support-test = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-pallet-babe = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-pallet-randomness-collective-flip = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-pallet-staking-reward-curve = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-pallet-treasury = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
 trie-db = "0.22.3"
 serde_json = "1.0.61"
 libsecp256k1 = "0.3.5"

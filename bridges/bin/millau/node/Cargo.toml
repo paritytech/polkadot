@@ -24,35 +24,35 @@ pallet-bridge-messages = { path = "../../../modules/messages" }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-frame-benchmarking-cli = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-node-inspect = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-pallet-transaction-payment-rpc = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-basic-authorship = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-cli = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset", features = ["wasmtime"] }
-sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-consensus = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-consensus-aura = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-executor = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-finality-grandpa = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-finality-grandpa-rpc = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-keystore = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-rpc = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-service = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-telemetry = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sc-transaction-pool = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-consensus = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-consensus-aura = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-finality-grandpa = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-inherents = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-sp-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
-substrate-frame-rpc-system = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+node-inspect = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1", features = ["wasmtime"] }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
 
 [build-dependencies]
 substrate-build-script-utils = "3.0.0"
-frame-benchmarking-cli = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
 
 [features]
 default = []
