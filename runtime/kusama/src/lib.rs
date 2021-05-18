@@ -1272,8 +1272,7 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
 		use xcm::v0::{
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
-			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality, Parachain},
-			MultiLocation::{Null, X1},
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
 		};
 		match origin {
 			// Root and council are are allowed to execute anything.
