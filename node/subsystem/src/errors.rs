@@ -16,6 +16,9 @@
 
 //! Error types for the subsystem requests.
 
+
+use crate::JaegerError;
+
 /// A description of an error causing the runtime API request to be unservable.
 #[derive(Debug, Clone)]
 pub struct RuntimeApiError(String);
@@ -92,10 +95,10 @@ impl std::error::Error for RecoveryError {}
 #[allow(missing_docs)]
 pub enum SubsystemError {
 	#[error(transparent)]
-	NotifyCancellation(#[from] oneshot::Canceled),
+	NotifyCancellation(#[from] futures::channel::oneshot::Canceled),
 
 	#[error(transparent)]
-	QueueError(#[from] mpsc::SendError),
+	QueueError(#[from] futures::channel::mpsc::SendError),
 
 	#[error(transparent)]
 	TaskSpawn(#[from] futures::task::SpawnError),

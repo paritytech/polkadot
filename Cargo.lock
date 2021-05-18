@@ -6251,6 +6251,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
+ "polkadot-overseer-gen",
  "polkadot-primitives",
  "sc-client-api",
  "sp-api",

@@ -92,9 +92,22 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
 	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
+
+mod metrics;
+use self::metrics::{Metrics, MetricsInner};
+
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
-use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
+use polkadot_overseer_gen::{
+	SubsystemMeterReadouts,
+	ChannelsOut,
+	OverseenSubsystem,
+	SubsystemMeters,
+	SubsystemIncomingMessages,
+	overlord,
+	OverseerSubsystemSender,
+};
+
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -144,7 +157,7 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 /// Each [`Subsystem`] is supposed to implement some interface that is generic over
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
-#[derive(Debug, Clone, AllSubsystemsGen)]
+#[derive(Debug, Clone)]
 pub struct AllSubsystems<
 	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
 	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
@@ -538,273 +551,6 @@ fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 		message,
 	}
 }
-
-// The channels held by every subsystem to communicate with every other subsystem.
-#[derive(Debug, Clone)]
-struct ChannelsOut {
-	candidate_validation: metered::MeteredSender<MessagePacket<CandidateValidationMessage>>,
-	candidate_backing: metered::MeteredSender<MessagePacket<CandidateBackingMessage>>,
-	candidate_selection: metered::MeteredSender<MessagePacket<CandidateSelectionMessage>>,
-	statement_distribution: metered::MeteredSender<MessagePacket<StatementDistributionMessage>>,
-	availability_distribution: metered::MeteredSender<MessagePacket<AvailabilityDistributionMessage>>,
-	availability_recovery: metered::MeteredSender<MessagePacket<AvailabilityRecoveryMessage>>,
-	bitfield_signing: metered::MeteredSender<MessagePacket<BitfieldSigningMessage>>,
-	bitfield_distribution: metered::MeteredSender<MessagePacket<BitfieldDistributionMessage>>,
-	provisioner: metered::MeteredSender<MessagePacket<ProvisionerMessage>>,
-	runtime_api: metered::MeteredSender<MessagePacket<RuntimeApiMessage>>,
-	availability_store: metered::MeteredSender<MessagePacket<AvailabilityStoreMessage>>,
-	network_bridge: metered::MeteredSender<MessagePacket<NetworkBridgeMessage>>,
-	chain_api: metered::MeteredSender<MessagePacket<ChainApiMessage>>,
-	collation_generation: metered::MeteredSender<MessagePacket<CollationGenerationMessage>>,
-	collator_protocol: metered::MeteredSender<MessagePacket<CollatorProtocolMessage>>,
-	approval_distribution: metered::MeteredSender<MessagePacket<ApprovalDistributionMessage>>,
-	approval_voting: metered::MeteredSender<MessagePacket<ApprovalVotingMessage>>,
-	gossip_support: metered::MeteredSender<MessagePacket<GossipSupportMessage>>,
-
-	candidate_validation_unbounded: metered::UnboundedMeteredSender<MessagePacket<CandidateValidationMessage>>,
-	candidate_backing_unbounded: metered::UnboundedMeteredSender<MessagePacket<CandidateBackingMessage>>,
-	candidate_selection_unbounded: metered::UnboundedMeteredSender<MessagePacket<CandidateSelectionMessage>>,
-	statement_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<StatementDistributionMessage>>,
-	availability_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<AvailabilityDistributionMessage>>,
-	availability_recovery_unbounded: metered::UnboundedMeteredSender<MessagePacket<AvailabilityRecoveryMessage>>,
-	bitfield_signing_unbounded: metered::UnboundedMeteredSender<MessagePacket<BitfieldSigningMessage>>,
-	bitfield_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<BitfieldDistributionMessage>>,
-	provisioner_unbounded: metered::UnboundedMeteredSender<MessagePacket<ProvisionerMessage>>,
-	runtime_api_unbounded: metered::UnboundedMeteredSender<MessagePacket<RuntimeApiMessage>>,
-	availability_store_unbounded: metered::UnboundedMeteredSender<MessagePacket<AvailabilityStoreMessage>>,
-	network_bridge_unbounded: metered::UnboundedMeteredSender<MessagePacket<NetworkBridgeMessage>>,
-	chain_api_unbounded: metered::UnboundedMeteredSender<MessagePacket<ChainApiMessage>>,
-	collation_generation_unbounded: metered::UnboundedMeteredSender<MessagePacket<CollationGenerationMessage>>,
-	collator_protocol_unbounded: metered::UnboundedMeteredSender<MessagePacket<CollatorProtocolMessage>>,
-	approval_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<ApprovalDistributionMessage>>,
-	approval_voting_unbounded: metered::UnboundedMeteredSender<MessagePacket<ApprovalVotingMessage>>,
-	gossip_support_unbounded: metered::UnboundedMeteredSender<MessagePacket<GossipSupportMessage>>,
-}
-
-impl ChannelsOut {
-	async fn send_and_log_error(
-		&mut self,
-		signals_received: usize,
-		message: AllMessages,
-	) {
-		let res = match message {
-			AllMessages::CandidateValidation(msg) => {
-				self.candidate_validation.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::CandidateBacking(msg) => {
-				self.candidate_backing.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::CandidateSelection(msg) => {
-				self.candidate_selection.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::StatementDistribution(msg) => {
-				self.statement_distribution.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::AvailabilityDistribution(msg) => {
-				self.availability_distribution.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::AvailabilityRecovery(msg) => {
-				self.availability_recovery.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::BitfieldDistribution(msg) => {
-				self.bitfield_distribution.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::BitfieldSigning(msg) => {
-				self.bitfield_signing.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::Provisioner(msg) => {
-				self.provisioner.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::RuntimeApi(msg) => {
-				self.runtime_api.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::AvailabilityStore(msg) => {
-				self.availability_store.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::NetworkBridge(msg) => {
-				self.network_bridge.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::ChainApi(msg) => {
-				self.chain_api.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::CollationGeneration(msg) => {
-				self.collation_generation.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::CollatorProtocol(msg) => {
-				self.collator_protocol.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::ApprovalDistribution(msg) => {
-				self.approval_distribution.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::ApprovalVoting(msg) => {
-				self.approval_voting.send(make_packet(signals_received, msg)).await
-			},
-			AllMessages::GossipSupport(msg) => {
-				self.gossip_support.send(make_packet(signals_received, msg)).await
-			},
-		};
-
-		if res.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Failed to send a message to another subsystem",
-			);
-		}
-	}
-
-
-	fn send_unbounded_and_log_error(
-		&self,
-		signals_received: usize,
-		message: AllMessages,
-	) {
-		let res = match message {
-			AllMessages::CandidateValidation(msg) => {
-				self.candidate_validation_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::CandidateBacking(msg) => {
-				self.candidate_backing_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::CandidateSelection(msg) => {
-				self.candidate_selection_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::StatementDistribution(msg) => {
-				self.statement_distribution_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::AvailabilityDistribution(msg) => {
-				self.availability_distribution_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::AvailabilityRecovery(msg) => {
-				self.availability_recovery_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::BitfieldDistribution(msg) => {
-				self.bitfield_distribution_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::BitfieldSigning(msg) => {
-				self.bitfield_signing_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::Provisioner(msg) => {
-				self.provisioner_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::RuntimeApi(msg) => {
-				self.runtime_api_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::AvailabilityStore(msg) => {
-				self.availability_store_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::NetworkBridge(msg) => {
-				self.network_bridge_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::ChainApi(msg) => {
-				self.chain_api_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::CollationGeneration(msg) => {
-				self.collation_generation_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::CollatorProtocol(msg) => {
-				self.collator_protocol_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::ApprovalDistribution(msg) => {
-				self.approval_distribution_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::ApprovalVoting(msg) => {
-				self.approval_voting_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-			AllMessages::GossipSupport(msg) => {
-				self.gossip_support_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
-		};
-
-		if res.is_err() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Failed to send a message to another subsystem",
-			);
-		}
-	}
-}
-
-type SubsystemIncomingMessages<M> = stream::Select<
-	metered::MeteredReceiver<MessagePacket<M>>,
-	metered::UnboundedMeteredReceiver<MessagePacket<M>>,
->;
-
-#[derive(Debug, Default, Clone)]
-struct SignalsReceived(Arc<AtomicUsize>);
-
-impl SignalsReceived {
-	fn load(&self) -> usize {
-		self.0.load(atomic::Ordering::SeqCst)
-	}
-
-	fn inc(&self) {
-		self.0.fetch_add(1, atomic::Ordering::SeqCst);
-	}
-}
-
-/// A sender from subsystems to other subsystems.
-#[derive(Debug, Clone)]
-pub struct OverseerSubsystemSender {
-	channels: ChannelsOut,
-	signals_received: SignalsReceived,
-}
-
-#[async_trait::async_trait]
-impl SubsystemSender for OverseerSubsystemSender {
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.channels.send_and_log_error(self.signals_received.load(), msg).await;
-	}
-
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
-	{
-		// This can definitely be optimized if necessary.
-		for msg in msgs {
-			self.send_message(msg).await;
-		}
-	}
-
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
-	}
-}
-
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -961,125 +707,63 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 }
 
-/// A subsystem that we oversee.
-///
-/// Ties together the [`Subsystem`] itself and it's running instance
-/// (which may be missing if the [`Subsystem`] is not running at the moment
-/// for whatever reason).
-///
-/// [`Subsystem`]: trait.Subsystem.html
-struct OverseenSubsystem<M> {
-	instance: Option<SubsystemInstance<M>>,
-}
-
-impl<M> OverseenSubsystem<M> {
-	/// Send a message to the wrapped subsystem.
-	///
-	/// If the inner `instance` is `None`, nothing is happening.
-	async fn send_message(&mut self, msg: M) -> SubsystemResult<()> {
-		const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
-
-		if let Some(ref mut instance) = self.instance {
-			match instance.tx_bounded.send(MessagePacket {
-				signals_received: instance.signals_received,
-				message: msg.into()
-			}).timeout(MESSAGE_TIMEOUT).await
-			{
-				None => {
-					tracing::error!(target: LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
-					Err(SubsystemError::SubsystemStalled(instance.name))
-				}
-				Some(res) => res.map_err(Into::into),
-			}
-		} else {
-			Ok(())
-		}
-	}
-
-	/// Send a signal to the wrapped subsystem.
-	///
-	/// If the inner `instance` is `None`, nothing is happening.
-	async fn send_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
-		const SIGNAL_TIMEOUT: Duration = Duration::from_secs(10);
-
-		if let Some(ref mut instance) = self.instance {
-			match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
-				None => {
-					tracing::error!(target: LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
-					Err(SubsystemError::SubsystemStalled(instance.name))
-				}
-				Some(res) => {
-					let res = res.map_err(Into::into);
-					if res.is_ok() {
-						instance.signals_received += 1;
-					}
-					res
-				}
-			}
-		} else {
-			Ok(())
-		}
-	}
-}
-
-#[derive(Clone)]
-struct SubsystemMeters {
-	bounded: metered::Meter,
-	unbounded: metered::Meter,
-	signals: metered::Meter,
-}
-
-impl SubsystemMeters {
-	fn read(&self) -> SubsystemMeterReadouts {
-		SubsystemMeterReadouts {
-			bounded: self.bounded.read(),
-			unbounded: self.unbounded.read(),
-			signals: self.signals.read(),
-		}
-	}
-}
-
-struct SubsystemMeterReadouts {
-	bounded: metered::Readout,
-	unbounded: metered::Readout,
-	signals: metered::Readout,
-}
 
 /// The `Overseer` itself.
-pub struct Overseer<S, SupportsParachains> {
-	/// Handles to all subsystems.
-	subsystems: AllSubsystems<
-		OverseenSubsystem<CandidateValidationMessage>,
-		OverseenSubsystem<CandidateBackingMessage>,
-		OverseenSubsystem<CandidateSelectionMessage>,
-		OverseenSubsystem<StatementDistributionMessage>,
-		OverseenSubsystem<AvailabilityDistributionMessage>,
-		OverseenSubsystem<AvailabilityRecoveryMessage>,
-		OverseenSubsystem<BitfieldSigningMessage>,
-		OverseenSubsystem<BitfieldDistributionMessage>,
-		OverseenSubsystem<ProvisionerMessage>,
-		OverseenSubsystem<RuntimeApiMessage>,
-		OverseenSubsystem<AvailabilityStoreMessage>,
-		OverseenSubsystem<NetworkBridgeMessage>,
-		OverseenSubsystem<ChainApiMessage>,
-		OverseenSubsystem<CollationGenerationMessage>,
-		OverseenSubsystem<CollatorProtocolMessage>,
-		OverseenSubsystem<ApprovalDistributionMessage>,
-		OverseenSubsystem<ApprovalVotingMessage>,
-		OverseenSubsystem<GossipSupportMessage>,
-	>,
+#[overlord(gen=AllMessages, event=Event, signal=OverseerSignal, error=SubsystemResult)]
+pub struct Overseer<SupportsParachains> {
+	#[subsystem(no_dispatch, blocking, CandidateValidationMessage)]
+	candidate_validation_message: CandidateValidation,
 
-	/// Spawner to spawn tasks to.
-	s: S,
+	#[subsystem(no_dispatch, blocking, CandidateBackingMessage)]
+	candidate_backing_message: CandidateBacking,
 
-	/// Here we keep handles to spawned subsystems to be notified when they terminate.
-	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+	#[subsystem(no_dispatch, blocking, CandidateSelectionMessage)]
+	candidate_selection_message: CandidateSelection,
 
-	/// Gather running subsystems' outbound streams into one.
-	to_overseer_rx: Fuse<metered::UnboundedMeteredReceiver<ToOverseer>>,
+	#[subsystem(no_dispatch, blocking, StatementDistributionMessage)]
+	statement_distribution_message: StatementDistribution,
 
-	/// Events that are sent to the overseer from the outside world
-	events_rx: metered::MeteredReceiver<Event>,
+	#[subsystem(no_dispatch, blocking, AvailabilityDistributionMessage)]
+	availability_distribution_message: AvailabilityDistribution,
+
+	#[subsystem(no_dispatch, blocking, AvailabilityRecoveryMessage)]
+	availability_recovery_message: AvailabilityRecovery,
+
+	#[subsystem(no_dispatch, blocking, BitfieldSigningMessage)]
+	bitfield_signing_message: BitfieldSigning,
+
+	#[subsystem(no_dispatch, blocking, BitfieldDistributionMessage)]
+	bitfield_distribution_message: BitfieldDistribution,
+
+	#[subsystem(no_dispatch, blocking, ProvisionerMessage)]
+	provisioner_message: Provisioner,
+
+	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
+	runtime_api_message: RuntimeApi,
+
+	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	availability_store_message: AvailabilityStore,
+
+	#[subsystem(no_dispatch, blocking, NetworkBridgeMessage)]
+	network_bridge_message: NetworkBridge,
+
+	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	chain_api_message: ChainApi,
+
+	#[subsystem(no_dispatch, blocking, CollationGenerationMessage)]
+	collation_generation_message: CollationGeneration,
+
+	#[subsystem(no_dispatch, blocking, CollatorProtocolMessage)]
+	collator_protocol_message: CollatorProtocol,
+
+	#[subsystem(no_dispatch, blocking, ApprovalDistributionMessage)]
+	approval_distribution_message: ApprovalDistribution,
+
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	approval_voting_message: ApprovalVoting,
+
+	#[subsystem(no_dispatch, blocking, GossipSupportMessage)]
+	gossip_support_message: GossipSupport,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
@@ -1102,181 +786,8 @@ pub struct Overseer<S, SupportsParachains> {
 	metrics: Metrics,
 }
 
-/// Overseer Prometheus metrics.
-#[derive(Clone)]
-struct MetricsInner {
-	activated_heads_total: prometheus::Counter<prometheus::U64>,
-	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
-	messages_relayed_total: prometheus::Counter<prometheus::U64>,
-	to_subsystem_bounded_sent: prometheus::GaugeVec<prometheus::U64>,
-	to_subsystem_bounded_received: prometheus::GaugeVec<prometheus::U64>,
-	to_subsystem_unbounded_sent: prometheus::GaugeVec<prometheus::U64>,
-	to_subsystem_unbounded_received: prometheus::GaugeVec<prometheus::U64>,
-	signals_sent: prometheus::GaugeVec<prometheus::U64>,
-	signals_received: prometheus::GaugeVec<prometheus::U64>,
-}
-
-#[derive(Default, Clone)]
-struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_head_activated(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.activated_heads_total.inc();
-		}
-	}
-
-	fn on_head_deactivated(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.deactivated_heads_total.inc();
-		}
-	}
-
-	fn on_message_relayed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.messages_relayed_total.inc();
-		}
-	}
-
-	fn channel_fill_level_snapshot(
-		&self,
-		to_subsystem: AllSubsystemsSame<(&'static str, SubsystemMeterReadouts)>,
-	) {
-		self.0.as_ref().map(|metrics| {
-			to_subsystem.map_subsystems(
-				|(name, readouts): (_, SubsystemMeterReadouts)| {
-					metrics.to_subsystem_bounded_sent.with_label_values(&[name])
-						.set(readouts.bounded.sent as u64);
-
-					metrics.to_subsystem_bounded_received.with_label_values(&[name])
-						.set(readouts.bounded.received as u64);
-
-					metrics.to_subsystem_unbounded_sent.with_label_values(&[name])
-						.set(readouts.unbounded.sent as u64);
-
-					metrics.to_subsystem_unbounded_received.with_label_values(&[name])
-						.set(readouts.unbounded.received as u64);
-
-					metrics.signals_sent.with_label_values(&[name])
-						.set(readouts.signals.sent as u64);
-
-					metrics.signals_received.with_label_values(&[name])
-						.set(readouts.signals.received as u64);
-				});
-		});
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			activated_heads_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_activated_heads_total",
-					"Number of activated heads."
-				)?,
-				registry,
-			)?,
-			deactivated_heads_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_deactivated_heads_total",
-					"Number of deactivated heads."
-				)?,
-				registry,
-			)?,
-			messages_relayed_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_messages_relayed_total",
-					"Number of messages relayed by Overseer."
-				)?,
-				registry,
-			)?,
-			to_subsystem_bounded_sent: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_subsystem_bounded_sent",
-						"Number of elements sent to subsystems' bounded queues",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-			to_subsystem_bounded_received: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_subsystem_bounded_received",
-						"Number of elements received by subsystems' bounded queues",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-			to_subsystem_unbounded_sent: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_subsystem_unbounded_sent",
-						"Number of elements sent to subsystems' unbounded queues",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-			to_subsystem_unbounded_received: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_subsystem_unbounded_received",
-						"Number of elements received by subsystems' unbounded queues",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-			signals_sent: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_overseer_signals_sent",
-						"Number of signals sent by overseer to subsystems",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-			signals_received: prometheus::register(
-				prometheus::GaugeVec::<prometheus::U64>::new(
-					prometheus::Opts::new(
-						"parachain_overseer_signals_received",
-						"Number of signals received by subsystems from overseer",
-					),
-					&[
-						"subsystem_name",
-					],
-				)?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
-}
-
-impl fmt::Debug for Metrics {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		f.write_str("Metrics {{...}}")
-	}
-}
-
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
-	S: SpawnNamed,
 	SupportsParachains: HeadSupportsParachains,
 {
 	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
@@ -1396,395 +907,36 @@ where
 		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
 		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
 	{
-		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY);
 
-		let handler = OverseerHandler {
-			events_tx: events_tx.clone(),
-		};
+		let (overseer, handler) = Self::builder()
+			.candidate_validation(all_subsystems.candidate_validation)
+			.candidate_backing(all_subsystems.candidate_backing)
+			.candidate_selection(all_subsystems.candidate_selection)
+			.statement_distribution(all_subsystems.statement_distribution)
+			.availability_distribution(all_subsystems.availability_distribution)
+			.availability_recovery(all_subsystems.availability_recovery)
+			.bitfield_signing(all_subsystems.bitfield_signing)
+			.bitfield_distribution(all_subsystems.bitfield_distribution)
+			.provisioner(all_subsystems.provisioner)
+			.runtime_api(all_subsystems.runtime_api)
+			.availability_store(all_subsystems.availability_store)
+			.network_bridge(all_subsystems.network_bridge)
+			.chain_api(all_subsystems.chain_api)
+			.collation_generation(all_subsystems.collation_generation)
+			.collator_protocol(all_subsystems.collator_protocol)
+			.approval_distribution(all_subsystems.approval_distribution)
+			.approval_voting(all_subsystems.approval_voting)
+			.gossip_support(all_subsystems.gossip_support)
+			.leaves(leaves.collect())
+			.active_leaves(Default::default())
+			.span_per_active_leaf(Default::default())
+			.activation_external_listeners(Default::default())
+			.metrics(<Metrics as MetricsTrait>::register(prometheus_registry)?)
+			.active_leaves(leaves.collect())
+			.spawner(s)
+			.build();
 
-		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
-
-		let (to_overseer_tx, to_overseer_rx) = metered::unbounded();
-
-		let mut running_subsystems = FuturesUnordered::new();
-
-		let (candidate_validation_bounded_tx, candidate_validation_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (candidate_backing_bounded_tx, candidate_backing_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (candidate_selection_bounded_tx, candidate_selection_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (statement_distribution_bounded_tx, statement_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (availability_distribution_bounded_tx, availability_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (availability_recovery_bounded_tx, availability_recovery_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (bitfield_signing_bounded_tx, bitfield_signing_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (bitfield_distribution_bounded_tx, bitfield_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (provisioner_bounded_tx, provisioner_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (runtime_api_bounded_tx, runtime_api_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (availability_store_bounded_tx, availability_store_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (network_bridge_bounded_tx, network_bridge_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (chain_api_bounded_tx, chain_api_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (collator_protocol_bounded_tx, collator_protocol_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (collation_generation_bounded_tx, collation_generation_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (approval_distribution_bounded_tx, approval_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (approval_voting_bounded_tx, approval_voting_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-		let (gossip_support_bounded_tx, gossip_support_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
-
-		let (candidate_validation_unbounded_tx, candidate_validation_unbounded_rx)
-			= metered::unbounded();
-		let (candidate_backing_unbounded_tx, candidate_backing_unbounded_rx)
-			= metered::unbounded();
-		let (candidate_selection_unbounded_tx, candidate_selection_unbounded_rx)
-			= metered::unbounded();
-		let (statement_distribution_unbounded_tx, statement_distribution_unbounded_rx)
-			= metered::unbounded();
-		let (availability_distribution_unbounded_tx, availability_distribution_unbounded_rx)
-			= metered::unbounded();
-		let (availability_recovery_unbounded_tx, availability_recovery_unbounded_rx)
-			= metered::unbounded();
-		let (bitfield_signing_unbounded_tx, bitfield_signing_unbounded_rx)
-			= metered::unbounded();
-		let (bitfield_distribution_unbounded_tx, bitfield_distribution_unbounded_rx)
-			= metered::unbounded();
-		let (provisioner_unbounded_tx, provisioner_unbounded_rx)
-			= metered::unbounded();
-		let (runtime_api_unbounded_tx, runtime_api_unbounded_rx)
-			= metered::unbounded();
-		let (availability_store_unbounded_tx, availability_store_unbounded_rx)
-			= metered::unbounded();
-		let (network_bridge_unbounded_tx, network_bridge_unbounded_rx)
-			= metered::unbounded();
-		let (chain_api_unbounded_tx, chain_api_unbounded_rx)
-			= metered::unbounded();
-		let (collator_protocol_unbounded_tx, collator_protocol_unbounded_rx)
-			= metered::unbounded();
-		let (collation_generation_unbounded_tx, collation_generation_unbounded_rx)
-			= metered::unbounded();
-		let (approval_distribution_unbounded_tx, approval_distribution_unbounded_rx)
-			= metered::unbounded();
-		let (approval_voting_unbounded_tx, approval_voting_unbounded_rx)
-			= metered::unbounded();
-		let (gossip_support_unbounded_tx, gossip_support_unbounded_rx)
-			= metered::unbounded();
-
-		let channels_out = ChannelsOut {
-			candidate_validation: candidate_validation_bounded_tx.clone(),
-			candidate_backing: candidate_backing_bounded_tx.clone(),
-			candidate_selection: candidate_selection_bounded_tx.clone(),
-			statement_distribution: statement_distribution_bounded_tx.clone(),
-			availability_distribution: availability_distribution_bounded_tx.clone(),
-			availability_recovery: availability_recovery_bounded_tx.clone(),
-			bitfield_signing: bitfield_signing_bounded_tx.clone(),
-			bitfield_distribution: bitfield_distribution_bounded_tx.clone(),
-			provisioner: provisioner_bounded_tx.clone(),
-			runtime_api: runtime_api_bounded_tx.clone(),
-			availability_store: availability_store_bounded_tx.clone(),
-			network_bridge: network_bridge_bounded_tx.clone(),
-			chain_api: chain_api_bounded_tx.clone(),
-			collator_protocol: collator_protocol_bounded_tx.clone(),
-			collation_generation: collation_generation_bounded_tx.clone(),
-			approval_distribution: approval_distribution_bounded_tx.clone(),
-			approval_voting: approval_voting_bounded_tx.clone(),
-			gossip_support: gossip_support_bounded_tx.clone(),
-
-			candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
-			candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
-			candidate_selection_unbounded: candidate_selection_unbounded_tx.clone(),
-			statement_distribution_unbounded: statement_distribution_unbounded_tx.clone(),
-			availability_distribution_unbounded: availability_distribution_unbounded_tx.clone(),
-			availability_recovery_unbounded: availability_recovery_unbounded_tx.clone(),
-			bitfield_signing_unbounded: bitfield_signing_unbounded_tx.clone(),
-			bitfield_distribution_unbounded: bitfield_distribution_unbounded_tx.clone(),
-			provisioner_unbounded: provisioner_unbounded_tx.clone(),
-			runtime_api_unbounded: runtime_api_unbounded_tx.clone(),
-			availability_store_unbounded: availability_store_unbounded_tx.clone(),
-			network_bridge_unbounded: network_bridge_unbounded_tx.clone(),
-			chain_api_unbounded: chain_api_unbounded_tx.clone(),
-			collator_protocol_unbounded: collator_protocol_unbounded_tx.clone(),
-			collation_generation_unbounded: collation_generation_unbounded_tx.clone(),
-			approval_distribution_unbounded: approval_distribution_unbounded_tx.clone(),
-			approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
-			gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
-		};
-
-		let candidate_validation_subsystem = spawn(
-			&mut s,
-			candidate_validation_bounded_tx,
-			stream::select(candidate_validation_bounded_rx, candidate_validation_unbounded_rx),
-			candidate_validation_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.candidate_validation,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let candidate_backing_subsystem = spawn(
-			&mut s,
-			candidate_backing_bounded_tx,
-			stream::select(candidate_backing_bounded_rx, candidate_backing_unbounded_rx),
-			candidate_backing_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.candidate_backing,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let candidate_selection_subsystem = spawn(
-			&mut s,
-			candidate_selection_bounded_tx,
-			stream::select(candidate_selection_bounded_rx, candidate_selection_unbounded_rx),
-			candidate_selection_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.candidate_selection,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let statement_distribution_subsystem = spawn(
-			&mut s,
-			statement_distribution_bounded_tx,
-			stream::select(statement_distribution_bounded_rx, statement_distribution_unbounded_rx),
-			candidate_validation_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.statement_distribution,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let availability_distribution_subsystem = spawn(
-			&mut s,
-			availability_distribution_bounded_tx,
-			stream::select(availability_distribution_bounded_rx, availability_distribution_unbounded_rx),
-			availability_distribution_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.availability_distribution,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let availability_recovery_subsystem = spawn(
-			&mut s,
-			availability_recovery_bounded_tx,
-			stream::select(availability_recovery_bounded_rx, availability_recovery_unbounded_rx),
-			availability_recovery_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.availability_recovery,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let bitfield_signing_subsystem = spawn(
-			&mut s,
-			bitfield_signing_bounded_tx,
-			stream::select(bitfield_signing_bounded_rx, bitfield_signing_unbounded_rx),
-			bitfield_signing_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.bitfield_signing,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let bitfield_distribution_subsystem = spawn(
-			&mut s,
-			bitfield_distribution_bounded_tx,
-			stream::select(bitfield_distribution_bounded_rx, bitfield_distribution_unbounded_rx),
-			bitfield_distribution_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.bitfield_distribution,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let provisioner_subsystem = spawn(
-			&mut s,
-			provisioner_bounded_tx,
-			stream::select(provisioner_bounded_rx, provisioner_unbounded_rx),
-			provisioner_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.provisioner,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let runtime_api_subsystem = spawn(
-			&mut s,
-			runtime_api_bounded_tx,
-			stream::select(runtime_api_bounded_rx, runtime_api_unbounded_rx),
-			runtime_api_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.runtime_api,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let availability_store_subsystem = spawn(
-			&mut s,
-			availability_store_bounded_tx,
-			stream::select(availability_store_bounded_rx, availability_store_unbounded_rx),
-			availability_store_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.availability_store,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Blocking,
-		)?;
-
-		let network_bridge_subsystem = spawn(
-			&mut s,
-			network_bridge_bounded_tx,
-			stream::select(network_bridge_bounded_rx, network_bridge_unbounded_rx),
-			network_bridge_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.network_bridge,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let chain_api_subsystem = spawn(
-			&mut s,
-			chain_api_bounded_tx,
-			stream::select(chain_api_bounded_rx, chain_api_unbounded_rx),
-			chain_api_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.chain_api,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Blocking,
-		)?;
-
-		let collation_generation_subsystem = spawn(
-			&mut s,
-			collation_generation_bounded_tx,
-			stream::select(collation_generation_bounded_rx, collation_generation_unbounded_rx),
-			collation_generation_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.collation_generation,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let collator_protocol_subsystem = spawn(
-			&mut s,
-			collator_protocol_bounded_tx,
-			stream::select(collator_protocol_bounded_rx, collator_protocol_unbounded_rx),
-			collator_protocol_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.collator_protocol,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let approval_distribution_subsystem = spawn(
-			&mut s,
-			approval_distribution_bounded_tx,
-			stream::select(approval_distribution_bounded_rx, approval_distribution_unbounded_rx),
-			approval_distribution_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.approval_distribution,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let approval_voting_subsystem = spawn(
-			&mut s,
-			approval_voting_bounded_tx,
-			stream::select(approval_voting_bounded_rx, approval_voting_unbounded_rx),
-			approval_voting_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.approval_voting,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Blocking,
-		)?;
-
-		let gossip_support_subsystem = spawn(
-			&mut s,
-			gossip_support_bounded_tx,
-			stream::select(gossip_support_bounded_rx, gossip_support_unbounded_rx),
-			gossip_support_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.gossip_support,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
-		let leaves = leaves
-			.into_iter()
-			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
-			.collect();
-
-		let active_leaves = HashMap::new();
-		let activation_external_listeners = HashMap::new();
-
-		let subsystems = AllSubsystems {
-			candidate_validation: candidate_validation_subsystem,
-			candidate_backing: candidate_backing_subsystem,
-			candidate_selection: candidate_selection_subsystem,
-			statement_distribution: statement_distribution_subsystem,
-			availability_distribution: availability_distribution_subsystem,
-			availability_recovery: availability_recovery_subsystem,
-			bitfield_signing: bitfield_signing_subsystem,
-			bitfield_distribution: bitfield_distribution_subsystem,
-			provisioner: provisioner_subsystem,
-			runtime_api: runtime_api_subsystem,
-			availability_store: availability_store_subsystem,
-			network_bridge: network_bridge_subsystem,
-			chain_api: chain_api_subsystem,
-			collation_generation: collation_generation_subsystem,
-			collator_protocol: collator_protocol_subsystem,
-			approval_distribution: approval_distribution_subsystem,
-			approval_voting: approval_voting_subsystem,
-			gossip_support: gossip_support_subsystem,
-		};
-
+		// spawn the metrics metronome task
 		{
 			struct ExtractNameAndMeters;
 			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
@@ -1821,21 +973,8 @@ where
 			s.spawn("metrics_metronome", Box::pin(metronome));
 		}
 
-		let this = Self {
-			subsystems,
-			s,
-			running_subsystems,
-			to_overseer_rx: to_overseer_rx.fuse(),
-			events_rx,
-			activation_external_listeners,
-			leaves,
-			active_leaves,
-			metrics,
-			span_per_active_leaf: Default::default(),
-			supports_parachains,
-		};
 
-		Ok((this, handler))
+		Ok((overseer, OverseerHandler { handler }))
 	}
 
 	// Stop the overseer.
@@ -1873,6 +1012,8 @@ where
 			}
 		}
 	}
+
+
 
 	/// Run the `Overseer`.
 	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]

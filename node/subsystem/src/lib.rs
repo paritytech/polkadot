@@ -170,7 +170,7 @@ pub enum SubsystemError {
 	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
 
 	#[error(transparent)]
-	Jaeger(#[from] JaegerError),
+	Jaeger(#[from] jaeger::JaegerError),
 
 	#[error("Failed to {0}")]
 	Context(String),
