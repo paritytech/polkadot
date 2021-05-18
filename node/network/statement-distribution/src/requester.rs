@@ -65,6 +65,39 @@ pub enum RequesterMessage {
 	SendRequest(Requests),
 }
 
+struct CandidateFetchingLogger {
+	candidate_hash: CandidateHash,
+	relay_parent: Hash,
+}
+
+impl CandidateFetchingLogger {
+	fn new(candidate_hash: CandidateHash, relay_parent: Hash, peers: &Vec<PeerId>) -> Self {
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			?candidate_hash,
+			?peers,
+			"STARTED fetch for candidate"
+		);
+
+		Self {
+			candidate_hash, relay_parent
+		}
+	}
+}
+
+impl Drop for CandidateFetchingLogger {
+	fn drop(&mut self) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			relay_parent = ?self.relay_parent,
+			candidate_hash = ?self.candidate_hash,
+			"STOPPED fetch for candidate"
+		);
+	}
+}
+
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
@@ -91,6 +124,7 @@ pub async fn fetch(
 		relay_parent,
 		candidate_hash,
 	};
+	let _logger = CandidateFetchingLogger::new(candidate_hash, relay_parent, &new_peers);
 
 	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
 	loop {
