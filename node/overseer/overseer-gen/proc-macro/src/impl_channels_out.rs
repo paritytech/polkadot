@@ -17,6 +17,7 @@ pub(crate) fn impl_channels_out_struct(
 	let consumes = &info.consumes();
 
     let ts = quote! {
+        #[derive(Debug, Clone)]
 		pub struct ChannelsOut {
 			#(
 				pub #channel_name: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket< #consumes >>,

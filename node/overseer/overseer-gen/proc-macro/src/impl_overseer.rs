@@ -18,14 +18,14 @@ pub(crate) fn impl_overseer_struct(
 	let baggage_generic_ty = &info.baggage_generic_types();
 
 	let generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* >
+		< S, #( #baggage_generic_ty, )* >
 	};
 
 	let where_clause = quote! {
 		where
-			Ctx: SubsystemContext,
 			S: ::polkadot_overseer_gen::SpawnNamed,
 	};
+	// FIXME add where clauses for baggage types
 
 	let consumes = &info.consumes();
 
@@ -37,9 +37,17 @@ pub(crate) fn impl_overseer_struct(
 	let log_target = syn::LitStr::new(overseer_name.to_string().to_lowercase().as_str(), overseer_name.span());
 
 	let mut ts = quote! {
+		/// Capacity of a bounded message channel between overseer and subsystem
+		/// but also for bounded channels between two subsystems.
 		const CHANNEL_CAPACITY: usize = #message_channel_capacity;
+
+		/// Capacity of a signal channel between a subsystem and the overseer.
 		const SIGNAL_CHANNEL_CAPACITY: usize = #signal_channel_capacity;
+
+		/// The log target tag.
 		const LOG_TARGET: &'static str = #log_target;
+
+		/// The overseer.
 		pub struct #overseer_name #generics {
 			// Subsystem instances.
 			#(
@@ -98,7 +106,8 @@ pub(crate) fn impl_overseer_struct(
 	Ok(ts)
 }
 
-/// Implement a builder pattern.
+/// Implement a builder pattern for the `Overseer`-type,
+/// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_builder(
 	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
@@ -124,21 +133,21 @@ pub(crate) fn impl_builder(
 	let blocking = &info.subsystems().iter().map(|x| x.blocking).collect::<Vec<_>>();
 
 	let generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* >
+		< S, #( #baggage_generic_ty, )* >
+	};
+	let where_clause = quote! {
+		where
+			S: ::polkadot_overseer_gen::SpawnNamed,
 	};
 
 	let builder_generics = quote! {
-		< Ctx, S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
+		<Ctx, S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
 	};
 
+	// all subsystems must have the same context
+	// even if the overseer does not impose such a limit.
 	let builder_additional_generics = quote! {
-		< #( #builder_generic_ty, )* >
-	};
-
-	let where_clause = quote! {
-		where
-			Ctx: SubsystemContext,
-			S: ::polkadot_overseer_gen::SpawnNamed,
+		< Ctx, #( #builder_generic_ty, )* >
 	};
 
 
@@ -157,7 +166,9 @@ pub(crate) fn impl_builder(
 	let ts = quote! {
 
 		impl #generics #overseer_name #generics #where_clause {
-			fn builder::< #builder_additional_generics >() -> #builder #builder_generics {
+			fn builder #builder_additional_generics () -> #builder #builder_generics
+				#builder_where_clause
+			{
 				#builder :: default()
 			}
 		}
@@ -165,7 +176,7 @@ pub(crate) fn impl_builder(
 
 		pub type #handler = ::polkadot_overseer_gen::metered::UnboundedMeteredSender< #event >;
 
-		#[derive(Debug, Clone, Default)]
+		#[derive(Debug, Clone)]
 		struct #builder #builder_generics {
 			#(
 				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
@@ -174,6 +185,22 @@ pub(crate) fn impl_builder(
 				#baggage_name : ::std::option::Option< #baggage_name >,
 			)*
 			spawner: ::std::option::Option< S >,
+			_phantom_ctx: ::std::marker::PhantomData< Ctx >,
+		}
+
+		impl #builder_generics Default for #builder #builder_generics {
+			fn default() -> Self {
+				Self {
+				#(
+					#subsystem_name : ::std::option::Option< #builder_generic_ty >,
+				)*
+				#(
+					#baggage_name : ::std::option::Option< #baggage_name >,
+				)*
+					spawner: None,
+					_phantom_ctx: ::std::marker::PhantomData,
+				}
+			}
 		}
 
 		impl #builder_generics #builder #builder_generics #builder_where_clause {
@@ -185,12 +212,13 @@ pub(crate) fn impl_builder(
 			)*
 
 			pub fn build<F>(mut self, create_subsystem_ctx: F) -> (#overseer_name #generics, #handler)
-				where F: FnMut(
-					::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
-					SubsystemIncomingMessages< #message_wrapper >,
-					ChannelsOut,
-					::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
-				) -> Ctx,
+				where
+					F: FnMut(
+						::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
+						SubsystemIncomingMessages< #message_wrapper >,
+						ChannelsOut,
+						::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
+					) -> Ctx,
 			{
 
 				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
@@ -288,12 +316,11 @@ pub(crate) fn impl_builder(
 					};
 				)*
 
-
 				#(
-				let #baggage_name = self. #baggage_name .expect("Baggage must initialize");
+					let #baggage_name = self. #baggage_name .expect("Baggage must initialized");
 				)*
 
-				let overseer = #overseer_name :: #generics {
+				let overseer = #overseer_name {
 					#(
 						#subsystem_name,
 					)*

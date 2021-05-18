@@ -16,7 +16,7 @@ struct Event;
 struct Yikes;
 
 impl std::fmt::Display for Yikes {
-	fn fmt(f: std::fmt::Formatter) -> std::fmt::Result {
+	fn fmt(&self, mut f: std::fmt::Formatter) -> std::fmt::Result {
 		writeln!(f, "yikes!")
 	}
 }
@@ -41,6 +41,7 @@ struct Xxx {
 #[derive(Debug, Clone)]
 struct DummySpawner;
 
+#[derive(Debug, Clone)]
 struct DummyCtx;
 
 fn main() {
