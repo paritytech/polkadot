@@ -47,6 +47,8 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
 
+use crate::error::Fatal;
+
 use super::{modify_reputation, Result, LOG_TARGET};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -540,6 +542,7 @@ async fn notify_collation_seconded(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
+	relay_parent: Hash,
 	statement: SignedFullStatement,
 ) {
 	if !matches!(statement.payload(), Statement::Seconded(_)) {
@@ -552,7 +555,7 @@ async fn notify_collation_seconded(
 	}
 
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
-		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(statement);
+		let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendCollationMessage(
@@ -782,7 +785,7 @@ where
 				}
 			}
 		}
-		CollationSeconded(_) => {
+		CollationSeconded(_, _) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				peer_id = ?origin,
@@ -873,7 +876,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, _role) => {
+		PeerConnected(peer_id, _role, _) => {
 			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
@@ -934,8 +937,8 @@ where
 		NoteGoodCollation(id) => {
 			note_good_collation(ctx, &state.peer_data, id).await;
 		}
-		NotifyCollationSeconded(id, statement) => {
-			notify_collation_seconded(ctx, &state.peer_data, id, statement).await;
+		NotifyCollationSeconded(id, relay_parent, statement) => {
+			notify_collation_seconded(ctx, &state.peer_data, id, relay_parent, statement).await;
 		}
 		NetworkBridgeUpdateV1(event) => {
 			if let Err(e) = handle_network_msg(
@@ -1003,7 +1006,7 @@ pub(crate) async fn run<Context>(
 
 			if let Poll::Ready(res) = futures::poll!(s) {
 				Some(match res {
-					Either::Left((msg, _)) => Either::Left(msg?),
+					Either::Left((msg, _)) => Either::Left(msg.map_err(Fatal::SubsystemReceive)?),
 					Either::Right((_, _)) => Either::Right(()),
 				})
 			} else {
@@ -1158,49 +1161,33 @@ where
 
 				modify_reputation(ctx, *peer_id, COST_WRONG_PARA).await;
 			}
-			Ok(CollationFetchingResponse::Collation(receipt, compressed_pov)) => {
-				match compressed_pov.decompress() {
-					Ok(pov) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							para_id = %para_id,
-							hash = ?hash,
-							candidate_hash = ?receipt.hash(),
-							"Received collation",
-						);
+			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					para_id = %para_id,
+					hash = ?hash,
+					candidate_hash = ?receipt.hash(),
+					"Received collation",
+				);
 
-						// Actual sending:
-						let _span = jaeger::Span::new(&pov, "received-collation");
-						let (mut tx, _) = oneshot::channel();
-						std::mem::swap(&mut tx, &mut (per_req.to_requester));
-						let result = tx.send((receipt, pov));
+				// Actual sending:
+				let _span = jaeger::Span::new(&pov, "received-collation");
+				let (mut tx, _) = oneshot::channel();
+				std::mem::swap(&mut tx, &mut (per_req.to_requester));
+				let result = tx.send((receipt, pov));
 
-						if let Err(_) = result  {
-							tracing::warn!(
-								target: LOG_TARGET,
-								hash = ?hash,
-								para_id = ?para_id,
-								peer_id = ?peer_id,
-								"Sending response back to requester failed (receiving side closed)"
-							);
-						} else {
-							metrics_result = Ok(());
-							success = "true";
-						}
-
-					}
-					Err(error) => {
-						tracing::warn!(
-							target: LOG_TARGET,
-							hash = ?hash,
-							para_id = ?para_id,
-							peer_id = ?peer_id,
-							?error,
-							"Failed to extract PoV",
-						);
-						modify_reputation(ctx, *peer_id, COST_CORRUPTED_MESSAGE).await;
-					}
-				};
+				if let Err(_) = result  {
+					tracing::warn!(
+						target: LOG_TARGET,
+						hash = ?hash,
+						para_id = ?para_id,
+						peer_id = ?peer_id,
+						"Sending response back to requester failed (receiving side closed)"
+					);
+				} else {
+					metrics_result = Ok(());
+					success = "true";
+				}
 			}
 		};
 		metrics.on_request(metrics_result);
@@ -1227,7 +1214,7 @@ mod tests {
 		CollatorPair, ValidatorId, ValidatorIndex, CoreState, CandidateDescriptor,
 		GroupRotationInfo, ScheduledCore, OccupiedCore, GroupIndex,
 	};
-	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
@@ -1485,6 +1472,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1559,6 +1547,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1569,6 +1558,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1652,6 +1642,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1720,6 +1711,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1730,6 +1722,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c,
 						ObservedRole::Full,
+						None,
 					),
 				)
 			).await;
@@ -1859,9 +1852,9 @@ mod tests {
 			response_channel.send(Ok(
 				CollationFetchingResponse::Collation(
 					candidate_a.clone(),
-					CompressedPoV::compress(&PoV {
+					PoV {
 						block_data: BlockData(vec![]),
-					}).unwrap(),
+					},
 				).encode()
 			)).expect("Sending response should succeed");
 
@@ -1889,9 +1882,9 @@ mod tests {
 			response_channel.send(Ok(
 				CollationFetchingResponse::Collation(
 					candidate_b.clone(),
-					CompressedPoV::compress(&PoV {
+					PoV {
 						block_data: BlockData(vec![1, 2, 3]),
-					}).unwrap(),
+					},
 				).encode()
 			)).expect("Sending response should succeed");
 
@@ -1934,6 +1927,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2028,6 +2022,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2169,6 +2164,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2215,6 +2211,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;
@@ -2286,6 +2283,7 @@ mod tests {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						None,
 					)
 				)
 			).await;

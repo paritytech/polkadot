@@ -21,7 +21,6 @@ use grandpa::GrandpaBlockImport;
 use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts, TaskExecutor};
 use sp_runtime::generic::Era;
 use std::sync::Arc;
-use sp_inherents::InherentDataProviders;
 use sc_consensus_babe::BabeBlockImport;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_keyring::sr25519::Keyring::Alice;
@@ -35,6 +34,8 @@ use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, Techni
 use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
 use codec::Encode;
+use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sp_inherents::CreateInherentDataProviders;
 
 pub type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
 pub type Block = polkadot_primitives::v1::Block;
@@ -63,6 +64,7 @@ impl ChainInfo for PolkadotChainInfo {
         Self::SelectChain,
     >;
     type SignedExtras = polkadot_runtime::SignedExtra;
+    type InherentDataProviders = SlotTimestampProvider;
 
     fn signed_extras(from: <Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
         (
@@ -89,7 +91,11 @@ impl ChainInfo for PolkadotChainInfo {
             Arc<TFullBackend<Self::Block>>,
             SyncCryptoStorePtr,
             TaskManager,
-            InherentDataProviders,
+            Box<dyn CreateInherentDataProviders<
+                Self::Block,
+                Arc<TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>>,
+                InherentDataProviders = Self::InherentDataProviders
+            >>,
             Option<
                 Box<
                     dyn ConsensusDataProvider<
@@ -110,7 +116,6 @@ impl ChainInfo for PolkadotChainInfo {
             new_full_parts::<Self::Block, RuntimeApi, Self::Executor>(config, None)?;
         let client = Arc::new(client);
 
-        let inherent_providers = InherentDataProviders::new();
         let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
         let (grandpa_block_import, ..) =
@@ -125,7 +130,6 @@ impl ChainInfo for PolkadotChainInfo {
         let consensus_data_provider = BabeConsensusDataProvider::new(
             client.clone(),
             keystore.sync_keystore(),
-            &inherent_providers,
             babe_link.epoch_changes().clone(),
             vec![(AuthorityId::from(Alice.public()), 1000)],
         )
@@ -136,7 +140,9 @@ impl ChainInfo for PolkadotChainInfo {
             backend,
             keystore.sync_keystore(),
             task_manager,
-            inherent_providers,
+            Box::new(|_, client| async move {
+                Ok(SlotTimestampProvider::new(client).map_err(|err| format!("{:?}", err))?)
+            }),
             Some(Box::new(consensus_data_provider)),
             select_chain,
             block_import,

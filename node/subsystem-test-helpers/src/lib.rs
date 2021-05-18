@@ -360,9 +360,15 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_overseer::{Overseer, AllSubsystems};
+	use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CandidateSelectionMessage;
+	use polkadot_primitives::v1::Hash;
+
+	struct AlwaysSupportsParachains;
+	impl HeadSupportsParachains for AlwaysSupportsParachains {
+		fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+	}
 
 	#[test]
 	fn forward_subsystem_works() {
@@ -373,6 +379,7 @@ mod tests {
 			Vec::new(),
 			all_subsystems,
 			None,
+			AlwaysSupportsParachains,
 			spawner.clone(),
 		).unwrap();
 

@@ -40,7 +40,12 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Config::Call>, weight_limit: Weight) -> Outcome {
+	fn execute_xcm_in_credit(
+		origin: MultiLocation,
+		message: Xcm<Config::Call>,
+		weight_limit: Weight,
+		mut weight_credit: Weight,
+	) -> Outcome {
 		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
 		let shallow_weight = match Config::Weigher::shallow(&mut message) {
@@ -53,13 +58,15 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		};
 		let maximum_weight = match shallow_weight.checked_add(deep_weight) {
 			Some(x) => x,
-			None => return Outcome::Error(XcmError::WeightLimitReached),
+			None => return Outcome::Error(XcmError::Overflow),
 		};
 		if maximum_weight > weight_limit {
-			return Outcome::Error(XcmError::WeightLimitReached);
+			return Outcome::Error(XcmError::WeightLimitReached(maximum_weight));
 		}
 		let mut trader = Config::Trader::new();
-		match Self::do_execute_xcm(origin, true, message, &mut 0, Some(shallow_weight), &mut trader) {
+		let result = Self::do_execute_xcm(origin, true, message, &mut weight_credit, Some(shallow_weight), &mut trader);
+		drop(trader);
+		match result {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
 			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
 			//  we'll needlessly be disregarding block execution time.
@@ -75,7 +82,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		assets.into_assets_iter().collect::<Vec<_>>()
 	}
 
-	/// Execute the XCM and return any unexpected and unknowable surplus weight.
+	/// Execute the XCM and return the portion of weight of `shallow_weight + deep_weight` that `message` did not use.
+	///
+	/// NOTE: The amount returned must be less than `shallow_weight + deep_weight` of `message`.
 	fn do_execute_xcm(
 		origin: MultiLocation,
 		top_level: bool,
@@ -94,8 +103,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			.map_err(|()| XcmError::Barrier)?;
 
 		// The surplus weight, defined as the amount by which `shallow_weight` plus all nested
-		// `shallow_weight` values (ensuring no double-counting) is an overestimate of the actual weight
-		// consumed.
+		// `shallow_weight` values (ensuring no double-counting and also known as `deep_weight`) is an
+		// over-estimate of the actual weight consumed.
 		let mut total_surplus: Weight = 0;
 
 		let maybe_holding_effects = match (origin.clone(), message) {
@@ -145,6 +154,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(Config::IsTeleporter::filter_asset_location(asset, &origin), XcmError::UntrustedTeleportLocation);
+					// We should check that the asset can actually be teleported in (for this to be in error, there
+					// would need to be an accounting violation by one of the trusted chains, so it's unlikely, but we
+					// don't want to punish a possibly innocent chain/user).
+					Config::AssetTransactor::can_check_in(&origin, asset)?;
+				}
+				for asset in assets.iter() {
+					Config::AssetTransactor::check_in(&origin, asset);
 				}
 				Some((Assets::from(assets), effects))
 			}
@@ -180,6 +196,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 			(origin, Xcm::QueryResponse { query_id, response }) => {
 				Config::ResponseHandler::on_response(origin, query_id, response);
+				None
+			}
+			(origin, Xcm::RelayedFrom { who, message }) => {
+				ensure!(who.is_interior(), XcmError::EscalationOfPrivilege);
+				let mut origin = origin;
+				origin.append_with(who).map_err(|_| XcmError::MultiLocationFull)?;
+				let surplus = Self::do_execute_xcm(origin, top_level, *message, weight_credit, None, trader)?;
+				total_surplus = total_surplus.saturating_add(surplus);
 				None
 			}
 			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
@@ -221,6 +245,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
 			Order::InitiateTeleport { assets, dest, effects} => {
+				for asset in assets.iter() {
+					Config::AssetTransactor::check_out(&origin, asset);
+				}
 				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
 			}

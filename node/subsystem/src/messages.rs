@@ -28,8 +28,11 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, v1 as protocol_v1, UnifiedReputationChange, PeerId,
-	request_response::{Requests, request::IncomingRequest, v1 as req_res_v1},
+	PeerId, UnifiedReputationChange, peer_set::PeerSet,
+	request_response::{
+		Requests, request::IncomingRequest, v1 as req_res_v1
+	},
+	v1 as protocol_v1,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
@@ -197,7 +200,7 @@ pub enum CollatorProtocolMessage {
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
 	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, SignedFullStatement),
+	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
@@ -221,9 +224,13 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
 	/// Send a batch of validation messages.
+	///
+	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
 	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
 
 	/// Send a batch of collation messages.
+	///
+	/// NOTE: Messages will be processed in order.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.
@@ -234,16 +241,17 @@ pub enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
-	/// This can be done by dropping the receiver.
+	///
+	/// A caller can learn about validator connections by listening to the
+	/// `PeerConnected` events from the network bridge.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
-		/// Response sender by which the issuer can learn the `PeerId`s of
-		/// the validators as they are connected.
-		/// The response is sent immediately for already connected peers.
-		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		/// A request is revoked by dropping the `keep_alive` sender.
+		/// The revokation takes place upon the next connection request.
+		keep_alive: oneshot::Receiver<()>,
 	},
 }
 
@@ -526,16 +534,8 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-}
-
-impl StatementDistributionMessage {
-	/// If the current variant contains the relay parent hash, return it.
-	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
-		}
-	}
+	/// Get receiver for receiving incoming network requests for statement fetching.
+	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -746,7 +746,6 @@ impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorPro
 		Self::CollationFetchingRequest(req)
 	}
 }
-
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {

@@ -30,8 +30,8 @@ where
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
-		let author = <pallet_authorship::Module<R>>::author();
-		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		let author = <pallet_authorship::Pallet<R>>::author();
+		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Pallet<R>>::author(), amount);
 		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
@@ -65,11 +65,11 @@ where
 mod tests {
 	use super::*;
 	use frame_system::limits;
-	use frame_support::{parameter_types, weights::DispatchClass};
+	use frame_support::{parameter_types, PalletId, weights::DispatchClass};
 	use frame_support::traits::FindAuthor;
 	use sp_core::H256;
 	use sp_runtime::{
-		testing::Header, ModuleId,
+		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
 		Perbill,
 	};
@@ -85,6 +85,7 @@ mod tests {
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
@@ -141,7 +142,8 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+		pub const MaxApprovals: u32 = 100;
 	}
 
 	impl pallet_treasury::Config for Test {
@@ -155,8 +157,9 @@ mod tests {
 		type SpendPeriod = ();
 		type Burn = ();
 		type BurnDestination = ();
-		type ModuleId = TreasuryModuleId;
+		type PalletId = TreasuryPalletId;
 		type SpendFunds = ();
+		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 	}
 

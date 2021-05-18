@@ -16,10 +16,10 @@ test-runner = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.8.28" }
+polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.9" }
 
-polkadot-runtime-test = { path = "../runtime", version = "0.8.28" }
-polkadot-cli = { path = "../../../cli", version = "0.8.30", features = ["cli"] }
+polkadot-runtime-test = { path = "../runtime", version = "0.9" }
+polkadot-cli = { path = "../../../cli", version = "0.9", features = ["cli"] }
 structopt = "0.3.21"
 log = "0.4.14"
 # avoids crate resolution errors

@@ -27,11 +27,21 @@ mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-pub use junction::{Junction, NetworkId};
+pub use junction::{Junction, NetworkId, BodyId, BodyPart};
 pub use multi_asset::{MultiAsset, AssetInstance};
 pub use multi_location::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
+
+/// A prelude for importing all types typically used when interacting with XCM messages.
+pub mod prelude {
+	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
+	pub use super::multi_asset::{MultiAsset::{self, *}, AssetInstance::{self, *}};
+	pub use super::multi_location::MultiLocation::{self, *};
+	pub use super::order::Order::{self, *};
+	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
+	pub use super::{Xcm::{self, *}, OriginKind};
+}
 
 // TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
 //   the number of items in the vector.
@@ -39,8 +49,10 @@ pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum OriginKind {
-	/// Origin should just be the native origin for the sender. For Cumulus/Frame chains this is
-	/// the `Parachain` origin.
+	/// Origin should just be the native dispatch origin representation for the sender in the
+	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
+	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
+	/// primary/native dispatch origin form.
 	Native,
 
 	/// Origin should just be the standard account-based origin with the sovereign account of
@@ -50,6 +62,11 @@ pub enum OriginKind {
 	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
 	/// This will not usually be an available option.
 	Superuser,
+
+	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
+	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
+	/// the `pallet_xcm::Origin::Xcm` type.
+	Xcm,
 }
 
 /// Response data to a query.
@@ -227,6 +244,21 @@ pub enum Xcm<Call> {
 		#[codec(compact)] sender: u32,
 		#[codec(compact)] recipient: u32,
 	},
+
+	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
+	/// location within the origin.
+	///
+	/// Safety: `who` must be an interior location of the context. This basically means that no `Parent`
+	/// junctions are allowed in it. This should be verified at the time of XCM execution.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	#[codec(index = 10)]
+	RelayedFrom {
+		who: MultiLocation,
+		message: alloc::boxed::Box<Xcm<Call>>,
+	},
 }
 
 impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
@@ -268,7 +300,9 @@ impl<Call> Xcm<Call> {
 			HrmpChannelClosing { initiator, sender, recipient}
 			=> HrmpChannelClosing { initiator, sender, recipient},
 			Transact { origin_type, require_weight_at_most, call}
-			=> Transact { origin_type, require_weight_at_most, call: call.into() }
+			=> Transact { origin_type, require_weight_at_most, call: call.into() },
+			RelayedFrom { who, message }
+			=> RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 }

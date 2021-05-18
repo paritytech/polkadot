@@ -21,10 +21,11 @@ use parity_scale_codec::{Encode, Decode};
 
 use super::{MultiLocation, Xcm};
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
 	Undefined,
 	Overflow,
+	/// The operation is intentionally unsupported.
 	Unimplemented,
 	UnhandledXcmVersion,
 	UnhandledXcmMessage,
@@ -33,13 +34,19 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	CannotReachDestination(#[codec(skip)] &'static str),
+	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// A human-readable explanation of the specific issue is provided.
+	SendFailed(#[codec(skip)] &'static str),
+	/// The message and destination combination was not recognised as being reachable.
+	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
 	ExceedsMaxMessageSize,
 	FailedToTransactAsset(#[codec(skip)] &'static str),
-	WeightLimitReached,
+	/// Execution of the XCM would potentially result in a greater weight used than the pre-specified
+	/// weight limit. The amount that is potentially required is the parameter.
+	WeightLimitReached(Weight),
 	Wildcard,
 	/// The case where an XCM message has specified a optional weight limit and the weight required for
 	/// processing is too great.
@@ -56,10 +63,10 @@ pub enum Error {
 	/// of the message is invalid, which could be due to it containing overly nested structures or an invalid
 	/// nested data segment (e.g. for the call in `Transact`).
 	WeightNotComputable,
-	/// The XCM did noto pass the barrier condition for execution. The barrier condition differs on different
+	/// The XCM did not pass the barrier condition for execution. The barrier condition differs on different
 	/// chains and in different circumstances, but generally it means that the conditions surrounding the message
 	/// were not such that the chain considers the message worth spending time executing. Since most chains
-	/// lift the barrier to execution on apropriate payment, presentation of an NFT voucher, or based on the
+	/// lift the barrier to execution on appropriate payment, presentation of an NFT voucher, or based on the
 	/// message origin, it means that none of those were the case.
 	Barrier,
 	/// Indicates that it is not possible for a location to have an asset be withdrawn or transferred from its
@@ -68,9 +75,10 @@ pub enum Error {
 	NotWithdrawable,
 	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
 	LocationCannotHold,
-	/// We attempted to send an XCM to the local consensus system. Execution was not possible probably due to
-	/// no execution weight being assigned.
-	DestinationIsLocal,
+	/// The assets given to purchase weight is are insufficient for the weight desired.
+	TooExpensive,
+	/// The given asset is not handled.
+	AssetNotFound,
 }
 
 impl From<()> for Error {
@@ -85,7 +93,7 @@ pub type Result = result::Result<(), Error>;
 pub type Weight = u64;
 
 /// Outcome of an XCM excution.
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
@@ -120,22 +128,59 @@ impl Outcome {
 	}
 }
 
+/// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
+	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
+	/// other aspects.
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+	}
+
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	///
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
+	/// execution without associated payment.
+	fn execute_xcm_in_credit(
+		origin: MultiLocation,
+		message: Xcm<Call>,
+		weight_limit: Weight,
+		weight_credit: Weight,
+	) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
-	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
+	fn execute_xcm_in_credit(
+		_origin: MultiLocation,
+		_message: Xcm<C>,
+		_weight_limit: Weight,
+		_weight_credit: Weight,
+	) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
 
+/// Utility for sending an XCM message.
+///
+/// These can be amalgamted in tuples to form sophisticated routing systems.
 pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> Result;
+	/// Send an XCM `message` to a given `destination`.
+	///
+	/// If it is not a destination which can be reached with this type but possibly could by others,
+	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple implementation to
+	/// exit early without trying other type fields.
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
 
-impl SendXcm for () {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> Result {
-		Err(Error::Unimplemented)
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl SendXcm for Tuple {
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+		for_tuples!( #(
+			let (destination, message) = match Tuple::send_xcm(destination, message) {
+				Err(Error::CannotReachDestination(d, m)) => (d, m),
+				o @ _ => return o,
+			};
+		)* );
+		Err(Error::CannotReachDestination(destination, message))
 	}
 }

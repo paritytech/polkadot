@@ -16,12 +16,12 @@
 
 //! PoV requester takes care of requesting PoVs from validators of a backing group.
 
-use futures::{FutureExt, channel::{mpsc, oneshot}, future::BoxFuture};
+use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 use lru::LruCache;
 
 use polkadot_subsystem::jaeger;
 use polkadot_node_network_protocol::{
-	PeerId, peer_set::PeerSet,
+	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
 	v1::{PoVFetchingRequest, PoVFetchingResponse}}
 };
@@ -33,8 +33,10 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
 };
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, ValidatorInfo};
 
-use crate::{error::{Error, log_error}, runtime::{Runtime, ValidatorInfo}};
+use crate::error::{Fatal, NonFatal};
+use crate::LOG_TARGET;
 
 /// Number of sessions we want to keep in the LRU.
 const NUM_SESSIONS: usize = 2;
@@ -44,7 +46,7 @@ pub struct PoVRequester {
 	///
 	/// So we keep an LRU for managing connection requests of size 2.
 	/// Cache will contain `None` if we are not a validator in that session.
-	connected_validators: LruCache<SessionIndex, Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>,
+	connected_validators: LruCache<SessionIndex, Option<oneshot::Sender<()>>>,
 }
 
 impl PoVRequester {
@@ -62,7 +64,7 @@ impl PoVRequester {
 	pub async fn update_connected_validators<Context>(
 		&mut self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		update: &ActiveLeavesUpdate,
 	) -> super::Result<()>
 	where
@@ -76,8 +78,8 @@ impl PoVRequester {
 			if self.connected_validators.contains(&session_index) {
 				continue
 			}
-			let rx = connect_to_relevant_validators(ctx, runtime, parent, session_index).await?;
-			self.connected_validators.put(session_index, rx);
+			let tx = connect_to_relevant_validators(ctx, runtime, parent, session_index).await?;
+			self.connected_validators.put(session_index, tx);
 		}
 		Ok(())
 	}
@@ -86,7 +88,7 @@ impl PoVRequester {
 	pub async fn fetch_pov<Context>(
 		&self,
 		ctx: &mut Context,
-		runtime: &mut Runtime,
+		runtime: &mut RuntimeInfo,
 		parent: Hash,
 		from_validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
@@ -98,7 +100,7 @@ impl PoVRequester {
 	{
 		let info = &runtime.get_session_info(ctx, parent).await?.session_info;
 		let authority_id = info.discovery_keys.get(from_validator.0 as usize)
-			.ok_or(Error::InvalidValidatorIndex)?
+			.ok_or(NonFatal::InvalidValidatorIndex)?
 			.clone();
 		let (req, pending_response) = OutgoingRequest::new(
 			Recipient::Authority(authority_id),
@@ -124,7 +126,8 @@ impl PoVRequester {
 			.with_relay_parent(parent);
 		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 			.await
-			.map_err(|e| Error::SpawnTask(e))
+			.map_err(|e| Fatal::SpawnTask(e))?;
+		Ok(())
 	}
 }
 
@@ -135,10 +138,13 @@ async fn fetch_pov_job(
 	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 ) {
-	log_error(
-		do_fetch_pov(pov_hash, pending_response, span, tx).await,
-		"fetch_pov_job",
-	)
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx).await {
+		tracing::warn!(
+			target: LOG_TARGET,
+			?err,
+			"fetch_pov_job"
+		);
+	}
 }
 
 /// Do the actual work of waiting for the response.
@@ -148,26 +154,24 @@ async fn do_fetch_pov(
 	_span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 )
-	-> super::Result<()>
+	-> std::result::Result<(), NonFatal>
 {
-	let response = pending_response.await.map_err(Error::FetchPoV)?;
+	let response = pending_response.await.map_err(NonFatal::FetchPoV)?;
 	let pov = match response {
-		PoVFetchingResponse::PoV(compressed) => {
-			compressed.decompress().map_err(Error::PoVDecompression)?
-		}
+		PoVFetchingResponse::PoV(pov) => pov,
 		PoVFetchingResponse::NoSuchPoV => {
-			return Err(Error::NoSuchPoV)
+			return Err(NonFatal::NoSuchPoV)
 		}
 	};
 	if pov.hash() == pov_hash {
-		tx.send(pov).map_err(|_| Error::SendResponse)
+		tx.send(pov).map_err(|_| NonFatal::SendResponse)
 	} else {
-		Err(Error::UnexpectedPoV)
+		Err(NonFatal::UnexpectedPoV)
 	}
 }
 
 /// Get the session indeces for the given relay chain parents.
-async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut Runtime, new_heads: impl Iterator<Item = &Hash>)
+async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut RuntimeInfo, new_heads: impl Iterator<Item = &Hash>)
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
 	Context: SubsystemContext,
@@ -182,21 +186,20 @@ where
 /// Connect to validators of our validator group.
 async fn connect_to_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex
 )
-	-> super::Result<Option<mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>>
+	-> super::Result<Option<oneshot::Sender<()>>>
 where
 	Context: SubsystemContext,
 {
 	if let Some(validator_ids) = determine_relevant_validators(ctx, runtime, parent, session).await? {
-		// We don't actually care about `PeerId`s, just keeping receiver so we stay connected:
-		let (tx, rx) = mpsc::channel(0);
+		let (tx, keep_alive) = oneshot::channel();
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-			validator_ids, peer_set: PeerSet::Validation, connected: tx
+			validator_ids, peer_set: PeerSet::Validation, keep_alive
 		})).await;
-		Ok(Some(rx))
+		Ok(Some(tx))
 	} else {
 		Ok(None)
 	}
@@ -207,7 +210,7 @@ where
 /// Return: `None` if not a validator.
 async fn determine_relevant_validators<Context>(
 	ctx: &mut Context,
-	runtime: &mut Runtime,
+	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	session: SessionIndex,
 )
@@ -244,7 +247,7 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_primitives::v1::{CandidateHash, Hash, ValidatorIndex};
-	use polkadot_node_primitives::{BlockData, CompressedPoV};
+	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
 
@@ -276,7 +279,7 @@ mod tests {
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
 		let keystore = make_ferdie_keystore();
-		let mut runtime = crate::runtime::Runtime::new(keystore);
+		let mut runtime = polkadot_node_subsystem_util::runtime::RuntimeInfo::new(Some(keystore));
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {
@@ -315,9 +318,8 @@ mod tests {
 							reqs.pop(),
 							Some(Requests::PoVFetching(outgoing)) => {outgoing}
 						);
-						req.pending_response.send(Ok(PoVFetchingResponse::PoV(
-							CompressedPoV::compress(&pov).unwrap()).encode()
-						)).unwrap();
+						req.pending_response.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
+							.unwrap();
 						break
 					},
 					msg => tracing::debug!(target: LOG_TARGET, msg = ?msg, "Received msg"),
