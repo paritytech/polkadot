@@ -22,6 +22,7 @@ pub(crate) fn impl_channels_out_struct(
 			#(
 				pub #channel_name: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket< #consumes >>,
 			)*
+
             #(
 				pub #channel_name_unbounded: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<MessagePacket< #consumes >>,
 			)*

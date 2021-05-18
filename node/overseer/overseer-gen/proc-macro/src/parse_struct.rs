@@ -22,7 +22,7 @@ pub(crate) struct SubSysField {
 	/// Generate generic type name for the `AllSubsystems` type.
 	pub(crate) generic: Ident,
 	/// Type of the subsystem.
-	pub(crate) ty: Ident,
+	pub(crate) ty: Path,
 	/// Type to be consumed by the subsystem.
 	pub(crate) consumes: Ident,
 	/// If `no_dispatch` is present, if the message is incomming via
@@ -33,10 +33,10 @@ pub(crate) struct SubSysField {
 	pub(crate) blocking: bool,
 }
 
-fn try_type_to_ident(ty: Type, span: Span) -> Result<Ident> {
+fn try_type_to_path(ty: Type, span: Span) -> Result<Ident> {
 	match ty {
 		Type::Path(path) => {
-			path.path.get_ident().cloned().ok_or_else(|| Error::new(span, "Expected an identifier, but got a path."))
+			path
 		}
 		_ => Err(Error::new(span, "Type must be a path expression.")),
 	}
@@ -115,9 +115,9 @@ pub(crate) struct OverseerInfo {
 	pub(crate) overseer_name: Ident,
 
 	/// Size of the bounded channel.
-	pub(crate) message_channel_capacity: u64,
+	pub(crate) message_channel_capacity: usize,
 	/// Size of the bounded signal channel.
-	pub(crate) signal_channel_capacity: u64,
+	pub(crate) signal_channel_capacity: usize,
 
 	/// Signals to be sent, sparse information that is used intermittendly.
 	pub(crate) extern_signal_ty: Path,
@@ -226,13 +226,14 @@ impl OverseerGuts {
 				subsystems.push(SubSysField {
 					name: ident,
 					generic: Ident::new(format!("Sub{}", idx).as_str(), span),
-					ty: try_type_to_ident(ty, span)?,
+					ty: try_type_to_path(ty, span)?,
 					consumes: consumes_idents[0].clone(),
 					no_dispatch: variant.no_dispatch,
 					blocking: variant.blocking,
 				});
 			} else {
-				let field_ty = try_type_to_ident(ty, ident.span())?;
+				let field_ty: Path = try_type_to_path(ty, ident.span())?;
+				field_ty.
 				baggage.push(BaggageField {
 					field_name: ident,
 					generic: !baggage_generics.contains(&field_ty),

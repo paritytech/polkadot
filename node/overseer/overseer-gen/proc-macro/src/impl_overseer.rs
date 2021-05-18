@@ -29,7 +29,9 @@ pub(crate) fn impl_overseer_struct(
 
 	let consumes = &info.consumes();
 
-	let signal_ty = &info.extern_event_ty;
+	let signal_ty = &info.extern_signal_ty;
+
+	let event_ty = &info.extern_event_ty;
 
 	let message_channel_capacity = info.message_channel_capacity;
 	let signal_channel_capacity = info.signal_channel_capacity;
@@ -69,7 +71,7 @@ pub(crate) fn impl_overseer_struct(
 			to_overseer_rx: ::polkadot_overseer_gen::Fuse<metered::UnboundedMeteredReceiver< ToOverseer >>,
 
 			/// Events that are sent to the overseer from the outside world.
-			events_rx: ::polkadot_overseer_gen::metered::MeteredReceiver<Event>,
+			events_rx: ::polkadot_overseer_gen::metered::MeteredReceiver< #event_ty >,
 		}
 
 		impl #generics #overseer_name #generics #where_clause {
@@ -192,10 +194,10 @@ pub(crate) fn impl_builder(
 			fn default() -> Self {
 				Self {
 				#(
-					#subsystem_name : ::std::option::Option< #builder_generic_ty >,
+					#subsystem_name: None,
 				)*
 				#(
-					#baggage_name : ::std::option::Option< #baggage_name >,
+					#baggage_name: None,
 				)*
 					spawner: None,
 					_phantom_ctx: ::std::marker::PhantomData,
@@ -229,7 +231,8 @@ pub(crate) fn impl_builder(
 
 				let channels_out = {
 					#(
-						let (#channel_name_tx, #channel_name_rx) = ::polkadot_overseer_gen::metered::channel::<MessagePacket< #consumes >>(CHANNEL_CAPACITY);
+						let (#channel_name_tx, #channel_name_rx) = ::polkadot_overseer_gen::metered::channel::<
+							MessagePacket< #consumes >>(CHANNEL_CAPACITY);
 					)*
 
 					#(
@@ -246,7 +249,7 @@ pub(crate) fn impl_builder(
 					}
 				};
 
-				let spawner = &mut self.spawner;
+				let spawner = self.spawner.expect("Spawner is set. qed");
 
 				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<BoxFuture<'static, SubsystemResult<()>>>::new();
 
@@ -258,7 +261,7 @@ pub(crate) fn impl_builder(
 
 						let unbounded_meter = channels_out. #channel_name .meter().clone();
 
-						let message_tx: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket< #message_wrapper >> = channels_out. #channel_name .clone();
+						let message_tx: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<MessagePacket< #message_wrapper >> = channels_out. #channel_name .clone();
 
 						let message_rx: SubsystemIncomingMessages< #message_wrapper > =
 							::polkadot_overseer_gen::select(
@@ -376,8 +379,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 
 	let ts = quote::quote! {
 
-
-		/// A subsystem that we oversee.
+		/// A subsystem that the overseer oversees.
 		///
 		/// Ties together the [`Subsystem`] itself and it's running instance
 		/// (which may be missing if the [`Subsystem`] is not running at the moment

@@ -91,8 +91,8 @@ pub(crate) struct AttrArgs {
 	pub(crate) extern_event_ty: Path,
 	pub(crate) extern_signal_ty: Path,
 	pub(crate) extern_error_ty: Path,
-	pub(crate) signal_channel_capacity: u64,
-	pub(crate) message_channel_capacity: u64,
+	pub(crate) signal_channel_capacity: usize,
+	pub(crate) message_channel_capacity: usize,
 }
 
 impl Parse for AttrArgs {
@@ -111,22 +111,22 @@ impl Parse for AttrArgs {
 
 		let signal_channel_capacity = if let Some(item) = unique.remove(TAG_SIGNAL_CAPACITY) {
 			if let AttrItem::SignalChannelCapacity(lit) = item {
-				lit.base10_parse::<u64>()?
+				lit.base10_parse::<usize>()?
 			} else {
 				unreachable!()
 			}
 		} else {
-			64
+			64_usize
 		};
 
 		let message_channel_capacity = if let Some(item) = unique.remove(TAG_MESSAGE_CAPACITY) {
 			if let AttrItem::MessageChannelCapacity(lit) = item {
-				lit.base10_parse::<u64>()?
+				lit.base10_parse::<usize>()?
 			} else {
 				unreachable!()
 			}
 		} else {
-			1024
+			1024_usize
 		};
 		let extern_error_ty = unique.remove(TAG_EXT_ERROR_TY)
 			.map(|x| if let AttrItem::ExternErrorType(x) = x { x.clone() } else { unreachable!() } )
