@@ -90,7 +90,7 @@ impl AvailabilityDistributionSubsystem {
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
 		let mut requester = Requester::new(self.metrics.clone()).fuse();
-		let mut pov_requester = PoVRequester::new();
+		let pov_requester = PoVRequester::new();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -113,18 +113,6 @@ impl AvailabilityDistributionSubsystem {
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					let result = pov_requester.update_connected_validators(
-						&mut ctx,
-						&mut self.runtime,
-						&update,
-					).await;
-					if let Err(error) = result {
-						tracing::debug!(
-							target: LOG_TARGET,
-							?error,
-							"PoVRequester::update_connected_validators",
-						);
-					}
 					log_error(
 						requester.get_mut().update_fetching_heads(&mut ctx, &mut self.runtime, update).await,
 						"Error in Requester::update_fetching_heads"

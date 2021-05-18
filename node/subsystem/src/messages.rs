@@ -240,7 +240,11 @@ pub enum NetworkBridgeMessage {
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least
-	/// until the request is revoked.
+	/// until a new request is issued.
+	///
+	/// Because it overrides the previous request, it must be ensured
+	/// that `validator_ids` include all peers the subsystems
+	/// are interested in (per `PeerSet`).
 	///
 	/// A caller can learn about validator connections by listening to the
 	/// `PeerConnected` events from the network bridge.
@@ -249,9 +253,6 @@ pub enum NetworkBridgeMessage {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
-		/// A request is revoked by dropping the `keep_alive` sender.
-		/// The revokation takes place upon the next connection request.
-		keep_alive: oneshot::Receiver<()>,
 	},
 }
 
