@@ -1,0 +1,26 @@
+[package]
+name = "polkadot-simnet"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+
+[dependencies]
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.8.28" }
+
+polkadot-runtime-test = { path = "../runtime", version = "0.8.28" }
+polkadot-cli = { path = "../../../cli", version = "0.8.30", features = ["cli"] }
+structopt = "0.3.21"
+log = "0.4.14"
+# avoids crate resolution errors
+tokio = { version = "=1.4.0", features = ["macros", "rt-multi-thread", "signal"] }

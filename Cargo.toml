@@ -77,6 +77,7 @@ members = [
 	"node/test/client",
 	"node/test/service",
 	"node/test/runtime",
+	"node/test/polkadot-simnet",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
