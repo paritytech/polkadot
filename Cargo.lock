@@ -11621,3 +11621,1038 @@ dependencies = [
  "cc",
  "libc",
 ]
+
+[[patch.unused]]
+name = "chain-spec-builder"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "fork-tree"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-benchmarking"
+version = "3.1.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-benchmarking-cli"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-election-provider-support"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-executive"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-metadata"
+version = "13.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-support"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-support-procedural"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-support-procedural-tools"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-support-procedural-tools-derive"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-support-test"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-system"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-system-benchmarking"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-system-rpc-runtime-api"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "frame-try-runtime"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-bench"
+version = "0.8.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-browser-testing"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-cli"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-executor"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-inspect"
+version = "0.8.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-primitives"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-rpc"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-rpc-client"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-runtime"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-template"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-template-runtime"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "node-testing"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-assets"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-atomic-swap"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-aura"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-authority-discovery"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-authorship"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-babe"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-balances"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-bounties"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-collective"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-contracts"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-contracts-primitives"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-contracts-proc-macro"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-contracts-rpc"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-contracts-rpc-runtime-api"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-democracy"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-election-provider-multi-phase"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-elections"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-elections-phragmen"
+version = "4.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-example"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-example-offchain-worker"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-example-parallel"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-gilt"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-grandpa"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-identity"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-im-online"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-indices"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-lottery"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-membership"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-mmr"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-mmr-primitives"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-mmr-rpc"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-multisig"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-nicks"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-node-authorization"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-offences"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-offences-benchmarking"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-proxy"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-randomness-collective-flip"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-recovery"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-scheduler"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-scored-pool"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-session"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-session-benchmarking"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-society"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-staking"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-staking-reward-curve"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-staking-reward-fn"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-sudo"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-template"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-timestamp"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-tips"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-transaction-payment"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-transaction-payment-rpc"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-transaction-payment-rpc-runtime-api"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-treasury"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-utility"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "pallet-vesting"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "remote-externalities"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-authority-discovery"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-basic-authorship"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-block-builder"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-chain-spec"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-chain-spec-derive"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-cli"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-client-api"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-client-db"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-aura"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-babe"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-babe-rpc"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-epochs"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-manual-seal"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-pow"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-slots"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-consensus-uncles"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-executor"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-executor-common"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-executor-wasmi"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-executor-wasmtime"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-finality-grandpa"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-finality-grandpa-rpc"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-finality-grandpa-warp-sync"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-informant"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-keystore"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-light"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-network"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-network-gossip"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-network-test"
+version = "0.8.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-offchain"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-peerset"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-proposer-metrics"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-rpc"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-rpc-api"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-rpc-server"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-runtime-test"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-service"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-service-test"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-state-db"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-sync-state-rpc"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-telemetry"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-tracing"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-tracing-proc-macro"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-transaction-graph"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sc-transaction-pool"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-allocator"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-api"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-api-proc-macro"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-api-test"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-application-crypto"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-application-crypto-test"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-arithmetic"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-arithmetic-fuzzer"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-authority-discovery"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-authorship"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-block-builder"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-blockchain"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-chain-spec"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus-aura"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus-babe"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus-pow"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus-slots"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-consensus-vrf"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-core"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-database"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-debug-derive"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-externalities"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-finality-grandpa"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-inherents"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-io"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-keyring"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-keystore"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-maybe-compressed-blob"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-npos-elections"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-npos-elections-compact"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-npos-elections-fuzzer"
+version = "2.0.0-alpha.5"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-offchain"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-panic-handler"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-rpc"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime-interface"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime-interface-proc-macro"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime-interface-test"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime-interface-test-wasm"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-runtime-interface-test-wasm-deprecated"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-sandbox"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-serializer"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-session"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-staking"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-state-machine"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-std"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-storage"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-tasks"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-test-primitives"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-timestamp"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-tracing"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-transaction-pool"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-trie"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-utils"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-version"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "sp-wasm-interface"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "subkey"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-browser-utils"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-build-script-utils"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-frame-cli"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-frame-rpc-support"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-frame-rpc-system"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-prometheus-endpoint"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-client"
+version = "2.0.1"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-runtime"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-runtime-client"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-runtime-transaction-pool"
+version = "2.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-utils"
+version = "3.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-utils-derive"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-test-utils-test-crate"
+version = "0.1.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "substrate-wasm-builder"
+version = "4.0.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "test-runner"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "test-runner-example"
+version = "0.1.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
+
+[[patch.unused]]
+name = "try-runtime-cli"
+version = "0.9.0"
+source = "git+https://github.com/tomaka/polkadot?branch=hacks-peerset#e63f0eec0e7ec580238ec2075f2611130a9eeecf"
