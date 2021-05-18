@@ -25,11 +25,11 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-network = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-application-crypto = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+substrate-prometheus-endpoint = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

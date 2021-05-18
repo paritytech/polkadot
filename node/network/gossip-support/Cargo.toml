@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-application-crypto = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }

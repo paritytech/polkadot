@@ -23,13 +23,13 @@ rand = "0.8.3"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-executor = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sc-executor-wasmtime = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sc-executor-common = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-externalities = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-io = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-wasm-interface = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

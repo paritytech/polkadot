@@ -23,12 +23,12 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false, optional = true }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" , default-features = false }
+frame-support = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false }
+sp-state-machine = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false, optional = true }
+sp-std = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false }
+sp-trie = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" , default-features = false }
 
 [features]
 default = ["std"]

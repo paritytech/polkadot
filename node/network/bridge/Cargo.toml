@@ -10,9 +10,9 @@ futures = "0.3.12"
 tracing = "0.1.25"
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sc-authority-discovery = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sc-network = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-consensus = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
@@ -22,6 +22,6 @@ parking_lot = "0.11.1"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.1" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
+sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "hacks-peerset" }
 futures-timer = "3"
