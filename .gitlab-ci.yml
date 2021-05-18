@@ -366,6 +366,7 @@ deploy-polkasync-kusama:
 trigger-simnet:
   stage:                           deploy
   image:                           paritytech/tools:latest
+  <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
