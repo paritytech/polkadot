@@ -1261,14 +1261,6 @@ mod tests {
 					}
 				) => {}
 			);
-			assert_matches!(
-				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ConnectToValidators {
-						..
-					}
-				) => {}
-			);
 		}
 
 		DistributeCollation {
