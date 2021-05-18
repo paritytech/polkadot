@@ -1457,57 +1457,6 @@ construct_runtime! {
 	}
 }
 
-pub struct ParachainHostConfigurationMigration;
-impl frame_support::traits::OnRuntimeUpgrade for ParachainHostConfigurationMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		let config = parachains_configuration::HostConfiguration {
-			max_code_size: MaxCodeSize::get(),
-			max_head_data_size: MaxHeadSize::get(),
-			max_upward_queue_count: 10,
-			max_upward_queue_size: 50 * 1024,
-			max_upward_message_size: 50 * 1024,
-			max_upward_message_num_per_candidate: 10,
-			hrmp_max_message_num_per_candidate: 10,
-			validation_upgrade_frequency: 1 * DAYS,
-			validation_upgrade_delay: EPOCH_DURATION_IN_SLOTS,
-			max_pov_size: MAX_POV_SIZE,
-			max_downward_message_size: 50 * 1024,
-			preferred_dispatchable_upward_messages_step_weight: 0,
-			hrmp_max_parachain_outbound_channels: 10,
-			hrmp_max_parathread_outbound_channels: 0,
-			hrmp_open_request_ttl: 2,
-			hrmp_sender_deposit: deposit(1004, 100 * 1024),
-			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
-			hrmp_channel_max_capacity: 1000,
-			hrmp_channel_max_total_size: 100 * 1024,
-			hrmp_max_parachain_inbound_channels: 10,
-			hrmp_max_parathread_inbound_channels: 0,
-			hrmp_channel_max_message_size: 100 * 1024,
-			code_retention_period: 2 * DAYS,
-			parathread_cores: 0,
-			parathread_retries: 0,
-			group_rotation_frequency: 1 * MINUTES,
-			chain_availability_period: 1 * MINUTES,
-			thread_availability_period: 1 * MINUTES,
-			scheduling_lookahead: 1,
-			max_validators_per_core: Some(5),
-			max_validators: Some(200),
-			dispute_period: 6,
-			dispute_post_conclusion_acceptance_period: 1 * HOURS,
-			dispute_max_spam_slots: 2,
-			dispute_conclusion_by_time_out_period: 1 * HOURS,
-			no_show_slots: 2,
-			n_delay_tranches: 89,
-			zeroth_delay_tranche_width: 0,
-			needed_approvals: 30,
-			relay_vrf_modulo_samples: 1,
-		};
-
-		ParachainsConfiguration::force_set_active_config(config);
-		RocksDbWeight::get().writes(1)
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1537,7 +1486,6 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	ParachainHostConfigurationMigration,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
