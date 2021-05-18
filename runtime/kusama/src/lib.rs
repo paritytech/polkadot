@@ -53,7 +53,8 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation, NetworkId, BodyId, Xcm, MultiAsset};
+use xcm::v0::{MultiLocation::{self, Null, X1}, NetworkId, BodyId, Xcm, Junction::Parachain};
+use xcm::v0::MultiAsset::{self, AllConcreteFungible};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
@@ -119,7 +120,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9011,
+	spec_version: 9020,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1218,6 +1219,14 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
+parameter_types! {
+	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
+		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+}
+pub type TrustedTeleporters = (
+	xcm_builder::Case<KusamaForStatemint>,
+);
+
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
 	// Weight that is paid for may be consumed.
@@ -1235,7 +1244,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
-	type IsTeleporter = ();
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
@@ -1263,8 +1272,7 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
 		use xcm::v0::{
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
-			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality, Parachain},
-			MultiLocation::{Null, X1},
+			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
 		};
 		match origin {
 			// Root and council are are allowed to execute anything.
