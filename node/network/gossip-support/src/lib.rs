@@ -18,6 +18,9 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
+#[cfg(test)]
+mod tests;
+
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
@@ -55,12 +58,18 @@ impl GossipSupport {
 		}
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context)
+	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
+		self.run_inner(ctx, &mut state).await;
+	}
+
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+	{
 		let Self { keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
@@ -177,7 +186,7 @@ impl State {
 
 				self.last_session_index = Some(new_session);
 				// issue another request if at least half of the authorities were not resolved
-				self.force_request = failures != 0 && (num / failures > 1);
+				self.force_request = failures != 0 && (num / failures <= 2);
 			}
 		}
 
