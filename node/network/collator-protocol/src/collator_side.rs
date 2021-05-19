@@ -455,8 +455,11 @@ async fn connect_to_validators(
 	ctx: &mut impl SubsystemContext,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 )  {
+	// ignore address resolution failure
+	// will reissue a new request on new collation
+	let (failed, _) = oneshot::channel();
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids, peer_set: PeerSet::Collation,
+		validator_ids, peer_set: PeerSet::Collation, failed,
 	})).await;
 }
 
