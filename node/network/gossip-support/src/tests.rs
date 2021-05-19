@@ -180,6 +180,50 @@ fn issues_a_connection_request_on_new_session() {
 
 	assert_eq!(state.last_session_index, Some(1));
 	assert!(!state.force_request);
+
+	// does on the new one
+	let hash = Hash::repeat_byte(0xCC);
+	let state = test_harness(state, |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		overseer_signal_active_leaves(overseer, hash).await;
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(2)).unwrap();
+			}
+		);
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Authorities(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(authorities())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+				validator_ids,
+				peer_set,
+				failed,
+			}) => {
+				assert_eq!(validator_ids, authorities());
+				assert_eq!(peer_set, PeerSet::Validation);
+				failed.send(0).unwrap();
+			}
+		);
+
+		virtual_overseer
+	});
+	assert_eq!(state.last_session_index, Some(2));
+	assert!(!state.force_request);
 }
 
 #[test]
