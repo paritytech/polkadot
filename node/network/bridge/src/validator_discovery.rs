@@ -253,7 +253,7 @@ mod tests {
 			).await;
 
 			let (failed, _) = oneshot::channel();
-			let _ = service.on_request(
+			let (_, ads) = service.on_request(
 				vec![authority_ids[1].clone()],
 				PeerSet::Validation,
 				failed,
@@ -263,6 +263,35 @@ mod tests {
 
 			let state = &service.state[PeerSet::Validation];
 			assert_eq!(state.previously_requested.len(), 1);
+			assert!(state.previously_requested.contains(ads.by_authority_id.get(&authority_ids[1]).unwrap()));
+		});
+	}
+
+	#[test]
+	fn failed_resolution_is_reported_properly() {
+		let mut service = new_service();
+
+		let (ns, ads) = new_network();
+
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let (failed, failed_rx) = oneshot::channel();
+			let unknown = Sr25519Keyring::Ferdie.public().into();
+			let (_, ads) = service.on_request(
+				vec![authority_ids[0].clone(), unknown],
+				PeerSet::Validation,
+				failed,
+				ns,
+				ads,
+			).await;
+
+			let state = &service.state[PeerSet::Validation];
+			assert_eq!(state.previously_requested.len(), 1);
+			assert!(state.previously_requested.contains(ads.by_authority_id.get(&authority_ids[0]).unwrap()));
+
+			let failed = failed_rx.await.unwrap();
+			assert_eq!(failed, 1);
 		});
 	}
 }
