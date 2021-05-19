@@ -495,9 +495,8 @@ impl<T: Config> Pallet<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
+						Self::deposit_event(Event::<T>::Unreserved(who, amount));
 					}
-
-					Self::deposit_event(Event::<T>::Unreserved(who, amount));
 				}
 			}
 
