@@ -486,7 +486,7 @@ impl<T: Config> Pallet<T> {
 			let mut outgoing_winner = Some((bidder.clone(), para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
-				if !is_ending && current_winning.iter()
+				if !is_ending.is_some() && current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
