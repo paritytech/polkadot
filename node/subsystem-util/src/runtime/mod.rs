@@ -24,7 +24,7 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
-use polkadot_node_subsystem::SubsystemContext;
+use polkadot_overseer_gen::SubsystemContext;
 
 use crate::{
 	request_session_index_for_child, request_session_info,
@@ -225,7 +225,7 @@ pub fn check_signature<Payload, RealPayload>(
 	session_info: &SessionInfo,
 	relay_parent: Hash,
 	signed: UncheckedSigned<Payload, RealPayload>,
-) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>> 
+) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>
 where
 	Payload: EncodeAs<RealPayload> + Clone,
 	RealPayload: Encode + Clone,
@@ -243,7 +243,7 @@ where
 
 /// Request availability cores from the runtime.
 pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
-	-> Result<Vec<CoreState>> 
+	-> Result<Vec<CoreState>>
 	where
 		Context: SubsystemContext,
 {

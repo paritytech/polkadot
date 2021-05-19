@@ -94,7 +94,7 @@ impl RollingSessionWindow {
 // This returns the entire ancestry up to the last finalized block's height or the last item we
 // have in the DB. This may be somewhat expensive when first recovering from major sync.
 async fn determine_new_blocks(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	db: &impl DBReader,
 	head: Hash,
 	header: &Header,
@@ -196,7 +196,7 @@ async fn determine_new_blocks(
 struct SessionsUnavailable;
 
 async fn load_all_sessions(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	block_hash: Hash,
 	start: SessionIndex,
 	end_inclusive: SessionIndex,
@@ -238,7 +238,7 @@ async fn load_all_sessions(
 //
 // some backwards drift in session index is acceptable.
 async fn cache_session_info_for_head(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	session_window: &mut RollingSessionWindow,
 	block_hash: Hash,
 	block_header: &Header,
@@ -357,7 +357,7 @@ struct ImportedBlockInfoEnv<'a> {
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
 // failure to communicate with overseer,
 async fn imported_block_info(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -558,7 +558,7 @@ pub struct BlockImportedCandidates {
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
 pub(crate) async fn handle_new_head(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	state: &mut State<impl DBReader>,
 	db_writer: &dyn KeyValueDB,
 	db_config: DatabaseConfig,
@@ -816,7 +816,6 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_primitives::v1::ValidatorIndex;
-	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
 	use sp_runtime::{Digest, DigestItem};
 	use sp_consensus_babe::{

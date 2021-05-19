@@ -98,7 +98,7 @@ impl GossipSupport {
 }
 
 async fn determine_relevant_authorities(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
@@ -122,7 +122,7 @@ async fn ensure_i_am_an_authority(
 
 /// A helper function for making a `ConnectToValidators` request.
 pub async fn connect_to_authorities(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
 ) -> oneshot::Sender<()> {
@@ -145,7 +145,7 @@ impl State {
 	///    and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut impl SubsystemContext<AllMessages>,
 		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {

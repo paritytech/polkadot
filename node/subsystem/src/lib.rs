@@ -38,8 +38,6 @@ pub mod messages;
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-use self::messages::AllMessages;
-
 /// How many slots are stack-reserved for active leaves updates
 ///
 /// If there are fewer than this number of slots, then we've wasted some stack space.
@@ -126,24 +124,6 @@ pub enum OverseerSignal {
 	Conclude,
 }
 
-/// A message type that a subsystem receives from an overseer.
-/// It wraps signals from an overseer and messages that are circulating
-/// between subsystems.
-///
-/// It is generic over over the message type `M` that a particular `Subsystem` may use.
-#[derive(Debug)]
-pub enum FromOverseer<M> {
-	/// Signal from the `Overseer`.
-	Signal(OverseerSignal),
-
-	/// Some other `Subsystem`'s message.
-	Communication {
-		/// Contained message
-		msg: M,
-	},
-}
-
-
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -195,148 +175,7 @@ impl SubsystemError {
 	}
 }
 
-/// An asynchronous subsystem task..
-///
-/// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem {
-	/// Name of the subsystem being spawned.
-	pub name: &'static str,
-	/// The task of the subsystem being spawned.
-	pub future: BoxFuture<'static, SubsystemResult<()>>,
-}
-
 /// A `Result` type that wraps [`SubsystemError`].
 ///
 /// [`SubsystemError`]: struct.SubsystemError.html
 pub type SubsystemResult<T> = Result<T, SubsystemError>;
-
-/// A sender used by subsystems to communicate with other subsystems.
-///
-/// Each clone of this type may add more capacity to the bounded buffer, so clones should
-/// be used sparingly.
-#[async_trait]
-pub trait SubsystemSender: Send + Clone + 'static {
-	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages);
-
-	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
-
-	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
-	/// type.
-	///
-	/// This function should be used only when there is some other bounding factor on the messages
-	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: AllMessages);
-}
-
-/// A context type that is given to the [`Subsystem`] upon spawning.
-/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
-/// or spawn jobs.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`SubsystemJob`]: trait.SubsystemJob.html
-#[async_trait]
-pub trait SubsystemContext: Send + Sized + 'static {
-	/// The message type of this context. Subsystems launched with this context will expect
-	/// to receive messages of this type.
-	type Message: Send;
-
-	/// The message sender type of this context. Clones of the sender should be used sparingly.
-	type Sender: SubsystemSender;
-
-	/// Try to asynchronously receive a message.
-	///
-	/// This has to be used with caution, if you loop over this without
-	/// using `pending!()` macro you will end up with a busy loop!
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()>;
-
-	/// Receive a message.
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
-
-	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
-
-	/// Spawn a blocking child task on the executor's dedicated thread pool.
-	async fn spawn_blocking(
-		&mut self,
-		name: &'static str,
-		s: Pin<Box<dyn Future<Output = ()> + Send>>,
-	) -> SubsystemResult<()>;
-
-	/// Get a mutable reference to the sender.
-	fn sender(&mut self) -> &mut Self::Sender;
-
-	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.sender().send_message(msg).await
-	}
-
-	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
-	{
-		self.sender().send_messages(msgs).await
-	}
-
-
-	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
-	/// type.
-	///
-	/// This function should be used only when there is some other bounding factor on the messages
-	/// sent with it. Otherwise, it risks a memory leak.
-	///
-	/// Generally, for this method to be used, these conditions should be met:
-	/// * There is a communication cycle between subsystems
-	/// * One of the parts of the cycle has a clear bound on the number of messages produced.
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.sender().send_unbounded_message(msg)
-	}
-}
-
-/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
-///
-/// It is generic over the message type circulating in the system.
-/// The idea that we want some type contaning persistent state that
-/// can spawn actually running subsystems when asked to.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
-pub trait Subsystem<C: SubsystemContext> {
-	/// Start this `Subsystem` and return `SpawnedSubsystem`.
-	fn start(self, ctx: C) -> SpawnedSubsystem;
-}
-
-/// A dummy subsystem that implements [`Subsystem`] for all
-/// types of messages. Used for tests or as a placeholder.
-pub struct DummySubsystem;
-
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
-where
-	C::Message: std::fmt::Debug
-{
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			loop {
-				match ctx.recv().await {
-					Err(_) => return Ok(()),
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
-					Ok(overseer_msg) => {
-						tracing::debug!(
-							target: "dummy-subsystem",
-							"Discarding a message sent from overseer {:?}",
-							overseer_msg
-						);
-						continue;
-					}
-				}
-			}
-		});
-
-		SpawnedSubsystem {
-			name: "dummy-subsystem",
-			future,
-		}
-	}
-}

@@ -32,7 +32,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages, ActivatedLeaf,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, ActivatedLeaf,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;

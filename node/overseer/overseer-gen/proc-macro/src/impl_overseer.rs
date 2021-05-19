@@ -77,24 +77,6 @@ pub(crate) fn impl_overseer_struct(
 		}
 
 		impl #generics #overseer_name #generics #where_clause {
-			pub async fn broadcast_signal(mut self, signal: #signal_ty) {
-				self.broadcast_signal(signal);
-
-				let mut stop_delay = ::polkadot_overseer_gen::Delay::new(STOP_DELAY).fuse();
-
-				loop {
-					select! {
-						_ = self.running_subsystems.next() => {
-							if self.running_subsystems.is_empty() {
-								break;
-							}
-						},
-						_ = stop_delay => break,
-						complete => break,
-					}
-				}
-			}
-
 			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> SubsystemResult<()> {
 				#(
 					self. #subsystem_name .send_signal(signal.clone()).await;
@@ -116,11 +98,7 @@ pub(crate) fn impl_overseer_struct(
 	};
 
 	ts.extend(impl_builder(info)?);
-	ts.extend(impl_subsystem_instance(info)?);
 	ts.extend(impl_overseen_subsystem(info)?);
-	ts.extend(impl_trait_subsystem(info)?);
-	ts.extend(impl_trait_subsystem_sender(info)?);
-
 	Ok(ts)
 }
 
@@ -201,7 +179,7 @@ pub(crate) fn impl_builder(
 				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
 			)*
 			#(
-				#baggage_name : ::std::option::Option< #baggage_name >,
+				#baggage_name : ::std::option::Option< #baggage_ty >,
 			)*
 			spawner: ::std::option::Option< S >,
 			_phantom_ctx: ::std::marker::PhantomData< Ctx >,
@@ -274,7 +252,7 @@ pub(crate) fn impl_builder(
 					// FIXME generate a builder pattern that ensures this
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
 
-					let #subsystem_name: OverseenSubsystem< #message_wrapper > = {
+					let #subsystem_name: OverseenSubsystem< #consumes > = {
 
 						let unbounded_meter = channels_out. #channel_name .meter().clone();
 
@@ -286,7 +264,7 @@ pub(crate) fn impl_builder(
 								channels_out. #channel_name_unbounded .clone(),
 							);
 
-						let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+						let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel::<Signal>(SIGNAL_CHANNEL_CAPACITY);
 
 						let ctx = create_subsystem_ctx(
 							signal_rx,
@@ -317,7 +295,7 @@ pub(crate) fn impl_builder(
 						})));
 
 						let instance = Some(
-							SubsystemInstance::< #message_wrapper > {
+							SubsystemInstance::< #consumes > {
 								meters: SubsystemMeters {
 									unbounded: unbounded_meter,
 									bounded: message_tx.meter().clone(),
@@ -330,7 +308,7 @@ pub(crate) fn impl_builder(
 							}
 						);
 
-						OverseenSubsystem::< #message_wrapper > {
+						OverseenSubsystem::< #consumes > {
 							instance,
 						}
 					};
@@ -365,31 +343,9 @@ pub(crate) fn impl_builder(
 
 
 
-
-pub(crate) fn impl_subsystem_instance(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
-	let signal = &info.extern_signal_ty;
-
-	let ts = quote::quote! {
-		/// A running instance of some [`Subsystem`].
-		///
-		/// [`Subsystem`]: trait.Subsystem.html
-		///
-		/// `M` here is the inner message type, and _not_ the generated `enum AllMessages`.
-		pub struct SubsystemInstance<M> {
-			tx_signal: ::polkadot_overseer_gen::metered::MeteredSender< #signal >,
-			tx_bounded: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket<M>>,
-			meters: SubsystemMeters,
-			signals_received: usize,
-			name: &'static str,
-		}
-	};
-
-	Ok(ts)
-}
-
-
 pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
+	let message_wrapper = &info.message_wrapper;
 
 	let ts = quote::quote! {
 
@@ -400,15 +356,15 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 		/// for whatever reason).
 		///
 		/// [`Subsystem`]: trait.Subsystem.html
-		pub struct OverseenSubsystem<M> {
-			pub instance: std::option::Option<SubsystemInstance<M>>,
+		pub struct OverseenSubsystem<Message> {
+			pub instance: std::option::Option<SubsystemInstance<Message, #signal>>,
 		}
 
-		impl<M> OverseenSubsystem<M> {
+		impl<Message> OverseenSubsystem<Message> {
 			/// Send a message to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_message(&mut self, msg: M) -> SubsystemResult<()> {
+			pub async fn send_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
 				const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
@@ -450,115 +406,6 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					Ok(())
 				}
 			}
-		}
-	};
-	Ok(ts)
-}
-
-
-pub(crate) fn impl_trait_subsystem_sender(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
-	let message_wrapper = &info.message_wrapper;
-
-	let ts = quote! {
-		#[::polkadot_overseer_gen::async_trait]
-		pub trait SubsystemSender: Send + Clone + 'static {
-			/// Send a direct message to some other `Subsystem`, routed based on message type.
-			async fn send_message(&mut self, msg: #message_wrapper);
-
-			/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-			async fn send_messages<T>(&mut self, msgs: T)
-				where T: IntoIterator<Item = #message_wrapper> + Send, T::IntoIter: Send;
-
-			/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
-			/// type.
-			///
-			/// This function should be used only when there is some other bounding factor on the messages
-			/// sent with it. Otherwise, it risks a memory leak.
-			fn send_unbounded_message(&mut self, msg: #message_wrapper);
-		}
-	};
-	Ok(ts)
-}
-
-
-
-pub(crate) fn impl_trait_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
-	let message_wrapper = &info.message_wrapper;
-	let error = &info.extern_error_ty;
-
-	let ts = quote! {
-		/// A message type that a subsystem receives from an overseer.
-		/// It wraps signals from an overseer and messages that are circulating
-		/// between subsystems.
-		///
-		/// It is generic over over the message type `M` that a particular `Subsystem` may use.
-		#[derive(Debug)]
-		pub enum FromOverseer<M,Signal> {
-			/// Signal from the `Overseer`.
-			Signal(Signal),
-
-			/// Some other `Subsystem`'s message.
-			Communication {
-				/// Contained message
-				msg: M,
-			},
-		}
-
-		/// A context type that is given to the [`Subsystem`] upon spawning.
-		/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
-		/// or spawn jobs.
-		///
-		/// [`Overseer`]: struct.Overseer.html
-		/// [`SubsystemJob`]: trait.SubsystemJob.html
-		#[::polkadot_overseer_gen::async_trait]
-		pub trait SubsystemContext: Send + 'static {
-			/// The message type of this context. Subsystems launched with this context will expect
-			/// to receive messages of this type.
-			type Message: Send + 'static;
-			type Signal: Send + 'static;
-			type Sender: Send + Clone + 'static;
-
-			/// Try to asynchronously receive a message.
-			///
-			/// This has to be used with caution, if you loop over this without
-			/// using `pending!()` macro you will end up with a busy loop!
-			async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
-
-			/// Receive a message.
-			async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message, Self::Signal>>;
-
-			/// Spawn a child task on the executor.
-			async fn spawn(&mut self, name: &'static str, s: ::std::pin::Pin<Box<dyn ::polkadot_overseer_gen::Future<Output = ()> + Send>>) -> SubsystemResult<()>;
-
-			/// Spawn a blocking child task on the executor's dedicated thread pool.
-			async fn spawn_blocking(
-				&mut self,
-				name: &'static str,
-				s: ::std::pin::Pin<Box<dyn ::polkadot_overseer_gen::Future<Output = ()> + Send>>,
-			) -> SubsystemResult<()>;
-
-			/// Send a direct message to some other `Subsystem`, routed based on message type.
-			async fn send_message(&mut self, msg: #message_wrapper);
-
-			/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-			async fn send_messages<T>(&mut self, msgs: T)
-				where T: IntoIterator<Item = #message_wrapper> + Send, T::IntoIter: Send;
-
-			/// Obtain the sender.
-			fn sender(&self) -> Self::Sender;
-		}
-
-		/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
-		///
-		/// It is generic over the message type circulating in the system.
-		/// The idea that we want some type contaning persistent state that
-		/// can spawn actually running subsystems when asked to.
-		///
-		/// [`Overseer`]: struct.Overseer.html
-		/// [`Subsystem`]: trait.Subsystem.html
-		pub trait Subsystem<Ctx: SubsystemContext> {
-			/// Start this `Subsystem` and return `SpawnedSubsystem`.
-			fn start(self, ctx: Ctx) -> SpawnedSubsystem < #error >;
 		}
 	};
 	Ok(ts)

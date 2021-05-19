@@ -538,7 +538,7 @@ where
 }
 
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
-	mut sender: impl SubsystemSender,
+	mut sender: impl SubsystemSender <AllMessages>,
 	mut network_service: impl Network,
 	mut network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
@@ -805,7 +805,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 #[tracing::instrument(skip(bridge, ctx, network_stream), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	bridge: NetworkBridge<N, AD>,
-	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+	mut ctx: impl SubsystemContext<AllMessages><Message=NetworkBridgeMessage>,
 	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where
@@ -902,7 +902,7 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 #[tracing::instrument(level = "trace", skip(net, ctx, shared, metrics), fields(subsystem = LOG_TARGET))]
 async fn update_our_view(
 	net: &mut impl Network,
-	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = NetworkBridgeMessage>,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
@@ -1054,21 +1054,21 @@ async fn send_collation_message<I>(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 ) {
 	for msg in AllMessages::dispatch_iter(event) {
 		ctx.send_unbounded_message(msg);
@@ -1077,7 +1077,7 @@ fn dispatch_validation_event_to_all_unbounded(
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 ) {
 	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdateV1) {
 		ctx.send_unbounded_message(msg.into());
@@ -1087,7 +1087,7 @@ fn dispatch_collation_event_to_all_unbounded(
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
@@ -1099,7 +1099,7 @@ async fn dispatch_validation_events_to_all<I>(
 #[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemSender
+	ctx: &mut impl SubsystemSender <AllMessages>
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,

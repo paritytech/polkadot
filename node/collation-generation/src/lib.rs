@@ -30,7 +30,7 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, AvailableData, PoV,
 };
 use polkadot_node_subsystem::{
-	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
+	messages::{CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{

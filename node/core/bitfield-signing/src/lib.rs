@@ -74,7 +74,7 @@ pub enum Error {
 async fn get_core_availability(
 	core: &CoreState,
 	validator_idx: ValidatorIndex,
-	sender: &Mutex<&mut impl SubsystemSender>,
+	sender: &Mutex<&mut impl SubsystemSender <AllMessages>>,
 	span: &jaeger::Span,
 ) -> Result<bool, Error> {
 	if let &CoreState::Occupied(ref core) = core {
@@ -112,7 +112,7 @@ async fn get_core_availability(
 /// delegates to the v1 runtime API
 async fn get_availability_cores(
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<Vec<CoreState>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -137,7 +137,7 @@ async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	span: &jaeger::Span,
 	validator_idx: ValidatorIndex,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
 	let availability_cores = {
@@ -319,7 +319,6 @@ mod tests {
 	use super::*;
 	use futures::{pin_mut, executor::block_on};
 	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
-	use polkadot_node_subsystem::messages::AllMessages;
 
 	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
 		CoreState::Occupied(OccupiedCore {

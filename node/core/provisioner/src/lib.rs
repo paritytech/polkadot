@@ -181,7 +181,7 @@ impl ProvisioningJob {
 
 	async fn run_loop(
 		mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
 		use ProvisionerMessage::{
@@ -223,7 +223,7 @@ impl ProvisioningJob {
 
 	async fn send_inherent_data(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
 		if let Err(err) = send_inherent_data(
@@ -283,7 +283,7 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	from_job: &mut impl SubsystemSender,
+	from_job: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(relay_parent, from_job)
 		.await
@@ -359,7 +359,7 @@ async fn select_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
@@ -478,7 +478,7 @@ async fn select_candidates(
 #[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender

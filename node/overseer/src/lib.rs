@@ -22,7 +22,7 @@
 //! check out that guide, documentation in this crate will be mostly discussing
 //! technical stuff.
 //!
-//! An `Overseer` is something that allows spawning/stopping and overseing
+//! An `Overseer` is something that allows spawning/stopping and overseeing
 //! asynchronous tasks as well as establishing a well-defined and easy to use
 //! protocol that the tasks can use to communicate with each other. It is desired
 //! that this protocol is the only way tasks communicate with each other, however
@@ -89,16 +89,22 @@ use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, GossipSupportMessage,
 };
 pub use polkadot_subsystem::{
-	OverseerSignal, SubsystemError,
-	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
+	OverseerSignal,
+	SubsystemResult, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
+
+/// TODO legacy, to be deleted, left for easier integration
+mod subsystems;
+use self::subsystems::{AllSubsystems, AllSubsystemsSame};
 
 mod metrics;
 use self::metrics::Metrics;
 
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
-use polkadot_node_primitives::SpawnNamed;
 use polkadot_overseer_gen::{
+	SpawnNamed,
+	SpawnedSubsystem,
+	SubsystemError,
 	SubsystemMeterReadouts,
 	SubsystemMeters,
 	SubsystemIncomingMessages,
@@ -140,209 +146,60 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 		self.runtime_api().has_api::<dyn ParachainHost<Block>>(&id).unwrap_or(false)
 	}
 }
-
-/// This struct is passed as an argument to create a new instance of an [`Overseer`].
+/// A handler used to communicate with the [`Overseer`].
 ///
-/// As any entity that satisfies the interface may act as a [`Subsystem`] this allows
-/// mocking in the test code:
-///
-/// Each [`Subsystem`] is supposed to implement some interface that is generic over
-/// message type that is specific to this [`Subsystem`]. At the moment not all
-/// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
-#[derive(Debug, Clone)]
-pub struct AllSubsystems<
-	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
-	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
-	GS = (),
-> {
-	/// A candidate validation subsystem.
-	pub candidate_validation: CV,
-	/// A candidate backing subsystem.
-	pub candidate_backing: CB,
-	/// A candidate selection subsystem.
-	pub candidate_selection: CS,
-	/// A statement distribution subsystem.
-	pub statement_distribution: SD,
-	/// An availability distribution subsystem.
-	pub availability_distribution: AD,
-	/// An availability recovery subsystem.
-	pub availability_recovery: AR,
-	/// A bitfield signing subsystem.
-	pub bitfield_signing: BS,
-	/// A bitfield distribution subsystem.
-	pub bitfield_distribution: BD,
-	/// A provisioner subsystem.
-	pub provisioner: P,
-	/// A runtime API subsystem.
-	pub runtime_api: RA,
-	/// An availability store subsystem.
-	pub availability_store: AS,
-	/// A network bridge subsystem.
-	pub network_bridge: NB,
-	/// A Chain API subsystem.
-	pub chain_api: CA,
-	/// A Collation Generation subsystem.
-	pub collation_generation: CG,
-	/// A Collator Protocol subsystem.
-	pub collator_protocol: CP,
-	/// An Approval Distribution subsystem.
-	pub approval_distribution: ApD,
-	/// An Approval Voting subsystem.
-	pub approval_voting: ApV,
-	/// A Connection Request Issuer subsystem.
-	pub gossip_support: GS,
+/// [`Overseer`]: struct.Overseer.html
+#[derive(Clone)]
+pub struct OverseerHandler2 {
+       events_tx: OverseerHandler,
 }
 
-impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
-	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
-{
-	/// Create a new instance of [`AllSubsystems`].
-	///
-	/// Each subsystem is set to [`DummySystem`].
-	///
-	///# Note
-	///
-	/// Because of a bug in rustc it is required that when calling this function,
-	/// you provide a "random" type for the first generic parameter:
-	///
-	/// ```
-	/// polkadot_overseer::AllSubsystems::<()>::dummy();
-	/// ```
-	pub fn dummy() -> AllSubsystems<
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-		DummySubsystem,
-	> {
-		AllSubsystems {
-			candidate_validation: DummySubsystem,
-			candidate_backing: DummySubsystem,
-			candidate_selection: DummySubsystem,
-			statement_distribution: DummySubsystem,
-			availability_distribution: DummySubsystem,
-			availability_recovery: DummySubsystem,
-			bitfield_signing: DummySubsystem,
-			bitfield_distribution: DummySubsystem,
-			provisioner: DummySubsystem,
-			runtime_api: DummySubsystem,
-			availability_store: DummySubsystem,
-			network_bridge: DummySubsystem,
-			chain_api: DummySubsystem,
-			collation_generation: DummySubsystem,
-			collator_protocol: DummySubsystem,
-			approval_distribution: DummySubsystem,
-			approval_voting: DummySubsystem,
-			gossip_support: DummySubsystem,
-		}
-	}
+impl OverseerHandler2 {
+       /// Inform the `Overseer` that that some block was imported.
+       #[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+       pub async fn block_imported(&mut self, block: BlockInfo) {
+               self.send_and_log_error(Event::BlockImported(block)).await
+       }
 
-	fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ CS, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
-		AllSubsystems {
-			candidate_validation: &self.candidate_validation,
-			candidate_backing: &self.candidate_backing,
-			candidate_selection: &self.candidate_selection,
-			statement_distribution: &self.statement_distribution,
-			availability_distribution: &self.availability_distribution,
-			availability_recovery: &self.availability_recovery,
-			bitfield_signing: &self.bitfield_signing,
-			bitfield_distribution: &self.bitfield_distribution,
-			provisioner: &self.provisioner,
-			runtime_api: &self.runtime_api,
-			availability_store: &self.availability_store,
-			network_bridge: &self.network_bridge,
-			chain_api: &self.chain_api,
-			collation_generation: &self.collation_generation,
-			collator_protocol: &self.collator_protocol,
-			approval_distribution: &self.approval_distribution,
-			approval_voting: &self.approval_voting,
-			gossip_support: &self.gossip_support,
-		}
-	}
+       /// Send some message to one of the `Subsystem`s.
+       #[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
+       pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
+               self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
+       }
 
-	fn map_subsystems<M>(self, m: M)
-		-> AllSubsystems<
-			<M as MapSubsystem<CV>>::Output,
-			<M as MapSubsystem<CB>>::Output,
-			<M as MapSubsystem<CS>>::Output,
-			<M as MapSubsystem<SD>>::Output,
-			<M as MapSubsystem<AD>>::Output,
-			<M as MapSubsystem<AR>>::Output,
-			<M as MapSubsystem<BS>>::Output,
-			<M as MapSubsystem<BD>>::Output,
-			<M as MapSubsystem<P>>::Output,
-			<M as MapSubsystem<RA>>::Output,
-			<M as MapSubsystem<AS>>::Output,
-			<M as MapSubsystem<NB>>::Output,
-			<M as MapSubsystem<CA>>::Output,
-			<M as MapSubsystem<CG>>::Output,
-			<M as MapSubsystem<CP>>::Output,
-			<M as MapSubsystem<ApD>>::Output,
-			<M as MapSubsystem<ApV>>::Output,
-			<M as MapSubsystem<GS>>::Output,
-		>
-	where
-		M: MapSubsystem<CV>,
-		M: MapSubsystem<CB>,
-		M: MapSubsystem<CS>,
-		M: MapSubsystem<SD>,
-		M: MapSubsystem<AD>,
-		M: MapSubsystem<AR>,
-		M: MapSubsystem<BS>,
-		M: MapSubsystem<BD>,
-		M: MapSubsystem<P>,
-		M: MapSubsystem<RA>,
-		M: MapSubsystem<AS>,
-		M: MapSubsystem<NB>,
-		M: MapSubsystem<CA>,
-		M: MapSubsystem<CG>,
-		M: MapSubsystem<CP>,
-		M: MapSubsystem<ApD>,
-		M: MapSubsystem<ApV>,
-		M: MapSubsystem<GS>,
-	{
-		AllSubsystems {
-			candidate_validation: m.map_subsystem(self.candidate_validation),
-			candidate_backing: m.map_subsystem(self.candidate_backing),
-			candidate_selection: m.map_subsystem(self.candidate_selection),
-			statement_distribution: m.map_subsystem(self.statement_distribution),
-			availability_distribution: m.map_subsystem(self.availability_distribution),
-			availability_recovery: m.map_subsystem(self.availability_recovery),
-			bitfield_signing: m.map_subsystem(self.bitfield_signing),
-			bitfield_distribution: m.map_subsystem(self.bitfield_distribution),
-			provisioner: m.map_subsystem(self.provisioner),
-			runtime_api: m.map_subsystem(self.runtime_api),
-			availability_store: m.map_subsystem(self.availability_store),
-			network_bridge: m.map_subsystem(self.network_bridge),
-			chain_api: m.map_subsystem(self.chain_api),
-			collation_generation: m.map_subsystem(self.collation_generation),
-			collator_protocol: m.map_subsystem(self.collator_protocol),
-			approval_distribution: m.map_subsystem(self.approval_distribution),
-			approval_voting: m.map_subsystem(self.approval_voting),
-			gossip_support: m.map_subsystem(self.gossip_support),
-		}
-	}
+       /// Inform the `Overseer` that some block was finalized.
+       #[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+       pub async fn block_finalized(&mut self, block: BlockInfo) {
+               self.send_and_log_error(Event::BlockFinalized(block)).await
+       }
+
+       /// Wait for a block with the given hash to be in the active-leaves set.
+       ///
+       /// The response channel responds if the hash was activated and is closed if the hash was deactivated.
+       /// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
+       /// the response channel may never return if the hash was deactivated before this call.
+       /// In this case, it's the caller's responsibility to ensure a timeout is set.
+       #[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
+       pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) {
+               self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
+                       hash,
+                       response_channel
+               })).await
+       }
+
+       /// Tell `Overseer` to shutdown.
+       #[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
+       pub async fn stop(&mut self) {
+               self.send_and_log_error(Event::Stop).await
+       }
+
+       async fn send_and_log_error(&mut self, event: Event) {
+               if self.events_tx.send(event).await.is_err() {
+                       tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+               }
+       }
 }
 
-type AllSubsystemsSame<T> = AllSubsystems<
-	T, T, T, T, T,
-	T, T, T, T, T,
-	T, T, T, T, T,
-	T, T, T,
->;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -429,7 +286,7 @@ enum ExternalRequest {
 /// [`OverseerHandler`]: struct.OverseerHandler.html
 pub async fn forward_events<P: BlockchainEvents<Block>>(
 	client: Arc<P>,
-	mut handler: OverseerHandler,
+	mut handler: OverseerHandler2,
 ) {
 	let mut finality = client.finality_notification_stream();
 	let mut imports = client.import_notification_stream();
@@ -483,11 +340,11 @@ pub struct OverseerSubsystemContext<M, Signal>{
 	metrics: Metrics,
 }
 
-impl<M, Signal> OverseerSubsystemContext<M, Signal> {
+impl<M, Signal> OverseerSubsystemContext<Message, Signal> {
 	/// Create a new `OverseerSubsystemContext`.
 	fn new(
 		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<M>,
+		messages: SubsystemIncomingMessages<Message>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 		metrics: Metrics,
@@ -513,7 +370,7 @@ impl<M, Signal> OverseerSubsystemContext<M, Signal> {
 	#[allow(unused)]
 	fn new_unmetered(
 		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<M>,
+		messages: SubsystemIncomingMessages<Message>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 	) -> Self {
@@ -548,7 +405,7 @@ impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSub
 					// wait for next signal.
 					let signal = self.signals.next().await
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Signal channel is terminated and empty."
 							.to_owned()
 						))?;
 
@@ -567,7 +424,7 @@ impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSub
 				signal = await_signal => {
 					let signal = signal
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Signal channel is terminated and empty."
 							.to_owned()
 						))?;
 
@@ -576,7 +433,7 @@ impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSub
 				msg = await_message => {
 					let packet = msg
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Message channel is terminated and empty."
 							.to_owned()
 						))?;
 
@@ -622,35 +479,34 @@ impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSub
 	}
 }
 
-
 /// The `Overseer` itself.
-#[overlord(gen=AllMessages, event=Event, signal=OverseerSignal, error=SubsystemResult)]
+#[overlord(gen=AllMessages, event=Event, signal=OverseerSignal, error=SubsystemError)]
 pub struct Overseer<SupportsParachains> {
-	#[subsystem(no_dispatch, blocking, CandidateValidationMessage)]
+	#[subsystem(no_dispatch, CandidateValidationMessage)]
 	candidate_validation_message: CandidateValidation,
 
-	#[subsystem(no_dispatch, blocking, CandidateBackingMessage)]
+	#[subsystem(no_dispatch, CandidateBackingMessage)]
 	candidate_backing_message: CandidateBacking,
 
-	#[subsystem(no_dispatch, blocking, CandidateSelectionMessage)]
+	#[subsystem(no_dispatch, CandidateSelectionMessage)]
 	candidate_selection_message: CandidateSelection,
 
-	#[subsystem(no_dispatch, blocking, StatementDistributionMessage)]
+	#[subsystem(StatementDistributionMessage)]
 	statement_distribution_message: StatementDistribution,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityDistributionMessage)]
+	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
 	availability_distribution_message: AvailabilityDistribution,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityRecoveryMessage)]
+	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
 	availability_recovery_message: AvailabilityRecovery,
 
-	#[subsystem(no_dispatch, blocking, BitfieldSigningMessage)]
+	#[subsystem(blocking, BitfieldSigningMessage)]
 	bitfield_signing_message: BitfieldSigning,
 
-	#[subsystem(no_dispatch, blocking, BitfieldDistributionMessage)]
+	#[subsystem(no_dispatch, BitfieldDistributionMessage)]
 	bitfield_distribution_message: BitfieldDistribution,
 
-	#[subsystem(no_dispatch, blocking, ProvisionerMessage)]
+	#[subsystem(no_dispatch, ProvisionerMessage)]
 	provisioner_message: Provisioner,
 
 	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
@@ -659,25 +515,25 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
 	availability_store_message: AvailabilityStore,
 
-	#[subsystem(no_dispatch, blocking, NetworkBridgeMessage)]
+	#[subsystem(no_dispatch, NetworkBridgeMessage)]
 	network_bridge_message: NetworkBridge,
 
 	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
 	chain_api_message: ChainApi,
 
-	#[subsystem(no_dispatch, blocking, CollationGenerationMessage)]
+	#[subsystem(no_dispatch, CollationGenerationMessage)]
 	collation_generation_message: CollationGeneration,
 
-	#[subsystem(no_dispatch, blocking, CollatorProtocolMessage)]
+	#[subsystem(no_dispatch, CollatorProtocolMessage)]
 	collator_protocol_message: CollatorProtocol,
 
-	#[subsystem(no_dispatch, blocking, ApprovalDistributionMessage)]
+	#[subsystem(ApprovalDistributionMessage)]
 	approval_distribution_message: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	#[subsystem(no_dispatch, ApprovalVotingMessage)]
 	approval_voting_message: ApprovalVoting,
 
-	#[subsystem(no_dispatch, blocking, GossipSupportMessage)]
+	#[subsystem(no_dispatch, GossipSupportMessage)]
 	gossip_support_message: GossipSupport,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
@@ -880,7 +736,7 @@ where
 			.approval_distribution(all_subsystems.approval_distribution)
 			.approval_voting(all_subsystems.approval_voting)
 			.gossip_support(all_subsystems.gossip_support)
-			.leaves(leaves.collect())
+			.leaves(Vec::from_iter(leaves))
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
@@ -892,8 +748,8 @@ where
 	}
 
 	// Stop the overseer.
-	async fn stop2(mut self) {
-		self.stop(Overseer::Conclude).await
+	async fn stop(mut self) {
+		self.wait_for_terminate(OverseerSignal::Conclude).await
 	}
 
 	/// Run the `Overseer`.
@@ -1109,1012 +965,33 @@ where
 	}
 }
 
-enum TaskKind {
-	Regular,
-	Blocking,
+
+#[derive(Debug, Clone)]
+pub struct OverseerSubsystemSender {
+	channels: ChannelsOut,
+	signals_received: SignalsReceived,
 }
+
+#[::polkadot_overseer_gen::async_trait]
+impl SubsystemSender <AllMessages><AllMessages> for OverseerSubsystemSender {
+	async fn send_message(&mut self, msg: AllMessages) {
+		self.channels.send_and_log_error(self.signals_received.load(), msg).await;
+	}
+
+	async fn send_messages<T>(&mut self, msgs: AllMessages)
+		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send
+	{
+		// This can definitely be optimized if necessary.
+		for msg in msgs {
+			self.send_message(msg).await;
+		}
+	}
+
+	fn send_unbounded_message(&mut self, msg: AllMessages) {
+		self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+	}
+}
+
 
 #[cfg(test)]
-mod tests {
-	use std::sync::atomic;
-	use std::collections::HashMap;
-	use futures::{executor, pin_mut, select, FutureExt, pending};
-
-	use polkadot_primitives::v1::{CollatorPair, CandidateHash};
-	use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, jaeger};
-	use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, BlockData};
-	use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
-	use polkadot_node_subsystem_util::metered;
-
-	use sp_core::crypto::Pair as _;
-	use assert_matches::assert_matches;
-
-	use super::*;
-
-	struct TestSubsystem1(metered::MeteredSender<usize>);
-
-	impl<C> Subsystem<C> for TestSubsystem1
-		where C: SubsystemContext<Message=CandidateValidationMessage>
-	{
-		fn start(self, mut ctx: C) -> SpawnedSubsystem {
-			let mut sender = self.0;
-			SpawnedSubsystem {
-				name: "test-subsystem-1",
-				future: Box::pin(async move {
-					let mut i = 0;
-					loop {
-						match ctx.recv().await {
-							Ok(FromOverseer::Communication { .. }) => {
-								let _ = sender.send(i).await;
-								i += 1;
-								continue;
-							}
-							Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
-							Err(_) => return Ok(()),
-							_ => (),
-						}
-					}
-				}),
-			}
-		}
-	}
-
-	struct TestSubsystem2(metered::MeteredSender<usize>);
-
-	impl<C> Subsystem<C> for TestSubsystem2
-		where C: SubsystemContext<Message=CandidateBackingMessage>
-	{
-		fn start(self, mut ctx: C) -> SpawnedSubsystem {
-			let sender = self.0.clone();
-			SpawnedSubsystem {
-				name: "test-subsystem-2",
-				future: Box::pin(async move {
-					let _sender = sender;
-					let mut c: usize = 0;
-					loop {
-						if c < 10 {
-							let (tx, _) = oneshot::channel();
-							ctx.send_message(
-								AllMessages::CandidateValidation(
-									CandidateValidationMessage::ValidateFromChainState(
-										Default::default(),
-										PoV {
-											block_data: BlockData(Vec::new()),
-										}.into(),
-										tx,
-									)
-								)
-							).await;
-							c += 1;
-							continue;
-						}
-						match ctx.try_recv().await {
-							Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => {
-								break;
-							}
-							Ok(Some(_)) => {
-								continue;
-							}
-							Err(_) => return Ok(()),
-							_ => (),
-						}
-						pending!();
-					}
-
-					Ok(())
-				}),
-			}
-		}
-	}
-
-	struct ReturnOnStart;
-
-	impl<C> Subsystem<C> for ReturnOnStart
-		where C: SubsystemContext<Message=CandidateBackingMessage>
-	{
-		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
-			SpawnedSubsystem {
-				name: "test-subsystem-4",
-				future: Box::pin(async move {
-					// Do nothing and exit.
-					Ok(())
-				}),
-			}
-		}
-	}
-
-	struct MockSupportsParachains;
-
-	impl HeadSupportsParachains for MockSupportsParachains {
-		fn head_supports_parachains(&self, _head: &Hash) -> bool {
-			true
-		}
-	}
-
-	// Checks that a minimal configuration of two jobs can run and exchange messages.
-	#[test]
-	fn overseer_works() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let (s1_tx, s1_rx) = metered::channel::<usize>(64);
-			let (s2_tx, s2_rx) = metered::channel::<usize>(64);
-
-			let mut s1_rx = s1_rx.fuse();
-			let mut s2_rx = s2_rx.fuse();
-
-			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem1(s1_tx))
-				.replace_candidate_backing(TestSubsystem2(s2_tx));
-
-			let (overseer, mut handler) = Overseer::new(
-				vec![],
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-
-			pin_mut!(overseer_fut);
-
-			let mut s1_results = Vec::new();
-			let mut s2_results = Vec::new();
-
-			loop {
-				select! {
-					_ = overseer_fut => break,
-					s1_next = s1_rx.next() => {
-						match s1_next {
-							Some(msg) => {
-								s1_results.push(msg);
-								if s1_results.len() == 10 {
-									handler.stop().await;
-								}
-							}
-							None => break,
-						}
-					},
-					s2_next = s2_rx.next() => {
-						match s2_next {
-							Some(_) => s2_results.push(s2_next),
-							None => break,
-						}
-					},
-					complete => break,
-				}
-			}
-
-			assert_eq!(s1_results, (0..10).collect::<Vec<_>>());
-		});
-	}
-
-	// Checks activated/deactivated metrics are updated properly.
-	#[test]
-	fn overseer_metrics_work() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let first_block_hash = [1; 32].into();
-			let second_block_hash = [2; 32].into();
-			let third_block_hash = [3; 32].into();
-
-			let first_block = BlockInfo {
-				hash: first_block_hash,
-				parent_hash: [0; 32].into(),
-				number: 1,
-			};
-			let second_block = BlockInfo {
-				hash: second_block_hash,
-				parent_hash: first_block_hash,
-				number: 2,
-			};
-			let third_block = BlockInfo {
-				hash: third_block_hash,
-				parent_hash: second_block_hash,
-				number: 3,
-			};
-
-			let all_subsystems = AllSubsystems::<()>::dummy();
-			let registry = prometheus::Registry::new();
-			let (overseer, mut handler) = Overseer::new(
-				vec![first_block],
-				all_subsystems,
-				Some(&registry),
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-
-			pin_mut!(overseer_fut);
-
-			handler.block_imported(second_block).await;
-			handler.block_imported(third_block).await;
-			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-			handler.stop().await;
-
-			select! {
-				res = overseer_fut => {
-					assert!(res.is_ok());
-					let metrics = extract_metrics(&registry);
-					assert_eq!(metrics["activated"], 3);
-					assert_eq!(metrics["deactivated"], 2);
-					assert_eq!(metrics["relayed"], 1);
-				},
-				complete => (),
-			}
-		});
-	}
-
-	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
-		let gather = registry.gather();
-		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
-		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
-		assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");
-		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
-		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
-		let mut result = HashMap::new();
-		result.insert("activated", activated);
-		result.insert("deactivated", deactivated);
-		result.insert("relayed", relayed);
-		result
-	}
-
-	// Spawn a subsystem that immediately exits.
-	//
-	// Should immediately conclude the overseer itself.
-	#[test]
-	fn overseer_ends_on_subsystem_exit() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_backing(ReturnOnStart);
-			let (overseer, _handle) = Overseer::new(
-				vec![],
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-
-			overseer.run().await.unwrap();
-		})
-	}
-
-	struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
-
-	impl<C> Subsystem<C> for TestSubsystem5
-		where C: SubsystemContext<Message=CandidateValidationMessage>
-	{
-		fn start(self, mut ctx: C) -> SpawnedSubsystem {
-			let mut sender = self.0.clone();
-
-			SpawnedSubsystem {
-				name: "test-subsystem-5",
-				future: Box::pin(async move {
-					loop {
-						match ctx.try_recv().await {
-							Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-							Ok(Some(FromOverseer::Signal(s))) => {
-								sender.send(s).await.unwrap();
-								continue;
-							},
-							Ok(Some(_)) => continue,
-							Err(_) => break,
-							_ => (),
-						}
-						pending!();
-					}
-
-					Ok(())
-				}),
-			}
-		}
-	}
-
-	struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
-
-	impl<C> Subsystem<C> for TestSubsystem6
-		where C: SubsystemContext<Message=CandidateBackingMessage>
-	{
-		fn start(self, mut ctx: C) -> SpawnedSubsystem {
-			let mut sender = self.0.clone();
-
-			SpawnedSubsystem {
-				name: "test-subsystem-6",
-				future: Box::pin(async move {
-					loop {
-						match ctx.try_recv().await {
-							Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-							Ok(Some(FromOverseer::Signal(s))) => {
-								sender.send(s).await.unwrap();
-								continue;
-							},
-							Ok(Some(_)) => continue,
-							Err(_) => break,
-							_ => (),
-						}
-						pending!();
-					}
-
-					Ok(())
-				}),
-			}
-		}
-	}
-
-	// Tests that starting with a defined set of leaves and receiving
-	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
-	#[test]
-	fn overseer_start_stop_works() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let first_block_hash = [1; 32].into();
-			let second_block_hash = [2; 32].into();
-			let third_block_hash = [3; 32].into();
-
-			let first_block = BlockInfo {
-				hash: first_block_hash,
-				parent_hash: [0; 32].into(),
-				number: 1,
-			};
-			let second_block = BlockInfo {
-				hash: second_block_hash,
-				parent_hash: first_block_hash,
-				number: 2,
-			};
-			let third_block = BlockInfo {
-				hash: third_block_hash,
-				parent_hash: second_block_hash,
-				number: 3,
-			};
-
-			let (tx_5, mut rx_5) = metered::channel(64);
-			let (tx_6, mut rx_6) = metered::channel(64);
-			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem5(tx_5))
-				.replace_candidate_backing(TestSubsystem6(tx_6));
-			let (overseer, mut handler) = Overseer::new(
-				vec![first_block],
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
-
-			let mut ss5_results = Vec::new();
-			let mut ss6_results = Vec::new();
-
-			handler.block_imported(second_block).await;
-			handler.block_imported(third_block).await;
-
-			let expected_heartbeats = vec![
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: first_block_hash,
-					number: 1,
-					span: Arc::new(jaeger::Span::Disabled),
-				})),
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [ActivatedLeaf {
-						hash: second_block_hash,
-						number: 2,
-						span: Arc::new(jaeger::Span::Disabled),
-					}].as_ref().into(),
-					deactivated: [first_block_hash].as_ref().into(),
-				}),
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [ActivatedLeaf {
-						hash: third_block_hash,
-						number: 3,
-						span: Arc::new(jaeger::Span::Disabled),
-					}].as_ref().into(),
-					deactivated: [second_block_hash].as_ref().into(),
-				}),
-			];
-
-			loop {
-				select! {
-					res = overseer_fut => {
-						assert!(res.is_ok());
-						break;
-					},
-					res = rx_5.next() => {
-						if let Some(res) = res {
-							ss5_results.push(res);
-						}
-					}
-					res = rx_6.next() => {
-						if let Some(res) = res {
-							ss6_results.push(res);
-						}
-					}
-					complete => break,
-				}
-
-				if ss5_results.len() == expected_heartbeats.len() &&
-					ss6_results.len() == expected_heartbeats.len() {
-						handler.stop().await;
-				}
-			}
-
-			assert_eq!(ss5_results, expected_heartbeats);
-			assert_eq!(ss6_results, expected_heartbeats);
-		});
-	}
-
-	// Tests that starting with a defined set of leaves and receiving
-	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
-	#[test]
-	fn overseer_finalize_works() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let first_block_hash = [1; 32].into();
-			let second_block_hash = [2; 32].into();
-			let third_block_hash = [3; 32].into();
-
-			let first_block = BlockInfo {
-				hash: first_block_hash,
-				parent_hash: [0; 32].into(),
-				number: 1,
-			};
-			let second_block = BlockInfo {
-				hash: second_block_hash,
-				parent_hash: [42; 32].into(),
-				number: 2,
-			};
-			let third_block = BlockInfo {
-				hash: third_block_hash,
-				parent_hash: second_block_hash,
-				number: 3,
-			};
-
-			let (tx_5, mut rx_5) = metered::channel(64);
-			let (tx_6, mut rx_6) = metered::channel(64);
-
-			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_validation(TestSubsystem5(tx_5))
-				.replace_candidate_backing(TestSubsystem6(tx_6));
-
-			// start with two forks of different height.
-			let (overseer, mut handler) = Overseer::new(
-				vec![first_block, second_block],
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
-
-			let mut ss5_results = Vec::new();
-			let mut ss6_results = Vec::new();
-
-			// this should stop work on both forks we started with earlier.
-			handler.block_finalized(third_block).await;
-
-			let expected_heartbeats = vec![
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [
-						ActivatedLeaf {
-							hash: first_block_hash,
-							number: 1,
-							span: Arc::new(jaeger::Span::Disabled),
-						},
-						ActivatedLeaf {
-							hash: second_block_hash,
-							number: 2,
-							span: Arc::new(jaeger::Span::Disabled),
-						},
-					].as_ref().into(),
-					..Default::default()
-				}),
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					deactivated: [first_block_hash, second_block_hash].as_ref().into(),
-					..Default::default()
-				}),
-				OverseerSignal::BlockFinalized(third_block_hash, 3),
-			];
-
-			loop {
-				select! {
-					res = overseer_fut => {
-						assert!(res.is_ok());
-						break;
-					},
-					res = rx_5.next() => {
-						if let Some(res) = res {
-							ss5_results.push(res);
-						}
-					}
-					res = rx_6.next() => {
-						if let Some(res) = res {
-							ss6_results.push(res);
-						}
-					}
-					complete => break,
-				}
-
-				if ss5_results.len() == expected_heartbeats.len() && ss6_results.len() == expected_heartbeats.len() {
-					handler.stop().await;
-				}
-			}
-
-			assert_eq!(ss5_results.len(), expected_heartbeats.len());
-			assert_eq!(ss6_results.len(), expected_heartbeats.len());
-
-			// Notifications on finality for multiple blocks at once
-			// may be received in different orders.
-			for expected in expected_heartbeats {
-				assert!(ss5_results.contains(&expected));
-				assert!(ss6_results.contains(&expected));
-			}
-		});
-	}
-
-	#[test]
-	fn do_not_send_empty_leaves_update_on_block_finalization() {
-		let spawner = sp_core::testing::TaskExecutor::new();
-
-		executor::block_on(async move {
-			let imported_block = BlockInfo {
-				hash: Hash::random(),
-				parent_hash: Hash::random(),
-				number: 1,
-			};
-
-			let finalized_block = BlockInfo {
-				hash: Hash::random(),
-				parent_hash: Hash::random(),
-				number: 1,
-			};
-
-			let (tx_5, mut rx_5) = metered::channel(64);
-
-			let all_subsystems = AllSubsystems::<()>::dummy()
-				.replace_candidate_backing(TestSubsystem6(tx_5));
-
-			let (overseer, mut handler) = Overseer::new(
-				Vec::new(),
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-
-			let overseer_fut = overseer.run().fuse();
-			pin_mut!(overseer_fut);
-
-			let mut ss5_results = Vec::new();
-
-			handler.block_finalized(finalized_block.clone()).await;
-			handler.block_imported(imported_block.clone()).await;
-
-			let expected_heartbeats = vec![
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: [
-						ActivatedLeaf {
-							hash: imported_block.hash,
-							number: imported_block.number,
-							span: Arc::new(jaeger::Span::Disabled)
-						}
-					].as_ref().into(),
-					..Default::default()
-				}),
-				OverseerSignal::BlockFinalized(finalized_block.hash, 1),
-			];
-
-			loop {
-				select! {
-					res = overseer_fut => {
-						assert!(res.is_ok());
-						break;
-					},
-					res = rx_5.next() => {
-						if let Some(res) = dbg!(res) {
-							ss5_results.push(res);
-						}
-					}
-				}
-
-				if ss5_results.len() == expected_heartbeats.len() {
-					handler.stop().await;
-				}
-			}
-
-			assert_eq!(ss5_results.len(), expected_heartbeats.len());
-
-			for expected in expected_heartbeats {
-				assert!(ss5_results.contains(&expected));
-			}
-		});
-	}
-
-	#[derive(Clone)]
-	struct CounterSubsystem {
-		stop_signals_received: Arc<atomic::AtomicUsize>,
-		signals_received: Arc<atomic::AtomicUsize>,
-		msgs_received: Arc<atomic::AtomicUsize>,
-	}
-
-	impl CounterSubsystem {
-		fn new(
-			stop_signals_received: Arc<atomic::AtomicUsize>,
-			signals_received: Arc<atomic::AtomicUsize>,
-			msgs_received: Arc<atomic::AtomicUsize>,
-		) -> Self {
-			Self {
-				stop_signals_received,
-				signals_received,
-				msgs_received,
-			}
-		}
-	}
-
-	impl<C, M> Subsystem<C> for CounterSubsystem
-		where
-			C: SubsystemContext<Message=M>,
-			M: Send,
-	{
-		fn start(self, mut ctx: C) -> SpawnedSubsystem {
-			SpawnedSubsystem {
-				name: "counter-subsystem",
-				future: Box::pin(async move {
-					loop {
-						match ctx.try_recv().await {
-							Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => {
-								self.stop_signals_received.fetch_add(1, atomic::Ordering::SeqCst);
-								break;
-							},
-							Ok(Some(FromOverseer::Signal(_))) => {
-								self.signals_received.fetch_add(1, atomic::Ordering::SeqCst);
-								continue;
-							},
-							Ok(Some(FromOverseer::Communication { .. })) => {
-								self.msgs_received.fetch_add(1, atomic::Ordering::SeqCst);
-								continue;
-							},
-							Err(_) => (),
-							_ => (),
-						}
-						pending!();
-					}
-
-					Ok(())
-				}),
-			}
-		}
-	}
-
-	fn test_candidate_validation_msg() -> CandidateValidationMessage {
-		let (sender, _) = oneshot::channel();
-		let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
-		CandidateValidationMessage::ValidateFromChainState(Default::default(), pov, sender)
-	}
-
-	fn test_candidate_backing_msg() -> CandidateBackingMessage {
-		let (sender, _) = oneshot::channel();
-		CandidateBackingMessage::GetBackedCandidates(Default::default(), Vec::new(), sender)
-	}
-
-	fn test_candidate_selection_msg() -> CandidateSelectionMessage {
-		CandidateSelectionMessage::default()
-	}
-
-	fn test_chain_api_msg() -> ChainApiMessage {
-		let (sender, _) = oneshot::channel();
-		ChainApiMessage::FinalizedBlockNumber(sender)
-	}
-
-	fn test_collator_generation_msg() -> CollationGenerationMessage {
-		CollationGenerationMessage::Initialize(CollationGenerationConfig {
-			key: CollatorPair::generate().0,
-			collator: Box::new(|_, _| TestCollator.boxed()),
-			para_id: Default::default(),
-		})
-	}
-	struct TestCollator;
-
-	impl Future for TestCollator {
-		type Output = Option<CollationResult>;
-
-		fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
-			panic!("at the Disco")
-		}
-	}
-
-	impl Unpin for TestCollator {}
-
-	fn test_collator_protocol_msg() -> CollatorProtocolMessage {
-		CollatorProtocolMessage::CollateOn(Default::default())
-	}
-
-	fn test_network_bridge_event<M>() -> NetworkBridgeEvent<M> {
-		NetworkBridgeEvent::PeerDisconnected(PeerId::random())
-	}
-
-	fn test_statement_distribution_msg() -> StatementDistributionMessage {
-		StatementDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
-	}
-
-	fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
-		let (sender, _) = oneshot::channel();
-		AvailabilityRecoveryMessage::RecoverAvailableData(
-			Default::default(),
-			Default::default(),
-			None,
-			sender,
-		)
-	}
-
-	fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {
-		BitfieldDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
-	}
-
-	fn test_provisioner_msg() -> ProvisionerMessage {
-		let (sender, _) = oneshot::channel();
-		ProvisionerMessage::RequestInherentData(Default::default(), sender)
-	}
-
-	fn test_runtime_api_msg() -> RuntimeApiMessage {
-		let (sender, _) = oneshot::channel();
-		RuntimeApiMessage::Request(Default::default(), RuntimeApiRequest::Validators(sender))
-	}
-
-	fn test_availability_store_msg() -> AvailabilityStoreMessage {
-		let (sender, _) = oneshot::channel();
-		AvailabilityStoreMessage::QueryAvailableData(CandidateHash(Default::default()), sender)
-	}
-
-	fn test_network_bridge_msg() -> NetworkBridgeMessage {
-		NetworkBridgeMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
-	}
-
-	fn test_approval_distribution_msg() -> ApprovalDistributionMessage {
-		ApprovalDistributionMessage::NewBlocks(Default::default())
-	}
-
-	fn test_approval_voting_msg() -> ApprovalVotingMessage {
-		let (sender, _) = oneshot::channel();
-		ApprovalVotingMessage::ApprovedAncestor(Default::default(), 0, sender)
-	}
-
-	// Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
-	#[test]
-	fn overseer_all_subsystems_receive_signals_and_messages() {
-		const NUM_SUBSYSTEMS: usize = 18;
-		// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
-		const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
-
-		let spawner = sp_core::testing::TaskExecutor::new();
-		executor::block_on(async move {
-			let stop_signals_received = Arc::new(atomic::AtomicUsize::new(0));
-			let signals_received = Arc::new(atomic::AtomicUsize::new(0));
-			let msgs_received = Arc::new(atomic::AtomicUsize::new(0));
-
-			let subsystem = CounterSubsystem::new(
-				stop_signals_received.clone(),
-				signals_received.clone(),
-				msgs_received.clone(),
-			);
-
-			let all_subsystems = AllSubsystems {
-				candidate_validation: subsystem.clone(),
-				candidate_backing: subsystem.clone(),
-				candidate_selection: subsystem.clone(),
-				collation_generation: subsystem.clone(),
-				collator_protocol: subsystem.clone(),
-				statement_distribution: subsystem.clone(),
-				availability_distribution: subsystem.clone(),
-				availability_recovery: subsystem.clone(),
-				bitfield_signing: subsystem.clone(),
-				bitfield_distribution: subsystem.clone(),
-				provisioner: subsystem.clone(),
-				runtime_api: subsystem.clone(),
-				availability_store: subsystem.clone(),
-				network_bridge: subsystem.clone(),
-				chain_api: subsystem.clone(),
-				approval_distribution: subsystem.clone(),
-				approval_voting: subsystem.clone(),
-				gossip_support: subsystem.clone(),
-			};
-			let (overseer, mut handler) = Overseer::new(
-				vec![],
-				all_subsystems,
-				None,
-				MockSupportsParachains,
-				spawner,
-			).unwrap();
-			let overseer_fut = overseer.run().fuse();
-
-			pin_mut!(overseer_fut);
-
-			// send a signal to each subsystem
-			handler.block_imported(BlockInfo {
-				hash: Default::default(),
-				parent_hash: Default::default(),
-				number: Default::default(),
-			}).await;
-
-			// send a msg to each subsystem
-			// except for BitfieldSigning and GossipSupport as the messages are not instantiable
-			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-			handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
-			handler.send_msg(AllMessages::CandidateSelection(test_candidate_selection_msg())).await;
-			handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
-			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
-			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
-			handler.send_msg(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
-			// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
-			// handler.send_msg(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
-			handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
-			handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
-			handler.send_msg(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
-			handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
-			handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
-			handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
-			handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
-			handler.send_msg(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
-
-			// Wait until all subsystems have received. Otherwise the messages might race against
-			// the conclude signal.
-			loop {
-				match (&mut overseer_fut).timeout(Duration::from_millis(100)).await {
-					None => {
-						let r = msgs_received.load(atomic::Ordering::SeqCst);
-						if r < NUM_SUBSYSTEMS_MESSAGED {
-							Delay::new(Duration::from_millis(100)).await;
-						} else if r > NUM_SUBSYSTEMS_MESSAGED {
-							panic!("too many messages received??");
-						} else {
-							break
-						}
-					}
-					Some(_) => panic!("exited too early"),
-				}
-			}
-
-			// send a stop signal to each subsystems
-			handler.stop().await;
-
-			let res = overseer_fut.await;
-			assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-			assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-			assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
-
-			assert!(res.is_ok());
-		});
-	}
-
-	#[test]
-	fn context_holds_onto_message_until_enough_signals_received() {
-		let (candidate_validation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (candidate_backing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (candidate_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (statement_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (availability_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (availability_recovery_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (bitfield_signing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (bitfield_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (provisioner_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (runtime_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (availability_store_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (network_bridge_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (chain_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (collator_protocol_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (collation_generation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (approval_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (approval_voting_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-		let (gossip_support_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-
-		let (candidate_validation_unbounded_tx, _) = metered::unbounded();
-		let (candidate_backing_unbounded_tx, _) = metered::unbounded();
-		let (candidate_selection_unbounded_tx, _) = metered::unbounded();
-		let (statement_distribution_unbounded_tx, _) = metered::unbounded();
-		let (availability_distribution_unbounded_tx, _) = metered::unbounded();
-		let (availability_recovery_unbounded_tx, _) = metered::unbounded();
-		let (bitfield_signing_unbounded_tx, _) = metered::unbounded();
-		let (bitfield_distribution_unbounded_tx, _) = metered::unbounded();
-		let (provisioner_unbounded_tx, _) = metered::unbounded();
-		let (runtime_api_unbounded_tx, _) = metered::unbounded();
-		let (availability_store_unbounded_tx, _) = metered::unbounded();
-		let (network_bridge_unbounded_tx, _) = metered::unbounded();
-		let (chain_api_unbounded_tx, _) = metered::unbounded();
-		let (collator_protocol_unbounded_tx, _) = metered::unbounded();
-		let (collation_generation_unbounded_tx, _) = metered::unbounded();
-		let (approval_distribution_unbounded_tx, _) = metered::unbounded();
-		let (approval_voting_unbounded_tx, _) = metered::unbounded();
-		let (gossip_support_unbounded_tx, _) = metered::unbounded();
-
-		let channels_out = ChannelsOut {
-			candidate_validation: candidate_validation_bounded_tx.clone(),
-			candidate_backing: candidate_backing_bounded_tx.clone(),
-			candidate_selection: candidate_selection_bounded_tx.clone(),
-			statement_distribution: statement_distribution_bounded_tx.clone(),
-			availability_distribution: availability_distribution_bounded_tx.clone(),
-			availability_recovery: availability_recovery_bounded_tx.clone(),
-			bitfield_signing: bitfield_signing_bounded_tx.clone(),
-			bitfield_distribution: bitfield_distribution_bounded_tx.clone(),
-			provisioner: provisioner_bounded_tx.clone(),
-			runtime_api: runtime_api_bounded_tx.clone(),
-			availability_store: availability_store_bounded_tx.clone(),
-			network_bridge: network_bridge_bounded_tx.clone(),
-			chain_api: chain_api_bounded_tx.clone(),
-			collator_protocol: collator_protocol_bounded_tx.clone(),
-			collation_generation: collation_generation_bounded_tx.clone(),
-			approval_distribution: approval_distribution_bounded_tx.clone(),
-			approval_voting: approval_voting_bounded_tx.clone(),
-			gossip_support: gossip_support_bounded_tx.clone(),
-
-			candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
-			candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
-			candidate_selection_unbounded: candidate_selection_unbounded_tx.clone(),
-			statement_distribution_unbounded: statement_distribution_unbounded_tx.clone(),
-			availability_distribution_unbounded: availability_distribution_unbounded_tx.clone(),
-			availability_recovery_unbounded: availability_recovery_unbounded_tx.clone(),
-			bitfield_signing_unbounded: bitfield_signing_unbounded_tx.clone(),
-			bitfield_distribution_unbounded: bitfield_distribution_unbounded_tx.clone(),
-			provisioner_unbounded: provisioner_unbounded_tx.clone(),
-			runtime_api_unbounded: runtime_api_unbounded_tx.clone(),
-			availability_store_unbounded: availability_store_unbounded_tx.clone(),
-			network_bridge_unbounded: network_bridge_unbounded_tx.clone(),
-			chain_api_unbounded: chain_api_unbounded_tx.clone(),
-			collator_protocol_unbounded: collator_protocol_unbounded_tx.clone(),
-			collation_generation_unbounded: collation_generation_unbounded_tx.clone(),
-			approval_distribution_unbounded: approval_distribution_unbounded_tx.clone(),
-			approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
-			gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
-		};
-
-		let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
-		let (mut bounded_tx, bounded_rx) = metered::channel(CHANNEL_CAPACITY);
-		let (unbounded_tx, unbounded_rx) = metered::unbounded();
-		let (to_overseer_tx, _to_overseer_rx) = metered::unbounded();
-
-		let mut ctx = OverseerSubsystemContext::<()>::new_unmetered(
-			signal_rx,
-			stream::select(bounded_rx, unbounded_rx),
-			channels_out,
-			to_overseer_tx,
-		);
-
-		assert_eq!(ctx.signals_received.load(), 0);
-
-		let test_fut = async move {
-			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
-
-			assert_eq!(ctx.signals_received.load(), 1);
-			bounded_tx.send(MessagePacket {
-				signals_received: 2,
-				message: (),
-			}).await.unwrap();
-			unbounded_tx.unbounded_send(MessagePacket {
-				signals_received: 2,
-				message: (),
-			}).unwrap();
-
-			match poll!(ctx.recv()) {
-				Poll::Pending => {}
-				Poll::Ready(_) => panic!("ready too early"),
-			};
-
-			assert!(ctx.pending_incoming.is_some());
-
-			signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
-			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
-			assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
-			assert!(ctx.pending_incoming.is_none());
-		};
-
-		futures::executor::block_on(test_fut);
-	}
-}
+mod tests;

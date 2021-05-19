@@ -589,7 +589,7 @@ enum Message {
 
 impl Message {
 	async fn receive(
-		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+		ctx: &mut impl SubsystemContext<AllMessages><Message = StatementDistributionMessage>,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> Message {
@@ -848,7 +848,7 @@ fn check_statement_signature(
 async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	priority_peers: Vec<PeerId>,
@@ -903,7 +903,7 @@ async fn circulate_statement_and_dependents(
 
 fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 	-> protocol_v1::ValidationProtocol
-{ 
+{
 	let msg = if is_statement_large(&statement) {
 		protocol_v1::StatementDistributionMessage::LargeStatement(
 			StatementMetadata {
@@ -948,7 +948,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 #[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement<'a>(
 	peers: &mut HashMap<PeerId, PeerData>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
@@ -1026,7 +1026,7 @@ async fn circulate_statement<'a>(
 async fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
@@ -1064,7 +1064,7 @@ async fn send_statements_about(
 async fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
@@ -1096,7 +1096,7 @@ async fn send_statements(
 }
 
 async fn report_peer(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	peer: PeerId,
 	rep: Rep,
 ) {
@@ -1116,7 +1116,7 @@ async fn retrieve_statement_from_message<'a>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
 	active_head: &'a mut ActiveHeadData,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<UncheckedSignedFullStatement> {
@@ -1198,7 +1198,7 @@ async fn retrieve_statement_from_message<'a>(
 					).await {
 						vacant.insert(new_status);
 					}
-				} 
+				}
 				protocol_v1::StatementDistributionMessage::Statement(_, s) => {
 					// No fetch in progress, safe to return any statement immediately (we don't bother
 					// about normal network jitter which might cause `Valid` statements to arrive early
@@ -1218,7 +1218,7 @@ async fn launch_request(
 	meta: StatementMetadata,
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	metrics: &Metrics,
 ) -> Option<LargeStatementStatus> {
 
@@ -1256,7 +1256,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1304,7 +1304,7 @@ async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1454,7 +1454,7 @@ async fn handle_incoming_message<'a>(
 async fn update_peer_view_and_send_unlocked(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
@@ -1489,7 +1489,7 @@ async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
@@ -1563,7 +1563,7 @@ impl StatementDistribution {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
+		mut ctx: impl SubsystemContext<AllMessages><Message = StatementDistributionMessage>,
 	) -> std::result::Result<(), Fatal> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
@@ -1594,7 +1594,7 @@ impl StatementDistribution {
 					match result {
 						Ok(true) => break,
 						Ok(false) => {}
-						Err(Error(Fault::Fatal(f))) => return Err(f), 
+						Err(Error(Fault::Fatal(f))) => return Err(f),
 						Err(Error(Fault::Err(error))) =>
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
@@ -1670,7 +1670,7 @@ impl StatementDistribution {
 
 	async fn handle_requester_message(
 		&self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut impl SubsystemContext<AllMessages>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1783,7 +1783,7 @@ impl StatementDistribution {
 
 	async fn handle_subsystem_message(
 		&self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut impl SubsystemContext<AllMessages>,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
@@ -3627,7 +3627,7 @@ mod tests {
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a])
 				)
 			}).await;
-			
+
 			// receive a seconded statement from peer A.
 			let statement = {
 				let signing_context = SigningContext {

@@ -132,7 +132,7 @@ impl RequestFromBackersPhase {
 	async fn run(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 	) -> Result<AvailableData, RecoveryError> {
 		tracing::trace!(
 			target: LOG_TARGET,
@@ -217,7 +217,7 @@ impl RequestChunksPhase {
 	async fn launch_parallel_requests(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 	) {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
@@ -329,7 +329,7 @@ impl RequestChunksPhase {
 	async fn run(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 	) -> Result<AvailableData, RecoveryError> {
 		// First query the store for any chunks we've got.
 		{
@@ -611,7 +611,7 @@ async fn handle_signal(
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn launch_interaction(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
 	session_index: SessionIndex,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
@@ -666,7 +666,7 @@ async fn launch_interaction(
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_recover(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
 	receipt: CandidateReceipt,
 	session_index: SessionIndex,
 	backing_group: Option<GroupIndex>,
@@ -729,7 +729,7 @@ async fn handle_recover(
 /// Queries a chunk from av-store.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_full_data(
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
 	candidate_hash: CandidateHash,
 ) -> error::Result<Option<AvailableData>> {
 	let (tx, rx) = oneshot::channel();
@@ -753,7 +753,7 @@ impl AvailabilityRecoverySubsystem {
 
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+		mut ctx: impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
 	) -> SubsystemResult<()> {
 		let mut state = State::default();
 

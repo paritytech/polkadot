@@ -96,7 +96,7 @@ impl<C> Subsystem<C> for CandidateValidationSubsystem where
 
 #[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
-	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
+	mut ctx: impl SubsystemContext<AllMessages><Message = CandidateValidationMessage>,
 	metrics: Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
@@ -172,7 +172,7 @@ async fn run(
 }
 
 async fn runtime_api_request<T>(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CandidateValidationMessage>,
 	relay_parent: Hash,
 	request: RuntimeApiRequest,
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
@@ -196,7 +196,7 @@ enum AssumptionCheckOutcome {
 
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
 	assumption: OccupiedCoreAssumption,
 ) -> SubsystemResult<AssumptionCheckOutcome> {
@@ -247,7 +247,7 @@ async fn check_assumption_validation_data(
 
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
 ) -> SubsystemResult<AssumptionCheckOutcome> {
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
@@ -283,7 +283,7 @@ async fn find_assumed_validation_data(
 	fields(subsystem = LOG_TARGET),
 )]
 async fn spawn_validate_from_chain_state(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CandidateValidationMessage>,
 	validation_host: &mut ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,

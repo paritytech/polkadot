@@ -26,10 +26,20 @@
 
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemSender,
+	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
+	SpawnedSubsystem, SubsystemError,
 	ActiveLeavesUpdate, OverseerSignal,
 };
+
+use polkadot_overseer_gen::{
+	AllMessages,
+	FromOverseer,
+	SpawnedSubsystem,
+	Subsystem,
+	SubsystemContext,
+	SubsystemSender,
+};
+
 use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
 use futures_timer::Delay;
@@ -61,8 +71,8 @@ pub use error_handling::{Fault, unwrap_non_fatal};
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
-	pub use sp_core::traits::SpawnNamed;
-	pub use polkadot_node_subsystem::{
+	pub use polkadot_overseer::{
+		SpawnNamed,
 		SpawnedSubsystem,
 		Subsystem,
 		SubsystemContext,
@@ -147,7 +157,7 @@ macro_rules! specialize_requests {
 			$(
 				$param_name: $param_ty,
 			)*
-			sender: &mut impl SubsystemSender,
+			sender: &mut impl SubsystemSender <AllMessages>,
 		) -> RuntimeApiReceiver<$return_ty> {
 			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
@@ -259,7 +269,7 @@ impl Validator {
 	pub async fn new(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 	) -> Result<Self, Error> {
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
@@ -394,7 +404,7 @@ pub struct JobSender<S> {
 	from_job: mpsc::Sender<FromJobCommand>,
 }
 
-impl<S: SubsystemSender> JobSender<S> {
+impl<S: SubsystemSender< AllMessages >> JobSender<S> {
 	/// Get access to the underlying subsystem sender.
 	pub fn subsystem_sender(&mut self) -> &mut S {
 		&mut self.sender
@@ -429,7 +439,7 @@ impl<S: SubsystemSender> JobSender<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: SubsystemSender> SubsystemSender for JobSender<S> {
+impl<S: SubsystemSender< AllMessages> > SubsystemSender for JobSender<S> {
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.sender.send_message(msg).await
 	}
@@ -480,7 +490,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run<S: SubsystemSender>(
+	fn run<S: SubsystemSender< AllMessages >>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
@@ -536,7 +546,9 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 		metrics: Job::Metrics,
 		sender: Sender,
 	)
-		where Job: JobTrait<ToJob = ToJob>, Sender: SubsystemSender,
+		where
+			Job: JobTrait<ToJob = ToJob>,
+			Sender: SubsystemSender<AllMessages>,
 	{
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -867,7 +879,7 @@ mod tests {
 	use thiserror::Error;
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
-		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+		messages::{CandidateSelectionMessage}, ActiveLeavesUpdate,
 		SpawnedSubsystem, ActivatedLeaf,
 	};
 	use assert_matches::assert_matches;

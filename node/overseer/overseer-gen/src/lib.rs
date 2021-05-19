@@ -114,9 +114,11 @@ pub enum ToOverseer {
 
 
 /// A helper trait to map a subsystem to smth. else.
-pub(crate) trait MapSubsystem<T> {
+pub trait MapSubsystem<T> {
+	/// The output type of the mapping.
 	type Output;
 
+	/// Consumes a `T` per subsystem, and maps it to `Self::Output`.
 	fn map_subsystem(&self, sub: T) -> Self::Output;
 }
 
@@ -184,11 +186,10 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 	fn with_origin(self, origin: &'static str) -> Self;
 }
 
-
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem<E>
+pub struct SpawnedSubsystem<E=SubsystemError>
 where
 E: std::error::Error
  + 'static
@@ -200,7 +201,6 @@ E: std::error::Error
 	/// The task of the subsystem being spawned.
 	pub future: BoxFuture<'static, Result<(), E>>,
 }
-
 
 /// An error type that describes faults that may happen
 ///
@@ -275,6 +275,118 @@ pub struct SubsystemMeterReadouts {
 	pub unbounded: metered::Readout,
 	#[allow(missing_docs)]
 	pub signals: metered::Readout,
+}
+
+/// A running instance of some [`Subsystem`].
+///
+/// [`Subsystem`]: trait.Subsystem.html
+///
+/// `M` here is the inner message type, and _not_ the generated `enum AllMessages`.
+pub struct SubsystemInstance<Message, Signal> {
+	tx_signal: crate::metered::MeteredSender<Signal>,
+	tx_bounded: crate::metered::MeteredSender<MessagePacket<Message>>,
+	meters: SubsystemMeters,
+	signals_received: usize,
+	name: &'static str,
+}
+
+/// A message type that a subsystem receives from an overseer.
+/// It wraps signals from an overseer and messages that are circulating
+/// between subsystems.
+///
+/// It is generic over over the message type `M` that a particular `Subsystem` may use.
+#[derive(Debug)]
+pub enum FromOverseer<Message, Signal> {
+	/// Signal from the `Overseer`.
+	Signal(Signal),
+
+	/// Some other `Subsystem`'s message.
+	Communication {
+		/// Contained message
+		msg: Message,
+	},
+}
+
+/// A context type that is given to the [`Subsystem`] upon spawning.
+/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
+/// or spawn jobs.
+///
+/// [`Overseer`]: struct.Overseer.html
+/// [`SubsystemJob`]: trait.SubsystemJob.html
+#[async_trait::async_trait]
+pub trait SubsystemContext: Send + 'static {
+	/// The message type of this context. Subsystems launched with this context will expect
+	/// to receive messages of this type.
+	type Message: Send + 'static;
+	/// And the same for signals.
+	type Signal: Send + 'static;
+	/// The sender type as provided by `sender()` and underlying.
+	type Sender: SubsystemSender<Self::Message>;
+
+	/// Try to asynchronously receive a message.
+	///
+	/// This has to be used with caution, if you loop over this without
+	/// using `pending!()` macro you will end up with a busy loop!
+	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
+
+	/// Receive a message.
+	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message, Self::Signal>>;
+
+	/// Spawn a child task on the executor.
+	async fn spawn(&mut self, name: &'static str, s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+
+	/// Spawn a blocking child task on the executor's dedicated thread pool.
+	async fn spawn_blocking(
+		&mut self,
+		name: &'static str,
+		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>,
+	) -> SubsystemResult<()>;
+
+	/// Send a direct message to some other `Subsystem`, routed based on message type.
+	async fn send_message(&mut self, msg: Self::Message);
+
+	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = Self::Message> + Send, T::IntoIter: Send;
+
+	/// Obtain the sender.
+	fn sender(&self) -> Self::Sender;
+}
+
+/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
+///
+/// It is generic over the message type circulating in the system.
+/// The idea that we want some type contaning persistent state that
+/// can spawn actually running subsystems when asked to.
+///
+/// [`Overseer`]: struct.Overseer.html
+/// [`Subsystem`]: trait.Subsystem.html
+pub trait Subsystem<Ctx, E>
+where
+	Ctx: SubsystemContext,
+	E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
+{
+	/// Start this `Subsystem` and return `SpawnedSubsystem`.
+	fn start(self, ctx: Ctx) -> SpawnedSubsystem < E >;
+}
+
+
+/// TODO FIXME
+#[async_trait::async_trait]
+pub trait SubsystemSender<Message>: Send + Clone + 'static {
+	/// Send a direct message to some other `Subsystem`, routed based on message type.
+	async fn send_message(&mut self, msg: Message);
+
+	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	async fn send_messages<T>(&mut self, msgs: T)
+		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send;
+
+	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
+	/// type.
+	///
+	/// This function should be used only when there is some other bounding factor on the messages
+	/// sent with it. Otherwise, it risks a memory leak.
+	fn send_unbounded_message(&mut self, msg: Message);
 }
 
 #[cfg(test)]

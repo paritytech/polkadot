@@ -264,7 +264,7 @@ impl State {
 /// elsewhere in the node.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state, pov), fields(subsystem = LOG_TARGET))]
 async fn distribute_collation(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	id: ParaId,
@@ -370,7 +370,7 @@ async fn distribute_collation(
 /// and the total number of cores.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_core(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>> {
@@ -400,7 +400,7 @@ struct GroupValidators {
 /// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
 #[tracing::instrument(level = "trace", skip(ctx, runtime), fields(subsystem = LOG_TARGET))]
 async fn determine_our_validators(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
@@ -437,7 +437,7 @@ async fn determine_our_validators(
 /// Issue a `Declare` collation message to the given `peer`.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn declare(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	state: &mut State,
 	peer: PeerId,
 ) {
@@ -463,7 +463,7 @@ async fn declare(
 /// revoke the previous connection request.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	state: &mut State,
 	group: GroupValidators,
 )  {
@@ -482,7 +482,7 @@ async fn connect_to_validators(
 /// set as validator for our para at the given `relay_parent`.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn advertise_collation(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
@@ -543,7 +543,7 @@ async fn advertise_collation(
 /// The main incoming message dispatching switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	msg: CollatorProtocolMessage,
@@ -684,7 +684,7 @@ async fn send_collation(
 /// A networking messages switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	origin: PeerId,
@@ -756,7 +756,7 @@ async fn handle_incoming_peer_message(
 /// Our view has changed.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
@@ -775,7 +775,7 @@ async fn handle_peer_view_change(
 /// Bridge messages switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
@@ -883,7 +883,7 @@ async fn handle_our_view_change(
 /// The collator protocol collator side main loop.
 #[tracing::instrument(skip(ctx, collator_pair, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run(
-	mut ctx: impl SubsystemContext<Message = CollatorProtocolMessage>,
+	mut ctx: impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	metrics: Metrics,

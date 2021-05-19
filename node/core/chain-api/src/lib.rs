@@ -79,7 +79,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 
 #[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
-	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
+	mut ctx: impl SubsystemContext<AllMessages><Message = ChainApiMessage>,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where

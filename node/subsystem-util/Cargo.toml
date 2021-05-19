@@ -23,6 +23,7 @@ polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
 metered-channel = { path = "../metered-channel"}
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

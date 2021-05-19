@@ -224,7 +224,7 @@ impl CandidateSelectionJob {
 	async fn run_loop(
 		&mut self,
 		span: &jaeger::Span,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 	) -> Result<(), Error> {
 		let span = span.child("run-loop")
 			.with_stage(jaeger::Stage::CandidateSelection);
@@ -266,7 +266,7 @@ impl CandidateSelectionJob {
 	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_collation(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		relay_parent: Hash,
 		para_id: ParaId,
 		collator_id: CollatorId,
@@ -317,7 +317,7 @@ impl CandidateSelectionJob {
 	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_invalid(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		candidate_receipt: CandidateReceipt,
 	) {
 		let _timer = self.metrics.time_handle_invalid();
@@ -344,7 +344,7 @@ impl CandidateSelectionJob {
 
 	async fn handle_seconded(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		relay_parent: Hash,
 		statement: SignedFullStatement,
 	) {
@@ -386,7 +386,7 @@ async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,
 	collator_id: CollatorId,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) -> Result<(CandidateReceipt, PoV), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -405,7 +405,7 @@ async fn second_candidate(
 	relay_parent: Hash,
 	candidate_receipt: CandidateReceipt,
 	pov: PoV,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 	metrics: &Metrics,
 ) {
 	sender
@@ -421,7 +421,7 @@ async fn second_candidate(
 
 async fn forward_invalidity_note(
 	received_from: &CollatorId,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender <AllMessages>,
 ) {
 	sender
 		.send_message(CollatorProtocolMessage::ReportCollator(received_from.clone()).into())
@@ -516,7 +516,6 @@ mod tests {
 	use super::*;
 	use futures::lock::Mutex;
 	use polkadot_node_primitives::BlockData;
-	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::crypto::Public;
 	use std::sync::Arc;
 

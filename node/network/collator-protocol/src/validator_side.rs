@@ -312,7 +312,7 @@ struct ActiveParas {
 impl ActiveParas {
 	async fn assign_incoming(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender <AllMessages>,
 		keystore: &SyncCryptoStorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
@@ -477,7 +477,7 @@ fn collator_peer_id(
 		)
 }
 
-async fn disconnect_peer(ctx: &mut impl SubsystemContext, peer_id: PeerId) {
+async fn disconnect_peer(ctx: &mut impl SubsystemContext<AllMessages>, peer_id: PeerId) {
 	ctx.send_message(
 		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation).into()
 	).await
@@ -539,7 +539,7 @@ where
 /// Notify a collator that its collation got seconded.
 #[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn notify_collation_seconded(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 	relay_parent: Hash,
@@ -813,7 +813,7 @@ async fn remove_relay_parent(
 /// Our view has changed.
 #[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	state: &mut State,
 	keystore: &SyncCryptoStorePtr,
 	view: OurView,
@@ -1060,7 +1060,7 @@ pub(crate) async fn run<Context>(
 // earliest possible point. This does not yet clean up any metadata, as that will be done upon
 // receipt of the `PeerDisconnected` event.
 async fn disconnect_inactive_peers(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemContext<AllMessages>,
 	eviction_policy: &crate::CollatorEvictionPolicy,
 	peers: &HashMap<PeerId, PeerData>,
 ) {

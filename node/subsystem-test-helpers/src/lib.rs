@@ -18,7 +18,6 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
 	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
 	SpawnedSubsystem, OverseerSignal, SubsystemSender,
@@ -172,7 +171,7 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender for TestSubsystemSender {
+impl SubsystemSender <AllMessages> for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.tx
 			.send(msg)
