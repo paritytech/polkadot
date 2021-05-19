@@ -1198,24 +1198,22 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 0, 1));
 
 			for i in 1..6u64 {
-				run_to_block((i + 3) as _);
+				run_to_block(((i - 1) / 2 + 1) as _);
 				assert_ok!(Auctions::bid(Origin::signed(i), 0.into(), 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j <= i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j <= i { j * 9 } else { j * 10 });
 				}
 			}
+			for i in 1..6u64 {
+				assert_eq!(ReservedAmounts::<Test>::get((i, ParaId::from(0))).unwrap(), i);
+			}
 
-			run_to_block(9);
-			assert_eq!(leases(), vec![
-				((0.into(), 1), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 2), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 3), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 4), LeaseData { leaser: 3, amount: 3 }),
-			]);
+			run_to_block(5);
+			assert_eq!(leases(), (1..=4).map(|i| ((0.into(), i), LeaseData { leaser: 2, amount: 2 })).collect::<Vec<_>>());
 		});
 	}
 
