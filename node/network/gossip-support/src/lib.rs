@@ -18,7 +18,7 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
-use futures::{channel::oneshot, FutureExt as _};
+use futures::FutureExt as _;
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, GossipSupportMessage, NetworkBridgeMessage,
@@ -44,8 +44,6 @@ pub struct GossipSupport {
 #[derive(Default)]
 struct State {
 	last_session_index: Option<SessionIndex>,
-	/// when we overwrite this, it automatically drops the previous request
-	_last_connection_request: Option<oneshot::Sender<()>>,
 }
 
 impl GossipSupport {
@@ -130,18 +128,13 @@ pub async fn connect_to_authorities(
 	ctx: &mut impl SubsystemContext,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
-) -> oneshot::Sender<()> {
-	let (keep_alive_handle, keep_alive) = oneshot::channel();
-
+) {
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ConnectToValidators {
 			validator_ids,
 			peer_set,
-			keep_alive,
 		}
 	)).await;
-
-	keep_alive_handle
 }
 
 impl State {
@@ -167,14 +160,13 @@ impl State {
 				ensure_i_am_an_authority(keystore, &authorities).await?;
 				tracing::debug!(target: LOG_TARGET, num = ?authorities.len(), "Issuing a connection request");
 
-				let keep_alive_handle = connect_to_authorities(
+				connect_to_authorities(
 					ctx,
 					authorities,
 					PeerSet::Validation,
 				).await;
 
 				self.last_session_index = Some(new_session);
-				self._last_connection_request = Some(keep_alive_handle);
 			}
 		}
 
