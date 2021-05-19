@@ -7,7 +7,7 @@ pub(crate) fn impl_overseer_struct(
 	info: &OverseerInfo,
 ) -> Result<proc_macro2::TokenStream> {
 	let message_wrapper = &info.message_wrapper.clone();
-	let overseer_name = dbg!(info.overseer_name.clone());
+	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names();
 
 	let builder_generic_ty = &info.builder_generic_types();
@@ -15,7 +15,7 @@ pub(crate) fn impl_overseer_struct(
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
 
-	let baggage_generic_ty = &info.baggage_generic_types();
+	let baggage_generic_ty = &dbg!(info.baggage_generic_types());
 
 	let generics = quote! {
 		< S, #( #baggage_generic_ty, )* >
@@ -39,6 +39,8 @@ pub(crate) fn impl_overseer_struct(
 	let log_target = syn::LitStr::new(overseer_name.to_string().to_lowercase().as_str(), overseer_name.span());
 
 	let mut ts = quote! {
+		const STOP_DELAY: ::std::time::Duration = ::std::time::Duration::from_secs(1);
+
 		/// Capacity of a bounded message channel between overseer and subsystem
 		/// but also for bounded channels between two subsystems.
 		const CHANNEL_CAPACITY: usize = #message_channel_capacity;
@@ -75,8 +77,22 @@ pub(crate) fn impl_overseer_struct(
 		}
 
 		impl #generics #overseer_name #generics #where_clause {
-			pub async fn stop(mut self) {
-				unimplemented!("Stopping is not yet implemented")
+			pub async fn broadcast_signal(mut self, signal: #signal_ty) {
+				self.broadcast_signal(signal);
+
+				let mut stop_delay = ::polkadot_overseer_gen::Delay::new(STOP_DELAY).fuse();
+
+				loop {
+					select! {
+						_ = self.running_subsystems.next() => {
+							if self.running_subsystems.is_empty() {
+								break;
+							}
+						},
+						_ = stop_delay => break,
+						complete => break,
+					}
+				}
 			}
 
 			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> SubsystemResult<()> {
@@ -131,6 +147,7 @@ pub(crate) fn impl_builder(
 
 	let baggage_generic_ty = &info.baggage_generic_types();
 	let baggage_name = &info.baggage_names();
+	let baggage_ty = &info.baggage_types();
 
 	let blocking = &info.subsystems().iter().map(|x| x.blocking).collect::<Vec<_>>();
 
@@ -284,9 +301,7 @@ pub(crate) fn impl_builder(
 
 						let fut = Box::pin(async move {
 							if let Err(e) = future.await {
-								::polkadot_overseer_gen::tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
 							} else {
-								::polkadot_overseer_gen::tracing::debug!(subsystem=name, "subsystem exited without an error");
 							}
 							let _ = terminated_tx.send(());
 						});
@@ -298,7 +313,6 @@ pub(crate) fn impl_builder(
 						}
 
 						running_subsystems.push(Box::pin(terminated_rx.map(|e| {
-							::polkadot_overseer_gen::tracing::warn!(err = ?e, "dropping error");
 							Ok(())
 						})));
 
@@ -404,7 +418,6 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							::polkadot_overseer_gen::tracing::error!(target: crate::LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
 							Err(SubsystemError::SubsystemStalled(instance.name))
 						}
 						Some(res) => res.map_err(Into::into),
@@ -423,7 +436,6 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 				if let Some(ref mut instance) = self.instance {
 					match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 						None => {
-							::polkadot_overseer_gen::tracing::error!(target: crate::LOG_TARGET, "Subsystem {} appears unresponsive.", instance.name);
 							Err(SubsystemError::SubsystemStalled(instance.name))
 						}
 						Some(res) => {
@@ -502,8 +514,9 @@ pub(crate) fn impl_trait_subsystem(info: &OverseerInfo) -> Result<proc_macro2::T
 		pub trait SubsystemContext: Send + 'static {
 			/// The message type of this context. Subsystems launched with this context will expect
 			/// to receive messages of this type.
-			type Message: Send;
-			type Signal: Send;
+			type Message: Send + 'static;
+			type Signal: Send + 'static;
+			type Sender: Send + Clone + 'static;
 
 			/// Try to asynchronously receive a message.
 			///
@@ -530,6 +543,9 @@ pub(crate) fn impl_trait_subsystem(info: &OverseerInfo) -> Result<proc_macro2::T
 			/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 			async fn send_messages<T>(&mut self, msgs: T)
 				where T: IntoIterator<Item = #message_wrapper> + Send, T::IntoIter: Send;
+
+			/// Obtain the sender.
+			fn sender(&self) -> Self::Sender;
 		}
 
 		/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].

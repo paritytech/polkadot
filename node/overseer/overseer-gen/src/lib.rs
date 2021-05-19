@@ -86,6 +86,7 @@ pub use std::time::Duration;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
+pub use futures_timer::Delay;
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
 /// Used to launch jobs.

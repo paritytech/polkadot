@@ -14,7 +14,7 @@ overseer-gen-proc-macro = { package = "polkadot-overseer-gen-proc-macro", path =
 metered = { package = "metered-channel", path = "../../metered-channel" }
 # trait SpawnNamed
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
+futures-timer = "3.0.2"
 
 [dev-dependencies]
 trybuild = "1.0.41"

@@ -24,7 +24,7 @@ pub(crate) struct SubSysField {
 	/// Type of the subsystem.
 	pub(crate) ty: Path,
 	/// Type to be consumed by the subsystem.
-	pub(crate) consumes: Ident,
+	pub(crate) consumes: Path,
 	/// If `no_dispatch` is present, if the message is incomming via
 	/// an extern `Event`, it will not be dispatched to all subsystems.
 	pub(crate) no_dispatch: bool,
@@ -33,14 +33,18 @@ pub(crate) struct SubSysField {
 	pub(crate) blocking: bool,
 }
 
-fn try_type_to_path(ty: Type, span: Span) -> Result<Ident> {
+fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 	match ty {
-		Type::Path(path) => {
-			path
-		}
+		Type::Path(path) => Ok(path.path),
 		_ => Err(Error::new(span, "Type must be a path expression.")),
 	}
 }
+
+
+fn try_type_to_ident(ty: Type, span: Span) -> Result<Ident> {
+	try_type_to_path(ty, span.clone())?.get_ident().cloned().ok_or_else(|| Error::new(span, "Expected an identifier, but got a path."))
+}
+
 
 pub(crate) struct SubSystemTag {
 	#[allow(dead_code)]
@@ -48,14 +52,14 @@ pub(crate) struct SubSystemTag {
 	#[allow(dead_code)]
 	pub(crate) no_dispatch: bool,
 	pub(crate) blocking: bool,
-	pub(crate) consumes: Punctuated<Ident, Token![|]>,
+	pub(crate) consumes: Punctuated<Path, Token![|]>,
 }
 
 impl Parse for SubSystemTag {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
 		let attrs = Attribute::parse_outer(input)?;
 
-		let input = dbg!(input);
+		let input = input;
 		let content;
 		let _ = syn::parenthesized!(content in input);
 		let parse_tags = || -> Result<Option<Ident>> {
@@ -80,7 +84,7 @@ impl Parse for SubSystemTag {
 		let no_dispatch = unique.take("no_dispatch").is_some();
 		let blocking = unique.take("blocking").is_some();
 
-		let consumes = content.parse_terminated(Ident::parse)?;
+		let consumes = content.parse_terminated(Path::parse)?;
 
 		Ok(Self {
 			attrs,
@@ -96,7 +100,7 @@ impl Parse for SubSystemTag {
 #[derive(Debug, Clone)]
 pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
-	pub(crate) field_ty: Ident,
+	pub(crate) field_ty: Path,
 	pub(crate) generic: bool,
 }
 
@@ -140,14 +144,14 @@ impl OverseerInfo {
 
 	#[allow(dead_code)]
 	// FIXME use as the defaults
-	pub(crate) fn subsystem_types(&self) -> Vec<Ident> {
+	pub(crate) fn subsystem_types(&self) -> Vec<Path> {
 		self.subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
 		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
 	}
-	pub(crate) fn baggage_types(&self) -> Vec<Ident> {
+	pub(crate) fn baggage_types(&self) -> Vec<Path> {
 		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
 	}
 
@@ -157,7 +161,7 @@ impl OverseerInfo {
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
-		self.baggage.iter().filter(|bag| bag.generic).map(|bag| dbg!(bag.field_ty.clone())).collect::<Vec<_>>()
+		self.baggage.iter().filter(|bag| bag.generic).filter_map(|bag| bag.field_ty.get_ident().cloned()).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names(&self, suffix: &'static str) -> Vec<Ident> {
@@ -166,7 +170,7 @@ impl OverseerInfo {
 		.collect::<Vec<_>>()
 	}
 
-	pub(crate) fn consumes(&self) -> Vec<Ident> {
+	pub(crate) fn consumes(&self) -> Vec<Path> {
 		self.subsystems.iter()
 			.map(|ssf| ssf.consumes.clone())
 			.collect::<Vec<_>>()
@@ -187,13 +191,15 @@ impl OverseerGuts {
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
 		for (idx, Field { attrs, vis: _, ident, ty, .. }) in fields.named.into_iter().enumerate() {
-			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
-				let span = attr.path.span();
-				attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
-					let attr_tokens = attr.tokens.clone();
-					(attr_tokens, span)
-				})
-			});
+			let mut consumes = attrs.iter()
+				.filter(|attr| attr.style == AttrStyle::Outer)
+				.filter_map(|attr| {
+					let span = attr.path.span();
+					attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
+						let attr_tokens = attr.tokens.clone();
+						(attr_tokens, span)
+					})
+				});
 			let ident = ident.ok_or_else(|| {
 				Error::new(ty.span(), "Missing identifier for member. BUG")
 			})?;
@@ -208,16 +214,16 @@ impl OverseerGuts {
 						err
 					})
 				}
-				let mut consumes_idents = Vec::with_capacity(attrs.len());
-				let attr_tokens = dbg!(attr_tokens.clone());
+				let mut consumes_paths = Vec::with_capacity(attrs.len());
+				let attr_tokens = attr_tokens.clone();
 				let variant: SubSystemTag = syn::parse2(attr_tokens.clone())?;
 				if variant.consumes.len() != 1 {
 					return Err(Error::new(attr_tokens.span(), "Exactly one message can be consumed per subsystem."))
 				}
-				consumes_idents.extend(variant.consumes.into_iter());
+				consumes_paths.extend(variant.consumes.into_iter());
 
 
-				if consumes_idents.is_empty() {
+				if consumes_paths.is_empty() {
 					return Err(
 						Error::new(span, "Subsystem must consume at least one message")
 					)
@@ -227,16 +233,20 @@ impl OverseerGuts {
 					name: ident,
 					generic: Ident::new(format!("Sub{}", idx).as_str(), span),
 					ty: try_type_to_path(ty, span)?,
-					consumes: consumes_idents[0].clone(),
+					consumes: consumes_paths[0].clone(),
 					no_dispatch: variant.no_dispatch,
 					blocking: variant.blocking,
 				});
 			} else {
 				let field_ty: Path = try_type_to_path(ty, ident.span())?;
-				field_ty.
+				let generic: bool = if let Some(ident) = field_ty.get_ident() {
+					baggage_generics.contains(ident)
+				} else {
+					false
+				};
 				baggage.push(BaggageField {
 					field_name: ident,
-					generic: !baggage_generics.contains(&field_ty),
+					generic,
 					field_ty,
 				});
 			}
