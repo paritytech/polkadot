@@ -36,59 +36,49 @@ use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use crate::error::{Fatal, NonFatal};
 use crate::LOG_TARGET;
 
-pub struct PoVRequester {}
+/// Start background worker for taking care of fetching the requested `PoV` from the network.
+pub async fn fetch_pov<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	parent: Hash,
+	from_validator: ValidatorIndex,
+	candidate_hash: CandidateHash,
+	pov_hash: Hash,
+	tx: oneshot::Sender<PoV>
+) -> super::Result<()>
+where
+	Context: SubsystemContext,
+{
+	let info = &runtime.get_session_info(ctx, parent).await?.session_info;
+	let authority_id = info.discovery_keys.get(from_validator.0 as usize)
+		.ok_or(NonFatal::InvalidValidatorIndex)?
+		.clone();
+	let (req, pending_response) = OutgoingRequest::new(
+		Recipient::Authority(authority_id),
+		PoVFetchingRequest {
+			candidate_hash,
+		},
+	);
+	let full_req = Requests::PoVFetching(req);
 
-impl PoVRequester {
-	/// Create a new requester for PoVs.
-	pub fn new() -> Self {
-		Self {}
-	}
+	ctx.send_message(
+		AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendRequests(
+				vec![full_req],
+				// We are supposed to be connected to validators of our group via `PeerSet`,
+				// but at session boundaries that is kind of racy, in case a connection takes
+				// longer to get established, so we try to connect in any case.
+				IfDisconnected::TryConnect
+			)
+	)).await;
 
-	/// Start background worker for taking care of fetching the requested `PoV` from the network.
-	pub async fn fetch_pov<Context>(
-		&self,
-		ctx: &mut Context,
-		runtime: &mut RuntimeInfo,
-		parent: Hash,
-		from_validator: ValidatorIndex,
-		candidate_hash: CandidateHash,
-		pov_hash: Hash,
-		tx: oneshot::Sender<PoV>
-	) -> super::Result<()>
-	where
-		Context: SubsystemContext,
-	{
-		let info = &runtime.get_session_info(ctx, parent).await?.session_info;
-		let authority_id = info.discovery_keys.get(from_validator.0 as usize)
-			.ok_or(NonFatal::InvalidValidatorIndex)?
-			.clone();
-		let (req, pending_response) = OutgoingRequest::new(
-			Recipient::Authority(authority_id),
-			PoVFetchingRequest {
-				candidate_hash,
-			},
-		);
-		let full_req = Requests::PoVFetching(req);
-
-		ctx.send_message(
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
-					vec![full_req],
-					// We are supposed to be connected to validators of our group via `PeerSet`,
-					// but at session boundaries that is kind of racy, in case a connection takes
-					// longer to get established, so we try to connect in any case.
-					IfDisconnected::TryConnect
-				)
-		)).await;
-
-		let span = jaeger::Span::new(candidate_hash, "fetch-pov")
-			.with_validator_index(from_validator)
-			.with_relay_parent(parent);
-		ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
-			.await
-			.map_err(|e| Fatal::SpawnTask(e))?;
-		Ok(())
-	}
+	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
+		.with_validator_index(from_validator)
+		.with_relay_parent(parent);
+	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
+		.await
+		.map_err(|e| Fatal::SpawnTask(e))?;
+	Ok(())
 }
 
 /// Future to be spawned for taking care of handling reception and sending of PoV.
@@ -166,7 +156,6 @@ mod tests {
 	}
 
 	fn test_run(pov_hash: Hash, pov: PoV) {
-		let requester = PoVRequester::new();
 		let pool = TaskExecutor::new();
 		let (mut context, mut virtual_overseer) =
 			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, TaskExecutor>(pool.clone());
@@ -175,7 +164,7 @@ mod tests {
 
 		let (tx, rx) = oneshot::channel();
 		let testee = async {
-			requester.fetch_pov(
+			fetch_pov(
 				&mut context,
 				&mut runtime,
 				Hash::default(),

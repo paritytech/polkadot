@@ -36,7 +36,6 @@ use requester::Requester;
 
 /// Handing requests for PoVs during backing.
 mod pov_requester;
-use pov_requester::PoVRequester;
 
 /// Responding to erasure chunk requests:
 mod responder;
@@ -90,7 +89,6 @@ impl AvailabilityDistributionSubsystem {
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
 		let mut requester = Requester::new(self.metrics.clone()).fuse();
-		let pov_requester = PoVRequester::new();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -142,7 +140,7 @@ impl AvailabilityDistributionSubsystem {
 					},
 				} => {
 					log_error(
-						pov_requester.fetch_pov(
+						pov_requester::fetch_pov(
 							&mut ctx,
 							&mut self.runtime,
 							relay_parent,
@@ -151,7 +149,7 @@ impl AvailabilityDistributionSubsystem {
 							pov_hash,
 							tx,
 						).await,
-						"PoVRequester::fetch_pov"
+						"pov_requester::fetch_pov"
 					)?;
 				}
 			}
