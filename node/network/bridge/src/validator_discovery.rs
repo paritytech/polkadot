@@ -53,6 +53,7 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 }
 
 /// This struct tracks the state for one `ConnectToValidators` request.
+#[derive(Debug)]
 struct NonRevokedConnectionRequestState {
 	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
@@ -118,7 +119,7 @@ pub(super) struct Service<N, AD> {
 	_phantom: PhantomData<(N, AD)>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct StatePerPeerSet {
 	// Peers that are connected to us and authority ids associated to them.
 	connected_peers: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
@@ -206,6 +207,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		).await;
 
 		let state = &mut self.state[peer_set];
+		tracing::debug!(target: LOG_TARGET, "state: {:?}", state);
 		// Increment the counter of how many times the validators were requested.
 		validator_ids.iter().for_each(|id| *state.requested_validators.entry(id.clone()).or_default() += 1);
 
@@ -277,6 +279,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				);
 			}
 		}
+
+		tracing::debug!(target: LOG_TARGET, "adding: {:?}", multiaddr_to_add);
+		tracing::debug!(target: LOG_TARGET, "removing: {:?}", multiaddr_to_remove);
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
