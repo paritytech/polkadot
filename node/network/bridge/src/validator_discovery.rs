@@ -101,13 +101,16 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			.difference(&newly_requested)
 			.cloned()
 			.collect();
-		state.previously_requested = newly_requested.clone();
+		let multiaddr_to_add = newly_requested.difference(&state.previously_requested)
+			.cloned()
+			.collect();
+		state.previously_requested = newly_requested;
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service.add_to_peers_set(
 			peer_set.into_protocol_name(),
-			newly_requested,
+			multiaddr_to_add,
 		).await {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
