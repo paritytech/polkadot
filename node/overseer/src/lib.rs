@@ -84,40 +84,32 @@ use polkadot_subsystem::messages::{
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, RuntimeApiMessage,
-	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage,
+	AvailabilityStoreMessage, NetworkBridgeMessage, CollationGenerationMessage,
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
 	ApprovalVotingMessage, GossipSupportMessage,
 };
 pub use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
+	OverseerSignal, SubsystemError,
 	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
 };
 
 mod metrics;
-use self::metrics::{Metrics, MetricsInner};
+use self::metrics::Metrics;
 
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
 use polkadot_overseer_gen::{
 	SubsystemMeterReadouts,
-	ChannelsOut,
-	OverseenSubsystem,
 	SubsystemMeters,
 	SubsystemIncomingMessages,
 	overlord,
-	OverseerSubsystemSender,
+	MessagePacket,
+	make_packet,
+	SignalsReceived,
 };
 
-
-// A capacity of bounded channels inside the overseer.
-const CHANNEL_CAPACITY: usize = 1024;
-// The capacity of signal channels to subsystems.
-const SIGNAL_CHANNEL_CAPACITY: usize = 64;
-
-// A graceful `Overseer` teardown time delay.
-const STOP_DELAY: u64 = 1;
 // Target for logs.
-const LOG_TARGET: &'static str = "parachain::overseer";
+// const LOG_TARGET: &'static str = "parachain::overseer";
 
 trait MapSubsystem<T> {
 	type Output;
@@ -430,60 +422,6 @@ enum ExternalRequest {
 	},
 }
 
-/// A handler used to communicate with the [`Overseer`].
-///
-/// [`Overseer`]: struct.Overseer.html
-#[derive(Clone)]
-pub struct OverseerHandler {
-	events_tx: metered::MeteredSender<Event>,
-}
-
-impl OverseerHandler {
-	/// Inform the `Overseer` that that some block was imported.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	pub async fn block_imported(&mut self, block: BlockInfo) {
-		self.send_and_log_error(Event::BlockImported(block)).await
-	}
-
-	/// Send some message to one of the `Subsystem`s.
-	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
-	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
-		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
-	}
-
-	/// Inform the `Overseer` that some block was finalized.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	pub async fn block_finalized(&mut self, block: BlockInfo) {
-		self.send_and_log_error(Event::BlockFinalized(block)).await
-	}
-
-	/// Wait for a block with the given hash to be in the active-leaves set.
-	///
-	/// The response channel responds if the hash was activated and is closed if the hash was deactivated.
-	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
-	/// the response channel may never return if the hash was deactivated before this call.
-	/// In this case, it's the caller's responsibility to ensure a timeout is set.
-	#[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
-	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) {
-		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
-			hash,
-			response_channel
-		})).await
-	}
-
-	/// Tell `Overseer` to shutdown.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	pub async fn stop(&mut self) {
-		self.send_and_log_error(Event::Stop).await
-	}
-
-	async fn send_and_log_error(&mut self, event: Event) {
-		if self.events_tx.send(event).await.is_err() {
-			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
-		}
-	}
-}
-
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
 /// import and finality notifications into the [`OverseerHandler`].
 ///
@@ -527,30 +465,6 @@ impl Debug for ToOverseer {
 		}
 	}
 }
-
-/// A running instance of some [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-struct SubsystemInstance<M> {
-	tx_signal: metered::MeteredSender<OverseerSignal>,
-	tx_bounded: metered::MeteredSender<MessagePacket<M>>,
-	meters: SubsystemMeters,
-	signals_received: usize,
-	name: &'static str,
-}
-
-#[derive(Debug)]
-struct MessagePacket<T> {
-	signals_received: usize,
-	message: T,
-}
-
-fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
-	MessagePacket {
-		signals_received,
-		message,
-	}
-}
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or to spawn it's [`SubsystemJob`]s.
@@ -559,8 +473,8 @@ fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[derive(Debug)]
-pub struct OverseerSubsystemContext<M>{
-	signals: metered::MeteredReceiver<OverseerSignal>,
+pub struct OverseerSubsystemContext<M, Signal>{
+	signals: metered::MeteredReceiver<Signal>,
 	messages: SubsystemIncomingMessages<M>,
 	to_subsystems: OverseerSubsystemSender,
 	to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
@@ -569,10 +483,10 @@ pub struct OverseerSubsystemContext<M>{
 	metrics: Metrics,
 }
 
-impl<M> OverseerSubsystemContext<M> {
+impl<M, Signal> OverseerSubsystemContext<M, Signal> {
 	/// Create a new `OverseerSubsystemContext`.
 	fn new(
-		signals: metered::MeteredReceiver<OverseerSignal>,
+		signals: metered::MeteredReceiver<Signal>,
 		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
@@ -598,7 +512,7 @@ impl<M> OverseerSubsystemContext<M> {
 	/// Intended for tests.
 	#[allow(unused)]
 	fn new_unmetered(
-		signals: metered::MeteredReceiver<OverseerSignal>,
+		signals: metered::MeteredReceiver<Signal>,
 		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
@@ -609,18 +523,19 @@ impl<M> OverseerSubsystemContext<M> {
 }
 
 #[async_trait::async_trait]
-impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
+impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSubsystemContext<M, Signal> {
 	type Message = M;
+	type Signal = Signal;
 	type Sender = OverseerSubsystemSender;
 
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
+	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, Signal>>, ()> {
 		match poll!(self.recv()) {
 			Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
 			Poll::Pending => Ok(None),
 		}
 	}
 
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
+	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M, Signal>> {
 		loop {
 			// If we have a message pending an overseer signal, we only poll for signals
 			// in the meantime.
@@ -702,7 +617,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}).await.map_err(Into::into)
 	}
 
-	fn sender(&mut self) -> &mut OverseerSubsystemSender {
+	fn sender(&mut self) -> &mut Self::Sender {
 		&mut self.to_subsystems
 	}
 }
@@ -888,25 +803,63 @@ where
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
-		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage, OverseerSignal>> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage, OverseerSignal>> + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage, OverseerSignal>> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage, OverseerSignal>> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage, OverseerSignal>> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage, OverseerSignal>> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage, OverseerSignal>> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage, OverseerSignal>> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage, OverseerSignal>> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage, OverseerSignal>> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage, OverseerSignal>> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage, OverseerSignal>> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage, OverseerSignal>> + Send,
+		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage, OverseerSignal>> + Send,
+		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage, OverseerSignal>> + Send,
+		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage, OverseerSignal>> + Send,
+		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage, OverseerSignal>> + Send,
+		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage, OverseerSignal>> + Send,
 	{
+
+		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
+		// spawn the metrics metronome task
+		{
+			struct ExtractNameAndMeters;
+			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+				type Output = (&'static str, SubsystemMeters);
+
+				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+					let instance = subsystem.instance.as_ref()
+						.expect("Extraction is done directly after spawning when subsystems\
+						have not concluded; qed");
+
+					(
+						instance.name,
+						instance.meters.clone(),
+					)
+				}
+			}
+
+			let subsystem_meters = all_subsystems.as_ref().map_subsystems(ExtractNameAndMeters);
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(950))
+				.for_each(move |_| {
+					let subsystem_meters = subsystem_meters.as_ref()
+						.map_subsystems(|&(name, ref meters): &(_, SubsystemMeters)| (name, meters.read()));
+
+					// We combine the amount of messages from subsystems to the overseer
+					// as well as the amount of messages from external sources to the overseer
+					// into one to_overseer value.
+					metronome_metrics.channel_fill_level_snapshot(subsystem_meters);
+
+					async move {
+						()
+					}
+				});
+			s.spawn("metrics_metronome", Box::pin(metronome));
+		}
 
 		let (overseer, handler) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
@@ -931,89 +884,17 @@ where
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
-			.metrics(<Metrics as MetricsTrait>::register(prometheus_registry)?)
-			.active_leaves(leaves.collect())
+			.metrics(metrics)
 			.spawner(s)
 			.build();
-
-		// spawn the metrics metronome task
-		{
-			struct ExtractNameAndMeters;
-			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
-				type Output = (&'static str, SubsystemMeters);
-
-				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
-					let instance = subsystem.instance.as_ref()
-						.expect("Extraction is done directly after spawning when subsystems\
-						have not concluded; qed");
-
-					(
-						instance.name,
-						instance.meters.clone(),
-					)
-				}
-			}
-
-			let subsystem_meters = subsystems.as_ref().map_subsystems(ExtractNameAndMeters);
-			let metronome_metrics = metrics.clone();
-			let metronome = Metronome::new(std::time::Duration::from_millis(950))
-				.for_each(move |_| {
-					let subsystem_meters = subsystem_meters.as_ref()
-						.map_subsystems(|&(name, ref meters): &(_, SubsystemMeters)| (name, meters.read()));
-
-					// We combine the amount of messages from subsystems to the overseer
-					// as well as the amount of messages from external sources to the overseer
-					// into one to_overseer value.
-					metronome_metrics.channel_fill_level_snapshot(subsystem_meters);
-
-					async move {
-						()
-					}
-				});
-			s.spawn("metrics_metronome", Box::pin(metronome));
-		}
-
 
 		Ok((overseer, OverseerHandler { handler }))
 	}
 
 	// Stop the overseer.
-	async fn stop(mut self) {
-		let _ = self.subsystems.candidate_validation.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.candidate_backing.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.candidate_selection.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.statement_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_recovery.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.bitfield_signing.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.bitfield_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.provisioner.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.runtime_api.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.availability_store.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.network_bridge.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.chain_api.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.collator_protocol.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.collation_generation.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.approval_distribution.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.approval_voting.send_signal(OverseerSignal::Conclude).await;
-		let _ = self.subsystems.gossip_support.send_signal(OverseerSignal::Conclude).await;
-
-		let mut stop_delay = Delay::new(Duration::from_secs(STOP_DELAY)).fuse();
-
-		loop {
-			select! {
-				_ = self.running_subsystems.next() => {
-					if self.running_subsystems.is_empty() {
-						break;
-					}
-				},
-				_ = stop_delay => break,
-				complete => break,
-			}
-		}
+	async fn stop2(mut self) {
+		self.stop(Overseer::Conclude).await
 	}
-
-
 
 	/// Run the `Overseer`.
 	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]
@@ -1160,93 +1041,6 @@ where
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
-		self.subsystems.candidate_validation.send_signal(signal.clone()).await?;
-		self.subsystems.candidate_backing.send_signal(signal.clone()).await?;
-		self.subsystems.candidate_selection.send_signal(signal.clone()).await?;
-		self.subsystems.statement_distribution.send_signal(signal.clone()).await?;
-		self.subsystems.availability_distribution.send_signal(signal.clone()).await?;
-		self.subsystems.availability_recovery.send_signal(signal.clone()).await?;
-		self.subsystems.bitfield_signing.send_signal(signal.clone()).await?;
-		self.subsystems.bitfield_distribution.send_signal(signal.clone()).await?;
-		self.subsystems.provisioner.send_signal(signal.clone()).await?;
-		self.subsystems.runtime_api.send_signal(signal.clone()).await?;
-		self.subsystems.availability_store.send_signal(signal.clone()).await?;
-		self.subsystems.network_bridge.send_signal(signal.clone()).await?;
-		self.subsystems.chain_api.send_signal(signal.clone()).await?;
-		self.subsystems.collator_protocol.send_signal(signal.clone()).await?;
-		self.subsystems.collation_generation.send_signal(signal.clone()).await?;
-		self.subsystems.approval_distribution.send_signal(signal.clone()).await?;
-		self.subsystems.approval_voting.send_signal(signal.clone()).await?;
-		self.subsystems.gossip_support.send_signal(signal).await?;
-
-		Ok(())
-	}
-
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
-	async fn route_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.metrics.on_message_relayed();
-		match msg {
-			AllMessages::CandidateValidation(msg) => {
-				self.subsystems.candidate_validation.send_message(msg).await?;
-			},
-			AllMessages::CandidateBacking(msg) => {
-				self.subsystems.candidate_backing.send_message(msg).await?;
-			},
-			AllMessages::CandidateSelection(msg) => {
-				self.subsystems.candidate_selection.send_message(msg).await?;
-			},
-			AllMessages::StatementDistribution(msg) => {
-				self.subsystems.statement_distribution.send_message(msg).await?;
-			},
-			AllMessages::AvailabilityDistribution(msg) => {
-				self.subsystems.availability_distribution.send_message(msg).await?;
-			},
-			AllMessages::AvailabilityRecovery(msg) => {
-				self.subsystems.availability_recovery.send_message(msg).await?;
-			},
-			AllMessages::BitfieldDistribution(msg) => {
-				self.subsystems.bitfield_distribution.send_message(msg).await?;
-			},
-			AllMessages::BitfieldSigning(msg) => {
-				self.subsystems.bitfield_signing.send_message(msg).await?;
-			},
-			AllMessages::Provisioner(msg) => {
-				self.subsystems.provisioner.send_message(msg).await?;
-			},
-			AllMessages::RuntimeApi(msg) => {
-				self.subsystems.runtime_api.send_message(msg).await?;
-			},
-			AllMessages::AvailabilityStore(msg) => {
-				self.subsystems.availability_store.send_message(msg).await?;
-			},
-			AllMessages::NetworkBridge(msg) => {
-				self.subsystems.network_bridge.send_message(msg).await?;
-			},
-			AllMessages::ChainApi(msg) => {
-				self.subsystems.chain_api.send_message(msg).await?;
-			},
-			AllMessages::CollationGeneration(msg) => {
-				self.subsystems.collation_generation.send_message(msg).await?;
-			},
-			AllMessages::CollatorProtocol(msg) => {
-				self.subsystems.collator_protocol.send_message(msg).await?;
-			},
-			AllMessages::ApprovalDistribution(msg) => {
-				self.subsystems.approval_distribution.send_message(msg).await?;
-			},
-			AllMessages::ApprovalVoting(msg) => {
-				self.subsystems.approval_voting.send_message(msg).await?;
-			},
-			AllMessages::GossipSupport(msg) => {
-				self.subsystems.gossip_support.send_message(msg).await?;
-			},
-		}
-
-		Ok(())
-	}
-
 	/// Handles a header activation. If the header's state doesn't support the parachains API,
 	/// this returns `None`.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -1318,63 +1112,6 @@ where
 enum TaskKind {
 	Regular,
 	Blocking,
-}
-
-fn spawn<S: SpawnNamed, M: Send + 'static>(
-	spawner: &mut S,
-	message_tx: metered::MeteredSender<MessagePacket<M>>,
-	message_rx: SubsystemIncomingMessages<M>,
-	unbounded_meter: metered::Meter,
-	to_subsystems: ChannelsOut,
-	to_overseer_tx: metered::UnboundedMeteredSender<ToOverseer>,
-	s: impl Subsystem<OverseerSubsystemContext<M>>,
-	metrics: &Metrics,
-	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-	task_kind: TaskKind,
-) -> SubsystemResult<OverseenSubsystem<M>> {
-	let (signal_tx, signal_rx) = metered::channel(SIGNAL_CHANNEL_CAPACITY);
-	let ctx = OverseerSubsystemContext::new(
-		signal_rx,
-		message_rx,
-		to_subsystems,
-		to_overseer_tx,
-		metrics.clone(),
-	);
-	let SpawnedSubsystem { future, name } = s.start(ctx);
-
-	let (tx, rx) = oneshot::channel();
-
-	let fut = Box::pin(async move {
-		if let Err(e) = future.await {
-			tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
-		} else {
-			tracing::debug!(subsystem=name, "subsystem exited without an error");
-		}
-		let _ = tx.send(());
-	});
-
-	match task_kind {
-		TaskKind::Regular => spawner.spawn(name, fut),
-		TaskKind::Blocking => spawner.spawn_blocking(name, fut),
-	}
-
-	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
-
-	let instance = Some(SubsystemInstance {
-		meters: SubsystemMeters {
-			unbounded: unbounded_meter,
-			bounded: message_tx.meter().clone(),
-			signals: signal_tx.meter().clone(),
-		},
-		tx_signal: signal_tx,
-		tx_bounded: message_tx,
-		signals_received: 0,
-		name,
-	});
-
-	Ok(OverseenSubsystem {
-		instance,
-	})
 }
 
 #[cfg(test)]
