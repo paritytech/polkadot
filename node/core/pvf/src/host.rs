@@ -155,7 +155,8 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
-		config.prepare_worker_program_path.to_owned(),
+		config.prepare_worker_program_path.clone(),
+		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 	);
 
