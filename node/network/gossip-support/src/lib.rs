@@ -102,6 +102,11 @@ async fn determine_relevant_authorities(
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
+	tracing::debug!(
+		target: LOG_TARGET,
+		authority_count = ?authorities.len(),
+		"Determined relevant authorities"
+	);
 	Ok(authorities)
 }
 
