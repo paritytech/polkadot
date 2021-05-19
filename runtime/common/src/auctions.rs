@@ -481,24 +481,22 @@ impl<T: Config> Pallet<T> {
 				));
 			}
 
-			if !is_ending {
-				// Return any funds reserved for the previous winner if we are not in the ending period
-				// and they no longer have any active bids.
-				let mut outgoing_winner = Some((bidder.clone(), para, amount));
-				swap(&mut current_winning[range_index], &mut outgoing_winner);
-				if let Some((who, para, _amount)) = outgoing_winner {
-					if current_winning.iter()
-						.filter_map(Option::as_ref)
-						.all(|&(ref other, other_para, _)| other != &who || other_para != para)
-					{
-						// Previous bidder is no longer winning any ranges: unreserve their funds.
-						if let Some(amount) = ReservedAmounts::<T>::take(&(who.clone(), para)) {
-							// It really should be reserved; there's not much we can do here on fail.
-							let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
-							debug_assert!(err_amt.is_zero());
+			// Return any funds reserved for the previous winner if we are not in the ending period
+			// and they no longer have any active bids.
+			let mut outgoing_winner = Some((bidder.clone(), para, amount));
+			swap(&mut current_winning[range_index], &mut outgoing_winner);
+			if let Some((who, para, _amount)) = outgoing_winner {
+				if !is_ending && current_winning.iter()
+					.filter_map(Option::as_ref)
+					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
+				{
+					// Previous bidder is no longer winning any ranges: unreserve their funds.
+					if let Some(amount) = ReservedAmounts::<T>::take(&(who.clone(), para)) {
+						// It really should be reserved; there's not much we can do here on fail.
+						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
+						debug_assert!(err_amt.is_zero());
 
-						Self::deposit_event(Event::<T>::Unreserved(who, amount));
-					}
+					Self::deposit_event(Event::<T>::Unreserved(who, amount));
 				}
 			}
 
