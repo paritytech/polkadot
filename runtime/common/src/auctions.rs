@@ -445,8 +445,9 @@ impl<T: Config> Pallet<T> {
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
 		// Range as an array index.
 		let range_index = range as u8 as usize;
+		let is_ending = Self::is_ending(frame_system::Pallet::<T>::block_number());
 		// The offset into the ending samples of the auction.
-		let offset = Self::is_ending(frame_system::Pallet::<T>::block_number()).unwrap_or_default();
+		let offset = is_ending.unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
@@ -480,12 +481,12 @@ impl<T: Config> Pallet<T> {
 				));
 			}
 
-			// Return any funds reserved for the previous winner if they no longer have any active
-			// bids.
+			// Return any funds reserved for the previous winner if we are not in the ending period
+			// and they no longer have any active bids.
 			let mut outgoing_winner = Some((bidder.clone(), para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
-				if current_winning.iter()
+				if !is_ending.is_some() && current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
@@ -494,7 +495,6 @@ impl<T: Config> Pallet<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
-
 						Self::deposit_event(Event::<T>::Unreserved(who, amount));
 					}
 				}
@@ -1197,24 +1197,22 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 0, 1));
 
 			for i in 1..6u64 {
-				run_to_block((i + 3) as _);
+				run_to_block(((i - 1) / 2 + 1) as _);
 				assert_ok!(Auctions::bid(Origin::signed(i), 0.into(), 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j <= i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j <= i { j * 9 } else { j * 10 });
 				}
 			}
+			for i in 1..6u64 {
+				assert_eq!(ReservedAmounts::<Test>::get((i, ParaId::from(0))).unwrap(), i);
+			}
 
-			run_to_block(9);
-			assert_eq!(leases(), vec![
-				((0.into(), 1), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 2), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 3), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 4), LeaseData { leaser: 3, amount: 3 }),
-			]);
+			run_to_block(5);
+			assert_eq!(leases(), (1..=4).map(|i| ((0.into(), i), LeaseData { leaser: 2, amount: 2 })).collect::<Vec<_>>());
 		});
 	}
 
