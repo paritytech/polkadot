@@ -185,8 +185,8 @@ impl State {
 				let failures = failures.await.unwrap_or(0);
 
 				self.last_session_index = Some(new_session);
-				// issue another request if at least half of the authorities were not resolved
-				self.force_request = failures != 0 && (num / failures <= 2);
+				// issue another request if at least a third of the authorities were not resolved
+				self.force_request = failures >= num / 3;
 			}
 		}
 
