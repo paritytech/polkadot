@@ -111,6 +111,8 @@ fn authorities() -> Vec<AuthorityDiscoveryId> {
 		Sr25519Keyring::Bob.public().into(),
 		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::Ferdie.public().into(),
+		Sr25519Keyring::Eve.public().into(),
+		Sr25519Keyring::One.public().into(),
 	]
 }
 
