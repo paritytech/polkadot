@@ -156,18 +156,18 @@ enum AvailabilityDistributionMessage {
       ///
       /// NOTE: The result of this fetch is not yet locally validated and could be bogus.
       FetchPoV {
-	      /// The relay parent giving the necessary context.
-	      relay_parent: Hash,
-	      /// Validator to fetch the PoV from.
-	      from_validator: ValidatorIndex,
-	      /// Candidate hash to fetch the PoV for.
-	      candidate_hash: CandidateHash,
-	      /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
-	      pov_hash: Hash,
-	      /// Sender for getting back the result of this fetch.
-	      ///
-	      /// The sender will be canceled if the fetching failed for some reason.
-	      tx: oneshot::Sender<PoV>,
+          /// The relay parent giving the necessary context.
+          relay_parent: Hash,
+          /// Validator to fetch the PoV from.
+          from_validator: ValidatorIndex,
+          /// Candidate hash to fetch the PoV for.
+          candidate_hash: CandidateHash,
+          /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+          pov_hash: Hash,
+          /// Sender for getting back the result of this fetch.
+          ///
+          /// The sender will be canceled if the fetching failed for some reason.
+          tx: oneshot::Sender<PoV>,
       },
 }
 ```
@@ -446,17 +446,22 @@ enum NetworkBridgeMessage {
     /// Connect to peers who represent the given `validator_ids`.
     ///
     /// Also ask the network to stay connected to these peers at least
-    /// until the request is revoked.
-    /// This can be done by dropping the receiver.
+    /// until a new request is issued.
+    ///
+    /// Because it overrides the previous request, it must be ensured
+    /// that `validator_ids` include all peers the subsystems
+    /// are interested in (per `PeerSet`).
+    ///
+    /// A caller can learn about validator connections by listening to the
+    /// `PeerConnected` events from the network bridge.
     ConnectToValidators {
         /// Ids of the validators to connect to.
         validator_ids: Vec<AuthorityDiscoveryId>,
         /// The underlying protocol to use for this request.
         peer_set: PeerSet,
-        /// Response sender by which the issuer can learn the `PeerId`s of
-        /// the validators as they are connected.
-        /// The response is sent immediately for already connected peers.
-        connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+        /// Sends back the number of `AuthorityDiscoveryId`s which
+        /// authority discovery has failed to resolve.
+        failed: oneshot::Sender<usize>,
     },
 }
 ```
