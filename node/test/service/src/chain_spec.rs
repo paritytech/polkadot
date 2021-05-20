@@ -29,7 +29,7 @@ use sp_runtime::Perbill;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
-/// The `ChainSpec` parametrized for polkadot test runtime.
+/// The `ChainSpec` parameterized for polkadot test runtime.
 pub type PolkadotChainSpec =
 	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
 

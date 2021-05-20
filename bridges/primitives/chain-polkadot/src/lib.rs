@@ -79,7 +79,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if message is too expensive to be sent to Polkadot from this chain.
 		///
-		/// Please keep in mind that this method returns lowest message fee required for message
+		/// Please keep in mind that this method returns the lowest message fee required for message
 		/// to be accepted to the lane. It may be good idea to pay a bit over this price to account
 		/// future exchange rate changes and guarantee that relayer would deliver your message
 		/// to the target chain.
@@ -109,7 +109,7 @@ sp_api::decl_runtime_apis! {
 	pub trait FromPolkadotInboundLaneApi {
 		/// Returns nonce of the latest message, received by given lane.
 		fn latest_received_nonce(lane: LaneId) -> MessageNonce;
-		/// Nonce of latest message that has been confirmed to the bridged chain.
+		/// Nonce of the latest message that has been confirmed to the bridged chain.
 		fn latest_confirmed_nonce(lane: LaneId) -> MessageNonce;
 		/// State of the unrewarded relayers set at given lane.
 		fn unrewarded_relayers_state(lane: LaneId) -> UnrewardedRelayersState;
