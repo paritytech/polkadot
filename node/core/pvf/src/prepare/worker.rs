@@ -113,8 +113,8 @@ pub async fn start_work(
 		}
 
 		let selected = futures::select! {
-			artifact_path_bytes = framed_recv(&mut stream).fuse() => {
-				match artifact_path_bytes {
+			res = framed_recv(&mut stream).fuse() => {
+				match res {
 					Ok(x) if x == &[1u8] => {
 						tracing::debug!(
 							target: LOG_TARGET,
@@ -293,7 +293,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			);
 			async_std::fs::write(&dest, &artifact_bytes).await?;
 
-			// Return back a byte that signals finsihing the work.
+			// Return back a byte that signals finishing the work.
 			framed_send(&mut stream, &[1u8]).await?;
 		}
 	});
