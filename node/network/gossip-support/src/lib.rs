@@ -181,7 +181,7 @@ impl State {
 				).await;
 
 				// we await for the request to be processed
-				// this if fine, it should take much less time than one session
+				// this is fine, it should take much less time than one session
 				let failures = failures.await.unwrap_or(num);
 
 				self.last_session_index = Some(new_session);
