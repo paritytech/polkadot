@@ -23,7 +23,7 @@
 use parity_scale_codec::{Encode, Decode};
 use parking_lot::Mutex;
 use futures::prelude::*;
-use futures::channel::mpsc;
+use futures::stream::BoxStream;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
@@ -36,7 +36,7 @@ use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages,
 	CollatorProtocolMessage, NetworkBridgeEvent,
 };
-use polkadot_primitives::v1::{Hash, BlockNumber, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
 	PeerId, peer_set::PeerSet, View, v1 as protocol_v1, OurView, UnifiedReputationChange as Rep,
 	ObservedRole,
@@ -278,10 +278,14 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
+		// The stream of networking events has to be created at initialization, otherwise the
+		// networking might open connections before the stream of events has been grabbed.
+		let network_stream = self.network_service.event_stream();
+
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		let future = run_network(self, ctx)
+		let future = run_network(self, ctx, network_stream)
 			.map_err(|e| {
 				SubsystemError::with_origin("network-bridge", e)
 			})
@@ -314,12 +318,6 @@ impl From<SubsystemError> for UnexpectedAbort {
 	}
 }
 
-// notifications to be passed through to the validator discovery worker.
-enum ValidatorDiscoveryNotification {
-	PeerConnected(PeerId, PeerSet, Option<AuthorityDiscoveryId>),
-	PeerDisconnected(PeerId, PeerSet),
-}
-
 #[derive(Default, Clone)]
 struct Shared(Arc<Mutex<SharedInner>>);
 
@@ -339,7 +337,6 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
 	mut authority_discovery_service: AD,
-	validator_discovery_notifications: mpsc::Receiver<ValidatorDiscoveryNotification>,
 	shared: Shared,
 	sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
@@ -355,8 +352,6 @@ where
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
 
 	let mut mode = Mode::Syncing(sync_oracle);
-
-	let mut validator_discovery_notifications = validator_discovery_notifications.fuse();
 
 	loop {
 		futures::select! {
@@ -514,7 +509,6 @@ where
 					NetworkBridgeMessage::ConnectToValidators {
 						validator_ids,
 						peer_set,
-						connected,
 					} => {
 						tracing::trace!(
 							target: LOG_TARGET,
@@ -527,7 +521,6 @@ where
 						let (ns, ads) = validator_discovery.on_request(
 							validator_ids,
 							peer_set,
-							connected,
 							network_service,
 							authority_discovery_service,
 						).await;
@@ -538,19 +531,6 @@ where
 				}
 				Err(e) => return Err(e.into()),
 			},
-			notification = validator_discovery_notifications.next().fuse() => match notification {
-				None => return Ok(()),
-				Some(ValidatorDiscoveryNotification::PeerConnected(peer, peer_set, maybe_auth)) => {
-					validator_discovery.on_peer_connected(
-						peer.clone(),
-						peer_set,
-						maybe_auth,
-					).await;
-				}
-				Some(ValidatorDiscoveryNotification::PeerDisconnected(peer, peer_set)) => {
-					validator_discovery.on_peer_disconnected(&peer, peer_set);
-				}
-			},
 		}
 	}
 }
@@ -558,14 +538,12 @@ where
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
+	mut network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
 	mut request_multiplexer: RequestMultiplexer,
-	mut validator_discovery_notifications: mpsc::Sender<ValidatorDiscoveryNotification>,
 	metrics: Metrics,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
-	let mut network_stream = network_service.event_stream();
-
 	loop {
 		futures::select! {
 			network_event = network_stream.next().fuse() => match network_event {
@@ -611,13 +589,6 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					let maybe_authority =
 						authority_discovery_service
 							.get_authority_id_by_peer_id(peer).await;
-
-					// Failure here means that the other side of the network bridge
-					// has concluded and this future will be dropped in due course.
-					let _ = validator_discovery_notifications.send(
-						ValidatorDiscoveryNotification::PeerConnected(peer, peer_set, maybe_authority.clone())
-					).await;
-
 
 					match peer_set {
 						PeerSet::Validation => {
@@ -693,12 +664,6 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 						w
 					};
-
-					// Failure here means that the other side of the network bridge
-					// has concluded and this future will be dropped in due course.
-					let _ = validator_discovery_notifications.send(
-						ValidatorDiscoveryNotification::PeerDisconnected(peer.clone(), peer_set)
-					).await;
 
 					if was_connected {
 						match peer_set {
@@ -835,10 +800,11 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-#[tracing::instrument(skip(bridge, ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(skip(bridge, ctx, network_stream), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	bridge: NetworkBridge<N, AD>,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where
 	N: Network,
@@ -858,14 +824,12 @@ where
 		.get_statement_fetching()
 		.expect("Gets initialized, must be `Some` on startup. qed.");
 
-	 let (validation_worker_tx, validation_worker_rx) = mpsc::channel(1024);
-
 	let (remote, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
+		network_stream,
 		authority_discovery_service.clone(),
 		request_multiplexer,
-		validation_worker_tx,
 		metrics.clone(),
 		shared.clone(),
 	).remote_handle();
@@ -880,7 +844,6 @@ where
 		ctx,
 		network_service,
 		authority_discovery_service,
-		validation_worker_rx,
 		shared,
 		sync_oracle,
 		metrics,
@@ -1392,8 +1355,9 @@ mod tests {
 	) {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (request_multiplexer, req_configs) = RequestMultiplexer::new();
-		let (network, network_handle, discovery) = new_test_network(req_configs);
+		let (mut network, network_handle, discovery) = new_test_network(req_configs);
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let network_stream = network.event_stream();
 
 		let bridge = NetworkBridge {
 			network_service: network,
@@ -1406,6 +1370,7 @@ mod tests {
 		let network_bridge = run_network(
 			bridge,
 			context,
+			network_stream,
 		)
 			.map_err(|_| panic!("subsystem execution failed"))
 			.map(|_| ());

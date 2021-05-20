@@ -164,26 +164,27 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
-build-adder-collator:
-  stage:                           test
-  <<:                              *collect-artifacts
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  script:
-    - time cargo build --release --verbose -p test-parachain-adder-collator
-    - sccache -s
-    # pack artifacts
-    - mkdir -p ./artifacts
-    - mv ./target/release/adder-collator ./artifacts/.
-    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
-    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
-    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
+# FIXME: uncomment this when simnet is ready
+# build-adder-collator:
+#   stage:                           test
+#   <<:                              *collect-artifacts
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#   script:
+#     - time cargo build --release --verbose -p test-parachain-adder-collator
+#     - sccache -s
+#     # pack artifacts
+#     - mkdir -p ./artifacts
+#     - mv ./target/release/adder-collator ./artifacts/.
+#     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+#     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+#     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+#     - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
 
@@ -257,19 +258,21 @@ generate-impl-guide:
 publish-polkadot-image:
   stage:                           build
   <<:                              *build-push-image
-  variables:
-    <<:                            *image-variables
-    # scripts/docker/Dockerfile
-    DOCKERFILE:                    Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/synth-wave
+# FIXME: uncomment this when simnet is ready
+#  variables:
+#    <<:                            *image-variables
+#    # scripts/docker/Dockerfile
+#    DOCKERFILE:                    Dockerfile
+#    IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+# FIXME: uncomment this when simnet is ready
+#  - if: $CI_PIPELINE_SOURCE == "schedule"
+#  - if: $CI_COMMIT_REF_NAME == "master"
+#  - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       variables:
         <<:                        *image-variables
@@ -280,32 +283,33 @@ publish-polkadot-image:
     - job:                         test-build-linux-stable
       artifacts:                   true
 
-publish-adder-collator-image:
-  # service image for Simnet
-  stage:                           build
-  <<:                              *build-push-image
-  variables:
-    <<:                            *image-variables
-    # scripts/docker/collator.Dockerfile
-    DOCKERFILE:                    collator.Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/colander
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  needs:
-    - job:                         build-adder-collator
-      artifacts:                   true
-  after_script:
-    - buildah logout "$IMAGE_NAME"
-    # pass artifacts to the trigger-simnet job
-    - echo "COLLATOR_IMAGE=$IMAGE_NAME" > ./artifacts/collator.env
-    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
-  artifacts:
-    reports:
-      # this artifact is used in trigger-simnet job
-      dotenv: ./artifacts/collator.env
+# FIXME: uncomment this when simnet is ready
+# publish-adder-collator-image:
+#   # service image for Simnet
+#   stage:                           build
+#   <<:                              *build-push-image
+#   variables:
+#     <<:                            *image-variables
+#     # scripts/docker/collator.Dockerfile
+#     DOCKERFILE:                    collator.Dockerfile
+#     IMAGE_NAME:                    docker.io/paritypr/colander
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#   needs:
+#     - job:                         build-adder-collator
+#       artifacts:                   true
+#   after_script:
+#     - buildah logout "$IMAGE_NAME"
+#     # pass artifacts to the trigger-simnet job
+#     - echo "COLLATOR_IMAGE=$IMAGE_NAME" > ./artifacts/collator.env
+#     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
+#   artifacts:
+#     reports:
+#       # this artifact is used in trigger-simnet job
+#       dotenv: ./artifacts/collator.env
 
 #### stage:                        publish
 
@@ -363,6 +367,7 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
+# FIXME: uncomment this when simnet is ready
 # trigger-simnet:
 #   stage:                           deploy
 #   image:                           paritytech/tools:latest

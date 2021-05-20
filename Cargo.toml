@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -26,11 +26,6 @@ tempfile = "3.2.0"
 
 [workspace]
 members = [
-	"bridges/primitives/chain-kusama",
-	"bridges/primitives/chain-polkadot",
-	"bridges/primitives/chain-rococo",
-	"bridges/primitives/chain-westend",
-	"bridges/primitives/runtime",
 	"cli",
 	"core-primitives",
 	"erasure-coding",
