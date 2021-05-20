@@ -182,7 +182,7 @@ impl State {
 
 				// we await for the request to be processed
 				// this if fine, it should take much less time than one session
-				let failures = failures.await.unwrap_or(0);
+				let failures = failures.await.unwrap_or(num);
 
 				self.last_session_index = Some(new_session);
 				// issue another request if at least a third of the authorities were not resolved
