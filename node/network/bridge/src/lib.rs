@@ -509,6 +509,7 @@ where
 					NetworkBridgeMessage::ConnectToValidators {
 						validator_ids,
 						peer_set,
+						failed,
 					} => {
 						tracing::trace!(
 							target: LOG_TARGET,
@@ -521,6 +522,7 @@ where
 						let (ns, ads) = validator_discovery.on_request(
 							validator_ids,
 							peer_set,
+							failed,
 							network_service,
 							authority_discovery_service,
 						).await;

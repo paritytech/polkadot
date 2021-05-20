@@ -253,6 +253,9 @@ pub enum NetworkBridgeMessage {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
+		/// Sends back the number of `AuthorityDiscoveryId`s which
+		/// authority discovery has failed to resolve.
+		failed: oneshot::Sender<usize>,
 	},
 }
 

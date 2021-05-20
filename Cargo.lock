@@ -5755,12 +5755,17 @@ dependencies = [
 name = "polkadot-gossip-support"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "futures 0.3.14",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sc-keystore",
  "sp-application-crypto",
+ "sp-core",
+ "sp-keyring",
  "sp-keystore",
  "tracing",
 ]

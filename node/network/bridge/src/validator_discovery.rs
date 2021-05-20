@@ -22,6 +22,7 @@ use core::marker::PhantomData;
 use std::collections::HashSet;
 
 use async_trait::async_trait;
+use futures::channel::oneshot;
 
 use sc_network::multiaddr::Multiaddr;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
@@ -81,16 +82,19 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		peer_set: PeerSet,
+		failed: oneshot::Sender<usize>,
 		mut network_service: N,
 		mut authority_discovery_service: AD,
 	) -> (N, AD) {
 		// collect multiaddress of validators
+		let mut failed_to_resolve: usize = 0;
 		let mut newly_requested = HashSet::new();
 		for authority in validator_ids.into_iter() {
 			let result = authority_discovery_service.get_addresses_by_authority_id(authority.clone()).await;
 			if let Some(addresses) = result {
 				newly_requested.extend(addresses);
 			} else {
+				failed_to_resolve += 1;
 				tracing::debug!(target: LOG_TARGET, "Authority Discovery couldn't resolve {:?}", authority);
 			}
 		}
@@ -119,6 +123,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			peer_set.into_protocol_name(),
 			multiaddr_to_remove
 		).await;
+
+		let _ = failed.send(failed_to_resolve);
 
 		(network_service, authority_discovery_service)
 	}
@@ -237,22 +243,55 @@ mod tests {
 		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
 
 		futures::executor::block_on(async move {
+			let (failed, _) = oneshot::channel();
 			let (ns, ads) = service.on_request(
 				vec![authority_ids[0].clone()],
 				PeerSet::Validation,
+				failed,
 				ns,
 				ads,
 			).await;
 
-			let _ = service.on_request(
+			let (failed, _) = oneshot::channel();
+			let (_, ads) = service.on_request(
 				vec![authority_ids[1].clone()],
 				PeerSet::Validation,
+				failed,
 				ns,
 				ads,
 			).await;
 
 			let state = &service.state[PeerSet::Validation];
 			assert_eq!(state.previously_requested.len(), 1);
+			assert!(state.previously_requested.contains(ads.by_authority_id.get(&authority_ids[1]).unwrap()));
+		});
+	}
+
+	#[test]
+	fn failed_resolution_is_reported_properly() {
+		let mut service = new_service();
+
+		let (ns, ads) = new_network();
+
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let (failed, failed_rx) = oneshot::channel();
+			let unknown = Sr25519Keyring::Ferdie.public().into();
+			let (_, ads) = service.on_request(
+				vec![authority_ids[0].clone(), unknown],
+				PeerSet::Validation,
+				failed,
+				ns,
+				ads,
+			).await;
+
+			let state = &service.state[PeerSet::Validation];
+			assert_eq!(state.previously_requested.len(), 1);
+			assert!(state.previously_requested.contains(ads.by_authority_id.get(&authority_ids[0]).unwrap()));
+
+			let failed = failed_rx.await.unwrap();
+			assert_eq!(failed, 1);
 		});
 	}
 }
