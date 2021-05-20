@@ -22,7 +22,7 @@
 //! check out that guide, documentation in this crate will be mostly discussing
 //! technical stuff.
 //!
-//! An `Overseer` is something that allows spawning/stopping and overseing
+//! An `Overseer` is something that allows spawning/stopping and overseeing
 //! asynchronous tasks as well as establishing a well-defined and easy to use
 //! protocol that the tasks can use to communicate with each other. It is desired
 //! that this protocol is the only way tasks communicate with each other, however
@@ -235,7 +235,7 @@ pub enum SubsystemError {
 	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
 	FromOrigin {
-		/// An additional anotation tag for the origin of `source`.
+		/// An additional annotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
 		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
@@ -364,8 +364,8 @@ pub trait SubsystemContext: Send + 'static {
 /// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
 ///
 /// It is generic over the message type circulating in the system.
-/// The idea that we want some type contaning persistent state that
-/// can spawn actually running subsystems when asked to.
+/// The idea that we want some type containing persistent state that
+/// can spawn actually running subsystems when asked.
 ///
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html

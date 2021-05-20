@@ -184,7 +184,7 @@ pub const PARACHAIN_INFO: Info = Info {
 	scheduling: Scheduling::Always,
 };
 
-/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
+/// Auxiliary for when there's an attempt to swap two parachains/parathreads.
 pub trait SwapAux {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
@@ -435,7 +435,7 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 
 /// A candidate-receipt with commitments directly included.
 pub struct CommitedCandidateReceipt<H = Hash> {
-	/// The descriptor of the candidae.
+	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor,
 
 	/// The commitments of the candidate receipt.

@@ -120,7 +120,7 @@ pub trait Config: frame_system::Config {
 	/// Max number of storage keys to remove per extrinsic call.
 	type RemoveKeysLimit: Get<u32>;
 
-	/// The parachain registrar type. We jus use this to ensure that only the manager of a para is able to
+	/// The parachain registrar type. We just use this to ensure that only the manager of a para is able to
 	/// start a crowdloan for its slot.
 	type Registrar: Registrar<AccountId=Self::AccountId>;
 

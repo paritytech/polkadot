@@ -250,7 +250,7 @@ pub enum NetworkBridgeMessage {
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
 		/// A request is revoked by dropping the `keep_alive` sender.
-		/// The revokation takes place upon the next connection request.
+		/// The revocation takes place upon the next connection request.
 		keep_alive: oneshot::Receiver<()>,
 	},
 }

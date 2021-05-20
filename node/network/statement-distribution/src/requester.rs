@@ -39,7 +39,7 @@ const RETRY_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Messages coming from a background task.
 pub enum RequesterMessage {
-	/// Get an update of availble peers to try for fetching a given statement.
+	/// Get an update of available peers to try for fetching a given statement.
 	GetMorePeers {
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
@@ -69,7 +69,7 @@ pub enum RequesterMessage {
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
 /// A fetch task does not know about a particular `Statement` instead it just tries fetching a
-/// `CommittedCandidateReceipt` from peers, whether or not this can be used to re-assemble one ore
+/// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one ore
 /// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn fetch(
 	relay_parent: Hash,

@@ -170,7 +170,7 @@ async fn do_fetch_pov(
 	}
 }
 
-/// Get the session indeces for the given relay chain parents.
+/// Get the session indices for the given relay chain parents.
 async fn get_activated_sessions<Context>(ctx: &mut Context, runtime: &mut RuntimeInfo, new_heads: impl Iterator<Item = &Hash>)
 	-> super::Result<impl Iterator<Item = (Hash, SessionIndex)>>
 where
