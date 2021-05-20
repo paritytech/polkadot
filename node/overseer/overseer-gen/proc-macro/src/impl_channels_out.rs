@@ -20,11 +20,17 @@ pub(crate) fn impl_channels_out_struct(
         #[derive(Debug, Clone)]
 		pub struct ChannelsOut {
 			#(
-				pub #channel_name: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket< #consumes >>,
+				pub #channel_name:
+                    ::polkadot_overseer_gen::metered::MeteredSender<
+                        MessagePacket< #consumes >
+                    >,
 			)*
 
             #(
-				pub #channel_name_unbounded: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<MessagePacket< #consumes >>,
+				pub #channel_name_unbounded:
+                    ::polkadot_overseer_gen::metered::UnboundedMeteredSender<
+                        MessagePacket< #consumes >
+                    >,
 			)*
 		}
 
@@ -37,11 +43,11 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #consumes ( message ) => {
+                    #message_wrapper :: #consumes ( inner ) => {
                         self. #channel_name .send(
-                            ::polkadot_overseer_gen::make_packet(signals_received, message)
+                            ::polkadot_overseer_gen::make_packet(signals_received, inner)
                         ).await
-                    },
+                    }
                 )*
                 };
 
@@ -61,9 +67,9 @@ pub(crate) fn impl_channels_out_struct(
             ) {
                 let res = match message {
                 #(
-                    #message_wrapper :: #consumes (message) => {
+                    #message_wrapper :: #consumes (inner) => {
                         self. #channel_name_unbounded .send(
-                            make_packet(signals_received, message)
+                            make_packet(signals_received, inner)
                         )
                     },
                 )*

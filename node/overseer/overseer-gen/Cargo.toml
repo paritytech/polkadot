@@ -15,6 +15,8 @@ metered = { package = "metered-channel", path = "../../metered-channel" }
 # trait SpawnNamed
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
+tokio-util = { version = "0.6.7", features = [ "time" ] }
+pin-project = "1.0"
 
 [dev-dependencies]
 trybuild = "1.0.41"

@@ -1,6 +1,8 @@
 //! A dummy to be used with cargo expand
 
 use polkadot_overseer_gen::*;
+use polkadot_subsystem::messages::NetworkBridgeEvent;
+
 
 #[derive(Default)]
 struct AwesomeSubSys;
@@ -12,7 +14,13 @@ struct SigSigSig;
 #[derive(Debug, Clone)]
 struct EvX;
 
-#[derive(Debug)]
+impl EvX {
+	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, ()> {
+		unimplemented!("dispatch")
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Yikes;
 
 impl std::fmt::Display for Yikes {
@@ -29,10 +37,10 @@ impl From<polkadot_overseer_gen::SubsystemError> for Yikes {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct MsgStrukt(u8);
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Plinko;
 
 

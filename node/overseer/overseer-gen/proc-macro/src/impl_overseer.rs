@@ -55,7 +55,7 @@ pub(crate) fn impl_overseer_struct(
 		pub struct #overseer_name #generics {
 			// Subsystem instances.
 			#(
-				#subsystem_name: OverseenSubsystem< SubsystemInstance < #consumes > >,
+				#subsystem_name: OverseenSubsystem< #consumes >,
 			)*
 
 			// Non-subsystem members.
@@ -67,10 +67,14 @@ pub(crate) fn impl_overseer_struct(
 			spawner: S,
 
 			/// The set of running subsystems.
-			running_subsystems: ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
+			running_subsystems: ::polkadot_overseer_gen::FuturesUnordered<
+				BoxFuture<'static, SubsystemResult<()>>
+			>,
 
 			/// Gather running subsystems' outbound streams into one.
-			to_overseer_rx: ::polkadot_overseer_gen::Fuse<metered::UnboundedMeteredReceiver< ToOverseer >>,
+			to_overseer_rx: ::polkadot_overseer_gen::Fuse<
+				metered::UnboundedMeteredReceiver< ToOverseer >
+			>,
 
 			/// Events that are sent to the overseer from the outside world.
 			events_rx: ::polkadot_overseer_gen::metered::MeteredReceiver< #event_ty >,
@@ -86,10 +90,10 @@ pub(crate) fn impl_overseer_struct(
 				Ok(())
 			}
 
-			pub async fn route_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
-				match msg {
+			pub async fn route_message(&mut self, message: #message_wrapper) -> SubsystemResult<()> {
+				match message {
 					#(
-						#message_wrapper :: #consumes (msg) => self. #subsystem_name .send_message(msg).await?,
+						#message_wrapper :: #consumes ( inner ) => self. #subsystem_name .send_message( inner ).await?,
 					)*
 				}
 				Ok(())
@@ -147,12 +151,13 @@ pub(crate) fn impl_builder(
 		< Ctx, #( #builder_generic_ty, )* >
 	};
 
+	let error_ty = &info.extern_error_ty;
 
 	let builder_where_clause = quote! {
 		where
 			Ctx: SubsystemContext,
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #builder_generic_ty : Subsystem<Ctx>, )*
+			#( #builder_generic_ty : Subsystem<Ctx, #error_ty>, )*
 	};
 
 	let consumes = &info.consumes();
@@ -171,7 +176,7 @@ pub(crate) fn impl_builder(
 		}
 
 
-		pub type #handler = ::polkadot_overseer_gen::metered::UnboundedMeteredSender< #event >;
+		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
 
 		#[derive(Debug, Clone)]
 		struct #builder #builder_generics {
@@ -218,20 +223,29 @@ pub(crate) fn impl_builder(
 					) -> Ctx,
 			{
 
-				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
+					#event
+				>(SIGNAL_CHANNEL_CAPACITY);
 
 				let handler: #handler = events_tx.clone();
 
-				let (to_overseer_tx, to_overseer_rx) = ::polkadot_overseer_gen::metered::unbounded();
+				let (to_overseer_tx, to_overseer_rx) = ::polkadot_overseer_gen::metered::unbounded::<
+					ToOverseer
+				>();
 
 				let channels_out = {
 					#(
-						let (#channel_name_tx, #channel_name_rx) = ::polkadot_overseer_gen::metered::channel::<
-							MessagePacket< #consumes >>(CHANNEL_CAPACITY);
+						let (#channel_name_tx, #channel_name_rx) =
+							::polkadot_overseer_gen::metered::channel::<
+								MessagePacket< #consumes >
+							>(CHANNEL_CAPACITY);
 					)*
 
 					#(
-						let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) = ::polkadot_overseer_gen::metered::unbounded::<MessagePacket< #consumes >>();
+						let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) =
+							::polkadot_overseer_gen::metered::unbounded::<
+								MessagePacket< #consumes >
+							>();
 					)*
 
 					ChannelsOut {
@@ -246,7 +260,9 @@ pub(crate) fn impl_builder(
 
 				let spawner = self.spawner.expect("Spawner is set. qed");
 
-				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<BoxFuture<'static, SubsystemResult<()>>>::new();
+				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<
+						BoxFuture<'static, SubsystemResult<()>>
+					>::new();
 
 				#(
 					// FIXME generate a builder pattern that ensures this
@@ -256,7 +272,8 @@ pub(crate) fn impl_builder(
 
 						let unbounded_meter = channels_out. #channel_name .meter().clone();
 
-						let message_tx: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<MessagePacket< #message_wrapper >> = channels_out. #channel_name .clone();
+						let message_tx: ::polkadot_overseer_gen::metered::MeteredSender< MessagePacket< #consumes > >
+							= channels_out. #channel_name .clone();
 
 						let message_rx: SubsystemIncomingMessages< #message_wrapper > =
 							::polkadot_overseer_gen::select(
@@ -264,7 +281,7 @@ pub(crate) fn impl_builder(
 								channels_out. #channel_name_unbounded .clone(),
 							);
 
-						let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel::<Signal>(SIGNAL_CHANNEL_CAPACITY);
+						let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel::< #signal >(SIGNAL_CHANNEL_CAPACITY);
 
 						let ctx = create_subsystem_ctx(
 							signal_rx,
@@ -346,6 +363,7 @@ pub(crate) fn impl_builder(
 pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
 	let message_wrapper = &info.message_wrapper;
+	let consumes = &info.consumes();
 
 	let ts = quote::quote! {
 
@@ -356,21 +374,23 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 		/// for whatever reason).
 		///
 		/// [`Subsystem`]: trait.Subsystem.html
-		pub struct OverseenSubsystem<Message> {
-			pub instance: std::option::Option<SubsystemInstance<Message, #signal>>,
+		pub struct OverseenSubsystem<M> {
+			pub instance: std::option::Option<
+				SubsystemInstance<M, #signal>
+			>,
 		}
 
-		impl<Message> OverseenSubsystem<Message> {
+		impl<M> OverseenSubsystem<M> {
 			/// Send a message to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_message(&mut self, msg: #message_wrapper) -> SubsystemResult<()> {
+			pub async fn send_message(&mut self, message: M) -> SubsystemResult<()> {
 				const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
 					match instance.tx_bounded.send(MessagePacket {
 						signals_received: instance.signals_received,
-						message: msg.into()
+						message: message.into(),
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {

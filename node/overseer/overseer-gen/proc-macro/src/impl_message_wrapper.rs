@@ -11,9 +11,8 @@ pub(crate) fn impl_message_wrapper_enum(
 
     let message_wrapper = &info.message_wrapper;
 
-	let msg = "Generated message type wrapper";
 	let ts = quote! {
-		#[doc = #msg]
+		/// Generated message type wrapper
 		#[derive(Debug, Clone)]
 		enum #message_wrapper {
 			#(
@@ -23,8 +22,8 @@ pub(crate) fn impl_message_wrapper_enum(
 
 		#(
 		impl ::std::convert::From<#consumes> for #message_wrapper {
-			fn from(src: #consumes) -> Self {
-				#message_wrapper :: #consumes ( src )
+			fn from(inner: #consumes) -> Self {
+				#message_wrapper :: #consumes ( inner )
 			}
 		}
 		)*

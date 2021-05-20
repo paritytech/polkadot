@@ -340,11 +340,11 @@ pub struct OverseerSubsystemContext<M, Signal>{
 	metrics: Metrics,
 }
 
-impl<M, Signal> OverseerSubsystemContext<Message, Signal> {
+impl<M, Signal> OverseerSubsystemContext<M, Signal> {
 	/// Create a new `OverseerSubsystemContext`.
 	fn new(
 		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<Message>,
+		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 		metrics: Metrics,
@@ -370,7 +370,7 @@ impl<M, Signal> OverseerSubsystemContext<Message, Signal> {
 	#[allow(unused)]
 	fn new_unmetered(
 		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<Message>,
+		messages: SubsystemIncomingMessages<M>,
 		to_subsystems: ChannelsOut,
 		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
 	) -> Self {

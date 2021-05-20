@@ -86,6 +86,7 @@ pub use std::time::Duration;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
+// pub use tokio_util::time;
 pub use futures_timer::Delay;
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -283,11 +284,18 @@ pub struct SubsystemMeterReadouts {
 ///
 /// `M` here is the inner message type, and _not_ the generated `enum AllMessages`.
 pub struct SubsystemInstance<Message, Signal> {
-	tx_signal: crate::metered::MeteredSender<Signal>,
-	tx_bounded: crate::metered::MeteredSender<MessagePacket<Message>>,
-	meters: SubsystemMeters,
-	signals_received: usize,
-	name: &'static str,
+	/// Send sink for `Signal`s to be sent to a subsystem.
+	pub tx_signal: crate::metered::MeteredSender<Signal>,
+	/// Send sink for `Message`s to be sent to a subsystem.
+	pub tx_bounded: crate::metered::MeteredSender<MessagePacket<Message>>,
+	/// All meters of the particular subsystem instance.
+	pub meters: SubsystemMeters,
+	/// The number of signals already received.
+	/// Required to assure messages and signals
+	/// are processed correctly.
+	pub signals_received: usize,
+	/// Name of the subsystem instance.
+	pub name: &'static str,
 }
 
 /// A message type that a subsystem receives from an overseer.
@@ -373,21 +381,77 @@ where
 
 /// TODO FIXME
 #[async_trait::async_trait]
-pub trait SubsystemSender<Message>: Send + Clone + 'static {
+pub trait SubsystemSender<AllMessages>: Send + Clone + 'static {
+	// Inner message type.
+	// type Message: Send + Clone + 'static;
+
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: Message);
+	async fn send_message(&mut self, msg: AllMessages);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send;
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: Message);
+	fn send_unbounded_message(&mut self, msg: AllMessages);
 }
+
+
+
+
+
+use futures::task::{Poll, Context};
+use std::pin::Pin;
+
+/// A future that wraps another future with a `Delay` allowing for time-limited futures.
+#[pin_project::pin_project]
+pub struct Timeout<F: Future> {
+	#[pin]
+	future: F,
+	#[pin]
+	delay: Delay,
+}
+
+/// Extends `Future` to allow time-limited futures.
+pub trait TimeoutExt: Future {
+	/// Adds a timeout of `duration` to the given `Future`.
+	/// Returns a new `Future`.
+	fn timeout(self, duration: Duration) -> Timeout<Self>
+	where
+		Self: Sized,
+	{
+		Timeout {
+			future: self,
+			delay: Delay::new(duration),
+		}
+	}
+}
+
+impl<F: Future> TimeoutExt for F {}
+
+impl<F: Future> Future for Timeout<F> {
+	type Output = Option<F::Output>;
+
+	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+		let this = self.project();
+
+		if this.delay.poll(ctx).is_ready() {
+			return Poll::Ready(None);
+		}
+
+		if let Poll::Ready(output) = this.future.poll(ctx) {
+			return Poll::Ready(Some(output));
+		}
+
+		Poll::Pending
+	}
+}
+
+
 
 #[cfg(test)]
 mod tests;

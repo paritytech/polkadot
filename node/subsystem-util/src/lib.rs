@@ -27,17 +27,18 @@
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
-	SpawnedSubsystem, SubsystemError,
 	ActiveLeavesUpdate, OverseerSignal,
 };
 
 use polkadot_overseer_gen::{
-	AllMessages,
 	FromOverseer,
 	SpawnedSubsystem,
 	Subsystem,
 	SubsystemContext,
+	SubsystemError,
 	SubsystemSender,
+	TimeoutExt,
+	Timeout,
 };
 
 use polkadot_node_jaeger as jaeger;
@@ -71,7 +72,7 @@ pub use error_handling::{Fault, unwrap_non_fatal};
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
-	pub use polkadot_overseer::{
+	pub use polkadot_overseer_gen::{
 		SpawnNamed,
 		SpawnedSubsystem,
 		Subsystem,
@@ -120,14 +121,15 @@ pub enum Error {
 pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response, Sender>(
+pub async fn request_from_runtime<RequestBuilder, Response, Sender, AllMessages>(
 	parent: Hash,
 	sender: &mut Sender,
 	request_builder: RequestBuilder,
 ) -> RuntimeApiReceiver<Response>
 where
 	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AllMessages>,
+	AllMessages: From<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -152,14 +154,14 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name(
+		pub async fn $func_name <AllMessages: From<RuntimeApiMessage>> (
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
 			)*
 			sender: &mut impl SubsystemSender <AllMessages>,
 		) -> RuntimeApiReceiver<$return_ty> {
-			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
+			request_from_runtime::<_, _, _, AllMessages>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
 		}
@@ -266,11 +268,14 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new(
+	pub async fn new<AllMessages>(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
 		sender: &mut impl SubsystemSender <AllMessages>,
-	) -> Result<Self, Error> {
+	) -> Result<Self, Error>
+	where
+		AllMessages: From<RuntimeApiMessage>,
+	{
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
@@ -399,12 +404,13 @@ pub enum FromJobCommand {
 
 /// A sender for messages from jobs, as well as commands to the overseer.
 #[derive(Clone)]
-pub struct JobSender<S> {
+pub struct JobSender<S: SubsystemSender<AllMessages>, AllMessages> {
 	sender: S,
 	from_job: mpsc::Sender<FromJobCommand>,
+	_phantom: std::marker::PhantomData<AllMessages>,
 }
 
-impl<S: SubsystemSender< AllMessages >> JobSender<S> {
+impl<S: SubsystemSender< AllMessages >, AllMessages> JobSender<S, AllMessages> {
 	/// Get access to the underlying subsystem sender.
 	pub fn subsystem_sender(&mut self) -> &mut S {
 		&mut self.sender
@@ -439,7 +445,10 @@ impl<S: SubsystemSender< AllMessages >> JobSender<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: SubsystemSender< AllMessages> > SubsystemSender for JobSender<S> {
+impl<S: SubsystemSender< AllMessages>, AllMessages> SubsystemSender<AllMessages> for JobSender<S, AllMessages>
+where
+	AllMessages: Clone + Send + 'static
+{
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.sender.send_message(msg).await
 	}
@@ -484,19 +493,22 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
+	/// The generated wrapping message type.
+	type Message: 'static + Send;
+
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run<S: SubsystemSender< AllMessages >>(
+	fn run<S: SubsystemSender< Self::Message >>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: JobSender<S>,
+		sender: JobSender<S, Self::Message>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -538,7 +550,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job<Job, Sender>(
+	fn spawn_job<Job, Sender, AllMessages>(
 		&mut self,
 		parent_hash: Hash,
 		span: Arc<jaeger::Span>,
@@ -675,11 +687,12 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	pub async fn run<Context>(self, mut ctx: Context)
 		where
 			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: SubsystemContext,
-			Job: 'static + JobTrait + Send,
+			Context: SubsystemContext<Signal=OverseerSignal>,
+			Job: 'static + JobTrait<Message=<Context as SubsystemContext>::Message> + Send,
 			Job::RunArgs: Clone + Sync,
 			Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
 			Job::Metrics: Sync,
+			<Context as SubsystemContext>::Message: From<RuntimeApiMessage>,
 	{
 		let JobSubsystem {
 			params: JobSubsystemParams {
@@ -690,7 +703,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			..
 		} = self;
 
-		let mut jobs = Jobs::new(spawner);
+		let mut jobs = Jobs::<Spawner, Job::Message>::new(spawner);
 
 		loop {
 			select! {
@@ -702,7 +715,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 						}))) => {
 							for activated in activated {
 								let sender: Context::Sender = ctx.sender().clone();
-								jobs.spawn_job::<Job, _>(
+								jobs.spawn_job::<Job, _, _>(
 									activated.hash,
 									activated.span,
 									run_args.clone(),
@@ -752,7 +765,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	}
 }
 
-impl<Context, Job, Spawner> Subsystem<Context> for JobSubsystem<Job, Spawner>
+impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
@@ -771,50 +784,6 @@ where
 			name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME),
 			future,
 		}
-	}
-}
-
-/// A future that wraps another future with a `Delay` allowing for time-limited futures.
-#[pin_project]
-pub struct Timeout<F: Future> {
-	#[pin]
-	future: F,
-	#[pin]
-	delay: Delay,
-}
-
-/// Extends `Future` to allow time-limited futures.
-pub trait TimeoutExt: Future {
-	/// Adds a timeout of `duration` to the given `Future`.
-	/// Returns a new `Future`.
-	fn timeout(self, duration: Duration) -> Timeout<Self>
-	where
-		Self: Sized,
-	{
-		Timeout {
-			future: self,
-			delay: Delay::new(duration),
-		}
-	}
-}
-
-impl<F: Future> TimeoutExt for F {}
-
-impl<F: Future> Future for Timeout<F> {
-	type Output = Option<F::Output>;
-
-	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-		let this = self.project();
-
-		if this.delay.poll(ctx).is_ready() {
-			return Poll::Ready(None);
-		}
-
-		if let Poll::Ready(output) = this.future.poll(ctx) {
-			return Poll::Ready(Some(output));
-		}
-
-		Poll::Pending
 	}
 }
 
@@ -879,8 +848,8 @@ mod tests {
 	use thiserror::Error;
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
-		messages::{CandidateSelectionMessage}, ActiveLeavesUpdate,
-		SpawnedSubsystem, ActivatedLeaf,
+		messages::CandidateSelectionMessage, ActiveLeavesUpdate,
+		ActivatedLeaf,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -926,7 +895,7 @@ mod tests {
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<CandidateSelectionMessage>,
-			mut sender: JobSender<S>,
+			mut sender: JobSender<S, AllMessages>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
 				let job = FakeCandidateSelectionJob { receiver };
