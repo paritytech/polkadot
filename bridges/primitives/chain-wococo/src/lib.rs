@@ -35,9 +35,9 @@ pub type UncheckedExtrinsic = bp_polkadot_core::UncheckedExtrinsic<Call>;
 // NOTE: This needs to be kept up to date with the Rococo runtime found in the Polkadot repo.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: sp_version::create_runtime_str!("rococo"),
-	impl_name: sp_version::create_runtime_str!("parity-rococo-v1.5"),
+	impl_name: sp_version::create_runtime_str!("parity-rococo-v1.6"),
 	authoring_version: 0,
-	spec_version: 232,
+	spec_version: 9003,
 	impl_version: 0,
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
