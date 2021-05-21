@@ -46,6 +46,20 @@ use crate::{
 	session_info,
 };
 
+/// Whereas the dispute is local or remote.
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+pub enum DisputeLocation {
+	Local,
+	Remote,
+}
+
+/// The result of a dispute, whether the candidate is deemed valid (for) or invalid (against).
+#[derive(Encode, Decode, Clone, PartialEq, Eq)]
+pub enum DisputeResult {
+	Valid,
+	Invalid,
+}
+
 /// Reward hooks for disputes.
 pub trait RewardValidators {
 	// Give each validator a reward, likely small, for participating in the dispute.
@@ -112,12 +126,13 @@ decl_storage! {
 
 decl_event! {
 	pub enum Event {
-		/// A dispute has been initiated. The boolean is true if the dispute is local. \[para_id\]
-		DisputeInitiated(ParaId, CandidateHash, bool),
-		/// A dispute has concluded for or against a candidate. The boolean is true if the candidate
-		/// is deemed valid (for) and false if invalid (against).
-		DisputeConcluded(ParaId, CandidateHash, bool),
+		/// A dispute has been initiated. \[para_id, candidate hash, dispute location\]
+		DisputeInitiated(ParaId, CandidateHash, DisputeLocation),
+		/// A dispute has concluded for or against a candidate.
+		/// \[para_id, candidate hash, dispute result\]
+		DisputeConcluded(ParaId, CandidateHash, DisputeResult),
 		/// A dispute has timed out due to insufficient participation.
+		/// \[para_id, candidate hash\]
 		DisputeTimedOut(ParaId, CandidateHash),
 	}
 }
@@ -365,7 +380,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 }
 
 impl<T: Config> Module<T> {
-	/// Called by the iniitalizer to initialize the disputes module.
+	/// Called by the initalizer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let config = <configuration::Module<T>>::config();
 
