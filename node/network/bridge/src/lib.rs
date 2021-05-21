@@ -414,10 +414,17 @@ where
 				}
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							action = "ReportPeer"
-						);
+						if rep.is_benefit() {
+							tracing::trace!(
+								target: LOG_TARGET,
+								action = "ReportPeer (benefit)"
+							);
+						} else {
+							tracing::debug!(
+								target: LOG_TARGET,
+								action = "ReportPeer"
+							);
+						}
 						network_service.report_peer(peer, rep).await?
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
