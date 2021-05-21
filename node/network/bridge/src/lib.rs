@@ -414,12 +414,7 @@ where
 				}
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						if rep.is_benefit() {
-							tracing::trace!(
-								target: LOG_TARGET,
-								action = "ReportPeer (benefit)"
-							);
-						} else {
+						if !rep.is_benefit() {
 							tracing::debug!(
 								target: LOG_TARGET,
 								action = "ReportPeer"
