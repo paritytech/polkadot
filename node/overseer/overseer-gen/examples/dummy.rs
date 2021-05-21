@@ -1,5 +1,7 @@
 //! A dummy to be used with cargo expand
 
+use std::convert::Infallible;
+
 use polkadot_overseer_gen::*;
 use polkadot_subsystem::messages::NetworkBridgeEvent;
 
@@ -14,8 +16,9 @@ struct SigSigSig;
 #[derive(Debug, Clone)]
 struct EvX;
 
+
 impl EvX {
-	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, ()> {
+	pub fn focus<'a, T>(&'a self) -> Result<EvX, ()> {
 		unimplemented!("dispatch")
 	}
 }
@@ -44,12 +47,18 @@ struct MsgStrukt(u8);
 struct Plinko;
 
 
+impl From<EvX> for MsgStrukt {
+	fn from(_event: EvX) -> Self {
+		MsgStrukt(1u8)
+	}
+}
+
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
 struct Xxx {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(Plinko)]
+	#[subsystem(no_dispatch, Plinko)]
 	plinkos: AwesomeSubSys,
 }
 

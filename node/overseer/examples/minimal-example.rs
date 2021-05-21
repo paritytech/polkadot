@@ -33,6 +33,7 @@ use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
+	NetworkBridgeMessage,
 };
 
 struct AlwaysSupportsParachains;

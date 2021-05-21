@@ -80,6 +80,7 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use polkadot_subsystem::messages::{
+	NetworkBridgeMessage,
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
@@ -322,162 +323,26 @@ impl Debug for ToOverseer {
 		}
 	}
 }
-/// A context type that is given to the [`Subsystem`] upon spawning.
-/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
-/// or to spawn it's [`SubsystemJob`]s.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
-/// [`SubsystemJob`]: trait.SubsystemJob.html
-#[derive(Debug)]
-pub struct OverseerSubsystemContext<M, Signal>{
-	signals: metered::MeteredReceiver<Signal>,
-	messages: SubsystemIncomingMessages<M>,
-	to_subsystems: OverseerSubsystemSender,
-	to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
-	signals_received: SignalsReceived,
-	pending_incoming: Option<(usize, M)>,
-	metrics: Metrics,
-}
 
-impl<M, Signal> OverseerSubsystemContext<M, Signal> {
-	/// Create a new `OverseerSubsystemContext`.
-	fn new(
-		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<M>,
-		to_subsystems: ChannelsOut,
-		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
-		metrics: Metrics,
-	) -> Self {
-		let signals_received = SignalsReceived::default();
-		OverseerSubsystemContext {
-			signals,
-			messages,
-			to_subsystems: OverseerSubsystemSender {
-				channels: to_subsystems,
-				signals_received: signals_received.clone(),
-			},
-			to_overseer,
-			signals_received,
-			pending_incoming: None,
-			metrics,
-		 }
-	}
 
-	/// Create a new `OverseerSubsystemContext` with no metering.
-	///
-	/// Intended for tests.
-	#[allow(unused)]
-	fn new_unmetered(
-		signals: metered::MeteredReceiver<Signal>,
-		messages: SubsystemIncomingMessages<M>,
-		to_subsystems: ChannelsOut,
-		to_overseer: metered::UnboundedMeteredSender<ToOverseer>,
-	) -> Self {
-		let metrics = Metrics::default();
-		OverseerSubsystemContext::new(signals, messages, to_subsystems, to_overseer, metrics)
-	}
-}
+// async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+// -> SubsystemResult<()>
+// {
+// self.sender().send(ToOverseer::SpawnJob {
+// 	name,
+// 	s,
+// }).await.map_err(Into::into)
+// }
 
-#[async_trait::async_trait]
-impl<M: Send + 'static, Signal: Send + 'static> SubsystemContext for OverseerSubsystemContext<M, Signal> {
-	type Message = M;
-	type Signal = Signal;
-	type Sender = OverseerSubsystemSender;
+// async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+// -> SubsystemResult<()>
+// {
+// self.sender().send(ToOverseer::SpawnBlockingJob {
+// 	name,
+// 	s,
+// }).await.map_err(Into::into)
+// }
 
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, Signal>>, ()> {
-		match poll!(self.recv()) {
-			Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
-			Poll::Pending => Ok(None),
-		}
-	}
-
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M, Signal>> {
-		loop {
-			// If we have a message pending an overseer signal, we only poll for signals
-			// in the meantime.
-			if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
-				if needs_signals_received <= self.signals_received.load() {
-					return Ok(FromOverseer::Communication { msg });
-				} else {
-					self.pending_incoming = Some((needs_signals_received, msg));
-
-					// wait for next signal.
-					let signal = self.signals.next().await
-						.ok_or(SubsystemError::Context(
-							"Signal channel is terminated and empty."
-							.to_owned()
-						))?;
-
-					self.signals_received.inc();
-					return Ok(FromOverseer::Signal(signal))
-				}
-			}
-
-			let mut await_message = self.messages.next().fuse();
-			let mut await_signal = self.signals.next().fuse();
-			let signals_received = self.signals_received.load();
-			let pending_incoming = &mut self.pending_incoming;
-
-			// Otherwise, wait for the next signal or incoming message.
-			let from_overseer = futures::select_biased! {
-				signal = await_signal => {
-					let signal = signal
-						.ok_or(SubsystemError::Context(
-							"Signal channel is terminated and empty."
-							.to_owned()
-						))?;
-
-					FromOverseer::Signal(signal)
-				}
-				msg = await_message => {
-					let packet = msg
-						.ok_or(SubsystemError::Context(
-							"Message channel is terminated and empty."
-							.to_owned()
-						))?;
-
-					if packet.signals_received > signals_received {
-						// wait until we've received enough signals to return this message.
-						*pending_incoming = Some((packet.signals_received, packet.message));
-						continue;
-					} else {
-						// we know enough to return this message.
-						FromOverseer::Communication { msg: packet.message}
-					}
-				}
-			};
-
-			if let FromOverseer::Signal(_) = from_overseer {
-				self.signals_received.inc();
-			}
-
-			return Ok(from_overseer);
-		}
-	}
-
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-		-> SubsystemResult<()>
-	{
-		self.to_overseer.send(ToOverseer::SpawnJob {
-			name,
-			s,
-		}).await.map_err(Into::into)
-	}
-
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-		-> SubsystemResult<()>
-	{
-		self.to_overseer.send(ToOverseer::SpawnBlockingJob {
-			name,
-			s,
-		}).await.map_err(Into::into)
-	}
-
-	fn sender(&mut self) -> &mut Self::Sender {
-		&mut self.to_subsystems
-	}
-}
 
 /// The `Overseer` itself.
 #[overlord(gen=AllMessages, event=Event, signal=OverseerSignal, error=SubsystemError)]
@@ -965,32 +830,6 @@ where
 	}
 }
 
-
-#[derive(Debug, Clone)]
-pub struct OverseerSubsystemSender {
-	channels: ChannelsOut,
-	signals_received: SignalsReceived,
-}
-
-#[::polkadot_overseer_gen::async_trait]
-impl SubsystemSender <AllMessages><AllMessages> for OverseerSubsystemSender {
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.channels.send_and_log_error(self.signals_received.load(), msg).await;
-	}
-
-	async fn send_messages<T>(&mut self, msgs: AllMessages)
-		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send
-	{
-		// This can definitely be optimized if necessary.
-		for msg in msgs {
-			self.send_message(msg).await;
-		}
-	}
-
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
-	}
-}
 
 
 #[cfg(test)]

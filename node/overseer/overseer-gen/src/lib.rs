@@ -70,11 +70,12 @@ pub use sp_core::traits::SpawnNamed;
 #[doc(hidden)]
 pub use futures::{
 	select,
+	poll,
 	future::{
 		Fuse, Future, BoxFuture
 	},
 	stream::{
-		select, FuturesUnordered
+		select, FuturesUnordered,
 	},
 	channel::{mpsc, oneshot},
 };
@@ -86,8 +87,12 @@ pub use std::time::Duration;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 
-// pub use tokio_util::time;
+#[doc(hidden)]
 pub use futures_timer::Delay;
+#[doc(hidden)]
+pub use futures_util::stream::StreamExt;
+
+
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
 /// Used to launch jobs.
@@ -404,8 +409,8 @@ pub trait SubsystemSender<AllMessages>: Send + Clone + 'static {
 
 
 
-use futures::task::{Poll, Context};
-use std::pin::Pin;
+pub use futures::task::{Poll, Context};
+pub use std::pin::Pin;
 
 /// A future that wraps another future with a `Delay` allowing for time-limited futures.
 #[pin_project::pin_project]
@@ -450,6 +455,10 @@ impl<F: Future> Future for Timeout<F> {
 		Poll::Pending
 	}
 }
+
+
+
+
 
 
 
