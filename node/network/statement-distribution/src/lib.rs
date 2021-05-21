@@ -554,8 +554,8 @@ enum LargeStatementStatus {
 	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
 	/// claiming to have that data and will fallback on them.
 	Fetching(FetchingInfo),
-	/// Statement data is fetched
-	Fetched(CommittedCandidateReceipt),
+	/// Statement data is fetched or we got it locally via `StatementDistributionMessage::Share`.
+	FetchedOrShared(CommittedCandidateReceipt),
 }
 
 /// Info about a fetch in progress.
@@ -1167,7 +1167,7 @@ async fn retrieve_statement_from_message<'a>(
 						}
 					}
 				}
-				LargeStatementStatus::Fetched(committed) => {
+				LargeStatementStatus::FetchedOrShared(committed) => {
 					match message {
 						protocol_v1::StatementDistributionMessage::Statement(_, s) => {
 							// We can now immediately return any statements (should only be
@@ -1654,7 +1654,7 @@ impl StatementDistribution {
 						.ok_or(NonFatal::NoSuchHead(relay_parent))?;
 
 				let committed = match active_head.waiting_large_statements.get(&candidate_hash) {
-					Some(LargeStatementStatus::Fetched(committed)) => committed.clone(),
+					Some(LargeStatementStatus::FetchedOrShared(committed)) => committed.clone(),
 					_ => {
 						return Err(
 							NonFatal::NoSuchFetchedLargeStatement(relay_parent, candidate_hash)
@@ -1699,8 +1699,9 @@ impl StatementDistribution {
 
 				let info = match status {
 					Some(LargeStatementStatus::Fetching(info)) => info,
-					Some(LargeStatementStatus::Fetched(_)) => {
-						panic!("On status fetched, fetching task already succeeded. qed.");
+					Some(LargeStatementStatus::FetchedOrShared(_)) => {
+						// We are no longer interested in the data.
+						return Ok(())
 					}
 					None => {
 						return Err(
@@ -1711,7 +1712,7 @@ impl StatementDistribution {
 
 				active_head.waiting_large_statements.insert(
 					candidate_hash,
-					LargeStatementStatus::Fetched(response),
+					LargeStatementStatus::FetchedOrShared(response),
 				);
 
 				// Cache is now populated, send all messages:
@@ -1755,8 +1756,14 @@ impl StatementDistribution {
 
 				let info = match status {
 					Some(LargeStatementStatus::Fetching(info)) => info,
-					Some(LargeStatementStatus::Fetched(_)) =>
-						panic!("On status fetched, fetching task already succeeded. qed."),
+					Some(LargeStatementStatus::FetchedOrShared(_)) => {
+						// This task is going to die soon - no need to send it anything.
+						tracing::debug!(
+							target: LOG_TARGET,
+							"Zombie task wanted more peers."
+						);
+						return Ok(())
+					}
 					None => {
 						return Err(
 							NonFatal::NoSuchLargeStatementStatus(relay_parent, candidate_hash)
@@ -1845,7 +1852,7 @@ impl StatementDistribution {
 								.ok_or(NonFatal::NoSuchHead(relay_parent))?;
 							active_head.waiting_large_statements.insert(
 								statement.payload().candidate_hash(),
-								LargeStatementStatus::Fetched(committed.clone())
+								LargeStatementStatus::FetchedOrShared(committed.clone())
 							);
 						}
 					}
