@@ -444,10 +444,10 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Called by the iniitalizer to finalize the disputes module.
+	/// Called by the initalizer to finalize the disputes module.
 	pub(crate) fn initializer_finalize() { }
 
-	/// Called by the iniitalizer to note a new session in the disputes module.
+	/// Called by the initalizer to note a new session in the disputes module.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		let config = <configuration::Pallet<T>>::config();
 
