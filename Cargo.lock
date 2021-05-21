@@ -4647,7 +4647,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "3.1.0"
-source = "git+https://github.com/paritytech/substrate?branch=jon/migrate-grandpa-appet-framev2#32ba95b6eac24b79de07bc0e2b64e1f5786c028c"
+source = "git+https://github.com/paritytech/substrate?branch=jon/migrate-grandpa-pallet-framev2#32ba95b6eac24b79de07bc0e2b64e1f5786c028c"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
