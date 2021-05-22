@@ -181,7 +181,7 @@ pub enum SubsystemError {
 	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
 	FromOrigin {
-		/// An additional anotation tag for the origin of `source`.
+		/// An additional annotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
 		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>

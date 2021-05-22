@@ -233,7 +233,7 @@ impl BitfieldDistribution {
 	}
 }
 
-/// Modify the reputation of a peer based on its behaviour.
+/// Modify the reputation of a peer based on its behavior.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
@@ -560,7 +560,7 @@ where
 	}
 }
 
-/// Handle the changes necassary when our view changes.
+/// Handle the changes necessary when our view changes.
 #[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 	let old_view = std::mem::replace(&mut (state.view), view);

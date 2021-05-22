@@ -317,7 +317,7 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 }
 
 struct PeerData {
-	/// Latest view sent by the peer.
+	/// The Latest view sent by the peer.
 	view: View,
 }
 
