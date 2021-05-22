@@ -763,11 +763,9 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_announce_validator_builder: None,
 		})?;
 
-	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config, task_manager.spawn_handle(), client.clone(), network.clone(),
-		);
-	}
+	let _ = service::build_offchain_workers(
+		&config, task_manager.spawn_handle(), client.clone(), network.clone(),
+	);
 
 	let parachains_db = crate::parachains_db::open_creating(
 		config.database.path().ok_or(Error::DatabasePathRequired)?.into(),
@@ -983,7 +981,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
 		};
-	
+
 		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _>(
 			beefy_params
 		);
@@ -1172,14 +1170,12 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			block_announce_validator_builder: None,
 		})?;
 
-	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
-		);
-	}
+	let _ = service::build_offchain_workers(
+		&config,
+		task_manager.spawn_handle(),
+		client.clone(),
+		network.clone(),
+	);
 
 	let light_deps = polkadot_rpc::LightDeps {
 		remote_blockchain: backend.remote_blockchain(),
