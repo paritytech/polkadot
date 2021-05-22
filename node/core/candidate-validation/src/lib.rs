@@ -404,6 +404,14 @@ async fn validate_candidate_exhaustive(
 		)
 		.await;
 
+	if let Err(ref e) = result {
+		tracing::debug!(
+			target: LOG_TARGET,
+			error = ?e,
+			"Failed to validate candidate",
+		);
+	}
+
 	let result = match result {
 		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
 
