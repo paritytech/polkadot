@@ -16,8 +16,8 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
-use frame_support::{pallet_prelude::*, ensure, dispatch::DispatchResult, weights::DispatchClass};
-use frame_system::{pallet_prelude::*, ensure_root};
+use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::*;
 use runtime_parachains::{
 	configuration, dmp, ump, hrmp,
 	ParaLifecycle,
