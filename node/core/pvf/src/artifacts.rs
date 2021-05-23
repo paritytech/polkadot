@@ -14,10 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::LOG_TARGET;
 use always_assert::always;
 use async_std::{
-	io,
 	path::{Path, PathBuf},
 };
 use polkadot_core_primitives::Hash;
@@ -26,7 +24,6 @@ use std::{
 	time::{Duration, SystemTime},
 };
 use parity_scale_codec::{Encode, Decode};
-use futures::StreamExt;
 
 /// A final product of preparation process. Contains either a ready to run compiled artifact or
 /// a description what went wrong.
@@ -71,6 +68,7 @@ impl ArtifactId {
 	}
 
 	/// Tries to recover the artifact id from the given file name.
+	#[cfg(test)]
 	pub fn from_file_name(file_name: &str) -> Option<Self> {
 		use std::str::FromStr as _;
 
@@ -109,26 +107,17 @@ pub struct Artifacts {
 }
 
 impl Artifacts {
-	/// Scan the given cache root for the artifacts.
+	/// Initialize a blank cache at the given path. This will clear everything present at the
+	/// given path, to be populated over time.
 	///
 	/// The recognized artifacts will be filled in the table and unrecognized will be removed.
 	pub async fn new(cache_path: &Path) -> Self {
 		// Make sure that the cache path directory and all it's parents are created.
+		// First delete the entire cache. Nodes are long-running so this should populate shortly.
+		let _ = async_std::fs::remove_dir_all(cache_path).await;
 		let _ = async_std::fs::create_dir_all(cache_path).await;
 
-		let artifacts = match scan_for_known_artifacts(cache_path).await {
-			Ok(a) => a,
-			Err(err) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"unable to seed the artifacts in memory cache: {:?}. Starting with a clean one",
-					err,
-				);
-				HashMap::new()
-			}
-		};
-
-		Self { artifacts }
+		Self { artifacts: HashMap::new() }
 	}
 
 	#[cfg(test)]
@@ -195,89 +184,10 @@ impl Artifacts {
 	}
 }
 
-/// Goes over all files in the given directory, collecting all recognizable artifacts. All files
-/// that do not look like artifacts are removed.
-///
-/// All recognized artifacts will be created with the current datetime.
-async fn scan_for_known_artifacts(
-	cache_path: &Path,
-) -> io::Result<HashMap<ArtifactId, ArtifactState>> {
-	let mut result = HashMap::new();
-	let now = SystemTime::now();
-
-	let mut dir = async_std::fs::read_dir(cache_path).await?;
-	while let Some(res) = dir.next().await {
-		let entry = res?;
-
-		if entry.file_type().await?.is_dir() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"{} is a dir, and dirs do not belong to us. Removing",
-				entry.path().display(),
-			);
-			let _ = async_std::fs::remove_dir_all(entry.path()).await;
-		}
-
-		let path = entry.path();
-		let file_name = match path.file_name() {
-			None => {
-				// A file without a file name? Weird, just skip it.
-				continue;
-			}
-			Some(file_name) => file_name,
-		};
-
-		let file_name = match file_name.to_str() {
-			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"{} is not utf-8. Removing",
-					path.display(),
-				);
-				let _ = async_std::fs::remove_file(&path).await;
-				continue;
-			}
-			Some(file_name) => file_name,
-		};
-
-		let artifact_id = match ArtifactId::from_file_name(file_name) {
-			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"{} is not a recognized artifact. Removing",
-					path.display(),
-				);
-				let _ = async_std::fs::remove_file(&path).await;
-				continue;
-			}
-			Some(artifact_id) => artifact_id,
-		};
-
-		// A sanity check so that we really can access the artifact through the artifact id.
-		if artifact_id.path(cache_path).is_file().await {
-			result.insert(
-				artifact_id,
-				ArtifactState::Prepared {
-					last_time_needed: now,
-				},
-			);
-		} else {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"{} is not accessible by artifact_id {:?}",
-				cache_path.display(),
-				artifact_id,
-			);
-		}
-	}
-
-	Ok(result)
-}
-
 #[cfg(test)]
 mod tests {
 	use async_std::path::Path;
-	use super::ArtifactId;
+	use super::{Artifacts, ArtifactId};
 	use sp_core::H256;
 	use std::str::FromStr;
 
@@ -321,5 +231,29 @@ mod tests {
 			ArtifactId::new(hash).path(path).to_str(),
 			Some("/test/wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234"),
 		);
+	}
+
+	#[test]
+	fn artifacts_removes_cache_on_startup() {
+		let fake_cache_path = async_std::task::block_on(async move { crate::worker_common::tmpfile("test-cache").await.unwrap() });
+		let fake_artifact_path = {
+			let mut p = fake_cache_path.clone();
+			p.push("wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234");
+			p
+		};
+
+		// create a tmp cache with 1 artifact.
+
+		std::fs::create_dir_all(&fake_cache_path).unwrap();
+		std::fs::File::create(fake_artifact_path).unwrap();
+
+		// this should remove it and re-create.
+
+		let p = &fake_cache_path;
+		async_std::task::block_on(async { Artifacts::new(p).await });
+
+		assert_eq!(std::fs::read_dir(&fake_cache_path).unwrap().count(), 0);
+
+		std::fs::remove_dir_all(fake_cache_path).unwrap();
 	}
 }
