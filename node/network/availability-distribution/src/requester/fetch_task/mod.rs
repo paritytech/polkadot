@@ -221,13 +221,13 @@ impl FetchTask {
 		}
 	}
 
-	/// Whether there are still relay parents around with this candidate pending
+	/// Whether or not there are still relay parents around with this candidate pending
 	/// availability.
 	pub fn is_live(&self) -> bool {
 		!self.live_in.is_empty()
 	}
 
-	/// Whether this task can be considered finished.
+	/// Whether or not this task can be considered finished.
 	///
 	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {

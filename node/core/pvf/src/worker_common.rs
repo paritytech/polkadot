@@ -85,12 +85,13 @@ where
 	result
 }
 
-/// Returns a path under the given `dir`. The file name will start with the given prefix.
+/// Returns a path under the location for temporary files. The file name will start with the given
+/// prefix.
 ///
 /// There is only a certain number of retries. If exceeded this function will give up and return an
 /// error.
-pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
-	fn tmppath(prefix: &str, dir: &Path) -> PathBuf {
+pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
+	fn tmppath(prefix: &str) -> PathBuf {
 		use rand::distributions::Alphanumeric;
 
 		const DESCRIMINATOR_LEN: usize = 10;
@@ -106,15 +107,15 @@ pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
 		let s = std::str::from_utf8(&buf)
 			.expect("the string is collected from a valid utf-8 sequence; qed");
 
-		let mut file = dir.to_owned();
-		file.push(s);
-		file
+		let mut temp_dir = PathBuf::from(std::env::temp_dir());
+		temp_dir.push(s);
+		temp_dir
 	}
 
 	const NUM_RETRIES: usize = 50;
 
 	for _ in 0..NUM_RETRIES {
-		let candidate_path = tmppath(prefix, dir);
+		let candidate_path = tmppath(prefix);
 		if !candidate_path.exists().await {
 			return Ok(candidate_path)
 		}
@@ -123,12 +124,6 @@ pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
 	Err(
 		io::Error::new(io::ErrorKind::Other, "failed to create a temporary file")
 	)
-}
-
-/// The same as [`tmpfile_in`], but uses [`std::env::temp_dir`] as the directory.
-pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
-	let temp_dir = PathBuf::from(std::env::temp_dir());
-	tmpfile_in(prefix, &temp_dir).await
 }
 
 pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)

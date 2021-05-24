@@ -104,7 +104,7 @@ pub enum Recipient {
 /// discovery system.
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
-	/// Intended recipient of this request.
+	/// Intendent recipient of this request.
 	pub peer: Recipient,
 	/// The actual request to send over the wire.
 	pub payload: Req,

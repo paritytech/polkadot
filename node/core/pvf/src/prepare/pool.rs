@@ -104,7 +104,6 @@ type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
 
 struct Pool {
 	program_path: PathBuf,
-	cache_path: PathBuf,
 	spawn_timeout: Duration,
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
@@ -118,7 +117,6 @@ struct Fatal;
 async fn run(
 	Pool {
 		program_path,
-		cache_path,
 		spawn_timeout,
 		to_pool,
 		mut from_pool,
@@ -143,7 +141,6 @@ async fn run(
 				let to_pool = break_if_fatal!(to_pool.ok_or(Fatal));
 				handle_to_pool(
 					&program_path,
-					&cache_path,
 					spawn_timeout,
 					&mut spawned,
 					&mut mux,
@@ -184,7 +181,6 @@ async fn purge_dead(
 
 fn handle_to_pool(
 	program_path: &Path,
-	cache_path: &Path,
 	spawn_timeout: Duration,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
@@ -203,15 +199,8 @@ fn handle_to_pool(
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					mux.push(
-						start_work_task(
-							worker,
-							idle,
-							code,
-							cache_path.to_owned(),
-							artifact_path,
-							background_priority
-						)
-						.boxed(),
+						start_work_task(worker, idle, code, artifact_path, background_priority)
+							.boxed(),
 					);
 				} else {
 					// idle token is present after spawn and after a job is concluded;
@@ -262,12 +251,10 @@ async fn start_work_task(
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
-	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	background_priority: bool,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
+	let outcome = worker::start_work(idle, code, artifact_path, background_priority).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -327,7 +314,6 @@ fn reply(from_pool: &mut mpsc::UnboundedSender<FromPool>, m: FromPool) -> Result
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	program_path: PathBuf,
-	cache_path: PathBuf,
 	spawn_timeout: Duration,
 ) -> (
 	mpsc::Sender<ToPool>,
@@ -339,7 +325,6 @@ pub fn start(
 
 	let run = run(Pool {
 		program_path,
-		cache_path,
 		spawn_timeout,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,
