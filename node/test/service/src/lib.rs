@@ -184,6 +184,7 @@ pub fn node_config(
 		rpc_ws: None,
 		rpc_ipc: None,
 		rpc_ws_max_connections: None,
+		rpc_http_threads: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
 		prometheus_config: None,
