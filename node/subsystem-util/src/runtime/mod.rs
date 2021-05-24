@@ -63,7 +63,7 @@ pub struct ExtendedSessionInfo {
 	pub validator_info: ValidatorInfo,
 }
 
-/// Information about ourself, in case we are an `Authority`.
+/// Information about ourselves, in case we are an `Authority`.
 ///
 /// This data is derived from the `SessionInfo` and our key as found in the keystore.
 pub struct ValidatorInfo {

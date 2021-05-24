@@ -30,7 +30,7 @@ pub enum PeerSet {
 	Collation,
 }
 
-/// Whether or not a node is an authority or not.
+/// Whether a node is an authority or not.
 ///
 /// Peer set configuration gets adjusted accordingly.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
