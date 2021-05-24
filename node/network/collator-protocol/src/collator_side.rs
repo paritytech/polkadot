@@ -217,9 +217,6 @@ struct State {
 	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s by `PeerConnected` events.
 	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
 
-	/// The connection handles to validators per group we are interested in.
-	connection_handles: HashMap<GroupIndex, oneshot::Sender<()>>,
-
 	/// Metrics.
 	metrics: Metrics,
 }
@@ -240,7 +237,6 @@ impl State {
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
-			connection_handles: Default::default(),
 		}
 	}
 
@@ -332,22 +328,15 @@ async fn distribute_collation(
 		"Accepted collation, connecting to validators."
 	);
 
-	// Drop obsolete connections:
-	let new_groups: HashSet<_> = vec![current_validators.group, next_validators.group].into_iter().collect();
-	state.connection_handles.retain(|k, _| new_groups.contains(k));
-
 	let validator_group: HashSet<_> = current_validators.validators.iter().map(Clone::clone).collect();
 
 	// Issue a discovery request for the validators of the current group and the next group:
 	connect_to_validators(
 		ctx,
-		state,
-		current_validators,
-	).await;
-	connect_to_validators(
-		ctx,
-		state,
-		next_validators,
+		current_validators.validators
+			.into_iter()
+			.chain(next_validators.validators.into_iter())
+			.collect(),
 	).await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
@@ -461,19 +450,17 @@ async fn declare(
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State,
-	group: GroupValidators,
+	validator_ids: Vec<AuthorityDiscoveryId>,
 )  {
-	let (keep_alive_handle, keep_alive) = oneshot::channel();
-	// Reconnect in all cases, as authority discovery cache might not have been fully populated
-	// last time:
+	// ignore address resolution failure
+	// will reissue a new request on new collation
+	let (failed, _) = oneshot::channel();
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids: group.validators, peer_set: PeerSet::Collation, keep_alive
+		validator_ids, peer_set: PeerSet::Collation, failed,
 	})).await;
-	state.connection_handles.insert(group.group, keep_alive_handle);
 }
 
 /// Advertise collation to the given `peer`.
@@ -1061,7 +1048,7 @@ mod tests {
 
 		/// Generate a new relay parent and inform the subsystem about the new view.
 		///
-		/// If `merge_views == true` it means the subsystem will be informed that we working on the old `relay_parent`
+		/// If `merge_views == true` it means the subsystem will be informed that we are working on the old `relay_parent`
 		/// and the new one.
 		async fn advance_to_new_round(&mut self, virtual_overseer: &mut VirtualOverseer, merge_views: bool) {
 			let old_relay_parent = self.relay_parent;
@@ -1277,14 +1264,6 @@ mod tests {
 					}
 				) => {}
 			);
-			assert_matches!(
-				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ConnectToValidators {
-						..
-					}
-				) => {}
-			);
 		}
 
 		DistributeCollation {
@@ -1360,7 +1339,7 @@ mod tests {
 		);
 	}
 
-	/// Check that the next received message is a collation advertisment message.
+	/// Check that the next received message is a collation advertisement message.
 	async fn expect_advertise_collation_msg(
 		virtual_overseer: &mut VirtualOverseer,
 		peer: &PeerId,

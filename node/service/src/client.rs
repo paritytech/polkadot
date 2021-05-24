@@ -23,7 +23,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
+use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
 use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
@@ -78,6 +78,7 @@ pub trait AbstractClient<Block, Backend>:
 		Block,
 		StateBackend = Backend::State
 	>
+	+ AuxStore
 	where
 		Block: BlockT,
 		Backend: BackendT<Block>,
@@ -90,8 +91,13 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 		Block: BlockT,
 		Backend: BackendT<Block>,
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block> + HeaderBackend<Block>
-			+ Sized + Send + Sync
+		Client: BlockchainEvents<Block>
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ AuxStore
+			+ Sized
+			+ Send
+			+ Sync
 			+ CallApiAt<
 				Block,
 				StateBackend = Backend::State

@@ -23,6 +23,7 @@
 use parity_scale_codec::{Encode, Decode};
 use parking_lot::Mutex;
 use futures::prelude::*;
+use futures::stream::BoxStream;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
@@ -130,6 +131,14 @@ impl Metrics {
 				.inc_by((size * to_peers) as u64);
 		}
 	}
+
+	fn note_desired_peer_count(&self, peer_set: PeerSet, size: usize) {
+		self.0.as_ref().map(|metrics| metrics
+			.desired_peer_count
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.set(size as u64)
+		);
+	}
 }
 
 #[derive(Clone)]
@@ -137,6 +146,7 @@ struct MetricsInner {
 	peer_count: prometheus::GaugeVec<prometheus::U64>,
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
+	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
 
 	notifications_received: prometheus::CounterVec<prometheus::U64>,
 	notifications_sent: prometheus::CounterVec<prometheus::U64>,
@@ -175,6 +185,16 @@ impl metrics::Metrics for Metrics {
 					prometheus::Opts::new(
 						"parachain_peer_disconnect_events_total",
 						"The number of peer disconnect events on a parachain notifications protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			desired_peer_count: prometheus::register(
+				prometheus::GaugeVec::new(
+					prometheus::Opts::new(
+						"parachain_desired_peer_count",
+						"The number of peers that the local node is expected to connect to on a parachain-related peer-set",
 					),
 					&["protocol"]
 				)?,
@@ -277,10 +297,14 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
+		// The stream of networking events has to be created at initialization, otherwise the
+		// networking might open connections before the stream of events has been grabbed.
+		let network_stream = self.network_service.event_stream();
+
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		let future = run_network(self, ctx)
+		let future = run_network(self, ctx, network_stream)
 			.map_err(|e| {
 				SubsystemError::with_origin("network-bridge", e)
 			})
@@ -293,7 +317,7 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 }
 
 struct PeerData {
-	/// Latest view sent by the peer.
+	/// The Latest view sent by the peer.
 	view: View,
 }
 
@@ -409,10 +433,12 @@ where
 				}
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							action = "ReportPeer"
-						);
+						if !rep.is_benefit() {
+							tracing::debug!(
+								target: LOG_TARGET,
+								action = "ReportPeer"
+							);
+						}
 						network_service.report_peer(peer, rep).await?
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
@@ -504,7 +530,7 @@ where
 					NetworkBridgeMessage::ConnectToValidators {
 						validator_ids,
 						peer_set,
-						keep_alive,
+						failed,
 					} => {
 						tracing::trace!(
 							target: LOG_TARGET,
@@ -514,10 +540,12 @@ where
 							"Received a validator connection request",
 						);
 
+						metrics.note_desired_peer_count(peer_set, validator_ids.len());
+
 						let (ns, ads) = validator_discovery.on_request(
 							validator_ids,
 							peer_set,
-							keep_alive,
+							failed,
 							network_service,
 							authority_discovery_service,
 						).await;
@@ -535,13 +563,12 @@ where
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
+	mut network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
 	mut request_multiplexer: RequestMultiplexer,
 	metrics: Metrics,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
-	let mut network_stream = network_service.event_stream();
-
 	loop {
 		futures::select! {
 			network_event = network_stream.next().fuse() => match network_event {
@@ -798,10 +825,11 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-#[tracing::instrument(skip(bridge, ctx), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(skip(bridge, ctx, network_stream), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	bridge: NetworkBridge<N, AD>,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where
 	N: Network,
@@ -824,6 +852,7 @@ where
 	let (remote, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
+		network_stream,
 		authority_discovery_service.clone(),
 		request_multiplexer,
 		metrics.clone(),
@@ -1351,8 +1380,9 @@ mod tests {
 	) {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (request_multiplexer, req_configs) = RequestMultiplexer::new();
-		let (network, network_handle, discovery) = new_test_network(req_configs);
+		let (mut network, network_handle, discovery) = new_test_network(req_configs);
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+		let network_stream = network.event_stream();
 
 		let bridge = NetworkBridge {
 			network_service: network,
@@ -1365,6 +1395,7 @@ mod tests {
 		let network_bridge = run_network(
 			bridge,
 			context,
+			network_stream,
 		)
 			.map_err(|_| panic!("subsystem execution failed"))
 			.map(|_| ());
