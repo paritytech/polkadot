@@ -18,7 +18,7 @@
 
 use super::*;
 use polkadot_node_subsystem::{
-	jaeger, ActivatedLeaf,
+	jaeger, ActivatedLeaf, LeafStatus,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -73,6 +73,7 @@ async fn overseer_signal_active_leaves(
 	let leaf = ActivatedLeaf {
 		hash: leaf,
 		number: 0xdeadcafe,
+		status: LeafStatus::Fresh,
 		span: Arc::new(jaeger::Span::Disabled),
 	};
 	overseer

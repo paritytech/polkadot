@@ -1333,7 +1333,7 @@ mod tests {
 	use polkadot_primitives::v1::{GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, RuntimeApiMessage},
-		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf, LeafStatus,
 	};
 	use polkadot_node_primitives::{InvalidCandidate, BlockData};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -1526,6 +1526,7 @@ mod tests {
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: test_state.relay_parent,
 				number: 1,
+				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
 			})))
 		).await;
