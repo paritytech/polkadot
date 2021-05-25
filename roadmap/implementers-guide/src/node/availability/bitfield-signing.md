@@ -15,7 +15,7 @@ Output:
 
 ## Functionality
 
-Upon receipt of an `ActiveLeavesUpdate`, launch bitfield signing job for each `activated` head. Stop the job for each `deactivated` head.
+Upon receipt of an `ActiveLeavesUpdate`, launch bitfield signing job for each `activated` head referring to a fresh leaf. Stop the job for each `deactivated` head.
 
 ## Bitfield Signing Job
 
