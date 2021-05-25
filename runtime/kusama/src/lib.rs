@@ -380,7 +380,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type BenchmarkingConfig = ();
 	type ForceOrigin = EnsureOneOf<
 		AccountId,
-		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
+		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
