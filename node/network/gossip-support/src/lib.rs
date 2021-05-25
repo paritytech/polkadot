@@ -168,7 +168,12 @@ impl State {
 			};
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
-				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
+				tracing::debug!(
+					target: LOG_TARGET,
+					%new_session,
+					force_request = %self.force_request,
+					"New session detected",
+				);
 				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
 				ensure_i_am_an_authority(keystore, &authorities).await?;
 				let num = authorities.len();
@@ -185,8 +190,14 @@ impl State {
 				let failures = failures.await.unwrap_or(num);
 
 				self.last_session_index = Some(new_session);
-				// issue another request if at least a third of the authorities were not resolved
+				// issue another request for the same session
+				// if at least a third of the authorities were not resolved
 				self.force_request = failures >= num / 3;
+				// but issuing the same request right away will probably not help
+				// so we wait for another block import
+				if self.force_request {
+					break;
+				}
 			}
 		}
 
