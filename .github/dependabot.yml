@@ -11,5 +11,6 @@ updates:
       - dependency-name: "frame-*"
       - dependency-name: "fork-tree"
       - dependency-name: "pallet-*"
+      - dependency-name: "beefy-*"
     schedule:
       interval: "daily"
