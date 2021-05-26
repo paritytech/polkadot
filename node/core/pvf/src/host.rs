@@ -52,8 +52,8 @@ impl ValidationHost {
 	/// Execute PVF with the given code, params and priority. The result of execution will be sent
 	/// to the provided result sender.
 	///
-	/// This is async to accomodate the fact a possibility of back-pressure. In vast majority of
-	/// situations this function should return immediatelly.
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn execute_pvf(
@@ -76,8 +76,8 @@ impl ValidationHost {
 
 	/// Sends a signal to the validation host requesting to prepare a list of the given PVFs.
 	///
-	/// This is async to accomodate the fact a possibility of back-pressure. In vast majority of
-	/// situations this function should return immediatelly.
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn heads_up(&mut self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
@@ -155,7 +155,8 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
-		config.prepare_worker_program_path.to_owned(),
+		config.prepare_worker_program_path.clone(),
+		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 	);
 
@@ -218,7 +219,7 @@ struct PendingExecutionRequest {
 	result_tx: ResultSender,
 }
 
-/// A mapping from an artifact ID which is in preparation state to the list of pending exeuction
+/// A mapping from an artifact ID which is in preparation state to the list of pending execution
 /// requests that should be executed once the artifact's prepration is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);

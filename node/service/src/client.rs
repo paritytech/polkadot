@@ -23,7 +23,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore};
+use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore, UsageProvider};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
 use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
@@ -79,6 +79,7 @@ pub trait AbstractClient<Block, Backend>:
 		StateBackend = Backend::State
 	>
 	+ AuxStore
+	+ UsageProvider<Block>
 	where
 		Block: BlockT,
 		Backend: BackendT<Block>,
@@ -95,6 +96,7 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 			+ ProvideRuntimeApi<Block>
 			+ HeaderBackend<Block>
 			+ AuxStore
+			+ UsageProvider<Block>
 			+ Sized
 			+ Send
 			+ Sync
@@ -173,7 +175,7 @@ impl ClientHandle for Client {
 	}
 }
 
-impl sc_client_api::UsageProvider<Block> for Client {
+impl UsageProvider<Block> for Client {
 	fn usage_info(&self) -> sc_client_api::ClientInfo<Block> {
 		match self {
 			Self::Polkadot(client) => client.usage_info(),

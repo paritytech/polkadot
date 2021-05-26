@@ -68,7 +68,7 @@ pub enum Fatal {
 	Runtime(#[from] #[source] runtime::Fatal),
 }
 
-/// Non fatal errors of this subsystem.
+/// Non-fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum NonFatal {
 	/// av-store will drop the sender on any error that happens.

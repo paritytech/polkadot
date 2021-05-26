@@ -118,7 +118,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9021,
+	spec_version: 9031,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -369,6 +369,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = ();
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
 
@@ -668,7 +669,15 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Scheduler(..) |
 				// Specifically omitting Sudo pallet
 				Call::Proxy(..) |
-				Call::Multisig(..)
+				Call::Multisig(..) |
+				Call::Registrar(paras_registrar::Call::register(..)) |
+				Call::Registrar(paras_registrar::Call::deregister(..)) |
+				// Specifically omitting Registrar `swap`
+				Call::Registrar(paras_registrar::Call::reserve(..)) |
+				Call::Crowdloan(..) |
+				Call::Slots(..) |
+				Call::Auctions(..)
+				// Specifically omitting the entire XCM Pallet
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) |
@@ -772,7 +781,7 @@ impl paras_registrar::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
-	type OnSwap = Slots;
+	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaxCodeSize = MaxCodeSize;
