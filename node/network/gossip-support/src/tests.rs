@@ -160,7 +160,7 @@ fn issues_a_connection_request_on_new_session() {
 	});
 
 	assert_eq!(state.last_session_index, Some(1));
-	assert!(!state.force_request);
+	assert!(state.last_failure.is_none());
 
 	// does not issue on the same session
 	let hash = Hash::repeat_byte(0xBB);
@@ -181,7 +181,7 @@ fn issues_a_connection_request_on_new_session() {
 	});
 
 	assert_eq!(state.last_session_index, Some(1));
-	assert!(!state.force_request);
+	assert!(state.last_failure.is_none());
 
 	// does on the new one
 	let hash = Hash::repeat_byte(0xCC);
@@ -225,13 +225,13 @@ fn issues_a_connection_request_on_new_session() {
 		virtual_overseer
 	});
 	assert_eq!(state.last_session_index, Some(2));
-	assert!(!state.force_request);
+	assert!(state.last_failure.is_none());
 }
 
 #[test]
 fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	let hash = Hash::repeat_byte(0xAA);
-	let state = test_harness(State::default(), |mut virtual_overseer| async move {
+	let mut state = test_harness(State::default(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		overseer_signal_active_leaves(overseer, hash).await;
 		assert_matches!(
@@ -271,7 +271,8 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	});
 
 	assert_eq!(state.last_session_index, Some(1));
-	assert!(state.force_request);
+	assert!(state.last_failure.is_some());
+	state.last_failure = state.last_failure.and_then(|i| i.checked_sub(BACKOFF_DURATION));
 
 	let hash = Hash::repeat_byte(0xBB);
 	let state = test_harness(state, |mut virtual_overseer| async move {
@@ -314,6 +315,6 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	});
 
 	assert_eq!(state.last_session_index, Some(1));
-	assert!(!state.force_request);
+	assert!(state.last_failure.is_none());
 }
 

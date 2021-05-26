@@ -69,7 +69,7 @@ impl WeightInfo for TestWeightInfo {
 	fn move_claim() -> Weight { 0 }
 }
 
-/// The kind of a statement an account needs to make for a claim to be valid.
+/// The kind of statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum StatementKind {

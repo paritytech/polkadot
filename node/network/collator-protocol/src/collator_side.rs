@@ -1048,7 +1048,7 @@ mod tests {
 
 		/// Generate a new relay parent and inform the subsystem about the new view.
 		///
-		/// If `merge_views == true` it means the subsystem will be informed that we working on the old `relay_parent`
+		/// If `merge_views == true` it means the subsystem will be informed that we are working on the old `relay_parent`
 		/// and the new one.
 		async fn advance_to_new_round(&mut self, virtual_overseer: &mut VirtualOverseer, merge_views: bool) {
 			let old_relay_parent = self.relay_parent;
@@ -1339,7 +1339,7 @@ mod tests {
 		);
 	}
 
-	/// Check that the next received message is a collation advertisment message.
+	/// Check that the next received message is a collation advertisement message.
 	async fn expect_advertise_collation_msg(
 		virtual_overseer: &mut VirtualOverseer,
 		peer: &PeerId,
