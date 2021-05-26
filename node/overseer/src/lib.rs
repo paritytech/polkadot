@@ -74,7 +74,7 @@ use futures::{
 	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use memory_lru::{MemoryLruCache, ResidentSize};
+use lru::LruCache;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -1048,20 +1048,9 @@ struct SubsystemMeterReadouts {
 }
 
 
-/// The amount of data to keep in the header freshness cache.
-/// With 32-byte block hashes and 6-second block times, this is enough
-/// to store known blocks extending back days.
-const LRU_CACHE_SIZE_BYTES: usize = 2 * 1024 * 1024;
-
-// This is a Zero-Sized ype which is used to communicate to the `known_leaves` LRU-cache the
-// size of the key.
-struct KnownLeafMarker;
-
-impl ResidentSize for KnownLeafMarker {
-	fn resident_size(&self) -> usize {
-		std::mem::size_of::<Hash>()
-	}
-}
+/// Store 2 days worth of blocks, not accounting for forks,
+/// in the LRU cache. Assumes a 6-second block time.
+const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 /// The `Overseer` itself.
 pub struct Overseer<S, SupportsParachains> {
@@ -1117,7 +1106,7 @@ pub struct Overseer<S, SupportsParachains> {
 	supports_parachains: SupportsParachains,
 
 	/// An LRU cache for keeping track of relay-chain heads that have already been seen.
-	known_leaves: MemoryLruCache<Hash, KnownLeafMarker>,
+	known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
 	metrics: Metrics,
@@ -1853,7 +1842,7 @@ where
 			active_leaves,
 			metrics,
 			span_per_active_leaf: Default::default(),
-			known_leaves: MemoryLruCache::new(LRU_CACHE_SIZE_BYTES),
+			known_leaves: LruCache::new(KNOWN_LEAVES_CACHE_SIZE),
 			supports_parachains,
 		};
 
@@ -2157,10 +2146,9 @@ where
 		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
 
-		let status = if self.known_leaves.get(hash).is_some() {
+		let status = if let Some(_) = self.known_leaves.put(*hash, ()) {
 			LeafStatus::Stale
 		} else {
-			self.known_leaves.insert(*hash, KnownLeafMarker);
 			LeafStatus::Fresh
 		};
 
