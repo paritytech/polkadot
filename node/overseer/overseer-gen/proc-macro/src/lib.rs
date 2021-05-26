@@ -15,29 +15,26 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::TokenStream;
-use syn::{parse2, Error, Result};
-use syn::spanned::Spanned;
-use std::collections::HashSet;
+use syn::{parse2, Result};
 
-mod parse_struct;
-mod parse_attr;
-mod impl_overseer;
-mod impl_misc;
 mod impl_builder;
-mod impl_replace;
+mod impl_misc;
+mod impl_overseer;
+mod parse_attr;
+mod parse_struct;
+// mod impl_replace;
 mod impl_channels_out;
-mod impl_message_wrapper;
 mod impl_dispatch;
+mod impl_message_wrapper;
 
-use parse_struct::*;
-use parse_attr::*;
-use impl_overseer::*;
 use impl_builder::*;
-use impl_misc::*;
-use impl_replace::*;
 use impl_channels_out::*;
-use impl_message_wrapper::*;
 use impl_dispatch::*;
+use impl_message_wrapper::*;
+use impl_misc::*;
+use impl_overseer::*;
+use parse_attr::*;
+use parse_struct::*;
 
 #[proc_macro_attribute]
 pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {

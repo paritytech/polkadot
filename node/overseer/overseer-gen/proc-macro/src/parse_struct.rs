@@ -1,17 +1,17 @@
 use proc_macro2::Span;
-use std::collections::{HashSet, hash_map::RandomState};
-use syn::{AttrStyle, Path};
+use std::collections::{hash_map::RandomState, HashSet};
+use syn::parse::Parse;
+use syn::parse::ParseStream;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
 use syn::Attribute;
 use syn::Field;
 use syn::FieldsNamed;
 use syn::Ident;
-use syn::parse::Parse;
-use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 use syn::Token;
 use syn::Type;
-use syn::{parse2, ItemStruct, Error, GenericParam, Result};
-use syn::parse::ParseStream;
+use syn::{AttrStyle, Path};
+use syn::{Error, GenericParam, ItemStruct, Result};
 
 /// A field of the struct annotated with
 /// `#[subsystem(no_dispatch, , A | B | C)]`
@@ -39,12 +39,6 @@ fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 		_ => Err(Error::new(span, "Type must be a path expression.")),
 	}
 }
-
-
-fn try_type_to_ident(ty: Type, span: Span) -> Result<Ident> {
-	try_type_to_path(ty, span.clone())?.get_ident().cloned().ok_or_else(|| Error::new(span, "Expected an identifier, but got a path."))
-}
-
 
 pub(crate) struct SubSystemTag {
 	#[allow(dead_code)]
@@ -75,10 +69,10 @@ impl Parse for SubSystemTag {
 		let mut unique = HashSet::<_, RandomState>::default();
 		while let Some(ident) = parse_tags()? {
 			if ident != "no_dispatch" && ident != "blocking" {
-				return Err(Error::new(ident.span(), "Allowed tags are only `no_dispatch` or `blocking`."))
+				return Err(Error::new(ident.span(), "Allowed tags are only `no_dispatch` or `blocking`."));
 			}
 			if !unique.insert(ident.to_string()) {
-				return Err(Error::new(ident.span(), "Found duplicate tag."))
+				return Err(Error::new(ident.span(), "Found duplicate tag."));
 			}
 		}
 		let no_dispatch = unique.take("no_dispatch").is_some();
@@ -86,15 +80,9 @@ impl Parse for SubSystemTag {
 
 		let consumes = content.parse_terminated(Path::parse)?;
 
-		Ok(Self {
-			attrs,
-			no_dispatch,
-			blocking,
-			consumes,
-		})
+		Ok(Self { attrs, no_dispatch, blocking, consumes })
 	}
 }
-
 
 /// Fields that are _not_ subsystems.
 #[derive(Debug, Clone)]
@@ -103,7 +91,6 @@ pub(crate) struct BaggageField {
 	pub(crate) field_ty: Path,
 	pub(crate) generic: bool,
 }
-
 
 #[derive(Clone, Debug)]
 pub(crate) struct OverseerInfo {
@@ -161,19 +148,22 @@ impl OverseerInfo {
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
-		self.baggage.iter().filter(|bag| bag.generic).filter_map(|bag| bag.field_ty.get_ident().cloned()).collect::<Vec<_>>()
+		self.baggage
+			.iter()
+			.filter(|bag| bag.generic)
+			.filter_map(|bag| bag.field_ty.get_ident().cloned())
+			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names(&self, suffix: &'static str) -> Vec<Ident> {
-		self.subsystems.iter()
-		.map(|ssf| Ident::new(&(ssf.name.to_string() + suffix), ssf.name.span()))
-		.collect::<Vec<_>>()
+		self.subsystems
+			.iter()
+			.map(|ssf| Ident::new(&(ssf.name.to_string() + suffix), ssf.name.span()))
+			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn consumes(&self) -> Vec<Path> {
-		self.subsystems.iter()
-			.map(|ssf| ssf.consumes.clone())
-			.collect::<Vec<_>>()
+		self.subsystems.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>()
 	}
 }
 
@@ -191,42 +181,33 @@ impl OverseerGuts {
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
 		for (idx, Field { attrs, vis: _, ident, ty, .. }) in fields.named.into_iter().enumerate() {
-			let mut consumes = attrs.iter()
-				.filter(|attr| attr.style == AttrStyle::Outer)
-				.filter_map(|attr| {
-					let span = attr.path.span();
-					attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
-						let attr_tokens = attr.tokens.clone();
-						(attr_tokens, span)
-					})
-				});
-			let ident = ident.ok_or_else(|| {
-				Error::new(ty.span(), "Missing identifier for member. BUG")
-			})?;
+			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
+				let span = attr.path.span();
+				attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
+					let attr_tokens = attr.tokens.clone();
+					(attr_tokens, span)
+				})
+			});
+			let ident = ident.ok_or_else(|| Error::new(ty.span(), "Missing identifier for member. BUG"))?;
 
 			if let Some((attr_tokens, span)) = consumes.next() {
 				if let Some((_attr_tokens2, span2)) = consumes.next() {
 					return Err({
 						let mut err = Error::new(span, "The first subsystem annotation is at");
-						err.combine(
-								Error::new(span2, "but another here for the same field.")
-							);
+						err.combine(Error::new(span2, "but another here for the same field."));
 						err
-					})
+					});
 				}
 				let mut consumes_paths = Vec::with_capacity(attrs.len());
 				let attr_tokens = attr_tokens.clone();
 				let variant: SubSystemTag = syn::parse2(attr_tokens.clone())?;
 				if variant.consumes.len() != 1 {
-					return Err(Error::new(attr_tokens.span(), "Exactly one message can be consumed per subsystem."))
+					return Err(Error::new(attr_tokens.span(), "Exactly one message can be consumed per subsystem."));
 				}
 				consumes_paths.extend(variant.consumes.into_iter());
 
-
 				if consumes_paths.is_empty() {
-					return Err(
-						Error::new(span, "Subsystem must consume at least one message")
-					)
+					return Err(Error::new(span, "Subsystem must consume at least one message"));
 				}
 
 				subsystems.push(SubSysField {
@@ -239,19 +220,12 @@ impl OverseerGuts {
 				});
 			} else {
 				let field_ty: Path = try_type_to_path(ty, ident.span())?;
-				let generic: bool = if let Some(ident) = field_ty.get_ident() {
-					baggage_generics.contains(ident)
-				} else {
-					false
-				};
-				baggage.push(BaggageField {
-					field_name: ident,
-					generic,
-					field_ty,
-				});
+				let generic: bool =
+					if let Some(ident) = field_ty.get_ident() { baggage_generics.contains(ident) } else { false };
+				baggage.push(BaggageField { field_name: ident, generic, field_ty });
 			}
 		}
-		Ok( Self { name, subsystems, baggage })
+		Ok(Self { name, subsystems, baggage })
 	}
 }
 
@@ -286,7 +260,9 @@ impl Parse for OverseerGuts {
 
 				Self::parse_fields(name, baggage_generic_idents, named)
 			}
-			syn::Fields::Unit => Err(Error::new(ds.fields.span(), "Must be a struct with named fields. Not an unit struct.")),
+			syn::Fields::Unit => {
+				Err(Error::new(ds.fields.span(), "Must be a struct with named fields. Not an unit struct."))
+			}
 			syn::Fields::Unnamed(unnamed) => {
 				Err(Error::new(unnamed.span(), "Must be a struct with named fields. Not an unnamed fields struct."))
 			}

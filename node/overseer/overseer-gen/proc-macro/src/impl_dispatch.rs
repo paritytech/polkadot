@@ -14,18 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::*;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, Path, Result};
-use super::*;
-
+use syn::{Path, Result};
 
 pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 	let message_wrapper = &info.message_wrapper;
 
-	let dispatchable = info.subsystems().into_iter().filter(|ssf| !ssf.no_dispatch).map(|ssf| ssf.consumes.clone()).collect::<Vec<Path>>();
+	let dispatchable = info
+		.subsystems()
+		.into_iter()
+		.filter(|ssf| !ssf.no_dispatch)
+		.map(|ssf| ssf.consumes.clone())
+		.collect::<Vec<Path>>();
 
-	let extern_event_ty= &info.extern_event_ty.clone();
+	let extern_event_ty = &info.extern_event_ty.clone();
 
 	let ts = quote! {
 		impl #message_wrapper {

@@ -5,9 +5,7 @@ use super::*;
 
 /// Implement a builder pattern for the `Overseer`-type,
 /// which acts as the gateway to constructing the overseer.
-pub(crate) fn impl_builder(
-	info: &OverseerInfo,
-) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let overseer_name = info.overseer_name.clone();
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
 	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
@@ -28,13 +26,17 @@ pub(crate) fn impl_builder(
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
 
-	let blocking = &info.subsystems().iter().map(|x| {
-		if x.blocking {
-			quote! { Blocking }
-		} else {
-			quote! { Regular }
-		}
-	}).collect::<Vec<_>>();
+	let blocking = &info
+		.subsystems()
+		.iter()
+		.map(|x| {
+			if x.blocking {
+				quote! { Blocking }
+			} else {
+				quote! { Regular }
+			}
+		})
+		.collect::<Vec<_>>();
 
 	let generics = quote! {
 		< S, #( #baggage_generic_ty, )* >
@@ -63,9 +65,9 @@ pub(crate) fn impl_builder(
 			#( #builder_generic_ty : Subsystem<OverseerSubsystemContext< #consumes >, #error_ty>, )*
 	};
 
-	let message_wrapper = &info.message_wrapper;
+	let _message_wrapper = &info.message_wrapper;
 	let event = &info.extern_event_ty;
-	let signal = &info.extern_signal_ty;
+	let _signal = &info.extern_signal_ty;
 
 	let mut ts = quote! {
 
@@ -174,9 +176,9 @@ pub(crate) fn impl_builder(
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
 
-                    let message_rx: SubsystemIncomingMessages< #consumes > = ::polkadot_overseer_gen::select(
-                        #channel_name_rx, #channel_name_unbounded_rx
-                    );
+					let message_rx: SubsystemIncomingMessages< #consumes > = ::polkadot_overseer_gen::select(
+						#channel_name_rx, #channel_name_unbounded_rx
+					);
 					let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 					let ctx = OverseerSubsystemContext::new(
 						signal_rx,
@@ -186,23 +188,23 @@ pub(crate) fn impl_builder(
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
-                        spawn::<_,_, #blocking, _, _, _>(
-                            &mut spawner,
-                            #channel_name_tx,
-                            signal_tx,
+						spawn::<_,_, #blocking, _, _, _>(
+							&mut spawner,
+							#channel_name_tx,
+							signal_tx,
 							unbounded_meter,
-                            channels_out.clone(),
+							channels_out.clone(),
 							ctx,
-                            #subsystem_name,
+							#subsystem_name,
 							&mut running_subsystems,
-                        )?;
+						)?;
 				)*
 
 				#(
 					let #baggage_name = self. #baggage_name .expect("Baggage must initialized");
 				)*
 
-                use ::polkadot_overseer_gen::StreamExt;
+				use ::polkadot_overseer_gen::StreamExt;
 
 				let to_overseer_rx = to_overseer_rx.fuse();
 				let overseer = #overseer_name {
@@ -224,21 +226,20 @@ pub(crate) fn impl_builder(
 			}
 		}
 	};
-    eprintln!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	eprintln!(
+		">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     {}
 ",
-ts.to_string()
-);
-    ts.extend(impl_task_kind(info)?);
+		ts.to_string()
+	);
+	ts.extend(impl_task_kind(info)?);
 	Ok(ts)
 }
 
-pub(crate) fn impl_task_kind(
-	info: &OverseerInfo,
-) -> Result<proc_macro2::TokenStream> {
-    let signal = &info.extern_signal_ty;
+pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+	let signal = &info.extern_signal_ty;
 
-    let ts = quote!{
+	let ts = quote! {
 
 		use ::polkadot_overseer_gen::FutureExt;
 
@@ -279,9 +280,9 @@ pub(crate) fn impl_task_kind(
 			M: Send + 'static,
 			TK: TaskKind,
 			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
-            E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
+			E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
 			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
-        {
+		{
 			let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = s.start(ctx);
 
 			let (tx, rx) = ::polkadot_overseer_gen::oneshot::channel();
@@ -315,13 +316,14 @@ pub(crate) fn impl_task_kind(
 				instance,
 			})
 		}
-    };
+	};
 
-    eprintln!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	eprintln!(
+		">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     {}
 ",
-ts.to_string()
-);
+		ts.to_string()
+	);
 
-    Ok(ts)
+	Ok(ts)
 }

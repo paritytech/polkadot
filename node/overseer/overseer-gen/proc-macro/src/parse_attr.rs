@@ -1,16 +1,15 @@
 use proc_macro2::Span;
-use std::collections::{HashMap, hash_map::RandomState};
-use syn::Path;
-use syn::Error;
-use syn::Ident;
-use syn::LitInt;
+use std::collections::{hash_map::RandomState, HashMap};
 use syn::parse::Parse;
 use syn::parse::ParseBuffer;
 use syn::punctuated::Punctuated;
-use syn::Result;
 use syn::spanned::Spanned;
+use syn::Error;
+use syn::Ident;
+use syn::LitInt;
+use syn::Path;
+use syn::Result;
 use syn::Token;
-
 
 #[derive(Clone, Debug)]
 enum AttrItem {
@@ -63,13 +62,13 @@ impl Parse for AttrItem {
 		Ok(if key == TAG_EXT_SIGNAL_TY {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternOverseerSignalType(path)
-		} else if  key == TAG_EXT_EVENT_TY {
+		} else if key == TAG_EXT_EVENT_TY {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternEventType(path)
-		} else if  key == TAG_EXT_ERROR_TY {
+		} else if key == TAG_EXT_ERROR_TY {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternErrorType(path)
-		} else if  key == TAG_GEN_TY {
+		} else if key == TAG_GEN_TY {
 			let wrapper_message = input.parse::<Ident>()?;
 			AttrItem::MessageWrapperName(wrapper_message)
 		} else if key == TAG_SIGNAL_CAPACITY {
@@ -79,7 +78,7 @@ impl Parse for AttrItem {
 			let value = input.parse::<LitInt>()?;
 			AttrItem::MessageChannelCapacity(value)
 		} else {
-			return Err(Error::new(span, "Expected one of `gen`, `signal_capacity`, or `message_capacity`."))
+			return Err(Error::new(span, "Expected one of `gen`, `signal_capacity`, or `message_capacity`."));
 		})
 	}
 }
@@ -105,7 +104,7 @@ impl Parse for AttrArgs {
 			if let Some(first) = unique.insert(item.key(), item.clone()) {
 				let mut e = Error::new(item.span(), format!("Duplicate definition of `{}` found", item.key()));
 				e.combine(Error::new(first.span(), "previously defined here."));
-				return Err(e)
+				return Err(e);
 			}
 		}
 
@@ -128,38 +127,37 @@ impl Parse for AttrArgs {
 		} else {
 			1024_usize
 		};
-		let extern_error_ty = unique.remove(TAG_EXT_ERROR_TY)
-			.map(|x| if let AttrItem::ExternErrorType(x) = x { x.clone() } else { unreachable!() } )
+		let extern_error_ty = unique
+			.remove(TAG_EXT_ERROR_TY)
+			.map(|x| if let AttrItem::ExternErrorType(x) = x { x.clone() } else { unreachable!() })
 			.ok_or_else(|| {
 				Error::new(span, format!("Must declare the overseer signals type via `{}=..`.", TAG_EXT_ERROR_TY))
 			})?;
 
-		let extern_signal_ty = unique.remove(TAG_EXT_SIGNAL_TY)
-			.map(|x| if let AttrItem::ExternOverseerSignalType(x) = x { x.clone() } else { unreachable!() } )
+		let extern_signal_ty = unique
+			.remove(TAG_EXT_SIGNAL_TY)
+			.map(|x| if let AttrItem::ExternOverseerSignalType(x) = x { x.clone() } else { unreachable!() })
 			.ok_or_else(|| {
 				Error::new(span, format!("Must declare the overseer signals type via `{}=..`.", TAG_EXT_SIGNAL_TY))
 			})?;
 
-		let extern_event_ty = unique.remove(TAG_EXT_EVENT_TY)
-			.map(|x| if let AttrItem::ExternEventType(x) = x { x.clone() } else { unreachable!() } )
+		let extern_event_ty = unique
+			.remove(TAG_EXT_EVENT_TY)
+			.map(|x| if let AttrItem::ExternEventType(x) = x { x.clone() } else { unreachable!() })
 			.ok_or_else(|| {
 				Error::new(span, format!("Must declare the external event type via `{}=..`.", TAG_EXT_EVENT_TY))
-
 			})?;
 
-		let message_wrapper = unique.remove(TAG_GEN_TY)
-			.map(|x| if let AttrItem::MessageWrapperName(x) = x { x.clone() } else { unreachable!() } )
-			.ok_or_else(|| {
-				Error::new(span, format!("Must declare the generated type via `{}=..`.", TAG_GEN_TY))
-			})?;
+		let message_wrapper = unique
+			.remove(TAG_GEN_TY)
+			.map(|x| if let AttrItem::MessageWrapperName(x) = x { x.clone() } else { unreachable!() })
+			.ok_or_else(|| Error::new(span, format!("Must declare the generated type via `{}=..`.", TAG_GEN_TY)))?;
 
 		if !unique.is_empty() {
-			let v = unique.into_iter().map(|(tag, _attr)| -> String {
-				format!("`{}`", tag)
-			}).collect::<Vec<_>>();
+			let v = unique.into_iter().map(|(tag, _attr)| -> String { format!("`{}`", tag) }).collect::<Vec<_>>();
 			let s = v.join(", ");
 
-			return Err(Error::new(span, format!("Found unknown arguments to the overseer macro {}.", s)))
+			return Err(Error::new(span, format!("Found unknown arguments to the overseer macro {}.", s)));
 		}
 
 		Ok(AttrArgs {
