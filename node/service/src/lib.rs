@@ -25,7 +25,6 @@ mod parachains_db;
 
 #[cfg(feature = "full-node")]
 use {
-	std::time::Duration,
 	tracing::info,
 	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -51,6 +50,7 @@ use sp_core::traits::SpawnNamed;
 use polkadot_subsystem::jaeger;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use prometheus_endpoint::Registry;
 use sc_executor::native_executor_instance;
