@@ -77,7 +77,6 @@ pub(crate) fn impl_builder(
 			}
 		}
 
-
 		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
 
 		#[derive(Debug, Clone)]
@@ -106,6 +105,12 @@ pub(crate) fn impl_builder(
 		}
 
 		impl #builder_generics #builder #builder_generics #builder_where_clause {
+			/// The spawner to use for spawning tasks.
+			pub fn spawner(mut self, spawner: S) -> Self where S: ::polkadot_overseer_gen::SpawnNamed + Send {
+				self.spawner = Some(spawner);
+				self
+			}
+
 			#(
 				pub fn #subsystem_name (mut self, subsystem: #builder_generic_ty ) -> Self {
 					self. #subsystem_name = Some( subsystem );

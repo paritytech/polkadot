@@ -73,6 +73,16 @@ struct Xxx {
 #[derive(Debug, Clone)]
 struct DummySpawner;
 
+impl SpawnNamed for DummySpawner{
+	fn spawn_blocking(&self, name: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		unimplemented!("spawn blocking")
+	}
+
+	fn spawn(&self, name: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		unimplemented!("spawn")
+	}
+}
+
 #[derive(Debug, Clone)]
 struct DummyCtx;
 
@@ -82,5 +92,5 @@ fn main() {
 		// .plinkos(AwesomeSubSys::default())
 		// .i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)
-		.build(|| -> DummyCtx { DummyCtx } );
+		.build();
 }

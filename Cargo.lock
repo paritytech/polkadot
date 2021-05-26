@@ -2511,7 +2511,7 @@ dependencies = [
  "log",
  "slab",
  "tokio 0.2.21",
- "tokio-util",
+ "tokio-util 0.3.1",
 ]
 
 [[package]]
@@ -6172,6 +6172,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-overseer-gen",
  "polkadot-primitives",
  "polkadot-procmacro-subsystem-dispatch-gen",
  "polkadot-statement-table",
@@ -6225,6 +6226,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-overseer-gen",
  "polkadot-primitives",
  "rand 0.8.3",
  "sc-network",
@@ -6266,10 +6268,14 @@ dependencies = [
  "async-trait",
  "futures 0.3.14",
  "futures-timer 3.0.2",
+ "futures-util",
  "metered-channel",
+ "pin-project 1.0.4",
+ "polkadot-node-subsystem",
  "polkadot-overseer-gen-proc-macro",
  "sp-core",
  "thiserror",
+ "tokio-util 0.6.7",
  "tracing",
  "trybuild",
 ]
@@ -10400,6 +10406,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd3076b5c8cc18138b8f8814895c11eb4de37114a5d127bafdc5e55798ceef37"
+dependencies = [
+ "autocfg",
+ "pin-project-lite 0.2.4",
+]
+
+[[package]]
 name = "tokio-buf"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10625,6 +10641,21 @@ dependencies = [
  "log",
  "pin-project-lite 0.1.7",
  "tokio 0.2.21",
+]
+
+[[package]]
+name = "tokio-util"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1caa0b0c8d94a049db56b5acf8cba99dc0623aab1b26d5b5f5e2d945846b3592"
+dependencies = [
+ "bytes 1.0.1",
+ "futures-core",
+ "futures-sink",
+ "log",
+ "pin-project-lite 0.2.4",
+ "slab",
+ "tokio 1.6.0",
 ]
 
 [[package]]
