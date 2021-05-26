@@ -70,7 +70,7 @@ pub(crate) fn impl_builder(
 	let mut ts = quote! {
 
 		impl #generics #overseer_name #generics #where_clause {
-			fn builder #builder_additional_generics () -> #builder #builder_generics
+			pub fn builder #builder_additional_generics () -> #builder #builder_generics
 				#builder_where_clause
 			{
 				#builder :: default()
@@ -172,13 +172,13 @@ pub(crate) fn impl_builder(
 					let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 					let ctx = OverseerSubsystemContext::new(
 						signal_rx,
-						message_rx.clone(),
+						message_rx,
 						channels_out.clone(),
 						to_overseer_tx,
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
-                        spawn::<_,_, #blocking, _, _>(
+                        spawn::<_,_, #blocking, _, _, _>(
                             &mut spawner,
                             #channel_name_tx,
                             message_rx,
@@ -186,7 +186,7 @@ pub(crate) fn impl_builder(
                             channels_out.clone(),
                             to_overseer_tx,
                             #subsystem_name,
-                        )?;
+                        ).unwrap(); // FIXME
 				)*
 
 				#(
@@ -230,6 +230,9 @@ pub(crate) fn impl_task_kind(
     let signal = &info.extern_signal_ty;
 
     let ts = quote!{
+
+		use ::polkadot_overseer_gen::FutureExt;
+
 		/// Task kind to launch.
 		pub trait TaskKind {
 			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>);
@@ -250,7 +253,7 @@ pub(crate) fn impl_task_kind(
 		}
 
 		/// Spawn task of kind `self` using spawner `S`.
-		pub fn spawn<S, M, TK, Ctx, E>(
+		pub fn spawn<S, M, TK, Ctx, E, SubSys>(
 			spawner: &mut S,
 			message_tx: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket<M>>,
 			// muxed incoming channels, bounded and unbouneded
@@ -262,7 +265,7 @@ pub(crate) fn impl_task_kind(
 			channels_out: ChannelsOut,
 			to_overseer_tx: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
 			ctx: Ctx,
-			s: impl ::polkadot_overseer_gen::Subsystem<Ctx, E>,
+			s: SubSys,
 			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 		) -> SubsystemResult<OverseenSubsystem<M>>
 		where
@@ -271,6 +274,7 @@ pub(crate) fn impl_task_kind(
 			TK: TaskKind,
 			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
             E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
+			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
         {
 			let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = s.start(ctx);
 

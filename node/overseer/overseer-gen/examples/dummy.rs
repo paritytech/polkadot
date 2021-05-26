@@ -9,6 +9,12 @@ use polkadot_subsystem::messages::NetworkBridgeEvent;
 #[derive(Default)]
 struct AwesomeSubSys;
 
+impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
+	fn start(self, ctx: OverseerSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
+		unimplemented!("starting yay!")
+	}
+}
+
 #[derive(Debug, Clone)]
 struct SigSigSig;
 
@@ -58,8 +64,10 @@ struct Xxx {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, Plinko)]
-	plinkos: AwesomeSubSys,
+	// #[subsystem(no_dispatch, Plinko)]
+	// plinkos: AwesomeSubSys,
+
+	// i_like_pi: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -71,8 +79,8 @@ struct DummyCtx;
 fn main() {
 	let overseer = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
-		.plinkos(AwesomeSubSys::default())
-		.i_like_pie(std::f64::consts::PI)
+		// .plinkos(AwesomeSubSys::default())
+		// .i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)
 		.build(|| -> DummyCtx { DummyCtx } );
 }

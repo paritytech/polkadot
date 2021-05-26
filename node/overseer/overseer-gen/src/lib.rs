@@ -75,7 +75,7 @@ pub use futures::{
 		Fuse, Future, BoxFuture
 	},
 	stream::{
-		select, FuturesUnordered,
+		self, select, FuturesUnordered,
 	},
 	channel::{mpsc, oneshot},
 };
@@ -91,6 +91,8 @@ use std::sync::Arc;
 pub use futures_timer::Delay;
 #[doc(hidden)]
 pub use futures_util::stream::StreamExt;
+#[doc(hidden)]
+pub use futures_util::future::FutureExt;
 
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
@@ -117,6 +119,18 @@ pub enum ToOverseer {
 	},
 }
 
+use std::fmt;
+
+impl fmt::Debug for  ToOverseer {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::SpawnJob{ name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
+			Self::SpawnBlockingJob{ name, .. } => writeln!(f, "SpawnBlockingJob{{ {}, ..}}", name),
+		}
+	}
+
+}
+
 
 
 /// A helper trait to map a subsystem to smth. else.
@@ -140,8 +154,14 @@ impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
 // FIXME XXX elaborate the purpose of this.
 #[derive(Debug)]
 pub struct MessagePacket<T> {
-	signals_received: usize,
-	message: T,
+	/// Signal level at the point of reception.
+	///
+	/// Required to assure signals were consumed _before_
+	/// consuming messages that are based on the assumption
+	/// that a certain signal was assumed.
+	pub signals_received: usize,
+	/// The message to be sent/consumed.
+	pub message: T,
 }
 
 /// Create a packet from its parts.
@@ -153,7 +173,7 @@ pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 }
 
 /// Incoming messages from both the bounded and unbounded channel.
-pub type SubsystemIncomingMessages<M> = ::futures::stream::Select<
+pub type SubsystemIncomingMessages<M> = self::stream::Select<
 	self::metered::MeteredReceiver<MessagePacket<M>>,
 	self::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
@@ -334,7 +354,7 @@ pub trait SubsystemContext: Send + 'static {
 	/// And the same for signals.
 	type Signal: Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: SubsystemSender<Self::Message>;
+	type Sender: SubsystemSender<Self::Message> + std::fmt::Debug + Clone + Send;
 
 	/// Try to asynchronously receive a message.
 	///
@@ -356,14 +376,19 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: Self::Message);
+	async fn send_message(&mut self, msg: Self::Message) {
+		self.sender().send_message(msg).await
+	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = Self::Message> + Send, T::IntoIter: Send;
+		where T: IntoIterator<Item = Self::Message> + Send, T::IntoIter: Send
+	{
+		self.sender().send_messages(msgs).await
+	}
 
 	/// Obtain the sender.
-	fn sender(&self) -> Self::Sender;
+	fn sender(&mut self) -> &mut Self::Sender;
 }
 
 /// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
@@ -386,23 +411,22 @@ where
 
 /// TODO FIXME
 #[async_trait::async_trait]
-pub trait SubsystemSender<AllMessages>: Send + Clone + 'static {
+pub trait SubsystemSender<M>: Send + Clone + 'static {
 	// Inner message type.
-	// type Message: Send + Clone + 'static;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages);
+	async fn send_message(&mut self, msg: M);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
+		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send;
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: AllMessages);
+	fn send_unbounded_message(&mut self, msg: M);
 }
 
 

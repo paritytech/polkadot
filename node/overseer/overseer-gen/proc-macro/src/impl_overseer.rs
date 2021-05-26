@@ -72,7 +72,7 @@ pub(crate) fn impl_overseer_struct(
 			>,
 
 			/// Gather running subsystems' outbound streams into one.
-			to_overseer_rx: ::polkadot_overseer_gen::Fuse<
+			to_overseer_rx: ::polkadot_overseer_gen::stream::Fuse<
 				metered::UnboundedMeteredReceiver< ToOverseer >
 			>,
 

@@ -70,7 +70,7 @@ pub(crate) fn impl_misc(
 	};
 
 	let ts = quote! {
-        ////////////////////////////////////////////////////
+        // //////////////////////////////////////////////////
         // `OverseerSubsystemSender`
 
         #[derive(Debug, Clone)]
@@ -79,14 +79,15 @@ pub(crate) fn impl_misc(
             signals_received: SignalsReceived,
         }
 
+        #(
         #[::polkadot_overseer_gen::async_trait]
-        impl SubsystemSender< #message_wrapper > for OverseerSubsystemSender {
-            async fn send_message(&mut self, msg: #message_wrapper) {
-                self.channels.send_and_log_error(self.signals_received.load(), msg).await;
+        impl SubsystemSender< #consumes > for OverseerSubsystemSender {
+            async fn send_message(&mut self, msg: #consumes) {
+                self.channels.send_and_log_error(self.signals_received.load(), msg.into()).await;
             }
 
             async fn send_messages<T>(&mut self, msgs: T)
-                where T: IntoIterator<Item = #message_wrapper> + Send, T::IntoIter: Send
+                where T: IntoIterator<Item = #consumes> + Send, T::IntoIter: Send
             {
                 // This can definitely be optimized if necessary.
                 for msg in msgs {
@@ -94,10 +95,11 @@ pub(crate) fn impl_misc(
                 }
             }
 
-            fn send_unbounded_message(&mut self, msg: #message_wrapper) {
-                self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+            fn send_unbounded_message(&mut self, msg: #consumes) {
+                self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg.into());
             }
         }
+        )*
 
         /// A context type that is given to the [`Subsystem`] upon spawning.
         /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
@@ -140,8 +142,12 @@ pub(crate) fn impl_misc(
         }
 
         #[::polkadot_overseer_gen::async_trait]
-        impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
+        impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M>
+        where
+            OverseerSubsystemSender: polkadot_overseer_gen::SubsystemSender<M>
+        {
             type Message = M;
+            type Signal = #signal;
             type Sender = OverseerSubsystemSender;
 
             async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, #signal>>, ()> {
@@ -217,6 +223,26 @@ pub(crate) fn impl_misc(
 
             fn sender(&mut self) -> &mut Self::Sender {
                 &mut self.to_subsystems
+            }
+
+            #[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn(ctx, name, fut)")]
+            async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+                -> SubsystemResult<()>
+            {
+                self.to_overseer.send(ToOverseer::SpawnJob {
+                    name,
+                    s,
+                }).await.map_err(Into::into)
+            }
+
+            #[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn_blocking(ctx, name, fut)")]
+            async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+                -> SubsystemResult<()>
+            {
+                self.to_overseer.send(ToOverseer::SpawnBlockingJob {
+                    name,
+                    s,
+                }).await.map_err(Into::into)
             }
         }
     };

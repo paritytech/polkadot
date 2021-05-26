@@ -41,7 +41,7 @@ pub(crate) fn impl_channels_out_struct(
                 signals_received: usize,
                 message: #message_wrapper,
             ) {
-                let res = match message {
+                let res: ::std::result::Result<_, _> = match message {
                 #(
                     #message_wrapper :: #consumes ( inner ) => {
                         self. #channel_name .send(
