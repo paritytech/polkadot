@@ -1060,7 +1060,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"grandpa-voter",
-			grandpa::run_grandpa_voter(grandpa_config)?
+			grandpa::run_grandpa_voter(grandpa_config, Box::new(task_manager.spawn_essential_handle()))?
 		);
 	}
 
