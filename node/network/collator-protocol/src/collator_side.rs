@@ -1159,7 +1159,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: test_state.relay_parent,
 					number: 1,
-					status: LeafStatus,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: [][..].into(),

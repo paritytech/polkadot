@@ -174,7 +174,7 @@ impl TestState {
 				activated: smallvec![ActivatedLeaf {
 					hash: new.clone(),
 					number: 1,
-					status: LeafStatus,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![old.clone()],

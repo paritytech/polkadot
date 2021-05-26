@@ -450,7 +450,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
-					status: LeafStatus,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],

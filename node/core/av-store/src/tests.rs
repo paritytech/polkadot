@@ -996,7 +996,7 @@ async fn import_leaf(
 			activated: vec![ActivatedLeaf {
 				hash: new_leaf,
 				number: 1,
-				status: LeafStatus,
+				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
 			}].into(),
 			deactivated: vec![].into(),
