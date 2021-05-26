@@ -25,10 +25,10 @@ pub(crate) struct SubSysField {
 	pub(crate) ty: Path,
 	/// Type to be consumed by the subsystem.
 	pub(crate) consumes: Path,
-	/// If `no_dispatch` is present, if the message is incomming via
+	/// If `no_dispatch` is present, if the message is incoming via
 	/// an extern `Event`, it will not be dispatched to all subsystems.
 	pub(crate) no_dispatch: bool,
-	/// If the subsystem imlementation is blocking execution and hence
+	/// If the subsystem implementation is blocking execution and hence
 	/// has to be spawned on a separate thread or thread pool.
 	pub(crate) blocking: bool,
 }
@@ -110,7 +110,7 @@ pub(crate) struct OverseerInfo {
 	/// Size of the bounded signal channel.
 	pub(crate) signal_channel_capacity: usize,
 
-	/// Signals to be sent, sparse information that is used intermittendly.
+	/// Signals to be sent, sparse information that is used intermittently.
 	pub(crate) extern_signal_ty: Path,
 
 	/// Incoming event type from the outer world, commonly from the network.
