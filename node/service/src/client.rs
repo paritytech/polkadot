@@ -391,6 +391,15 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Rococo(client) => client.key_changes(first, last, storage_key, key),
 		}
 	}
+
+	fn state_hashed_value(&self, id: &BlockId<Block>) -> sp_blockchain::Result<bool> {
+		match self {
+			Self::Polkadot(client) => client.state_hashed_value(id),
+			Self::Westend(client) => client.state_hashed_value(id),
+			Self::Kusama(client) => client.state_hashed_value(id),
+			Self::Rococo(client) => client.state_hashed_value(id),
+		}
+	}
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {

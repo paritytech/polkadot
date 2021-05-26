@@ -300,7 +300,7 @@ pub fn branches<'a, I: 'a>(chunks: &'a [I]) -> Branches<'a, I>
 pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node.as_slice());
+		(&mut trie_storage as &mut trie::HashDB<_, _, _>).insert(EMPTY_PREFIX, node.as_slice());
 	}
 
 	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
