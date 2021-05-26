@@ -58,7 +58,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, LockIdentifier, Filter},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, MaxEncodedLen},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};

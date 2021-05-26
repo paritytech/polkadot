@@ -41,7 +41,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
+	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec, MaxEncodedLen},
 	weights::Weight,
 	PalletId
 };
