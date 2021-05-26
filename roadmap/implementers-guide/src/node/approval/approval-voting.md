@@ -60,6 +60,7 @@ struct ApprovalEntry {
     tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
     backing_group: GroupIndex,
     our_assignment: Option<OurAssignment>,
+    our_approval_sig: Option<ValidatorSignature>,
     assignments: Bitfield, // n_validators bits
     approved: bool,
 }
@@ -205,7 +206,7 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * Ensure the validator index is not present in the approval entry already.
     * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
     * Note the candidate index within the approval entry.
-  * [Check for full approval of the candidate entry](#check-full-approval) of the candidate_entry, filtering by this specific approval entry.
+  * [Schedule a wakeup](#schedule-wakeup) for this block, candidate pair.
   * return the appropriate `AssignmentCheckResult` on the response channel.
 
 #### `ApprovalVotingMessage::CheckAndImportApproval`
@@ -232,20 +233,15 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 ### Updates and Auxiliary Logic
 
 #### Import Checked Approval
-  * Import an approval vote which we can assume to have passed signature checks.
+  * Import an approval vote which we can assume to have passed signature checks and correspond to an imported assignment.
   * Requires `(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`. If already `1`, return.
-  * [Check full approval of the candidate](#check-full-approval)
-
-#### Check Full Approval
-  * Checks the approval state of the candidate under every block it is included by, and updates the block entries accordingly.
-  * Requires `(CandidateEntry, filter)`, where filter is used to limit which approval entries are inspected.
-  * Checks every `ApprovalEntry` that is not yet `approved` for whether it is now approved.
-    * For each `ApprovalEntry` in the `CandidateEntry` that is not `approved` and passes the `filter`
-    * Load the block entry for the `ApprovalEntry`.
-    * If so, [determine the tranches to inspect](#determine-required-tranches) of the candidate,
-    * If [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
+  * Checks the approval state of a candidate under a specific block, and updates the block and candidate entries accordingly.
+  * Checks the `ApprovalEntry` for the block.
+    * [determine the tranches to inspect](#determine-required-tranches) of the candidate,
+    * [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
     * Otherwise, [schedule a wakeup of the candidate](#schedule-wakeup)
+  * If the approval vote originates locally, set the `our_approval_sig` in the candidate entry.
 
 #### Handling Wakeup
   * Handle a previously-scheduled wakeup of a candidate under a specific block.

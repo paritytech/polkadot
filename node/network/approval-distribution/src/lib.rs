@@ -95,11 +95,35 @@ struct Knowledge {
 	known_messages: HashSet<MessageFingerprint>,
 }
 
+impl Knowledge {
+	fn contains(&self, fingerprint: &MessageFingerprint) -> bool {
+		self.known_messages.contains(fingerprint)
+	}
+
+	fn insert(&mut self, fingerprint: MessageFingerprint) -> bool {
+		self.known_messages.insert(fingerprint)
+	}
+}
+
+#[derive(Debug, Clone, Default)]
+struct PeerKnowledge {
+	/// The knowledge we've sent to the peer.
+	sent: Knowledge,
+	/// The knowledge we've received from the peer.
+	received: Knowledge,
+}
+
+impl PeerKnowledge {
+	fn contains(&self, fingerprint: &MessageFingerprint) -> bool {
+		self.sent.contains(fingerprint) || self.received.contains(fingerprint)
+	}
+}
+
 /// Information about blocks in our current view as well as whether peers know of them.
 struct BlockEntry {
 	/// Peers who we know are aware of this block and thus, the candidates within it.
 	/// This maps to their knowledge of messages.
-	known_by: HashMap<PeerId, Knowledge>,
+	known_by: HashMap<PeerId, PeerKnowledge>,
 	/// The number of the block.
 	number: BlockNumber,
 	/// The parent hash of the block.
@@ -167,7 +191,7 @@ impl State {
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -212,7 +236,6 @@ impl State {
 							"Cleaning up stale pending messages",
 						);
 					}
-
 					live
 				});
 			}
@@ -244,10 +267,13 @@ impl State {
 						candidates,
 					});
 					new_hashes.insert(meta.hash.clone());
+
+					// In case there are duplicates, we should only set this if the entry
+					// was vacant.
+					self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 				}
 				_ => continue,
 			}
-			self.blocks_by_number.entry(meta.number).or_default().push(meta.hash);
 		}
 
 		tracing::debug!(
@@ -416,20 +442,15 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
+		let lucky = util::gen_ratio_sqrt_subset(self.peer_views.len(), util::MIN_GOSSIP_PEERS);
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
+			?lucky,
 			"Peer view change",
 		);
-		Self::unify_with_peer(
-			ctx,
-			metrics,
-			&mut self.blocks,
-			peer_id.clone(),
-			view.clone(),
-		).await;
 		let finalized_number = view.finalized_number;
-		let old_view = self.peer_views.insert(peer_id.clone(), view);
+		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -439,17 +460,28 @@ impl State {
 		// but we need to make sure the range is not empty, otherwise it will panic
 		// it shouldn't be, we make sure of this in the network bridge
 		let range = old_finalized_number..=finalized_number;
-		if !range.is_empty() {
+		if !range.is_empty() && !blocks.is_empty() {
 			self.blocks_by_number
 			.range(range)
-			.map(|(_number, hashes)| hashes)
-			.flatten()
+			.flat_map(|(_number, hashes)| hashes)
 			.for_each(|hash| {
 				if let Some(entry) = blocks.get_mut(hash) {
 					entry.known_by.remove(&peer_id);
 				}
 			});
 		}
+
+		if !lucky {
+			return;
+		}
+
+		Self::unify_with_peer(
+			ctx,
+			metrics,
+			&mut self.blocks,
+			peer_id.clone(),
+			view,
+		).await;
 	}
 
 	fn handle_block_finalized(
@@ -487,7 +519,7 @@ impl State {
 			Some(entry) => entry,
 			None => {
 				if let Some(peer_id) = source.peer_id() {
-					tracing::debug!(
+					tracing::trace!(
 						target: LOG_TARGET,
 						?peer_id,
 						?block_hash,
@@ -510,15 +542,19 @@ impl State {
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
 			match entry.known_by.entry(peer_id.clone()) {
-				hash_map::Entry::Occupied(knowledge) => {
-					if knowledge.get().known_messages.contains(&fingerprint) {
-						tracing::debug!(
-							target: LOG_TARGET,
-							?peer_id,
-							?fingerprint,
-							"Duplicate assignment",
-						);
-						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+				hash_map::Entry::Occupied(mut peer_knowledge) => {
+					let peer_knowledge = peer_knowledge.get_mut();
+					if peer_knowledge.contains(&fingerprint) {
+						if peer_knowledge.received.contains(&fingerprint) {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?peer_id,
+								?fingerprint,
+								"Duplicate assignment",
+							);
+							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+						}
+						peer_knowledge.received.insert(fingerprint);
 						return;
 					}
 				}
@@ -543,7 +579,7 @@ impl State {
 						?fingerprint,
 						"Known assignment",
 					);
-					peer_knowledge.known_messages.insert(fingerprint.clone());
+					peer_knowledge.received.insert(fingerprint.clone());
 				}
 				return;
 			}
@@ -581,7 +617,7 @@ impl State {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 					entry.knowledge.known_messages.insert(fingerprint.clone());
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.known_messages.insert(fingerprint.clone());
+						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
 				AssignmentCheckResult::AcceptedDuplicate => {
@@ -589,7 +625,7 @@ impl State {
 					// There is more than one way each validator can be assigned to each core.
 					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.known_messages.insert(fingerprint);
+						peer_knowledge.received.insert(fingerprint);
 					}
 					return;
 				}
@@ -660,8 +696,8 @@ impl State {
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
-			if let Some(entry) = entry.known_by.get_mut(peer) {
-				entry.known_messages.insert(fingerprint.clone());
+			if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
+				peer_knowledge.sent.insert(fingerprint.clone());
 			}
 		}
 
@@ -732,16 +768,20 @@ impl State {
 
 			// check if our knowledge of the peer already contains this approval
 			match entry.known_by.entry(peer_id.clone()) {
-				hash_map::Entry::Occupied(knowledge) => {
-					if knowledge.get().known_messages.contains(&fingerprint) {
-						tracing::debug!(
-							target: LOG_TARGET,
-							?peer_id,
-							?fingerprint,
-							"Duplicate approval",
-						);
+				hash_map::Entry::Occupied(mut knowledge) => {
+					let peer_knowledge = knowledge.get_mut();
+					if peer_knowledge.contains(&fingerprint) {
+						if peer_knowledge.received.contains(&fingerprint) {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?peer_id,
+								?fingerprint,
+								"Duplicate approval",
+							);
 
-						modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+						}
+						peer_knowledge.received.insert(fingerprint);
 						return;
 					}
 				}
@@ -757,7 +797,7 @@ impl State {
 			}
 
 			// if the approval is known to be valid, reward the peer
-			if entry.knowledge.known_messages.contains(&fingerprint) {
+			if entry.knowledge.contains(&fingerprint) {
 				tracing::trace!(
 					target: LOG_TARGET,
 					?peer_id,
@@ -766,7 +806,7 @@ impl State {
 				);
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					peer_knowledge.known_messages.insert(fingerprint.clone());
+					peer_knowledge.received.insert(fingerprint.clone());
 				}
 				return;
 			}
@@ -802,9 +842,9 @@ impl State {
 				ApprovalCheckResult::Accepted => {
 					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
-					entry.knowledge.known_messages.insert(fingerprint.clone());
+					entry.knowledge.insert(fingerprint.clone());
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.known_messages.insert(fingerprint.clone());
+						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
 				ApprovalCheckResult::Bad => {
@@ -818,7 +858,7 @@ impl State {
 				}
 			}
 		} else {
-			if !entry.knowledge.known_messages.insert(fingerprint.clone()) {
+			if !entry.knowledge.insert(fingerprint.clone()) {
 				// if we already imported an approval, there is no need to distribute it again
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -895,7 +935,7 @@ impl State {
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
 			if let Some(entry) = entry.known_by.get_mut(peer) {
-				entry.known_messages.insert(fingerprint.clone());
+				entry.sent.insert(fingerprint.clone());
 			}
 		}
 
@@ -944,7 +984,11 @@ impl State {
 					hash_map::Entry::Occupied(_) => return None,
 					// step 4.
 					hash_map::Entry::Vacant(vacant) => {
-						vacant.insert(entry.knowledge.clone());
+						let knowledge = PeerKnowledge {
+							sent: entry.knowledge.clone(),
+							received: Default::default(),
+						};
+						vacant.insert(knowledge);
 						block
 					}
 				};
@@ -970,7 +1014,7 @@ impl State {
 		peer_id: PeerId,
 		blocks: Vec<(BlockDepth, Hash)>,
 	) {
-		// we will only propagate local assignment/approvals after a certain depth
+		// we will propagate only local assignment/approvals after a certain depth
 		const DEPTH_THRESHOLD: usize = 5;
 
 		let mut assignments = Vec::new();

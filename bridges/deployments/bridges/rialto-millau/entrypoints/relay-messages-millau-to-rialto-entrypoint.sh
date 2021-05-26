@@ -7,12 +7,12 @@ curl -v http://rialto-node-bob:9933/health
 
 MESSAGE_LANE=${MSG_EXCHANGE_GEN_LANE:-00000000}
 
-/home/user/substrate-relay relay-messages millau-to-rialto \
+/home/user/substrate-relay relay-messages MillauToRialto \
 	--lane $MESSAGE_LANE \
-	--millau-host millau-node-bob \
-	--millau-port 9944 \
-	--millau-signer //Eve \
-	--rialto-host rialto-node-bob \
-	--rialto-port 9944 \
-	--rialto-signer //Eve \
+	--source-host millau-node-bob \
+	--source-port 9944 \
+	--source-signer //Eve \
+	--target-host rialto-node-bob \
+	--target-port 9944 \
+	--target-signer //Eve \
 	--prometheus-host=0.0.0.0

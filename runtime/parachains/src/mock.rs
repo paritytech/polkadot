@@ -84,6 +84,7 @@ impl frame_system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -116,8 +117,13 @@ impl crate::paras::Config for Test {
 
 impl crate::dmp::Config for Test { }
 
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
 impl crate::ump::Config for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl crate::hrmp::Config for Test {
@@ -133,7 +139,7 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::inclusion_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 

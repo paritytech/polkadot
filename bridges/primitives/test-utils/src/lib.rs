@@ -15,51 +15,132 @@
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Utilities for testing runtime code.
-//!
-//! Unlike other crates in the `primitives` folder, this crate does *not* need to compile in a
-//! `no_std` environment. This is fine because this code should only be used, as the name implies,
-//! in tests.
+
+#![cfg_attr(not(feature = "std"), no_std)]
 
 use bp_header_chain::justification::GrandpaJustification;
-use finality_grandpa::voter_set::VoterSet;
-use sp_finality_grandpa::{AuthorityId, AuthorityList, AuthorityWeight};
+use sp_application_crypto::TryFrom;
+use sp_finality_grandpa::{AuthorityId, AuthorityWeight};
 use sp_finality_grandpa::{AuthoritySignature, SetId};
-use sp_keyring::Ed25519Keyring;
-use sp_runtime::traits::Header as HeaderT;
-use sp_runtime::traits::{One, Zero};
+use sp_runtime::traits::{Header as HeaderT, One, Zero};
+use sp_std::prelude::*;
+
+// Re-export all our test account utilities
+pub use keyring::*;
+
+mod keyring;
 
 pub const TEST_GRANDPA_ROUND: u64 = 1;
 pub const TEST_GRANDPA_SET_ID: SetId = 1;
 
-/// Get a valid Grandpa justification for a header given a Grandpa round, authority set ID, and
-/// authority list.
-pub fn make_justification_for_header<H: HeaderT>(
-	header: &H,
-	round: u64,
-	set_id: SetId,
-	authorities: &[(AuthorityId, AuthorityWeight)],
-) -> GrandpaJustification<H> {
+/// Configuration parameters when generating test GRANDPA justifications.
+#[derive(Clone)]
+pub struct JustificationGeneratorParams<H> {
+	/// The header which we want to finalize.
+	pub header: H,
+	/// The GRANDPA round number for the current authority set.
+	pub round: u64,
+	/// The current authority set ID.
+	pub set_id: SetId,
+	/// The current GRANDPA authority set.
+	///
+	/// The size of the set will determine the number of pre-commits in our justification.
+	pub authorities: Vec<(Account, AuthorityWeight)>,
+	/// The total number of vote ancestries in our justification.
+	///
+	/// These may be distributed among many different forks.
+	pub votes: u32,
+	/// The number of forks.
+	///
+	/// Useful for creating a "worst-case" scenario in which each authority is on its own fork.
+	pub forks: u32,
+}
+
+impl<H: HeaderT> Default for JustificationGeneratorParams<H> {
+	fn default() -> Self {
+		Self {
+			header: test_header(One::one()),
+			round: TEST_GRANDPA_ROUND,
+			set_id: TEST_GRANDPA_SET_ID,
+			authorities: test_keyring(),
+			votes: 2,
+			forks: 1,
+		}
+	}
+}
+
+/// Make a valid GRANDPA justification with sensible defaults
+pub fn make_default_justification<H: HeaderT>(header: &H) -> GrandpaJustification<H> {
+	let params = JustificationGeneratorParams::<H> {
+		header: header.clone(),
+		..Default::default()
+	};
+
+	make_justification_for_header(params)
+}
+
+/// Generate justifications in a way where we are able to tune the number of pre-commits
+/// and vote ancestries which are included in the justification.
+///
+/// This is useful for benchmarkings where we want to generate valid justifications with
+/// a specific number of pre-commits (tuned with the number of "authorities") and/or a specific
+/// number of vote ancestries (tuned with the "votes" parameter).
+///
+/// Note: This needs at least three authorities or else the verifier will complain about
+/// being given an invalid commit.
+pub fn make_justification_for_header<H: HeaderT>(params: JustificationGeneratorParams<H>) -> GrandpaJustification<H> {
+	let JustificationGeneratorParams {
+		header,
+		round,
+		set_id,
+		authorities,
+		mut votes,
+		forks,
+	} = params;
+
 	let (target_hash, target_number) = (header.hash(), *header.number());
 	let mut precommits = vec![];
 	let mut votes_ancestries = vec![];
 
-	// We want to make sure that the header included in the vote ancestries
-	// is actually related to our target header
-	let mut precommit_header = test_header::<H>(target_number + One::one());
-	precommit_header.set_parent_hash(target_hash);
+	assert!(forks != 0, "Need at least one fork to have a chain..");
+	assert!(votes >= forks, "Need at least one header per fork.");
+	assert!(
+		forks as usize <= authorities.len(),
+		"If we have more forks than authorities we can't create valid pre-commits for all the forks."
+	);
 
-	// I'm using the same header for all the voters since it doesn't matter as long
-	// as they all vote on blocks _ahead_ of the one we're interested in finalizing
-	for (id, _weight) in authorities.iter() {
-		let signer = extract_keyring(&id);
-		let precommit = signed_precommit::<H>(
-			signer,
-			(precommit_header.hash(), *precommit_header.number()),
-			round,
-			set_id,
-		);
+	// Roughly, how many vote ancestries do we want per fork
+	let target_depth = (votes + forks - 1) / forks;
+
+	let mut unsigned_precommits = vec![];
+	for i in 0..forks {
+		let depth = if votes >= target_depth {
+			votes -= target_depth;
+			target_depth
+		} else {
+			votes
+		};
+
+		// Note: Adding 1 to account for the target header
+		let chain = generate_chain(i as u8, depth + 1, &header);
+
+		// We don't include our finality target header in the vote ancestries
+		for child in &chain[1..] {
+			votes_ancestries.push(child.clone());
+		}
+
+		// The header we need to use when pre-commiting is the one at the highest height
+		// on our chain.
+		let precommit_candidate = chain.last().map(|h| (h.hash(), *h.number())).unwrap();
+		unsigned_precommits.push(precommit_candidate);
+	}
+
+	for (i, (id, _weight)) in authorities.iter().enumerate() {
+		// Assign authorities to sign pre-commits in a round-robin fashion
+		let target = unsigned_precommits[i % forks as usize];
+		let precommit = signed_precommit::<H>(&id, target, round, set_id);
+
 		precommits.push(precommit);
-		votes_ancestries.push(precommit_header.clone());
 	}
 
 	GrandpaJustification {
@@ -73,8 +154,31 @@ pub fn make_justification_for_header<H: HeaderT>(
 	}
 }
 
+fn generate_chain<H: HeaderT>(fork_id: u8, depth: u32, ancestor: &H) -> Vec<H> {
+	let mut headers = vec![ancestor.clone()];
+
+	for i in 1..depth {
+		let parent = &headers[(i - 1) as usize];
+		let (hash, num) = (parent.hash(), *parent.number());
+
+		let mut header = test_header::<H>(num + One::one());
+		header.set_parent_hash(hash);
+
+		// Modifying the digest so headers at the same height but in different forks have different
+		// hashes
+		header
+			.digest_mut()
+			.logs
+			.push(sp_runtime::DigestItem::Other(vec![fork_id]));
+
+		headers.push(header);
+	}
+
+	headers
+}
+
 fn signed_precommit<H: HeaderT>(
-	signer: Ed25519Keyring,
+	signer: &Account,
 	target: (H::Hash, H::Number),
 	round: u64,
 	set_id: SetId,
@@ -83,13 +187,24 @@ fn signed_precommit<H: HeaderT>(
 		target_hash: target.0,
 		target_number: target.1,
 	};
+
 	let encoded =
 		sp_finality_grandpa::localized_payload(round, set_id, &finality_grandpa::Message::Precommit(precommit.clone()));
-	let signature = signer.sign(&encoded[..]).into();
+
+	let signature = signer.sign(&encoded);
+	let raw_signature: Vec<u8> = signature.to_bytes().into();
+
+	// Need to wrap our signature and id types that they match what our `SignedPrecommit` is expecting
+	let signature = AuthoritySignature::try_from(raw_signature).expect(
+		"We know our Keypair is good,
+		so our signature must also be good.",
+	);
+	let id = (*signer).into();
+
 	finality_grandpa::SignedPrecommit {
 		precommit,
 		signature,
-		id: signer.public().into(),
+		id,
 	}
 }
 
@@ -97,16 +212,19 @@ fn signed_precommit<H: HeaderT>(
 ///
 /// The correct parent hash will be used if given a non-zero header.
 pub fn test_header<H: HeaderT>(number: H::Number) -> H {
-	let mut header = H::new(
-		number,
-		Default::default(),
-		Default::default(),
-		Default::default(),
-		Default::default(),
-	);
+	let default = |num| {
+		H::new(
+			num,
+			Default::default(),
+			Default::default(),
+			Default::default(),
+			Default::default(),
+		)
+	};
 
+	let mut header = default(number);
 	if number != Zero::zero() {
-		let parent_hash = test_header::<H>(number - One::one()).hash();
+		let parent_hash = default(number - One::one()).hash();
 		header.set_parent_hash(parent_hash);
 	}
 
@@ -116,36 +234,4 @@ pub fn test_header<H: HeaderT>(number: H::Number) -> H {
 /// Convenience function for generating a Header ID at a given block number.
 pub fn header_id<H: HeaderT>(index: u8) -> (H::Hash, H::Number) {
 	(test_header::<H>(index.into()).hash(), index.into())
-}
-
-/// Get the identity of a test account given an ED25519 Public key.
-pub fn extract_keyring(id: &AuthorityId) -> Ed25519Keyring {
-	let mut raw_public = [0; 32];
-	raw_public.copy_from_slice(id.as_ref());
-	Ed25519Keyring::from_raw_public(raw_public).unwrap()
-}
-
-/// Get a valid set of voters for a Grandpa round.
-pub fn voter_set() -> VoterSet<AuthorityId> {
-	VoterSet::new(authority_list()).unwrap()
-}
-
-/// Convenience function to get a list of Grandpa authorities.
-pub fn authority_list() -> AuthorityList {
-	vec![(alice(), 1), (bob(), 1), (charlie(), 1)]
-}
-
-/// Get the Public key of the Alice test account.
-pub fn alice() -> AuthorityId {
-	Ed25519Keyring::Alice.public().into()
-}
-
-/// Get the Public key of the Bob test account.
-pub fn bob() -> AuthorityId {
-	Ed25519Keyring::Bob.public().into()
-}
-
-/// Get the Public key of the Charlie test account.
-pub fn charlie() -> AuthorityId {
-	Ed25519Keyring::Charlie.public().into()
 }

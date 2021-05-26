@@ -93,12 +93,12 @@ seeds for the `sr25519` keys. This seed may also be used in the signer argument 
 and PoA relays. Example:
 
 ```bash
-./substrate-relay relay-headers rialto-to-millau \
-	--rialto-host rialto-node-alice \
-	--rialto-port 9944 \
-	--millau-host millau-node-alice \
-	--millau-port 9944 \
-	--rialto-signer //Harry \
+./substrate-relay relay-headers RialtoToMillau \
+	--source-host rialto-node-alice \
+	--source-port 9944 \
+	--target-host millau-node-alice \
+	--target-port 9944 \
+	--source-signer //Harry \
 	--prometheus-host=0.0.0.0
 ```
 
@@ -114,14 +114,18 @@ Following accounts are used when `poa-rialto` bridge is running:
 
 Following accounts are used when `rialto-millau` bridge is running:
 
-- Millau's `Charlie` signs relay transactions with new Rialto headers;
-- Rialto's `Charlie` signs relay transactions with new Millau headers;
+- Millau's `Charlie` signs complex headers+messages relay transactions on Millau chain;
+- Rialto's `Charlie` signs complex headers+messages relay transactions on Rialto chain;
 - Millau's `Dave` signs Millau transactions which contain messages for Rialto;
 - Rialto's `Dave` signs Rialto transactions which contain messages for Millau;
-- Millau's `Eve` signs relay transactions with message delivery confirmations from Rialto to Millau;
-- Rialto's `Eve` signs relay transactions with messages from Millau to Rialto;
-- Millau's `Ferdie` signs relay transactions with messages from Rialto to Millau;
-- Rialto's `Ferdie` signs relay transactions with message delivery confirmations from Millau to Rialto.
+- Millau's `Eve` signs relay transactions with message delivery confirmations (lane 00000001) from Rialto to Millau;
+- Rialto's `Eve` signs relay transactions with messages (lane 00000001) from Millau to Rialto;
+- Millau's `Ferdie` signs relay transactions with messages (lane 00000001) from Rialto to Millau;
+- Rialto's `Ferdie` signs relay transactions with message delivery confirmations (lane 00000001) from Millau to Rialto.
+
+Following accounts are used when `westend-millau` bridge is running:
+
+- Millau's `George` signs relay transactions with new Westend headers.
 
 ### Docker Usage
 When the network is running you can query logs from individual nodes using:

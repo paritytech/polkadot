@@ -83,7 +83,7 @@ enum ApprovalVotingMessage {
     ///
     /// The base number is typically the number of the last finalized block, but in GRANDPA it is
     /// possible for the base to be slightly higher than the last finalized block.
-    /// 
+    ///
     /// The `BlockNumber` provided is the number of the block's ancestor which is the
     /// earliest possible vote.
     ///
@@ -91,7 +91,7 @@ enum ApprovalVotingMessage {
     /// Return `None` if the input hash is unrecognized.
     ApprovedAncestor {
         target_hash: Hash,
-        base_number: BlockNumber, 
+        base_number: BlockNumber,
         rx: ResponseChannel<Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>)>)>>
     },
 }
@@ -156,18 +156,18 @@ enum AvailabilityDistributionMessage {
       ///
       /// NOTE: The result of this fetch is not yet locally validated and could be bogus.
       FetchPoV {
-	      /// The relay parent giving the necessary context.
-	      relay_parent: Hash,
-	      /// Validator to fetch the PoV from.
-	      from_validator: ValidatorIndex,
-	      /// Candidate hash to fetch the PoV for.
-	      candidate_hash: CandidateHash,
-	      /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
-	      pov_hash: Hash,
-	      /// Sender for getting back the result of this fetch.
-	      ///
-	      /// The sender will be canceled if the fetching failed for some reason.
-	      tx: oneshot::Sender<PoV>,
+          /// The relay parent giving the necessary context.
+          relay_parent: Hash,
+          /// Validator to fetch the PoV from.
+          from_validator: ValidatorIndex,
+          /// Candidate hash to fetch the PoV for.
+          candidate_hash: CandidateHash,
+          /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+          pov_hash: Hash,
+          /// Sender for getting back the result of this fetch.
+          ///
+          /// The sender will be canceled if the fetching failed for some reason.
+          tx: oneshot::Sender<PoV>,
       },
 }
 ```
@@ -204,12 +204,14 @@ enum AvailabilityStoreMessage {
     QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
     /// Query a specific availability chunk of the candidate's erasure-coding by validator index.
     /// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-    QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+    QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<ErasureChunk>>),
+    /// Query all chunks that we have locally for the given candidate hash.
+    QueryAllChunks(CandidateHash, ResponseChannel<Vec<ErasureChunk>>),
     /// Store a specific chunk of the candidate's erasure-coding by validator index, with an
     /// accompanying proof.
-    StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+    StoreChunk(CandidateHash, ErasureChunk, ResponseChannel<Result<()>>),
     /// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
-    /// `AvailabilityChunkAndProof`.
+    /// `ErasureChunk`.
     StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
@@ -332,7 +334,7 @@ enum CollatorProtocolMessage {
     /// Note a collator as having provided a good collation.
     NoteGoodCollation(CollatorId, SignedFullStatement),
     /// Notify a collator that its collation was seconded.
-    NotifyCollationSeconded(CollatorId, SignedFullStatement),
+    NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 }
 ```
 
@@ -376,7 +378,7 @@ enum DisputeCoordinatorMessage {
     /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
     IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
     /// Determine the highest undisputed block within the given chain, based on where candidates
-    /// were included. If even the base block should not be finalized due to a dispute, 
+    /// were included. If even the base block should not be finalized due to a dispute,
     /// then `None` should be returned on the channel.
     ///
     /// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
@@ -444,17 +446,22 @@ enum NetworkBridgeMessage {
     /// Connect to peers who represent the given `validator_ids`.
     ///
     /// Also ask the network to stay connected to these peers at least
-    /// until the request is revoked.
-    /// This can be done by dropping the receiver.
+    /// until a new request is issued.
+    ///
+    /// Because it overrides the previous request, it must be ensured
+    /// that `validator_ids` include all peers the subsystems
+    /// are interested in (per `PeerSet`).
+    ///
+    /// A caller can learn about validator connections by listening to the
+    /// `PeerConnected` events from the network bridge.
     ConnectToValidators {
         /// Ids of the validators to connect to.
         validator_ids: Vec<AuthorityDiscoveryId>,
         /// The underlying protocol to use for this request.
         peer_set: PeerSet,
-        /// Response sender by which the issuer can learn the `PeerId`s of
-        /// the validators as they are connected.
-        /// The response is sent immediately for already connected peers.
-        connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+        /// Sends back the number of `AuthorityDiscoveryId`s which
+        /// authority discovery has failed to resolve.
+        failed: oneshot::Sender<usize>,
     },
 }
 ```
@@ -562,9 +569,6 @@ enum ProvisionerMessage {
   /// advancing the state of parachain consensus in a block building upon the given hash.
   ///
   /// If called at different points in time, this may give different results.
-  ///
-  /// This is expected to be used by a proposer, to inject that information into the InherentData
-  /// where it can be assembled into the ParaInherent.
   RequestInherentData(Hash, oneshot::Sender<ParaInherentData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),

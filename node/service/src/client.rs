@@ -17,12 +17,13 @@
 //! Polkadot Client meta trait
 
 use std::sync::Arc;
+use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
+use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore, UsageProvider};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
 use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
@@ -31,16 +32,18 @@ use consensus_common::BlockStatus;
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block>
-	+ babe_primitives::BabeApi<Block>
+	+ sp_consensus_babe::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+	+ beefy_primitives::BeefyApi<Block, BeefyId>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
@@ -49,16 +52,18 @@ impl<Api> RuntimeApiCollection for Api
 where
 	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 		+ sp_api::ApiExt<Block>
-		+ babe_primitives::BabeApi<Block>
+		+ sp_consensus_babe::BabeApi<Block>
 		+ grandpa_primitives::GrandpaApi<Block>
 		+ ParachainHost<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+		+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
-		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>,
+		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+		+ beefy_primitives::BeefyApi<Block, BeefyId>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
@@ -73,6 +78,8 @@ pub trait AbstractClient<Block, Backend>:
 		Block,
 		StateBackend = Backend::State
 	>
+	+ AuxStore
+	+ UsageProvider<Block>
 	where
 		Block: BlockT,
 		Backend: BackendT<Block>,
@@ -85,8 +92,14 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 		Block: BlockT,
 		Backend: BackendT<Block>,
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block> + HeaderBackend<Block>
-			+ Sized + Send + Sync
+		Client: BlockchainEvents<Block>
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ AuxStore
+			+ UsageProvider<Block>
+			+ Sized
+			+ Send
+			+ Sync
 			+ CallApiAt<
 				Block,
 				StateBackend = Backend::State
@@ -162,7 +175,7 @@ impl ClientHandle for Client {
 	}
 }
 
-impl sc_client_api::UsageProvider<Block> for Client {
+impl UsageProvider<Block> for Client {
 	fn usage_info(&self) -> sc_client_api::ClientInfo<Block> {
 		match self {
 			Self::Polkadot(client) => client.usage_info(),

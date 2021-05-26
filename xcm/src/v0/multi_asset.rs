@@ -146,6 +146,159 @@ pub enum MultiAsset {
 	ConcreteNonFungible { class: MultiLocation, instance: AssetInstance },
 }
 
+impl MultiAsset {
+	pub fn is_wildcard(&self) -> bool {
+		match self {
+			MultiAsset::None
+			| MultiAsset::AbstractFungible {..}
+			| MultiAsset::AbstractNonFungible {..}
+			| MultiAsset::ConcreteFungible {..}
+			| MultiAsset::ConcreteNonFungible {..}
+			=> false,
+
+			MultiAsset::All
+			| MultiAsset::AllFungible
+			| MultiAsset::AllNonFungible
+			| MultiAsset::AllAbstractFungible {..}
+			| MultiAsset::AllConcreteFungible {..}
+			| MultiAsset::AllAbstractNonFungible {..}
+			| MultiAsset::AllConcreteNonFungible {..}
+			=> true,
+		}
+	}
+
+	fn is_none(&self) -> bool {
+		match self {
+			MultiAsset::None
+			| MultiAsset::AbstractFungible { amount: 0, .. }
+			| MultiAsset::ConcreteFungible { amount: 0, .. }
+			=> true,
+
+			_ => false,
+		}
+	}
+
+	fn is_fungible(&self) -> bool {
+		match self {
+			MultiAsset::All
+			| MultiAsset::AllFungible
+			| MultiAsset::AllAbstractFungible {..}
+			| MultiAsset::AllConcreteFungible {..}
+			| MultiAsset::AbstractFungible {..}
+			| MultiAsset::ConcreteFungible {..}
+			=> true,
+
+			_ => false,
+		}
+	}
+
+	fn is_non_fungible(&self) -> bool {
+		match self {
+			MultiAsset::All
+			| MultiAsset::AllNonFungible
+			| MultiAsset::AllAbstractNonFungible {..}
+			| MultiAsset::AllConcreteNonFungible {..}
+			| MultiAsset::AbstractNonFungible {..}
+			| MultiAsset::ConcreteNonFungible {..}
+			=> true,
+
+			_ => false,
+		}
+	}
+
+	fn is_concrete_fungible(&self, id: &MultiLocation) -> bool {
+		match self {
+			MultiAsset::AllFungible => true,
+
+			MultiAsset::AllConcreteFungible { id: i }
+			| MultiAsset::ConcreteFungible { id: i, .. }
+			=> i == id,
+
+			_ => false,
+		}
+	}
+
+	fn is_abstract_fungible(&self, id: &[u8]) -> bool {
+		match self {
+			MultiAsset::AllFungible => true,
+			MultiAsset::AllAbstractFungible { id: i }
+			| MultiAsset::AbstractFungible { id: i, .. }
+			=> i == id,
+			_ => false,
+		}
+	}
+
+	fn is_concrete_non_fungible(&self, class: &MultiLocation) -> bool {
+		match self {
+			MultiAsset::AllNonFungible => true,
+			MultiAsset::AllConcreteNonFungible { class: i }
+			| MultiAsset::ConcreteNonFungible { class: i, .. }
+			=> i == class,
+			_ => false,
+		}
+	}
+
+	fn is_abstract_non_fungible(&self, class: &[u8]) -> bool {
+		match self {
+			MultiAsset::AllNonFungible => true,
+			MultiAsset::AllAbstractNonFungible { class: i }
+			| MultiAsset::AbstractNonFungible { class: i, .. }
+			=> i == class,
+			_ => false,
+		}
+	}
+
+	fn is_all(&self) -> bool { matches!(self, MultiAsset::All) }
+
+	pub fn contains(&self, inner: &MultiAsset) -> bool {
+		use MultiAsset::*;
+		// Inner cannot be wild
+		if inner.is_wildcard() { return false }
+		// Everything contains nothing.
+		if inner.is_none() { return true }
+
+		// Everything contains anything.
+		if self.is_all() { return true }
+		// Nothing contains nothing.
+		if self.is_none() { return false }
+
+		match self {
+			// Anything fungible contains "all fungibles"
+			AllFungible => inner.is_fungible(),
+			// Anything non-fungible contains "all non-fungibles"
+			AllNonFungible => inner.is_non_fungible(),
+
+			AllConcreteFungible { id } => inner.is_concrete_fungible(id),
+			AllAbstractFungible { id } => inner.is_abstract_fungible(id),
+			AllConcreteNonFungible { class } => inner.is_concrete_non_fungible(class),
+			AllAbstractNonFungible { class } => inner.is_abstract_non_fungible(class),
+
+			ConcreteFungible { id, amount }
+			=> matches!(inner, ConcreteFungible { id: i , amount: a } if i == id && a >= amount),
+			AbstractFungible { id, amount }
+			=> matches!(inner, AbstractFungible { id: i , amount: a } if i == id && a >= amount),
+			ConcreteNonFungible { class, instance }
+			=> matches!(inner, ConcreteNonFungible { class: i , instance: a } if i == class && a == instance),
+			AbstractNonFungible { class, instance }
+			=> matches!(inner, AbstractNonFungible { class: i , instance: a } if i == class && a == instance),
+
+			_ => false,
+		}
+	}
+
+	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
+		use MultiAsset::*;
+		match self {
+			AllConcreteFungible { ref mut id }
+			| AllConcreteNonFungible { class: ref mut id }
+			| ConcreteFungible { ref mut id, .. }
+			| ConcreteNonFungible { class: ref mut id, .. }
+			=> id.prepend_with(prepend.clone()).map_err(|_| ()),
+			_ => Ok(()),
+		}
+	}
+}
+
 impl From<MultiAsset> for VersionedMultiAsset {
 	fn from(x: MultiAsset) -> Self {
 		VersionedMultiAsset::V0(x)

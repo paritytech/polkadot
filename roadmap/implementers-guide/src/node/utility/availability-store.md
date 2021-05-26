@@ -133,6 +133,10 @@ On `QueryChunk` message:
 
   This is `O(n)` in the size of the data, which may be large.
 
+On `QueryAllChunks` message:
+  - Query `("meta", candidate_hash)`. If `None`, send an empty response and return.
+  - For all `1` bits in the `chunks_stored`, query `("chunk", candidate_hash, index)`. Ignore but warn on errors, and return a vector of all loaded chunks.
+
 On `QueryChunkAvailability message:
 
   - Query whether `("meta", candidate_hash)` exists and the bit at `index` is set.

@@ -317,10 +317,7 @@ pub fn tranches_to_approve(
 	tranches_with_gaps_filled
 		.scan(Some(initial_state), |state, (tranche, assignments)| {
 			// The `Option` here is used for early exit.
-			let s = match state.take() {
-				None => return None,
-				Some(s) => s,
-			};
+			let s = state.take()?;
 
 			let clock_drift = s.clock_drift(no_show_duration);
 			let drifted_tick_now = tick_now.saturating_sub(clock_drift);
@@ -406,6 +403,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: Default::default(),
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -452,6 +450,7 @@ mod tests {
 			],
 			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -515,6 +514,7 @@ mod tests {
 			],
 			assignments: bitvec![BitOrderLsb0, u8; 1; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -582,6 +582,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 5],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -619,6 +620,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -657,6 +659,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -700,6 +703,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -765,6 +769,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();
@@ -852,6 +857,7 @@ mod tests {
 			tranches: Vec::new(),
 			assignments: bitvec![BitOrderLsb0, u8; 0; n_validators],
 			our_assignment: None,
+			our_approval_sig: None,
 			backing_group: GroupIndex(0),
 			approved: false,
 		}.into();

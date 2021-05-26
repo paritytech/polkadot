@@ -62,6 +62,7 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_key()),
 							None,
+							true,
 							None,
 							None,
 						).map_err(|e| e.to_string())?;

@@ -16,17 +16,19 @@
 
 //! Answer requests for availability chunks.
 
+use std::sync::Arc;
+
 use futures::channel::oneshot;
 
 use polkadot_node_network_protocol::request_response::{request::IncomingRequest, v1};
 use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
-use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
 	SubsystemContext, jaeger,
 };
 
-use crate::error::{Error, Result};
+use crate::error::{NonFatal, Result};
 use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
 
 /// Variant of `answer_pov_request` that does Prometheus metric and logging on errors.
@@ -100,23 +102,12 @@ where
 	let response = match av_data {
 		None => v1::PoVFetchingResponse::NoSuchPoV,
 		Some(av_data) => {
-			let pov = match CompressedPoV::compress(&av_data.pov) {
-				Ok(pov) => pov,
-				Err(error) => {
-					tracing::error!(
-						target: LOG_TARGET,
-						error = ?error,
-						"Failed to create `CompressedPov`",
-					);
-					// this should really not happen, let this request time out:
-					return Err(Error::PoVDecompression(error))
-				}
-			};
+			let pov = Arc::try_unwrap(av_data.pov).unwrap_or_else(|a| (&*a).clone());
 			v1::PoVFetchingResponse::PoV(pov)
 		}
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
 	Ok(result)
 }
 
@@ -153,7 +144,7 @@ where
 		Some(chunk) => v1::ChunkFetchingResponse::Chunk(chunk.into()),
 	};
 
-	req.send_response(response).map_err(|_| Error::SendResponse)?;
+	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
 	Ok(result)
 }
 
@@ -173,7 +164,7 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| {
+	let result = rx.await.map_err(|e| {
 		tracing::trace!(
 			target: LOG_TARGET,
 			?validator_index,
@@ -181,8 +172,9 @@ where
 			error = ?e,
 			"Error retrieving chunk",
 		);
-		Error::QueryChunkResponseChannel(e)
-	})
+		NonFatal::QueryChunkResponseChannel(e)
+	})?;
+	Ok(result)
 }
 
 /// Query PoV from the availability store.
@@ -200,5 +192,6 @@ where
 	))
 	.await;
 
-	rx.await.map_err(|e| Error::QueryAvailableDataResponseChannel(e))
+	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;
+	Ok(result)
 }

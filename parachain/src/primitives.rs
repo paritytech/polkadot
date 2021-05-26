@@ -21,6 +21,7 @@ use sp_std::vec::Vec;
 
 use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
+use sp_runtime::traits::Hash as _;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -45,7 +46,6 @@ pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 impl HeadData {
 	/// Returns the hash of this head data.
 	pub fn hash(&self) -> Hash {
-		use sp_runtime::traits::Hash;
 		sp_runtime::traits::BlakeTwo256::hash(&self.0)
 	}
 }
@@ -54,6 +54,13 @@ impl HeadData {
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+
+impl ValidationCode {
+	/// Get the blake2-256 hash of the validation code bytes.
+	pub fn hash(&self) -> Hash {
+		sp_runtime::traits::BlakeTwo256::hash(&self.0[..])
+	}
+}
 
 /// Parachain block data.
 ///
@@ -115,20 +122,19 @@ impl From<i32> for Id {
 }
 
 const USER_INDEX_START: u32 = 1000;
+const PUBLIC_INDEX_START: u32 = 2000;
 
 /// The ID of the first user (non-system) parachain.
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
+/// The ID of the first publicly registerable parachain.
+pub const LOWEST_PUBLIC_ID: Id = Id(PUBLIC_INDEX_START);
 
 impl Id {
 	/// Create an `Id`.
 	pub const fn new(id: u32) -> Self {
 		Self(id)
 	}
-
-	/// Returns `true` if this parachain runs with system-level privileges.
-	/// Use IsSystem instead.
-	#[deprecated]
-	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
 }
 
 pub trait IsSystem {
@@ -146,6 +152,14 @@ impl sp_std::ops::Add<u32> for Id {
 
 	fn add(self, other: u32) -> Self {
 		Self(self.0 + other)
+	}
+}
+
+impl sp_std::ops::Sub<u32> for Id {
+	type Output = Self;
+
+	fn sub(self, other: u32) -> Self {
+		Self(self.0 - other)
 	}
 }
 

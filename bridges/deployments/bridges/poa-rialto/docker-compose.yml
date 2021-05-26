@@ -1,5 +1,7 @@
 # This Compose file should be built using the Rialto and Eth-PoA node
 # compose files. Otherwise it won't work.
+#
+# Exposed ports: 9616, 9716, 9816, 9916, 8080
 
 version: '3.5'
 services:
@@ -79,12 +81,12 @@ services:
   # Note: These are being overridden from the top level `monitoring` compose file.
   prometheus-metrics:
     volumes:
-      - ./bridges/poa-rialto/dashboard/prometheus/:/etc/prometheus/
+      - ./bridges/poa-rialto/dashboard/prometheus/targets.yml:/etc/prometheus/targets-poa-rialto.yml
     depends_on: *all-nodes
 
   grafana-dashboard:
     volumes:
-       - ./bridges/poa-rialto/dashboard/grafana/provisioning/:/etc/grafana/provisioning/
+       - ./bridges/poa-rialto/dashboard/grafana:/etc/grafana/dashboards/poa-rialto:ro
     environment:
       VIRTUAL_HOST: dashboard.rialto.bridges.test-installations.parity.io,grafana.rialto.brucke.link
       VIRTUAL_PORT: 3000
