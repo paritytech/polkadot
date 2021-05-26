@@ -8,8 +8,6 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names();
 
-	let _builder_generic_ty = &info.builder_generic_types();
-
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
 
@@ -104,8 +102,6 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
-	let _message_wrapper = &info.message_wrapper;
-	let _consumes = &info.consumes();
 
 	let ts = quote::quote! {
 

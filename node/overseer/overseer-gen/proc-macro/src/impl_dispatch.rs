@@ -59,6 +59,5 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 			}
 		}
 	};
-	println!("{}", ts.to_string());
 	Ok(ts)
 }

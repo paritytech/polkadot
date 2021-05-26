@@ -7,68 +7,12 @@ use super::*;
 /// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let overseer_name = info.overseer_name.clone();
-	let _builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
-	let _handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
-
-	let _subsystem_name = &info.subsystem_names();
 	let builder_generic_ty = &info.builder_generic_types();
-
-	let _channel_name = &info.channel_names("");
-	let _channel_name_unbounded = &info.channel_names("_unbounded");
-
-	let _channel_name_tx = &info.channel_names("_tx");
-	let _channel_name_unbounded_tx = &info.channel_names("_unbounded_tx");
-
-	let _channel_name_rx = &info.channel_names("_rx");
-	let _channel_name_unbounded_rx = &info.channel_names("_unbounded_rx");
-
-	let baggage_generic_ty = &info.baggage_generic_types();
-	let _baggage_name = &info.baggage_names();
-	let _baggage_ty = &info.baggage_types();
-
-	let _blocking = &info
-		.subsystems()
-		.iter()
-		.map(|x| {
-			if x.blocking {
-				quote! { Blocking }
-			} else {
-				quote! { Regular }
-			}
-		})
-		.collect::<Vec<_>>();
-
 	let consumes = &info.consumes();
 	let message_wrapper = &info.message_wrapper;
-	let _event = &info.extern_event_ty;
 	let signal = &info.extern_signal_ty;
 
-	let _generics = quote! {
-		< S, #( #baggage_generic_ty, )* >
-	};
-	let _where_clause = quote! {
-		where
-			S: ::polkadot_overseer_gen::SpawnNamed,
-	};
-
-	let _builder_generics = quote! {
-		<Ctx, S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
-	};
-
-	// all subsystems must have the same context
-	// even if the overseer does not impose such a limit.
-	let _builder_additional_generics = quote! {
-		< Ctx, #( #builder_generic_ty, )* >
-	};
-
 	let error_ty = &info.extern_error_ty;
-
-	let _builder_where_clause = quote! {
-		where
-			Ctx: SubsystemContext< #message_wrapper >
-			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #builder_generic_ty : Subsystem<Ctx, #error_ty>, )*
-	};
 
 	let ts = quote! {
 		// //////////////////////////////////////////////////

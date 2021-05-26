@@ -65,9 +65,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			#( #builder_generic_ty : Subsystem<OverseerSubsystemContext< #consumes >, #error_ty>, )*
 	};
 
-	let _message_wrapper = &info.message_wrapper;
 	let event = &info.extern_event_ty;
-	let _signal = &info.extern_signal_ty;
 
 	let mut ts = quote! {
 
@@ -226,12 +224,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			}
 		}
 	};
-	eprintln!(
-		">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    {}
-",
-		ts.to_string()
-	);
 	ts.extend(impl_task_kind(info)?);
 	Ok(ts)
 }
@@ -317,13 +309,6 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			})
 		}
 	};
-
-	eprintln!(
-		">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    {}
-",
-		ts.to_string()
-	);
 
 	Ok(ts)
 }
