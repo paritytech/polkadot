@@ -96,6 +96,7 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 			+ ProvideRuntimeApi<Block>
 			+ HeaderBackend<Block>
 			+ AuxStore
+			+ UsageProvider<Block>
 			+ Sized
 			+ Send
 			+ Sync
