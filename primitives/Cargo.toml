@@ -30,7 +30,7 @@ thiserror = "1.0.23"
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pretty_assertions = "0.6.1"
+pretty_assertions = "0.7.2"
 
 [features]
 default = ["std"]
