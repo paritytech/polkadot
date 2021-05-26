@@ -63,7 +63,7 @@ pub(crate) fn impl_channels_out_struct(
             pub fn send_unbounded_and_log_error(
                 &self,
                 signals_received: usize,
-                message: AllMessages,
+                message: #message_wrapper,
             ) {
                 use ::std::sync::mpsc::TrySendError;
 

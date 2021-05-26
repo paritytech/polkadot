@@ -80,7 +80,7 @@ pub(crate) fn impl_builder(
 		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
 
 		#[derive(Debug, Clone)]
-		struct #builder #builder_generics {
+		pub struct #builder #builder_generics {
 			#(
 				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
 			)*
@@ -118,7 +118,7 @@ pub(crate) fn impl_builder(
 				}
 			)*
 
-			pub fn build(mut self) -> (#overseer_name #generics, #handler)
+			pub fn build(mut self) -> SubsystemResult<(#overseer_name #generics, #handler)>
 			{
 				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
 					#event
@@ -132,20 +132,14 @@ pub(crate) fn impl_builder(
 
 				#(
 					let (#channel_name_tx, #channel_name_rx)
-					: (
-						::polkadot_overseer_gen::metered::MeteredSender< MessagePacket< #consumes >>,
-						::polkadot_overseer_gen::metered::MeteredReceiver< MessagePacket< #consumes >>,
-					) =
+					=
 						::polkadot_overseer_gen::metered::channel::<
 							MessagePacket< #consumes >
 						>(CHANNEL_CAPACITY);
 				)*
 
 				#(
-					let (#channel_name_unbounded_tx, #channel_name_unbounded_rx): (
-						::polkadot_overseer_gen::metered::UnboundedMeteredSender< MessagePacket< #consumes >>,
-						::polkadot_overseer_gen::metered::UnboundedMeteredReceiver< MessagePacket< #consumes >>,
-					) =
+					let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) =
 						::polkadot_overseer_gen::metered::unbounded::<
 							MessagePacket< #consumes >
 						>();
@@ -154,14 +148,14 @@ pub(crate) fn impl_builder(
 				let channels_out =
 					ChannelsOut {
 						#(
-							#channel_name: #channel_name_tx,
+							#channel_name: #channel_name_tx .clone(),
 						)*
 						#(
 							#channel_name_unbounded: #channel_name_unbounded_tx,
 						)*
 					};
 
-				let spawner = self.spawner.expect("Spawner is set. qed");
+				let mut spawner = self.spawner.expect("Spawner is set. qed");
 
 				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<
 						BoxFuture<'static, SubsystemResult<()>>
@@ -170,6 +164,8 @@ pub(crate) fn impl_builder(
 				#(
 					// FIXME generate a builder pattern that ensures this
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
+
+					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
 
                     let message_rx: SubsystemIncomingMessages< #consumes > = ::polkadot_overseer_gen::select(
                         #channel_name_rx, #channel_name_unbounded_rx
@@ -186,12 +182,13 @@ pub(crate) fn impl_builder(
                         spawn::<_,_, #blocking, _, _, _>(
                             &mut spawner,
                             #channel_name_tx,
-                            message_rx,
                             signal_tx,
+							unbounded_meter,
                             channels_out.clone(),
-                            to_overseer_tx,
+							ctx,
                             #subsystem_name,
-                        ).unwrap(); // FIXME
+							&mut running_subsystems,
+                        )?;
 				)*
 
 				#(
@@ -216,7 +213,7 @@ pub(crate) fn impl_builder(
 					to_overseer_rx,
 				};
 
-				(overseer, handler)
+				Ok((overseer, handler))
 			}
 		}
 	};
@@ -261,14 +258,11 @@ pub(crate) fn impl_task_kind(
 		pub fn spawn<S, M, TK, Ctx, E, SubSys>(
 			spawner: &mut S,
 			message_tx: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket<M>>,
-			// muxed incoming channels, bounded and unbouneded
-			message_rx: ::polkadot_overseer_gen::SubsystemIncomingMessages<M>,
 			signal_tx: ::polkadot_overseer_gen::metered::MeteredSender< #signal >,
 			// meter for the unbounded channel
 			unbounded_meter: ::polkadot_overseer_gen::metered::Meter,
 			// connection to the subsystems
 			channels_out: ChannelsOut,
-			to_overseer_tx: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
 			ctx: Ctx,
 			s: SubSys,
 			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,

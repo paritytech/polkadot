@@ -14,7 +14,7 @@ pub(crate) fn impl_message_wrapper_enum(
 	let ts = quote! {
 		/// Generated message type wrapper
 		#[derive(Debug, Clone)]
-		enum #message_wrapper {
+		pub enum #message_wrapper {
 			#(
 				#consumes ( #consumes ),
 			)*

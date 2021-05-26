@@ -6,8 +6,9 @@ use polkadot_overseer_gen::*;
 use polkadot_subsystem::messages::NetworkBridgeEvent;
 
 
+/// Concrete subsystem implementation for `MsgStrukt` msg type.
 #[derive(Default)]
-struct AwesomeSubSys;
+pub struct AwesomeSubSys;
 
 impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
 	fn start(self, ctx: OverseerSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
@@ -15,12 +16,14 @@ impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yik
 	}
 }
 
+/// A signal sent by the overseer.
 #[derive(Debug, Clone)]
-struct SigSigSig;
+pub struct SigSigSig;
 
 
+/// The external event.
 #[derive(Debug, Clone)]
-struct EvX;
+pub struct EvX;
 
 
 impl EvX {
@@ -30,7 +33,7 @@ impl EvX {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Yikes;
+pub struct Yikes;
 
 impl std::fmt::Display for Yikes {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -47,10 +50,10 @@ impl From<polkadot_overseer_gen::SubsystemError> for Yikes {
 }
 
 #[derive(Debug, Clone)]
-struct MsgStrukt(u8);
+pub struct MsgStrukt(u8);
 
 #[derive(Debug, Clone, Copy)]
-struct Plinko;
+pub struct Plinko;
 
 
 impl From<EvX> for MsgStrukt {
