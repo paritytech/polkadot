@@ -58,6 +58,24 @@ pub enum LeafStatus {
 	Stale,
 }
 
+impl LeafStatus {
+	/// Returns a bool indicating fresh status.
+	pub fn is_fresh(&self) -> bool {
+		match *self {
+			LeafStatus::Fresh => true,
+			LeafStatus::Stale => false,
+		}
+	}
+
+	/// Returns a bool indicating stale status.
+	pub fn is_stale(&self) -> bool {
+		match *self {
+			LeafStatus::Fresh => false,
+			LeafStatus::Stale => true,
+		}
+	}
+}
+
 /// Activated leaf.
 #[derive(Debug, Clone)]
 pub struct ActivatedLeaf {
