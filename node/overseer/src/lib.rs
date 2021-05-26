@@ -887,7 +887,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 					// wait for next signal.
 					let signal = self.signals.next().await
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Signal channel is terminated and empty."
 							.to_owned()
 						))?;
 
@@ -906,7 +906,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 				signal = await_signal => {
 					let signal = signal
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Signal channel is terminated and empty."
 							.to_owned()
 						))?;
 
@@ -915,7 +915,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 				msg = await_message => {
 					let packet = msg
 						.ok_or(SubsystemError::Context(
-							"No more messages in rx queue to process"
+							"Message channel is terminated and empty."
 							.to_owned()
 						))?;
 

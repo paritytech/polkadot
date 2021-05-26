@@ -768,6 +768,7 @@ impl CandidateBackingJob {
 		tracing::debug!(
 			target: LOG_TARGET,
 			statement = ?statement.payload().to_compact(),
+			validator_index = statement.validator_index().0,
 			"Importing statement",
 		);
 

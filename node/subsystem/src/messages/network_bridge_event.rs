@@ -45,7 +45,7 @@ impl<M> NetworkBridgeEvent<M> {
 	///
 	/// This tries to transform M in `PeerMessage` to a message type specific to a subsystem.
 	/// It is used to dispatch events coming from a peer set to the various subsystems that are
-	/// handled within that peer set. More concretly a `ValidationProtocol` will be transformed
+	/// handled within that peer set. More concretely a `ValidationProtocol` will be transformed
 	/// for example into a `BitfieldDistributionMessage` in case of the `BitfieldDistribution`
 	/// constructor.
 	///

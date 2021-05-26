@@ -59,16 +59,16 @@ pub struct Extensions {
 	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v1::Block>,
 }
 
-/// The `ChainSpec` parametrised for the polkadot runtime.
+/// The `ChainSpec` parameterized for the polkadot runtime.
 pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::GenesisConfig, Extensions>;
 
-/// The `ChainSpec` parametrised for the kusama runtime.
+/// The `ChainSpec` parameterized for the kusama runtime.
 pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Extensions>;
 
-/// The `ChainSpec` parametrised for the westend runtime.
+/// The `ChainSpec` parameterized for the westend runtime.
 pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Extensions>;
 
-/// The `ChainSpec` parametrized for the rococo runtime.
+/// The `ChainSpec` parameterized for the rococo runtime.
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
 
 /// Extension for the Rococo genesis config to support a custom changes to the genesis state.
@@ -644,6 +644,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
@@ -879,6 +880,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			paras: vec![],
 		    _phdata: Default::default(),
 		},
+		parachains_hrmp: Default::default(),
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 1u32,
@@ -920,6 +922,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				zeroth_delay_tranche_width: 0,
 				..Default::default()
 			},
+		},
+		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
 		},
 	}
 }
@@ -1282,6 +1292,7 @@ pub fn kusama_testnet_genesis(
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
+		pallet_gilt: Default::default(),
 	}
 }
 
@@ -1428,7 +1439,7 @@ pub fn rococo_testnet_genesis(
 		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
-		pallet_sudo: rococo_runtime::SudoConfig { key: root_key },
+		pallet_sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
@@ -1471,9 +1482,18 @@ pub fn rococo_testnet_genesis(
 				..Default::default()
 			},
 		},
+		parachains_hrmp: Default::default(),
 		parachains_paras: rococo_runtime::ParasConfig {
 			paras: vec![],
 		    _phdata: Default::default(),
+		},
+		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		pallet_bridge_grandpa_Instance1: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
 		},
 	}
 }
