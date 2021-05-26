@@ -16,6 +16,16 @@ impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yik
 	}
 }
 
+#[derive(Default)]
+pub struct GoblinTower;
+
+impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<Plinko>, Yikes> for GoblinTower {
+	fn start(self, ctx: OverseerSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
+		unimplemented!("starting yay!")
+	}
+}
+
+
 /// A signal sent by the overseer.
 #[derive(Debug, Clone)]
 pub struct SigSigSig;
@@ -67,10 +77,10 @@ struct Xxx {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
-	// #[subsystem(no_dispatch, Plinko)]
-	// plinkos: AwesomeSubSys,
+	#[subsystem(no_dispatch, blocking, Plinko)]
+	plinkos: GoblinTower,
 
-	// i_like_pi: f64,
+	i_like_pi: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -92,8 +102,8 @@ struct DummyCtx;
 fn main() {
 	let overseer = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
-		// .plinkos(AwesomeSubSys::default())
-		// .i_like_pie(std::f64::consts::PI)
+		.plinkos(GoblinTower::default())
+		.i_like_pi(::std::f64::consts::PI)
 		.spawner(DummySpawner)
 		.build();
 }

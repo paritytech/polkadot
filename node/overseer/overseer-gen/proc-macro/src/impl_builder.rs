@@ -118,6 +118,13 @@ pub(crate) fn impl_builder(
 				}
 			)*
 
+			#(
+				pub fn #baggage_name (mut self, baggage: #baggage_ty ) -> Self {
+					self. #baggage_name = Some( baggage );
+					self
+				}
+			)*
+
 			pub fn build(mut self) -> SubsystemResult<(#overseer_name #generics, #handler)>
 			{
 				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
@@ -175,7 +182,7 @@ pub(crate) fn impl_builder(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
-						to_overseer_tx,
+						to_overseer_tx.clone(),
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
