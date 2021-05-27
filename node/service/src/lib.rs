@@ -570,7 +570,6 @@ pub struct NewFull<C> {
 	pub client: C,
 	pub overseer_handler: Option<OverseerHandler>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
@@ -584,7 +583,6 @@ impl<C> NewFull<C> {
 			task_manager: self.task_manager,
 			overseer_handler: self.overseer_handler,
 			network: self.network,
-			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
@@ -752,7 +750,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		multiplexer
 	};
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -807,7 +805,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager: &mut task_manager,
 		on_demand: None,
 		remote_blockchain: None,
-		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -1071,7 +1068,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		client,
 		overseer_handler,
 		network,
-		network_status_sinks,
 		rpc_handlers,
 		backend,
 	})
@@ -1163,7 +1159,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -1223,7 +1219,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		transaction_pool,
 		client,
 		network,
-		network_status_sinks,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
