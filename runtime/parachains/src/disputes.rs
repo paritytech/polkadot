@@ -615,7 +615,7 @@ impl<T: Config> Pallet<T> {
 
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 				// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-				T::PunishValidators::punish_against_valid(
+				T::PunishValidators::punish_for_invalid(
 					set.session,
 					summary.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)),
 				);
