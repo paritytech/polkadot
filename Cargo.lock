@@ -11663,11 +11663,6 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "trie-bench"
-version = "0.27.0"
-source = "git+https://github.com/cheme/trie.git?branch=hashed-value-simple4#4d7dabfd53593e8ca6bd6f25d007dc90cf32a314"
-
-[[patch.unused]]
 name = "sp-consensus-aura"
 version = "0.9.0"
 source = "git+https://github.com/cheme/substrate?branch=state-update4#f56879466330a98d996142d87ab443e837cb5b26"
@@ -11691,3 +11686,8 @@ source = "git+https://github.com/cheme/substrate?branch=state-update4#f568794663
 name = "substrate-wasm-builder"
 version = "4.0.0"
 source = "git+https://github.com/cheme/substrate?branch=state-update4#f56879466330a98d996142d87ab443e837cb5b26"
+
+[[patch.unused]]
+name = "trie-bench"
+version = "0.27.0"
+source = "git+https://github.com/cheme/trie.git?branch=hashed-value-simple4#4d7dabfd53593e8ca6bd6f25d007dc90cf32a314"
