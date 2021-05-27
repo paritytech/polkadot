@@ -25,6 +25,9 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
 use polkadot_overseer_gen::SubsystemContext;
+use polkadot_node_subsystem::messages::RuntimeApiMessage;
+use polkadot_node_subsystem::OverseerSignal;
+
 
 use crate::{
 	request_session_index_for_child, request_session_info,
@@ -86,13 +89,14 @@ impl RuntimeInfo {
 	}
 
 	/// Retrieve the current session index.
-	pub async fn get_session_index<Context>(
+	pub async fn get_session_index<Context, M>(
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
 	) -> Result<SessionIndex>
 	where
-		Context: SubsystemContext,
+		M: From<RuntimeApiMessage>,
+		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 	{
 		match self.session_index_cache.get(&parent) {
 			Some(index) => Ok(*index),
@@ -107,13 +111,14 @@ impl RuntimeInfo {
 	}
 
 	/// Get `ExtendedSessionInfo` by relay parent hash.
-	pub async fn get_session_info<'a, Context>(
+	pub async fn get_session_info<'a, Context, M>(
 		&'a mut self,
 		ctx: &mut Context,
 		parent: Hash,
 	) -> Result<&'a ExtendedSessionInfo>
 	where
-		Context: SubsystemContext,
+		M: From<RuntimeApiMessage>,
+		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 	{
 		let session_index = self.get_session_index(ctx, parent).await?;
 
@@ -124,14 +129,15 @@ impl RuntimeInfo {
 	///
 	/// `request_session_info` still requires the parent to be passed in, so we take the parent
 	/// in addition to the `SessionIndex`.
-	pub async fn get_session_info_by_index<'a, Context>(
+	pub async fn get_session_info_by_index<'a, Context, M>(
 		&'a mut self,
 		ctx: &mut Context,
 		parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<&'a ExtendedSessionInfo>
 	where
-		Context: SubsystemContext,
+		M: From<RuntimeApiMessage>,
+		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
@@ -154,14 +160,15 @@ impl RuntimeInfo {
 	}
 
 	/// Convenience function for checking the signature of something signed.
-	pub async fn check_signature<Context, Payload, RealPayload>(
+	pub async fn check_signature<Context, Payload, RealPayload, M>(
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
 		signed: UncheckedSigned<Payload, RealPayload>,
 	) -> Result<std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>>
 	where
-		Context: SubsystemContext,
+		M: From<RuntimeApiMessage>,
+		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
@@ -242,21 +249,23 @@ where
 }
 
 /// Request availability cores from the runtime.
-pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
+pub async fn get_availability_cores<Context, M>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<Vec<CoreState>>
 	where
-		Context: SubsystemContext,
+		M: From<RuntimeApiMessage>,
+		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 {
 	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
 }
 
 /// Variant of `request_availability_cores` that only returns occupied ones.
-pub async fn get_occupied_cores<Context>(
+pub async fn get_occupied_cores<Context, M>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> Result<Vec<OccupiedCore>>
 where
-	Context: SubsystemContext,
+M: From<RuntimeApiMessage>,
+Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 {
 	let cores = get_availability_cores(ctx, relay_parent).await?;
 
@@ -274,10 +283,11 @@ where
 }
 
 /// Get group rotation info based on the given relay_parent.
-pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
+pub async fn get_group_rotation_info<Context, M>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<GroupRotationInfo>
-	where
-		Context: SubsystemContext
+where
+	M: From<RuntimeApiMessage>,
+	Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.

@@ -235,7 +235,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 
 	let ts = quote! {
 
-		use ::polkadot_overseer_gen::FutureExt;
+		use ::polkadot_overseer_gen::FutureExt as _;
 
 		/// Task kind to launch.
 		pub trait TaskKind {
@@ -274,7 +274,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			M: Send + 'static,
 			TK: TaskKind,
 			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
-			E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
+			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
 			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
 		{
 			let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = s.start(ctx);

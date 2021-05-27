@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal,
 };
 
-use polkadot_overseer_gen::{
+pub use polkadot_overseer_gen::{
 	FromOverseer,
 	SpawnedSubsystem,
 	Subsystem,
@@ -121,15 +121,15 @@ pub enum Error {
 pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response, Sender, AllMessages>(
+pub async fn request_from_runtime<RequestBuilder, Response, Sender, M>(
 	parent: Hash,
 	sender: &mut Sender,
 	request_builder: RequestBuilder,
 ) -> RuntimeApiReceiver<Response>
 where
 	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	Sender: SubsystemSender<AllMessages>,
-	AllMessages: From<RuntimeApiMessage>,
+	Sender: SubsystemSender<M>,
+	M: From<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -154,14 +154,18 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name <AllMessages: From<RuntimeApiMessage>> (
+		pub async fn $func_name <M, Sender> (
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
 			)*
-			sender: &mut impl SubsystemSender <AllMessages>,
-		) -> RuntimeApiReceiver<$return_ty> {
-			request_from_runtime::<_, _, _, AllMessages>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
+			sender: &mut Sender,
+		) -> RuntimeApiReceiver<$return_ty>
+			where
+				M: From<RuntimeApiMessage>,
+				Sender: SubsystemSender<M>,
+		{
+			request_from_runtime::<_, _, Sender, M>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
 		}
@@ -268,13 +272,13 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new<AllMessages>(
+	pub async fn new<M>(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		sender: &mut impl SubsystemSender <AllMessages>,
+		sender: &mut impl SubsystemSender <M>,
 	) -> Result<Self, Error>
 	where
-		AllMessages: From<RuntimeApiMessage>,
+		M: From<RuntimeApiMessage>,
 	{
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
@@ -404,26 +408,26 @@ pub enum FromJobCommand {
 
 /// A sender for messages from jobs, as well as commands to the overseer.
 #[derive(Clone)]
-pub struct JobSender<S: SubsystemSender<AllMessages>, AllMessages> {
+pub struct JobSender<S: SubsystemSender<M>, M> {
 	sender: S,
 	from_job: mpsc::Sender<FromJobCommand>,
-	_phantom: std::marker::PhantomData<AllMessages>,
+	_phantom: std::marker::PhantomData<M>,
 }
 
-impl<S: SubsystemSender< AllMessages >, AllMessages> JobSender<S, AllMessages> {
+impl<S: SubsystemSender<M>, M> JobSender<S, M> {
 	/// Get access to the underlying subsystem sender.
 	pub fn subsystem_sender(&mut self) -> &mut S {
 		&mut self.sender
 	}
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	pub async fn send_message(&mut self, msg: AllMessages) {
+	pub async fn send_message(&mut self, msg: M) {
 		self.sender.send_message(msg).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	pub async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send
 	{
 		self.sender.send_messages(msgs).await
 	}
@@ -434,7 +438,7 @@ impl<S: SubsystemSender< AllMessages >, AllMessages> JobSender<S, AllMessages> {
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	pub fn send_unbounded_message(&mut self, msg: AllMessages) {
+	pub fn send_unbounded_message(&mut self, msg: M) {
 		self.sender.send_unbounded_message(msg)
 	}
 
@@ -445,21 +449,22 @@ impl<S: SubsystemSender< AllMessages >, AllMessages> JobSender<S, AllMessages> {
 }
 
 #[async_trait::async_trait]
-impl<S: SubsystemSender< AllMessages>, AllMessages> SubsystemSender<AllMessages> for JobSender<S, AllMessages>
+impl<S, M> SubsystemSender<M> for JobSender<S, M>
 where
-	AllMessages: Clone + Send + 'static
+	M: Clone + Send + 'static,
+	S: SubsystemSender<M>
 {
-	async fn send_message(&mut self, msg: AllMessages) {
+	async fn send_message(&mut self, msg: M) {
 		self.sender.send_message(msg).await
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send
 	{
 		self.sender.send_messages(msgs).await
 	}
 
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
+	fn send_unbounded_message(&mut self, msg: M) {
 		self.sender.send_unbounded_message(msg)
 	}
 }
@@ -493,22 +498,19 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
-	/// The generated wrapping message type.
-	type Message: 'static + Send;
-
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run<S: SubsystemSender< Self::Message >>(
+	fn run<S: SubsystemSender< Self::ToJob >>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: JobSender<S, Self::Message>,
+		sender: JobSender<S, Self::ToJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -539,7 +541,11 @@ struct Jobs<Spawner, ToJob> {
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
 }
 
-impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
+impl<Spawner, ToJob> Jobs<Spawner, ToJob>
+where
+	Spawner: SpawnNamed,
+	ToJob: Send + 'static,
+{
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
 		Self {
@@ -550,7 +556,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job<Job, Sender, AllMessages>(
+	fn spawn_job<Job, Sender>(
 		&mut self,
 		parent_hash: Hash,
 		span: Arc<jaeger::Span>,
@@ -560,7 +566,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 	)
 		where
 			Job: JobTrait<ToJob = ToJob>,
-			Sender: SubsystemSender<AllMessages>,
+			Sender: SubsystemSender<Job::ToJob>,
 	{
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -575,6 +581,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 				JobSender {
 					sender,
 					from_job: from_job_tx,
+					_phantom: Default::default(),
 				},
 			).await {
 				tracing::error!(
@@ -687,12 +694,11 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	pub async fn run<Context>(self, mut ctx: Context)
 		where
 			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: SubsystemContext<Signal=OverseerSignal>,
-			Job: 'static + JobTrait<Message=<Context as SubsystemContext>::Message> + Send,
+			Context: SubsystemContext<Message=<Job as JobTrait>::ToJob, Signal=OverseerSignal>,
+			Job: 'static + JobTrait + Send,
 			Job::RunArgs: Clone + Sync,
-			Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
+			Job::ToJob: From<RuntimeApiMessage>,
 			Job::Metrics: Sync,
-			<Context as SubsystemContext>::Message: From<RuntimeApiMessage>,
 	{
 		let JobSubsystem {
 			params: JobSubsystemParams {
@@ -703,7 +709,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			..
 		} = self;
 
-		let mut jobs = Jobs::<Spawner, Job::Message>::new(spawner);
+		let mut jobs = Jobs::<Spawner, Job::ToJob>::new(spawner);
 
 		loop {
 			select! {
@@ -715,7 +721,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 						}))) => {
 							for activated in activated {
 								let sender: Context::Sender = ctx.sender().clone();
-								jobs.spawn_job::<Job, _, _>(
+								jobs.spawn_job::<Job, _>(
 									activated.hash,
 									activated.span,
 									run_args.clone(),
@@ -768,10 +774,10 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-	Context: SubsystemContext,
+	Context: SubsystemContext<Message=Job::ToJob,Signal=OverseerSignal>,
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
-	Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
+	Job::ToJob: Sync + From<RuntimeApiMessage>,
 	Job::Metrics: Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -842,246 +848,4 @@ impl futures::Stream for Metronome
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use executor::block_on;
-	use thiserror::Error;
-	use polkadot_node_jaeger as jaeger;
-	use polkadot_node_subsystem::{
-		messages::CandidateSelectionMessage, ActiveLeavesUpdate,
-		ActivatedLeaf,
-	};
-	use assert_matches::assert_matches;
-	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
-	use polkadot_primitives::v1::Hash;
-	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{pin::Pin, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Duration};
-
-	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
-	// you can leave the subsystem itself to the job manager.
-
-	// for purposes of demonstration, we're going to whip up a fake subsystem.
-	// this will 'select' candidates which are pre-loaded in the job
-
-	// job structs are constructed within JobTrait::run
-	// most will want to retain the sender and receiver, as well as whatever other data they like
-	struct FakeCandidateSelectionJob {
-		receiver: mpsc::Receiver<CandidateSelectionMessage>,
-	}
-
-	// Error will mostly be a wrapper to make the try operator more convenient;
-	// deriving From implementations for most variants is recommended.
-	// It must implement Debug for logging.
-	#[derive(Debug, Error)]
-	enum Error {
-		#[error(transparent)]
-		Sending(#[from]mpsc::SendError),
-	}
-
-	impl JobTrait for FakeCandidateSelectionJob {
-		type ToJob = CandidateSelectionMessage;
-		type Error = Error;
-		type RunArgs = bool;
-		type Metrics = ();
-
-		const NAME: &'static str = "FakeCandidateSelectionJob";
-
-		/// Run a job for the parent block indicated
-		//
-		// this function is in charge of creating and executing the job's main loop
-		fn run<S: SubsystemSender>(
-			_: Hash,
-			_: Arc<jaeger::Span>,
-			run_args: Self::RunArgs,
-			_metrics: Self::Metrics,
-			receiver: mpsc::Receiver<CandidateSelectionMessage>,
-			mut sender: JobSender<S, AllMessages>,
-		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-			async move {
-				let job = FakeCandidateSelectionJob { receiver };
-
-				if run_args {
-					sender.send_message(CandidateSelectionMessage::Invalid(
-						Default::default(),
-						Default::default(),
-					).into()).await;
-				}
-
-				// it isn't necessary to break run_loop into its own function,
-				// but it's convenient to separate the concerns in this way
-				job.run_loop().await
-			}
-			.boxed()
-		}
-	}
-
-	impl FakeCandidateSelectionJob {
-		async fn run_loop(mut self) -> Result<(), Error> {
-			loop {
-				match self.receiver.next().await {
-					Some(_csm) => {
-						unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
-					}
-					None => break,
-				}
-			}
-
-			Ok(())
-		}
-	}
-
-	// with the job defined, it's straightforward to get a subsystem implementation.
-	type FakeCandidateSelectionSubsystem<Spawner> =
-		JobSubsystem<FakeCandidateSelectionJob, Spawner>;
-
-	// this type lets us pretend to be the overseer
-	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
-
-	fn test_harness<T: Future<Output = ()>>(
-		run_args: bool,
-		test: impl FnOnce(OverseerHandle) -> T,
-	) {
-		let _ = env_logger::builder()
-			.is_test(true)
-			.filter(
-				None,
-				log::LevelFilter::Trace,
-			)
-			.try_init();
-
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, overseer_handle) = make_subsystem_context(pool.clone());
-
-		let subsystem = FakeCandidateSelectionSubsystem::new(
-			pool,
-			run_args,
-			(),
-		).run(context);
-		let test_future = test(overseer_handle);
-
-		futures::pin_mut!(subsystem, test_future);
-
-		executor::block_on(async move {
-			future::join(subsystem, test_future)
-				.timeout(Duration::from_secs(2))
-				.await
-				.expect("test timed out instead of completing")
-		});
-	}
-
-	#[test]
-	fn starting_and_stopping_job_works() {
-		let relay_parent: Hash = [0; 32].into();
-
-		test_harness(true, |mut overseer_handle| async move {
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash: relay_parent,
-						number: 1,
-						span: Arc::new(jaeger::Span::Disabled),
-					}),
-				)))
-				.await;
-			assert_matches!(
-				overseer_handle.recv().await,
-				AllMessages::CandidateSelection(_)
-			);
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::stop_work(relay_parent),
-				)))
-				.await;
-
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-		});
-	}
-
-	#[test]
-	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
-		let relay_parent = Hash::repeat_byte(0x01);
-
-		test_harness(true, |mut overseer_handle| async move {
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash: relay_parent,
-						number: 1,
-						span: Arc::new(jaeger::Span::Disabled),
-					}),
-				)))
-				.await;
-
-			// send to a non running job
-			overseer_handle
-				.send(FromOverseer::Communication {
-					msg: Default::default(),
-				})
-				.await;
-
-			// the subsystem is still alive
-			assert_matches!(
-				overseer_handle.recv().await,
-				AllMessages::CandidateSelection(_)
-			);
-
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-		});
-	}
-
-	#[test]
-	fn test_subsystem_impl_and_name_derivation() {
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
-
-		let SpawnedSubsystem { name, .. } =
-			FakeCandidateSelectionSubsystem::new(pool, false, ()).start(context);
-		assert_eq!(name, "FakeCandidateSelection");
-	}
-
-
-	#[test]
-	fn tick_tack_metronome() {
-		let n = Arc::new(AtomicUsize::default());
-
-		let (tick, mut block) = mpsc::unbounded();
-
-		let metronome = {
-			let n = n.clone();
-			let stream = Metronome::new(Duration::from_millis(137_u64));
-			stream.for_each(move |_res| {
-				let _ = n.fetch_add(1, Ordering::Relaxed);
-				let mut tick = tick.clone();
-				async move {
-					tick.send(()).await.expect("Test helper channel works. qed");
-				}
-			}).fuse()
-		};
-
-		let f2 = async move {
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 1_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 2_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 3_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 4_usize);
-		}.fuse();
-
-		futures::pin_mut!(f2);
-		futures::pin_mut!(metronome);
-
-		block_on(async move {
-			// futures::join!(metronome, f2)
-			futures::select!(
-				_ = metronome => unreachable!("Metronome never stops. qed"),
-				_ = f2 => (),
-			)
-		});
-	}
-}
+mod tests;

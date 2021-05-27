@@ -46,7 +46,7 @@ struct TestSubsystem2(metered::MeteredSender<usize>);
 impl<C> Subsystem<C> for TestSubsystem2
     where C: SubsystemContext<Message=CandidateBackingMessage>
 {
-    fn start(self, mut ctx: C) -> SpawnedSubsystem<SubsystemError> {
+    fn start(self, mut ctx: C) -> SpawnedSubsystem<::::polkadot_overseer_gen::SubsystemError> {
         let sender = self.0.clone();
         SpawnedSubsystem {
             name: "test-subsystem-2",

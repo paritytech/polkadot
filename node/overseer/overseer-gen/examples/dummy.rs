@@ -21,7 +21,7 @@ pub struct GoblinTower;
 
 impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
 	fn start(self, ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
-		unimplemented!("starting yay!")
+		unimplemented!("welcum")
 	}
 }
 

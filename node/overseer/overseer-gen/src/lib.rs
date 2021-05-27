@@ -69,6 +69,7 @@ pub use sp_core::traits::SpawnNamed;
 
 #[doc(hidden)]
 pub use futures::{
+	self,
 	select,
 	poll,
 	future::{
@@ -77,8 +78,13 @@ pub use futures::{
 	stream::{
 		self, select, FuturesUnordered,
 	},
+	task::{
+		Poll, Context,
+	},
 	channel::{mpsc, oneshot},
 };
+#[doc(hidden)]
+pub use std::pin::Pin;
 #[doc(hidden)]
 pub use async_trait::async_trait;
 
@@ -93,7 +99,6 @@ pub use futures_timer::Delay;
 pub use futures_util::stream::StreamExt;
 #[doc(hidden)]
 pub use futures_util::future::FutureExt;
-
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -216,11 +221,12 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
 pub struct SpawnedSubsystem<E=SubsystemError>
-where
-E: std::error::Error
- + 'static
- + Send
- + From<SubsystemError>
+	where
+		E: std::error::Error
+			+ Send
+			+ Sync
+			+ 'static
+			+ From<SubsystemError>
 {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
@@ -350,9 +356,9 @@ pub enum FromOverseer<Message, Signal> {
 pub trait SubsystemContext: Send + 'static {
 	/// The message type of this context. Subsystems launched with this context will expect
 	/// to receive messages of this type.
-	type Message: Send + 'static;
+	type Message: std::fmt::Debug + Send + 'static;
 	/// And the same for signals.
-	type Signal: Send + 'static;
+	type Signal: std::fmt::Debug + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
 	type Sender: SubsystemSender<Self::Message> + std::fmt::Debug + Clone + Send;
 
@@ -412,8 +418,6 @@ where
 /// TODO FIXME
 #[async_trait::async_trait]
 pub trait SubsystemSender<M>: Send + Clone + 'static {
-	// Inner message type.
-
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message(&mut self, msg: M);
 
@@ -428,13 +432,6 @@ pub trait SubsystemSender<M>: Send + Clone + 'static {
 	/// sent with it. Otherwise, it risks a memory leak.
 	fn send_unbounded_message(&mut self, msg: M);
 }
-
-
-
-
-
-pub use futures::task::{Poll, Context};
-pub use std::pin::Pin;
 
 /// A future that wraps another future with a `Delay` allowing for time-limited futures.
 #[pin_project::pin_project]
@@ -460,9 +457,9 @@ pub trait TimeoutExt: Future {
 	}
 }
 
-impl<F: Future> TimeoutExt for F {}
+impl<F> TimeoutExt for F where F: Future{}
 
-impl<F: Future> Future for Timeout<F> {
+impl<F> Future for Timeout<F> where F: Future {
 	type Output = Option<F::Output>;
 
 	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {

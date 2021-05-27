@@ -1,17 +1,25 @@
 
-use ::polkadot_overseer_gen::MapSubsystem;
-use crate::SubsystemContext;
-use crate::Subsystem;
+use ::polkadot_overseer_gen::{
+	MapSubsystem, SubsystemContext,
+	Subsystem,
+	SpawnedSubsystem,
+	FromOverseer,
+};
+
+use crate::OverseerSignal;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
+#[derive(Clone, Copy, Debug)]
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+impl<Context, E> Subsystem<Context, E> for DummySubsystem
 where
-	C::Message: std::fmt::Debug
+	Context: SubsystemContext<Signal=OverseerSignal>,
+	<Context as SubsystemContext>::Message: std::fmt::Debug + Send + 'static,
+	E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
 {
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
+	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
@@ -146,7 +154,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
-	fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ CS, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
+	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ CS, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,
 			candidate_backing: &self.candidate_backing,
@@ -169,7 +177,7 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
-	fn map_subsystems<M>(self, m: M)
+	pub fn map_subsystems<M>(self, m: M)
 		-> AllSubsystems<
 			<M as MapSubsystem<CV>>::Output,
 			<M as MapSubsystem<CB>>::Output,

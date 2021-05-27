@@ -65,6 +65,7 @@ use std::sync::{atomic::{self, AtomicUsize}, Arc};
 use std::task::Poll;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
+use std::iter::FromIterator;
 
 use futures::channel::oneshot;
 use futures::{
@@ -80,7 +81,6 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use polkadot_subsystem::messages::{
-	NetworkBridgeMessage,
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
@@ -91,7 +91,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	OverseerSignal,
-	SubsystemResult, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
+	SubsystemResult, ActiveLeavesUpdate, ActivatedLeaf, jaeger,
 };
 
 /// TODO legacy, to be deleted, left for easier integration
@@ -101,8 +101,10 @@ use self::subsystems::{AllSubsystems, AllSubsystemsSame};
 mod metrics;
 use self::metrics::Metrics;
 
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
+use polkadot_overseer_gen::*;
+use polkadot_node_subsystem_util::{metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
 use polkadot_overseer_gen::{
+	TimeoutExt,
 	SpawnNamed,
 	SpawnedSubsystem,
 	SubsystemError,
@@ -113,6 +115,7 @@ use polkadot_overseer_gen::{
 	MessagePacket,
 	make_packet,
 	SignalsReceived,
+	FromOverseer,
 };
 
 // Target for logs.
@@ -425,6 +428,7 @@ pub struct Overseer<SupportsParachains> {
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	SupportsParachains: HeadSupportsParachains,
+	S: SpawnNamed,
 {
 	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
 	///
@@ -516,32 +520,34 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
+	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, E>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		mut s: S,
-	) -> SubsystemResult<(Self, OverseerHandler)>
+	) -> ::polkadot_overseer_gen::SubsystemResult<(Self, OverseerHandler)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage, OverseerSignal>> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage, OverseerSignal>> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage, OverseerSignal>> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage, OverseerSignal>> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage, OverseerSignal>> + Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage, OverseerSignal>> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage, OverseerSignal>> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage, OverseerSignal>> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage, OverseerSignal>> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage, OverseerSignal>> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage, OverseerSignal>> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage, OverseerSignal>> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage, OverseerSignal>> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage, OverseerSignal>> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage, OverseerSignal>> + Send,
-		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage, OverseerSignal>> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage, OverseerSignal>> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage, OverseerSignal>> + Send,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, E> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, E> + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>, E> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, E> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, E> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, E> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, E> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, E> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, E> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, E> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, E> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, E> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, E> + Send,
+		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, E> + Send,
+		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, E> + Send,
+		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, E> + Send,
+		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, E> + Send,
+		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, E> + Send,
+		E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
+		S: SpawnNamed,
 	{
 
 		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
@@ -614,7 +620,7 @@ where
 
 	// Stop the overseer.
 	async fn stop(mut self) {
-		self.wait_for_terminate(OverseerSignal::Conclude).await
+		let _ = self.wait_terminate(OverseerSignal::Conclude, ::std::time::Duration::from_secs(1_u64)).await;
 	}
 
 	/// Run the `Overseer`.
