@@ -15,7 +15,7 @@ polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-procmacro-overseer-subsystems-gen = { path = "./subsystems-gen" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
-tracing = "0.1.25"
+tracing = "0.1.26"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
