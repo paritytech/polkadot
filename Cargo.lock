@@ -6271,6 +6271,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-authority-discovery",
+ "sp-consensus-slots",
  "sp-core",
  "sp-inherents",
  "sp-io",
