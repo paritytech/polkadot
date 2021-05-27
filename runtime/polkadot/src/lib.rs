@@ -883,40 +883,48 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::NonTransfer => matches!(c,
-				Call::System(..) |
-				Call::Scheduler(..) |
-				Call::Babe(..) |
-				Call::Timestamp(..) |
-				Call::Indices(pallet_indices::Call::claim(..)) |
-				Call::Indices(pallet_indices::Call::free(..)) |
-				Call::Indices(pallet_indices::Call::freeze(..)) |
-				// Specifically omitting Indices `transfer`, `force_transfer`
-				// Specifically omitting the entire Balances pallet
-				Call::Authorship(..) |
-				Call::Staking(..) |
-				Call::Offences(..) |
-				Call::Session(..) |
-				Call::Grandpa(..) |
-				Call::ImOnline(..) |
-				Call::AuthorityDiscovery(..) |
-				Call::Democracy(..) |
-				Call::Council(..) |
-				Call::TechnicalCommittee(..) |
-				Call::PhragmenElection(..) |
-				Call::TechnicalMembership(..) |
-				Call::Treasury(..) |
-				Call::Bounties(..) |
-				Call::Tips(..) |
-				Call::Claims(..) |
-				Call::Vesting(pallet_vesting::Call::vest(..)) |
-				Call::Vesting(pallet_vesting::Call::vest_other(..)) |
-				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-				Call::Utility(..) |
-				Call::Identity(..) |
-				Call::Proxy(..) |
-				Call::Multisig(..)
-			),
+			ProxyType::NonTransfer => match c {
+				Call::System(..) => true,
+				Call::Scheduler(..) => true,
+				Call::Babe(..) => true,
+				Call::Timestamp(..) => true,
+				Call::Indices(pallet_indices::Call::claim(..)) => true,
+				Call::Indices(pallet_indices::Call::free(..)) => true,
+				Call::Indices(pallet_indices::Call::freeze(..)) => true,
+				// Specifically denying Indices `transfer`, `force_transfer`
+				Call::Indices(pallet_indices::Call::transfer(..)) => false,
+				Call::Indices(pallet_indices::Call::force_transfer(..)) => false,
+				Call::Indices(pallet_indices::Call::__Ignore(..)) => false,
+				Call::Authorship(..) => true,
+				Call::Staking(..) => true,
+				Call::Offences(..) => true,
+				Call::Session(..) => true,
+				Call::Grandpa(..) => true,
+				Call::ImOnline(..) => true,
+				Call::AuthorityDiscovery(..) => true,
+				Call::Democracy(..) => true,
+				Call::Council(..) => true,
+				Call::TechnicalCommittee(..) => true,
+				Call::PhragmenElection(..) => true,
+				Call::TechnicalMembership(..) => true,
+				Call::Treasury(..) => true,
+				Call::Bounties(..) => true,
+				Call::Tips(..) => true,
+				Call::Claims(..) => true,
+				Call::Vesting(pallet_vesting::Call::vest(..)) => true,
+				Call::Vesting(pallet_vesting::Call::vest_other(..)) => true,
+				// Specifically denying Vesting `vested_transfer`, and `force_vested_transfer`
+				Call::Vesting(pallet_vesting::Call::vested_transfer(..)) => false,
+				Call::Vesting(pallet_vesting::Call::force_vested_transfer(..)) => false,
+				Call::Vesting(pallet_vesting::Call::__Ignore(..)) => false,
+				Call::Utility(..) => true,
+				Call::Identity(..) => true,
+				Call::Proxy(..) => true,
+				Call::Multisig(..) => true,
+				Call::ElectionProviderMultiPhase(..) => true,
+				// Specifically denying the entire Balances pallet
+				Call::Balances(..) => false,
+			},
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) |
 				Call::Council(..) |
