@@ -64,12 +64,12 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 			/// The set of running subsystems.
 			running_subsystems: ::polkadot_overseer_gen::FuturesUnordered<
-				BoxFuture<'static, SubsystemResult<()>>
+				BoxFuture<'static, ::polkadot_overseer_gen::SubsystemResult<()>>
 			>,
 
 			/// Gather running subsystems' outbound streams into one.
 			to_overseer_rx: ::polkadot_overseer_gen::stream::Fuse<
-				metered::UnboundedMeteredReceiver< ToOverseer >
+				::polkadot_overseer_gen::metered::UnboundedMeteredReceiver< ToOverseer >
 			>,
 
 			/// Events that are sent to the overseer from the outside world.
@@ -144,7 +144,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 		/// [`Subsystem`]: trait.Subsystem.html
 		pub struct OverseenSubsystem<M> {
 			pub instance: std::option::Option<
-				SubsystemInstance<M, #signal>
+				::polkadot_overseer_gen::SubsystemInstance<M, #signal>
 			>,
 		}
 

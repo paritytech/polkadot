@@ -2,6 +2,7 @@
 use ::polkadot_overseer_gen::{
 	MapSubsystem, SubsystemContext,
 	Subsystem,
+	SubsystemError,
 	SpawnedSubsystem,
 	FromOverseer,
 };
@@ -13,11 +14,10 @@ use crate::OverseerSignal;
 #[derive(Clone, Copy, Debug)]
 pub struct DummySubsystem;
 
-impl<Context, E> Subsystem<Context, E> for DummySubsystem
+impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
 	Context: SubsystemContext<Signal=OverseerSignal>,
 	<Context as SubsystemContext>::Message: std::fmt::Debug + Send + 'static,
-	E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {

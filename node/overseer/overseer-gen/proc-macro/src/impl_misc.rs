@@ -7,21 +7,21 @@ use super::*;
 /// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let overseer_name = info.overseer_name.clone();
-	let subsyste_sender_name = Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
-	let subsyste_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
+	let subsystem_sender_name = Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
+	let subsystem_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
 	let consumes = &info.consumes();
 	let signal = &info.extern_signal_ty;
 
 	let ts = quote! {
 		#[derive(Debug, Clone)]
-		pub struct #subsyste_sender_name {
+		pub struct #subsystem_sender_name {
 			channels: ChannelsOut,
 			signals_received: SignalsReceived,
 		}
 
 		#(
 		#[::polkadot_overseer_gen::async_trait]
-		impl SubsystemSender< #consumes > for #subsyste_sender_name {
+		impl SubsystemSender< #consumes > for #subsystem_sender_name {
 			async fn send_message(&mut self, msg: #consumes) {
 				self.channels.send_and_log_error(self.signals_received.load(), msg.into()).await;
 			}
@@ -49,10 +49,10 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		/// [`Subsystem`]: trait.Subsystem.html
 		/// [`SubsystemJob`]: trait.SubsystemJob.html
 		#[derive(Debug)]
-		pub struct #subsyste_ctx_name<M>{
+		pub struct #subsystem_ctx_name<M>{
 			signals: ::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
 			messages: SubsystemIncomingMessages<M>,
-			to_subsystems: #subsyste_sender_name,
+			to_subsystems: #subsystem_sender_name,
 			to_overseer: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<
 				::polkadot_overseer_gen::ToOverseer
 				>,
@@ -60,7 +60,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			pending_incoming: Option<(usize, M)>,
 		}
 
-		impl<M> #subsyste_ctx_name<M> {
+		impl<M> #subsystem_ctx_name<M> {
 			/// Create a new context.
 			fn new(
 				signals: ::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
@@ -69,10 +69,10 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 				to_overseer: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
 			) -> Self {
 				let signals_received = SignalsReceived::default();
-				#subsyste_ctx_name {
+				#subsystem_ctx_name {
 					signals,
 					messages,
-					to_subsystems: #subsyste_sender_name {
+					to_subsystems: #subsystem_sender_name {
 						channels: to_subsystems,
 						signals_received: signals_received.clone(),
 					},
@@ -84,13 +84,13 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		}
 
 		#[::polkadot_overseer_gen::async_trait]
-		impl<M: Send + 'static> SubsystemContext for #subsyste_ctx_name<M>
+		impl<M: Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
 		where
-			#subsyste_sender_name: polkadot_overseer_gen::SubsystemSender<M>,
+			#subsystem_sender_name: polkadot_overseer_gen::SubsystemSender<M>,
 		{
 			type Message = M;
 			type Signal = #signal;
-			type Sender = #subsyste_sender_name;
+			type Sender = #subsystem_sender_name;
 
 			async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, #signal>>, ()> {
 				match ::polkadot_overseer_gen::poll!(self.recv()) {

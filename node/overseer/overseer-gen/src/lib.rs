@@ -366,7 +366,7 @@ pub trait SubsystemContext: Send + 'static {
 	///
 	/// This has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
+	async fn try_recv(&mut self) -> SubsystemResult<Option<FromOverseer<Self::Message, Self::Signal>>>;
 
 	/// Receive a message.
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message, Self::Signal>>;
