@@ -59,10 +59,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 	let error_ty = &info.extern_error_ty;
 	let consumes = &info.consumes();
 
+	let subsyste_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
+
 	let builder_where_clause = quote! {
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #builder_generic_ty : Subsystem<OverseerSubsystemContext< #consumes >, #error_ty>, )*
+			#( #builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>, )*
 	};
 
 	let event = &info.extern_event_ty;
@@ -178,7 +180,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
 					let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
-					let ctx = OverseerSubsystemContext::new(
+					let ctx = #subsyste_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),

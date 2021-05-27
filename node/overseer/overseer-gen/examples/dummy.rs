@@ -10,8 +10,8 @@ use polkadot_subsystem::messages::NetworkBridgeEvent;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
-	fn start(self, ctx: OverseerSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
+impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
+	fn start(self, ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("starting yay!")
 	}
 }
@@ -19,8 +19,8 @@ impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, Yik
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<Plinko>, Yikes> for GoblinTower {
-	fn start(self, ctx: OverseerSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
+impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
+	fn start(self, ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("starting yay!")
 	}
 }

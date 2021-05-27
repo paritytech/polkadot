@@ -34,7 +34,7 @@ pub(crate) fn impl_replacable_subsystem(
 	for SubSysField { name: replacable_item, ty: _replacable_item_ty, generic, .. } in info.subsystems.iter() {
 		let keeper = info.subsystems.iter().filter(|&ssf| ssf.generic != *generic).map(|ssf| ssf.name.clone());
 
-		let fn_name = Ident::new(&format!("replace_{}", replacable_item), replacable_item.span());
+		let fn_name = Ident::new(format!("replace_{}", replacable_item).as_str(), replacable_item.span());
 		// adjust the generics such that the appropriate member type is replaced
 
 		let new = Ident::new("NEW", replacable_item.span());
