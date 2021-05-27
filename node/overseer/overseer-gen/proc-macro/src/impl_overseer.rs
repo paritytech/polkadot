@@ -174,7 +174,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 			/// Send a signal to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_signal(&mut self, signal: #signal) -> SubsystemResult<()> {
+			pub async fn send_signal(&mut self, signal: #signal) -> ::polkadot_overseer_gen::SubsystemResult<()> {
 				const SIGNAL_TIMEOUT: ::std::time::Duration = ::std::time::Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
