@@ -107,8 +107,6 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
     if valid {
       // make PoV available for later distribution. Send data to the availability store to keep.
       // sign and dispatch `valid` statement to network if we have not seconded the given candidate.
-    } else {
-      // sign and dispatch `invalid` statement to network.
     }
   }
 }
@@ -123,7 +121,8 @@ Dispatch a [`AvailabilityDistributionMessage`][PDM]`::FetchPoV{ validator_index,
 ### Validate PoV Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a `CandidateValidationMessage::Validate(validation function, candidate, pov, sender)` and listen on the receiver for a response.
+
+Dispatch a `CandidateValidationMessage::ValidateFromChainState(descriptor, pov, sender)` and listen on the receiver for a response.
 
 ### Distribute Signed Statement
 

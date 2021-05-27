@@ -608,6 +608,10 @@ enum RuntimeApiRequest {
     SessionIndexForChild(ResponseChannel<SessionIndex>),
     /// Get the validation code for a specific para, using the given occupied core assumption.
     ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+    /// Get any registered validation code from the on-chain environment. This should not be used
+    /// for any para in particular and should only be used when the hash of the code for the para
+    /// in question is already known.
+    ValidationCodeByHash(Hash, ResponseChannel<Option<ValidationCode>>),
     /// Fetch the historical validation code used by a para for candidates executed in
     /// the context of a given block height in the current chain.
     HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
@@ -657,7 +661,6 @@ enum StatementDistributionMessage {
 Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message. It returns [`ValidationOutputs`](candidate.md#validationoutputs) for successful validation.
 
 ```rust
-
 /// Result of the validation of the candidate.
 enum ValidationResult {
     /// Candidate is valid, and here are the outputs and the validation data used to form inputs.

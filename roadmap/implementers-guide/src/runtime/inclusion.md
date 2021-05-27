@@ -33,6 +33,10 @@ bitfields: map ValidatorIndex => AvailabilityBitfield;
 PendingAvailability: map ParaId => CandidatePendingAvailability;
 /// The commitments of candidates pending availability, by ParaId.
 PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
+
+/// EXTERNAL: a pluggable backend for drawing parachain code out of other sections of the runtime
+/// the parachains modules are embedded in.
+ExternallyRegisteredCode: fn(Hash) -> Option<ValidationCode>;
 ```
 
 ## Session Change
@@ -60,6 +64,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
     > NOTE: With contextual execution in place, validation data will be obtained as of the state of the context block. However, only the state of the current block can be used for such a query.
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
+    1. If the code upgrade is of the type [`CodeUpgradeSignal`]::Indirect, then the underlying code should be drawn out of the `ExternallyRegisteredCode` interface. If that is not present, then the candidate is invalid.
   1. Check the collator's signature on the candidate data.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. call `Ump::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.

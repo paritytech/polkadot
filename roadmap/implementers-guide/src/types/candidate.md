@@ -130,6 +130,21 @@ Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes o
 struct HeadData(Vec<u8>);
 ```
 
+## CodeUpgradeSignal
+
+A code upgrade signal which either signals no upgrade, an upgrade directly referencing the new code by value, or an upgrade indirectly referencing the new code by hash.
+
+```rust
+enum CodeUpgradeSignal {
+	/// A signal that no code upgrade is being scheduled at this point.
+	NoUpgrade,
+	/// A signal that a code upgrade to the provided code is being scheduled.
+	Direct(ValidationCode),
+	/// A signal that a code upgrade to the code referenced by hash is being scheduled.
+	Indirect(Hash),
+}
+```
+
 ## Candidate Commitments
 
 The execution and validation of parachain or parathread candidates produces a number of values which either must be committed to on the relay chain or committed to the state of the relay chain.
@@ -144,7 +159,7 @@ struct CandidateCommitments {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
 	/// New validation code.
-	new_validation_code: Option<ValidationCode>,
+	new_validation_code: CodeUpgradeSignal,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
 	/// The number of messages processed from the DMQ.

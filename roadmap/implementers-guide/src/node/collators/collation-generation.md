@@ -25,7 +25,7 @@ pub struct Collation {
   /// Messages destined to be interpreted by the Relay chain itself.
   pub upward_messages: Vec<UpwardMessage>,
   /// New validation code.
-  pub new_validation_code: Option<ValidationCode>,
+  pub new_validation_code: CodeUpgradeSignal,
   /// The head-data produced as a result of execution.
   pub head_data: HeadData,
   /// Proof to verify the state transition of the parachain.
@@ -76,8 +76,9 @@ On `ActiveLeavesUpdate`:
     > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/paritytech/polkadot/issues/1573).
   * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
   * Use the Runtime API subsystem to fetch the full validation data.
-  * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.
+  * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`. If the candidate receipt has an associated code upgrade which is indirect, and a [`RuntimeApiMessage`][RAM]`::ValidationCodeByHash` query for the code hash returns `None`, then the collation cannot be included under the relay parent.
   * Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
 
 [CP]: collator-protocol.md
 [CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage
+[RAM]: ../../types/overseer-protocol.md#runtimeapimessage
