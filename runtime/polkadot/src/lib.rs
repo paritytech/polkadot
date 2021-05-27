@@ -895,6 +895,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Indices(pallet_indices::Call::transfer(..)) => false,
 				Call::Indices(pallet_indices::Call::force_transfer(..)) => false,
 				Call::Indices(pallet_indices::Call::__Ignore(..)) => false,
+				// Specifically denying the entire Balances pallet
+				Call::Balances(..) => false,
 				Call::Authorship(..) => true,
 				Call::Staking(..) => true,
 				Call::Offences(..) => true,
@@ -922,8 +924,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Proxy(..) => true,
 				Call::Multisig(..) => true,
 				Call::ElectionProviderMultiPhase(..) => true,
-				// Specifically denying the entire Balances pallet
-				Call::Balances(..) => false,
 			},
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) |

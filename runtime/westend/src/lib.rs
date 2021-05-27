@@ -638,47 +638,77 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::NonTransfer => matches!(c,
-				Call::System(..) |
-				Call::Babe(..) |
-				Call::Timestamp(..) |
-				Call::Indices(pallet_indices::Call::claim(..)) |
-				Call::Indices(pallet_indices::Call::free(..)) |
-				Call::Indices(pallet_indices::Call::freeze(..)) |
-				// Specifically omitting Indices `transfer`, `force_transfer`
-				// Specifically omitting the entire Balances pallet
-				Call::Authorship(..) |
-				Call::Staking(..) |
-				Call::Offences(..) |
-				Call::Session(..) |
-				Call::Grandpa(..) |
-				Call::ImOnline(..) |
-				Call::AuthorityDiscovery(..) |
-				Call::Utility(..) |
-				Call::Identity(..) |
-				Call::Recovery(pallet_recovery::Call::as_recovered(..)) |
-				Call::Recovery(pallet_recovery::Call::vouch_recovery(..)) |
-				Call::Recovery(pallet_recovery::Call::claim_recovery(..)) |
-				Call::Recovery(pallet_recovery::Call::close_recovery(..)) |
-				Call::Recovery(pallet_recovery::Call::remove_recovery(..)) |
-				Call::Recovery(pallet_recovery::Call::cancel_recovered(..)) |
+			ProxyType::NonTransfer => match c {
+				Call::System(..) => true,
+				Call::Babe(..) => true,
+				Call::Timestamp(..) => true,
+				Call::Indices(pallet_indices::Call::claim(..)) => true,
+				Call::Indices(pallet_indices::Call::free(..)) => true,
+				Call::Indices(pallet_indices::Call::freeze(..)) => true,
+				// Specifically denying Indices `transfer`, `force_transfer`
+				Call::Indices(pallet_indices::Call::transfer(..)) => false,
+				Call::Indices(pallet_indices::Call::force_transfer(..)) => false,
+				Call::Indices(pallet_indices::Call::__Ignore(..)) => false,
+				// Specifically denying the entire Balances pallet
+				Call::Balances(..) => false,
+				Call::Authorship(..) => true,
+				Call::Staking(..) => true,
+				Call::Offences(..) => true,
+				Call::Session(..) => true,
+				Call::Grandpa(..) => true,
+				Call::ImOnline(..) => true,
+				Call::AuthorityDiscovery(..) => true,
+				Call::Utility(..) => true,
+				Call::Identity(..) => true,
+				Call::Recovery(pallet_recovery::Call::as_recovered(..)) => true,
+				Call::Recovery(pallet_recovery::Call::vouch_recovery(..)) => true,
+				Call::Recovery(pallet_recovery::Call::claim_recovery(..)) => true,
+				Call::Recovery(pallet_recovery::Call::close_recovery(..)) => true,
+				Call::Recovery(pallet_recovery::Call::remove_recovery(..)) => true,
+				Call::Recovery(pallet_recovery::Call::cancel_recovered(..)) => true,
 				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
-				Call::Vesting(pallet_vesting::Call::vest(..)) |
-				Call::Vesting(pallet_vesting::Call::vest_other(..)) |
+				Call::Recovery(pallet_recovery::Call::set_recovered(..)) => false,
+				Call::Recovery(pallet_recovery::Call::create_recovery(..)) => false,
+				Call::Recovery(pallet_recovery::Call::initiate_recovery(..)) => false,
+				Call::Recovery(pallet_recovery::Call::__Ignore(..)) => false,
+				Call::Vesting(pallet_vesting::Call::vest(..)) => true,
+				Call::Vesting(pallet_vesting::Call::vest_other(..)) => true,
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-				Call::Scheduler(..) |
+				Call::Vesting(pallet_vesting::Call::vested_transfer(..)) => false,
+				Call::Vesting(pallet_vesting::Call::force_vested_transfer(..)) => false,
+				Call::Vesting(pallet_vesting::Call::__Ignore(..)) => false,
+				Call::Scheduler(..) => true,
 				// Specifically omitting Sudo pallet
-				Call::Proxy(..) |
-				Call::Multisig(..) |
-				Call::Registrar(paras_registrar::Call::register(..)) |
-				Call::Registrar(paras_registrar::Call::deregister(..)) |
+				Call::Proxy(..) => true,
+				Call::Multisig(..) => true,
+				Call::Registrar(paras_registrar::Call::register(..)) => true,
+				Call::Registrar(paras_registrar::Call::deregister(..)) => true,
+				Call::Registrar(paras_registrar::Call::reserve(..)) => true,
+				Call::Registrar(paras_registrar::Call::force_register(..)) => true,
+				Call::Registrar(paras_registrar::Call::force_remove_lock(..)) => true,
 				// Specifically omitting Registrar `swap`
-				Call::Registrar(paras_registrar::Call::reserve(..)) |
-				Call::Crowdloan(..) |
-				Call::Slots(..) |
-				Call::Auctions(..)
-				// Specifically omitting the entire XCM Pallet
-			),
+				Call::Registrar(paras_registrar::Call::swap(..)) => false,
+				Call::Registrar(paras_registrar::Call::__PhantomItem(..)) => false,
+				Call::Crowdloan(..) => true,
+				Call::Slots(..) => true,
+				Call::Auctions(..) => true,
+				Call::Sudo(..) => true,
+				// Specifically denying the entire XCM Pallet
+				Call::XcmPallet(..) => false,
+				Call::ElectionProviderMultiPhase(..) => true,
+				Call::ParachainsConfiguration(..) => true,
+				Call::ParasShared(..) => true,
+				Call::ParasInclusion(..) => true,
+				Call::ParasInherent(..) => true,
+				Call::ParasScheduler(..) => true,
+				Call::Paras(..) => true,
+				Call::ParasInitializer(..) => true,
+				Call::ParasDmp(..) => true,
+				Call::ParasUmp(..) => true,
+				Call::ParasHrmp(..) => true,
+				Call::ParasSessionInfo(..) => true,
+				Call::ParasSudoWrapper(..) => true,
+			},
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) |
 				Call::Session(..) |
