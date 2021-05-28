@@ -442,6 +442,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			key: endowed_accounts[0].clone(),
 		},
 		parachains_configuration: Default::default(),
+		parachains_paras: Default::default(),
 	}
 }
 
@@ -645,6 +646,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
 		pallet_gilt: Default::default(),
+		parachains_paras: Default::default(),
 	}
 }
 
@@ -1293,6 +1295,7 @@ pub fn kusama_testnet_genesis(
 		pallet_treasury: Default::default(),
 		parachains_configuration: Default::default(),
 		pallet_gilt: Default::default(),
+		parachains_paras: Default::default(),
 	}
 }
 
@@ -1377,6 +1380,7 @@ pub fn westend_testnet_genesis(
 		pallet_vesting: westend::VestingConfig { vesting: vec![] },
 		pallet_sudo: westend::SudoConfig { key: root_key },
 		parachains_configuration: Default::default(),
+		parachains_paras: Default::default(),
 	}
 }
 
