@@ -92,6 +92,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 		let current_hash = current_target.hash();
 		let current_number = current_target.number.clone();
 
+		let base_hash = base.hash();
 		let base_number = base.number;
 
 		Box::pin(async move {
@@ -122,10 +123,14 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				approval_checking_subsystem_lag,
 			);
 
-			if approval_checking_subsystem_vote.map_or(false, |v| current_number < v.1) {
+			// If approval-voting chooses 'None', that means we should vote on the base (last round estimate).
+			let vote = approval_checking_subsystem_vote.unwrap_or((base_hash, base_number));
+
+			// respect other voting rules.
+			if current_number < vote.1 {
 				Some((current_hash, current_number))
 			} else {
-				approval_checking_subsystem_vote
+				Some(vote)
 			}
 		})
 	}
