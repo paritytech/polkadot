@@ -28,7 +28,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 use polkadot::constants::currency::UNITS as DOT;
 use polkadot_node_primitives::MAX_POV_SIZE;
-use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
+use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId, BlockNumber};
 use polkadot_runtime as polkadot;
 use rococo_runtime as rococo;
 use rococo_runtime::constants::currency::UNITS as ROC;
@@ -115,6 +115,50 @@ pub fn rococo_config() -> Result<PolkadotChainSpec, String> {
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
+}
+
+/// The default parachains host configuration.
+fn default_parachains_host_configuration() -> polkadot_runtime_parachains::configuration::HostConfiguration<BlockNumber> {
+	polkadot_runtime_parachains::configuration::HostConfiguration {
+		validation_upgrade_frequency: 1u32,
+		validation_upgrade_delay: 1,
+		code_retention_period: 1200,
+		max_code_size: MAX_CODE_SIZE,
+		max_pov_size: MAX_POV_SIZE,
+		max_head_data_size: 32 * 1024,
+		group_rotation_frequency: 20,
+		chain_availability_period: 4,
+		thread_availability_period: 4,
+		max_upward_queue_count: 8,
+		max_upward_queue_size: 1024 * 1024,
+		max_downward_message_size: 1024,
+		// this is approximatelly 4ms.
+		//
+		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
+		// an import since that's a made up number and should be replaced with a constant
+		// obtained by benchmarking anyway.
+		preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+		max_upward_message_size: 1024 * 1024,
+		max_upward_message_num_per_candidate: 5,
+		hrmp_open_request_ttl: 5,
+		hrmp_sender_deposit: 0,
+		hrmp_recipient_deposit: 0,
+		hrmp_channel_max_capacity: 8,
+		hrmp_channel_max_total_size: 8 * 1024,
+		hrmp_max_parachain_inbound_channels: 4,
+		hrmp_max_parathread_inbound_channels: 4,
+		hrmp_channel_max_message_size: 1024 * 1024,
+		hrmp_max_parachain_outbound_channels: 4,
+		hrmp_max_parathread_outbound_channels: 4,
+		hrmp_max_message_num_per_candidate: 5,
+		dispute_period: 6,
+		no_show_slots: 2,
+		n_delay_tranches: 25,
+		needed_approvals: 2,
+		relay_vrf_modulo_samples: 2,
+		zeroth_delay_tranche_width: 0,
+		..Default::default()
+	}
 }
 
 fn polkadot_session_keys(
@@ -441,7 +485,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		pallet_sudo: westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
-		parachains_configuration: Default::default(),
+		parachains_configuration: westend::ParachainsConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
 		parachains_paras: Default::default(),
 	}
 }
@@ -644,7 +690,9 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
-		parachains_configuration: Default::default(),
+		parachains_configuration: kusama::ParachainsConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
 		pallet_gilt: Default::default(),
 		parachains_paras: Default::default(),
 	}
@@ -880,50 +928,11 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		parachains_paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-		    _phdata: Default::default(),
+			_phdata: Default::default(),
 		},
 		parachains_hrmp: Default::default(),
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 1u32,
-				validation_upgrade_delay: 1,
-				code_retention_period: 1200,
-				max_code_size: MAX_CODE_SIZE,
-				max_pov_size: MAX_POV_SIZE,
-				max_head_data_size: 32 * 1024,
-				group_rotation_frequency: 20,
-				chain_availability_period: 4,
-				thread_availability_period: 4,
-				max_upward_queue_count: 8,
-				max_upward_queue_size: 1024 * 1024,
-				max_downward_message_size: 1024,
-				// this is approximatelly 4ms.
-				//
-				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
-				// an import since that's a made up number and should be replaced with a constant
-				// obtained by benchmarking anyway.
-				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
-				max_upward_message_size: 1024 * 1024,
-				max_upward_message_num_per_candidate: 5,
-				hrmp_open_request_ttl: 5,
-				hrmp_sender_deposit: 0,
-				hrmp_recipient_deposit: 0,
-				hrmp_channel_max_capacity: 8,
-				hrmp_channel_max_total_size: 8 * 1024,
-				hrmp_max_parachain_inbound_channels: 4,
-				hrmp_max_parathread_inbound_channels: 4,
-				hrmp_channel_max_message_size: 1024 * 1024,
-				hrmp_max_parachain_outbound_channels: 4,
-				hrmp_max_parathread_outbound_channels: 4,
-				hrmp_max_message_num_per_candidate: 5,
-				dispute_period: 6,
-				no_show_slots: 2,
-				n_delay_tranches: 25,
-				needed_approvals: 2,
-				relay_vrf_modulo_samples: 2,
-				zeroth_delay_tranche_width: 0,
-				..Default::default()
-			},
+			config: default_parachains_host_configuration(),
 		},
 		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(endowed_accounts[0].clone()),
@@ -1293,7 +1302,9 @@ pub fn kusama_testnet_genesis(
 		},
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
-		parachains_configuration: Default::default(),
+		parachains_configuration: kusama::ParachainsConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
 		pallet_gilt: Default::default(),
 		parachains_paras: Default::default(),
 	}
@@ -1379,7 +1390,9 @@ pub fn westend_testnet_genesis(
 		pallet_authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		pallet_vesting: westend::VestingConfig { vesting: vec![] },
 		pallet_sudo: westend::SudoConfig { key: root_key },
-		parachains_configuration: Default::default(),
+		parachains_configuration: westend::ParachainsConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
 		parachains_paras: Default::default(),
 	}
 }
@@ -1445,51 +1458,12 @@ pub fn rococo_testnet_genesis(
 		},
 		pallet_sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 600u32,
-				validation_upgrade_delay: 300,
-				code_retention_period: 1200,
-				max_code_size: 5 * 1024 * 1024,
-				max_pov_size: 50 * 1024 * 1024,
-				max_head_data_size: 32 * 1024,
-				group_rotation_frequency: 20,
-				chain_availability_period: 4,
-				thread_availability_period: 4,
-				max_upward_queue_count: 8,
-				max_upward_queue_size: 8 * 1024,
-				max_downward_message_size: 1024,
-				// this is approximatelly 4ms.
-				//
-				// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
-				// an import since that's a made up number and should be replaced with a constant
-				// obtained by benchmarking anyway.
-				preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
-				max_upward_message_size: 1024,
-				max_upward_message_num_per_candidate: 5,
-				hrmp_open_request_ttl: 5,
-				hrmp_sender_deposit: 0,
-				hrmp_recipient_deposit: 0,
-				hrmp_channel_max_capacity: 8,
-				hrmp_channel_max_total_size: 8 * 1024,
-				hrmp_max_parachain_inbound_channels: 4,
-				hrmp_max_parathread_inbound_channels: 4,
-				hrmp_channel_max_message_size: 1024,
-				hrmp_max_parachain_outbound_channels: 4,
-				hrmp_max_parathread_outbound_channels: 4,
-				hrmp_max_message_num_per_candidate: 5,
-				dispute_period: 6,
-				no_show_slots: 2,
-				n_delay_tranches: 25,
-				needed_approvals: 2,
-				relay_vrf_modulo_samples: 10,
-				zeroth_delay_tranche_width: 0,
-				..Default::default()
-			},
+			config: default_parachains_host_configuration(),
 		},
 		parachains_hrmp: Default::default(),
 		parachains_paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-		    _phdata: Default::default(),
+			_phdata: Default::default(),
 		},
 		pallet_bridge_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(root_key.clone()),
