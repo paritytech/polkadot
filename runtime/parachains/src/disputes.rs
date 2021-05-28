@@ -17,11 +17,8 @@
 //! Runtime component for handling disputes of parachain candidates.
 
 use sp_std::prelude::*;
-use sp_std::result;
-#[cfg(feature = "std")]
-use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, BlockNumber, CandidateHash,
+	Id as ParaId, SessionIndex, CandidateHash,
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
@@ -29,22 +26,30 @@ use primitives::v1::{
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
-	DispatchResult, DispatchError, SaturatedConversion,
+	DispatchError, SaturatedConversion, RuntimeDebug,
 };
-use frame_system::ensure_root;
-use frame_support::{
-	decl_storage, decl_module, decl_error, decl_event, ensure,
-	traits::Get,
-	weights::Weight,
-};
+use frame_support::{ensure, traits::Get, weights::Weight};
 use parity_scale_codec::{Encode, Decode};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use crate::{
 	configuration::{self, HostConfiguration},
 	initializer::SessionChangeNotification,
-	shared,
 	session_info,
 };
+
+/// Whereas the dispute is local or remote.
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+pub enum DisputeLocation {
+	Local,
+	Remote,
+}
+
+/// The result of a dispute, whether the candidate is deemed valid (for) or invalid (against).
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+pub enum DisputeResult {
+	Valid,
+	Invalid,
+}
 
 /// Reward hooks for disputes.
 pub trait RewardValidators {
@@ -71,66 +76,87 @@ pub trait PunishValidators {
 	fn punish_inconclusive(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
 }
 
-pub trait Config:
-	frame_system::Config +
-	configuration::Config +
-	session_info::Config
-{
-	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
-	type RewardValidators: RewardValidators;
-	type PunishValidators: PunishValidators;
-}
+pub use pallet::*;
+#[frame_support::pallet]
+pub mod pallet {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaDisputes {
-		/// The last pruneed session, if any. All data stored by this module
-		/// references sessions.
-		LastPrunedSession: Option<SessionIndex>;
-		// All ongoing or concluded disputes for the last several sessions.
-		Disputes: double_map
-			hasher(twox_64_concat) SessionIndex,
-			hasher(blake2_128_concat) CandidateHash
-			=> Option<DisputeState<T::BlockNumber>>;
-		// All included blocks on the chain, as well as the block number in this chain that
-		// should be reverted back to if the candidate is disputed and determined to be invalid.
-		Included: double_map
-			hasher(twox_64_concat) SessionIndex,
-			hasher(blake2_128_concat) CandidateHash
-			=> Option<T::BlockNumber>;
-		// Maps session indices to a vector indicating the number of potentially-spam disputes
-		// each validator is participating in. Potentially-spam disputes are remote disputes which have
-		// fewer than `byzantine_threshold + 1` validators.
-		//
-		// The i'th entry of the vector corresponds to the i'th validator in the session.
-		SpamSlots: map hasher(twox_64_concat) SessionIndex => Option<Vec<u32>>;
-		// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
-		// the chain will not accept any new parachain blocks for backing or inclusion.
-		// It can only be set back to `false` by governance intervention.
-		Frozen get(fn is_frozen): bool;
+	#[pallet::config]
+	pub trait Config:
+		frame_system::Config +
+		configuration::Config +
+		session_info::Config
+	{
+		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RewardValidators: RewardValidators;
+		type PunishValidators: PunishValidators;
 	}
-}
 
-decl_event! {
+	#[pallet::pallet]
+	pub struct Pallet<T>(_);
+
+	/// The last pruneed session, if any. All data stored by this module
+	/// references sessions.
+	#[pallet::storage]
+	pub(crate) type LastPrunedSession<T> = StorageValue<_, SessionIndex>;
+
+	/// All ongoing or concluded disputes for the last several sessions.
+	#[pallet::storage]
+	pub(crate) type Disputes<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat, SessionIndex,
+		Blake2_128Concat, CandidateHash,
+		DisputeState<T::BlockNumber>,
+	>;
+
+	/// All included blocks on the chain, as well as the block number in this chain that
+	/// should be reverted back to if the candidate is disputed and determined to be invalid.
+	#[pallet::storage]
+	pub(crate) type Included<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat, SessionIndex,
+		Blake2_128Concat, CandidateHash,
+		T::BlockNumber,
+	>;
+
+	/// Maps session indices to a vector indicating the number of potentially-spam disputes
+	/// each validator is participating in. Potentially-spam disputes are remote disputes which have
+	/// fewer than `byzantine_threshold + 1` validators.
+	///
+	/// The i'th entry of the vector corresponds to the i'th validator in the session.
+	#[pallet::storage]
+	pub(crate) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
+
+	/// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
+	/// the chain will not accept any new parachain blocks for backing or inclusion.
+	/// It can only be set back to `false` by governance intervention.
+	#[pallet::storage]
+	#[pallet::getter(fn is_frozen)]
+	pub(crate) type Frozen<T> =  StorageValue<_, bool, ValueQuery>;
+
+	#[pallet::event]
+	#[pallet::generate_deposit(fn deposit_event)]
 	pub enum Event {
-		/// A dispute has been initiated. The boolean is true if the dispute is local. \[para_id\]
-		DisputeInitiated(ParaId, CandidateHash, bool),
-		/// A dispute has concluded for or against a candidate. The boolean is true if the candidate
-		/// is deemed valid (for) and false if invalid (against).
-		DisputeConcluded(ParaId, CandidateHash, bool),
+		/// A dispute has been initiated. \[para_id, candidate hash, dispute location\]
+		DisputeInitiated(ParaId, CandidateHash, DisputeLocation),
+		/// A dispute has concluded for or against a candidate.
+		/// \[para_id, candidate hash, dispute result\]
+		DisputeConcluded(ParaId, CandidateHash, DisputeResult),
 		/// A dispute has timed out due to insufficient participation.
+		/// \[para_id, candidate hash\]
 		DisputeTimedOut(ParaId, CandidateHash),
 	}
-}
 
-decl_module! {
-	/// The parachains configuration module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		fn deposit_event() = default;
-	}
-}
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {}
+
+	#[pallet::error]
+	pub enum Error<T> {
 		/// Duplicate dispute statement sets provided.
 		DuplicateDisputeStatementSets,
 		/// Ancient dispute statement provided.
@@ -364,8 +390,8 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 	}
 }
 
-impl<T: Config> Module<T> {
-	/// Called by the iniitalizer to initialize the disputes module.
+impl<T: Config> Pallet<T> {
+	/// Called by the initalizer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let config = <configuration::Module<T>>::config();
 
@@ -388,7 +414,7 @@ impl<T: Config> Module<T> {
 
 				// mildly punish all validators involved. they've failed to make
 				// data available to others, so this is most likely spam.
-				SpamSlots::mutate(session_index, |spam_slots| {
+				SpamSlots::<T>::mutate(session_index, |spam_slots| {
 					let spam_slots = match spam_slots {
 						Some(ref mut s) => s,
 						None => return,
@@ -418,10 +444,10 @@ impl<T: Config> Module<T> {
 		weight
 	}
 
-	/// Called by the iniitalizer to finalize the disputes module.
+	/// Called by the initalizer to finalize the disputes module.
 	pub(crate) fn initializer_finalize() { }
 
-	/// Called by the iniitalizer to note a new session in the disputes module.
+	/// Called by the initalizer to note a new session in the disputes module.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -431,12 +457,12 @@ impl<T: Config> Module<T> {
 
 		let pruning_target = notification.session_index - config.dispute_period - 1;
 
-		LastPrunedSession::mutate(|last_pruned| {
+		LastPrunedSession::<T>::mutate(|last_pruned| {
 			if let Some(last_pruned) = last_pruned {
 				for to_prune in *last_pruned + 1 ..= pruning_target {
 					<Disputes<T>>::remove_prefix(to_prune);
 					<Included<T>>::remove_prefix(to_prune);
-					SpamSlots::remove(to_prune);
+					SpamSlots::<T>::remove(to_prune);
 				}
 			}
 
@@ -547,7 +573,7 @@ impl<T: Config> Module<T> {
 
 		// Apply spam slot changes. Bail early if too many occupied.
 		if !<Included<T>>::contains_key(&set.session, &set.candidate_hash) {
-			let mut spam_slots: Vec<u32> = SpamSlots::get(&set.session)
+			let mut spam_slots: Vec<u32> = SpamSlots::<T>::get(&set.session)
 				.unwrap_or_else(|| vec![0; n_validators]);
 
 			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
@@ -569,7 +595,7 @@ impl<T: Config> Module<T> {
 				}
 			}
 
-			SpamSlots::insert(&set.session, spam_slots);
+			SpamSlots::<T>::insert(&set.session, spam_slots);
 		}
 
 		// Reward statements.
@@ -619,7 +645,7 @@ impl<T: Config> Module<T> {
 		// If we just included a block locally which has a live dispute, decrement spam slots
 		// for any involved validators, if the dispute is not already confirmed by f + 1.
 		if let Some(state) = <Disputes<T>>::get(&session, candidate_hash) {
-			SpamSlots::mutate(&session, |spam_slots| {
+			SpamSlots::<T>::mutate(&session, |spam_slots| {
 				if let Some(ref mut spam_slots) = *spam_slots {
 					decrement_spam(spam_slots, &state);
 				}
@@ -644,7 +670,7 @@ impl<T: Config> Module<T> {
 		let revert_to = revert_to.saturated_into();
 		<frame_system::Pallet<T>>::deposit_log(ConsensusLog::RevertTo(revert_to).into());
 
-		Frozen::set(true);
+		Frozen::<T>::set(true);
 	}
 }
 
