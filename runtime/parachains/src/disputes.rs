@@ -478,6 +478,12 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
+	///
+	/// # Warning
+	///
+	/// This functions modifies the state when failing. It is expected to be called in inherent,
+	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
+	/// is not commited.
 	pub(crate) fn provide_multi_dispute_data(statement_sets: MultiDisputeStatementSet)
 		-> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>
 	{
@@ -1191,71 +1197,6 @@ mod tests {
 			assert_err!(
 				Pallet::<Test>::provide_multi_dispute_data(stmts),
 				DispatchError::from(Error::<Test>::DuplicateDisputeStatementSets),
-			);
-		})
-	}
-
-	#[test]
-	fn test_provide_multi_dispute_fail_halfway() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
-			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
-
-			run_to_block(
-				100,
-				|b| {
-					// a new session at each block
-					Some((
-						true,
-						b,
-						vec![(&0, v0.public()), (&1, v1.public())],
-						Some(vec![(&0, v0.public()), (&1, v1.public())]),
-					))
-				}
-			);
-
-			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			let stmts = vec![
-				// // TODO TODO: this test is currently failing due to fail after writes.
-				// DisputeStatementSet {
-				// 	candidate_hash: candidate_hash.clone(),
-				// 	session: 98,
-				// 	statements: vec![
-				// 		(
-				// 			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-				// 			ValidatorIndex(1),
-				// 			v1.sign(
-				// 				&ExplicitDisputeStatement {
-				// 					valid: true,
-				// 					candidate_hash: candidate_hash.clone(),
-				// 					session: 98,
-				// 				}.signing_payload()
-				// 			),
-				// 		),
-				// 	],
-				// },
-				DisputeStatementSet {
-					candidate_hash: candidate_hash.clone(),
-					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							v0.sign(
-								&ExplicitDisputeStatement {
-									valid: true,
-									candidate_hash: candidate_hash.clone(),
-									session: 1,
-								}.signing_payload()
-							),
-						),
-					],
-				},
-			];
-
-			assert_noop!(
-				Pallet::<Test>::provide_multi_dispute_data(stmts),
-				DispatchError::from(Error::<Test>::AncientDisputeStatement),
 			);
 		})
 	}
