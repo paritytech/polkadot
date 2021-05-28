@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
-    labels: ["A2-insubstantial", "B0-silent", "C1-low"]
+    labels: ["A2-insubstantial", "B0-silent", "C1-low 📌"]
     # Handle updates for crates from github.com/paritytech/substrate manually.
     ignore:
       - dependency-name: "substrate-*"
@@ -12,5 +12,6 @@ updates:
       - dependency-name: "fork-tree"
       - dependency-name: "pallet-*"
       - dependency-name: "beefy-*"
+      - dependency-name: "try-runtime-*"
     schedule:
       interval: "daily"
