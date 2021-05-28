@@ -119,8 +119,8 @@ decl_module! {
 			// Handle disputes logic.
 			let current_session = <shared::Module<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = <disputes::Module<T>>::provide_multi_dispute_data(disputes)?;
-				if <disputes::Module<T>>::is_frozen() {
+				let fresh_disputes = <disputes::Pallet<T>>::provide_multi_dispute_data(disputes)?;
+				if <disputes::Pallet<T>>::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::set(Some(()));
 					return Ok(Some(
@@ -158,7 +158,7 @@ decl_module! {
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
 			for (_, candidate_hash) in &freed_concluded {
-				<disputes::Module<T>>::note_included(current_session, *candidate_hash, now);
+				<disputes::Pallet<T>>::note_included(current_session, *candidate_hash, now);
 			}
 
 			// Handle timeouts for any availability core work.
@@ -189,7 +189,7 @@ decl_module! {
 			// Refuse to back any candidates that are disputed or invalid.
 			for candidate in &backed_candidates {
 				ensure!(
-					!<disputes::Module<T>>::could_be_invalid(
+					!<disputes::Pallet<T>>::could_be_invalid(
 						current_session,
 						candidate.candidate.hash(),
 					),

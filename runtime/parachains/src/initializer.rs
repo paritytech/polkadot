@@ -136,7 +136,7 @@ decl_module! {
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
 				session_info::Module::<T>::initializer_initialize(now) +
-				disputes::Module::<T>::initializer_initialize(now) +
+				disputes::Pallet::<T>::initializer_initialize(now) +
 				dmp::Module::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
 				hrmp::Module::<T>::initializer_initialize(now);
@@ -151,7 +151,7 @@ decl_module! {
 			hrmp::Module::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
-			disputes::Module::<T>::initializer_finalize();
+			disputes::Pallet::<T>::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
@@ -231,7 +231,7 @@ impl<T: Config> Module<T> {
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
-		disputes::Module::<T>::initializer_on_new_session(&notification);
+		disputes::Pallet::<T>::initializer_on_new_session(&notification);
 		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
@@ -265,6 +265,20 @@ impl<T: Config> Module<T> {
 			}));
 		}
 
+	}
+
+	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// implemented in mock.
+	#[cfg(test)]
+	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
+		changed: bool,
+		session_index: SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	)
+		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	{
+		Self::on_new_session(changed, session_index, validators, queued)
 	}
 }
 
