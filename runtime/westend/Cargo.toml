@@ -86,6 +86,8 @@ xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 [dev-dependencies]
 hex-literal = "0.3.1"
 libsecp256k1 = "0.3.5"
@@ -168,6 +170,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"max-encoded-len/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",

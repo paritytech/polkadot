@@ -82,7 +82,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All, MaxEncodedLen},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -931,7 +931,7 @@ parameter_types! {
 }
 
 /// The type used to represent the kinds of proxying allowed.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug, MaxEncodedLen)]
 pub enum ProxyType {
 	Any,
 	NonTransfer,

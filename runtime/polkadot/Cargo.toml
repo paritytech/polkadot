@@ -78,6 +78,8 @@ hex-literal = { version = "0.3.1", optional = true }
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 [dev-dependencies]
 hex-literal = "0.3.1"
 libsecp256k1 = "0.3.5"
@@ -154,6 +156,7 @@ std = [
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
+	"max-encoded-len/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
