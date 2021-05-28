@@ -28,7 +28,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
 use polkadot::constants::currency::UNITS as DOT;
 use polkadot_node_primitives::MAX_POV_SIZE;
-use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
+use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId, BlockNumber};
 use polkadot_runtime as polkadot;
 use rococo_runtime as rococo;
 use rococo_runtime::constants::currency::UNITS as ROC;
@@ -118,7 +118,7 @@ pub fn wococo_config() -> Result<PolkadotChainSpec, String> {
 }
 
 /// The default parachains host configuration.
-fn default_parachains_host_configuration() -> polkadot_runtime_parachains::configuration::HostConfiguration {
+fn default_parachains_host_configuration() -> polkadot_runtime_parachains::configuration::HostConfiguration<BlockNumber> {
 	polkadot_runtime_parachains::configuration::HostConfiguration {
 		validation_upgrade_frequency: 1u32,
 		validation_upgrade_delay: 1,
@@ -485,7 +485,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		pallet_sudo: westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		parachains_configuration: westend::ParachainsConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		parachains_paras: Default::default(),
@@ -690,7 +690,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		parachains_configuration: kusama::ParachainsConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		pallet_gilt: Default::default(),
@@ -1302,7 +1302,7 @@ pub fn kusama_testnet_genesis(
 		},
 		pallet_vesting: kusama::VestingConfig { vesting: vec![] },
 		pallet_treasury: Default::default(),
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		parachains_configuration: kusama::ParachainsConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		pallet_gilt: Default::default(),
@@ -1390,10 +1390,9 @@ pub fn westend_testnet_genesis(
 		pallet_authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		pallet_vesting: westend::VestingConfig { vesting: vec![] },
 		pallet_sudo: westend::SudoConfig { key: root_key },
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		parachains_configuration: westend::ParachainsConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		pallet_gilt: Default::default(),
 		parachains_paras: Default::default(),
 	}
 }
@@ -1461,8 +1460,6 @@ pub fn rococo_testnet_genesis(
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		pallet_gilt: Default::default(),
-
 		parachains_hrmp: Default::default(),
 		parachains_paras: rococo_runtime::ParasConfig {
 			paras: vec![],
