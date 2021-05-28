@@ -73,7 +73,7 @@ bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features =
 bp-wococo = { path = "../../bridges/primitives/chain-wococo", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 
-max-encoded-len = { version = "3.0.0", default-features = false, path = "../../../max-encoded-len", features = [ "derive" ] }
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"
