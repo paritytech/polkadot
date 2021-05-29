@@ -90,4 +90,18 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add((3_405_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 	}
+	fn finalize_signed_phase_accept_solution() -> Weight {
+		(47_783_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
+	fn finalize_signed_phase_reject_solution() -> Weight {
+		(21_277_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	fn submit(_: u32) -> Weight {
+		// needs a real benchmarking to get a real value here
+		0
+	}
 }
