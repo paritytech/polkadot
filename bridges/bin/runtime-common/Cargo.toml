@@ -23,12 +23,12 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-staking-miner" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
 
 [features]
 default = ["std"]

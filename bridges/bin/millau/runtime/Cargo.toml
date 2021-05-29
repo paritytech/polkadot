@@ -28,32 +28,32 @@ pallet-shift-session-manager = { path = "../../../modules/shift-session-manager"
 
 # Substrate Dependencies
 
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-offchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
 
 [build-dependencies]
 substrate-wasm-builder = "3.0.0"

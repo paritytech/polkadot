@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 async-trait = "0.1.42"
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 futures = "0.3.12"
 futures-timer = "3.0.2"
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
@@ -18,7 +18,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem
 tracing = "0.1.26"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.12", features = ["thread-pool"] }
 femme = "2.1.1"

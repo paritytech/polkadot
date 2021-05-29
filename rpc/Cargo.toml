@@ -7,27 +7,27 @@ edition = "2018"
 [dependencies]
 jsonrpc-core = "15.1.0"
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 parity-scale-codec = { version = "2.0.0", default-features = false }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "kiz-staking-miner" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "kiz-staking-miner" }

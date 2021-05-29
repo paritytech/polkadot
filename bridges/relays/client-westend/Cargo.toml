@@ -17,9 +17,9 @@ bp-westend = { path = "../../primitives/chain-westend" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
