@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+mod peer_slots;
+
 use std::{collections::{HashMap, HashSet}, sync::Arc, task::Poll};
 use std::collections::hash_map::Entry;
 use std::time::{Duration, Instant};
