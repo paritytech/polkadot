@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch, AvailableData, PoV, ErasureChunk
+	BabeEpoch, AvailableData, PoV, ErasureChunk, CandidateVotes,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
@@ -48,6 +48,7 @@ use polkadot_primitives::v1::{
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
+	DisputeStatement,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
@@ -206,6 +207,73 @@ pub enum CollatorProtocolMessage {
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 	/// Incoming network request for a collation.
 	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
+}
+
+/// Messages received by the dispute coordinator subsystem.
+#[derive(Debug)]
+pub enum DisputeCoordinatorMessage {
+	/// Import a statement by a validator about a candidate.
+	///
+	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
+	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
+	/// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
+	/// statements already undergo anti-DoS procedures in their respective subsystems, but statements
+	/// cast specifically for disputes are not necessarily relevant to any candidate the system is
+	/// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
+	/// other of disputes over the network by providing (at least) 2 conflicting statements, of which one is either
+	/// a backing or validation statement.
+	///
+	/// This does not do any checking of the message signature.
+	ImportStatements {
+		/// The hash of the candidate.
+		candidate_hash: CandidateHash,
+		/// The candidate receipt itself.
+		candidate_receipt: CandidateReceipt,
+		/// The session the candidate appears in.
+		session: SessionIndex,
+		/// Triples containing the following:
+		/// - A statement, either indicating validity or invalidity of the candidate.
+		/// - The validator index (within the session of the candidate) of the validator casting the vote.
+		/// - The signature of the validator casting the vote.
+		statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+	},
+	/// Fetch a list of all active disputes that the co-ordinator is aware of.
+	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
+	/// Get candidate votes for a candidate.
+	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),
+	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
+	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
+	/// Determine the highest undisputed block within the given chain, based on where candidates
+	/// were included. If even the base block should not be finalized due to a dispute,
+	/// then `None` should be returned on the channel.
+	///
+	/// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
+	/// is typically the number of the last finalized block but may be slightly higher. This block
+	/// is inevitably going to be finalized so it is not accounted for by this function.
+	DetermineUndisputedChain {
+		/// The number of the lowest possible block to vote on.
+		base_number: BlockNumber,
+		/// Descriptions of all the blocks counting upwards from the block after the base number
+		block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
+		/// A response channel - `None` to vote on base, `Some` to vote higher.
+		rx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
+	}
+}
+
+/// Messages received by the dispute participation subsystem.
+#[derive(Debug)]
+pub enum DisputeParticipationMessage {
+	/// Validate a candidate for the purposes of participating in a dispute.
+	Participate {
+		/// The hash of the candidate
+		candidate_hash: CandidateHash,
+		/// The candidate receipt itself.
+		candidate_receipt: CandidateReceipt,
+		/// The session the candidate appears in.
+		session: SessionIndex,
+		/// The indices of validators who have already voted on this candidate.
+		voted_indices: Vec<ValidatorIndex>,
+	}
 }
 
 /// Messages received by the network bridge subsystem.

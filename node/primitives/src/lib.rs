@@ -33,7 +33,14 @@ pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode, ValidatorIndex};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
+	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
+	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind, InvalidDisputeStatementKind,
+	CandidateReceipt,
+};
+
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
@@ -272,4 +279,15 @@ pub fn maybe_compress_pov(pov: PoV) -> PoV {
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov
+}
+
+/// Tracked votes on candidates, for the purposes of dispute resolution.
+#[derive(Debug, Clone)]
+pub struct CandidateVotes {
+	/// The receipt of the candidate itself.
+	pub candidate_receipt: CandidateReceipt,
+	/// Votes of validity, sorted by validator index.
+	pub valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+	/// Votes of invalidity, sorted by validator index.
+	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 }
