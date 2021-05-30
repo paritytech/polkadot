@@ -454,6 +454,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
+		pub const MaxLocks: u32 = 10;
 	}
 
 	impl pallet_balances::Config for Test {
@@ -462,7 +463,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
-		type MaxLocks = ();
+		type MaxLocks = MaxLocks;
 		type WeightInfo = ();
 	}
 
