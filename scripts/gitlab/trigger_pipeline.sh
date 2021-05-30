@@ -8,7 +8,7 @@ echo "Triggering Simnet pipeline."
 curl --silent \
     -X POST \
     -F "token=${CI_JOB_TOKEN}" \
-    -F "ref=master" \
+    -F "ref=v3" `# trigger the pinned version of simnet CI config` \
     -F "variables[TRGR_PROJECT]=${TRGR_PROJECT}" \
     -F "variables[TRGR_REF]=${TRGR_REF}" \
     -F "variables[IMAGE_NAME]=${IMAGE_NAME}" \
@@ -50,3 +50,4 @@ for i in $(seq 1 360); do
     fi
 sleep 8;
 done
+# dummy: delete me 

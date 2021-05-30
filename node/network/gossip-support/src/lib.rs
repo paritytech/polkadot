@@ -21,6 +21,7 @@
 #[cfg(test)]
 mod tests;
 
+use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
@@ -38,6 +39,9 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use sp_application_crypto::{Public, AppKey};
 
 const LOG_TARGET: &str = "parachain::gossip-support";
+// How much time should we wait since the last
+// authority discovery resolution failure.
+const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
@@ -47,7 +51,10 @@ pub struct GossipSupport {
 #[derive(Default)]
 struct State {
 	last_session_index: Option<SessionIndex>,
-	force_request: bool,
+	// Some(timestamp) if we failed to resolve
+	// at least a third of authorities the last time.
+	// `None` otherwise.
+	last_failure: Option<Instant>,
 }
 
 impl GossipSupport {
@@ -162,13 +169,20 @@ impl State {
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
 			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
+			let force_request = since_failure >= BACKOFF_DURATION;
 			let maybe_new_session = match self.last_session_index {
-				Some(i) if current_index <= i && !self.force_request => None,
+				Some(i) if current_index <= i && !force_request => None,
 				_ => Some((current_index, leaf)),
 			};
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
-				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
+				tracing::debug!(
+					target: LOG_TARGET,
+					%new_session,
+					%force_request,
+					"New session detected",
+				);
 				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
 				ensure_i_am_an_authority(keystore, &authorities).await?;
 				let num = authorities.len();
@@ -185,8 +199,13 @@ impl State {
 				let failures = failures.await.unwrap_or(num);
 
 				self.last_session_index = Some(new_session);
-				// issue another request if at least a third of the authorities were not resolved
-				self.force_request = failures >= num / 3;
+				// issue another request for the same session
+				// if at least a third of the authorities were not resolved
+				self.last_failure = if failures >= num / 3 {
+					Some(Instant::now())
+				} else {
+					None
+				}
 			}
 		}
 
