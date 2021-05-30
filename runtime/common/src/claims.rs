@@ -662,7 +662,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
-		pub const MaxLocks: u64 = 10;
+		pub const MaxLocks: u32 = 10;
 	}
 
 	impl pallet_balances::Config for Test {
