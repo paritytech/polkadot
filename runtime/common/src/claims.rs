@@ -671,7 +671,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
-		type MaxLocks = 10;
+		type MaxLocks = MaxLocks;
 		type WeightInfo = ();
 	}
 
