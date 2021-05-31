@@ -37,6 +37,13 @@ fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) ->
 	buf
 }
 
+/// Column configuration information for the DB.
+#[derive(Debug, Clone)]
+pub struct ColumnConfiguration {
+	/// The column in the key-value DB where data is stored.
+	pub col_data: u32,
+}
+
 /// Tracked votes on candidates, for the purposes of dispute resolution.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CandidateVotes {
@@ -53,6 +60,55 @@ pub struct CandidateVotes {
 pub struct ActiveDisputes {
 	/// All disputed candidates, sorted by session index and then by candidate hash.
 	pub disputed: Vec<(SessionIndex, CandidateHash)>,
+}
+
+/// Errors while accessing things from the DB.
+#[derive(Debug, derive_more::From, derive_more::Display)]
+pub enum Error {
+	Io(std::io::Error),
+	InvalidDecoding(parity_scale_codec::Error),
+}
+
+impl std::error::Error for Error {}
+
+/// Result alias for DB errors.
+pub type Result<T> = std::result::Result<T, Error>;
+
+fn load_decode<D: Decode>(db: &dyn KeyValueDB, col_data: u32, key: &[u8])
+	-> Result<Option<D>>
+{
+	match db.get(col_data, key)? {
+		None => Ok(None),
+		Some(raw) => D::decode(&mut &raw[..])
+			.map(Some)
+			.map_err(Into::into),
+	}
+}
+
+/// Load the candidate votes for the identified candidate under the given hash.
+pub(crate) fn load_candidate_votes(
+	db: &dyn KeyValueDB,
+	config: &ColumnConfiguration,
+	session: SessionIndex,
+	candidate_hash: &CandidateHash,
+) -> Result<Option<CandidateVotes>> {
+	load_decode(db, config.col_data, &candidate_votes_key(session, candidate_hash))
+}
+
+/// Load the earliest session, if any.
+pub(crate) fn load_earliest_session(
+	db: &dyn KeyValueDB,
+	config: &ColumnConfiguration,
+) -> Result<Option<SessionIndex>> {
+	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
+}
+
+/// Load the active disputes, if any.
+pub(crate) fn load_active_disputes(
+	db: &dyn KeyValueDB,
+	config: &ColumnConfiguration,
+) -> Result<Option<ActiveDisputes>> {
+	load_decode(db, config.col_data, ACTIVE_DISPUTES_KEY)
 }
 
 #[cfg(test)]
