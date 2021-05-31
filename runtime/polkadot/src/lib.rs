@@ -358,8 +358,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedRewardBase = SignedRewardBase;
 	type SignedDepositBase = SignedDepositBase;
 	type SignedDepositByte = SignedDepositByte;
-	type SignedRewardFactor = (); // no score-based reward
-	type SignedRewardMax = SignedRewardBase;
 	type SignedDepositWeight = ();
 	type SignedMaxWeight = Self::MinerMaxWeight;
 	type SlashHandler = (); // burn slashes
