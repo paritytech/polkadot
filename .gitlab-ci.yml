@@ -80,34 +80,35 @@ default:
 
 #### stage:                        test
 
-check-runtime:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
-  script:
-    - ./scripts/gitlab/check_runtime.sh
-  allow_failure:                   true
+# FIXME: revert me
+# check-runtime:
+#   stage:                           test
+#   image:                           paritytech/tools:latest
+#   <<:                              *kubernetes-env
+#   <<:                              *rules-pr-only
+#   variables:
+#     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+#     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+#   script:
+#     - ./scripts/gitlab/check_runtime.sh
+#   allow_failure:                   true
 
-check-line-width:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  script:
-    - ./scripts/gitlab/check_line_width.sh
-  allow_failure:                   true
+# check-line-width:
+#   stage:                           test
+#   image:                           paritytech/tools:latest
+#   <<:                              *kubernetes-env
+#   <<:                              *rules-pr-only
+#   script:
+#     - ./scripts/gitlab/check_line_width.sh
+#   allow_failure:                   true
 
-test-deterministic-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+# test-deterministic-wasm:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     - ./scripts/gitlab/test_deterministic_wasm.sh
 
 test-build-linux-stable:
   stage:                           test
@@ -126,7 +127,8 @@ test-build-linux-stable:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
-    - ./scripts/gitlab/test_linux_stable.sh
+    # FIXME: revert me
+    # - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     - time cargo build --release --verbose --bin polkadot
     - sccache -s
@@ -143,26 +145,27 @@ test-build-linux-stable:
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
 
-check-web-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we should
-    # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
+# FIXME: revert me
+# check-web-wasm:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # WASM support is in progress. As more and more crates support WASM, we should
+#     # add entries here. See https://github.com/paritytech/polkadot/issues/625
+#     - ./scripts/gitlab/check_web_wasm.sh
+#     - sccache -s
 
-check-runtime-benchmarks:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
-    - sccache -s
+# check-runtime-benchmarks:
+#   stage:                           test
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   <<:                              *compiler-info
+#   script:
+#     # Check that the node will compile with `runtime-benchmarks` feature flag.
+#     - ./scripts/gitlab/check_runtime_benchmarks.sh
+#     - sccache -s
 
 build-adder-collator:
   stage:                           test
@@ -187,30 +190,31 @@ build-adder-collator:
 
 #### stage:                        build
 
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  needs:
-    - job:                         test-build-linux-stable
-      artifacts:                   true
-  before_script:
-    - apt-get -y update; apt-get -y install jq lsof
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
+# FIXME: revert me
+# check-transaction-versions:
+#   image:                           node:15
+#   stage:                           build
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   needs:
+#     - job:                         test-build-linux-stable
+#       artifacts:                   true
+#   before_script:
+#     - apt-get -y update; apt-get -y install jq lsof
+#     - npm install --ignore-scripts -g @polkadot/metadata-cmp
+#     - git fetch origin release
+#   script:
+#     - scripts/gitlab/check_extrinsics_ordering.sh
 
-generate-impl-guide:
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.4
-    entrypoint: [""]
-  script:
-    - mdbook build roadmap/implementers-guide
+# generate-impl-guide:
+#   stage:                           build
+#   <<:                              *rules-test
+#   <<:                              *docker-env
+#   image:
+#     name: michaelfbryan/mdbook-docker-image:v0.4.4
+#     entrypoint: [""]
+#   script:
+#     - mdbook build roadmap/implementers-guide
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
@@ -309,59 +313,61 @@ publish-adder-collator-image:
 
 #### stage:                        publish
 
-publish-s3-release:                &publish-s3
-  stage:                           publish
-  needs:
-    - job:                         test-build-linux-stable
-      artifacts:                   true
-  <<:                              *kubernetes-env
-  image:                           paritytech/awscli:latest
-  variables:
-    GIT_STRATEGY:                  none
-    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
-  rules:
-    # publishing binaries nightly
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-  before_script:
-    - *check-versions
-  script:
-    - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
-    - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
-    - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
-    - find ./artifacts -type f | while read file; do
-        name="${file#./artifacts/}";
-        aws s3api copy-object
-          --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
-          --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
-      done
-    - |
-      cat <<-EOM
-      |
-      |  polkadot binary paths:
-      |
-      |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
-      |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
-      |
-      EOM
-  after_script:
-    - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
-        --recursive --human-readable --summarize
+# FIXME: revert me
+# publish-s3-release:                &publish-s3
+#   stage:                           publish
+#   needs:
+#     - job:                         test-build-linux-stable
+#       artifacts:                   true
+#   <<:                              *kubernetes-env
+#   image:                           paritytech/awscli:latest
+#   variables:
+#     GIT_STRATEGY:                  none
+#     PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
+#   rules:
+#     # publishing binaries nightly
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#   before_script:
+#     - *check-versions
+#   script:
+#     - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
+#     - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
+#     - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
+#     - find ./artifacts -type f | while read file; do
+#         name="${file#./artifacts/}";
+#         aws s3api copy-object
+#           --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
+#           --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
+#       done
+#     - |
+#       cat <<-EOM
+#       |
+#       |  polkadot binary paths:
+#       |
+#       |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
+#       |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
+#       |
+#       EOM
+#   after_script:
+#     - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
+#         --recursive --human-readable --summarize
 
 #### stage:                        deploy
 
-deploy-polkasync-kusama:
-  stage:                           deploy
-  rules:
-    # former .rules-build
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-  variables:
-    POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
-    POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
-  allow_failure:                   true
-  trigger:                         "parity/infrastructure/parity-testnet"
+# FIXME: revert me
+# deploy-polkasync-kusama:
+#   stage:                           deploy
+#   rules:
+#     # former .rules-build
+#     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+#       when: never
+#     - if: $CI_PIPELINE_SOURCE == "schedule"
+#     - if: $CI_COMMIT_REF_NAME == "master"
+#   variables:
+#     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
+#     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
+#   allow_failure:                   true
+#   trigger:                         "parity/infrastructure/parity-testnet"
 
 trigger-simnet:
   stage:                           deploy
@@ -370,6 +376,8 @@ trigger-simnet:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
+    # FIXME: it's cool to mark your debug lines like this, easy to find
+    # FIXME: in case of substrate you revert this comment and the line below
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
