@@ -10,7 +10,7 @@ Validation of candidates is a heavy task, and furthermore, the [`PoV`][PoV] itse
 
 > TODO: note the incremental validation function Ximin proposes at https://github.com/paritytech/polkadot/issues/1348
 
-As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate with the [`CandidateBacking`][CB] and [`CandidateSelection`][CS] subsystems.
+As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate only with the [`CandidateBacking`][CB].
 
 ## Protocol
 
@@ -20,7 +20,7 @@ Output:
 
 - [`RuntimeApiMessage`][RAM]
 - [`NetworkBridgeMessage`][NBM]
-- [`CandidateSelectionMessage`][CSM]
+- [`CandidateBackingMessage`][CBM]
 
 ## Functionality
 
@@ -108,14 +108,20 @@ When acting on an advertisement, we issue a `Requests::CollationFetching`. If th
 
 As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator` or `NoteGoodCollation` message. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it.
 
-### Interaction with [Candidate Selection][CS]
+### Interaction with [Candidate Backing][CB]
 
-As collators advertise the availability, we notify the Candidate Selection subsystem with a [`CandidateSelection`][CSM]`::Collation` message. Note that this message is lightweight: it only contains the relay parent, para id, and collator id.
+As collators advertise the availability, we notify the Candidate Selection subsystem with a [`CandidateBacking`][CBM]`::Second` message. Note that this message contains the relay parent of the advertised collation, the candidate receipt and the [PoV][PoV].
 
-At that point, the Candidate Selection algorithm is free to use an arbitrary algorithm to determine which if any of these messages to follow up on. It is expected to use the [`CollatorProtocolMessage`][CPM]`::FetchCollation` message to follow up.
+For the moment, a validator will simply second the first valid parablock candidate per relay head. See [Future Work](#future-work).
 
-The intent behind this design is to minimize the total number of (large) collations which must be transmitted.
+## Future Work
 
+Several approaches have been discussed, but all have some issues:
+
+- The current approach is very straightforward. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.
+- It may be possible to do some BABE-like selection algorithm to choose an "Official" collator for the round, but that is tricky because the collator which produces the PoV does not necessarily actually produce the block.
+- We could use relay-chain BABE randomness to generate some delay `D` on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after `D`, or in case none has arrived by `2*D`, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.
+- A variation of that scheme would be to randomly choose a number `I`, and have a fixed acceptance window `D` for parablock candidates. At the end of the period `D`, count `C`: the number of parablock candidates received. Second the one with index `I % C`. Its drawback is the same: it must wait the full `D` period before seconding any of its received candidates, reducing throughput.
 
 [CB]: ../backing/candidate-backing.md
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-mesage
