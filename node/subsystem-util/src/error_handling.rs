@@ -20,8 +20,8 @@
 //!
 //! - Ergonomic API with little repetition.
 //! - Still explicitness where it matters - fatal errors should be visible and justified.
-//! - Easy recovering from non fatal errors.
-//! - Errors start as non fatal and can be made fatal at the level where it is really clear they
+//! - Easy recovering from non-fatal errors.
+//! - Errors start as non-fatal and can be made fatal at the level where it is really clear they
 //!	  are fatal. E.g. cancellation of a oneshot might be fatal in one case, but absolutely expected
 //!	  in another.
 //! - Good error messages. Fatal errors don't need to be properly structured (as we won't handle
@@ -37,7 +37,7 @@ use thiserror::Error;
 /// Errors might either be fatal and should bring the subsystem down or are at least at the point
 /// of occurrence deemed potentially recoverable.
 ///
-/// Upper layers might have a better view and might make a non fatal error of a called function a
+/// Upper layers might have a better view and might make a non-fatal error of a called function a
 /// fatal one. The opposite should not happen, therefore don't make an error fatal if you don't
 /// know it is in all cases.
 ///
@@ -102,7 +102,7 @@ use thiserror::Error;
 /// }
 /// ```
 /// Then mostly use `Error` in functions, you may also use `NonFatal` and `Fatal` directly in
-/// functions that strictly only fail non fatal or fatal respectively, as `Fatal` and `NonFatal`
+/// functions that strictly only fail non-fatal or fatal respectively, as `Fatal` and `NonFatal`
 /// can automatically converted into the above defined `Error`.
 /// ```
 #[derive(Debug, Error)]
@@ -135,7 +135,7 @@ impl<E, F> Fault<E, F>
 		Self::Fatal(f.into())
 	}
 
-	/// Build an `Fault` from compatible non fatal error.
+	/// Build an `Fault` from compatible non-fatal error.
 	pub fn from_non_fatal<E1: Into<E>>(e: E1) -> Self {
 		Self::Err(e.into())
 	}
@@ -153,10 +153,10 @@ impl<E, F> Fault<E, F>
 	}
 }
 
-/// Unwrap non fatal error and report fatal one.
+/// Unwrap non-fatal error and report fatal one.
 ///
 /// This function is useful for top level error handling. Fatal errors will be extracted,
-/// non fatal error will be returned for handling.
+/// non-fatal error will be returned for handling.
 ///
 /// Usage:
 ///

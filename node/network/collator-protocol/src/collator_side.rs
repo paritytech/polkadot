@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::collections::{HashMap, HashSet};
 
-use futures::{FutureExt, channel::oneshot, channel::mpsc};
+use futures::{FutureExt, channel::oneshot};
 use sp_core::Pair;
 
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
@@ -217,9 +217,6 @@ struct State {
 	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s by `PeerConnected` events.
 	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
 
-	/// The connection handles to validators per group we are interested in.
-	connection_handles: HashMap<GroupIndex, mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>>,
-
 	/// Metrics.
 	metrics: Metrics,
 }
@@ -240,7 +237,6 @@ impl State {
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
-			connection_handles: Default::default(),
 		}
 	}
 
@@ -332,22 +328,15 @@ async fn distribute_collation(
 		"Accepted collation, connecting to validators."
 	);
 
-	// Drop obsolete connections:
-	let new_groups: HashSet<_> = vec![current_validators.group, next_validators.group].into_iter().collect();
-	state.connection_handles.retain(|k, _| new_groups.contains(k));
-
 	let validator_group: HashSet<_> = current_validators.validators.iter().map(Clone::clone).collect();
 
 	// Issue a discovery request for the validators of the current group and the next group:
 	connect_to_validators(
 		ctx,
-		state,
-		current_validators,
-	).await;
-	connect_to_validators(
-		ctx,
-		state,
-		next_validators,
+		current_validators.validators
+			.into_iter()
+			.chain(next_validators.validators.into_iter())
+			.collect(),
 	).await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
@@ -461,22 +450,17 @@ async fn declare(
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
+#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn connect_to_validators(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State,
-	group: GroupValidators,
+	validator_ids: Vec<AuthorityDiscoveryId>,
 )  {
-	match state.connection_handles.entry(group.group) {
-		Entry::Occupied(_) => {}
-		Entry::Vacant(vacant) => {
-			let (tx, rx) = mpsc::channel(0);
-			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids: group.validators, peer_set: PeerSet::Collation, connected: tx
-			})).await;
-			vacant.insert(rx);
-		}
-	}
+	// ignore address resolution failure
+	// will reissue a new request on new collation
+	let (failed, _) = oneshot::channel();
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
+		validator_ids, peer_set: PeerSet::Collation, failed,
+	})).await;
 }
 
 /// Advertise collation to the given `peer`.
@@ -920,7 +904,7 @@ mod tests {
 	use std::{sync::Arc, time::Duration};
 
 	use assert_matches::assert_matches;
-	use futures::{channel::mpsc, executor, future, Future};
+	use futures::{executor, future, Future};
 
 	use sp_core::{crypto::Pair, Decode};
 	use sp_keyring::Sr25519Keyring;
@@ -937,7 +921,7 @@ mod tests {
 	use polkadot_subsystem::{
 		jaeger,
 		messages::{RuntimeApiMessage, RuntimeApiRequest},
-		ActiveLeavesUpdate, ActivatedLeaf,
+		ActiveLeavesUpdate, ActivatedLeaf, LeafStatus,
 	};
 	use polkadot_subsystem_testhelpers as test_helpers;
 
@@ -1027,7 +1011,7 @@ mod tests {
 				validators,
 				session_info: SessionInfo {
 					validators: validator_public,
-					discovery_keys, 
+					discovery_keys,
 					validator_groups,
 					..Default::default()
 				},
@@ -1064,7 +1048,7 @@ mod tests {
 
 		/// Generate a new relay parent and inform the subsystem about the new view.
 		///
-		/// If `merge_views == true` it means the subsystem will be informed that we working on the old `relay_parent`
+		/// If `merge_views == true` it means the subsystem will be informed that we are working on the old `relay_parent`
 		/// and the new one.
 		async fn advance_to_new_round(&mut self, virtual_overseer: &mut VirtualOverseer, merge_views: bool) {
 			let old_relay_parent = self.relay_parent;
@@ -1175,6 +1159,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: test_state.relay_parent,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: [][..].into(),
@@ -1191,8 +1176,6 @@ mod tests {
 
 	/// Result of [`distribute_collation`]
 	struct DistributeCollation {
-		/// Should be used to inform the subsystem about connected validators.
-		connected: Vec<mpsc::Sender<(AuthorityDiscoveryId, PeerId)>>,
 		candidate: CandidateReceipt,
 		pov_block: PoV,
 	}
@@ -1201,8 +1184,8 @@ mod tests {
 	async fn distribute_collation(
 		virtual_overseer: &mut VirtualOverseer,
 		test_state: &TestState,
-		// whether or not the currently active validators are already connected or not.
-		already_connected: bool,
+		// whether or not we expect a connection request or not.
+		should_connect: bool,
 	) -> DistributeCollation {
 		// Now we want to distribute a PoVBlock
 		let pov_block = PoV {
@@ -1273,32 +1256,18 @@ mod tests {
 			}
 		}
 
-		let connected = if already_connected {
-			Vec::new()
-		} else {
-			let connected_current = assert_matches!(
+		if should_connect {
+			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::ConnectToValidators {
-						connected,
 						..
 					}
-				) => { connected }
+				) => {}
 			);
-			let connected_next = assert_matches!(
-				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ConnectToValidators {
-						connected,
-						..
-					}
-				) => { connected }
-			);
-			vec![connected_current, connected_next]
-		};
+		}
 
 		DistributeCollation {
-			connected, 
 			candidate,
 			pov_block,
 		}
@@ -1371,7 +1340,7 @@ mod tests {
 		);
 	}
 
-	/// Check that the next received message is a collation advertisment message.
+	/// Check that the next received message is a collation advertisement message.
 	async fn expect_advertise_collation_msg(
 		virtual_overseer: &mut VirtualOverseer,
 		peer: &PeerId,
@@ -1419,8 +1388,8 @@ mod tests {
 
 			setup_system(&mut virtual_overseer, &test_state).await;
 
-			let DistributeCollation { connected: _connected, candidate, pov_block } =
-				distribute_collation(&mut virtual_overseer, &test_state, false).await;
+			let DistributeCollation { candidate, pov_block } =
+				distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			for (val, peer) in test_state.current_group_validator_authority_ids()
 				.into_iter()
@@ -1503,8 +1472,7 @@ mod tests {
 
 			assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 
-			let DistributeCollation { connected: _connected, .. } =
-				distribute_collation(&mut virtual_overseer, &test_state, true).await;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			// Send info about peer's view.
 			overseer_send(
@@ -1572,7 +1540,7 @@ mod tests {
 			// And let it tell us that it is has the same view.
 			send_peer_view_change(&mut virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer2, test_state.relay_parent).await;
 
@@ -1611,14 +1579,14 @@ mod tests {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer2).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			let old_relay_parent = test_state.relay_parent;
 
 			// Advance to a new round, while informing the subsystem that the old and the new relay parent are active.
 			test_state.advance_to_new_round(&mut virtual_overseer, true).await;
 
-			let _connected = distribute_collation(&mut virtual_overseer, &test_state, true).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![old_relay_parent]).await;
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, old_relay_parent).await;
@@ -1648,7 +1616,7 @@ mod tests {
 			connect_peer(&mut virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
 
-			let _ = distribute_collation(&mut virtual_overseer, &test_state, false).await.connected;
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
 
 			send_peer_view_change(&mut virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 			expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;

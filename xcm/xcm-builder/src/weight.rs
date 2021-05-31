@@ -32,7 +32,8 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 			Xcm::RelayedFrom { ref mut message, .. } => T::get() + Self::shallow(message.as_mut())?,
 			Xcm::WithdrawAsset { effects, .. }
 			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			| Xcm::TeleportAsset { effects, .. }
+			=> {
 				let inner: Weight = effects.iter_mut()
 					.map(|effect| match effect {
 						Order::BuyExecution { .. } => {

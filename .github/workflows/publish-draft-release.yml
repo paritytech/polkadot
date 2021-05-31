@@ -37,7 +37,7 @@ jobs:
       - name: Cache target dir
         uses: actions/cache@v2
         with:
-          path: '${{ github.workspace }}/target'
+          path: '${{ github.workspace }}/runtime/${{ matrix.runtime }}/target'
           key: srtool-target-${{ matrix.runtime }}-${{ github.sha }}
           restore-keys: |
             srtool-target-${{ matrix.runtime }}-

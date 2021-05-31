@@ -38,7 +38,7 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
+	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
@@ -57,6 +57,7 @@ pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+pub use sp_consensus_slots::Slot;
 
 /// Signed data.
 mod signed;
@@ -81,6 +82,12 @@ pub mod well_known_keys {
 	//
 	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
 	//
+
+	/// The current slot number.
+	///
+	/// The storage entry should be accessed as a `Slot` encoded value.
+	pub const CURRENT_SLOT: &[u8] =
+		&hex!["1cb6f36e027abb2091cfb5110ab5087f06155b3cd9a8c9e5e9a23fd5dc13a5ed"];
 
 	/// The currently active host configuration.
 	///
@@ -181,7 +188,7 @@ pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
 pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 
 /// Maximum compressed code size we support right now.
-/// At the moment we have runtime upgrade on chain, which restricts scalability severly. If we want
+/// At the moment we have runtime upgrade on chain, which restricts scalability severely. If we want
 /// to have bigger values, we should fix that first.
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 
@@ -370,7 +377,7 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 		self.to_plain().hash()
 	}
 
-	/// Does this committed candidate receipt corrensponds to the given [`CandidateReceipt`]?
+	/// Does this committed candidate receipt corresponds to the given [`CandidateReceipt`]?
 	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
 		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
@@ -392,7 +399,7 @@ impl Ord for CommittedCandidateReceipt {
 }
 
 /// The validation data provides information about how to create the inputs for validation of a candidate.
-/// This information is derived from the chain state and will vary from para to para, although some of the
+/// This information is derived from the chain state and will vary from para to para, although some
 /// fields may be the same for every para.
 ///
 /// Since this data is used to form inputs to the validation function, it needs to be persisted by the
@@ -408,7 +415,7 @@ impl Ord for CommittedCandidateReceipt {
 /// already been done. As such, there is no need for the validation data used to inform validators and
 /// collators about the checks the relay-chain will perform to be persisted by the availability system.
 ///
-/// The `PersistedValidationData` should be relatively lightweight primarly because it is constructed
+/// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
@@ -1041,7 +1048,7 @@ pub enum ConsensusLog {
 	/// A parachain or parathread upgraded its code.
 	#[codec(index = 1)]
 	ParaUpgradeCode(Id, Hash),
-	/// A parachain or parathread scheduled a code ugprade.
+	/// A parachain or parathread scheduled a code upgrade.
 	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, Hash, BlockNumber),
 	/// Governance requests to auto-approve every candidate included up to the given block

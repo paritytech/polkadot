@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset, Error};
+use xcm::v0::{Xcm, MultiAsset, MultiLocation, Error};
 use frame_support::weights::Weight;
 use crate::Assets;
 
@@ -43,6 +43,18 @@ pub trait WeightBounds<Call> {
 	/// any internal effects. Inner XCM messages may be executed by:
 	/// - Order::BuyExecution
 	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+
+	/// Return the total weight for executing `message`.
+	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()> {
+		Self::shallow(message)?.checked_add(Self::deep(message)?).ok_or(())
+	}
+}
+
+/// A means of getting approximate weight consumption for a given destination message executor and a
+/// message.
+pub trait UniversalWeigher {
+	/// Get the upper limit of weight required for `dest` to execute `message`.
+	fn weigh(dest: MultiLocation, message: Xcm<()>) -> Result<Weight, ()>;
 }
 
 /// Charge for weight in order to execute XCM.

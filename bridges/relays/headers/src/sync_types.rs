@@ -43,7 +43,7 @@ pub enum HeaderStatus {
 }
 
 /// Headers synchronization pipeline.
-pub trait HeadersSyncPipeline: Clone + Send + Sync {
+pub trait HeadersSyncPipeline: 'static + Clone + Send + Sync {
 	/// Name of the headers source.
 	const SOURCE_NAME: &'static str;
 	/// Name of the headers target.

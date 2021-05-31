@@ -34,10 +34,10 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// The message and destination was recognized as being reachable but the operation could not be completed.
 	/// A human-readable explanation of the specific issue is provided.
 	SendFailed(#[codec(skip)] &'static str),
-	/// The message and destination combination was not recognised as being reachable.
+	/// The message and destination combination was not recognized as being reachable.
 	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
@@ -77,6 +77,8 @@ pub enum Error {
 	LocationCannotHold,
 	/// The assets given to purchase weight is are insufficient for the weight desired.
 	TooExpensive,
+	/// The given asset is not handled.
+	AssetNotFound,
 }
 
 impl From<()> for Error {
@@ -90,7 +92,7 @@ pub type Result = result::Result<(), Error>;
 /// Local weight type; execution time in picoseconds.
 pub type Weight = u64;
 
-/// Outcome of an XCM excution.
+/// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
@@ -126,21 +128,41 @@ impl Outcome {
 	}
 }
 
+/// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-	type Call;
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
+	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
+	/// other aspects.
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+	}
+
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	///
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
+	/// execution without associated payment.
+	fn execute_xcm_in_credit(
+		origin: MultiLocation,
+		message: Xcm<Call>,
+		weight_limit: Weight,
+		weight_credit: Weight,
+	) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
-	type Call = C;
-	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
+	fn execute_xcm_in_credit(
+		_origin: MultiLocation,
+		_message: Xcm<C>,
+		_weight_limit: Weight,
+		_weight_credit: Weight,
+	) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamted in tuples to form sophisticated routing systems.
+/// These can be amalgamated in tuples to form sophisticated routing systems.
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///

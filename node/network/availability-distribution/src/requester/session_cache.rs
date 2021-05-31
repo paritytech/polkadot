@@ -19,47 +19,28 @@ use std::collections::HashSet;
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
-use sp_application_crypto::AppKey;
-use sp_core::crypto::Public;
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-
-use polkadot_node_subsystem_util::{
-	request_session_index_for_child, request_session_info,
-};
-use polkadot_primitives::v1::SessionInfo as GlobalSessionInfo;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
 };
 use polkadot_subsystem::SubsystemContext;
 
-use super::{
-	error::{recv_runtime, Error, NonFatal},
+use crate::{
+	error::{Error, NonFatal},
 	LOG_TARGET,
 };
 
-/// Caching of session info as needed by availability distribution.
+/// Caching of session info as needed by availability chunk distribution.
 ///
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
 pub struct SessionCache {
-	/// Get the session index for a given relay parent.
-	///
-	/// We query this up to a 100 times per block, so caching it here without roundtrips over the
-	/// overseer seems sensible.
-	session_index_cache: LruCache<Hash, SessionIndex>,
 
 	/// Look up cached sessions by SessionIndex.
 	///
 	/// Note: Performance of fetching is really secondary here, but we need to ensure we are going
 	/// to get any existing cache entry, before fetching new information, as we should not mess up
-	/// the order of validators in `SessionInfo::validator_groups`. (We want live TCP connections
-	/// wherever possible.)
-	///
-	/// We store `None` in case we are not a validator, so we won't do needless fetches for non
-	/// validator nodes.
-	session_info_cache: LruCache<SessionIndex, Option<SessionInfo>>,
-
-	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
-	keystore: SyncCryptoStorePtr,
+	/// the order of validators in `SessionInfo::validator_groups`.
+	session_info_cache: LruCache<SessionIndex, SessionInfo>,
 }
 
 /// Localized session information, tailored for the needs of availability distribution.
@@ -101,13 +82,10 @@ pub struct BadValidators {
 
 impl SessionCache {
 	/// Create a new `SessionCache`.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new() -> Self {
 		SessionCache {
-			// 5 relatively conservative, 1 to 2 should suffice:
-			session_index_cache: LruCache::new(5),
 			// We need to cache the current and the last session the most:
 			session_info_cache: LruCache::new(2),
-			keystore,
 		}
 	}
 
@@ -117,10 +95,11 @@ impl SessionCache {
 	///
 	/// Use this function over any `fetch_session_info` if all you need is a reference to
 	/// `SessionInfo`, as it avoids an expensive clone.
-	#[tracing::instrument(level = "trace", skip(self, ctx, with_info), fields(subsystem = LOG_TARGET))]
+	#[tracing::instrument(level = "trace", skip(self, ctx, runtime, with_info), fields(subsystem = LOG_TARGET))]
 	pub async fn with_session_info<Context, F, R>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		parent: Hash,
 		with_info: F,
 	) -> Result<Option<R>, Error>
@@ -128,40 +107,23 @@ impl SessionCache {
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = match self.session_index_cache.get(&parent) {
-			Some(index) => *index,
-			None => {
-				let index =
-					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
-						.await?;
-				self.session_index_cache.put(parent, index);
-				index
-			}
-		};
+		let session_index = runtime.get_session_index(ctx, parent).await?;
 
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
-			if let Some(info) = o_info {
-				return Ok(Some(with_info(info)));
-			} else {
-				// Info was cached - we are not a validator: return early:
-				return Ok(None)
-			}
+				return Ok(Some(with_info(o_info)));
 		}
 
 		if let Some(info) = self
-			.query_info_from_runtime(ctx, parent, session_index)
+			.query_info_from_runtime(ctx, runtime, parent, session_index)
 			.await?
 		{
 			tracing::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
 			let r = with_info(&info);
 			tracing::trace!(target: LOG_TARGET, session_index, "Storing session info in lru!");
-			self.session_info_cache.put(session_index, Some(info));
+			self.session_info_cache.put(session_index, info);
 			Ok(Some(r))
 		} else {
-			// Avoid needless fetches if we are not a validator:
-			self.session_info_cache.put(session_index, None);
-			tracing::trace!(target: LOG_TARGET, session_index, "No session info found!");
 			Ok(None)
 		}
 	}
@@ -185,13 +147,11 @@ impl SessionCache {
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
 	#[tracing::instrument(level = "trace", skip(self, report), fields(subsystem = LOG_TARGET))]
-	pub fn report_bad(&mut self, report: BadValidators) -> super::Result<()> {
+	pub fn report_bad(&mut self, report: BadValidators) -> crate::Result<()> {
 		let session = self
 			.session_info_cache
 			.get_mut(&report.session_index)
-			.ok_or(NonFatal::NoSuchCachedSession)?
-			.as_mut()
-			.ok_or(NonFatal::NotAValidator)?;
+			.ok_or(NonFatal::NoSuchCachedSession)?;
 		let group = session
 			.validator_groups
 			.get_mut(report.group_index.0 as usize)
@@ -218,36 +178,21 @@ impl SessionCache {
 	async fn query_info_from_runtime<Context>(
 		&self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<Option<SessionInfo>, Error>
 	where
 		Context: SubsystemContext,
 	{
-		let GlobalSessionInfo {
-			validators,
-			discovery_keys,
-			mut validator_groups,
-			..
-		} = recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
-			.await?
-			.ok_or(NonFatal::NoSuchSession(session_index))?;
+		let info = runtime.get_session_info_by_index(ctx, parent, session_index).await?;
 
-		if let Some(our_index) = self.get_our_index(validators).await {
+		let discovery_keys = info.session_info.discovery_keys.clone();
+		let mut validator_groups = info.session_info.validator_groups.clone();
+
+		if let Some(our_index) = info.validator_info.our_index {
 			// Get our group index:
-			let our_group = validator_groups
-				.iter()
-				.enumerate()
-				.find_map(|(i, g)| {
-					g.iter().find_map(|v| {
-						if *v == our_index {
-							Some(GroupIndex(i as u32))
-						} else {
-							None
-						}
-					})
-				}
-			);
+			let our_group = info.validator_info.our_group;
 
 			// Shuffle validators in groups:
 			let mut rng = thread_rng();
@@ -278,19 +223,5 @@ impl SessionCache {
 			return Ok(Some(info))
 		}
 		return Ok(None)
-	}
-
-	/// Get our `ValidatorIndex`.
-	///
-	/// Returns: None if we are not a validator.
-	async fn get_our_index(&self, validators: Vec<ValidatorId>) -> Option<ValidatorIndex> {
-		for (i, v) in validators.iter().enumerate() {
-			if CryptoStore::has_keys(&*self.keystore, &[(v.to_raw_vec(), ValidatorId::ID)])
-				.await
-			{
-				return Some(ValidatorIndex(i as u32));
-			}
-		}
-		None
 	}
 }

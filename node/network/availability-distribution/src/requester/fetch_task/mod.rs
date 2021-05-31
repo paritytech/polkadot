@@ -35,7 +35,7 @@ use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
 	error::{Fatal, Result},
-	session_cache::{BadValidators, SessionInfo},
+	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
@@ -221,13 +221,13 @@ impl FetchTask {
 		}
 	}
 
-	/// Whether or not there are still relay parents around with this candidate pending
+	/// Whether there are still relay parents around with this candidate pending
 	/// availability.
 	pub fn is_live(&self) -> bool {
 		!self.live_in.is_empty()
 	}
 
-	/// Whether or not this task can be considered finished.
+	/// Whether this task can be considered finished.
 	///
 	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {

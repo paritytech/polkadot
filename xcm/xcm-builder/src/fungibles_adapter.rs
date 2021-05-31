@@ -16,7 +16,7 @@
 
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
 use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
-use frame_support::traits::{Get, tokens::fungibles};
+use frame_support::traits::{Get, tokens::fungibles, Contains};
 use xcm_executor::traits::{TransactAsset, Convert};
 
 /// Asset transaction errors.
@@ -160,15 +160,49 @@ impl<
 	}
 }
 
-pub struct FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
-	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
+pub struct FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>(
+	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>
 );
 impl<
 	Assets: fungibles::Mutate<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-> TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+	CheckAsset: Contains<Assets::AssetId>,
+	CheckingAccount: Get<AccountId>,
+> TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount> {
+	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
+		// Check we handle this asset.
+		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
+		if CheckAsset::contains(&asset_id) {
+			// This is an asset whose teleports we track.
+			let checking_account = CheckingAccount::get();
+			Assets::can_withdraw(asset_id, &checking_account, amount)
+				.into_result()
+				.map_err(|_| XcmError::NotWithdrawable)?;
+		}
+		Ok(())
+	}
+
+	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
+		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
+			if CheckAsset::contains(&asset_id) {
+				let checking_account = CheckingAccount::get();
+				let ok = Assets::burn_from(asset_id, &checking_account, amount).is_ok();
+				debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
+			}
+		}
+	}
+
+	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
+		if let Ok((asset_id, amount)) = Matcher::matches_fungibles(what) {
+			if CheckAsset::contains(&asset_id) {
+				let checking_account = CheckingAccount::get();
+				let ok = Assets::mint_into(asset_id, &checking_account, amount).is_ok();
+				debug_assert!(ok, "`mint_into` cannot generally fail; qed");
+			}
+		}
+	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
@@ -193,25 +227,43 @@ impl<
 	}
 }
 
-pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
-	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
+pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>(
+	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>
 );
 impl<
 	Assets: fungibles::Mutate<AccountId> + fungibles::Transfer<AccountId>,
 	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 	AccountIdConverter: Convert<MultiLocation, AccountId>,
 	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-> TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+	CheckAsset: Contains<Assets::AssetId>,
+	CheckingAccount: Get<AccountId>,
+> TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount> {
+	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> Result {
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+			::can_check_in(origin, what)
+	}
+
+	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+			::check_in(origin, what)
+	}
+
+	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+			::check_out(dest, what)
+	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::deposit_asset(what, who)
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+			::deposit_asset(what, who)
 	}
 
 	fn withdraw_asset(
 		what: &MultiAsset,
 		who: &MultiLocation
 	) -> result::Result<xcm_executor::Assets, XcmError> {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::withdraw_asset(what, who)
+		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+			::withdraw_asset(what, who)
 	}
 
 	fn transfer_asset(

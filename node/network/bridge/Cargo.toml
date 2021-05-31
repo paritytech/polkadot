@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 async-trait = "0.1.42"
 futures = "0.3.12"
-tracing = "0.1.25"
+tracing = "0.1.26"
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }

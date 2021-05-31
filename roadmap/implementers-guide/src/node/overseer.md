@@ -26,6 +26,8 @@ The hierarchy of subsystems:
 
 The overseer determines work to do based on block import events and block finalization events. It does this by keeping track of the set of relay-parents for which work is currently being done. This is known as the "active leaves" set. It determines an initial set of active leaves on startup based on the data on-disk, and uses events about blockchain import to update the active leaves. Updates lead to [`OverseerSignal`](../types/overseer-protocol.md#overseer-signal)`::ActiveLeavesUpdate` being sent according to new relay-parents, as well as relay-parents to stop considering. Block import events inform the overseer of leaves that no longer need to be built on, now that they have children, and inform us to begin building on those children. Block finalization events inform us when we can stop focusing on blocks that appear to have been orphaned.
 
+The overseer is also responsible for tracking the freshness of active leaves. Leaves are fresh when they're encountered for the first time, and stale when they're encountered for subsequent times. This can occur after chain reversions or when the fork-choice rule abandons some chain. This distinction is used to manage **Reversion Safety**. Consensus messages are often localized to a specific relay-parent, and it is often a misbehavior to equivocate or sign two conflicting messages. When reverting the chain, we may begin work on a leaf that subsystems have already signed messages for. Subsystems which need to account for reversion safety should avoid performing work on stale leaves.
+
 The overseer's logic can be described with these functions:
 
 ## On Startup
@@ -38,6 +40,7 @@ The overseer's logic can be described with these functions:
 ## On Block Import Event
 
 * Apply the block import event to the active leaves. A new block should lead to its addition to the active leaves set and its parent being deactivated.
+* Mark any stale leaves as stale. The overseer should track all leaves it activates to determine whether leaves are fresh or stale.
 * Send an `OverseerSignal::ActiveLeavesUpdate` message to all subsystems containing all activated and deactivated leaves.
 * Ensure all `ActiveLeavesUpdate` messages are flushed before resuming activity as a message router.
 
