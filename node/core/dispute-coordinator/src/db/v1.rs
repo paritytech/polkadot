@@ -111,6 +111,79 @@ pub(crate) fn load_active_disputes(
 	load_decode(db, config.col_data, ACTIVE_DISPUTES_KEY)
 }
 
+/// An atomic transaction to be commited to the underlying DB.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct Transaction {
+	earliest_session: Option<SessionIndex>,
+	active_disputes: Option<ActiveDisputes>,
+	write_candidate_votes: Vec<(SessionIndex, CandidateHash, CandidateVotes)>,
+	delete_candidate_votes: Vec<(SessionIndex, CandidateHash)>,
+}
+
+impl Transaction {
+	/// Prepare a write to the 'earliest session' field of the DB.
+	///
+	/// Later calls to this function will override earlier ones.
+	pub(crate) fn put_earliest_session(&mut self, session: SessionIndex) {
+		self.earliest_session = Some(session);
+	}
+
+	/// Prepare a write to the active disputes stored in the DB.
+	///
+	/// Later calls to this function will override earlier ones.
+	pub(crate) fn put_active_disputes(&mut self, active: ActiveDisputes) {
+		self.active_disputes = Some(active);
+	}
+
+
+	/// Prepare a write of the candidate votes under the indicated candidate.
+	///
+	/// Later calls to this function for the same candidate will override earlier ones.
+	/// Any calls to this function will be overridden by deletions of the same candidate.
+	pub(crate) fn put_candidate_votes(
+		&mut self,
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		votes: CandidateVotes,
+	) {
+		self.write_candidate_votes.push((session, candidate_hash, votes))
+	}
+
+	/// Prepare a deletion of the candidate votes under the indicated candidate.
+	///
+	/// Any calls to this function will override writes to the same candidate.
+	pub(crate) fn delete_candidate_votes(
+		&mut self,
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+	) {
+		self.delete_candidate_votes.push((session, candidate_hash))
+	}
+
+	/// Write the transaction atomically to the DB.
+	pub(crate) fn write(self, db: &dyn KeyValueDB, config: ColumnConfiguration) -> Result<()> {
+		let mut tx = DBTransaction::new();
+
+		if let Some(s) = self.earliest_session {
+			tx.put_vec(config.col_data, EARLIEST_SESSION_KEY, s.encode());
+		}
+
+		if let Some(a) = self.active_disputes {
+			tx.put_vec(config.col_data, ACTIVE_DISPUTES_KEY, a.encode());
+		}
+
+		for (session, candidate_hash, votes) in self.write_candidate_votes {
+			tx.put_vec(config.col_data, &candidate_votes_key(session, &candidate_hash), votes.encode());
+		}
+
+		for (session, candidate_hash) in self.delete_candidate_votes {
+			tx.delete(config.col_data, &candidate_votes_key(session, &candidate_hash));
+		}
+
+		db.write(tx).map_err(Into::into)
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
