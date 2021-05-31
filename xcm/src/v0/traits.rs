@@ -34,10 +34,10 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// The message and destination was recognized as being reachable but the operation could not be completed.
 	/// A human-readable explanation of the specific issue is provided.
 	SendFailed(#[codec(skip)] &'static str),
-	/// The message and destination combination was not recognised as being reachable.
+	/// The message and destination combination was not recognized as being reachable.
 	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
@@ -92,7 +92,7 @@ pub type Result = result::Result<(), Error>;
 /// Local weight type; execution time in picoseconds.
 pub type Weight = u64;
 
-/// Outcome of an XCM excution.
+/// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
@@ -162,7 +162,7 @@ impl<C> ExecuteXcm<C> for () {
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamted in tuples to form sophisticated routing systems.
+/// These can be amalgamated in tuples to form sophisticated routing systems.
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
