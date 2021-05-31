@@ -1164,7 +1164,7 @@ pub fn polkadot_testnet_genesis(
 		},
 		pallet_staking: polkadot::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {

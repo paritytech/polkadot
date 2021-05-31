@@ -322,7 +322,7 @@ impl pallet_session::historical::Config for Runtime {
 
 parameter_types! {
 	// no signed phase for now, just unsigned.
-	pub const SignedPhase: u32 = 0;
+	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// signed config
@@ -400,7 +400,7 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = 1;
 	// 28 eras for unbonding (28 days).
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
