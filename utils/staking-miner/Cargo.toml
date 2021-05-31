@@ -14,7 +14,10 @@ jsonrpsee-ws-client = { version = "=0.2.0-alpha.6" }
 jsonrpsee-types = { version = "=0.2.0-alpha.6" }
 jsonrpsee = "=0.2.0-alpha.6"
 serde_json = "1.0"
+serde = "1.0.0"
 hex = "0.4.0"
+lazy_static = "1.4.0"
+paste = "1.0.5"
 
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 
@@ -23,11 +26,19 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 
+runtime-common = { package = "polkadot-runtime-common", path = "../../runtime/common" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
+
+[dev-dependencies]
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
