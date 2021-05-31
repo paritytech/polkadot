@@ -76,6 +76,20 @@ pub trait PunishValidators {
 	fn punish_inconclusive(session: SessionIndex, validators: impl IntoIterator<Item=ValidatorIndex>);
 }
 
+impl PunishValidators for () {
+	fn punish_for_invalid(_: SessionIndex, _: impl IntoIterator<Item=ValidatorIndex>) {
+
+	}
+
+	fn punish_against_valid(_: SessionIndex, _: impl IntoIterator<Item=ValidatorIndex>) {
+
+	}
+
+	fn punish_inconclusive(_: SessionIndex, _: impl IntoIterator<Item=ValidatorIndex>) {
+
+	}
+}
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
