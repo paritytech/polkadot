@@ -553,7 +553,7 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalised form is returned, removing any
+	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalized form is returned, removing any
 	/// internal `Parent`s.
 	///
 	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
@@ -570,7 +570,7 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned, removing any
+	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalized form is returned, removing any
 	/// internal `Parent`s.
 	///
 	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
