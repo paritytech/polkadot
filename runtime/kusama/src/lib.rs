@@ -51,6 +51,7 @@ use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
+use runtime_parachains::disputes as parachains_disputes;
 
 use xcm::v0::{MultiLocation, NetworkId};
 use xcm_builder::{
@@ -1019,6 +1020,12 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+}
+
 impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_scheduler::Config for Runtime {}
@@ -1231,6 +1238,7 @@ construct_runtime! {
 		ParasUmp: parachains_ump::{Pallet, Call, Storage} = 59,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 61,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event} = 62,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
