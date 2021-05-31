@@ -673,6 +673,7 @@ impl<T: Config> Pallet<T> {
 		Ok(fresh)
 	}
 
+	#[allow(unused)]
 	pub(crate) fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 		<Disputes<T>>::iter().collect()
 	}
