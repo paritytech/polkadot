@@ -44,7 +44,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn remark(_b: u32, ) -> Weight {
-		(1_222_000 as Weight)
+		(10_222_000 as Weight)
 	}
 	fn remark_with_event(b: u32, ) -> Weight {
 		(0 as Weight)
