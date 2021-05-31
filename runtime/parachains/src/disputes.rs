@@ -18,7 +18,7 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	Id as ParaId, SessionIndex, CandidateHash,
+	SessionIndex, CandidateHash,
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
@@ -137,16 +137,16 @@ pub mod pallet {
 	pub(super) type Frozen<T> =  StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::event]
-	#[pallet::generate_deposit(fn deposit_event)]
+	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event {
-		/// A dispute has been initiated. \[para_id, candidate hash, dispute location\]
-		DisputeInitiated(ParaId, CandidateHash, DisputeLocation),
+		/// A dispute has been initiated. \[candidate hash, dispute location\]
+		DisputeInitiated(CandidateHash, DisputeLocation),
 		/// A dispute has concluded for or against a candidate.
 		/// \[para_id, candidate hash, dispute result\]
-		DisputeConcluded(ParaId, CandidateHash, DisputeResult),
+		DisputeConcluded(CandidateHash, DisputeResult),
 		/// A dispute has timed out due to insufficient participation.
 		/// \[para_id, candidate hash\]
-		DisputeTimedOut(ParaId, CandidateHash),
+		DisputeTimedOut(CandidateHash),
 	}
 
 	#[pallet::hooks]
@@ -404,6 +404,8 @@ impl<T: Config> Pallet<T> {
 			if dispute.concluded_at.is_none()
 				&& dispute.start + config.dispute_conclusion_by_time_out_period < now
 			{
+				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
+
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
@@ -584,7 +586,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		if !<Included<T>>::contains_key(&set.session, &set.candidate_hash) {
+		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
+		if !is_local {
 			let mut spam_slots: Vec<u32> = SpamSlots::<T>::get(&set.session)
 				.unwrap_or_else(|| vec![0; n_validators]);
 
@@ -608,6 +611,33 @@ impl<T: Config> Pallet<T> {
 			}
 
 			SpamSlots::<T>::insert(&set.session, spam_slots);
+		}
+
+		if fresh {
+			Self::deposit_event(Event::DisputeInitiated(
+				set.candidate_hash,
+				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
+			));
+		}
+
+		{
+			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+				Self::deposit_event(Event::DisputeConcluded(
+					set.candidate_hash,
+					DisputeResult::Valid,
+				));
+			}
+
+			// It is possible, although unexpected, for a dispute to conclude twice.
+			// This would require f+1 validators to vote in both directions.
+			// A dispute cannot conclude more than once in each direction.
+
+			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+				Self::deposit_event(Event::DisputeConcluded(
+					set.candidate_hash,
+					DisputeResult::Invalid,
+				));
+			}
 		}
 
 		// Reward statements.
