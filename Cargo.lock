@@ -6029,6 +6029,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-dispute-coordinator"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "futures 0.3.14",
+ "kvdb",
+ "parity-scale-codec",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-parachains-inherent"
 version = "0.1.0"
 dependencies = [
