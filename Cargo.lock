@@ -6038,9 +6038,11 @@ dependencies = [
  "kvdb",
  "kvdb-memorydb",
  "parity-scale-codec",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sc-keystore",
  "tracing",
 ]
 

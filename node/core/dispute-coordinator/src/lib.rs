@@ -25,4 +25,25 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use polkadot_node_primitives::CandidateVotes;
+use polkadot_node_subsystem::{
+	messages::{
+		RuntimeApiRequest, DisputeCoordinatorMessage,
+	},
+	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemError,
+};
+use polkadot_primitives::v1::{SessionIndex, CandidateHash};
+
+use sc_keystore::LocalKeystore;
+
 mod db;
+
+struct State {
+	keystore: Arc<LocalKeystore>,
+	overlay: HashMap<(SessionIndex, CandidateHash), CandidateVotes>,
+	highest_session: SessionIndex,
+}
