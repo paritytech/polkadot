@@ -6036,6 +6036,7 @@ dependencies = [
  "derive_more",
  "futures 0.3.14",
  "kvdb",
+ "kvdb-memorydb",
  "parity-scale-codec",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",

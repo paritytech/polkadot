@@ -56,7 +56,7 @@ pub struct CandidateVotes {
 }
 
 /// Meta-key for tracking active disputes.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct ActiveDisputes {
 	/// All disputed candidates, sorted by session index and then by candidate hash.
 	pub disputed: Vec<(SessionIndex, CandidateHash)>,
@@ -161,7 +161,7 @@ impl Transaction {
 	}
 
 	/// Write the transaction atomically to the DB.
-	pub(crate) fn write(self, db: &dyn KeyValueDB, config: ColumnConfiguration) -> Result<()> {
+	pub(crate) fn write(self, db: &dyn KeyValueDB, config: &ColumnConfiguration) -> Result<()> {
 		let mut tx = DBTransaction::new();
 
 		if let Some(s) = self.earliest_session {
@@ -187,7 +187,7 @@ impl Transaction {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::Hash;
+	use polkadot_primitives::v1::{Hash, Id as ParaId};
 
 	#[test]
 	fn candidate_votes_key_works() {
@@ -199,5 +199,145 @@ mod tests {
 		assert_eq!(&key[0..4], &[0x04, 0x00, 0x00, 0x00]);
 		assert_eq!(&key[4..19], CANDIDATE_VOTES_SUBKEY);
 		assert_eq!(&key[19..51], candidate.0.as_bytes());
+	}
+
+	#[test]
+	fn db_transaction() {
+		let store = kvdb_memorydb::create(1);
+		let config = ColumnConfiguration { col_data: 0 };
+
+		{
+			let mut tx = Transaction::default();
+
+			tx.put_earliest_session(0);
+			tx.put_earliest_session(1);
+
+			tx.put_active_disputes(ActiveDisputes {
+				disputed: vec![
+					(0, CandidateHash(Hash::repeat_byte(0))),
+				],
+			});
+
+			tx.put_active_disputes(ActiveDisputes {
+				disputed: vec![
+					(1, CandidateHash(Hash::repeat_byte(1))),
+				],
+			});
+
+			tx.put_candidate_votes(
+				1,
+				CandidateHash(Hash::repeat_byte(1)),
+				CandidateVotes {
+					candidate_receipt: Default::default(),
+					valid: Vec::new(),
+					invalid: Vec::new(),
+				},
+			);
+			tx.put_candidate_votes(
+				1,
+				CandidateHash(Hash::repeat_byte(1)),
+				CandidateVotes {
+					candidate_receipt: {
+						let mut receipt = CandidateReceipt::default();
+						receipt.descriptor.para_id = 5.into();
+
+						receipt
+					},
+					valid: Vec::new(),
+					invalid: Vec::new(),
+				},
+			);
+
+			tx.write(&store, &config).unwrap();
+		}
+
+		// Test that subsequent writes were written.
+		{
+			assert_eq!(
+				load_earliest_session(&store, &config).unwrap().unwrap(),
+				1,
+			);
+
+			assert_eq!(
+				load_active_disputes(&store, &config).unwrap().unwrap(),
+				ActiveDisputes {
+					disputed: vec![
+						(1, CandidateHash(Hash::repeat_byte(1))),
+					],
+				},
+			);
+
+			assert_eq!(
+				load_candidate_votes(
+					&store,
+					&config,
+					1,
+					&CandidateHash(Hash::repeat_byte(1))
+				).unwrap().unwrap().candidate_receipt.descriptor.para_id,
+				ParaId::from(5),
+			);
+		}
+	}
+
+	#[test]
+	fn db_deletes_supersede_writes() {
+		let store = kvdb_memorydb::create(1);
+		let config = ColumnConfiguration { col_data: 0 };
+
+		{
+			let mut tx = Transaction::default();
+			tx.put_candidate_votes(
+				1,
+				CandidateHash(Hash::repeat_byte(1)),
+				CandidateVotes {
+					candidate_receipt: Default::default(),
+					valid: Vec::new(),
+					invalid: Vec::new(),
+				}
+			);
+
+			tx.write(&store, &config).unwrap();
+		}
+
+		assert_eq!(
+			load_candidate_votes(
+				&store,
+				&config,
+				1,
+				&CandidateHash(Hash::repeat_byte(1))
+			).unwrap().unwrap().candidate_receipt.descriptor.para_id,
+			ParaId::from(0),
+		);
+
+		{
+			let mut tx = Transaction::default();
+			tx.put_candidate_votes(
+				1,
+				CandidateHash(Hash::repeat_byte(1)),
+				CandidateVotes {
+					candidate_receipt: {
+						let mut receipt = CandidateReceipt::default();
+						receipt.descriptor.para_id = 5.into();
+
+						receipt
+					},
+					valid: Vec::new(),
+					invalid: Vec::new(),
+				}
+			);
+
+			tx.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
+
+			tx.write(&store, &config).unwrap();
+		}
+
+		assert!(
+			load_candidate_votes(
+				&store,
+				&config,
+				1,
+				&CandidateHash(Hash::repeat_byte(1))
+			).unwrap().is_none()
+		);
 	}
 }
