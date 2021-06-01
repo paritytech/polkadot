@@ -35,8 +35,21 @@ const DISPUTE_WINDOW: SessionIndex = 12;
 fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) -> [u8; 15 + 4 + 32] {
 	let mut buf = [0u8; 15 + 4 + 32];
 	buf[..15].copy_from_slice(CANDIDATE_VOTES_SUBKEY);
-	session.using_encoded(|s| buf[15..][..4].copy_from_slice(s));
+
+	// big-endian encoding is used to ensure lexicographic ordering.
+	buf[15..][..4].copy_from_slice(&session.to_be_bytes());
 	candidate_hash.using_encoded(|s| buf[(15 + 4)..].copy_from_slice(s));
+
+	buf
+}
+
+// Computes the upper lexicographic bound on DB keys for candidate votes with a given
+// upper-exclusive bound on sessions.
+fn candidate_votes_range_upper_bound(upper_exclusive: SessionIndex) -> [u8; 15 + 4] {
+	let mut buf = [0; 15 + 4];
+	buf[..15].copy_from_slice(CANDIDATE_VOTES_SUBKEY);
+	// big-endian encoding is used to ensure lexicographic ordering.
+	buf[15..][..4].copy_from_slice(&upper_exclusive.to_be_bytes());
 
 	buf
 }
@@ -252,7 +265,7 @@ mod tests {
 		let key = candidate_votes_key(session, &candidate);
 
 		assert_eq!(&key[0..15], CANDIDATE_VOTES_SUBKEY);
-		assert_eq!(&key[15..19], &[0x04, 0x00, 0x00, 0x00]);
+		assert_eq!(&key[15..19], &[0x00, 0x00, 0x00, 0x04]);
 		assert_eq!(&key[19..51], candidate.0.as_bytes());
 	}
 
