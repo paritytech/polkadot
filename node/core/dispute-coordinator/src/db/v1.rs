@@ -28,6 +28,10 @@ const ACTIVE_DISPUTES_KEY: &[u8; 15] = b"active-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
 const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
 
+// It would be nice to draw this from the chain state, but we have no tools for it right now.
+// On Polkadot this is 2 days, and on Kusama it's 12 hours.
+const DISPUTE_WINDOW: SessionIndex = 12;
+
 fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) -> [u8; 4 + 15 + 32] {
 	let mut buf = [0u8; 4 + 15 + 32];
 	session.using_encoded(|s| buf[0..4].copy_from_slice(s));
@@ -56,7 +60,7 @@ pub struct CandidateVotes {
 }
 
 /// Meta-key for tracking active disputes.
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Default, Clone, Encode, Decode, PartialEq)]
 pub struct ActiveDisputes {
 	/// All disputed candidates, sorted by session index and then by candidate hash.
 	pub disputed: Vec<(SessionIndex, CandidateHash)>,
@@ -182,6 +186,57 @@ impl Transaction {
 
 		db.write(tx).map_err(Into::into)
 	}
+}
+
+/// Maybe prune data in the DB based on the provided session index.
+///
+/// This is intended to be called on every block, and as such will be used to populate the DB on
+/// first launch. If the on-disk data does not need to be pruned, only a single storage read
+/// will be performed.
+///
+/// If one or more ancient sessions are pruned, all metadata on candidates within the ancient
+/// session will be deleted.
+pub(crate) fn note_current_session(
+	store: &dyn KeyValueDB,
+	config: &ColumnConfiguration,
+	current_session: SessionIndex,
+) -> Result<()> {
+	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW);
+	let mut tx = Transaction::default();
+
+	match load_earliest_session(store, config)? {
+		None => {
+			// First launch - write new-earliest.
+			tx.put_earliest_session(new_earliest);
+		}
+		Some(prev_earliest) if new_earliest > prev_earliest => {
+			// Prune all data in the outdated sessions.
+			tx.put_earliest_session(new_earliest);
+
+			// Clear active disputes metadata.
+			{
+				let mut active_disputes = load_active_disputes(store, config)?.unwrap_or_default();
+				let prune_up_to = active_disputes.disputed.iter()
+					.take_while(|s| s.0 < new_earliest)
+					.count();
+
+				if prune_up_to > 0 {
+					let _ = active_disputes.disputed.drain(..prune_up_to);
+					tx.put_active_disputes(active_disputes);
+				}
+			}
+
+			// Clear all disputes with session less than the new earliest kept.
+			{
+				// TODO [now]
+			}
+		}
+		Some(_) => {
+			// nothing to do.
+		}
+	};
+
+	tx.write(store, config)
 }
 
 #[cfg(test)]
