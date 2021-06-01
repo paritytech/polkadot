@@ -8,7 +8,7 @@ set -eu
 SIMNET_REF=$1
 
 # API trigger another project's pipeline
-echo "Triggering Simnet pipeline."
+echo "Triggering Simnet pipeline version '${SIMNET_REF}'."
 
 curl --silent \
     -X POST \
