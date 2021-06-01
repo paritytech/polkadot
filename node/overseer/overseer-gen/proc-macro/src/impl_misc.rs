@@ -84,7 +84,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		}
 
 		#[::polkadot_overseer_gen::async_trait]
-		impl<M: Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
+		impl<M: std::fmt::Debug + Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
 		where
 			#subsystem_sender_name: polkadot_overseer_gen::SubsystemSender<M>,
 		{

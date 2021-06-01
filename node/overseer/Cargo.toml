@@ -10,11 +10,12 @@ client = { package = "sc-client-api", git = "https://github.com/paritytech/subst
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.12"
 futures-timer = "3.0.2"
+polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { package = "polkadot-overseer-gen", path = "./overseer-gen" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 tracing = "0.1.25"
 
 [dev-dependencies]

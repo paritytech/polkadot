@@ -65,7 +65,6 @@ pub struct MsgStrukt(u8);
 #[derive(Debug, Clone, Copy)]
 pub struct Plinko;
 
-
 impl From<EvX> for MsgStrukt {
 	fn from(_event: EvX) -> Self {
 		MsgStrukt(1u8)

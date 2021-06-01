@@ -220,13 +220,13 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem<E=SubsystemError>
+pub struct SpawnedSubsystem<E=self::SubsystemError>
 	where
 		E: std::error::Error
 			+ Send
 			+ Sync
 			+ 'static
-			+ From<SubsystemError>
+			+ From<self::SubsystemError>,
 {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
@@ -274,7 +274,7 @@ pub enum SubsystemError {
 }
 
 /// Alias for a result with error type `SubsystemError`.
-pub type SubsystemResult<T> = std::result::Result<T, SubsystemError>;
+pub type SubsystemResult<T> = std::result::Result<T, self::SubsystemError>;
 
 /// Collection of meters related to a subsystem.
 #[derive(Clone)]
@@ -360,13 +360,13 @@ pub trait SubsystemContext: Send + 'static {
 	/// And the same for signals.
 	type Signal: std::fmt::Debug + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: SubsystemSender<Self::Message> + std::fmt::Debug + Clone + Send;
+	type Sender: SubsystemSender<Self::Message> + std::fmt::Debug + Send;
 
 	/// Try to asynchronously receive a message.
 	///
 	/// This has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
-	async fn try_recv(&mut self) -> SubsystemResult<Option<FromOverseer<Self::Message, Self::Signal>>>;
+	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
 
 	/// Receive a message.
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message, Self::Signal>>;
@@ -408,7 +408,7 @@ pub trait SubsystemContext: Send + 'static {
 pub trait Subsystem<Ctx, E>
 where
 	Ctx: SubsystemContext,
-	E: std::error::Error + Send + Sync + 'static + From<SubsystemError>,
+	E: std::error::Error + Send + Sync + 'static + From<self::SubsystemError>,
 {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: Ctx) -> SpawnedSubsystem < E >;

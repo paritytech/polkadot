@@ -80,7 +80,7 @@ use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
-use polkadot_subsystem::messages::{
+use polkadot_node_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
@@ -88,10 +88,15 @@ use polkadot_subsystem::messages::{
 	AvailabilityStoreMessage, NetworkBridgeMessage, CollationGenerationMessage,
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
 	ApprovalVotingMessage, GossipSupportMessage,
+	NetworkBridgeEvent,
 };
-pub use polkadot_subsystem::{
+pub use polkadot_node_subsystem::{
 	OverseerSignal,
-	SubsystemResult, ActiveLeavesUpdate, ActivatedLeaf, jaeger,
+	errors::{SubsystemResult, SubsystemError,},
+	ActiveLeavesUpdate, ActivatedLeaf, jaeger,
+};
+use polkadot_node_network_protocol::{
+	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
 
 /// TODO legacy, to be deleted, left for easier integration
@@ -107,7 +112,6 @@ use polkadot_overseer_gen::{
 	SpawnNamed,
 	SpawnedSubsystem,
 	Subsystem,
-	SubsystemError,
 	SubsystemMeterReadouts,
 	SubsystemMeters,
 	SubsystemIncomingMessages,
@@ -192,7 +196,7 @@ impl Handler {
 		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 				hash,
 				response_channel
-		})).await
+		})).await;
 	}
 
 	/// Tell `Overseer` to shutdown.
@@ -312,9 +316,15 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 // }).await.map_err(Into::into)
 // }
 
+// NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 
 /// The `Overseer` itself.
-#[overlord(gen=AllMessages, event=Event, signal=OverseerSignal, error=SubsystemError)]
+#[overlord(
+	gen=AllMessages,
+	event=Event,
+	signal=OverseerSignal,
+	error=SubsystemError
+)]
 pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
@@ -433,7 +443,7 @@ where
 	/// # use futures_timer::Delay;
 	/// # use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	/// # use polkadot_primitives::v1::Hash;
-	/// # use polkadot_subsystem::{
+	/// # use polkadot_node_subsystem::{
 	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
 	/// #     messages::CandidateValidationMessage,
 	/// # };
@@ -487,33 +497,32 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, E>(
+	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		mut s: S,
-	) -> ::polkadot_overseer_gen::SubsystemResult<(Self, Handler)>
+	) -> SubsystemResult<(Self, Handler)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, E> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, E> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>, E> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, E> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, E> + Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, E> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, E> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, E> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, E> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, E> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, E> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, E> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, E> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, E> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, E> + Send,
-		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, E> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, E> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, E> + Send,
-		E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>, SubsystemError> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError> + Send,
+		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError> + Send,
+		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError> + Send,
+		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError> + Send,
+		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError> + Send,
+		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError> + Send,
 		S: SpawnNamed,
 	{
 
@@ -521,6 +530,7 @@ where
 		// spawn the metrics metronome task
 		{
 			struct ExtractNameAndMeters;
+
 			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
 				type Output = (&'static str, SubsystemMeters);
 
@@ -536,7 +546,10 @@ where
 				}
 			}
 
-			let subsystem_meters = all_subsystems.as_ref().map_subsystems(ExtractNameAndMeters);
+			let subsystem_meters = all_subsystems
+				.as_ref()
+				.map_subsystems(ExtractNameAndMeters);
+
 			let metronome_metrics = metrics.clone();
 			let metronome = Metronome::new(std::time::Duration::from_millis(950))
 				.for_each(move |_| {
@@ -666,7 +679,7 @@ where
 
 					tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
 					self.stop().await;
-					return finished;
+					return Ok(finished?);
 				},
 			}
 		}
@@ -700,10 +713,9 @@ where
 		self.clean_up_external_listeners();
 
 		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await
-		} else {
-			Ok(())
+			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 		}
+		Ok(())
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]

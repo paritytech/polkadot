@@ -407,11 +407,22 @@ pub enum FromJobCommand {
 }
 
 /// A sender for messages from jobs, as well as commands to the overseer.
-#[derive(Clone)]
 pub struct JobSender<S: SubsystemSender<M>, M> {
 	sender: S,
 	from_job: mpsc::Sender<FromJobCommand>,
 	_phantom: std::marker::PhantomData<M>,
+}
+
+// A custom clone impl, since M does not need to impl `Clone`
+// which `#[derive(Clone)]` requires.
+impl<S: SubsystemSender<M>, M> Clone for JobSender<S, M> {
+	fn clone(&self) -> Self {
+		Self {
+			sender: self.sender.clone(),
+			from_job: self.from_job.clone(),
+			_phantom: Default::default(),
+		}
+	}
 }
 
 impl<S: SubsystemSender<M>, M> JobSender<S, M> {
@@ -451,8 +462,8 @@ impl<S: SubsystemSender<M>, M> JobSender<S, M> {
 #[async_trait::async_trait]
 impl<S, M> SubsystemSender<M> for JobSender<S, M>
 where
-	M: Clone + Send + 'static,
-	S: SubsystemSender<M>
+	M: Send + 'static,
+	S: SubsystemSender<M> + Clone,
 {
 	async fn send_message(&mut self, msg: M) {
 		self.sender.send_message(msg).await

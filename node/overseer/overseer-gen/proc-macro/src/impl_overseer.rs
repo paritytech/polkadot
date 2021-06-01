@@ -27,6 +27,8 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 	let signal_ty = &info.extern_signal_ty;
 
+	let error_ty = &info.extern_error_ty;
+
 	let event_ty = &info.extern_event_ty;
 
 	let message_channel_capacity = info.message_channel_capacity;
@@ -64,7 +66,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 			/// The set of running subsystems.
 			running_subsystems: ::polkadot_overseer_gen::FuturesUnordered<
-				BoxFuture<'static, ::polkadot_overseer_gen::SubsystemResult<()>>
+				BoxFuture<'static, ::std::result::Result<(), #error_ty>>
 			>,
 
 			/// Gather running subsystems' outbound streams into one.
@@ -123,6 +125,21 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 					)*
 				}
 				Ok(())
+			}
+
+			/// Extract information
+			pub fn for_each_subsystem<Mapper, Output>(&self, mapper: Mapper)
+			-> Vec<Output>
+				where
+				#(
+					Mapper: for<'a> MapSubsystem<&'a OverseenSubsystem< #consumes >, Output=Output>,
+				)*
+			{
+				vec![
+				#(
+					mapper.map_subsystem( & self. #subsystem_name ),
+				)*
+				]
 			}
 		}
 	};

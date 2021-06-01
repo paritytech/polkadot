@@ -64,13 +64,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 	let builder_where_clause = quote! {
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			#( #builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>, )*
+		#(
+			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>,
+		)*
 	};
 
 	let event = &info.extern_event_ty;
 
 	let mut ts = quote! {
-
 		impl #generics #overseer_name #generics #where_clause {
 			pub fn builder #builder_additional_generics () -> #builder #builder_generics
 				#builder_where_clause
@@ -94,6 +95,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 		impl #builder_generics Default for #builder #builder_generics {
 			fn default() -> Self {
+				// explicitly assure the required traits are implemented
+				fn trait_from_must_be_implemented<E>()
+				where E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>
+				{}
+
+				trait_from_must_be_implemented::< #error_ty >();
+
 				Self {
 				#(
 					#subsystem_name: None,
@@ -271,7 +279,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 		) -> SubsystemResult<OverseenSubsystem<M>>
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
-			M: Send + 'static,
+			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
 			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
 			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
