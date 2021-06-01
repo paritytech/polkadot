@@ -53,8 +53,8 @@ pub mod pallet {
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
 
-		/// Required origin for executing XCM messages, includng the teleport functionality. If successful,
-		/// the it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
+		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
+		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
 		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success=MultiLocation>;
 
@@ -300,7 +300,7 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation> for Is
 	}
 }
 
-/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognise and filter the
+/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
 impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
