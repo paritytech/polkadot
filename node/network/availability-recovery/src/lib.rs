@@ -666,7 +666,7 @@ async fn launch_interaction(
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_recover(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	receipt: CandidateReceipt,
 	session_index: SessionIndex,
 	backing_group: Option<GroupIndex>,

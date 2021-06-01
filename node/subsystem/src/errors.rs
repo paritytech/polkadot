@@ -81,9 +81,6 @@ impl std::fmt::Display for RecoveryError {
 
 impl std::error::Error for RecoveryError {}
 
-
-
-
 /// An error type that describes faults that may happen
 ///
 /// These are:

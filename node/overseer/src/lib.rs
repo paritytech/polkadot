@@ -334,7 +334,7 @@ pub struct Overseer<SupportsParachains> {
 	candidate_backing: CandidateBacking,
 
 	#[subsystem(no_dispatch, CandidateSelectionMessage)]
-	candidate_selection_message: CandidateSelection,
+	candidate_selection: CandidateSelection,
 
 	#[subsystem(StatementDistributionMessage)]
 	statement_distribution: StatementDistribution,
@@ -587,13 +587,15 @@ where
 			.approval_distribution(all_subsystems.approval_distribution)
 			.approval_voting(all_subsystems.approval_voting)
 			.gossip_support(all_subsystems.gossip_support)
-			.leaves(Vec::from_iter(leaves))
+			.leaves(Vec::from_iter(
+				leaves.into_iter().map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
+			))
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
 			.metrics(metrics)
 			.spawner(s)
-			.build();
+			.build()?;
 
 		Ok((overseer, Handler(handler)))
 	}
