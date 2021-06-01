@@ -258,6 +258,7 @@ impl pallet_balances::Config for Runtime {
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 }
 
