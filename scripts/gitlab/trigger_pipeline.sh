@@ -2,10 +2,8 @@
 
 set -eou pipefail
 
-# The purpose of this script is to used in gitlab ci to trigger another's project
-# pipeline. Most variables in parse_args function must be assigned in "variables" section
-# in .gitlab-ci.yaml file of triggering project or as args to this script.
-
+# This script is to trigger Simnet pipeline.
+# See help article for more details.
 
 SCRIPT_NAME="$0"
 SCRIPT_PATH=$(dirname "$0")               # relative
@@ -14,49 +12,68 @@ SIMNET_VERSION=""
 
 function usage {
   cat << EOF
+This script is to trigger Simnet pipeline.
+It's designed to be launched locally and from CI.
+The required argumants for both cases are listed below.
+
 Usage: ${SCRIPT_NAME} OPTION
 
-OPTION
-  -a, --simnet-version       MANDATORY Simnet version to trigger. 
-                             E.g.: v4
-  -b, --trgr-project         OPTIONAL Triggering project. 
-                             E.g.: polkadot
-  -c, --trgr-ref             OPTIONAL The branch or tag name for which project is built. 
-                             E.g.: master
-  -d, --image-name           OPTIONAL Name of image to test.
-                             E.g.: docker.io/paritypr/synth-wave 
-  -e, --image-tag            OPTIONAL Tag of the image to test 
-                             E.g.: master
-  -f, --collator-image-tag   OPTIONAL Tag of collator image
-                             E.g.: master
-  -g, --ci-server-host       OPTIONAL FQDN of your gitlab server.
-                             E.g.: gitlab.parity.io
-  -h, --help                 Print this help message. 
-  -i, --dwnstrm-id           OPTIONAL Downstream ID of pipeline to trigger.
-                             E.g.: 332 (siment project id)
-  -j, --trigger-token        Gitlab trigger token. This must be defined in 
-                             project -> settings -> CI/CD -> Pipeline triggers
-                             Defaults to CI_JOB_TOKEN
-                             https://stackoverflow.com/questions/42746634/gitlab-trigger-api-returns-404
-  -k, --access-token         Gitlab  peronal access token or it defaults to 
-                             PIPELINE_TOKEN (gitlab variable)
-                             https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html
+OPTIONS
+
+    -h, --help                  Print this help message.
+
+  Mandatory in both cases:
+
+    -s, --simnet-version        Simnet version to trigger.
+                                E.g.: v4
+
+    -u, --upstream-project      Triggering project.
+                                E.g.: polkadot
+
+    -r, --upstream-ref          The branch or tag name for which project is built.
+                                E.g.: master
+
+    -d, --downstream-id         Downstream project's ID to trigger.
+                                E.g.: 332 (simnet project id)
+
+    -n, --image-name            Name of image to test.
+                                E.g.: docker.io/paritypr/synth-wave
+
+    -i, --image-tag             Tag of the image to test.
+                                E.g.: master
+
+    -c, --collator-image-tag    Tag of collator image. Image name is hardcoded.
+                                E.g.: master
+
+  Required for local launch:
+
+    -g, --ci-server-fqdn        FQDN of your gitlab server.
+                                E.g.: gitlab.parity.io
+
+    -t, --trigger-token         Gitlab trigger token. This must be defined in
+                                project -> settings -> CI/CD -> Pipeline triggers
+                                Defaults to CI_JOB_TOKEN
+                                https://stackoverflow.com/questions/42746634/gitlab-trigger-api-returns-404
+
+    -a, --access-token          Gitlab  peronal access token or it defaults to
+                                PIPELINE_TOKEN (gitlab variable)
+                                https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html
 
 EXAMPLES
-${SCRIPT_NAME} -a v4
-${SCRIPT_NAME} --simnet-version=v4
+  ${SCRIPT_NAME} -s v4
+  ${SCRIPT_NAME} --simnet-version=v4
 
-Local test example. You need to set the 2 vars before running: TR_TOKEN and PERS_TOKEN
-${SCRIPT_NAME} --simnet-version=v4 \\
-               --trgr-project=polkadot \\
-               --trgr-ref=master \\
-               --image-name=docker.io/paritypr/synth-wave \\
-               --image-tag=master \\
-               --collator-image-tag=master \\
-               --ci-server-host=gitlab.parity.io \\
-               --dwnstrm-id=332 \\
-               --trigger-token="\${TR_TOKEN}" \\
-               --access-token="\${PERS_TOKEN}"
+  Local test example. You need to set the 2 vars before running: TR_TOKEN and PERS_TOKEN
+  ${SCRIPT_NAME} --simnet-version=v4 \\
+                 --upstream-project=polkadot \\
+                 --upstream-ref=master \\
+                 --image-name=docker.io/paritypr/synth-wave \\
+                 --image-tag=master \\
+                 --collator-image-tag=master \\
+                 --ci-server-fqdn=gitlab.parity.io \\
+                 --downstream-id=332 \\
+                 --trigger-token="\${TR_TOKEN}" \\
+                 --access-token="\${PERS_TOKEN}"
 EOF
 }
 
@@ -64,14 +81,14 @@ function main {
   # Main entry point for the script.
   parse_args "$@"
   check_args
-  trigger_other_pipeline
-  check_other_pipeline
-  poll_other_pipeline
+  trigger_pipeline
+  check_pipeline
+  poll_pipeline
 }
 
 function parse_args {
   # shellcheck disable=SC2214
-  while getopts a:b:c:d:e:f:g:hi:j:k:-: OPT; do
+  while getopts c:u:r:i:n:g:t:r:a:s:h:-: OPT; do
     # support long options: https://stackoverflow.com/a/28466267/519360
     if [ "${OPT}" = "-" ]; then   # long option: reformulate OPT and OPTARG
       OPT="${OPTARG%%=*}"         # extract long option name
@@ -79,17 +96,17 @@ function parse_args {
       OPTARG="${OPTARG#=}"        # if long option argument, remove assigning `=`
     fi
     case "${OPT}" in
-      a | simnet-version )      needs_arg ; SIMNET_VERSION="${OPTARG}" ;;
-      b | trgr-project )        needs_arg ; TRGR_PROJECT="${OPTARG}" ;;
-      c | trgr-ref )            needs_arg ; TRGR_REF="${OPTARG}" ;;
-      d | image-name )          needs_arg ; IMAGE_NAME="${OPTARG}" ;;
-      e | image-tag )           needs_arg ; IMAGE_TAG="${OPTARG}" ;;
-      f | collator-image-tag )  needs_arg ; COLLATOR_IMAGE_TAG="${OPTARG}" ;;
-      g | ci-server-host )      needs_arg ; CI_SERVER_HOST="${OPTARG}" ;;
       h | help )                usage     ; exit 0 ;;
-      i | dwnstrm-id )          needs_arg ; DWNSTRM_ID="${OPTARG}" ;;
-      j | trigger-token )       needs_arg ; CI_JOB_TOKEN="${OPTARG}" ;;
-      k | access-token )        needs_arg ; PIPELINE_TOKEN="${OPTARG}" ;;
+      s | simnet-version )      needs_arg ; SIMNET_VERSION="${OPTARG}" ;;
+      u | upstream-project )    needs_arg ; TRGR_PROJECT="${OPTARG}" ;;
+      r | upstream-ref )        needs_arg ; TRGR_REF="${OPTARG}" ;;
+      n | image-name )          needs_arg ; IMAGE_NAME="${OPTARG}" ;;
+      i | image-tag )           needs_arg ; IMAGE_TAG="${OPTARG}" ;;
+      c | collator-image-tag )  needs_arg ; COLLATOR_IMAGE_TAG="${OPTARG}" ;;
+      g | ci-server-fqdn )      needs_arg ; CI_SERVER_HOST="${OPTARG}" ;;
+      d | downstream-id )       needs_arg ; DWNSTRM_ID="${OPTARG}" ;;
+      t | trigger-token )       needs_arg ; CI_JOB_TOKEN="${OPTARG}" ;;
+      a | access-token )        needs_arg ; PIPELINE_TOKEN="${OPTARG}" ;;
       ??* )                     log DIE "Illegal option --${OPT}" ;;  # bad long option
       ? )                       exit 2 ;;  # bad short option (error reported via getopts)
     esac
@@ -100,26 +117,26 @@ function parse_args {
 
 function check_args {
   if [[ -z "${SIMNET_VERSION}" ]] ; then
-    log DIE "Must specify value for mandatory argument -s,--simnet-version 
+    log DIE "Must specify value for mandatory argument -s,--simnet-version
 
 $(usage)"
   fi
 }
 
-function needs_arg { 
-  if [ -z "${OPTARG}" ]; then 
-    log DIE "No arg for --${OPT} option" 
+function needs_arg {
+  if [ -z "${OPTARG}" ]; then
+    log DIE "No arg for --${OPT} option"
   fi
 }
 
-function trigger_other_pipeline {
+function trigger_pipeline {
   # API trigger another project's pipeline.
   log INFO "Triggering Simnet pipeline."
 
   curl --silent \
       -X POST \
       -F "token=${CI_JOB_TOKEN}" \
-      -F "ref=${SIMNET_VERSION}" `# trigger the pinned version of simnet CI config` \
+      -F "ref=${SIMNET_VERSION}" \
       -F "variables[TRGR_PROJECT]=${TRGR_PROJECT}" \
       -F "variables[TRGR_REF]=${TRGR_REF}" \
       -F "variables[IMAGE_NAME]=${IMAGE_NAME}" \
@@ -129,7 +146,7 @@ function trigger_other_pipeline {
           tee pipeline;
 }
 
-function check_other_pipeline {
+function check_pipeline {
   PIPELINE_ID=$(jq ".id" pipeline)
   PIPELINE_URL=$(jq ".web_url" pipeline)
   echo
@@ -137,7 +154,7 @@ function check_other_pipeline {
   log INFO "Now we're polling it to obtain the distinguished status."
 }
 
-function poll_other_pipeline {
+function poll_pipeline {
   # This is a workaround for a Gitlab bug, waits here until
   # https://gitlab.com/gitlab-org/gitlab/-/issues/326137 gets fixed.
   # The timeout is 360 curls with 8 sec interval, roughly an hour.
@@ -150,7 +167,7 @@ function poll_other_pipeline {
       if [[ ${STATUS} =~ ^(pending|running|created)$ ]]; then
           echo;
       elif [[ ${STATUS} =~ ^(failed|canceled|skipped|manual)$ ]]; then
-          log DIE "Something's broken in: ${PIPELINE_URL}"; 
+          log DIE "Something's broken in: ${PIPELINE_URL}";
       elif [[ ${STATUS} =~ ^(success)$ ]]; then
           log INFO "Look how green it is: ${PIPELINE_URL}"
           exit 0
@@ -175,10 +192,10 @@ function log {
   lg_date=$(date "${fmt}")
   if [[ "${lvl}" = "DIE" ]] ; then
     lvl="ERROR"
-    echo  "${lg_date} - ${lvl} - ${msg}" 
+    echo  "${lg_date} - ${lvl} - ${msg}"
     exit 1
   else
-    echo "${lg_date} - ${lvl} - ${msg}" 
+    echo "${lg_date} - ${lvl} - ${msg}"
   fi
 }
 
