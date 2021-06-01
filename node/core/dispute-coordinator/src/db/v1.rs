@@ -32,11 +32,11 @@ const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
 // On Polkadot this is 2 days, and on Kusama it's 12 hours.
 const DISPUTE_WINDOW: SessionIndex = 12;
 
-fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) -> [u8; 4 + 15 + 32] {
-	let mut buf = [0u8; 4 + 15 + 32];
-	session.using_encoded(|s| buf[0..4].copy_from_slice(s));
-	buf[4..][..15].copy_from_slice(CANDIDATE_VOTES_SUBKEY);
-	candidate_hash.using_encoded(|s| buf[(4 + 15)..].copy_from_slice(s));
+fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) -> [u8; 15 + 4 + 32] {
+	let mut buf = [0u8; 15 + 4 + 32];
+	buf[..15].copy_from_slice(CANDIDATE_VOTES_SUBKEY);
+	session.using_encoded(|s| buf[15..][..4].copy_from_slice(s));
+	candidate_hash.using_encoded(|s| buf[(15 + 4)..].copy_from_slice(s));
 
 	buf
 }
@@ -251,8 +251,8 @@ mod tests {
 
 		let key = candidate_votes_key(session, &candidate);
 
-		assert_eq!(&key[0..4], &[0x04, 0x00, 0x00, 0x00]);
-		assert_eq!(&key[4..19], CANDIDATE_VOTES_SUBKEY);
+		assert_eq!(&key[0..15], CANDIDATE_VOTES_SUBKEY);
+		assert_eq!(&key[15..19], &[0x04, 0x00, 0x00, 0x00]);
 		assert_eq!(&key[19..51], candidate.0.as_bytes());
 	}
 
