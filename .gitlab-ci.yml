@@ -387,6 +387,6 @@ trigger-simnet:
     # simnet project ID
     DWNSTRM_ID:                    332
   script:
-    # API trigger for a simnet job
-    - ./scripts/gitlab/trigger_pipeline.sh
+    # API trigger for a simnet job, argument value is set in the project variables
+    - ./scripts/gitlab/trigger_pipeline.sh ${SIMNET_REF}
   allow_failure:                   true

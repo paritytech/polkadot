@@ -1,6 +1,11 @@
 #!/bin/bash
 
+# EXAMPLE USAGE:
+# ./trigger_pipeline.sh v5
+
 set -eu
+
+SIMNET_REF=$1
 
 # API trigger another project's pipeline
 echo "Triggering Simnet pipeline."
@@ -8,7 +13,7 @@ echo "Triggering Simnet pipeline."
 curl --silent \
     -X POST \
     -F "token=${CI_JOB_TOKEN}" \
-    -F "ref=v4" `# trigger the pinned version of simnet CI config` \
+    -F "ref=${SIMNET_REF}" `# trigger the pinned version of Simnet CI config` \
     -F "variables[TRGR_PROJECT]=${TRGR_PROJECT}" \
     -F "variables[TRGR_REF]=${TRGR_REF}" \
     -F "variables[IMAGE_NAME]=${IMAGE_NAME}" \
@@ -50,4 +55,3 @@ for i in $(seq 1 360); do
     fi
 sleep 8;
 done
-# dummy: delete me 
