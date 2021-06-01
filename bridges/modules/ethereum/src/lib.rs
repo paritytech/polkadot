@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -313,7 +313,7 @@ pub trait PruningStrategy: Default {
 	/// Every value that is returned from this function, must be greater or equal to the
 	/// previous value. Otherwise it will be ignored (we can't revert pruning).
 	///
-	/// Module may prune both finalized and unfinalized blocks. But it can't give any
+	/// Pallet may prune both finalized and unfinalized blocks. But it can't give any
 	/// guarantees on when it will happen. Example: if some unfinalized block at height N
 	/// has scheduled validators set change, then the module won't prune any blocks with
 	/// number >= N even if strategy allows that.
@@ -457,7 +457,7 @@ decl_module! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Config<I>, I: Instance = DefaultInstance> as Bridge {
+	trait Store for Pallet<T: Config<I>, I: Instance = DefaultInstance> as Bridge {
 		/// Best known block.
 		BestBlock: (HeaderId, U256);
 		/// Best finalized block.
@@ -505,7 +505,7 @@ decl_storage! {
 	}
 }
 
-impl<T: Config<I>, I: Instance> Module<T, I> {
+impl<T: Config<I>, I: Instance> Pallet<T, I> {
 	/// Returns number and hash of the best block known to the bridge module.
 	/// The caller should only submit `import_header` transaction that makes
 	/// (or leads to making) other header the best one.
@@ -542,7 +542,7 @@ impl<T: Config<I>, I: Instance> Module<T, I> {
 	}
 }
 
-impl<T: Config<I>, I: Instance> frame_support::unsigned::ValidateUnsigned for Module<T, I> {
+impl<T: Config<I>, I: Instance> frame_support::unsigned::ValidateUnsigned for Pallet<T, I> {
 	type Call = Call<T, I>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
@@ -603,7 +603,7 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 		// start pruning blocks
 		let begin = new_pruning_range.oldest_unpruned_block;
 		let end = new_pruning_range.oldest_block_to_keep;
-		frame_support::debug::trace!(target: "runtime", "Pruning blocks in range [{}..{})", begin, end);
+		log::trace!(target: "runtime", "Pruning blocks in range [{}..{})", begin, end);
 		for number in begin..end {
 			// if we can't prune anything => break
 			if max_blocks_to_prune == 0 {
@@ -629,7 +629,7 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 
 			// we have pruned all headers at number
 			new_pruning_range.oldest_unpruned_block = number + 1;
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Oldest unpruned PoA header is now: {}",
 				new_pruning_range.oldest_unpruned_block,
@@ -658,7 +658,7 @@ impl<T: Config<I>, I: Instance> BridgeStorage<T, I> {
 		// physically remove headers and (probably) obsolete validators sets
 		while let Some(hash) = blocks_at_number.pop() {
 			let header = Headers::<T, I>::take(&hash);
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Pruning PoA header: ({}, {})",
 				number,
@@ -818,7 +818,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 			}
 		}
 
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Inserting PoA header: ({}, {})",
 			header.header.number,
@@ -846,7 +846,7 @@ impl<T: Config<I>, I: Instance> Storage for BridgeStorage<T, I> {
 			.map(|f| f.number)
 			.unwrap_or_else(|| FinalizedBlock::<I>::get().number);
 		if let Some(finalized) = finalized {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Finalizing PoA header: ({}, {})",
 				finalized.number,
@@ -869,7 +869,7 @@ pub(crate) fn initialize_storage<T: Config<I>, I: Instance>(
 	initial_validators: &[Address],
 ) {
 	let initial_hash = initial_header.compute_hash();
-	frame_support::debug::trace!(
+	log::trace!(
 		target: "runtime",
 		"Initializing bridge with PoA header: ({}, {})",
 		initial_header.number,
@@ -917,7 +917,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 	proof: &[(RawTransaction, RawTransactionReceipt)],
 ) -> bool {
 	if tx_index >= proof.len() as _ {
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Tx finality check failed: transaction index ({}) is larger than number of transactions ({})",
 			tx_index,
@@ -930,7 +930,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 	let header = match storage.header(&block) {
 		Some((header, _)) => header,
 		None => {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Tx finality check failed: can't find header in the storage: {}",
 				block,
@@ -943,7 +943,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 
 	// if header is not yet finalized => return
 	if header.number > finalized.number {
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Tx finality check failed: header {}/{} is not finalized. Best finalized: {}",
 			header.number,
@@ -962,7 +962,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 		false => block == finalized.hash,
 	};
 	if !is_finalized {
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Tx finality check failed: header {} is not finalized: no canonical path to best finalized block {}",
 			block,
@@ -974,7 +974,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 
 	// verify that transaction is included in the block
 	if let Err(computed_root) = header.check_transactions_root(proof.iter().map(|(tx, _)| tx)) {
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Tx finality check failed: transactions root mismatch. Expected: {}, computed: {}",
 			header.transactions_root,
@@ -986,7 +986,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 
 	// verify that transaction receipt is included in the block
 	if let Err(computed_root) = header.check_raw_receipts_root(proof.iter().map(|(_, r)| r)) {
-		frame_support::debug::trace!(
+		log::trace!(
 			target: "runtime",
 			"Tx finality check failed: receipts root mismatch. Expected: {}, computed: {}",
 			header.receipts_root,
@@ -1001,7 +1001,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 	match is_successful_raw_receipt {
 		Ok(true) => true,
 		Ok(false) => {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Tx finality check failed: receipt shows that transaction has failed",
 			);
@@ -1009,7 +1009,7 @@ pub fn verify_transaction_finalized<S: Storage>(
 			false
 		}
 		Err(err) => {
-			frame_support::debug::trace!(
+			log::trace!(
 				target: "runtime",
 				"Tx finality check failed: receipt check has failed: {}",
 				err,

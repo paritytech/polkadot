@@ -24,7 +24,7 @@ pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
+	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
@@ -53,7 +53,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::sync::Arc;
+use std::{sync::Arc, path::PathBuf};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -73,6 +73,7 @@ pub use polkadot_service::FullBackend;
 pub fn new_full(
 	config: Configuration,
 	is_collator: IsCollator,
+	worker_program_path: Option<PathBuf>,
 ) -> Result<
 	NewFull<Arc<Client>>,
 	Error,
@@ -81,9 +82,10 @@ pub fn new_full(
 		config,
 		is_collator,
 		None,
+		true,
 		None,
-		polkadot_parachain::wasm_executor::IsolationStrategy::InProcess,
 		None,
+		worker_program_path,
 	)
 }
 
@@ -102,7 +104,7 @@ impl ClientHandle for TestClient {
 /// nodes if you want the future node to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -208,17 +210,18 @@ pub fn node_config(
 /// want it to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 pub fn run_validator_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
+	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::No).expect("could not create Polkadot test service");
+		new_full(config, IsCollator::No, worker_program_path).expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
@@ -239,23 +242,30 @@ pub fn run_validator_node(
 /// want it to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 ///
 /// # Note
 ///
-/// The collator functionionality still needs to be registered at the node! This can be done using
+/// The collator functionality still needs to be registered at the node! This can be done using
 /// [`PolkadotTestNode::register_collator`].
 pub fn run_collator_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-	collator_id: CollatorId,
+	collator_pair: CollatorPair,
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
-		new_full(config, IsCollator::Yes(collator_id)).expect("could not create Polkadot test service");
+	let NewFull {
+		task_manager,
+		client,
+		network,
+		rpc_handlers,
+		overseer_handler,
+		..
+	} = new_full(config, IsCollator::Yes(collator_pair), None)
+		.expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();

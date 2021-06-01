@@ -124,3 +124,18 @@ skip_if_companion_pr() {
 latest_release() {
   curl -s "$api_base/$1/releases/latest" | jq -r '.tag_name'
 }
+
+# Check for runtime changes between two commits. This is defined as any changes
+# to /primitives/src/* and any *production* chains under /runtime
+has_runtime_changes() {
+  from=$1
+  to=$2
+
+  if git diff --name-only "${from}...${to}" \
+    | grep -q -e '^runtime/polkadot' -e '^runtime/kusama' -e '^primitives/src/' -e '^runtime/common'
+  then
+    return 0
+  else
+    return 1
+  fi
+}

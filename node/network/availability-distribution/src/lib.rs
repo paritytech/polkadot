@@ -25,19 +25,21 @@ use polkadot_subsystem::{
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-pub use error::Error;
-use error::Result;
+use error::Fatal;
+use error::{Result, log_error};
+
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;
 use requester::Requester;
 
+/// Handing requests for PoVs during backing.
+mod pov_requester;
+
 /// Responding to erasure chunk requests:
 mod responder;
-use responder::answer_request_log;
-
-/// Cache for session information.
-mod session_cache;
+use responder::{answer_chunk_request_log, answer_pov_request_log};
 
 mod metrics;
 /// Prometheus `Metrics` for availability distribution.
@@ -50,8 +52,8 @@ const LOG_TARGET: &'static str = "parachain::availability-distribution";
 
 /// The availability distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
-	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: SyncCryptoStorePtr,
+	/// Easy and efficient runtime access for this subsystem.
+	runtime: RuntimeInfo,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -74,17 +76,19 @@ where
 }
 
 impl AvailabilityDistributionSubsystem {
+
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		Self { keystore, metrics }
+		let runtime = RuntimeInfo::new(Some(keystore));
+		Self { runtime,  metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> Result<()>
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 	{
-		let mut requester = Requester::new(self.keystore.clone(), self.metrics.clone()).fuse();
+		let mut requester = Requester::new(self.metrics.clone()).fuse();
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -97,33 +101,56 @@ impl AvailabilityDistributionSubsystem {
 			// Handle task messages sending:
 			let message = match action {
 				Either::Left(subsystem_msg) => {
-					subsystem_msg.map_err(|e| Error::IncomingMessageChannel(e))?
+					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?
 				}
 				Either::Right(from_task) => {
-					let from_task = from_task.ok_or(Error::RequesterExhausted)?;
+					let from_task = from_task.ok_or(Fatal::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
 					continue;
 				}
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					// Update the relay chain heads we are fetching our pieces for:
-					if let Some(e) = requester
-						.get_mut()
-						.update_fetching_heads(&mut ctx, update)
-						.await?
-					{
-						tracing::debug!(target: LOG_TARGET, "Error processing ActiveLeavesUpdate: {:?}", e);
-					}
+					log_error(
+						requester.get_mut().update_fetching_heads(&mut ctx, &mut self.runtime, update).await,
+						"Error in Requester::update_fetching_heads"
+					)?;
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					return Ok(());
 				}
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::AvailabilityFetchingRequest(req),
+					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
 				} => {
-					answer_request_log(&mut ctx, req, &self.metrics).await
+					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::PoVFetchingRequest(req),
+				} => {
+					answer_pov_request_log(&mut ctx, req, &self.metrics).await
+				}
+				FromOverseer::Communication {
+					msg: AvailabilityDistributionMessage::FetchPoV {
+						relay_parent,
+						from_validator,
+						candidate_hash,
+						pov_hash,
+						tx,
+					},
+				} => {
+					log_error(
+						pov_requester::fetch_pov(
+							&mut ctx,
+							&mut self.runtime,
+							relay_parent,
+							from_validator,
+							candidate_hash,
+							pov_hash,
+							tx,
+						).await,
+						"pov_requester::fetch_pov"
+					)?;
 				}
 			}
 		}

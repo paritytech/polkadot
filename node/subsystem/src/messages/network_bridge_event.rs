@@ -17,13 +17,15 @@
 use std::convert::TryFrom;
 
 pub use sc_network::{ReputationChange, PeerId};
+
 use polkadot_node_network_protocol::{WrongVariant, ObservedRole, OurView, View};
+use polkadot_primitives::v1::AuthorityDiscoveryId;
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole),
+	PeerConnected(PeerId, ObservedRole, Option<AuthorityDiscoveryId>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
@@ -43,7 +45,7 @@ impl<M> NetworkBridgeEvent<M> {
 	///
 	/// This tries to transform M in `PeerMessage` to a message type specific to a subsystem.
 	/// It is used to dispatch events coming from a peer set to the various subsystems that are
-	/// handled within that peer set. More concretly a `ValidationProtocol` will be transformed
+	/// handled within that peer set. More concretely a `ValidationProtocol` will be transformed
 	/// for example into a `BitfieldDistributionMessage` in case of the `BitfieldDistribution`
 	/// constructor.
 	///
@@ -58,8 +60,8 @@ impl<M> NetworkBridgeEvent<M> {
 		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
 	{
 		Ok(match *self {
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role)
-				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone()),
+			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id)
+				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer)
 				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)

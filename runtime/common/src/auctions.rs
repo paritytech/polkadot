@@ -18,25 +18,27 @@
 //! auctioning mechanism and for reserving balance as part of the "payment". Unreserving the balance
 //! happens elsewhere.
 
-use sp_std::{prelude::*, mem::swap, convert::TryInto};
+use sp_std::{prelude::*, mem::swap};
 use sp_runtime::traits::{CheckedSub, Zero, One, Saturating};
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, ensure, dispatch::DispatchResult,
-	traits::{Randomness, Currency, ReservableCurrency, Get, EnsureOrigin},
-	weights::{DispatchClass, Weight},
+	ensure, dispatch::DispatchResult,
+	traits::{Randomness, Currency, ReservableCurrency, Get},
+	weights::{Weight},
 };
 use primitives::v1::Id as ParaId;
-use frame_system::ensure_signed;
-use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
-use crate::traits::{Leaser, LeaseError, Auctioneer};
+use crate::slot_range::SlotRange;
+use crate::traits::{Leaser, LeaseError, Auctioneer, Registrar};
 use parity_scale_codec::Decode;
+pub use pallet::*;
 
 type CurrencyOf<T> = <<T as Config>::Leaser as Leaser>::Currency;
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> =
+	<<<T as Config>::Leaser as Leaser>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait WeightInfo {
 	fn new_auction() -> Weight;
 	fn bid() -> Weight;
+	fn cancel_auction() -> Weight;
 	fn on_initialize() -> Weight;
 }
 
@@ -44,28 +46,8 @@ pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn new_auction() -> Weight { 0 }
 	fn bid() -> Weight { 0 }
+	fn cancel_auction() -> Weight { 0 }
 	fn on_initialize() -> Weight { 0 }
-}
-
-/// The module's configuration trait.
-pub trait Config: frame_system::Config {
-	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
-
-	/// The number of blocks over which a single period lasts.
-	type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
-
-	/// The number of blocks over which an auction may be retroactively ended.
-	type EndingPeriod: Get<Self::BlockNumber>;
-
-	/// Something that provides randomness in the runtime.
-	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-
-	/// The origin which may initiate auctions.
-	type InitiateOrigin: EnsureOrigin<Self::Origin>;
-
-	/// Weight Information for the Extrinsics in the Pallet
-	type WeightInfo: WeightInfo;
 }
 
 /// An auction index. We count auctions in this type.
@@ -74,80 +56,102 @@ pub type AuctionIndex = u32;
 type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> =
-	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+	[Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)>; SlotRange::SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> = Vec<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>, SlotRange)>;
 
-// This module's storage items.
-decl_storage! {
-	trait Store for Module<T: Config> as Auctions {
-		/// Number of auctions started so far.
-		pub AuctionCounter: AuctionIndex;
+#[frame_support::pallet]
+pub mod pallet {
+	use frame_support::{pallet_prelude::*, traits::EnsureOrigin, weights::DispatchClass};
+	use frame_system::{pallet_prelude::*, ensure_signed, ensure_root};
+	use super::*;
 
-		/// Information relating to the current auction, if there is one.
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	/// The module's configuration trait.
+	#[pallet::config]
+	pub trait Config: frame_system::Config {
+		/// The overarching event type.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// The type representing the leasing system.
+		type Leaser: Leaser<AccountId=Self::AccountId, LeasePeriod=Self::BlockNumber>;
+
+		/// The parachain registrar type.
+		type Registrar: Registrar<AccountId=Self::AccountId>;
+
+		/// The number of blocks over which an auction may be retroactively ended.
+		#[pallet::constant]
+		type EndingPeriod: Get<Self::BlockNumber>;
+
+		/// The length of each sample to take during the ending period.
 		///
-		/// The first item in the tuple is the lease period index that the first of the four
-		/// contiguous lease periods on auction is for. The second is the block number when the
-		/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
-		pub AuctionInfo get(fn auction_info): Option<(LeasePeriodOf<T>, T::BlockNumber)>;
+		/// EndingPeriod / SampleLength = Total # of Samples
+		#[pallet::constant]
+		type SampleLength: Get<Self::BlockNumber>;
 
-		/// Amounts currently reserved in the accounts of the bidders currently winning
-		/// (sub-)ranges.
-		pub ReservedAmounts get(fn reserved_amounts):
-			map hasher(twox_64_concat) (T::AccountId, ParaId) => Option<BalanceOf<T>>;
+		/// Something that provides randomness in the runtime.
+		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 
-		/// The winning bids for each of the 10 ranges at each block in the final Ending Period of
-		/// the current auction. The map's key is the 0-based index into the Ending Period. The
-		/// first block of the ending period is 0; the last is `EndingPeriod - 1`.
-		pub Winning get(fn winning): map hasher(twox_64_concat) T::BlockNumber => Option<WinningData<T>>;
+		/// The origin which may initiate auctions.
+		type InitiateOrigin: EnsureOrigin<Self::Origin>;
+
+		/// Weight Information for the Extrinsics in the Pallet
+		type WeightInfo: WeightInfo;
 	}
-}
 
-decl_event!(
-	pub enum Event<T> where
-		AccountId = <T as frame_system::Config>::AccountId,
-		BlockNumber = <T as frame_system::Config>::BlockNumber,
-		LeasePeriod = LeasePeriodOf<T>,
-		ParaId = ParaId,
-		Balance = BalanceOf<T>,
-	{
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	#[pallet::metadata(
+		T::AccountId = "AccountId",
+		T::BlockNumber = "BlockNumber",
+		LeasePeriodOf<T> = "LeasePeriod",
+		BalanceOf<T> = "Balance",
+	)]
+	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
 		/// [auction_index, lease_period, ending]
-		AuctionStarted(AuctionIndex, LeasePeriod, BlockNumber),
+		AuctionStarted(AuctionIndex, LeasePeriodOf<T>, T::BlockNumber),
 		/// An auction ended. All funds become unreserved. [auction_index]
 		AuctionClosed(AuctionIndex),
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
 		/// [bidder, range, parachain_id, amount]
-		WonDeploy(AccountId, SlotRange, ParaId, Balance),
+		WonDeploy(T::AccountId, SlotRange, ParaId, BalanceOf<T>),
 		/// An existing parachain won the right to continue.
-		/// First balance is the extra amount reseved. Second is the total amount reserved.
+		/// First balance is the extra amount reserved. Second is the total amount reserved.
 		/// [parachain_id, begin, count, total_amount]
-		WonRenewal(ParaId, LeasePeriod, LeasePeriod, Balance),
+		WonRenewal(ParaId, LeasePeriodOf<T>, LeasePeriodOf<T>, BalanceOf<T>),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total. [bidder, extra_reserved, total_amount]
-		Reserved(AccountId, Balance, Balance),
+		Reserved(T::AccountId, BalanceOf<T>, BalanceOf<T>),
 		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
-		Unreserved(AccountId, Balance),
+		Unreserved(T::AccountId, BalanceOf<T>),
 		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
 		/// but no parachain slot has been leased.
 		/// \[parachain_id, leaser, amount\]
-		ReserveConfiscated(ParaId, AccountId, Balance),
+		ReserveConfiscated(ParaId, T::AccountId, BalanceOf<T>),
 		/// A new bid has been accepted as the current winner.
 		/// \[who, para_id, amount, first_slot, last_slot\]
-		BidAccepted(AccountId, ParaId, Balance, LeasePeriod, LeasePeriod),
+		BidAccepted(T::AccountId, ParaId, BalanceOf<T>, LeasePeriodOf<T>, LeasePeriodOf<T>),
+		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
+		/// \[auction_index, block_number\]
+		WinningOffset(AuctionIndex, T::BlockNumber),
 	}
-);
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::error]
+	pub enum Error<T> {
 		/// This auction is already in progress.
 		AuctionInProgress,
 		/// The lease period is in the past.
 		LeasePeriodInPast,
 		/// The origin for this call must be a parachain.
 		NotParaOrigin,
+		/// Para is not registered
+		ParaNotRegistered,
 		/// The parachain ID is not on-boarding.
 		ParaNotOnboarding,
 		/// The origin for this call must be the origin who registered the parachain.
@@ -158,8 +162,6 @@ decl_error! {
 		InvalidCode,
 		/// Deployment data has not been set for this parachain.
 		UnsetDeployData,
-		/// The bid must overlap all intersecting ranges.
-		NonIntersectingRange,
 		/// Not a current auction.
 		NotCurrentAuction,
 		/// Not an auction.
@@ -171,16 +173,51 @@ decl_error! {
 		/// Auction has already ended.
 		AuctionEnded,
 	}
-}
 
-decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: T::Origin {
-		type Error = Error<T>;
+	/// Number of auctions started so far.
+	#[pallet::storage]
+	#[pallet::getter(fn auction_counter)]
+	pub type AuctionCounter<T> = StorageValue<_, AuctionIndex, ValueQuery>;
 
-		const EndingPeriod: T::BlockNumber = T::EndingPeriod::get();
+	/// Information relating to the current auction, if there is one.
+	///
+	/// The first item in the tuple is the lease period index that the first of the four
+	/// contiguous lease periods on auction is for. The second is the block number when the
+	/// auction will "begin to end", i.e. the first block of the Ending Period of the auction.
+	#[pallet::storage]
+	#[pallet::getter(fn auction_info)]
+	pub type AuctionInfo<T: Config> = StorageValue<_, (LeasePeriodOf<T>, T::BlockNumber)>;
 
-		fn deposit_event() = default;
+	/// Amounts currently reserved in the accounts of the bidders currently winning
+	/// (sub-)ranges.
+	#[pallet::storage]
+	#[pallet::getter(fn reserved_amounts)]
+	pub type ReservedAmounts<T: Config> = StorageMap<_, Twox64Concat, (T::AccountId, ParaId), BalanceOf<T>>;
 
+	/// The winning bids for each of the 10 ranges at each sample in the final Ending Period of
+	/// the current auction. The map's key is the 0-based index into the Sample Size. The
+	/// first sample of the ending period is 0; the last is `Sample Size - 1`.
+	#[pallet::storage]
+	#[pallet::getter(fn winning)]
+	pub type Winning<T: Config> = StorageMap<_, Twox64Concat, T::BlockNumber, WinningData<T>>;
+
+	#[pallet::extra_constants]
+	impl<T: Config> Pallet<T> {
+		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
+		#[allow(non_snake_case)]
+		fn SlotRangeCount() -> u32 {
+			SlotRange::SLOT_RANGE_COUNT as u32
+		}
+
+		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
+		#[allow(non_snake_case)]
+		fn LeasePeriodsPerSlot() -> u32 {
+			SlotRange::LEASE_PERIODS_PER_SLOT as u32
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
 			let mut weight = T::DbWeight::get().reads(1);
 
@@ -193,7 +230,7 @@ decl_module! {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					let winning_data = offset.checked_sub(&One::one())
 							.and_then(Winning::<T>::get)
-							.unwrap_or_default();
+							.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					Winning::<T>::insert(offset, winning_data);
 				}
 			}
@@ -211,30 +248,35 @@ decl_module! {
 
 			weight
 		}
+	}
 
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Create a new auction.
 		///
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
-		#[weight = (T::WeightInfo::new_auction(), DispatchClass::Operational)]
-		pub fn new_auction(origin,
-			#[compact] duration: T::BlockNumber,
-			#[compact] lease_period_index: LeasePeriodOf<T>,
-		) {
+		#[pallet::weight((T::WeightInfo::new_auction(), DispatchClass::Operational))]
+		pub fn new_auction(
+			origin: OriginFor<T>,
+			#[pallet::compact] duration: T::BlockNumber,
+			#[pallet::compact] lease_period_index: LeasePeriodOf<T>,
+		) -> DispatchResult {
 			T::InitiateOrigin::ensure_origin(origin)?;
 
 			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
 			ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 			// Bump the counter.
-			let n = AuctionCounter::mutate(|n| { *n += 1; *n });
+			let n = AuctionCounter::<T>::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
 			let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 			AuctionInfo::<T>::put((lease_period_index, ending));
 
-			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
+			Self::deposit_event(Event::<T>::AuctionStarted(n, lease_period_index, ending));
+			Ok(())
 		}
 
 		/// Make a new bid from an account (including a parachain account) for deploying a new
@@ -253,21 +295,38 @@ decl_module! {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
-		#[weight = T::WeightInfo::bid()]
-		pub fn bid(origin,
-			#[compact] para: ParaId,
-			#[compact] auction_index: AuctionIndex,
-			#[compact] first_slot: LeasePeriodOf<T>,
-			#[compact] last_slot: LeasePeriodOf<T>,
-			#[compact] amount: BalanceOf<T>
-		) {
+		#[pallet::weight(T::WeightInfo::bid())]
+		pub fn bid(
+			origin: OriginFor<T>,
+			#[pallet::compact] para: ParaId,
+			#[pallet::compact] auction_index: AuctionIndex,
+			#[pallet::compact] first_slot: LeasePeriodOf<T>,
+			#[pallet::compact] last_slot: LeasePeriodOf<T>,
+			#[pallet::compact] amount: BalanceOf<T>
+		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::handle_bid(who, para, auction_index, first_slot, last_slot, amount)?;
+			Ok(())
+		}
+
+		/// Cancel an in-progress auction.
+		///
+		/// Can only be called by Root origin.
+		#[pallet::weight(T::WeightInfo::cancel_auction())]
+		pub fn cancel_auction(origin: OriginFor<T>) -> DispatchResult {
+			ensure_root(origin)?;
+			// Unreserve all bids.
+			for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
+				CurrencyOf::<T>::unreserve(&bidder, amount);
+			}
+			Winning::<T>::remove_all();
+			AuctionInfo::<T>::kill();
+			Ok(())
 		}
 	}
 }
 
-impl<T: Config> Auctioneer for Module<T> {
+impl<T: Config> Auctioneer for Pallet<T> {
 	type AccountId = T::AccountId;
 	type BlockNumber = T::BlockNumber;
 	type LeasePeriod = T::BlockNumber;
@@ -280,11 +339,12 @@ impl<T: Config> Auctioneer for Module<T> {
 		Self::do_new_auction(duration, lease_period_index)
 	}
 
+	// Returns whether the auction is ending, and which sample number we are on.
 	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber> {
 		if let Some((_, early_end)) = AuctionInfo::<T>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
-					return Some(after_early_end)
+					return Some(after_early_end / T::SampleLength::get())
 				}
 			}
 		}
@@ -298,15 +358,26 @@ impl<T: Config> Auctioneer for Module<T> {
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>,
 	) -> DispatchResult {
-		Self::handle_bid(bidder, para, AuctionCounter::get(), first_slot, last_slot, amount)
+		Self::handle_bid(bidder, para, AuctionCounter::<T>::get(), first_slot, last_slot, amount)
 	}
 
 	fn lease_period_index() -> Self::LeasePeriod {
 		T::Leaser::lease_period_index()
 	}
+
+	fn lease_period() -> Self::LeasePeriod {
+		T::Leaser::lease_period()
+	}
+
+	fn has_won_an_auction(para: ParaId, bidder: &T::AccountId) -> bool {
+		!T::Leaser::deposit_held(para, bidder).is_zero()
+	}
 }
 
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
+	// A trick to allow me to initialize large arrays with nothing in them.
+	const EMPTY: Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)> = None;
+
 	/// True if an auction is in progress.
 	pub fn is_in_progress() -> bool {
 		AuctionInfo::<T>::get().map_or(false, |(_, early_end)| {
@@ -331,13 +402,13 @@ impl<T: Config> Module<T> {
 		ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 		// Bump the counter.
-		let n = AuctionCounter::mutate(|n| { *n += 1; *n });
+		let n = AuctionCounter::<T>::mutate(|n| { *n += 1; *n });
 
 		// Set the information.
 		let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 		AuctionInfo::<T>::put((lease_period_index, ending));
 
-		Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending));
+		Self::deposit_event(Event::<T>::AuctionStarted(n, lease_period_index, ending));
 		Ok(())
 	}
 
@@ -357,8 +428,10 @@ impl<T: Config> Module<T> {
 		last_slot: LeasePeriodOf<T>,
 		amount: BalanceOf<T>,
 	) -> DispatchResult {
+		// Ensure para is registered before placing a bid on it.
+		ensure!(T::Registrar::is_registered(para), Error::<T>::ParaNotRegistered);
 		// Bidding on latest auction.
-		ensure!(auction_index == AuctionCounter::get(), Error::<T>::NotCurrentAuction);
+		ensure!(auction_index == AuctionCounter::<T>::get(), Error::<T>::NotCurrentAuction);
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, early_end) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
 		let late_end = early_end.saturating_add(T::EndingPeriod::get());
@@ -372,26 +445,16 @@ impl<T: Config> Module<T> {
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
 		// Range as an array index.
 		let range_index = range as u8 as usize;
-		// The offset into the auction ending set.
-		let offset = Self::is_ending(frame_system::Pallet::<T>::block_number()).unwrap_or_default();
+		let is_ending = Self::is_ending(frame_system::Pallet::<T>::block_number());
+		// The offset into the ending samples of the auction.
+		let offset = is_ending.unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
-			.unwrap_or_default();
+			.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 
 		// If this bid beat the previous winner of our range.
 		if current_winning[range_index].as_ref().map_or(true, |last| amount > last.2) {
-			// This must overlap with all existing ranges that we're winning on or it's invalid.
-			ensure!(current_winning.iter()
-				.enumerate()
-				.all(|(i, x)| x.as_ref().map_or(true, |(w, _, _)|
-					w != &bidder || range.intersects(i.try_into()
-						.expect("array has SLOT_RANGE_COUNT items; index never reaches that value; qed")
-					)
-				)),
-				Error::<T>::NonIntersectingRange,
-			);
-
 			// Ok; we are the new winner of this range - reserve the additional amount and record.
 
 			// Get the amount already held on deposit if this is a renewal bid (i.e. there's
@@ -411,19 +474,19 @@ impl<T: Config> Module<T> {
 				// ...and record the amount reserved.
 				ReservedAmounts::<T>::insert(&bidder_para, reserve_required);
 
-				Self::deposit_event(RawEvent::Reserved(
+				Self::deposit_event(Event::<T>::Reserved(
 					bidder.clone(),
 					additional,
 					reserve_required,
 				));
 			}
 
-			// Return any funds reserved for the previous winner if they no longer have any active
-			// bids.
+			// Return any funds reserved for the previous winner if we are not in the ending period
+			// and they no longer have any active bids.
 			let mut outgoing_winner = Some((bidder.clone(), para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
-				if current_winning.iter()
+				if !is_ending.is_some() && current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
@@ -432,15 +495,14 @@ impl<T: Config> Module<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
-
-						Self::deposit_event(RawEvent::Unreserved(who, amount));
+						Self::deposit_event(Event::<T>::Unreserved(who, amount));
 					}
 				}
 			}
 
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
-			Self::deposit_event(RawEvent::BidAccepted(bidder, para, amount, first_slot, last_slot));
+			Self::deposit_event(Event::<T>::BidAccepted(bidder, para, amount, first_slot, last_slot));
 		}
 		Ok(())
 	}
@@ -465,13 +527,14 @@ impl<T: Config> Module<T> {
 					// Our random seed was known only after the auction ended. Good to use.
 					let raw_offset_block_number = <T::BlockNumber>::decode(&mut raw_offset.as_ref())
 						.expect("secure hashes should always be bigger than the block number; qed");
-					let offset = raw_offset_block_number % ending_period;
-					let res = Winning::<T>::get(offset).unwrap_or_default();
-					let mut i = T::BlockNumber::zero();
-					while i < ending_period {
-						Winning::<T>::remove(i);
-						i += One::one();
-					}
+					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
+
+					let auction_counter = AuctionCounter::<T>::get();
+					Self::deposit_event(Event::<T>::WinningOffset(auction_counter, offset));
+					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
+					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
+					// which should be bounded and sensibly configured in the runtime.
+					Winning::<T>::remove_all();
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
 				}
@@ -490,8 +553,7 @@ impl<T: Config> Module<T> {
 		// First, unreserve all amounts that were reserved for the bids. We will later re-reserve the
 		// amounts from the bidders that ended up being assigned the slot so there's no need to
 		// special-case them here.
-		for ((bidder, para), amount) in ReservedAmounts::<T>::iter() {
-			ReservedAmounts::<T>::take((bidder.clone(), para));
+		for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 			CurrencyOf::<T>::unreserve(&bidder, amount);
 		}
 
@@ -515,14 +577,14 @@ impl<T: Config> Module<T> {
 					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
 					// keep the amount reserved and let governance sort it out.
 					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
-						Self::deposit_event(RawEvent::ReserveConfiscated(para, leaser, amount));
+						Self::deposit_event(Event::<T>::ReserveConfiscated(para, leaser, amount));
 					}
 				}
 				Ok(()) => {}, // Nothing to report.
 			}
 		}
 
-		Self::deposit_event(RawEvent::AuctionClosed(AuctionCounter::get()));
+		Self::deposit_event(Event::<T>::AuctionClosed(AuctionCounter::<T>::get()));
 	}
 
 	/// Calculate the final winners from the winning slots.
@@ -534,19 +596,19 @@ impl<T: Config> Module<T> {
 	) -> WinnersData<T> {
 		let winning_ranges = {
 			let mut best_winners_ending_at:
-				[(Vec<SlotRange>, BalanceOf<T>); 4] = Default::default();
+				[(Vec<SlotRange>, BalanceOf<T>); SlotRange::LEASE_PERIODS_PER_SLOT] = Default::default();
 			let best_bid = |range: SlotRange| {
 				winning[range as u8 as usize].as_ref()
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
-			for i in 0..4 {
+			for i in 0..SlotRange::LEASE_PERIODS_PER_SLOT {
 				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
 				for j in 0..i {
 					let r = SlotRange::new_bounded(0, j as u32 + 1, i as u32)
-						.expect("`i < 4`; `j < i`; `j + 1 < 4`; qed");
+						.expect("`i < LPPS`; `j < i`; `j + 1 < LPPS`; qed");
 					if let Some(mut bid) = best_bid(r) {
 						bid += best_winners_ending_at[j].1;
 						if bid > best_winners_ending_at[i].1 {
@@ -561,8 +623,7 @@ impl<T: Config> Module<T> {
 					}
 				}
 			}
-			let [_, _, _, (winning_ranges, _)] = best_winners_ending_at;
-			winning_ranges
+			best_winners_ending_at[SlotRange::LEASE_PERIODS_PER_SLOT - 1].0.clone()
 		};
 
 		winning_ranges.into_iter().map(|range| {
@@ -589,7 +650,7 @@ mod tests {
 	};
 	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
 	use pallet_balances;
-	use crate::auctions;
+	use crate::{auctions, mock::TestRegistrar};
 	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -633,6 +694,7 @@ mod tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
 	parameter_types! {
@@ -692,7 +754,10 @@ mod tests {
 			})
 		}
 
-		fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
+		fn deposit_held(
+			para: ParaId,
+			leaser: &Self::AccountId
+		) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
 			leases().iter()
 				.filter_map(|((id, _period), data)|
 					if id == &para && &data.leaser == leaser { Some(data.amount) } else { None }
@@ -708,10 +773,6 @@ mod tests {
 		fn lease_period_index() -> Self::LeasePeriod {
 			(System::block_number() / Self::lease_period()).into()
 		}
-	}
-
-	parameter_types!{
-		pub const EndingPeriod: BlockNumber = 3;
 	}
 
 	ord_parameter_types!{
@@ -743,10 +804,17 @@ mod tests {
 		}
 	}
 
+	parameter_types!{
+		pub static EndingPeriod: BlockNumber = 3;
+		pub static SampleLength: BlockNumber = 1;
+	}
+
 	impl Config for Test {
 		type Event = Event;
 		type Leaser = TestLeaser;
+		type Registrar = TestRegistrar<Self>;
 		type EndingPeriod = EndingPeriod;
+		type SampleLength = SampleLength;
 		type Randomness = TestPastRandomness;
 		type InitiateOrigin = RootOrSix;
 		type WeightInfo = crate::auctions::TestWeightInfo;
@@ -759,7 +827,15 @@ mod tests {
 		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}.assimilate_storage(&mut t).unwrap();
-		t.into()
+		let mut ext: sp_io::TestExternalities = t.into();
+		ext.execute_with(|| {
+			// Register para 0, 1, 2, and 3 for tests
+			assert_ok!(TestRegistrar::<Test>::register(1, 0.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 1.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 2.into(), Default::default(), Default::default()));
+			assert_ok!(TestRegistrar::<Test>::register(1, 3.into(), Default::default(), Default::default()));
+		});
+		ext
 	}
 
 	fn run_to_block(n: BlockNumber) {
@@ -777,14 +853,14 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(AuctionCounter::get(), 0);
+			assert_eq!(AuctionCounter::<Test>::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
 			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 
-			assert_eq!(AuctionCounter::get(), 0);
+			assert_eq!(AuctionCounter::<Test>::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
 			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
@@ -799,7 +875,7 @@ mod tests {
 			assert_noop!(Auctions::new_auction(Origin::signed(1), 5, 1), BadOrigin);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
-			assert_eq!(AuctionCounter::get(), 1);
+			assert_eq!(AuctionCounter::<Test>::get(), 1);
 			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 		});
@@ -861,7 +937,7 @@ mod tests {
 
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
-			assert_eq!(AuctionCounter::get(), 1);
+			assert_eq!(AuctionCounter::<Test>::get(), 1);
 			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
@@ -998,17 +1074,38 @@ mod tests {
 	}
 
 	#[test]
-	fn independent_bids_should_fail() {
+	fn gap_bid_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 2, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 4, 1));
-			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 2, 1));
-			assert_noop!(
-				Auctions::bid(Origin::signed(1), 0.into(), 1, 3, 3, 1),
-				Error::<Test>::NonIntersectingRange
-			);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+
+			// User 1 will make a bid for period 1 and 4 for the same Para 0
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 1, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 4, 4, 4));
+
+			// User 2 and 3 will make a bid for para 1 on period 2 and 3 respectively
+			assert_ok!(Auctions::bid(Origin::signed(2), 1.into(), 1, 2, 2, 2));
+			assert_ok!(Auctions::bid(Origin::signed(3), 1.into(), 1, 3, 3, 3));
+
+			// Total reserved should be the max of the two
+			assert_eq!(Balances::reserved_balance(1), 4);
+
+			// Other people are reserved correctly too
+			assert_eq!(Balances::reserved_balance(2), 2);
+			assert_eq!(Balances::reserved_balance(3), 3);
+
+			// End the auction.
+			run_to_block(9);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 4), LeaseData { leaser: 1, amount: 4 }),
+				((1.into(), 2), LeaseData { leaser: 2, amount: 2 }),
+				((1.into(), 3), LeaseData { leaser: 3, amount: 3 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 4);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &2), 2);
+			assert_eq!(TestLeaser::deposit_held(1.into(), &3), 3);
 		});
 	}
 
@@ -1100,41 +1197,30 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 0, 1));
 
 			for i in 1..6u64 {
-				run_to_block((i + 3) as _);
+				run_to_block(((i - 1) / 2 + 1) as _);
 				assert_ok!(Auctions::bid(Origin::signed(i), 0.into(), 1, 1, 4, i));
 				for j in 1..6 {
-					assert_eq!(Balances::reserved_balance(j), if j == i { j } else { 0 });
-					assert_eq!(Balances::free_balance(j), if j == i { j * 9 } else { j * 10 });
+					assert_eq!(Balances::reserved_balance(j), if j <= i { j } else { 0 });
+					assert_eq!(Balances::free_balance(j), if j <= i { j * 9 } else { j * 10 });
 				}
 			}
+			for i in 1..6u64 {
+				assert_eq!(ReservedAmounts::<Test>::get((i, ParaId::from(0))).unwrap(), i);
+			}
 
-			run_to_block(9);
-			assert_eq!(leases(), vec![
-				((0.into(), 1), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 2), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 3), LeaseData { leaser: 3, amount: 3 }),
-				((0.into(), 4), LeaseData { leaser: 3, amount: 3 }),
-			]);
+			run_to_block(5);
+			assert_eq!(leases(), (1..=4).map(|i| ((0.into(), i), LeaseData { leaser: 2, amount: 2 })).collect::<Vec<_>>());
 		});
 	}
 
 	#[test]
 	fn incomplete_calculate_winners_works() {
-		let winning = [
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			Some((1, 0.into(), 1)),
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ThreeThree as u8 as usize] = Some((1, 0.into(), 1));
+
 		let winners = vec![
 			(1, 0.into(), 1, SlotRange::ThreeThree)
 		];
@@ -1144,18 +1230,9 @@ mod tests {
 
 	#[test]
 	fn first_incomplete_calculate_winners_works() {
-		let winning = [
-			Some((1, 0.into(), 1)),
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-			None,
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[0] = Some((1, 0.into(), 1));
+
 		let winners = vec![
 			(1, 0.into(), 1, SlotRange::ZeroZero)
 		];
@@ -1165,28 +1242,13 @@ mod tests {
 
 	#[test]
 	fn calculate_winners_works() {
-		let mut winning = [
-			/*0..0*/
-			Some((2, 0.into(), 2)),
-			/*0..1*/
-			None,
-			/*0..2*/
-			None,
-			/*0..3*/
-			Some((1, 100.into(), 1)),
-			/*1..1*/
-			Some((3, 1.into(), 1)),
-			/*1..2*/
-			None,
-			/*1..3*/
-			None,
-			/*2..2*/
-			Some((1, 2.into(), 53)),
-			/*2..3*/
-			None,
-			/*3..3*/
-			Some((5, 3.into(), 1)),
-		];
+		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+		winning[SlotRange::ZeroZero as u8 as usize] = Some((2, 0.into(), 2));
+		winning[SlotRange::ZeroThree as u8 as usize] = Some((1, 100.into(), 1));
+		winning[SlotRange::OneOne as u8 as usize] = Some((3, 1.into(), 1));
+		winning[SlotRange::TwoTwo as u8 as usize] = Some((1, 2.into(), 53));
+		winning[SlotRange::ThreeThree as u8 as usize] = Some((5, 3.into(), 1));
+
 		let winners = vec![
 			(2, 0.into(), 2, SlotRange::ZeroZero),
 			(3, 1.into(), 1, SlotRange::OneOne),
@@ -1248,77 +1310,126 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 3, 4, 20));
 
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
-			assert_eq!(Auctions::winning(0), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(11);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
-			assert_eq!(Auctions::winning(1), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((2, para_2, 20)),
-				None,
-			]));
+			assert_eq!(Auctions::winning(1), Some(winning));
 			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 3, 4, 30));
 
 			run_to_block(12);
 			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
-			assert_eq!(Auctions::winning(2), Some([
-				None,
-				None,
-				None,
-				Some((1, para_1, 10)),
-				None,
-				None,
-				None,
-				None,
-				Some((3, para_3, 30)),
-				None,
-			]));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(2), Some(winning));
+		});
+	}
+
+	#[test]
+	fn handle_bid_requires_registered_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_noop!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1), Error::<Test>::ParaNotRegistered);
+			assert_ok!(TestRegistrar::<Test>::register(1, 1337.into(), Default::default(), Default::default()));
+			assert_ok!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1));
+		});
+	}
+
+	// Here we will test that taking only 10 samples during the ending period works as expected.
+	#[test]
+	fn less_winning_samples_work() {
+		new_test_ext().execute_with(|| {
+			EndingPeriod::set(30);
+			SampleLength::set(10);
+
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
+			let para_1 = ParaId::from(1);
+			let para_2 = ParaId::from(2);
+			let para_3 = ParaId::from(3);
+
+			// Make bids
+			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 11, 14, 10));
+			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 13, 14, 20));
+
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			assert_eq!(Auctions::winning(0), Some(winning));
+
+			run_to_block(9);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+
+			run_to_block(10);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::winning(0), Some(winning));
+
+			// New bids update the current winning
+			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 14, 14, 30));
+			winning[SlotRange::ThreeThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(0), Some(winning));
+
+			run_to_block(20);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::winning(1), Some(winning));
+			run_to_block(25);
+			// Overbid mid sample
+			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 13, 14, 30));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			assert_eq!(Auctions::winning(1), Some(winning));
+
+			run_to_block(30);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::winning(2), Some(winning));
+
+			set_last_random(H256::from([254; 32]), 40);
+			run_to_block(40);
+			// Auction ended and winner selected
+			assert!(!Auctions::is_in_progress());
+			assert_eq!(leases(), vec![
+				((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
+				((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),
+			]);
+		});
+	}
+
+	#[test]
+	fn can_cancel_auction() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
+
+			assert_noop!(Auctions::cancel_auction(Origin::signed(6)), BadOrigin);
+			assert_ok!(Auctions::cancel_auction(Origin::root()));
+
+			assert!(AuctionInfo::<Test>::get().is_none());
+			assert_eq!(Balances::reserved_balance(1), 0);
+			assert_eq!(ReservedAmounts::<Test>::iter().count(), 0);
+			assert_eq!(Winning::<Test>::iter().count(), 0);
 		});
 	}
 }
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
-	use super::{*, Module as Auctions};
+	use super::{*, Pallet as Auctions};
 	use frame_system::RawOrigin;
-	use frame_support::traits::OnInitialize;
-	use sp_runtime::traits::Bounded;
+	use frame_support::traits::{EnsureOrigin, OnInitialize};
+	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
 	use frame_benchmarking::{benchmarks, whitelisted_caller, account, impl_benchmark_test_suite};
 
@@ -1330,6 +1441,44 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
+	fn fill_winners<T: Config>(lease_period_index: LeasePeriodOf<T>) {
+		let auction_index = AuctionCounter::<T>::get();
+		let minimum_balance = CurrencyOf::<T>::minimum_balance();
+
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
+			let owner = account("owner", n, 0);
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			let worst_head_data = T::Registrar::worst_head_data();
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+
+			assert!(T::Registrar::register(
+				owner,
+				ParaId::from(n),
+				worst_head_data,
+				worst_validation_code
+			).is_ok());
+		}
+
+		T::Registrar::execute_pending_transitions();
+
+		for n in 1 ..= SlotRange::SLOT_RANGE_COUNT as u32 {
+			let bidder = account("bidder", n, 0);
+			CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
+
+			let slot_range = SlotRange::n((n - 1) as u8).unwrap();
+			let (start, end) = slot_range.as_pair();
+
+			assert!(Auctions::<T>::bid(
+				RawOrigin::Signed(bidder).into(),
+				ParaId::from(n),
+				auction_index,
+				lease_period_index + start.into(), // First Slot
+				lease_period_index + end.into(), // Last slot
+				minimum_balance.saturating_mul(n.into()), // Amount
+			).is_ok());
+		}
+	}
+
 	benchmarks! {
 		where_clause { where T: pallet_babe::Config }
 
@@ -1339,8 +1488,8 @@ mod benchmarking {
 			let origin = T::InitiateOrigin::successful_origin();
 		}: _(RawOrigin::Root, duration, lease_period_index)
 		verify {
-			assert_last_event::<T>(RawEvent::AuctionStarted(
-				AuctionCounter::get(),
+			assert_last_event::<T>(Event::<T>::AuctionStarted(
+				AuctionCounter::<T>::get(),
 				LeasePeriodOf::<T>::max_value(),
 				T::BlockNumber::max_value(),
 			).into());
@@ -1353,9 +1502,20 @@ mod benchmarking {
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 
-			// Make an existing bid
 			let para = ParaId::from(0);
-			let auction_index = AuctionCounter::get();
+			let new_para = ParaId::from(1);
+
+			// Register the paras
+			let owner = account("owner", 0, 0);
+			CurrencyOf::<T>::make_free_balance_be(&owner, BalanceOf::<T>::max_value());
+			let worst_head_data = T::Registrar::worst_head_data();
+			let worst_validation_code = T::Registrar::worst_validation_code();
+			T::Registrar::register(owner.clone(), para, worst_head_data.clone(), worst_validation_code.clone())?;
+			T::Registrar::register(owner, new_para, worst_head_data, worst_validation_code)?;
+			T::Registrar::execute_pending_transitions();
+
+			// Make an existing bid
+			let auction_index = AuctionCounter::<T>::get();
 			let first_slot = AuctionInfo::<T>::get().unwrap().0;
 			let last_slot = first_slot + 3u32.into();
 			let first_amount = CurrencyOf::<T>::minimum_balance();
@@ -1372,7 +1532,6 @@ mod benchmarking {
 
 			let caller: T::AccountId = whitelisted_caller();
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			let new_para = ParaId::from(1);
 			let bigger_amount = CurrencyOf::<T>::minimum_balance().saturating_mul(10u32.into());
 			assert_eq!(CurrencyOf::<T>::reserved_balance(&first_bidder), first_amount);
 		}: _(RawOrigin::Signed(caller.clone()), new_para, auction_index, first_slot, last_slot, bigger_amount)
@@ -1382,46 +1541,24 @@ mod benchmarking {
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
+		// Entire winner map should be full and removed at the end of the benchmark.
 		on_initialize {
 			// Create a new auction
 			let duration: T::BlockNumber = 99u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
-			let auction_index = AuctionCounter::get();
 
-			let minimum_balance = CurrencyOf::<T>::minimum_balance();
-
-			for n in 1 ..= SLOT_RANGE_COUNT as u32 {
-				let bidder = account("bidder", n, 0);
-				CurrencyOf::<T>::make_free_balance_be(&bidder, BalanceOf::<T>::max_value());
-
-				let (start, end) = match n {
-					1  => (0u32, 0u32),
-					2  => (0, 1),
-					3  => (0, 2),
-					4  => (0, 3),
-					5  => (1, 1),
-					6  => (1, 2),
-					7  => (1, 3),
-					8  => (2, 2),
-					9  => (2, 3),
-					10 => (3, 3),
-					_ => panic!("test not meant for this"),
-				};
-
-				Auctions::<T>::bid(
-					RawOrigin::Signed(bidder).into(),
-					ParaId::from(n),
-					auction_index,
-					lease_period_index + start.into(), // First Slot
-					lease_period_index + end.into(), // Last slot
-					minimum_balance.saturating_mul(n.into()), // Amount
-				)?;
-			}
+			fill_winners::<T>(lease_period_index);
 
 			for winner in Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap().iter() {
 				assert!(winner.is_some());
+			}
+
+			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			// Make winning map full
+			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
+				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
 			}
 
 			// Move ahead to the block we want to initialize
@@ -1438,7 +1575,34 @@ mod benchmarking {
 		}: {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
-			assert_last_event::<T>(RawEvent::AuctionClosed(auction_index).into());
+			let auction_index = AuctionCounter::<T>::get();
+			assert_last_event::<T>(Event::<T>::AuctionClosed(auction_index).into());
+			assert!(Winning::<T>::iter().count().is_zero());
+		}
+
+		// Worst case: 10 bidders taking all wining spots, and winning data is full.
+		cancel_auction {
+			// Create a new auction
+			let duration: T::BlockNumber = 99u32.into();
+			let lease_period_index = LeasePeriodOf::<T>::zero();
+			let now = frame_system::Pallet::<T>::block_number();
+			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+
+			fill_winners::<T>(lease_period_index);
+
+			let winning_data = Winning::<T>::get(T::BlockNumber::from(0u32)).unwrap();
+			for winner in winning_data.iter() {
+				assert!(winner.is_some());
+			}
+
+			// Make winning map full
+			for i in 0u32 .. (T::EndingPeriod::get() / T::SampleLength::get()).saturated_into() {
+				Winning::<T>::insert(T::BlockNumber::from(i), winning_data.clone());
+			}
+			assert!(AuctionInfo::<T>::get().is_some());
+		}: _(RawOrigin::Root)
+		verify {
+			assert!(AuctionInfo::<T>::get().is_none());
 		}
 	}
 

@@ -18,48 +18,66 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
-use futures::FutureExt as _;
-use rand::seq::SliceRandom as _;
+#[cfg(test)]
+mod tests;
+
+use std::time::{Duration, Instant};
+use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
-		GossipSupportMessage,
+		AllMessages, GossipSupportMessage, NetworkBridgeMessage,
 	},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	Subsystem, SpawnedSubsystem, SubsystemContext,
 };
-use polkadot_node_subsystem_util::{
-	validator_discovery::{ConnectionRequest, self},
-	self as util,
-};
+use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{
-	Hash, ValidatorId, SessionIndex,
+	Hash, SessionIndex, AuthorityDiscoveryId,
 };
 use polkadot_node_network_protocol::peer_set::PeerSet;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+use sp_application_crypto::{Public, AppKey};
 
 const LOG_TARGET: &str = "parachain::gossip-support";
+// How much time should we wait since the last
+// authority discovery resolution failure.
+const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 
 /// The Gossip Support subsystem.
-pub struct GossipSupport {}
+pub struct GossipSupport {
+	keystore: SyncCryptoStorePtr,
+}
 
 #[derive(Default)]
 struct State {
 	last_session_index: Option<SessionIndex>,
-	/// when we overwrite this, it automatically drops the previous request
-	last_connection_request: Option<ConnectionRequest>,
+	// Some(timestamp) if we failed to resolve
+	// at least a third of authorities the last time.
+	// `None` otherwise.
+	last_failure: Option<Instant>,
 }
 
 impl GossipSupport {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new() -> Self {
-		Self {}
+	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+		Self {
+			keystore,
+		}
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context)
+	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
+		self.run_inner(ctx, &mut state).await;
+	}
+
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+	{
+		let Self { keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -80,9 +98,9 @@ impl GossipSupport {
 				})) => {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
-					let leaves = activated.into_iter().map(|(h, _)| h);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, leaves).await {
-						tracing::debug!(target: LOG_TARGET, "Error {}", e);
+					let leaves = activated.into_iter().map(|a| a.hash);
+					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
+						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
@@ -94,24 +112,49 @@ impl GossipSupport {
 	}
 }
 
-async fn determine_relevant_validators(
+async fn determine_relevant_authorities(
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
-	_session: SessionIndex,
-) -> Result<Vec<ValidatorId>, util::Error> {
-	let validators = util::request_validators_ctx(relay_parent, ctx).await?.await??;
-	Ok(validators)
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
+	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
+	tracing::debug!(
+		target: LOG_TARGET,
+		authority_count = ?authorities.len(),
+		"Determined relevant authorities"
+	);
+	Ok(authorities)
 }
 
-// chooses a random subset of sqrt(v.len()), but at least 25 elements
-fn choose_random_subset<T>(mut v: Vec<T>) -> Vec<T> {
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
+/// Return an error if we're not a validator in the given set (do not have keys).
+async fn ensure_i_am_an_authority(
+	keystore: &SyncCryptoStorePtr,
+	authorities: &[AuthorityDiscoveryId],
+) -> Result<(), util::Error> {
+	for v in authorities {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)])
+			.await
+		{
+			return Ok(());
+		}
+	}
+	Err(util::Error::NotAValidator)
+}
 
-	let sqrt = (v.len() as f64).sqrt() as usize;
-	let len = std::cmp::max(25, sqrt);
-	v.truncate(len);
-	v
+/// A helper function for making a `ConnectToValidators` request.
+pub async fn connect_to_authorities(
+	ctx: &mut impl SubsystemContext,
+	validator_ids: Vec<AuthorityDiscoveryId>,
+	peer_set: PeerSet,
+) -> oneshot::Receiver<usize> {
+	let (failed, failed_rx) = oneshot::channel();
+	ctx.send_message(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::ConnectToValidators {
+			validator_ids,
+			peer_set,
+			failed,
+		}
+	)).await;
+	failed_rx
 }
 
 impl State {
@@ -121,31 +164,48 @@ impl State {
 	async fn handle_active_leaves(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
+		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
-			let current_index = util::request_session_index_for_child_ctx(leaf, ctx).await?.await??;
+			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
+			let force_request = since_failure >= BACKOFF_DURATION;
 			let maybe_new_session = match self.last_session_index {
-				Some(i) if i <= current_index => None,
+				Some(i) if current_index <= i && !force_request => None,
 				_ => Some((current_index, leaf)),
 			};
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
-				tracing::debug!(target: LOG_TARGET, "New session detected {}", new_session);
-				let validators = determine_relevant_validators(ctx, relay_parent, new_session).await?;
-				let validators = choose_random_subset(validators);
-				tracing::debug!(target: LOG_TARGET, "Issuing a connection request to {:?}", validators);
+				tracing::debug!(
+					target: LOG_TARGET,
+					%new_session,
+					%force_request,
+					"New session detected",
+				);
+				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				ensure_i_am_an_authority(keystore, &authorities).await?;
+				let num = authorities.len();
+				tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-				let request = validator_discovery::connect_to_validators_in_session(
+				let failures = connect_to_authorities(
 					ctx,
-					relay_parent,
-					validators,
+					authorities,
 					PeerSet::Validation,
-					new_session,
-				).await?;
+				).await;
+
+				// we await for the request to be processed
+				// this is fine, it should take much less time than one session
+				let failures = failures.await.unwrap_or(num);
 
 				self.last_session_index = Some(new_session);
-				self.last_connection_request = Some(request);
+				// issue another request for the same session
+				// if at least a third of the authorities were not resolved
+				self.last_failure = if failures >= num / 3 {
+					Some(Instant::now())
+				} else {
+					None
+				}
 			}
 		}
 
@@ -153,11 +213,11 @@ impl State {
 	}
 }
 
-impl<C> Subsystem<C> for GossipSupport
+impl<Context> Subsystem<Context> for GossipSupport
 where
-	C: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
+	Context: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)
 			.map(|_| Ok(()))
 			.boxed();

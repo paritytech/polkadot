@@ -17,12 +17,15 @@
 use futures::channel::oneshot;
 use futures::prelude::Future;
 
+use thiserror::Error;
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 use sc_network as network;
 use sc_network::config as netconfig;
 use sc_network::PeerId;
 
 use polkadot_primitives::v1::AuthorityDiscoveryId;
+
+use crate::UnifiedReputationChange;
 
 use super::{v1, Protocol};
 
@@ -39,17 +42,26 @@ pub trait IsRequest {
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.
-	AvailabilityFetching(OutgoingRequest<v1::AvailabilityFetchingRequest>),
+	ChunkFetching(OutgoingRequest<v1::ChunkFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
 	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
+	/// Fetch a PoV from a validator which previously sent out a seconded statement.
+	PoVFetching(OutgoingRequest<v1::PoVFetchingRequest>),
+	/// Request full available data from a node.
+	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
+	/// Requests for fetching large statements as part of statement distribution.
+	StatementFetching(OutgoingRequest<v1::StatementFetchingRequest>),
 }
 
 impl Requests {
 	/// Get the protocol this request conforms to.
 	pub fn get_protocol(&self) -> Protocol {
 		match self {
-			Self::AvailabilityFetching(_) => Protocol::AvailabilityFetching,
+			Self::ChunkFetching(_) => Protocol::ChunkFetching,
 			Self::CollationFetching(_) => Protocol::CollationFetching,
+			Self::PoVFetching(_) => Protocol::PoVFetching,
+			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
+			Self::StatementFetching(_) => Protocol::StatementFetching,
 		}
 	}
 
@@ -62,8 +74,11 @@ impl Requests {
 	/// contained in the enum.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
-			Self::AvailabilityFetching(r) => r.encode_request(),
+			Self::ChunkFetching(r) => r.encode_request(),
 			Self::CollationFetching(r) => r.encode_request(),
+			Self::PoVFetching(r) => r.encode_request(),
+			Self::AvailableDataFetching(r) => r.encode_request(),
+			Self::StatementFetching(r) => r.encode_request(),
 		}
 	}
 }
@@ -81,9 +96,15 @@ pub enum Recipient {
 ///
 /// The network implementation will make use of that sender for informing the requesting subsystem
 /// about responses/errors.
+///
+/// When using `Recipient::Peer`, keep in mind that no address (as in IP address and port) might
+/// be known for that specific peer. You are encouraged to use `Peer` for peers that you are
+/// expected to be already connected to.
+/// When using `Recipient::Authority`, the addresses can be found thanks to the authority
+/// discovery system.
 #[derive(Debug)]
 pub struct OutgoingRequest<Req> {
-	/// Intendent recipient of this request.
+	/// Intended recipient of this request.
 	pub peer: Recipient,
 	/// The actual request to send over the wire.
 	pub payload: Req,
@@ -92,15 +113,19 @@ pub struct OutgoingRequest<Req> {
 }
 
 /// Any error that can occur when sending a request.
+#[derive(Debug, Error)]
 pub enum RequestError {
 	/// Response could not be decoded.
-	InvalidResponse(DecodingError),
+	#[error("Response could not be decoded")]
+	InvalidResponse(#[source] DecodingError),
 
 	/// Some error in substrate/libp2p happened.
-	NetworkError(network::RequestFailure),
+	#[error("Some network error occurred")]
+	NetworkError(#[source] network::RequestFailure),
 
 	/// Response got canceled by networking.
-	Canceled(oneshot::Canceled),
+	#[error("Response channel got canceled")]
+	Canceled(#[source] oneshot::Canceled),
 }
 
 /// Responses received for an `OutgoingRequest`.
@@ -180,6 +205,22 @@ pub struct IncomingRequest<Req> {
 	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
 }
 
+/// Typed variant of [`netconfig::OutgoingResponse`].
+///
+/// Responses to `IncomingRequest`s.
+pub struct OutgoingResponse<Response> {
+	/// The payload of the response.
+	pub result: Result<Response, ()>,
+
+	/// Reputation changes accrued while handling the request. To be applied to the reputation of
+	/// the peer sending the request.
+	pub reputation_changes: Vec<UnifiedReputationChange>,
+
+	/// If provided, the `oneshot::Sender` will be notified when the request has been sent to the
+	/// peer.
+	pub sent_feedback: Option<oneshot::Sender<()>>,
+}
+
 impl<Req> IncomingRequest<Req>
 where
 	Req: IsRequest,
@@ -209,8 +250,34 @@ where
 			.send(netconfig::OutgoingResponse {
 				result: Ok(resp.encode()),
 				reputation_changes: Vec::new(),
+				sent_feedback: None,
 			})
 			.map_err(|_| resp)
+	}
+
+	/// Send response with additional options.
+	///
+	/// This variant allows for waiting for the response to be sent out, allows for changing peer's
+	/// reputation and allows for not sending a response at all (for only changing the peer's
+	/// reputation).
+	pub fn send_outgoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
+		-> Result<(), ()> {
+		let OutgoingResponse {
+			result,
+			reputation_changes,
+			sent_feedback,
+		} = resp;
+
+		let response = netconfig::OutgoingResponse {
+			result: result.map(|v| v.encode()),
+			reputation_changes: reputation_changes
+				.into_iter()
+				.map(|c| c.into_base_rep())
+				.collect(),
+			sent_feedback,
+		};
+
+		self.pending_response.send(response).map_err(|_| ())
 	}
 }
 

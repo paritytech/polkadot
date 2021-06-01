@@ -24,6 +24,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, traits::{Get, ReservableCurrency},
 	weights::Weight, StorageMap, StorageValue, dispatch::DispatchResult,
 };
+use frame_system::ensure_root;
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
@@ -298,6 +299,51 @@ decl_storage! {
 		///   block number.
 		HrmpChannelDigests: map hasher(twox_64_concat) ParaId => Vec<(T::BlockNumber, Vec<ParaId>)>;
 	}
+	add_extra_genesis {
+		/// Preopen the given HRMP channels.
+		///
+		/// The values in the tuple corresponds to `(sender, recipient, max_capacity, max_message_size)`,
+		/// i.e. similar to `init_open_channel`. In fact, the initialization is performed as if
+		/// the `init_open_channel` and `accept_open_channel` were called with the respective parameters
+		/// and the session change take place.
+		///
+		/// As such, each channel initializer should satisfy the same constraints, namely:
+		///
+		/// 1. `max_capacity` and `max_message_size` should be within the limits set by the configuration module.
+		/// 2. `sender` and `recipient` must be valid paras.
+		config(preopen_hrmp_channels): Vec<(ParaId, ParaId, u32, u32)>;
+		build(|config| {
+			initialize_storage::<T>(&config.preopen_hrmp_channels);
+		})
+	}
+}
+
+#[cfg(feature = "std")]
+fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, u32)]) {
+	let host_config = configuration::Module::<T>::config();
+	for &(sender, recipient, max_capacity, max_message_size) in preopen_hrmp_channels {
+		if let Err(err) = preopen_hrmp_channel::<T>(sender, recipient, max_capacity, max_message_size) {
+			panic!("failed to initialize the genesis storage: {:?}", err);
+		}
+	}
+	<Module<T>>::process_hrmp_open_channel_requests(&host_config);
+}
+
+#[cfg(feature = "std")]
+fn preopen_hrmp_channel<T: Config>(
+	sender: ParaId,
+	recipient: ParaId,
+	max_capacity: u32,
+	max_message_size: u32
+) -> DispatchResult {
+	<Module<T>>::init_open_channel(
+		sender,
+		recipient,
+		max_capacity,
+		max_message_size,
+	)?;
+	<Module<T>>::accept_open_channel(recipient, sender)?;
+	Ok(())
 }
 
 decl_error! {
@@ -407,6 +453,41 @@ decl_module! {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
 			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
+			Ok(())
+		}
+
+		/// This extrinsic triggers the cleanup of all the HRMP storage items that
+		/// a para may have. Normally this happens once per session, but this allows
+		/// you to trigger the cleanup immediately for a specific parachain.
+		///
+		/// Origin must be Root.
+		#[weight = 0]
+		pub fn force_clean_hrmp(origin, para: ParaId) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::clean_hrmp_after_outgoing(&para);
+			Ok(())
+		}
+
+		/// Force process hrmp open channel requests.
+		///
+		/// If there are pending HRMP open channel requests, you can use this
+		/// function process all of those requests immediately.
+		#[weight = 0]
+		pub fn force_process_hrmp_open(origin) -> DispatchResult {
+			ensure_root(origin)?;
+			let host_config = configuration::Module::<T>::config();
+			Self::process_hrmp_open_channel_requests(&host_config);
+			Ok(())
+		}
+
+		/// Force process hrmp close channel requests.
+		///
+		/// If there are pending HRMP close channel requests, you can use this
+		/// function process all of those requests immediately.
+		#[weight = 0]
+		pub fn force_process_hrmp_close(origin) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::process_hrmp_close_channel_requests();
 			Ok(())
 		}
 	}
@@ -959,7 +1040,7 @@ impl<T: Config> Module<T> {
 		<Self as Store>::HrmpOpenChannelRequestsList::append(channel_id);
 
 		let notification_bytes = {
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 			use parity_scale_codec::Encode as _;
 
 			VersionedXcm::from(Xcm::HrmpNewChannelOpenRequest {
@@ -1025,7 +1106,7 @@ impl<T: Config> Module<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelAccepted {
 				recipient: u32::from(origin),
@@ -1068,7 +1149,7 @@ impl<T: Config> Module<T> {
 		let config = <configuration::Module<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{v0::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelClosing {
 				initiator: u32::from(origin),

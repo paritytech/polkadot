@@ -8,6 +8,7 @@ description = "Channels with attached Meters"
 [dependencies]
 futures = "0.3.12"
 futures-timer = "3.0.2"
+derive_more = "0.99"
 
 [dev-dependencies]
 assert_matches = "1.4.0"

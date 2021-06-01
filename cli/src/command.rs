@@ -74,38 +74,39 @@ impl SubstrateCli for Cli {
 				.unwrap_or("polkadot")
 		} else { id };
 		Ok(match id {
-			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
-			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"kusama" => Box::new(service::chain_spec::kusama_config()?),
 			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()?),
 			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()?),
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
+			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
+			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
+			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
-			"kusama" => Box::new(service::chain_spec::kusama_config()?),
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
-			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
-			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
-			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			"wococo" => Box::new(service::chain_spec::wococo_config()?),
+			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
-				let starts_with = |prefix: &str| {
-					path.file_name().map(|f| f.to_str().map(|s| s.starts_with(&prefix))).flatten().unwrap_or(false)
-				};
+				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?) as Box<dyn service::ChainSpec>;
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || starts_with("rococo") {
+				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
-				} else if self.run.force_kusama || starts_with("kusama") {
+				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
-				} else if self.run.force_westend || starts_with("westend") {
+				} else if self.run.force_westend || chain_spec.is_westend() {
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
 				} else {
-					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
+					chain_spec
 				}
 			},
 		})
@@ -116,7 +117,7 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
-		} else if spec.is_rococo() {
+		} else if spec.is_rococo() || spec.is_wococo() {
 			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
@@ -136,6 +137,17 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 	};
 
 	sp_core::crypto::set_default_ss58_version(ss58_version);
+}
+
+const DEV_ONLY_ERROR_PATTERN: &'static str =
+	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev, wococo-dev], got ";
+
+fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
+	if spec.is_dev() {
+		Ok(())
+	} else {
+		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
+	}
 }
 
 /// Parses polkadot specific CLI arguments and run the service.
@@ -175,6 +187,7 @@ pub fn run() -> Result<()> {
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
+						cli.run.no_beefy,
 						jaeger_agent,
 						None,
 					).map(|full| full.task_manager)
@@ -249,32 +262,65 @@ pub fn run() -> Result<()> {
 				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		},
-		Some(Subcommand::ValidationWorker(cmd)) => {
+		Some(Subcommand::PvfPrepareWorker(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			if cfg!(feature = "browser") || cfg!(target_os = "android") {
-				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()).into())
-			} else {
-				#[cfg(not(any(target_os = "android", feature = "browser")))]
-				polkadot_parachain::wasm_executor::run_worker(
-					&cmd.mem_id,
-					Some(cmd.cache_base_path.clone()),
-				)?;
+			#[cfg(any(target_os = "android", feature = "browser"))]
+			{
+				return Err(
+					sc_cli::Error::Input("PVF preparation workers are not supported under this platform".into()).into()
+				);
+			}
+
+			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			{
+				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
+				Ok(())
+			}
+		},
+		Some(Subcommand::PvfExecuteWorker(cmd)) => {
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(false);
+			let _ = builder.init();
+
+			#[cfg(any(target_os = "android", feature = "browser"))]
+			{
+				return Err(
+					sc_cli::Error::Input("PVF execution workers are not supported under this platform".into()).into()
+				);
+			}
+
+			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			{
+				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				Ok(())
 			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
-
 			set_default_ss58_version(chain_spec);
 
-			Ok(runner.sync_run(|config| {
-				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-				.map_err(|e| Error::SubstrateCli(e))
-			})?)
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+			if chain_spec.is_kusama() {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else if chain_spec.is_westend() {
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			} else {
+				// else we assume it is polkadot.
+				Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+						.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
@@ -283,24 +329,37 @@ pub fn run() -> Result<()> {
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
 
-			runner.async_run(|config| {
-				use sc_service::TaskManager;
-				let registry = config.prometheus_config.as_ref().map(|cfg| &cfg.registry);
-				let task_manager = TaskManager::new(
-					config.task_executor.clone(),
-					registry,
-				).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
+			use sc_service::TaskManager;
+			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
+			let task_manager = TaskManager::new(
+				runner.config().task_executor.clone(),
+				*registry,
+			).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
-				Ok((
-					cmd.run::<
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+			if chain_spec.is_kusama() {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
 						service::kusama_runtime::Block,
 						service::KusamaExecutor,
-					>(config).map_err(Error::SubstrateCli),
-					task_manager
-				))
-				// NOTE: we fetch only the block number from the block type, the chance of disparity
-				// between kusama's and polkadot's block number is small enough to overlook this.
-			})
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::westend_runtime::Block,
+						service::WestendExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			} else {
+				// else we assume it is polkadot.
+				runner.async_run(|config| {
+					Ok((cmd.run::<
+						service::polkadot_runtime::Block,
+						service::PolkadotExecutor,
+					>(config).map_err(Error::SubstrateCli), task_manager))
+				})
+			}
 		}
 	}?;
 	Ok(())

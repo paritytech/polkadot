@@ -73,7 +73,7 @@ pub trait AuthorityDiscoveryConfig {
 
 impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
-		<pallet_authority_discovery::Module<T>>::current_authorities()
+		<pallet_authority_discovery::Pallet<T>>::current_authorities()
 	}
 }
 
@@ -85,7 +85,6 @@ impl<T: Config> Module<T> {
 		let config = <configuration::Module<T>>::config();
 
 		let dispute_period = config.dispute_period;
-		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
@@ -93,7 +92,7 @@ impl<T: Config> Module<T> {
 		let active_set = <shared::Module<T>>::active_validator_indices();
 
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
-		let n_cores = n_parachains + config.parathread_cores;
+		let n_cores = <scheduler::Module<T>>::availability_cores().len() as u32;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;
 		let n_delay_tranches = config.n_delay_tranches;
