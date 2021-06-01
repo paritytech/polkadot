@@ -255,7 +255,7 @@ pub(crate) fn note_current_session(
 			{
 				let end_prefix = candidate_votes_range_upper_bound(new_earliest);
 
-				let mut iter = store.iter_with_prefix(config.col_data, CANDIDATE_VOTES_SUBKEY)
+				let iter = store.iter_with_prefix(config.col_data, CANDIDATE_VOTES_SUBKEY)
 					.take_while(|(k, _)| &k[..] < &end_prefix[..])
 					.filter_map(|(k, _)| decode_candidate_votes_key(&k[..]));
 
@@ -432,5 +432,88 @@ mod tests {
 				&CandidateHash(Hash::repeat_byte(1))
 			).unwrap().is_none()
 		);
+	}
+
+	#[test]
+	fn note_current_session_prunes_old() {
+		let store = kvdb_memorydb::create(1);
+		let config = ColumnConfiguration { col_data: 0 };
+
+		let hash_a = CandidateHash(Hash::repeat_byte(0x0a));
+		let hash_b = CandidateHash(Hash::repeat_byte(0x0b));
+		let hash_c = CandidateHash(Hash::repeat_byte(0x0c));
+		let hash_d = CandidateHash(Hash::repeat_byte(0x0d));
+
+		let prev_earliest_session = 0;
+		let new_earliest_session = 5;
+		let current_session = 5 + DISPUTE_WINDOW;
+
+		let very_old = 3;
+		let slightly_old = 4;
+		let very_recent = current_session - 1;
+
+		let blank_candidate_votes = || CandidateVotes {
+			candidate_receipt: Default::default(),
+			valid: Vec::new(),
+			invalid: Vec::new(),
+		};
+
+		{
+			let mut tx = Transaction::default();
+			tx.put_earliest_session(prev_earliest_session);
+			tx.put_active_disputes(ActiveDisputes {
+				disputed: vec![
+					(very_old, hash_a),
+					(slightly_old, hash_b),
+					(new_earliest_session, hash_c),
+					(very_recent, hash_d),
+				],
+			});
+
+			tx.put_candidate_votes(
+				very_old,
+				hash_a,
+				blank_candidate_votes(),
+			);
+
+			tx.put_candidate_votes(
+				slightly_old,
+				hash_b,
+				blank_candidate_votes(),
+			);
+
+			tx.put_candidate_votes(
+				new_earliest_session,
+				hash_c,
+				blank_candidate_votes(),
+			);
+
+			tx.put_candidate_votes(
+				very_recent,
+				hash_d,
+				blank_candidate_votes(),
+			);
+
+			tx.write(&store, &config).unwrap();
+		}
+
+		note_current_session(&store, &config, current_session).unwrap();
+
+		assert_eq!(
+			load_earliest_session(&store, &config).unwrap(),
+			Some(new_earliest_session),
+		);
+
+		assert_eq!(
+			load_active_disputes(&store, &config).unwrap().unwrap(),
+			ActiveDisputes {
+				disputed: vec![(new_earliest_session, hash_c), (very_recent, hash_d)],
+			},
+		);
+
+		assert!(load_candidate_votes(&store, &config, very_old, &hash_a).unwrap().is_none());
+		assert!(load_candidate_votes(&store, &config, slightly_old, &hash_b).unwrap().is_none());
+		assert!(load_candidate_votes(&store, &config, new_earliest_session, &hash_c).unwrap().is_some());
+		assert!(load_candidate_votes(&store, &config, very_recent, &hash_d).unwrap().is_some());
 	}
 }
