@@ -14,7 +14,7 @@ We use an underlying Key-Value database where we assume we have the following op
 We use this database to encode the following schema:
 
 ```rust
-(SessionIndex, "candidate-votes", CandidateHash) -> Option<CandidateVotes>
+("candidate-votes", SessionIndex, CandidateHash) -> Option<CandidateVotes>
 "active-disputes" -> ActiveDisputes
 "earliest-session" -> Option<SessionIndex>
 ```
@@ -84,7 +84,7 @@ Do nothing.
 
 * Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
 * If the session is earlier than `state.highest_session - DISPUTE_WINDOW`, return.
-* If there is an entry in the `state.overlay`, load that. Otherwise, load from underlying DB by querying `(session, "candidate-votes", candidate_hash). If that does not exist, create fresh with the given candidate receipt.
+* If there is an entry in the `state.overlay`, load that. Otherwise, load from underlying DB by querying `("candidate-votes", session, candidate_hash). If that does not exist, create fresh with the given candidate receipt.
 * If candidate votes is empty and the statements only contain dispute-specific votes, return.
 * Otherwise, if there is already an entry from the validator in the respective `valid` or `invalid` field of the `CandidateVotes`, return.
 * Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`. 
