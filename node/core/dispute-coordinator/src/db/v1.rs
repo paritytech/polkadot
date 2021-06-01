@@ -54,6 +54,18 @@ fn candidate_votes_range_upper_bound(upper_exclusive: SessionIndex) -> [u8; 15 +
 	buf
 }
 
+fn decode_candidate_votes_key(key: &[u8]) -> Option<(SessionIndex, CandidateHash)> {
+	if key.len() != 15 + 4 + 32 {
+		return None;
+	}
+
+	let mut session_buf = [0; 4];
+	session_buf.copy_from_slice(&key[15..][..4]);
+	let session = SessionIndex::from_be_bytes(session_buf);
+
+	CandidateHash::decode(&mut &key[(15 + 4)..]).ok().map(|hash| (session, hash))
+}
+
 /// Column configuration information for the DB.
 #[derive(Debug, Clone)]
 pub struct ColumnConfiguration {
@@ -239,9 +251,17 @@ pub(crate) fn note_current_session(
 				}
 			}
 
-			// Clear all disputes with session less than the new earliest kept.
+			// Clear all candidate data with session less than the new earliest kept.
 			{
-				// TODO [now]
+				let end_prefix = candidate_votes_range_upper_bound(new_earliest);
+
+				let mut iter = store.iter_with_prefix(config.col_data, CANDIDATE_VOTES_SUBKEY)
+					.take_while(|(k, _)| &k[..] < &end_prefix[..])
+					.filter_map(|(k, _)| decode_candidate_votes_key(&k[..]));
+
+				for (session, candidate_hash) in iter {
+					tx.delete_candidate_votes(session, candidate_hash);
+				}
 			}
 		}
 		Some(_) => {
@@ -267,6 +287,11 @@ mod tests {
 		assert_eq!(&key[0..15], CANDIDATE_VOTES_SUBKEY);
 		assert_eq!(&key[15..19], &[0x00, 0x00, 0x00, 0x04]);
 		assert_eq!(&key[19..51], candidate.0.as_bytes());
+
+		assert_eq!(
+			decode_candidate_votes_key(&key[..]),
+			Some((session, candidate)),
+		);
 	}
 
 	#[test]
