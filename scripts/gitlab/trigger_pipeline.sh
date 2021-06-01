@@ -113,7 +113,7 @@ function needs_arg {
 }
 
 function trigger_other_pipeline {
-  # API trigger another project's pipeline
+  # API trigger another project's pipeline.
   log INFO "Triggering Simnet pipeline."
 
   curl --silent \
