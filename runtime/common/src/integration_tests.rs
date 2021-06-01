@@ -144,6 +144,7 @@ impl pallet_timestamp::Config for Test {
 
 parameter_types! {
 	pub static ExistentialDeposit: Balance = 1;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
@@ -154,6 +155,7 @@ impl pallet_balances::Config for Test {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxReserves = MaxReserves;
 }
 
 impl configuration::Config for Test { }

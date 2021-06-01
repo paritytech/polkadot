@@ -699,6 +699,7 @@ mod tests {
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
+		pub const MaxReserves: u32 = 50;
 	}
 
 	impl pallet_balances::Config for Test {
@@ -709,6 +710,7 @@ mod tests {
 		type AccountStore = System;
 		type WeightInfo = ();
 		type MaxLocks = ();
+		type MaxReserves = MaxReserves;
 	}
 
 	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]
