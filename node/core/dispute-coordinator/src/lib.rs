@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_primitives::v1::{SessionIndex, CandidateHash};
+use polkadot_primitives::v1::{SessionIndex, CandidateHash, Hash};
 
 use futures::prelude::*;
 use kvdb::KeyValueDB;
@@ -59,6 +59,12 @@ struct State {
 pub struct Config {
 	/// The data column in the store to use for dispute data.
 	pub col_data: u32,
+}
+
+impl Config {
+	fn column_config(&self) -> db::v1::ColumnConfiguration {
+		db::v1::ColumnConfiguration { col_data: self.col_data }
+	}
 }
 
 /// An implementation of the dispute coordinator subsystem.
@@ -141,7 +147,7 @@ async fn run<Context>(mut subsystem: DisputeCoordinatorSubsystem, mut ctx: Conte
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	loop {
-		let res = run_iteration(&mut ctx, &mut subsystem).await;
+		let res = run_iteration(&mut ctx, &subsystem).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -164,9 +170,50 @@ async fn run<Context>(mut subsystem: DisputeCoordinatorSubsystem, mut ctx: Conte
 //
 // A return value of `true` indicates that an exit should be made, while a return value of
 // `false` indicates that another iteration should be performed.
-async fn run_iteration<Context>(ctx: &mut Context, subsystem: &mut DisputeCoordinatorSubsystem)
+async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinatorSubsystem)
 	-> Result<bool, Error>
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
+	let DisputeCoordinatorSubsystem { ref store, ref keystore, ref config } = *subsystem;
+
+	loop {
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				handle_new_activations(
+					ctx,
+					&**store,
+					config,
+					update.activated.into_iter().map(|a| a.hash),
+				)?
+			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
+			FromOverseer::Communication { msg } => {
+				handle_incoming(
+					ctx,
+					&**store,
+					config,
+					msg,
+				)?
+			}
+		}
+	}
+}
+
+fn handle_new_activations(
+	ctx: &mut impl SubsystemContext,
+	store: &dyn KeyValueDB,
+	config: &Config,
+	new_activations: impl IntoIterator<Item = Hash>,
+) -> Result<(), Error> {
+	unimplemented!()
+}
+
+fn handle_incoming(
+	ctx: &mut impl SubsystemContext,
+	store: &dyn KeyValueDB,
+	config: &Config,
+	message: DisputeCoordinatorMessage,
+) -> Result<(), Error> {
 	unimplemented!()
 }
