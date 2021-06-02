@@ -711,6 +711,7 @@ mod tests {
 		type WeightInfo = ();
 		type MaxLocks = ();
 		type MaxReserves = MaxReserves;
+		type ReserveIdentifier = [u8; 8];
 	}
 
 	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]
