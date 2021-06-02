@@ -49,6 +49,10 @@ mod db;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
+// It would be nice to draw this from the chain state, but we have no tools for it right now.
+// On Polkadot this is 2 days, and on Kusama it's 12 hours.
+const DISPUTE_WINDOW: SessionIndex = 12;
+
 struct State {
 	keystore: Arc<LocalKeystore>,
 	overlay: HashMap<(SessionIndex, CandidateHash), CandidateVotes>,
@@ -199,9 +203,10 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 				handle_incoming(
 					ctx,
 					&**store,
+					&mut state,
 					config,
 					msg,
-				)?
+				).await?
 			}
 		}
 	}
@@ -245,11 +250,46 @@ async fn handle_new_activations(
 	Ok(())
 }
 
-fn handle_incoming(
+async fn handle_incoming(
 	ctx: &mut impl SubsystemContext,
 	store: &dyn KeyValueDB,
+	state: &mut State,
 	config: &Config,
 	message: DisputeCoordinatorMessage,
 ) -> Result<(), Error> {
-	unimplemented!()
+	match message {
+		DisputeCoordinatorMessage::ImportStatements {
+			candidate_hash,
+			candidate_receipt,
+			session,
+			statements,
+		} => {
+			unimplemented!()
+		}
+		DisputeCoordinatorMessage::ActiveDisputes(rx) => unimplemented!(),
+		DisputeCoordinatorMessage::QueryCandidateVotes(
+			sesion,
+			candidate_hash,
+			rx
+		) => {
+			unimplemented!()
+		}
+		DisputeCoordinatorMessage::IssueLocalStatement(
+			sessionl,
+			candidate_hash,
+			candidate_receipt,
+			valid,
+		) => {
+			unimplemented!()
+		}
+		DisputeCoordinatorMessage::DetermineUndisputedChain {
+			base_number,
+			block_descriptions,
+			rx,
+		} => {
+			unimplemented!()
+		}
+	}
+
+	Ok(())
 }

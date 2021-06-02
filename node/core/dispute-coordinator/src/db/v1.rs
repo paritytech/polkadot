@@ -24,13 +24,11 @@ use polkadot_primitives::v1::{
 use kvdb::{KeyValueDB, DBTransaction};
 use parity_scale_codec::{Encode, Decode};
 
+use crate::DISPUTE_WINDOW;
+
 const ACTIVE_DISPUTES_KEY: &[u8; 15] = b"active-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
 const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
-
-// It would be nice to draw this from the chain state, but we have no tools for it right now.
-// On Polkadot this is 2 days, and on Kusama it's 12 hours.
-const DISPUTE_WINDOW: SessionIndex = 12;
 
 fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) -> [u8; 15 + 4 + 32] {
 	let mut buf = [0u8; 15 + 4 + 32];
