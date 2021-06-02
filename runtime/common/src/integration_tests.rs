@@ -366,7 +366,7 @@ fn basic_end_to_end_works() {
 		run_to_block(109);
 		assert_eq!(
 			last_event(),
-			crowdloan::RawEvent::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
+			crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
 		);
 		run_to_block(110);
 		assert_eq!(

@@ -324,14 +324,14 @@ pub mod v1 {
 		LargeStatement(StatementMetadata),
 	}
 
-	/// Data that maes a statement unique.
+	/// Data that makes a statement unique.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 	pub struct StatementMetadata {
-		/// Relayt parent this statement is relevant under.
+		/// Relay parent this statement is relevant under.
 		pub relay_parent: Hash,
 		/// Hash of the candidate that got validated.
 		pub candidate_hash: CandidateHash,
-		/// Validator that attested the valididty.
+		/// Validator that attested the validity.
 		pub signed_by: ValidatorIndex,
 		/// Signature of seconding validator.
 		pub signature: ValidatorSignature,
@@ -369,7 +369,7 @@ pub mod v1 {
 			}
 		}
 
-		/// Whether or not this message contains a large statement.
+		/// Whether this message contains a large statement.
 		pub fn is_large_statement(&self) -> bool {
 			if let Self::LargeStatement(_) = self {
 				true

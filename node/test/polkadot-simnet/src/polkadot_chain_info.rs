@@ -1,16 +1,14 @@
 use polkadot_cli::Cli;
 use sc_cli::SubstrateCli;
 use structopt::StructOpt;
-use std::error::Error;
 use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_root};
-use test_runner::{Node, ChainInfo, NodeConfig};
+use test_runner::{Node, ChainInfo};
 use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, TaskExecutor};
 use polkadot_runtime::{Runtime, RuntimeApi};
 use std::sync::Arc;
 use sp_keystore::SyncCryptoStorePtr;
-use sp_inherents::{InherentDataProviders, InherentDataProvider, CreateInherentDataProviders};
+use sp_inherents::CreateInherentDataProviders;
 use sc_consensus_manual_seal::ConsensusDataProvider;
-use log::LevelFilter;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
 
 pub struct PolkadotSimnetChainInfo;

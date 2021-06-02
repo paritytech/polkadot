@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Module to handle parathread/parachain registration and related fund management.
+//! Pallet to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
 use sp_std::{prelude::*, result};
 use frame_support::{
-	decl_storage, decl_module, decl_error, decl_event, ensure,
+	ensure,
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ReservableCurrency},
 	pallet_prelude::Weight,
@@ -40,6 +40,7 @@ use runtime_parachains::{
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, traits::{Saturating, CheckedSub}};
+pub use pallet::*;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -71,69 +72,67 @@ impl WeightInfo for TestWeightInfo {
 	fn swap() -> Weight { 0 }
 }
 
-pub trait Config: paras::Config {
-	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+#[frame_support::pallet]
+pub mod pallet {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use super::*;
 
-	/// The aggregated origin type must support the `parachains` origin. We require that we can
-	/// infallibly convert between this origin and the system origin, but in reality, they're the
-	/// same type, we just can't express that to the Rust type system without writing a `where`
-	/// clause everywhere.
-	type Origin: From<<Self as frame_system::Config>::Origin>
-		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-	/// The system's currency for parathread payment.
-	type Currency: ReservableCurrency<Self::AccountId>;
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: paras::Config {
+		/// The overarching event type.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-	/// Runtime hook for when a parachain and parathread swap.
-	type OnSwap: crate::traits::OnSwap;
+		/// The aggregated origin type must support the `parachains` origin. We require that we can
+		/// infallibly convert between this origin and the system origin, but in reality, they're the
+		/// same type, we just can't express that to the Rust type system without writing a `where`
+		/// clause everywhere.
+		type Origin: From<<Self as frame_system::Config>::Origin>
+			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
-	/// The deposit to be paid to run a parathread.
-	/// This should include the cost for storing the genesis head and validation code.
-	type ParaDeposit: Get<BalanceOf<Self>>;
+		/// The system's currency for parathread payment.
+		type Currency: ReservableCurrency<Self::AccountId>;
 
-	/// The deposit to be paid per byte stored on chain.
-	type DataDepositPerByte: Get<BalanceOf<Self>>;
+		/// Runtime hook for when a parachain and parathread swap.
+		type OnSwap: crate::traits::OnSwap;
 
-	/// The maximum size for the validation code.
-	type MaxCodeSize: Get<u32>;
+		/// The deposit to be paid to run a parathread.
+		/// This should include the cost for storing the genesis head and validation code.
+		#[pallet::constant]
+		type ParaDeposit: Get<BalanceOf<Self>>;
 
-	/// The maximum size for the head data.
-	type MaxHeadSize: Get<u32>;
+		/// The deposit to be paid per byte stored on chain.
+		#[pallet::constant]
+		type DataDepositPerByte: Get<BalanceOf<Self>>;
 
-	/// Weight Information for the Extrinsics in the Pallet
-	type WeightInfo: WeightInfo;
-}
+		/// The maximum size for the validation code.
+		#[pallet::constant]
+		type MaxCodeSize: Get<u32>;
 
-decl_storage! {
-	trait Store for Module<T: Config> as Registrar {
-		/// Pending swap operations.
-		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
+		/// The maximum size for the head data.
+		#[pallet::constant]
+		type MaxHeadSize: Get<u32>;
 
-		/// Amount held on deposit for each para and the original depositor.
-		///
-		/// The given account ID is responsible for registering the code and initial head data, but may only do
-		/// so if it isn't yet registered. (After that, it's up to governance to do so.)
-		pub Paras: map hasher(twox_64_concat) ParaId => Option<ParaInfo<T::AccountId, BalanceOf<T>>>;
-
-		/// The next free `ParaId`.
-		pub NextFreeParaId: ParaId;
+		/// Weight Information for the Extrinsics in the Pallet
+		type WeightInfo: WeightInfo;
 	}
-}
 
-decl_event! {
-	pub enum Event<T> where
-		AccountId = <T as frame_system::Config>::AccountId,
-		ParaId = ParaId,
-	{
-		Registered(ParaId, AccountId),
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	#[pallet::metadata(T::AccountId = "AccountId")]
+	pub enum Event<T: Config> {
+		Registered(ParaId, T::AccountId),
 		Deregistered(ParaId),
-		Reserved(ParaId, AccountId),
+		Reserved(ParaId, T::AccountId),
 	}
-}
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::error]
+	pub enum Error<T> {
 		/// The ID is not registered.
 		NotRegistered,
 		/// The ID is already registered.
@@ -161,19 +160,27 @@ decl_error! {
 		/// The ID given for registration has not been reserved.
 		NotReserved,
 	}
-}
 
-decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	/// Pending swap operations.
+	#[pallet::storage]
+	pub(super) type PendingSwap<T> = StorageMap<_, Twox64Concat, ParaId, ParaId>;
 
-		const ParaDeposit: BalanceOf<T> = T::ParaDeposit::get();
-		const DataDepositPerByte: BalanceOf<T> = T::DataDepositPerByte::get();
-		const MaxCodeSize: u32 = T::MaxCodeSize::get();
-		const MaxHeadSize: u32 = T::MaxHeadSize::get();
+	/// Amount held on deposit for each para and the original depositor.
+	///
+	/// The given account ID is responsible for registering the code and initial head data, but may only do
+	/// so if it isn't yet registered. (After that, it's up to governance to do so.)
+	#[pallet::storage]
+	pub type Paras<T: Config> = StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
 
-		fn deposit_event() = default;
+	/// The next free `ParaId`.
+	#[pallet::storage]
+	pub type NextFreeParaId<T> = StorageValue<_, ParaId, ValueQuery>;
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Register head data and validation code for a reserved Para Id.
 		///
 		/// ## Arguments
@@ -188,9 +195,9 @@ decl_module! {
 		///
 		/// ## Events
 		/// The `Registered` event is emitted in case of success.
-		#[weight = T::WeightInfo::register()]
+		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(
-			origin,
+			origin: OriginFor<T>,
 			id: ParaId,
 			genesis_head: HeadData,
 			validation_code: ValidationCode,
@@ -206,9 +213,9 @@ decl_module! {
 		///
 		/// The deposit taken can be specified for this registration. Any ParaId
 		/// can be registered, including sub-1000 IDs which are System Parachains.
-		#[weight = T::WeightInfo::force_register()]
+		#[pallet::weight(T::WeightInfo::force_register())]
 		pub fn force_register(
-			origin,
+			origin: OriginFor<T>,
 			who: T::AccountId,
 			deposit: BalanceOf<T>,
 			id: ParaId,
@@ -222,8 +229,8 @@ decl_module! {
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
 		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
-		#[weight = T::WeightInfo::deregister()]
-		pub fn deregister(origin, id: ParaId) -> DispatchResult {
+		#[pallet::weight(T::WeightInfo::deregister())]
+		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 			Self::do_deregister(id)
 		}
@@ -239,13 +246,13 @@ decl_module! {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[weight = T::WeightInfo::swap()]
-		pub fn swap(origin, id: ParaId, other: ParaId) {
+		#[pallet::weight(T::WeightInfo::swap())]
+		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 
-			if PendingSwap::get(other) == Some(id) {
-				if let Some(other_lifecycle) = paras::Module::<T>::lifecycle(other) {
-					if let Some(id_lifecycle) = paras::Module::<T>::lifecycle(id) {
+			if PendingSwap::<T>::get(other) == Some(id) {
+				if let Some(other_lifecycle) = paras::Pallet::<T>::lifecycle(other) {
+					if let Some(id_lifecycle) = paras::Pallet::<T>::lifecycle(id) {
 						// identify which is a parachain and which is a parathread
 						if id_lifecycle.is_parachain() && other_lifecycle.is_parathread() {
 							// We check that both paras are in an appropriate lifecycle for a swap,
@@ -265,22 +272,25 @@ decl_module! {
 							T::OnSwap::on_swap(id, other);
 						}
 
-						PendingSwap::remove(other);
+						PendingSwap::<T>::remove(other);
 					}
 				}
 			} else {
-				PendingSwap::insert(id, other);
+				PendingSwap::<T>::insert(id, other);
 			}
+
+			Ok(())
 		}
 
 		/// Remove a manager lock from a para. This will allow the manager of a
 		/// previously locked para to deregister or swap a para without using governance.
 		///
 		/// Can only be called by the Root origin.
-		#[weight = T::DbWeight::get().reads_writes(1, 1)]
-		fn force_remove_lock(origin, para: ParaId) {
+		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
+		fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
+			Ok(())
 		}
 
 		/// Reserve a Para Id on the relay chain.
@@ -297,18 +307,18 @@ decl_module! {
 		///
 		/// ## Events
 		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
-		#[weight = T::WeightInfo::reserve()]
-		pub fn reserve(origin) -> DispatchResult {
+		#[pallet::weight(T::WeightInfo::reserve())]
+		pub fn reserve(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let id = NextFreeParaId::get().max(LOWEST_PUBLIC_ID);
+			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
 			Self::do_reserve(who, None, id)?;
-			NextFreeParaId::set(id + 1);
+			NextFreeParaId::<T>::set(id + 1);
 			Ok(())
 		}
 	}
 }
 
-impl<T: Config> Registrar for Module<T> {
+impl<T: Config> Registrar for Pallet<T> {
 	type AccountId = T::AccountId;
 
 	/// Return the manager `AccountId` of a para if one exists.
@@ -318,17 +328,17 @@ impl<T: Config> Registrar for Module<T> {
 
 	// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 	fn parachains() -> Vec<ParaId> {
-		paras::Module::<T>::parachains()
+		paras::Pallet::<T>::parachains()
 	}
 
 	// Return if a para is a parathread
 	fn is_parathread(id: ParaId) -> bool {
-		paras::Module::<T>::is_parathread(id)
+		paras::Pallet::<T>::is_parathread(id)
 	}
 
 	// Return if a para is a parachain
 	fn is_parachain(id: ParaId) -> bool {
-		paras::Module::<T>::is_parachain(id)
+		paras::Pallet::<T>::is_parachain(id)
 	}
 
 	// Apply a lock to the parachain.
@@ -362,7 +372,7 @@ impl<T: Config> Registrar for Module<T> {
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parathread...
-		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
+		ensure!(paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
 		runtime_parachains::schedule_parathread_upgrade::<T>(id).map_err(|_| Error::<T>::CannotUpgrade)?;
 		// Once a para has upgraded to a parachain, it can no longer be managed by the owner.
 		// Intentionally, the flag stays with the para even after downgrade.
@@ -373,7 +383,7 @@ impl<T: Config> Registrar for Module<T> {
 	// Downgrade a registered para into a parathread.
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parachain...
-		ensure!(paras::Module::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
+		ensure!(paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
 		runtime_parachains::schedule_parachain_downgrade::<T>(id).map_err(|_| Error::<T>::CannotDowngrade)?;
 		Ok(())
 	}
@@ -396,14 +406,14 @@ impl<T: Config> Registrar for Module<T> {
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions() {
 		use runtime_parachains::shared;
-		shared::Module::<T>::set_session_index(
-			shared::Module::<T>::scheduled_session()
+		shared::Pallet::<T>::set_session_index(
+			shared::Pallet::<T>::scheduled_session()
 		);
-		paras::Module::<T>::test_on_new_session();
+		paras::Pallet::<T>::test_on_new_session();
 	}
 }
 
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
 	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(origin: <T as frame_system::Config>::Origin, id: ParaId) -> DispatchResult {
@@ -431,7 +441,7 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 	) -> DispatchResult {
 		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
-		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
+		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 
 		let deposit = deposit_override.unwrap_or_else(T::ParaDeposit::get);
 		<T as Config>::Currency::reserve(&who, deposit)?;
@@ -442,7 +452,7 @@ impl<T: Config> Module<T> {
 		};
 
 		Paras::<T>::insert(id, info);
-		Self::deposit_event(RawEvent::Reserved(id, who));
+		Self::deposit_event(Event::<T>::Reserved(id, who));
 		Ok(())
 	}
 
@@ -464,7 +474,7 @@ impl<T: Config> Module<T> {
 			ensure!(!ensure_reserved, Error::<T>::NotReserved);
 			Default::default()
 		};
-		ensure!(paras::Module::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
+		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) = Self::validate_onboarding_data(
 			genesis_head,
 			validation_code,
@@ -487,13 +497,13 @@ impl<T: Config> Module<T> {
 		// We check above that para has no lifecycle, so this should not fail.
 		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
-		Self::deposit_event(RawEvent::Registered(id, who));
+		Self::deposit_event(Event::<T>::Registered(id, who));
 		Ok(())
 	}
 
 	/// Deregister a Para Id, freeing all data returning any deposit.
 	fn do_deregister(id: ParaId) -> DispatchResult {
-		match paras::Module::<T>::lifecycle(id) {
+		match paras::Pallet::<T>::lifecycle(id) {
 			// Para must be a parathread, or not exist at all.
 			Some(ParaLifecycle::Parathread) | None => {},
 			_ => return Err(Error::<T>::NotParathread.into())
@@ -504,8 +514,8 @@ impl<T: Config> Module<T> {
 			<T as Config>::Currency::unreserve(&info.manager, info.deposit);
 		}
 
-		PendingSwap::remove(id);
-		Self::deposit_event(RawEvent::Deregistered(id));
+		PendingSwap::<T>::remove(id);
+		Self::deposit_event(Event::<T>::Deregistered(id));
 		Ok(())
 	}
 
@@ -666,7 +676,7 @@ mod tests {
 	const BLOCKS_PER_SESSION: u32 = 3;
 
 	fn run_to_block(n: BlockNumber) {
-		// NOTE that this function only simulates modules of interest. Depending on new module may
+		// NOTE that this function only simulates modules of interest. Depending on new pallet may
 		// require adding it here.
 		assert!(System::block_number() < n);
 		while System::block_number() < n {
@@ -677,8 +687,8 @@ mod tests {
 			}
 			// Session change every 3 blocks.
 			if (b + 1) % BLOCKS_PER_SESSION == 0 {
-				shared::Module::<Test>::set_session_index(
-					shared::Module::<Test>::session_index() + 1
+				shared::Pallet::<Test>::set_session_index(
+					shared::Pallet::<Test>::session_index() + 1
 				);
 				Parachains::test_on_new_session();
 			}
@@ -708,7 +718,7 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(PendingSwap::get(&ParaId::from(0u32)), None);
+			assert_eq!(PendingSwap::<Test>::get(&ParaId::from(0u32)), None);
 			assert_eq!(Paras::<Test>::get(&ParaId::from(0u32)), None);
 		});
 	}
@@ -861,7 +871,7 @@ mod tests {
 				para_id,
 			));
 			run_to_session(4);
-			assert!(paras::Module::<Test>::lifecycle(para_id).is_none());
+			assert!(paras::Pallet::<Test>::lifecycle(para_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
 		});
 	}
@@ -989,7 +999,7 @@ mod tests {
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
-	use super::{*, Module as Registrar};
+	use super::{*, Pallet as Registrar};
 	use frame_system::RawOrigin;
 	use frame_support::assert_ok;
 	use sp_runtime::traits::Bounded;
@@ -1023,10 +1033,10 @@ mod benchmarking {
 
 	// This function moves forward to the next scheduled session for parachain lifecycle upgrades.
 	fn next_scheduled_session<T: Config>() {
-		shared::Module::<T>::set_session_index(
-			shared::Module::<T>::scheduled_session()
+		shared::Pallet::<T>::set_session_index(
+			shared::Pallet::<T>::scheduled_session()
 		);
-		paras::Module::<T>::test_on_new_session();
+		paras::Pallet::<T>::test_on_new_session();
 	}
 
 	benchmarks! {
@@ -1037,9 +1047,9 @@ mod benchmarking {
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()))
 		verify {
-			assert_last_event::<T>(RawEvent::Reserved(LOWEST_PUBLIC_ID, caller).into());
+			assert_last_event::<T>(Event::<T>::Reserved(LOWEST_PUBLIC_ID, caller).into());
 			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
-			assert_eq!(paras::Module::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
+			assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
 		}
 
 		register {
@@ -1051,10 +1061,10 @@ mod benchmarking {
 			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(RawEvent::Registered(para, caller).into());
-			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
-			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		force_register {
@@ -1065,10 +1075,10 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(RawEvent::Registered(para, manager).into());
-			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+			assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
-			assert_eq!(paras::Module::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
 		}
 
 		deregister {
@@ -1077,7 +1087,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
 		verify {
-			assert_last_event::<T>(RawEvent::Deregistered(para).into());
+			assert_last_event::<T>(Event::<T>::Deregistered(para).into());
 		}
 
 		swap {
@@ -1093,8 +1103,8 @@ mod benchmarking {
 			Registrar::<T>::make_parachain(parachain)?;
 			next_scheduled_session::<T>();
 
-			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
-			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
+			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
 			let caller: T::AccountId = whitelisted_caller();
 			Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
@@ -1102,8 +1112,8 @@ mod benchmarking {
 		verify {
 			next_scheduled_session::<T>();
 			// Swapped!
-			assert_eq!(paras::Module::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
-			assert_eq!(paras::Module::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
+			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
 	}
 
