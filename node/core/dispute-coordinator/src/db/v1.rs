@@ -92,6 +92,16 @@ impl From<CandidateVotes> for polkadot_node_primitives::CandidateVotes {
 	}
 }
 
+impl From<polkadot_node_primitives::CandidateVotes> for CandidateVotes {
+	fn from(primitive_votes: polkadot_node_primitives::CandidateVotes) -> CandidateVotes {
+		CandidateVotes {
+			candidate_receipt: primitive_votes.candidate_receipt,
+			valid: primitive_votes.valid,
+			invalid: primitive_votes.invalid,
+		}
+	}
+}
+
 /// Meta-key for tracking active disputes.
 #[derive(Debug, Default, Clone, Encode, Decode, PartialEq)]
 pub struct ActiveDisputes {

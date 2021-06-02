@@ -248,7 +248,7 @@ async fn handle_new_activations(
 			)?;
 		}
 
-		// TODO [now]: chain rollbacks
+		// TODO [after https://github.com/paritytech/polkadot/issues/3160]: chain rollbacks
 	}
 
 	Ok(())
@@ -334,16 +334,77 @@ async fn handle_incoming(
 	Ok(())
 }
 
+fn insert_into_statement_vec<T>(
+	vec: &mut Vec<(T, ValidatorIndex, ValidatorSignature)>,
+	tag: T,
+	val_index: ValidatorIndex,
+	val_signature: ValidatorSignature,
+) {
+	let pos = match vec.binary_search_by_key(&val_index, |x| x.1) {
+		Ok(_) => return, // no duplicates needed.
+		Err(p) => p,
+	};
+
+	vec.insert(pos, (tag, val_index, val_signature));
+}
+
 async fn handle_import_statements(
 	ctx: &mut impl SubsystemContext,
+	store: &dyn KeyValueDB,
 	state: &mut State,
 	config: &Config,
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
-) {
-	unimplemented!()
+) -> Result<(), Error> {
+	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
+		return;
+	}
+
+	let mut votes = db::v1::load_candidate_votes(
+		store,
+		&config.column_config(),
+		session,
+		&candidate_hash
+	)?
+		.map(CandidateVotes::from)
+		.unwrap_or_else(move || CandidateVotes {
+			candidate_receipt,
+			valid: Vec::new(),
+			invalid: Vec::new(),
+		});
+
+	let was_undisputed = votes.valid.len() == 0 || votes.invalid.len() == 0;
+
+	// Update candidate votes.
+	for (statement, val_index, val_signature) in statements {
+		match statement {
+			DisputeStatement::Valid(valid_kind) => {
+				insert_into_statement_vec(
+					&mut votes.valid,
+					valid_kind,
+					val_index,
+					val_signature,
+				);
+			}
+			DisputeStatement::Invalid(invalid_kind) => {
+				insert_into_statement_vec(
+					&mut votes.invalid,
+					invalid_kind,
+					val_index,
+					val_signature,
+				);
+			}
+		}
+	}
+
+	// Check if newly disputed.
+	let is_disputed = !votes.valid.is_empty() && !votes.invalid.is_empty();
+
+	if is_disputed && was_undisputed {
+		// TODO [now]: add to active disputes and begin local participation.
+	}
 }
 
 async fn issue_local_statement(
