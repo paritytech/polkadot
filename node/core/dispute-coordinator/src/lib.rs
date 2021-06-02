@@ -20,7 +20,7 @@
 //! This subsystem wraps a database which tracks all statements observed by all validators over some window of sessions.
 //! Votes older than this session window are pruned.
 //!
-//! This subsystem will be the point which produce dispute votes, eiuther positive or negative, based on locally-observed
+//! This subsystem will be the point which produce dispute votes, either positive or negative, based on locally-observed
 //! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
