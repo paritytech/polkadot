@@ -436,6 +436,8 @@ where
 						if !rep.is_benefit() {
 							tracing::debug!(
 								target: LOG_TARGET,
+								?peer,
+								?rep,
 								action = "ReportPeer"
 							);
 						}
