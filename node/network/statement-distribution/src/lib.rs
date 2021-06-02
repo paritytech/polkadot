@@ -589,7 +589,7 @@ enum Message {
 
 impl Message {
 	async fn receive(
-		ctx: &mut impl SubsystemContext<AllMessages><Message = StatementDistributionMessage>,
+		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> Message {
@@ -1563,7 +1563,7 @@ impl StatementDistribution {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<AllMessages><Message = StatementDistributionMessage>,
+		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> std::result::Result<(), Fatal> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();

@@ -539,7 +539,7 @@ where
 /// Notify a collator that its collation got seconded.
 #[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn notify_collation_seconded(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
 	relay_parent: Hash,

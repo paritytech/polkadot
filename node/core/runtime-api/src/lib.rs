@@ -264,7 +264,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 
 #[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
-	mut ctx: impl SubsystemContext<AllMessages><Message = RuntimeApiMessage>,
+	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,

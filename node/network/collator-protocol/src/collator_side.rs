@@ -437,7 +437,7 @@ async fn determine_our_validators(
 /// Issue a `Declare` collation message to the given `peer`.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn declare(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	peer: PeerId,
 ) {
@@ -543,7 +543,7 @@ async fn advertise_collation(
 /// The main incoming message dispatching switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	msg: CollatorProtocolMessage,
@@ -756,7 +756,7 @@ async fn handle_incoming_peer_message(
 /// Our view has changed.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
@@ -775,7 +775,7 @@ async fn handle_peer_view_change(
 /// Bridge messages switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
@@ -883,7 +883,7 @@ async fn handle_our_view_change(
 /// The collator protocol collator side main loop.
 #[tracing::instrument(skip(ctx, collator_pair, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run(
-	mut ctx: impl SubsystemContext<AllMessages><Message = CollatorProtocolMessage>,
+	mut ctx: impl SubsystemContext<Message = CollatorProtocolMessage>,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	metrics: Metrics,

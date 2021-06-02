@@ -611,7 +611,7 @@ async fn handle_signal(
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn launch_interaction(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	session_index: SessionIndex,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
@@ -729,7 +729,7 @@ async fn handle_recover(
 /// Queries a chunk from av-store.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_full_data(
-	ctx: &mut impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
+	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	candidate_hash: CandidateHash,
 ) -> error::Result<Option<AvailableData>> {
 	let (tx, rx) = oneshot::channel();
@@ -753,7 +753,7 @@ impl AvailabilityRecoverySubsystem {
 
 	async fn run(
 		self,
-		mut ctx: impl SubsystemContext<AllMessages><Message = AvailabilityRecoveryMessage>,
+		mut ctx: impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	) -> SubsystemResult<()> {
 		let mut state = State::default();
 
