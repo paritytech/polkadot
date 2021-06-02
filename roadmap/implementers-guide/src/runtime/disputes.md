@@ -43,10 +43,11 @@ Included: double_map (SessionIndex, CandidateHash) -> Option<BlockNumber>,
 //
 // The i'th entry of the vector corresponds to the i'th validator in the session.
 SpamSlots: map SessionIndex -> Option<Vec<u32>>,
-// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
-// the chain will not accept any new parachain blocks for backing or inclusion.
-// It can only be set back to `false` by governance intervention.
-Frozen: bool,
+// Whether the chain is frozen or not. Starts as `None`. When this is `Some`,
+// the chain will not accept any new parachain blocks for backing or inclusion,
+// and its value indicates the last valid block number in the chain.
+// It can only be set back to `None` by governance intervention.
+Frozen: Option<BlockNumber>,
 ```
 
 > `byzantine_threshold` refers to the maximum number `f` of validators which may be byzantine. The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
@@ -94,9 +95,10 @@ Frozen: bool,
 
 * `could_be_invalid(SessionIndex, CandidateHash) -> bool`: Returns whether a candidate has a live dispute ongoing or a dispute which has already concluded in the negative.
 
-* `is_frozen()`: Load the value of `Frozen` from storage.
+* `is_frozen()`: Load the value of `Frozen` from storage. Return true if `Some` and false if `None`.
+
+* `last_valid_block()`: Load the value of `Frozen` from storage and return. None indicates that all blocks in the chain are potentially valid.
 
 * `revert_and_freeze(BlockNumber)`:
   1. If `is_frozen()` return.
-  1. issue a digest in the block header which indicates the chain is to be abandoned back to the stored block number.
-  1. Set `Frozen` to true.
+  1. Set `Frozen` to `Some(BlockNumber)` to indicate a rollback to the given block number is necessary.
