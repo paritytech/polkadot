@@ -1055,10 +1055,6 @@ pub enum ConsensusLog {
 	/// number in the current chain, inclusive.
 	#[codec(index = 3)]
 	ForceApprove(BlockNumber),
-	/// The runtime is informing the node to revert the chain back to the given block number
-	/// in the same chain.
-	#[codec(index = 4)]
-	RevertTo(BlockNumber),
 }
 
 impl ConsensusLog {

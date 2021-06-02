@@ -22,11 +22,10 @@ use primitives::v1::{
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
-	ConsensusLog,
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
-	DispatchError, SaturatedConversion, RuntimeDebug,
+	DispatchError, RuntimeDebug,
 };
 use frame_support::{ensure, traits::Get, weights::Weight};
 use parity_scale_codec::{Encode, Decode};
@@ -143,12 +142,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
 
-	/// Whether the chain is frozen or not. Starts as `false`. When this is `true`,
-	/// the chain will not accept any new parachain blocks for backing or inclusion.
-	/// It can only be set back to `false` by governance intervention.
+	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,
+	/// the chain will not accept any new parachain blocks for backing or inclusion,
+	/// and its value indicates the last valid block number in the chain.
+	/// It can only be set back to `None` by governance intervention.
 	#[pallet::storage]
-	#[pallet::getter(fn is_frozen)]
-	pub(super) type Frozen<T> =  StorageValue<_, bool, ValueQuery>;
+	#[pallet::getter(fn last_valid_block)]
+	pub(super) type Frozen<T: Config> =  StorageValue<_, Option<T::BlockNumber>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
@@ -721,13 +721,14 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	pub(crate) fn is_frozen() -> bool {
+		Self::last_valid_block().is_some()
+	}
+
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::is_frozen() { return }
 
-		let revert_to = revert_to.saturated_into();
-		<frame_system::Pallet<T>>::deposit_log(ConsensusLog::RevertTo(revert_to).into());
-
-		Frozen::<T>::set(true);
+		Frozen::<T>::set(Some(revert_to));
 	}
 }
 
@@ -1375,7 +1376,7 @@ mod tests {
 			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts).is_ok());
 
 			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
-			assert_eq!(Frozen::<Test>::get(), true);
+			assert_eq!(Frozen::<Test>::get(), Some(2));
 		});
 	}
 
@@ -1423,7 +1424,7 @@ mod tests {
 			];
 			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts).is_ok());
 
-			assert_eq!(Frozen::<Test>::get(), true);
+			assert_eq!(Frozen::<Test>::get(), Some(2));
 		});
 	}
 
@@ -1774,7 +1775,7 @@ mod tests {
 	#[test]
 	fn test_revert_and_freeze() {
 		new_test_ext(Default::default()).execute_with(|| {
-			Frozen::<Test>::put(true);
+			Frozen::<Test>::put(Some(0));
 			assert_noop!(
 				{
 					Pallet::<Test>::revert_and_freeze(0);
@@ -1785,7 +1786,7 @@ mod tests {
 
 			Frozen::<Test>::kill();
 			Pallet::<Test>::revert_and_freeze(0);
-			assert_eq!(Frozen::<Test>::get(), true);
+			assert_eq!(Frozen::<Test>::get(), Some(0));
 		})
 	}
 
