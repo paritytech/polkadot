@@ -348,7 +348,7 @@ pub mod pallet {
 		#[pallet::weight(T::DbWeight::get().writes(1))]
 		pub(super) fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
-			ensure!(statement.len() < T::MaxStatementLength::get() as usize, Error::<T>::InvalidStatement);
+			ensure!(statement.len() as u32 < T::MaxStatementLength::get(), Error::<T>::InvalidStatement);
 			// Possibly this is worse than having the caller account be the payment account?
 			Statement::<T>::set(statement);
 			Self::deposit_event(Event::<T>::StatementUpdated);
