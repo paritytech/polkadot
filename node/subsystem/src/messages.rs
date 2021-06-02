@@ -237,7 +237,7 @@ pub enum DisputeCoordinatorMessage {
 		/// - The signature of the validator casting the vote.
 		statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 	},
-	/// Fetch a list of all active disputes that the co-ordinator is aware of.
+	/// Fetch a list of all active disputes that the coordinator is aware of.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),
