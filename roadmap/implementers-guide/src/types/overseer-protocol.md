@@ -424,6 +424,23 @@ enum DisputeParticipationMessage {
 }
 ```
 
+## Dispute Distribution Message
+
+Messages received by the [Dispute Distribution
+subsystem](../node/disputes/dispute-distribution.md). This subsystem is
+responsible of distributing explicit dispute statements.
+
+```rust
+enum DisputeDistributionMessage {
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  validators.
+  DistributeStatement(ExplicitDisputeStatement),
+  /// Tell the subsystem that a candidate is not availble. Dispute distribution
+  can punish peers distributing votes on unavailable hashes for example.
+  ReportCandidateUnavailable(CandidateHash),
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
