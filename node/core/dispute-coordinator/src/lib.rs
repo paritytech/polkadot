@@ -37,7 +37,10 @@ use polkadot_node_subsystem::{
 	SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_primitives::v1::{SessionIndex, CandidateHash, Hash};
+use polkadot_primitives::v1::{
+	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
+	ValidatorSignature, BlockNumber,
+};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -188,7 +191,10 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOverseer::Signal(OverseerSignal::Conclude) => {
+				// TODO [now]: flush overlay
+				return Ok(true)
+			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				handle_new_activations(
 					ctx,
@@ -245,6 +251,8 @@ async fn handle_new_activations(
 				session,
 			)?;
 		}
+
+		// TODO [now]: chain rollbacks
 	}
 
 	Ok(())
@@ -264,23 +272,43 @@ async fn handle_incoming(
 			session,
 			statements,
 		} => {
+			handle_import_statements(
+				ctx,
+				state,
+				config,
+				candidate_hash,
+				candidate_receipt,
+				session,
+				statements,
+			).await;
+		}
+		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
 			unimplemented!()
 		}
-		DisputeCoordinatorMessage::ActiveDisputes(rx) => unimplemented!(),
 		DisputeCoordinatorMessage::QueryCandidateVotes(
-			sesion,
+			session,
 			candidate_hash,
 			rx
 		) => {
 			unimplemented!()
 		}
 		DisputeCoordinatorMessage::IssueLocalStatement(
-			sessionl,
+			session,
 			candidate_hash,
 			candidate_receipt,
 			valid,
 		) => {
-			unimplemented!()
+			issue_local_statement(
+				ctx,
+				state,
+				config,
+				candidate_hash,
+				candidate_receipt,
+				session,
+				valid,
+			).await;
+
+			// TODO [now]: flush overlay.
 		}
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
 			base_number,
@@ -292,4 +320,36 @@ async fn handle_incoming(
 	}
 
 	Ok(())
+}
+
+async fn handle_import_statements(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State,
+	config: &Config,
+	candidate_hash: CandidateHash,
+	candidate_receipt: CandidateReceipt,
+	session: SessionIndex,
+	statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+) {
+	unimplemented!()
+}
+
+async fn issue_local_statement(
+	ctx: &mut impl SubsystemContext,
+	state: &mut State,
+	config: &Config,
+	candidate_hash: CandidateHash,
+	candidate_receipt: CandidateReceipt,
+	session: SessionIndex,
+	valid: bool,
+) {
+	unimplemented!()
+}
+
+fn determine_undisputed_chain(
+
+	base_number: BlockNumber,
+	block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
+) -> Option<(BlockNumber, Hash)> {
+	unimplemented!()
 }
