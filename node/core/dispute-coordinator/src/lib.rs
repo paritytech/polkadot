@@ -226,6 +226,12 @@ async fn handle_new_activations(
 		let session = rx.await??;
 
 		if state.highest_session.map_or(true, |s| s < session) {
+			tracing::trace!(
+				target: LOG_TARGET,
+				session,
+				"Observed new session. Pruning",
+			);
+
 			state.highest_session = Some(session);
 
 			db::v1::note_current_session(
