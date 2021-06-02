@@ -6647,6 +6647,7 @@ dependencies = [
  "sc-consensus-manual-seal",
  "sc-service",
  "sp-api",
+ "sp-consensus-babe",
  "sp-inherents",
  "sp-keystore",
  "structopt",

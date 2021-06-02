@@ -64,7 +64,7 @@ impl ChainInfo for PolkadotChainInfo {
         Self::SelectChain,
     >;
     type SignedExtras = polkadot_runtime::SignedExtra;
-    type InherentDataProviders = SlotTimestampProvider;
+    type InherentDataProviders = (SlotTimestampProvider, sp_consensus_babe::inherents::InherentDataProvider);
 
     fn signed_extras(from: <Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
         (
@@ -93,7 +93,7 @@ impl ChainInfo for PolkadotChainInfo {
             TaskManager,
             Box<dyn CreateInherentDataProviders<
                 Self::Block,
-                Arc<TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>>,
+               (),
                 InherentDataProviders = Self::InherentDataProviders
             >>,
             Option<
@@ -136,12 +136,17 @@ impl ChainInfo for PolkadotChainInfo {
             .expect("failed to create ConsensusDataProvider");
 
         Ok((
-            client,
+            client.clone(),
             backend,
             keystore.sync_keystore(),
             task_manager,
-            Box::new(|_, client| async move {
-                Ok(SlotTimestampProvider::new(client).map_err(|err| format!("{:?}", err))?)
+            Box::new(move |_, _| {
+                let client = client.clone();
+                async move {
+                    let timestamp = SlotTimestampProvider::new(client.clone()).map_err(|err| format!("{:?}", err))?;
+                    let babe = sp_consensus_babe::inherents::InherentDataProvider::new(timestamp.slot().into());
+                    Ok((timestamp, babe))
+                }
             }),
             Some(Box::new(consensus_data_provider)),
             select_chain,

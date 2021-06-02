@@ -1,72 +1,32 @@
-use polkadot_cli::Cli;
-use sc_cli::SubstrateCli;
-use structopt::StructOpt;
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Binary used for simnet nodes, supports all runtimes, although only polkadot is implemented currently.
+//! This binary accepts all the cli args the polkadot binary does, Only difference is it uses
+//! manual-seal™ and babe for block authorship, it has a no-op verifier, so all blocks recieved over the network
+//! are imported and executed straight away. Block authorship/Finalization maybe done by calling the `engine_createBlock` &
+//! `engine_FinalizeBlock` rpc methods respectively.
+
 use std::error::Error;
-use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_root};
-use test_runner::{Node, ChainInfo, NodeConfig};
-use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, TaskExecutor};
-use polkadot_runtime::{Runtime, RuntimeApi};
-use std::sync::Arc;
-use sp_keystore::SyncCryptoStorePtr;
-use sp_inherents::InherentDataProviders;
-use sc_consensus_manual_seal::ConsensusDataProvider;
 use log::LevelFilter;
 
-struct PolkadotSimnetChainInfo;
+mod polkadot_chain_info;
 
-impl ChainInfo for PolkadotSimnetChainInfo {
-    type Block = Block;
-    type Executor = Executor;
-    type Runtime = Runtime;
-    type RuntimeApi = RuntimeApi;
-    type SelectChain = SelectChain;
-    type BlockImport = BlockImport<
-        Self::Block,
-        TFullBackend<Self::Block>,
-        TFullClient<Self::Block, RuntimeApi, Self::Executor>,
-        Self::SelectChain,
-    >;
-    type SignedExtras = polkadot_runtime::SignedExtra;
-
-    fn signed_extras(from: <Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
-        PolkadotChainInfo::signed_extras(from)
-    }
-
-    fn config(task_executor: TaskExecutor) -> Configuration {
-        let cmd = <Cli as StructOpt>::from_args();
-        cmd.create_configuration(&cmd.run.base, task_executor).unwrap()
-    }
-
-    fn create_client_parts(config: &Configuration) -> Result<
-        (
-            Arc<TFullClient<Self::Block, RuntimeApi, Self::Executor>>,
-            Arc<TFullBackend<Self::Block>>,
-            SyncCryptoStorePtr,
-            TaskManager,
-            InherentDataProviders,
-            Option<
-                Box<
-                    dyn ConsensusDataProvider<
-                        Self::Block,
-                        Transaction = sp_api::TransactionFor<
-                            TFullClient<Self::Block, RuntimeApi, Self::Executor>,
-                            Self::Block,
-                        >,
-                    >,
-                >,
-            >,
-            Self::SelectChain,
-            Self::BlockImport,
-        ),
-        sc_service::Error,
-    > {
-        PolkadotChainInfo::create_client_parts(config)
-    }
-
-    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
-        dispatch_with_root(call, node)
-    }
-}
+use polkadot_chain_info::PolkadotSimnetChainInfo;
+use test_runner::{NodeConfig, Node};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -94,7 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             ("babe", LevelFilter::Debug)
         ],
     };
-    let node = Node::<PolkadotChainInfo>::new(config)?;
+    let node = Node::<PolkadotSimnetChainInfo>::new(config)?;
 
     tokio::signal::ctrl_c().await?;
 
