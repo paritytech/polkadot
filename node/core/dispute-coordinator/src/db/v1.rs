@@ -95,7 +95,7 @@ pub struct ActiveDisputes {
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum Error {
 	Io(std::io::Error),
-	InvalidDecoding(parity_scale_codec::Error),
+	Codec(parity_scale_codec::Error),
 }
 
 impl std::error::Error for Error {}
