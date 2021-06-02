@@ -279,14 +279,25 @@ async fn handle_incoming(
 			).await;
 		}
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
-			unimplemented!()
+			let active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
+				.map(|d| d.disputed)
+				.unwrap_or_default();
+
+			let _ = rx.send(active_disputes);
 		}
 		DisputeCoordinatorMessage::QueryCandidateVotes(
 			session,
 			candidate_hash,
 			rx
 		) => {
-			unimplemented!()
+			let candidate_votes = db::v1::load_candidate_votes(
+				store,
+				&config.column_config(),
+				session,
+				&candidate_hash,
+			)?;
+
+			let _ = rx.send(candidate_votes.map(Into::into));
 		}
 		DisputeCoordinatorMessage::IssueLocalStatement(
 			session,

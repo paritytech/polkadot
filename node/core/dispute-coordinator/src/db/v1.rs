@@ -82,6 +82,16 @@ pub struct CandidateVotes {
 	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl From<CandidateVotes> for polkadot_node_primitives::CandidateVotes {
+	fn from(db_votes: CandidateVotes) -> polkadot_node_primitives::CandidateVotes {
+		polkadot_node_primitives::CandidateVotes {
+			candidate_receipt: db_votes.candidate_receipt,
+			valid: db_votes.valid,
+			invalid: db_votes.invalid,
+		}
+	}
+}
+
 /// Meta-key for tracking active disputes.
 #[derive(Debug, Default, Clone, Encode, Decode, PartialEq)]
 pub struct ActiveDisputes {
