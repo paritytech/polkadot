@@ -93,7 +93,7 @@ impl ChainInfo for PolkadotChainInfo {
             TaskManager,
             Box<dyn CreateInherentDataProviders<
                 Self::Block,
-               (),
+                (),
                 InherentDataProviders = Self::InherentDataProviders
             >>,
             Option<
@@ -155,12 +155,12 @@ impl ChainInfo for PolkadotChainInfo {
     }
 
     fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
-        dispatch_with_root(call, node)
+        dispatch_with_pallet_democracy(call, node)
     }
 }
 
 /// Dispatch with pallet_democracy
-pub fn dispatch_with_root<T>(call: <T::Runtime as frame_system::Config>::Call, node: &mut Node<T>)
+pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &mut Node<T>)
     where
         T: ChainInfo<
             Block = Block,

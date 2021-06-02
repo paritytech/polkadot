@@ -1,7 +1,7 @@
 use polkadot_cli::Cli;
 use sc_cli::SubstrateCli;
 use structopt::StructOpt;
-use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_root};
+use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_pallet_democracy};
 use test_runner::{Node, ChainInfo};
 use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, TaskExecutor};
 use polkadot_runtime::{Runtime, RuntimeApi};
@@ -70,6 +70,6 @@ impl ChainInfo for PolkadotSimnetChainInfo {
     }
 
     fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
-        dispatch_with_root(call, node)
+        dispatch_with_pallet_democracy(call, node)
     }
 }

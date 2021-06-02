@@ -56,6 +56,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let node = Node::<PolkadotSimnetChainInfo>::new(config)?;
 
+    // wait for ctrl_c signal, then drop node.
     tokio::signal::ctrl_c().await?;
 
     drop(node);
