@@ -82,7 +82,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
 
-		#[derive(Debug, Clone)]
 		pub struct #builder #builder_generics {
 			#(
 				#subsystem_name : ::std::option::Option< #builder_generic_ty >,

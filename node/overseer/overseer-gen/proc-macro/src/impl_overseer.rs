@@ -127,7 +127,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				Ok(())
 			}
 
-			/// Extract information
+			/// Extract information from each subsystem.
 			pub fn for_each_subsystem<Mapper, Output>(&self, mapper: Mapper)
 			-> Vec<Output>
 				where

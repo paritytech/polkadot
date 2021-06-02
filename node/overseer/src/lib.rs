@@ -124,24 +124,11 @@ use polkadot_overseer_gen::{
 	SignalsReceived,
 	FromOverseer,
 	ToOverseer,
+	MapSubsystem,
 };
 
 // Target for logs.
 // const LOG_TARGET: &'static str = "parachain::overseer";
-
-trait MapSubsystem<T> {
-	type Output;
-
-	fn map_subsystem(&self, sub: T) -> Self::Output;
-}
-
-impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
-	type Output = U;
-
-	fn map_subsystem(&self, sub: T) -> U {
-		(self)(sub)
-	}
-}
 
 /// Whether a header supports parachain consensus or not.
 pub trait HeadSupportsParachains {
@@ -548,7 +535,7 @@ where
 
 			let subsystem_meters = all_subsystems
 				.as_ref()
-				.map_subsystems(ExtractNameAndMeters);
+				.map_subsystems::<ExtractNameAndMeters>(ExtractNameAndMeters);
 
 			let metronome_metrics = metrics.clone();
 			let metronome = Metronome::new(std::time::Duration::from_millis(950))
@@ -558,7 +545,7 @@ where
 
 					// We combine the amount of messages from subsystems to the overseer
 					// as well as the amount of messages from external sources to the overseer
-					// into one to_overseer value.
+					// into one `to_overseer` value.
 					metronome_metrics.channel_fill_level_snapshot(subsystem_meters);
 
 					async move {
