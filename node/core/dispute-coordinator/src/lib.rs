@@ -25,7 +25,6 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use polkadot_node_primitives::CandidateVotes;
@@ -58,7 +57,6 @@ const DISPUTE_WINDOW: SessionIndex = 12;
 
 struct State {
 	keystore: Arc<LocalKeystore>,
-	overlay: HashMap<(SessionIndex, CandidateHash), CandidateVotes>,
 	highest_session: Option<SessionIndex>,
 }
 
@@ -185,14 +183,12 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 	let DisputeCoordinatorSubsystem { ref store, ref keystore, ref config } = *subsystem;
 	let mut state = State {
 		keystore: keystore.clone(),
-		overlay: HashMap::new(),
 		highest_session: None,
 	};
 
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => {
-				// TODO [now]: flush overlay
 				return Ok(true)
 			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
@@ -307,15 +303,20 @@ async fn handle_incoming(
 				session,
 				valid,
 			).await;
-
-			// TODO [now]: flush overlay.
 		}
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
 			base_number,
 			block_descriptions,
 			rx,
 		} => {
-			unimplemented!()
+			let undisputed_chain = determine_undisputed_chain(
+				store,
+				&config,
+				base_number,
+				block_descriptions
+			)?;
+
+			let _ = rx.send(undisputed_chain);
 		}
 	}
 
@@ -347,9 +348,10 @@ async fn issue_local_statement(
 }
 
 fn determine_undisputed_chain(
-
+	store: &dyn KeyValueDB,
+	config: &Config,
 	base_number: BlockNumber,
 	block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
-) -> Option<(BlockNumber, Hash)> {
+) -> Result<Option<(BlockNumber, Hash)>, Error> {
 	unimplemented!()
 }
