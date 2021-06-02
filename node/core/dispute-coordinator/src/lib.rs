@@ -35,9 +35,13 @@ use polkadot_node_subsystem::{
 	},
 	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
+	errors::{ChainApiError, RuntimeApiError},
 };
 use polkadot_primitives::v1::{SessionIndex, CandidateHash};
 
+use futures::prelude::*;
+use kvdb::KeyValueDB;
+use parity_scale_codec::Error as CodecError;
 use sc_keystore::LocalKeystore;
 
 mod db;
@@ -45,5 +49,73 @@ mod db;
 struct State {
 	keystore: Arc<LocalKeystore>,
 	overlay: HashMap<(SessionIndex, CandidateHash), CandidateVotes>,
-	highest_session: SessionIndex,
+	highest_session: Option<SessionIndex>,
+}
+
+/// Configuration for the dispute coordinator subsystem.
+#[derive(Debug, Clone, Copy)]
+pub struct Config {
+	/// The data column in the store to use for dispute data.
+	pub col_data: u32,
+}
+
+/// An implementation of the dispute coordinator subsystem.
+pub struct DisputeCoordinatorSubsystem {
+	config: Config,
+	store: Arc<dyn KeyValueDB>,
+	keystore: Arc<LocalKeystore>,
+}
+
+impl DisputeCoordinatorSubsystem {
+	/// Create a new instance of the subsystem.
+	pub fn new(
+		store: Arc<dyn KeyValueDB>,
+		config: Config,
+		keystore: Arc<LocalKeystore>,
+	) -> Self {
+		DisputeCoordinatorSubsystem { store, config, keystore }
+	}
+}
+
+impl<Context> Subsystem<Context> for DisputeCoordinatorSubsystem
+	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(self, ctx)
+			.map(|_| Ok(()))
+			.boxed();
+
+		SpawnedSubsystem {
+			name: "dispute-coordinator-subsystem",
+			future,
+		}
+	}
+}
+
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum Error {
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
+
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
+
+	#[error(transparent)]
+	Oneshot(#[from] futures::channel::oneshot::Canceled),
+
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
+
+	#[error(transparent)]
+	Codec(#[from] CodecError),
+}
+
+async fn run<Context>(mut subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
+	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
+{
+	unimplemented!()
 }

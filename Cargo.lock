@@ -6043,6 +6043,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
+ "thiserror",
  "tracing",
 ]
 
