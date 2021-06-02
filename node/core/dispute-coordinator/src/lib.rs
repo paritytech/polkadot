@@ -31,7 +31,7 @@ use std::sync::Arc;
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
 	messages::{
-		RuntimeApiRequest, DisputeCoordinatorMessage,
+		DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
@@ -40,6 +40,7 @@ use polkadot_node_subsystem::{
 use polkadot_primitives::v1::{SessionIndex, CandidateHash, Hash};
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 use sc_keystore::LocalKeystore;
@@ -113,7 +114,7 @@ pub enum Error {
 	Io(#[from] std::io::Error),
 
 	#[error(transparent)]
-	Oneshot(#[from] futures::channel::oneshot::Canceled),
+	Oneshot(#[from] oneshot::Canceled),
 
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
@@ -175,6 +176,11 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	let DisputeCoordinatorSubsystem { ref store, ref keystore, ref config } = *subsystem;
+	let mut state = State {
+		keystore: keystore.clone(),
+		overlay: HashMap::new(),
+		highest_session: None,
+	};
 
 	loop {
 		match ctx.recv().await? {
@@ -183,9 +189,10 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 				handle_new_activations(
 					ctx,
 					&**store,
+					&mut state,
 					config,
 					update.activated.into_iter().map(|a| a.hash),
-				)?
+				).await?
 			}
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } => {
@@ -200,13 +207,36 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 	}
 }
 
-fn handle_new_activations(
+async fn handle_new_activations(
 	ctx: &mut impl SubsystemContext,
 	store: &dyn KeyValueDB,
+	state: &mut State,
 	config: &Config,
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
-	unimplemented!()
+	for new_leaf in new_activations {
+		// Get the new session index of the leaf.
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(RuntimeApiMessage::Request(
+			new_leaf,
+			RuntimeApiRequest::SessionIndexForChild(tx)
+		).into()).await;
+
+		let session = rx.await??;
+
+		if state.highest_session.map_or(true, |s| s < session) {
+			state.highest_session = Some(session);
+
+			db::v1::note_current_session(
+				store,
+				&config.column_config(),
+				session,
+			)?;
+		}
+	}
+
+	Ok(())
 }
 
 fn handle_incoming(
