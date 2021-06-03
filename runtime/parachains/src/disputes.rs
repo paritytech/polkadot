@@ -110,7 +110,7 @@ pub mod pallet {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// The last pruneed session, if any. All data stored by this module
+	/// The last pruned session, if any. All data stored by this module
 	/// references sessions.
 	#[pallet::storage]
 	pub(super) type LastPrunedSession<T> = StorageValue<_, SessionIndex>;
