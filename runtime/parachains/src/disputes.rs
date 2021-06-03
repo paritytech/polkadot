@@ -726,9 +726,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
-		if Self::is_frozen() { return }
-
-		Frozen::<T>::set(Some(revert_to));
+		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
+			Frozen::<T>::set(Some(revert_to));
+		}
 	}
 }
 
@@ -1787,6 +1787,23 @@ mod tests {
 			Frozen::<Test>::kill();
 			Pallet::<Test>::revert_and_freeze(0);
 			assert_eq!(Frozen::<Test>::get(), Some(0));
+		})
+	}
+
+	#[test]
+	fn test_revert_and_freeze_merges() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Frozen::<Test>::put(Some(10));
+			assert_noop!(
+				{
+					Pallet::<Test>::revert_and_freeze(10);
+					Result::<(), ()>::Err(()) // Just a small trick in order to use assert_noop.
+				},
+				(),
+			);
+
+			Pallet::<Test>::revert_and_freeze(8);
+			assert_eq!(Frozen::<Test>::get(), Some(8));
 		})
 	}
 
