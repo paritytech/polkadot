@@ -35,7 +35,7 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 
 /// Messages coming from a background task.
 pub enum ResponderMessage {
-	/// Get an update of availble peers to try for fetching a given statement.
+	/// Get an update of available peers to try for fetching a given statement.
 	GetData {
 		requesting_peer: PeerId,
 		relay_parent: Hash,
@@ -48,7 +48,7 @@ pub enum ResponderMessage {
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
 /// A fetch task does not know about a particular `Statement` instead it just tries fetching a
-/// `CommittedCandidateReceipt` from peers, whether or not this can be used to re-assemble one ore
+/// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one ore
 /// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn respond(
 	mut receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,

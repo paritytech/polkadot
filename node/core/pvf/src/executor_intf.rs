@@ -56,7 +56,12 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 
 /// Executes the given PVF in the form of a compiled artifact and returns the result of execution
 /// upon success.
-pub fn execute(
+///
+/// # Safety
+///
+/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
+/// to arbitrary code execution.
+pub unsafe fn execute(
 	compiled_artifact: &[u8],
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
@@ -64,12 +69,13 @@ pub fn execute(
 	let mut extensions = sp_externalities::Extensions::new();
 
 	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
+	extensions.register(sp_core::traits::ReadRuntimeVersionExt::new(ReadRuntimeVersion));
 
 	let mut ext = ValidationExternalities(extensions);
 
 	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime(
-			sc_executor_wasmtime::CodeSupplyMode::Artifact { compiled_artifact },
+		let runtime = sc_executor_wasmtime::create_runtime_from_artifact(
+			compiled_artifact,
 			CONFIG,
 			HostFunctions::host_functions(),
 		)?;
@@ -242,5 +248,28 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 
 	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
 		self.0.spawn_ok(future);
+	}
+}
+
+struct ReadRuntimeVersion;
+
+impl sp_core::traits::ReadRuntimeVersion for ReadRuntimeVersion {
+	fn read_runtime_version(
+		&self,
+		wasm_code: &[u8],
+		_ext: &mut dyn sp_externalities::Externalities,
+	) -> Result<Vec<u8>, String> {
+		let blob = RuntimeBlob::uncompress_if_needed(wasm_code)
+			.map_err(|e| format!("Failed to read the PVF runtime blob: {:?}", e))?;
+
+		match sc_executor::read_embedded_version(&blob)
+			.map_err(|e| format!("Failed to read the static section from the PVF blob: {:?}", e))?
+		{
+			Some(version) => {
+				use parity_scale_codec::Encode;
+				Ok(version.encode())
+			},
+			None => Err(format!("runtime version section is not found")),
+		}
 	}
 }

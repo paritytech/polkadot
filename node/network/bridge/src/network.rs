@@ -93,7 +93,7 @@ where
 
 /// An action to be carried out by the network.
 ///
-/// This type is used for implementing `Sink` in order to cummunicate asynchronously with the
+/// This type is used for implementing `Sink` in order to communicate asynchronously with the
 /// underlying network implementation in the `Network` trait.
 #[derive(Debug, PartialEq)]
 pub enum NetworkAction {

@@ -28,8 +28,8 @@ use xcm::v0::{
 
 pub mod traits;
 use traits::{
-	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, WeightBounds, WeightTrader, ShouldExecute,
-	OnResponse
+	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, WeightBounds, WeightTrader,
+	ShouldExecute, OnResponse
 };
 
 mod assets;
@@ -37,6 +37,7 @@ pub use assets::{Assets, AssetId};
 mod config;
 pub use config::Config;
 
+/// The XCM executor.
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
