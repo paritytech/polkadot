@@ -26,15 +26,13 @@ mod dry_run;
 mod monitor;
 mod prelude;
 
+use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
 use prelude::*;
-use sp_runtime::traits::{Saturating, Block as BlockT};
-use structopt::StructOpt;
-use jsonrpsee_ws_client::{WsClientBuilder, WsClient};
-use remote_externalities::{Builder, OnlineConfig, Mode};
-use std::{
-	path::{Path, PathBuf},
-};
+use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_core::crypto::Pair as _;
+use sp_runtime::traits::{Block as BlockT, Saturating};
+use std::path::{Path, PathBuf};
+use structopt::StructOpt;
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -45,7 +43,7 @@ pub(crate) enum AnyRuntime {
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
-	($runtime:ident, $npos:ty, $signed_extra:expr) => {
+	($runtime:ident, $npos:ty) => {
 		paste::paste! {
 				#[allow(unused_import)]
 				pub(crate) mod [<$runtime _runtime_exports>] {
@@ -62,6 +60,9 @@ macro_rules! construct_runtime_prelude {
 							raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
 							witness: u32,
 							signer: crate::Signer,
+							nonce: crate::prelude::Index,
+							tip: crate::prelude::Balance,
+							era: sp_runtime::generic::Era,
 						) -> UncheckedExtrinsic {
 							use codec::Encode as _;
 							use sp_core::Pair as _;
@@ -70,10 +71,12 @@ macro_rules! construct_runtime_prelude {
 							let crate::Signer { account, pair, .. } = signer;
 
 							let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
-							// this one is a bit tricky.. for now I just "hope" it does not change.
-							let call = Call::ElectionProviderMultiPhase(local_call);
+							let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
+								.expect("election provider pallet must exist in the runtime, thus \
+									inner call can be converted, qed."
+								);
 
-							let extra: SignedExtra = $signed_extra;
+							let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
 							let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
 							let signature = raw_payload.using_encoded(|payload| {
 								pair.clone().sign(payload)
@@ -90,46 +93,61 @@ macro_rules! construct_runtime_prelude {
 	};
 }
 
-construct_runtime_prelude!(
-	polkadot,
-	NposCompactSolution16,
+fn signed_ext_builder_polkadot(
+	nonce: Index,
+	tip: Balance,
+	era: sp_runtime::generic::Era,
+) -> polkadot_runtime_exports::SignedExtra {
+	use polkadot_runtime_exports::Runtime;
 	(
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(sp_runtime::generic::Era::Immortal),
-		frame_system::CheckNonce::<Runtime>::from(0),
+		frame_system::CheckMortality::<Runtime>::from(era),
+		frame_system::CheckNonce::<Runtime>::from(nonce),
 		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		runtime_common::claims::PrevalidateAttests::<Runtime>::new(),
 	)
-);
-construct_runtime_prelude!(
-	kusama,
-	NposCompactSolution24,
+}
+
+fn signed_ext_builder_kusama(
+	nonce: Index,
+	tip: Balance,
+	era: sp_runtime::generic::Era,
+) -> kusama_runtime_exports::SignedExtra {
+	use kusama_runtime_exports::Runtime;
 	(
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(sp_runtime::generic::Era::Immortal),
-		frame_system::CheckNonce::<Runtime>::from(0),
+		frame_system::CheckMortality::<Runtime>::from(era),
+		frame_system::CheckNonce::<Runtime>::from(nonce),
 		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 	)
-);
-construct_runtime_prelude!(
-	westend,
-	NposCompactSolution16,
+}
+
+fn signed_ext_builder_westend(
+	nonce: Index,
+	tip: Balance,
+	era: sp_runtime::generic::Era,
+) -> westend_runtime_exports::SignedExtra {
+	use westend_runtime_exports::Runtime;
 	(
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(sp_runtime::generic::Era::Immortal),
-		frame_system::CheckNonce::<Runtime>::from(0),
+		frame_system::CheckMortality::<Runtime>::from(era),
+		frame_system::CheckNonce::<Runtime>::from(nonce),
 		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 	)
-);
+}
+
+construct_runtime_prelude!(polkadot, NposCompactSolution16);
+construct_runtime_prelude!(kusama, NposCompactSolution24);
+construct_runtime_prelude!(westend, NposCompactSolution16);
 
 #[macro_export]
 macro_rules! any_runtime {
@@ -141,11 +159,11 @@ macro_rules! any_runtime {
 					$($code)*
 				},
 				$crate::AnyRuntime::Kusama => {
-					use $crate::polkadot_runtime_exports::*;
+					use $crate::kusama_runtime_exports::*;
 					$($code)*
 				},
 				$crate::AnyRuntime::Westend => {
-					use $crate::polkadot_runtime_exports::*;
+					use $crate::westend_runtime_exports::*;
 					$($code)*
 				}
 			}
@@ -154,6 +172,7 @@ macro_rules! any_runtime {
 }
 
 #[derive(codec::Encode, codec::Decode, Clone, Copy, Debug)]
+#[allow(unused)]
 enum MinerProfile {
 	/// seq-phragmen -> balancing(round) -> reduce
 	WithBalancing(u32),
@@ -165,6 +184,7 @@ enum MinerProfile {
 	Terminate,
 }
 
+#[allow(unused)]
 impl MinerProfile {
 	/// Get the next miner profile to use, should this one fail.
 	fn next(self) -> Self {
@@ -179,7 +199,7 @@ impl MinerProfile {
 			}
 			MinerProfile::JustSeqPhragmen => MinerProfile::TrimmedVoters(Percent::from_percent(90)),
 			MinerProfile::TrimmedVoters(percent) => {
-				if percent.is_zero() {
+				if !percent.is_zero() {
 					MinerProfile::TrimmedVoters(percent.saturating_sub(Percent::from_percent(10)))
 				} else {
 					MinerProfile::Terminate
@@ -190,15 +210,42 @@ impl MinerProfile {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
-	KeyFileNotFound,
-	KeyFileCorrupt,
+	Io(#[from] std::io::Error),
+	Jsonrpsee(#[from] jsonrpsee_ws_client::Error),
+	Codec(#[from] codec::Error),
+	Crypto(sp_core::crypto::SecretStringError),
+	RemoteExternalities(&'static str),
+	PalletMiner(EPM::unsigned::MinerError),
+	PalletElection(EPM::ElectionError),
+	AccountDoesNotExists,
 	IncorrectPhase,
 	AlreadySubmitted,
-	SnapshotUnavailable,
-	RpcError,
-	CodecError,
+}
+
+impl From<sp_core::crypto::SecretStringError> for Error {
+	fn from(e: sp_core::crypto::SecretStringError) -> Error {
+		Error::Crypto(e)
+	}
+}
+
+impl From<EPM::unsigned::MinerError> for Error {
+	fn from(e: EPM::unsigned::MinerError) -> Error {
+		Error::PalletMiner(e)
+	}
+}
+
+impl From<EPM::ElectionError> for Error {
+	fn from(e: EPM::ElectionError) -> Error {
+		Error::PalletElection(e)
+	}
+}
+
+impl std::fmt::Display for Error {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		<Error as std::fmt::Debug>::fmt(self, f)
+	}
 }
 
 /// Some information about the signer. Redundant at this point, but makes life easier.
@@ -210,9 +257,6 @@ struct Signer {
 	pair: Pair,
 	/// The raw uri read from file.
 	uri: String,
-	/// The current account nonce.
-	// TODO: this could be made generic or sth.
-	nonce: u32,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -241,7 +285,6 @@ struct SharedConfig {
 }
 
 #[derive(Debug, Clone, StructOpt)]
-#[structopt(name = "staking-miner")]
 struct Opt {
 	/// The ws node to connect to.
 	#[structopt(flatten)]
@@ -278,32 +321,18 @@ mod rpc_helpers {
 		method: &'a str,
 		params: JsonRpcParams<'a>,
 	) -> Result<Ret, Error> {
-		client.request::<Ret>(method, params).await.map_err(|err| {
-			log::error!(
-				target: LOG_TARGET,
-				"rpc error in {}: {:?}",
-				method,
-				err
-			);
-			Error::RpcError
-		})
+		client.request::<Ret>(method, params).await.map_err(Into::into)
 	}
 
 	/// Make the rpc request, decode the outcome into `Dec`. Don't use for storage, it will fail for
 	/// non-existent storage items.
-	pub(crate) async fn rpc_decode<
-		'a,
-		Dec: codec::Decode,
-	>(
+	pub(crate) async fn rpc_decode<'a, Dec: codec::Decode>(
 		client: &WsClient,
 		method: &'a str,
 		params: JsonRpcParams<'a>,
 	) -> Result<Dec, Error> {
 		let bytes = rpc::<sp_core::Bytes>(client, method, params).await?;
-		<Dec as codec::Decode>::decode(&mut &*bytes.0).map_err(|err| {
-			log::error!(target: LOG_TARGET, "decode error in {:?} with data: {:?}", err, bytes);
-			Error::CodecError
-		})
+		<Dec as codec::Decode>::decode(&mut &*bytes.0).map_err(Into::into)
 	}
 
 	/// Get the storage item.
@@ -313,40 +342,49 @@ mod rpc_helpers {
 	) -> Result<Option<T>, Error> {
 		let maybe_bytes = rpc::<Option<sp_core::Bytes>>(client, "state_getStorage", params).await?;
 		if let Some(bytes) = maybe_bytes {
-			let decoded = <T as codec::Decode>::decode(&mut &*bytes.0).map_err(|err| {
-				log::error!(target: LOG_TARGET, "decode error in {:?} with data: {:?}", err, bytes);
-				Error::CodecError
-			})?;
+			let decoded = <T as codec::Decode>::decode(&mut &*bytes.0)?;
 			Ok(Some(decoded))
 		} else {
 			Ok(None)
 		}
 	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
+	use codec::{EncodeLike, FullCodec};
+	use frame_support::storage::{StorageMap, StorageValue};
+	#[allow(unused)]
+	pub(crate) async fn get_storage_value_frame_v2<'a, V: StorageValue<T>, T: FullCodec, Hash>(
+		client: &WsClient,
+		maybe_at: Option<Hash>,
+	) -> Result<Option<V::Query>, Error>
+	where
+		V::Query: codec::Decode,
+		Hash: serde::Serialize,
+	{
+		let key = <V as StorageValue<T>>::hashed_key();
+		get_storage::<V::Query>(&client, params! { key, maybe_at }).await
+	}
 
-		#[test]
-		fn can_read_finalized_head() {
-			todo!()
-		}
-
-		fn can_read_storage_value() {
-			todo!()
-		}
-
-		fn can_read_storage_map() {
-			todo!()
-		}
-
-		fn can_submit_dry_run() {
-			todo!()
-		}
+	#[allow(unused)]
+	pub(crate) async fn get_storage_map_frame_v2<
+		'a,
+		Hash,
+		KeyArg: EncodeLike<K>,
+		K: FullCodec,
+		T: FullCodec,
+		M: StorageMap<K, T>,
+	>(
+		client: &WsClient,
+		key: KeyArg,
+		maybe_at: Option<Hash>,
+	) -> Result<Option<M::Query>, Error>
+	where
+		M::Query: codec::Decode,
+		Hash: serde::Serialize,
+	{
+		let key = <M as StorageMap<K, T>>::hashed_key_for(key);
+		get_storage::<M::Query>(&client, params! { key, maybe_at }).await
 	}
 }
-
-pub use rpc_helpers::*;
 
 /// Build the `Ext` at `hash` with all the data of `ElectionProviderMultiPhase` and `Staking`
 /// stored.
@@ -354,9 +392,8 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	uri: String,
 	at: B::Hash,
 	with_staking: bool,
-) -> Ext {
-	use frame_support::storage::generator::StorageMap;
-	use frame_support::traits::PalletInfo;
+) -> Result<Ext, Error> {
+	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	let system_block_hash_key = <frame_system::BlockHash<T>>::prefix_hash();
 
 	Builder::<B>::new()
@@ -365,31 +402,60 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 			at: Some(at),
 			modules: if with_staking {
 				vec![
-					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>().expect("Pallet always has name; qed.").to_string(),
+					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
+						.expect("Pallet always has name; qed.")
+						.to_string(),
 					// NOTE: change when staking moves to frame v2.
 					"Staking".to_owned(),
 				]
 			} else {
-				vec![
-					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>().expect("Pallet always has name; qed.").to_string(),
-				]
+				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
+					.expect("Pallet always has name; qed.")
+					.to_string()]
 			},
 			..Default::default()
 		}))
 		.raw_prefix(&system_block_hash_key)
 		.build()
 		.await
-		.unwrap()
+		.map_err(|why| Error::RemoteExternalities(why))
 }
 
 /// Compute the election at the given block number. It expects to NOT be `Phase::Off`. In other
 /// words, the snapshot must exists on the given externalities.
-fn mine_unchecked<T: EPM::Config>(ext: &mut Ext) -> (EPM::RawSolution<EPM::CompactOf<T>>, u32) {
+fn mine_unchecked<T: EPM::Config>(
+	ext: &mut Ext,
+) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
 	ext.execute_with(|| {
-		let (solution, _) = <EPM::Pallet<T>>::mine_solution(10).unwrap();
+		let (solution, _) = <EPM::Pallet<T>>::mine_solution(10)?;
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
-		(solution, witness as u32)
+		Ok((solution, witness as u32))
 	})
+}
+
+fn mine_checked<T: EPM::Config>(
+	ext: &mut Ext,
+) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+	ext.execute_with(|| {
+		let (solution, _) = <EPM::Pallet<T>>::mine_and_check(10)?;
+		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
+		Ok((solution, witness as u32))
+	})
+}
+
+pub(crate) async fn get_account_info<T: frame_system::Config>(
+	client: &WsClient,
+	who: &T::AccountId,
+	maybe_at: Option<T::Hash>,
+) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error> {
+	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
+		client,
+		params! {
+			sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
+			maybe_at
+		},
+	)
+	.await
 }
 
 /// Read the signer account's uri from the given `path`.
@@ -400,25 +466,17 @@ async fn read_signer_uri<
 	path: P,
 	client: &WsClient,
 ) -> Result<Signer, Error> {
-	let mut uri = std::fs::read_to_string(path).map_err(|_| Error::KeyFileNotFound)?;
+	let uri = std::fs::read_to_string(path)?;
 
 	// trim any trailing garbage.
-	let len = uri.trim_end_matches(&['\r', '\n'][..]).len();
-	uri.truncate(len);
+	let uri = uri.trim_end();
 
-	let pair = Pair::from_string(&uri, None).map_err(|e| {
-		log::error!(target: LOG_TARGET, "failed to prase key file: {:?}", e);
-		Error::KeyFileCorrupt
-	})?;
+	let pair = Pair::from_string(&uri, None)?;
 	let account = T::AccountId::from(pair.public());
-
-	let info = crate::get_storage::<frame_system::AccountInfo<T::Index, T::AccountData>>(
-		client,
-		params! {sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&account))},
-	)
-	.await?.expect("provided account does not exist.");
-	log::info!(target: LOG_TARGET, "loaded account {:?}, info: {:?}", &account, info);
-	Ok(Signer { account, pair, uri, nonce: info.nonce })
+	let _info =
+		get_account_info::<T>(&client, &account, None).await?.ok_or(Error::AccountDoesNotExists)?;
+	log::info!(target: LOG_TARGET, "loaded account {:?}, info: {:?}", &account, _info);
+	Ok(Signer { account, pair, uri: uri.to_string() })
 }
 
 #[tokio::main]
@@ -433,7 +491,7 @@ async fn main() {
 		.await
 		.unwrap();
 
-	let chain = rpc::<String>(&client, "system_chain", params! {})
+	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", params! {})
 		.await
 		.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {
@@ -466,7 +524,9 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	let outcome = any_runtime! {
-		let signer = read_signer_uri::<_, Runtime>(&shared.account_seed, &client).await.unwrap();
+		let signer = read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
+			.await
+			.expect("Provided account is invalid, terminating.");
 		match command {
 			Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
 			// --------------------^^ comes from the macro prelude, needs no generic.

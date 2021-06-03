@@ -20,18 +20,19 @@ use crate::{prelude::*, Signer, SharedConfig, WsClient, Error, rpc_helpers::*, p
 use codec::Encode;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
-fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) {
+fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 	ext.execute_with(|| {
 		if <EPM::Snapshot<T>>::exists() {
 			log::info!(target: LOG_TARGET, "snapshot already exists.");
 		} else {
 			log::info!(target: LOG_TARGET, "creating a fake snapshot now.");
 		}
-		<EPM::Pallet<T>>::create_snapshot().unwrap();
-	});
+		let _ = <EPM::Pallet<T>>::create_snapshot()?;
+		Ok(())
+	})
 }
 
-macro_rules! dry_run_cmd_for { ($runtime:tt) => { paste::paste! {
+macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the dry-run command.
 	pub(crate) async fn [<dry_run_cmd_ $runtime>](
 		client: WsClient,
@@ -40,11 +41,22 @@ macro_rules! dry_run_cmd_for { ($runtime:tt) => { paste::paste! {
 	) -> Result<(), Error> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		let hash = rpc::<<Block as BlockT>::Hash>(&client, "chain_getFinalizedHead", params!{}).await.expect("chain_getFinalizedHead infallible; qed.");
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), hash, true).await;
-		force_create_snapshot::<Runtime>(&mut ext);
-		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext);
+		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), hash, true).await?;
+		force_create_snapshot::<Runtime>(&mut ext)?;
+		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
-		let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone()));
+
+		let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
+			.await?
+			.map(|i| i.nonce)
+			.expect("signer account is checked to exist upon startup; it can only die if it \
+				transfers funds out of it, or get slashed. If it does not exist at this point, \
+				it is likely due to a bug, or the signer got slashed. Terminating."
+			);
+		let tip = 0 as Balance;
+		let era = sp_runtime::generic::Era::Immortal;
+		let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
 		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(&client, "system_dryRun", params!{ bytes }).await?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);

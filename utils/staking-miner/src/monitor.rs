@@ -16,11 +16,10 @@
 
 //! The monitor command.
 
-use crate::{prelude::*, rpc_helpers::*, params, Signer, SharedConfig, MonitorConfig, Error};
+use crate::{params, prelude::*, rpc_helpers::*, Error, MonitorConfig, SharedConfig, Signer};
+use codec::Encode;
 use jsonrpsee_ws_client::{
-	traits::{SubscriptionClient},
-	v2::params::JsonRpcParams,
-	Subscription, WsClient,
+	traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription, WsClient,
 };
 
 /// Ensure that now is the singed phase.
@@ -29,7 +28,9 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	at: B::Hash,
 ) -> Result<(), Error> {
 	let key = sp_core::storage::StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
-	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, params! {key, at}).await?.unwrap_or_default();
+	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, params! {key, at})
+		.await?
+		.unwrap_or_default();
 
 	if phase.is_signed() {
 		Ok(())
@@ -44,17 +45,19 @@ async fn ensure_no_previous_solution<T: EPM::Config, B: BlockT>(
 	at: B::Hash,
 	us: &AccountId,
 ) -> Result<(), Error> {
-	use EPM::{SignedSubmissions, signed::SignedSubmission};
-	let key = sp_core::storage::StorageKey(SignedSubmissions::<T>::hashed_key().to_vec());
-	let queue = crate::any_runtime! {
-		get_storage::<Vec<SignedSubmission<AccountId, Balance, NposCompactSolution>>>(client, params!{ key, at }).await
-	}?.unwrap_or_default();
+	crate::any_runtime! {
+		use EPM::{SignedSubmissions, signed::SignedSubmission};
+		let key = sp_core::storage::StorageKey(SignedSubmissions::<T>::hashed_key().to_vec());
+		let queue =
+			get_storage::<Vec<SignedSubmission<AccountId, Balance, NposCompactSolution>>>(client, params!{ key, at }).await
+		?.unwrap_or_default();
 
-	// if we have a solution in the queue, then don't do anything.
-	if queue.iter().any(|ss| &ss.who == us) {
-		Err(Error::AlreadySubmitted)
-	} else {
-		Ok(())
+		// if we have a solution in the queue, then don't do anything.
+		if queue.iter().any(|ss| &ss.who == us) {
+			Err(Error::AlreadySubmitted)
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -64,23 +67,22 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 		client: WsClient,
 		shared: SharedConfig,
 		config: MonitorConfig,
-		signer: Signer, // TODO: Signer could also go into a shared config, perhaps.
+		signer: Signer,
 	) -> Result<(), Error> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let subscription_method = if config.listen == "head" {
-			"chain_subscribeNewHeads"
+		let (sub, unsub) = if config.listen == "head" {
+			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
 		} else {
-			"chain_subscribeFinalizedHeads"
+			("chain_subscribeFinalizedHeads", "chain_unsubscribeFinalizedHeads")
 		};
 
-		log::info!(target: LOG_TARGET, "subscribing to {:?}", subscription_method);
+		log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?}", sub, unsub);
 		let mut subscription: Subscription<Header> = client
-			.subscribe(&subscription_method, JsonRpcParams::NoParams, "unsubscribe")
+			.subscribe(&sub, JsonRpcParams::NoParams, &unsub)
 			.await
 			.unwrap();
 
-		loop {
-			let now = subscription.next().await.unwrap();
+		while let Some(now) = subscription.next().await {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
@@ -95,13 +97,65 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
+			// NOTE: we don't check the score of any of the submitted solutions. If we submit a weak
+			// one, as long as we are valid, we will end up getting our deposit back, so not a big
+			// deal for now. Note that to avoid an unfeasible solution, we should make sure that we
+			// only start the process on a finalized snapshot. If the signed phase is long enough,
+			// this will not be a solution.
+
 			// grab an externalities without staking, just the election snapshot.
-			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), hash, false).await;
-			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext);
+			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), hash, false).await?;
+			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone()));
+			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
+				.await?
+				.map(|i| i.nonce)
+				.expect("signer account is checked to exist upon startup; it can only die if it \
+					transfers funds out of it, or get slashed. If it does not exist at this point, \
+					it is likely due to a bug, or the signer got slashed. Terminating."
+				);
+			let tip = 0 as Balance;
+			let era = sp_runtime::generic::Era::Immortal;
+			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+			let bytes = sp_core::Bytes(extrinsic.encode());
+
+			use sp_transaction_pool::TransactionStatus;
+			let mut tx_subscription: Subscription<
+				TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
+			> = client
+				.subscribe(&"author_submitAndWatchExtrinsic", params! { bytes }, "author_unwatchExtrinsic")
+				.await
+				.unwrap();
+
+			let _success = while let Some(status_update) = tx_subscription.next().await {
+				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
+				match status_update {
+					TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
+					TransactionStatus::InBlock(hash) => {
+						log::info!(target: LOG_TARGET, "included at {:?}", hash);
+						let key = sp_core::storage::StorageKey(frame_system::Events::<Runtime>::hashed_key().to_vec());
+						let events =get_storage::<
+							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>
+						>(&client, params!{ key, hash }).await?.unwrap_or_default();
+						log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
+					}
+					TransactionStatus::Retracted(hash) => {
+						log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
+					}
+					TransactionStatus::Finalized(hash) => {
+						log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
+						break
+					}
+					_ => {
+						log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status_update);
+						break
+					}
+				}
+			};
 		}
+
+		Ok(())
 	}
 }}}
 

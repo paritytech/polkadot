@@ -26,8 +26,6 @@ pub type AccountId = core_primitives::AccountId;
 pub type BlockNumber = core_primitives::BlockNumber;
 /// The balance type.
 pub type Balance = core_primitives::Balance;
-/// The signature type.
-pub type Signature = core_primitives::Signature;
 /// The index of an account.
 pub type Index = core_primitives::AccountIndex;
 
