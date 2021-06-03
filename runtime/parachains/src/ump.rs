@@ -594,7 +594,7 @@ pub(crate) mod mock_sink {
 	//! 2. All messages expected by the probe must be received by the time of dropping it. Unreceived
 	//!    messages will lead to a panic while dropping a probe.
 
-	use super::{UmpSink, UpwardMessage, ParaId};
+	use super::{UmpSink, UpwardMessage, ParaId, MessageId};
 	use std::cell::RefCell;
 	use std::collections::vec_deque::VecDeque;
 	use frame_support::weights::Weight;
