@@ -99,7 +99,7 @@ decl_event!(
 	{
 		/// A new [lease_period] is beginning.
 		NewLeasePeriod(LeasePeriod),
-		/// A para has won the right to a continuos set of lease periods as a parachain.
+		/// A para has won the right to a continuous set of lease periods as a parachain.
 		/// First balance is any extra amount reserved on top of the para's existing deposit.
 		/// Second balance is the total amount reserved.
 		/// \[parachain_id, leaser, period_begin, period_count, extra_reserved, total_amount\]
