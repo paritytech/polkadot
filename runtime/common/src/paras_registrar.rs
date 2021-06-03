@@ -155,8 +155,6 @@ pub mod pallet {
 		CannotUpgrade,
 		/// Para is locked from manipulation by the manager. Must use parachain or relay chain governance.
 		ParaLocked,
-		/// The id you are trying to register is reserved for system parachains.
-		InvalidParaId,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
 	}

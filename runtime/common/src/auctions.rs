@@ -118,13 +118,6 @@ pub mod pallet {
 		AuctionStarted(AuctionIndex, LeasePeriodOf<T>, T::BlockNumber),
 		/// An auction ended. All funds become unreserved. [auction_index]
 		AuctionClosed(AuctionIndex),
-		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
-		/// [bidder, range, parachain_id, amount]
-		WonDeploy(T::AccountId, SlotRange, ParaId, BalanceOf<T>),
-		/// An existing parachain won the right to continue.
-		/// First balance is the extra amount reserved. Second is the total amount reserved.
-		/// [parachain_id, begin, count, total_amount]
-		WonRenewal(ParaId, LeasePeriodOf<T>, LeasePeriodOf<T>, BalanceOf<T>),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
 		/// Second is the total. [bidder, extra_reserved, total_amount]
 		Reserved(T::AccountId, BalanceOf<T>, BalanceOf<T>),
@@ -148,28 +141,12 @@ pub mod pallet {
 		AuctionInProgress,
 		/// The lease period is in the past.
 		LeasePeriodInPast,
-		/// The origin for this call must be a parachain.
-		NotParaOrigin,
 		/// Para is not registered
 		ParaNotRegistered,
-		/// The parachain ID is not on-boarding.
-		ParaNotOnboarding,
-		/// The origin for this call must be the origin who registered the parachain.
-		InvalidOrigin,
-		/// Parachain is already registered.
-		AlreadyRegistered,
-		/// The code must correspond to the hash.
-		InvalidCode,
-		/// Deployment data has not been set for this parachain.
-		UnsetDeployData,
 		/// Not a current auction.
 		NotCurrentAuction,
 		/// Not an auction.
 		NotAuction,
-		/// Given code size is too large.
-		CodeTooLarge,
-		/// Given initial head data is too large.
-		HeadDataTooLarge,
 		/// Auction has already ended.
 		AuctionEnded,
 	}
