@@ -850,12 +850,6 @@ parameter_types! {
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
-#[test]
-fn print_check_account() {
-	use sp_core::crypto::Ss58Codec;
-	panic!("{}", XcmPallet::check_account().to_ss58check());
-}
-
 pub type LocationConverter = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<WestendNetwork, AccountId>,
