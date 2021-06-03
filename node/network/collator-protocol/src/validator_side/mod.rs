@@ -1028,10 +1028,16 @@ pub(crate) async fn run<Context>(
 				disconnect_inactive_peers(&mut ctx, &eviction_policy, &state.peer_data).await;
 			}
 			res = state.collations.next() => {
-				let mut seconded = None;
-				if let Some((collation_event, Some(Ok((candidate_receipt, pov))))) = res {
-					let relay_parent = collation_event.1.relay_parent.clone();
-					if state.seconded.get(&relay_parent).is_none() {
+				// If no prior collation for this relay parent has been seconded, then
+				// memoize the collation_event for that relay_parent, such that we may
+				// notify the collator of their successful second backing
+				if let Some((relay_parent, collation_event)) = if let Some(
+					(collation_event, Some(Ok((candidate_receipt, pov))))
+				) = res {
+					let relay_parent = &collation_event.1.relay_parent;
+					// Verify whether this relay_parent has already been seconded
+					if state.seconded.get(relay_parent).is_none() {
+						// Forward Candidate Receipt and PoV to candidate backing [CB]
 						ctx.send_message(
 							CandidateBackingMessage::Second(
 								relay_parent.clone(),
@@ -1039,11 +1045,20 @@ pub(crate) async fn run<Context>(
 								pov,
 							).into()
 						).await;
-						seconded = Some((relay_parent, collation_event));
+						Some((relay_parent.clone(), collation_event))
+					} else {
+						tracing::info!(
+							target: LOG_TARGET,
+							relay_parent = ?relay_parent,
+							collator_id = ?collation_event.0,
+							"Collation for this relay parent has already been seconded.",
+						);
+						None
 					}
-				}
-				if let Some((relay_parent, collation_event)) = seconded {
-					let _ = state.seconded.insert(relay_parent, collation_event);
+				} else {
+					None
+				} {
+					state.seconded.insert(relay_parent, collation_event);
 				}
 			}
 		}
@@ -1806,7 +1821,7 @@ mod tests {
 				).encode()
 			)).expect("Sending response should succeed");
 
-			let response_channel = assert_matches!(
+			let _ = assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 			) => {
@@ -1822,19 +1837,6 @@ mod tests {
 					_ => panic!("Unexpected request"),
 				}
 			});
-
-			let mut candidate_b = CandidateReceipt::default();
-			candidate_b.descriptor.para_id = test_state.chain_ids[0];
-			candidate_b.descriptor.relay_parent = test_state.relay_parent;
-
-			response_channel.send(Ok(
-				CollationFetchingResponse::Collation(
-					candidate_b.clone(),
-					PoV {
-						block_data: BlockData(vec![1, 2, 3]),
-					},
-				).encode()
-			)).expect("Sending response should succeed");
 
 			virtual_overseer
 		});
@@ -2326,5 +2328,187 @@ mod tests {
 			);
 			virtual_overseer
 		})
+	}
+
+	// A test scenario that takes the following steps
+	//  - Two collators connect, declare themselves and advertise a collation relevant to
+	//	our view.
+	//  - This results subsystem acting upon these advertisements and issuing two messages to
+	//	the CandidateBacking subsystem.
+	//  - CandidateBacking requests both of the collations.
+	//  - Collation protocol requests these collations.
+	//  - The collations are sent to it.
+	//  - Collations are fetched correctly.
+	#[test]
+	fn seconding_works() {
+		let test_state = TestState::default();
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
+				),
+			).await;
+
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+			let peer_b = PeerId::random();
+			let peer_c = PeerId::random();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_b,
+						ObservedRole::Full,
+						None,
+					),
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_c,
+						ObservedRole::Full,
+						None,
+					),
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							test_state.collators[0].public(),
+							test_state.chain_ids[0],
+							test_state.collators[0].sign(&protocol_v1::declare_signature_payload(&peer_b)),
+						)
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_c.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							test_state.collators[1].public(),
+							test_state.chain_ids[0],
+							test_state.collators[1].sign(&protocol_v1::declare_signature_payload(&peer_c)),
+						)
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+						)
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_c.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+						)
+					)
+				)
+			).await;
+
+			let response_channel = assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+			) => {
+				let req = reqs.into_iter().next()
+					.expect("There should be exactly one request");
+				match req {
+					Requests::CollationFetching(req) => {
+						let payload = req.payload;
+						assert_eq!(payload.relay_parent, test_state.relay_parent);
+						assert_eq!(payload.para_id, test_state.chain_ids[0]);
+						req.pending_response
+					}
+					_ => panic!("Unexpected request"),
+				}
+			});
+
+			let mut candidate_a = CandidateReceipt::default();
+			// Memoize PoV data to ensure we receive the right one
+			let pov = PoV {
+				block_data: BlockData(vec![1, 2, 3, 4, 5]),
+			};
+			candidate_a.descriptor.para_id = test_state.chain_ids[0];
+			candidate_a.descriptor.relay_parent = test_state.relay_parent;
+			response_channel.send(Ok(
+				CollationFetchingResponse::Collation(
+					candidate_a.clone(),
+					pov.clone(),
+				).encode()
+			)).expect("Sending response should succeed");
+
+			let response_channel = assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+			) => {
+				let req = reqs.into_iter().next()
+					.expect("There should be exactly one request");
+				match req {
+					Requests::CollationFetching(req) => {
+						let payload = req.payload;
+						assert_eq!(payload.relay_parent, test_state.relay_parent);
+						assert_eq!(payload.para_id, test_state.chain_ids[0]);
+						req.pending_response
+					}
+					_ => panic!("Unexpected request"),
+				}
+			});
+
+			let mut candidate_b = CandidateReceipt::default();
+			candidate_b.descriptor.para_id = test_state.chain_ids[0];
+			candidate_b.descriptor.relay_parent = test_state.relay_parent;
+
+			// Sleep to ensure we can deterministically receive the previous message first
+			std::thread::sleep(std::time::Duration::new(0, 100));
+
+			// Send second collation to ensure first collation gets seconded
+			response_channel.send(Ok(
+				CollationFetchingResponse::Collation(
+					candidate_b.clone(),
+					PoV {
+						block_data: BlockData(vec![]),
+					},
+				).encode()
+			)).expect("Sending response should succeed");
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
+			) => {
+						assert_eq!(relay_parent, test_state.relay_parent);
+						assert_eq!(candidate_receipt.descriptor.para_id, test_state.chain_ids[0]);
+						assert_eq!(incoming_pov, pov);
+			});
+
+			virtual_overseer
+		});
 	}
 }
