@@ -36,7 +36,7 @@ use crate::{
 	session_info,
 };
 
-/// Whereas the dispute is local or remote.
+/// Whether the dispute is local or remote.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub enum DisputeLocation {
 	Local,
