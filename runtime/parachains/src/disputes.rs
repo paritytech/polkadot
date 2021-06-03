@@ -740,7 +740,7 @@ fn has_supermajority_against<BlockNumber>(dispute: &DisputeState<BlockNumber>) -
 // If the dispute had not enough validators to confirm, decrement spam slots for all the participating
 // validators.
 //
-// returns the set of participating validators as a bitvec.
+// Returns the set of participating validators as a bitvec.
 fn decrement_spam<BlockNumber>(
 	spam_slots: &mut [u32],
 	dispute: &DisputeState<BlockNumber>,
