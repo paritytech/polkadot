@@ -246,10 +246,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
 			Order::InitiateTeleport { assets, dest, effects} => {
-				for asset in assets.iter() {
-					Config::AssetTransactor::check_out(&origin, asset);
+				// We must do this first in order to resolve wildcards.
+				let assets = holding.saturating_take(assets);
+				for asset in assets.assets_iter() {
+					Config::AssetTransactor::check_out(&origin, &asset);
 				}
-				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
+				let assets = Self::reanchored(assets, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
 			}
 			Order::QueryHolding { query_id, dest, assets } => {

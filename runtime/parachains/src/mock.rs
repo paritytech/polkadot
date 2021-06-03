@@ -49,7 +49,7 @@ frame_support::construct_runtime!(
 		Scheduler: scheduler::{Pallet, Call, Storage},
 		Initializer: initializer::{Pallet, Call, Storage},
 		Dmp: dmp::{Pallet, Call, Storage},
-		Ump: ump::{Pallet, Call, Storage},
+		Ump: ump::{Pallet, Call, Storage, Event},
 		Hrmp: hrmp::{Pallet, Call, Storage, Event},
 		SessionInfo: session_info::{Pallet, Call, Storage},
 	}
@@ -122,6 +122,7 @@ parameter_types! {
 }
 
 impl crate::ump::Config for Test {
+	type Event = Event;
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }

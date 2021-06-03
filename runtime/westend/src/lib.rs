@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9031,
+	spec_version: 9033,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -748,7 +748,8 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type Event = Event;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
@@ -1052,7 +1053,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>} = 47,
 		ParasInitializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 49,
-		ParasUmp: parachains_ump::{Pallet, Call, Storage} = 50,
+		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 51,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 52,
 

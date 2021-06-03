@@ -474,6 +474,7 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
+	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
@@ -531,6 +532,7 @@ construct_runtime! {
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
+		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
