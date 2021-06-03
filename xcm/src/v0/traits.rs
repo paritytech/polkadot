@@ -162,13 +162,72 @@ impl<C> ExecuteXcm<C> for () {
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamated in tuples to form sophisticated routing systems.
+/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
+/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
+/// might alter the destination and the xcm message for to the next router.
+///
+///
+/// # Example
+/// ```rust
+/// # use xcm::v0::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use parity_scale_codec::Encode;
+///
+/// /// A sender that only passes the message through and does nothing.
+/// struct Sender1;
+/// impl SendXcm for Sender1 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         return Err(Error::CannotReachDestination(destination, message))
+///     }
+/// }
+///
+/// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
+/// struct Sender2;
+/// impl SendXcm for Sender2 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         if let MultiLocation::X2(j1, j2) = destination {
+///             Ok(())
+///         } else {
+///             Err(Error::Undefined)
+///         }
+///     }
+/// }
+///
+/// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
+/// struct Sender3;
+/// impl SendXcm for Sender3 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         match destination {
+///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
+///             _ => Err(Error::CannotReachDestination(destination, message)),
+///         }
+///     }
+/// }
+///
+/// // A call to send via XCM. We don't really care about this.
+/// # fn main() {
+/// let call: Vec<u8> = ().encode();
+/// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
+/// let destination = MultiLocation::X1(Junction::Parent);
+///
+/// assert!(
+///     // Sender2 will block this.
+///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///         .is_err()
+/// );
+///
+/// assert!(
+///     // Sender3 will catch this.
+///     <(Sender1, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///         .is_ok()
+/// );
+/// # }
+/// ```
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple implementation to
-	/// exit early without trying other type fields.
+	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
+	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
+	/// trying other type fields.
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
 
@@ -176,6 +235,7 @@ pub trait SendXcm {
 impl SendXcm for Tuple {
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
 		for_tuples!( #(
+			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
 				Err(Error::CannotReachDestination(d, m)) => (d, m),
 				o @ _ => return o,

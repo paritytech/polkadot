@@ -66,6 +66,9 @@ pub enum MultiLocation {
 	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
+/// Maximum number of junctions a multilocation can contain.
+pub const MAX_MULTILOCATION_LENGTH: usize = 8;
+
 impl From<Junction> for MultiLocation {
 	fn from(x: Junction) -> Self {
 		MultiLocation::X1(x)
@@ -442,8 +445,18 @@ impl MultiLocation {
 		MultiLocationReverseIterator(self)
 	}
 
-	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following. If
-	/// so, returns a reference to this `Junction` item.
+	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following.
+	/// If so, returns a reference to this `Junction` item.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # fn main() {
+	/// let mut m = X3(Parent, PalletInstance(3), OnlyChild);
+	/// assert_eq!(m.match_and_split(&X2(Parent, PalletInstance(3))), Some(&OnlyChild));
+	/// assert_eq!(m.match_and_split(&X1(Parent)), None);
+	/// # }
+	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
 		if prefix.len() + 1 != self.len() {
 			return None
@@ -479,84 +492,69 @@ impl MultiLocation {
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
 	pub fn parent_count(&self) -> usize {
+		use Junction::Parent;
 		match self {
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, Junction::Parent
-			) => 8,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 8,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent, ..
-			) => 7,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, Junction::Parent
-			) => 7,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, ..) => 7,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 7,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent, ..
-			) => 6,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent,
-				Junction::Parent
-			) => 6,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, Parent, ..) => 6,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, Parent) => 6,
 
-			MultiLocation::X8(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X7(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X6(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..
-			) => 5,
-			MultiLocation::X5(
-				Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent
-			) => 5,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, Parent, ..) => 5,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, Parent) => 5,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent, ..) => 4,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent) => 4,
+			MultiLocation::X8(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X7(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X6(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X5(Parent, Parent, Parent, Parent, ..) => 4,
+			MultiLocation::X4(Parent, Parent, Parent, Parent) => 4,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, Junction::Parent) => 3,
+			MultiLocation::X8(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X7(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X6(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X5(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X4(Parent, Parent, Parent, ..) => 3,
+			MultiLocation::X3(Parent, Parent, Parent) => 3,
 
-			MultiLocation::X8(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X7(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X6(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X5(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X4(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X3(Junction::Parent, Junction::Parent, ..) => 2,
-			MultiLocation::X2(Junction::Parent, Junction::Parent) => 2,
+			MultiLocation::X8(Parent, Parent, ..) => 2,
+			MultiLocation::X7(Parent, Parent, ..) => 2,
+			MultiLocation::X6(Parent, Parent, ..) => 2,
+			MultiLocation::X5(Parent, Parent, ..) => 2,
+			MultiLocation::X4(Parent, Parent, ..) => 2,
+			MultiLocation::X3(Parent, Parent, ..) => 2,
+			MultiLocation::X2(Parent, Parent) => 2,
 
-			MultiLocation::X8(Junction::Parent, ..) => 1,
-			MultiLocation::X7(Junction::Parent, ..) => 1,
-			MultiLocation::X6(Junction::Parent, ..) => 1,
-			MultiLocation::X5(Junction::Parent, ..) => 1,
-			MultiLocation::X4(Junction::Parent, ..) => 1,
-			MultiLocation::X3(Junction::Parent, ..) => 1,
-			MultiLocation::X2(Junction::Parent, ..) => 1,
-			MultiLocation::X1(Junction::Parent) => 1,
+			MultiLocation::X8(Parent, ..) => 1,
+			MultiLocation::X7(Parent, ..) => 1,
+			MultiLocation::X6(Parent, ..) => 1,
+			MultiLocation::X5(Parent, ..) => 1,
+			MultiLocation::X4(Parent, ..) => 1,
+			MultiLocation::X3(Parent, ..) => 1,
+			MultiLocation::X2(Parent, ..) => 1,
+			MultiLocation::X1(Parent) => 1,
 			_ => 0,
 		}
 	}
 
-	/// Mutate `self` so that it is suffixed with `prefix`. The correct normalized form is returned, removing any
-	/// internal `Parent`s.
+	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
+	/// removing any internal [Non-Parent, `Parent`]  combinations.
 	///
-	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # fn main() {
+	/// let mut m = X3(Parent, Parachain(21), OnlyChild);
+	/// assert_eq!(m.append_with(X2(Parent, PalletInstance(3))), Ok(()));
+	/// assert_eq!(m, X3(Parent, Parachain(21), PalletInstance(3)));
+	/// # }
+	/// ```
 	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
 		let mut prefix = suffix;
 		core::mem::swap(self, &mut prefix);
@@ -570,21 +568,31 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalized form is returned, removing any
-	/// internal `Parent`s.
+	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalized form is returned,
+	/// removing any internal [Non-Parent, `Parent`] combinations.
 	///
 	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # fn main() {
+	/// let mut m = X3(Parent, Parent, PalletInstance(3));
+	/// assert_eq!(m.prepend_with(X3(Parent, Parachain(21), OnlyChild)), Ok(()));
+	/// assert_eq!(m, X2(Parent, PalletInstance(3)));
+	/// # }
+	/// ```
 	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
 		let self_parents = self.parent_count();
 		let prefix_rest = prefix.len() - prefix.parent_count();
 		let skipped = self_parents.min(prefix_rest);
-		if self.len() + prefix.len() - 2 * skipped > 8 {
+		if self.len() + prefix.len() - 2 * skipped > MAX_MULTILOCATION_LENGTH {
 			return Err(prefix);
 		}
 
 		let mut prefix = prefix;
 		while match (prefix.last(), self.first()) {
-			(Some(x), Some(Junction::Parent)) if x != &Junction::Parent => {
+			(Some(x), Some(Junction::Parent)) if x.is_interior() => {
 				prefix.take_last();
 				self.take_first();
 				true
@@ -593,13 +601,25 @@ impl MultiLocation {
 		} {}
 
 		for j in prefix.into_iter_rev() {
-			self.push_front(j).expect("len + prefix minus 2*skipped is less than 4; qed");
+			self.push_front(j).expect("len + prefix minus 2*skipped is less than max length; qed");
 		}
 		Ok(())
 	}
 
-	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s for which
-	/// `Junction::is_interior` returns `false`. This
+	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s
+	/// for which `Junction::is_interior` returns `false`. This is generally true, except for the
+	/// `Parent` item.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # fn main() {
+	/// let parent = X1(Parent);
+	/// assert_eq!(parent.is_interior(), false);
+	/// let m = X2(PalletInstance(12), AccountIndex64 { network: Any, index: 23 });
+	/// assert_eq!(m.is_interior(), true);
+	/// # }
+	/// ```
 	pub fn is_interior(&self) -> bool {
 		self.iter().all(Junction::is_interior)
 	}
@@ -617,5 +637,48 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 		match x {
 			VersionedMultiLocation::V0(x) => Ok(x),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::MultiLocation::*;
+	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+
+	#[test]
+	fn match_and_split_works() {
+		let m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
+		assert_eq!(m.match_and_split(&X1(Parent)), None);
+		assert_eq!(
+			m.match_and_split(&X2(Parent, Parachain(42))),
+			Some(&AccountIndex64 { network: Any, index: 23 })
+		);
+		assert_eq!(m.match_and_split(&m), None);
+	}
+
+	#[test]
+	fn append_with_works() {
+		let acc = AccountIndex64 { network: Any, index: 23 };
+		let mut m = X2(Parent, Parachain(42));
+		assert_eq!(m.append_with(X2(PalletInstance(3), acc.clone())), Ok(()));
+		assert_eq!(m, X4(Parent, Parachain(42), PalletInstance(3), acc.clone()));
+
+		// cannot append to create overly long multilocation
+		let acc = AccountIndex64 { network: Any, index: 23 };
+		let mut m = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parachain(42));
+		let suffix = X2(PalletInstance(3), acc.clone());
+		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
+	}
+
+	#[test]
+	fn prepend_with_works() {
+		let mut m = X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 });
+		assert_eq!(m.prepend_with(X2(Parent, OnlyChild)), Ok(()));
+		assert_eq!(m, X3(Parent, Parachain(42), AccountIndex64 { network: Any, index: 23 }));
+
+		// cannot prepend to create overly long multilocation
+		let mut m = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parachain(42));
+		let prefix = X2(Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 	}
 }
