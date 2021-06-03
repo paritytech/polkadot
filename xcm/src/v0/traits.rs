@@ -34,10 +34,10 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// The message and destination was recognized as being reachable but the operation could not be completed.
 	/// A human-readable explanation of the specific issue is provided.
 	SendFailed(#[codec(skip)] &'static str),
-	/// The message and destination combination was not recognised as being reachable.
+	/// The message and destination combination was not recognized as being reachable.
 	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,

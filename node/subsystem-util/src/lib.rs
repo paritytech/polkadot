@@ -51,7 +51,6 @@ use std::{
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
-pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
@@ -869,7 +868,7 @@ mod tests {
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem, ActivatedLeaf,
+		SpawnedSubsystem, ActivatedLeaf, LeafStatus,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -999,6 +998,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: relay_parent,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}),
 				)))
@@ -1029,6 +1029,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: relay_parent,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}),
 				)))
