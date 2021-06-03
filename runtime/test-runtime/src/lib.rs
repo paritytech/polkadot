@@ -474,6 +474,7 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
+	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }

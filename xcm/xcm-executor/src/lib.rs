@@ -246,6 +246,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
 			Order::InitiateTeleport { assets, dest, effects} => {
+				// We must do this first in order to resolve wildcards.
 				let assets = holding.saturating_take(assets);
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&origin, &asset);
