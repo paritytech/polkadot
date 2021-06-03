@@ -264,13 +264,24 @@ enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
 	/// Just compute a solution now, and don't submit it.
-	DryRun,
+	DryRun(DryRunConfig),
 }
 
 #[derive(Debug, Clone, StructOpt)]
 struct MonitorConfig {
+	/// They type of event to listen to.
+	///
+	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
+	/// slower. It is recommended if the duration of the signed phase is longer than the a
 	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
+}
+
+#[derive(Debug, Clone, StructOpt)]
+struct DryRunConfig {
+	/// The block hash at which scraping happens. If none is provided, the latest head is used.
+	#[structopt(long)]
+	at: Option<Hash>,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -390,7 +401,7 @@ mod rpc_helpers {
 /// stored.
 async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	uri: String,
-	at: B::Hash,
+	at: Option<B::Hash>,
 	with_staking: bool,
 ) -> Result<Ext, Error> {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
@@ -399,7 +410,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: uri.into(),
-			at: Some(at),
+			at,
 			modules: if with_staking {
 				vec![
 					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
@@ -411,7 +422,8 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 			} else {
 				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
 					.expect("Pallet always has name; qed.")
-					.to_string()]
+					.to_string()
+				]
 			},
 			..Default::default()
 		}))
@@ -440,6 +452,47 @@ fn mine_checked<T: EPM::Config>(
 		let (solution, _) = <EPM::Pallet<T>>::mine_and_check(10)?;
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
+	})
+}
+
+fn mine_dpos<T: EPM::Config>(
+	ext: &mut Ext,
+) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+	ext.execute_with(|| {
+		use EPM::RoundSnapshot;
+		use std::collections::BTreeMap;
+		let RoundSnapshot { voters, targets } = EPM::Snapshot::<T>::get().unwrap();
+		let desired_targets = EPM::DesiredTargets::<T>::get().unwrap();
+		let mut candidates_and_backing = BTreeMap::<T::AccountId, u128>::new();
+		voters.into_iter().for_each(|(who, stake, targets)| {
+			if targets.len() == 0 {
+				println!("target = {:?}", (who, stake, targets));
+				return;
+			}
+			let share: u128 = (stake as u128) / (targets.len() as u128);
+			for target in targets {
+				*candidates_and_backing.entry(target.clone()).or_default() += share
+			}
+		});
+
+		let mut candidates_and_backing =
+			candidates_and_backing.into_iter().collect::<Vec<(_, _)>>();
+		candidates_and_backing.sort_by_key(|(_, total_stake)| *total_stake);
+		let winners = candidates_and_backing
+			.into_iter()
+			.rev()
+			.take(desired_targets as usize)
+			.collect::<Vec<_>>();
+		let score = {
+			let min_staker = *winners.last().map(|(_, stake)| stake).unwrap();
+			let sum_stake = winners.iter().fold(0u128, |acc, (_, stake)| acc + stake);
+			let sum_squared = winners.iter().fold(0u128, |acc, (_, stake)| acc + stake);
+			[min_staker, sum_stake, sum_squared]
+		};
+
+		println!("mined a dpos-like solution with score = {:?}", score);
+
+		todo!();
 	})
 }
 
@@ -487,6 +540,7 @@ async fn main() {
 
 	let client = WsClientBuilder::default()
 		.connection_timeout(std::time::Duration::new(20, 0))
+		.max_request_body_size(u32::MAX)
 		.build(&shared.uri)
 		.await
 		.unwrap();
@@ -530,7 +584,7 @@ async fn main() {
 		match command {
 			Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
 			// --------------------^^ comes from the macro prelude, needs no generic.
-			Command::DryRun => dry_run_cmd(client, shared, signer).await,
+			Command::DryRun(c) => dry_run_cmd(client, shared, c, signer).await,
 			// ----------------^^ likewise.
 		}
 	};
@@ -570,7 +624,7 @@ mod tests {
 		let client = WsClientBuilder::default().build(TEST_URI).await.unwrap();
 
 		let hash = rpc!(client<chain_getFinalizedHead, Hash>,).unwrap();
-		let mut ext = create_election_ext(TEST_URI.to_owned(), hash, true).await;
+		let mut ext = create_election_ext(TEST_URI.to_owned(), Some(hash), true).await;
 		force_create_snapshot(&mut ext);
 		mine_unchecked(&mut ext);
 	}

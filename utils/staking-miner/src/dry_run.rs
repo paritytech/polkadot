@@ -16,7 +16,7 @@
 
 //! The dry-run command.
 
-use crate::{prelude::*, Signer, SharedConfig, WsClient, Error, rpc_helpers::*, params};
+use crate::{prelude::*, Signer, SharedConfig, DryRunConfig, WsClient, Error, rpc_helpers::*, params};
 use codec::Encode;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
@@ -37,16 +37,16 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 	pub(crate) async fn [<dry_run_cmd_ $runtime>](
 		client: WsClient,
 		shared: SharedConfig,
+		config: DryRunConfig,
 		signer: Signer,
 	) -> Result<(), Error> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let hash = rpc::<<Block as BlockT>::Hash>(&client, "chain_getFinalizedHead", params!{}).await.expect("chain_getFinalizedHead infallible; qed.");
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), hash, true).await?;
+		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-		let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
+		let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
 			.expect("signer account is checked to exist upon startup; it can only die if it \
