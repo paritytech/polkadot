@@ -20,7 +20,7 @@ use crate::{
 };
 use sp_std::{prelude::*, fmt, marker::PhantomData};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
+use frame_support::{decl_module, decl_event, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
 const LOG_TARGET: &str = "runtime::ump-sink";
@@ -58,32 +58,39 @@ impl UmpSink for () {
 
 /// A specific implementation of a UmpSink where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
-pub struct XcmSink<XcmExecutor, Call>(PhantomData<(XcmExecutor, Call)>);
+pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
-impl<XcmExecutor: xcm::v0::ExecuteXcm<Call>, Call> UmpSink for XcmSink<XcmExecutor, Call> {
-	fn process_upward_message(origin: ParaId, mut msg: &[u8], max_weight: Weight) -> Option<Weight> {
+impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+	fn process_upward_message(origin: ParaId, mut data: &[u8], max_weight: Weight) -> Result<Weight> {
 		use parity_scale_codec::Decode;
 		use xcm::VersionedXcm;
 		use xcm::v0::{Junction, MultiLocation, Outcome, Error as XcmError};
 
-		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut msg) {
-			match versioned_xcm_message {
-				VersionedXcm::V0(xcm_message) => {
-					let xcm_junction: Junction = Junction::Parachain(origin.into());
-					let xcm_location: MultiLocation = xcm_junction.into();
-					match XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight) {
-						Outcome::Complete(w) | Outcome::Incomplete(w, _) => Some(w),
-						Outcome::Error(XcmError::WeightLimitReached(..)) => None,
-						Outcome::Error(_) => Some(0),
+		let id = sp_io::hashing::blake2_256(&data[..]);
+		let maybe_msg = VersionedXcm::<T::Call>::decode(&mut &data[..])
+			.map(Xcm::<T::Call>::try_from);
+		match maybe_msg {
+			Err(_) => {
+				Module::<C>::deposit_event(Event::InvalidFormat(id));
+				Ok(0)
+			},
+			Ok(Err(())) => {
+				Module::<C>::deposit_event(Event::UnsupportedVersion(id));
+				Ok(0)
+			},
+			Ok(Ok(xcm_message)) => {
+				let xcm_junction: Junction = Junction::Parachain(origin.into());
+				let xcm_location: MultiLocation = xcm_junction.into();
+				let outcome = T::XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight);
+				match outcome {
+					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
+					outcome => {
+						let weight_used = outcome.weight_used();
+						Module::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
+						Ok(weight_used)
 					}
 				}
 			}
-		} else {
-			log::error!(
-				target: LOG_TARGET,
-				"Failed to decode versioned XCM from upward message.",
-			);
-			None
 		}
 	}
 }
@@ -142,6 +149,9 @@ impl fmt::Debug for AcceptanceCheckErr {
 }
 
 pub trait Config: frame_system::Config + configuration::Config {
+	/// The aggregate event.
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
 
@@ -187,10 +197,65 @@ decl_storage! {
 	}
 }
 
+decl_event! {
+	pub enum Event<T> where AccountId = <T as frame_system::Config>::AccountId {
+		/// Downward message is invalid XCM.
+		/// \[ id \]
+		InvalidFormat(MessageId),
+		/// Downward message is unsupported version of XCM.
+		/// \[ id \]
+		UnsupportedVersion(MessageId),
+		/// Downward message executed with the given outcome.
+		/// \[ id, outcome \]
+		ExecutedDownward(MessageId, Outcome),
+		/// The weight limit for handling downward messages was reached.
+		/// \[ id, remaining, required \]
+		WeightExhausted(MessageId, Weight, Weight),
+	}
+}
+
 decl_module! {
 	/// The UMP module.
 	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
 	}
+}
+
+impl<T: Config> UmpSink for Module<T> {
+	impl<, Call> UmpSink for XcmSink<XcmExecutor, Call> {
+		fn process_upward_message(origin: ParaId, mut data: &[u8], max_weight: Weight) -> Option<Weight> {
+			use parity_scale_codec::Decode;
+			use xcm::VersionedXcm;
+			use xcm::v0::{Junction, MultiLocation, Outcome, Error as XcmError};
+
+			let id = sp_io::hashing::blake2_256(&data[..]);
+			let maybe_msg = VersionedXcm::<T::Call>::decode(&mut &data[..])
+				.map(Xcm::<T::Call>::try_from);
+			match maybe_msg {
+				Err(_) => {
+					Self::deposit_event(Event::InvalidFormat(id));
+					Ok(0)
+				},
+				Ok(Err(())) => {
+					Self::deposit_event(Event::UnsupportedVersion(id));
+					Ok(0)
+				},
+				Ok(Ok(xcm_message)) => {
+					let xcm_junction: Junction = Junction::Parachain(origin.into());
+					let xcm_location: MultiLocation = xcm_junction.into();
+					let outcome = T::XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight);
+					match outcome {
+						Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
+						outcome => {
+							let weight_used = outcome.weight_used();
+							Self::deposit_event(Event::ExecutedUpward(id, outcome));
+							Ok(weight_used)
+						}
+					}
+				}
+			}
+		}
+	}
+
 }
 
 /// Routines related to the upward message passing.
