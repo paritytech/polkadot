@@ -211,12 +211,6 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
 				match action {
 					NetworkAction::ReputationChange(peer, cost_benefit) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							"Changing reputation: {:?} for {}",
-							cost_benefit,
-							peer
-						);
 						self.0.report_peer(peer, cost_benefit.into_base_rep())
 					}
 					NetworkAction::DisconnectPeer(peer, peer_set) => self

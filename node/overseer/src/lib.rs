@@ -74,6 +74,7 @@ use futures::{
 	Future, FutureExt, StreamExt,
 };
 use futures_timer::Delay;
+use lru::LruCache;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -91,6 +92,7 @@ use polkadot_subsystem::messages::{
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
 	SubsystemResult, SpawnedSubsystem, ActiveLeavesUpdate, ActivatedLeaf, DummySubsystem, jaeger,
+	LeafStatus,
 };
 use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
 use polkadot_node_primitives::SpawnNamed;
@@ -1045,6 +1047,11 @@ struct SubsystemMeterReadouts {
 	signals: metered::Readout,
 }
 
+
+/// Store 2 days worth of blocks, not accounting for forks,
+/// in the LRU cache. Assumes a 6-second block time.
+const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+
 /// The `Overseer` itself.
 pub struct Overseer<S, SupportsParachains> {
 	/// Handles to all subsystems.
@@ -1097,6 +1104,9 @@ pub struct Overseer<S, SupportsParachains> {
 
 	/// An implementation for checking whether a header supports parachain consensus.
 	supports_parachains: SupportsParachains,
+
+	/// An LRU cache for keeping track of relay-chain heads that have already been seen.
+	known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
 	metrics: Metrics,
@@ -1832,6 +1842,7 @@ where
 			active_leaves,
 			metrics,
 			span_per_active_leaf: Default::default(),
+			known_leaves: LruCache::new(KNOWN_LEAVES_CACHE_SIZE),
 			supports_parachains,
 		};
 
@@ -1881,10 +1892,11 @@ where
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some(span) = self.on_head_activated(&hash, None) {
+			if let Some((span, status)) = self.on_head_activated(&hash, None) {
 				update.activated.push(ActivatedLeaf {
 					hash,
 					number,
+					status,
 					span,
 				});
 			}
@@ -1967,9 +1979,10 @@ where
 		};
 
 		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)) {
-			Some(span) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			Some((span, status)) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: block.hash,
 				number: block.number,
+				status,
 				span
 			}),
 			None => ActiveLeavesUpdate::default(),
@@ -2110,7 +2123,7 @@ where
 	/// this returns `None`.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>)
-		-> Option<Arc<jaeger::Span>>
+		-> Option<(Arc<jaeger::Span>, LeafStatus)>
 	{
 		if !self.supports_parachains.head_supports_parachains(hash) {
 			return None;
@@ -2132,7 +2145,14 @@ where
 
 		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
-		Some(span)
+
+		let status = if let Some(_) = self.known_leaves.put(*hash, ()) {
+			LeafStatus::Stale
+		} else {
+			LeafStatus::Fresh
+		};
+
+		Some((span, status))
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
@@ -2620,12 +2640,14 @@ mod tests {
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: first_block_hash,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				})),
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated: [ActivatedLeaf {
 						hash: second_block_hash,
 						number: 2,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}].as_ref().into(),
 					deactivated: [first_block_hash].as_ref().into(),
@@ -2634,6 +2656,7 @@ mod tests {
 					activated: [ActivatedLeaf {
 						hash: third_block_hash,
 						number: 3,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}].as_ref().into(),
 					deactivated: [second_block_hash].as_ref().into(),
@@ -2728,11 +2751,13 @@ mod tests {
 						ActivatedLeaf {
 							hash: first_block_hash,
 							number: 1,
+							status: LeafStatus::Fresh,
 							span: Arc::new(jaeger::Span::Disabled),
 						},
 						ActivatedLeaf {
 							hash: second_block_hash,
 							number: 2,
+							status: LeafStatus::Fresh,
 							span: Arc::new(jaeger::Span::Disabled),
 						},
 					].as_ref().into(),
@@ -2825,6 +2850,7 @@ mod tests {
 						ActivatedLeaf {
 							hash: imported_block.hash,
 							number: imported_block.number,
+							status: LeafStatus::Fresh,
 							span: Arc::new(jaeger::Span::Disabled)
 						}
 					].as_ref().into(),
@@ -2856,6 +2882,146 @@ mod tests {
 			for expected in expected_heartbeats {
 				assert!(ss5_results.contains(&expected));
 			}
+		});
+	}
+
+	// Tests that duplicate leaves have an attached 'Stale' status.
+	#[test]
+	fn overseer_stale_detection() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		executor::block_on(async move {
+			let a1_hash = [1; 32].into();
+			let b1_hash = [2; 32].into();
+
+			let a2_hash = [3; 32].into();
+			let b2_hash = [4; 32].into();
+
+			let first_block = BlockInfo {
+				hash: a1_hash,
+				parent_hash: [0; 32].into(),
+				number: 1,
+			};
+			let second_block = BlockInfo {
+				hash: b1_hash,
+				parent_hash: [0; 32].into(),
+				number: 1,
+			};
+
+			let third_block = BlockInfo {
+				hash: a2_hash,
+				parent_hash: a1_hash,
+				number: 2,
+			};
+
+			let fourth_block = BlockInfo {
+				hash: b2_hash,
+				parent_hash: b1_hash,
+				number: 2,
+			};
+
+			let (tx_5, mut rx_5) = metered::channel(64);
+			let (tx_6, mut rx_6) = metered::channel(64);
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_validation(TestSubsystem5(tx_5))
+				.replace_candidate_backing(TestSubsystem6(tx_6));
+
+			let (overseer, mut handler) = Overseer::new(
+				vec![first_block.clone()],
+				all_subsystems,
+				None,
+				MockSupportsParachains,
+				spawner,
+			).unwrap();
+
+			let overseer_fut = overseer.run().fuse();
+			pin_mut!(overseer_fut);
+
+			let mut ss5_results = Vec::new();
+			let mut ss6_results = Vec::new();
+
+			handler.block_imported(second_block.clone()).await;
+
+			// import the second block of each chain to deactivate the heads.
+			handler.block_imported(third_block).await;
+			handler.block_imported(fourth_block).await;
+
+			// import the first blocks again (emulating a revert)
+			handler.block_imported(first_block).await;
+			handler.block_imported(second_block).await;
+
+			let expected_heartbeats = vec![
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: a1_hash,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				})),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: b1_hash,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				})),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [ActivatedLeaf {
+						hash: a2_hash,
+						number: 2,
+						status: LeafStatus::Fresh,
+						span: Arc::new(jaeger::Span::Disabled),
+					}].as_ref().into(),
+					deactivated: [a1_hash].as_ref().into(),
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [ActivatedLeaf {
+						hash: b2_hash,
+						number: 2,
+						status: LeafStatus::Fresh,
+						span: Arc::new(jaeger::Span::Disabled),
+					}].as_ref().into(),
+					deactivated: [b1_hash].as_ref().into(),
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: a1_hash,
+					number: 1,
+					status: LeafStatus::Stale,
+					span: Arc::new(jaeger::Span::Disabled),
+				})),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: b1_hash,
+					number: 1,
+					status: LeafStatus::Stale,
+					span: Arc::new(jaeger::Span::Disabled),
+				})),
+			];
+
+			loop {
+				select! {
+					res = overseer_fut => {
+						assert!(res.is_ok());
+						break;
+					},
+					res = rx_5.next() => {
+						if let Some(res) = res {
+							ss5_results.push(res);
+						}
+					}
+					res = rx_6.next() => {
+						if let Some(res) = res {
+							ss6_results.push(res);
+						}
+					}
+					complete => break,
+				}
+
+				if ss5_results.len() == expected_heartbeats.len() &&
+					ss6_results.len() == expected_heartbeats.len() {
+						handler.stop().await;
+				}
+			}
+
+			assert_eq!(ss5_results, expected_heartbeats);
+			assert_eq!(ss6_results, expected_heartbeats);
 		});
 	}
 

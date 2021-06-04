@@ -246,7 +246,12 @@ async fn validate_using_artifact(
 
 	let validation_started_at = Instant::now();
 	let descriptor_bytes =
-		match crate::executor_intf::execute(compiled_artifact, params, spawner.clone()) {
+		match unsafe {
+			// SAFETY: this should be safe since the compiled artifact passed here comes from the
+			//         file created by the prepare workers. These files are obtained by calling
+			//         [`executor_intf::prepare`].
+			crate::executor_intf::execute(compiled_artifact, params, spawner.clone())
+		 } {
 			Err(err) => {
 				return Response::format_invalid("execute", &err.to_string());
 			}
