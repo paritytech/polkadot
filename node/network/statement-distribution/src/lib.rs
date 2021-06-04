@@ -37,7 +37,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 	self as util, MIN_GOSSIP_PEERS,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement};
+use polkadot_node_primitives::{SignedFullStatement, UncheckedSignedFullStatement, Statement};
 use polkadot_primitives::v1::{
 	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, AuthorityDiscoveryId,
@@ -54,7 +54,7 @@ use polkadot_node_network_protocol::{
 
 use futures::{channel::mpsc, future::RemoteHandle, prelude::*};
 use futures::channel::oneshot;
-use indexmap::{IndexSet, IndexMap, map::Entry as IEntry};
+use indexmap::{IndexMap, map::Entry as IEntry};
 use sp_keystore::SyncCryptoStorePtr;
 use util::{Fault, runtime::RuntimeInfo};
 
@@ -92,6 +92,9 @@ const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer provided a valid lar
 const VC_THRESHOLD: usize = 2;
 
 const LOG_TARGET: &str = "parachain::statement-distribution";
+
+/// Large statements should be rare.
+const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
 pub struct StatementDistribution {
@@ -194,6 +197,29 @@ struct PeerRelayParentKnowledge {
 	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
 	/// How many statements we've received for each candidate that we're aware of.
 	received_message_count: HashMap<CandidateHash, usize>,
+
+
+	/// How many large statements this peer already sent us.
+	///
+	/// Flood protection for large statements is rather hard and as soon as we get
+	/// https://github.com/paritytech/polkadot/issues/2979 implemented also no longer necessary.
+	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
+	/// statements and never provides the data, we will keep it around for the slot duration. Not
+	/// even signature checking would help, as the sender, if a validator, can just sign arbitrary
+	/// invalid statements and will not face any consequences as long as it won't provide the
+	/// payload.
+	///
+	/// Quick and temporary fix, only accept `MAX_LARGE_STATEMENTS_PER_SENDER` per connected node.
+	///
+	/// Large statements should be rare, if they were not, we would run into problems anyways, as
+	/// we would not be able to distribute them in a timely manner. Therefore
+	/// `MAX_LARGE_STATEMENTS_PER_SENDER` can be set to a relatively small number. It is also not
+	/// per candidate hash, but in total as candidate hashes can be made up, as illustrated above.
+	///
+	/// An attacker could still try to fill up our memory, by repeatedly disconnecting and
+	/// connecting again with new peer ids, but we assume that the resulting effective bandwidth
+	/// for such an attack would be too low.
+	large_statement_count: usize,
 }
 
 impl PeerRelayParentKnowledge {
@@ -316,6 +342,15 @@ impl PeerRelayParentKnowledge {
 
 		self.received_statements.insert(fingerprint.clone());
 		Ok(self.received_candidates.insert(candidate_hash.clone()))
+	}
+
+	/// Note a received large statement metadata.
+	fn receive_large_statement(&mut self) -> std::result::Result<(), Rep> {
+		if self.large_statement_count >= MAX_LARGE_STATEMENTS_PER_SENDER {
+			return Err(COST_APPARENT_FLOOD);
+		}
+		self.large_statement_count += 1;
+		Ok(())
 	}
 
 	/// This method does the same checks as `receive` without modifying the internal state.
@@ -458,13 +493,24 @@ impl PeerData {
 			.ok_or(COST_UNEXPECTED_STATEMENT)?
 			.check_can_receive(fingerprint, max_message_count)
 	}
+
+	/// Basic flood protection for large statements.
+	fn receive_large_statement(
+		&mut self,
+		relay_parent: &Hash,
+	) -> std::result::Result<(), Rep> {
+		self.view_knowledge
+			.get_mut(relay_parent)
+			.ok_or(COST_UNEXPECTED_STATEMENT)?
+			.receive_large_statement()
+	}
 }
 
 // A statement stored while a relay chain head is active.
-#[derive(Debug)]
-struct StoredStatement {
-	comparator: StoredStatementComparator,
-	statement: SignedFullStatement,
+#[derive(Debug, Copy, Clone)]
+struct StoredStatement<'a> {
+	comparator: &'a StoredStatementComparator,
+	statement: &'a SignedFullStatement,
 }
 
 // A value used for comparison of stored statements to each other.
@@ -480,8 +526,14 @@ struct StoredStatementComparator {
 	signature: ValidatorSignature,
 }
 
-impl StoredStatement {
-	fn compact(&self) -> &CompactStatement {
+impl<'a> From<(&'a StoredStatementComparator, &'a SignedFullStatement)> for StoredStatement<'a> {
+	fn from((comparator, statement): (&'a StoredStatementComparator, &'a SignedFullStatement)) -> Self {
+		Self { comparator, statement }
+	}
+}
+
+impl<'a> StoredStatement<'a> {
+	fn compact(&self) -> &'a CompactStatement {
 		&self.comparator.compact
 	}
 
@@ -490,30 +542,10 @@ impl StoredStatement {
 	}
 }
 
-impl std::borrow::Borrow<StoredStatementComparator> for StoredStatement {
-	fn borrow(&self) -> &StoredStatementComparator {
-		&self.comparator
-	}
-}
-
-impl std::hash::Hash for StoredStatement {
-	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		self.comparator.hash(state)
-	}
-}
-
-impl std::cmp::PartialEq for StoredStatement {
-	fn eq(&self, other: &Self) -> bool {
-		&self.comparator == &other.comparator
-	}
-}
-
-impl std::cmp::Eq for StoredStatement {}
-
 #[derive(Debug)]
 enum NotedStatement<'a> {
 	NotUseful,
-	Fresh(&'a StoredStatement),
+	Fresh(StoredStatement<'a>),
 	UsefulButKnown
 }
 
@@ -522,8 +554,8 @@ enum LargeStatementStatus {
 	/// We are currently fetching the statement data from a remote peer. We keep a list of other nodes
 	/// claiming to have that data and will fallback on them.
 	Fetching(FetchingInfo),
-	/// Statement data is fetched
-	Fetched(CommittedCandidateReceipt),
+	/// Statement data is fetched or we got it locally via `StatementDistributionMessage::Share`.
+	FetchedOrShared(CommittedCandidateReceipt),
 }
 
 /// Info about a fetch in progress.
@@ -588,7 +620,7 @@ struct ActiveHeadData {
 	///
 	/// These are iterable in insertion order, and `Seconded` statements are always
 	/// accepted before dependent statements.
-	statements: IndexSet<StoredStatement>,
+	statements: IndexMap<StoredStatementComparator, SignedFullStatement>,
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The validators at this head.
@@ -641,11 +673,6 @@ impl ActiveHeadData {
 			signature: statement.signature().clone(),
 		};
 
-		let stored = StoredStatement {
-			comparator: comparator.clone(),
-			statement,
-		};
-
 		match comparator.compact {
 			CompactStatement::Seconded(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
@@ -653,34 +680,36 @@ impl ActiveHeadData {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Extra statement is ignored"
 					);
 					return NotedStatement::NotUseful;
 				}
 
 				self.candidates.insert(h);
-				if self.statements.insert(stored) {
+				if let Some(old) = self.statements.insert(comparator.clone(), statement) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						?validator_index,
+						statement = ?old,
+						"Known statement"
+					);
+					NotedStatement::UsefulButKnown
+				} else {
 					*seconded_so_far += 1;
 
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?self.statements.last().expect("Just inserted").statement,
+						statement = ?self.statements.last().expect("Just inserted").1,
 						"Noted new statement"
 					);
 					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.statements.get(&comparator)
-						.expect("Statement was just inserted; qed"))
-				} else {
-					tracing::trace!(
-						target: LOG_TARGET,
-						?validator_index,
-						statement = ?self.statements.get(&comparator)
-							.expect("Existence was just checked; qed").statement,
-						"Known statement"
-					);
-					NotedStatement::UsefulButKnown
+					let key_value = self.statements
+						.get_key_value(&comparator)
+						.expect("Statement was just inserted; qed");
+
+					NotedStatement::Fresh(key_value.into())
 				}
 			}
 			CompactStatement::Valid(h) => {
@@ -688,31 +717,34 @@ impl ActiveHeadData {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Statement for unknown candidate"
 					);
 					return NotedStatement::NotUseful;
 				}
 
-				if self.statements.insert(stored) {
+				if let Some(old) = self.statements.insert(comparator.clone(), statement) {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?self.statements.last().expect("Just inserted").statement,
-						"Noted new statement"
+						statement = ?old,
+						"Known statement"
 					);
-					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.statements.get(&comparator)
-						.expect("Statement was just inserted; qed"))
+					NotedStatement::UsefulButKnown
 				} else {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?self.statements.get(&comparator)
-							.expect("Existence was just checked; qed").statement,
-						"Known statement"
+						statement = ?self.statements.last().expect("Just inserted").1,
+						"Noted new statement"
 					);
-					NotedStatement::UsefulButKnown
+					// This will always return `Some` because it was just inserted.
+					NotedStatement::Fresh(
+						self.statements
+							.get_key_value(&comparator)
+							.expect("Statement was just inserted; qed")
+							.into()
+					)
 				}
 			}
 		}
@@ -720,20 +752,15 @@ impl ActiveHeadData {
 
 	/// Returns an error if the statement is already known or not useful
 	/// without modifying the internal state.
-	fn check_useful_or_unknown(&self, statement: SignedFullStatement)
+	fn check_useful_or_unknown(&self, statement: &UncheckedSignedFullStatement)
 		-> std::result::Result<(), DeniedStatement>
 	{
-		let validator_index = statement.validator_index();
-		let compact = statement.payload().to_compact();
+		let validator_index = statement.unchecked_validator_index();
+		let compact = statement.unchecked_payload().to_compact();
 		let comparator = StoredStatementComparator {
 			compact: compact.clone(),
 			validator_index,
-			signature: statement.signature().clone(),
-		};
-
-		let stored = StoredStatement {
-			comparator,
-			statement,
+			signature: statement.unchecked_signature().clone(),
 		};
 
 		match compact {
@@ -743,17 +770,17 @@ impl ActiveHeadData {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Extra statement is ignored",
 					);
 					return Err(DeniedStatement::NotUseful);
 				}
 
-				if self.statements.contains(&stored) {
+				if self.statements.contains_key(&comparator) {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Known statement",
 					);
 					return Err(DeniedStatement::UsefulButKnown);
@@ -764,17 +791,17 @@ impl ActiveHeadData {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Statement for unknown candidate",
 					);
 					return Err(DeniedStatement::NotUseful);
 				}
 
-				if self.statements.contains(&stored) {
+				if self.statements.contains_key(&comparator) {
 					tracing::trace!(
 						target: LOG_TARGET,
 						?validator_index,
-						statement = ?stored.statement,
+						?statement,
 						"Known statement",
 					);
 					return Err(DeniedStatement::UsefulButKnown);
@@ -785,14 +812,13 @@ impl ActiveHeadData {
 	}
 
 	/// Get an iterator over all statements for the active head. Seconded statements come first.
-	fn statements(&self) -> impl Iterator<Item = &'_ StoredStatement> + '_ {
-		self.statements.iter()
+	fn statements(&self) -> impl Iterator<Item = StoredStatement<'_>> + '_ {
+		self.statements.iter().map(Into::into)
 	}
 
 	/// Get an iterator over all statements for the active head that are for a particular candidate.
 	fn statements_about(&self, candidate_hash: CandidateHash)
-		-> impl Iterator<Item = &'_ StoredStatement> + '_
-	{
+		-> impl Iterator<Item = StoredStatement<'_>> + '_ {
 		self.statements().filter(move |s| s.compact().candidate_hash() == &candidate_hash)
 	}
 }
@@ -801,16 +827,17 @@ impl ActiveHeadData {
 fn check_statement_signature(
 	head: &ActiveHeadData,
 	relay_parent: Hash,
-	statement: &SignedFullStatement,
-) -> std::result::Result<(), ()> {
+	statement: UncheckedSignedFullStatement,
+) -> std::result::Result<SignedFullStatement, UncheckedSignedFullStatement> {
 	let signing_context = SigningContext {
 		session_index: head.session_index,
 		parent_hash: relay_parent,
 	};
 
-	head.validators.get(statement.validator_index().0 as usize)
-		.ok_or(())
-		.and_then(|v| statement.check_signature(&signing_context, v))
+	head.validators
+		.get(statement.unchecked_validator_index().0 as usize)
+		.ok_or_else(|| statement.clone())
+		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
 
 /// Places the statement in storage if it is new, and then
@@ -876,7 +903,7 @@ async fn circulate_statement_and_dependents(
 
 fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 	-> protocol_v1::ValidationProtocol
-{ 
+{
 	let msg = if is_statement_large(&statement) {
 		protocol_v1::StatementDistributionMessage::LargeStatement(
 			StatementMetadata {
@@ -887,7 +914,7 @@ fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 			}
 		)
 	} else {
-		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement)
+		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
 	};
 
 	protocol_v1::ValidationProtocol::StatementDistribution(msg)
@@ -902,7 +929,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 				return true
 			}
 			// No runtime upgrade, now we need to be more nuanced:
-			let size = statement.encoded_size();
+			let size = statement.as_unchecked().encoded_size();
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
@@ -919,11 +946,11 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
 #[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
-async fn circulate_statement(
+async fn circulate_statement<'a>(
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
-	stored: &StoredStatement,
+	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
@@ -1092,7 +1119,7 @@ async fn retrieve_statement_from_message<'a>(
 	ctx: &mut impl SubsystemContext,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<SignedFullStatement> {
+) -> Option<UncheckedSignedFullStatement> {
 
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = *fingerprint.0.candidate_hash();
@@ -1100,7 +1127,7 @@ async fn retrieve_statement_from_message<'a>(
 	// Immediately return any Seconded statement:
 	let message =
 		if let protocol_v1::StatementDistributionMessage::Statement(h, s) = message {
-			if let Statement::Seconded(_) = s.payload() {
+			if let Statement::Seconded(_) = s.unchecked_payload() {
 				return Some(s)
 			}
 			protocol_v1::StatementDistributionMessage::Statement(h, s)
@@ -1140,7 +1167,7 @@ async fn retrieve_statement_from_message<'a>(
 						}
 					}
 				}
-				LargeStatementStatus::Fetched(committed) => {
+				LargeStatementStatus::FetchedOrShared(committed) => {
 					match message {
 						protocol_v1::StatementDistributionMessage::Statement(_, s) => {
 							// We can now immediately return any statements (should only be
@@ -1148,40 +1175,12 @@ async fn retrieve_statement_from_message<'a>(
 							return Some(s)
 						}
 						protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
-
-							let validator_id = active_head.validators.get(metadata.signed_by.0 as usize);
-
-							if let Some(validator_id) = validator_id {
-								let signing_context = SigningContext {
-									session_index: active_head.session_index,
-									parent_hash: metadata.relay_parent,
-								};
-
-								let statement = SignedFullStatement::new(
-									Statement::Seconded(committed.clone()),
+							return Some(UncheckedSignedFullStatement::new(
+								Statement::Seconded(
+									committed.clone()),
 									metadata.signed_by,
 									metadata.signature.clone(),
-									&signing_context,
-									validator_id,
-								);
-
-								if let Some(statement) = statement {
-									return Some(statement)
-								} else {
-									tracing::debug!(
-										target: LOG_TARGET,
-										validator_index = ?metadata.signed_by,
-										"Building statement failed - invalid signature!"
-									);
-									report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
-								}
-							} else {
-								tracing::debug!(
-									target: LOG_TARGET,
-									validator_index = ?metadata.signed_by,
-									"Error loading statement, could not find key for validator."
-								);
-							}
+							))
 						}
 					}
 				}
@@ -1199,7 +1198,7 @@ async fn retrieve_statement_from_message<'a>(
 					).await {
 						vacant.insert(new_status);
 					}
-				} 
+				}
 				protocol_v1::StatementDistributionMessage::Statement(_, s) => {
 					// No fetch in progress, safe to return any statement immediately (we don't bother
 					// about normal network jitter which might cause `Valid` statements to arrive early
@@ -1309,7 +1308,7 @@ async fn handle_incoming_message<'a>(
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<(Hash, &'a StoredStatement)> {
+) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
@@ -1324,6 +1323,20 @@ async fn handle_incoming_message<'a>(
 			return None
 		}
 	};
+
+	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
+		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?message,
+				?rep,
+				"Unexpected large statement.",
+			);
+			report_peer(ctx, peer, rep).await;
+			return None;
+		}
+	}
 
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = fingerprint.0.candidate_hash().clone();
@@ -1356,7 +1369,7 @@ async fn handle_incoming_message<'a>(
 		metrics,
 	).await?;
 
-	match active_head.check_useful_or_unknown(statement.clone()) {
+	match active_head.check_useful_or_unknown(&statement) {
 		Ok(()) => {},
 		Err(DeniedStatement::NotUseful) => {
 			return None;
@@ -1368,16 +1381,19 @@ async fn handle_incoming_message<'a>(
 	}
 
 	// check the signature on the statement.
-	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer,
-			?statement,
-			"Invalid statement signature"
-		);
-		report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
-		return None;
-	}
+	let statement = match check_statement_signature(&active_head, relay_parent, statement) {
+		Err(statement) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?peer,
+				?statement,
+				"Invalid statement signature"
+			);
+			report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+			return None
+		}
+		Ok(statement) => statement,
+	};
 
 	// Ensure the statement is stored in the peer data.
 	//
@@ -1553,7 +1569,7 @@ impl StatementDistribution {
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 
-		let mut runtime = RuntimeInfo::new(self.keystore.clone());
+		let mut runtime = RuntimeInfo::new(Some(self.keystore.clone()));
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (req_sender, mut req_receiver) = mpsc::channel(1);
@@ -1578,7 +1594,7 @@ impl StatementDistribution {
 					match result {
 						Ok(true) => break,
 						Ok(false) => {}
-						Err(Error(Fault::Fatal(f))) => return Err(f), 
+						Err(Error(Fault::Fatal(f))) => return Err(f),
 						Err(Error(Fault::Err(error))) =>
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
@@ -1638,7 +1654,7 @@ impl StatementDistribution {
 						.ok_or(NonFatal::NoSuchHead(relay_parent))?;
 
 				let committed = match active_head.waiting_large_statements.get(&candidate_hash) {
-					Some(LargeStatementStatus::Fetched(committed)) => committed.clone(),
+					Some(LargeStatementStatus::FetchedOrShared(committed)) => committed.clone(),
 					_ => {
 						return Err(
 							NonFatal::NoSuchFetchedLargeStatement(relay_parent, candidate_hash)
@@ -1683,8 +1699,9 @@ impl StatementDistribution {
 
 				let info = match status {
 					Some(LargeStatementStatus::Fetching(info)) => info,
-					Some(LargeStatementStatus::Fetched(_)) => {
-						panic!("On status fetched, fetching task already succeeded. qed.");
+					Some(LargeStatementStatus::FetchedOrShared(_)) => {
+						// We are no longer interested in the data.
+						return Ok(())
 					}
 					None => {
 						return Err(
@@ -1695,7 +1712,7 @@ impl StatementDistribution {
 
 				active_head.waiting_large_statements.insert(
 					candidate_hash,
-					LargeStatementStatus::Fetched(response),
+					LargeStatementStatus::FetchedOrShared(response),
 				);
 
 				// Cache is now populated, send all messages:
@@ -1739,8 +1756,14 @@ impl StatementDistribution {
 
 				let info = match status {
 					Some(LargeStatementStatus::Fetching(info)) => info,
-					Some(LargeStatementStatus::Fetched(_)) =>
-						panic!("On status fetched, fetching task already succeeded. qed."),
+					Some(LargeStatementStatus::FetchedOrShared(_)) => {
+						// This task is going to die soon - no need to send it anything.
+						tracing::debug!(
+							target: LOG_TARGET,
+							"Zombie task wanted more peers."
+						);
+						return Ok(())
+					}
 					None => {
 						return Err(
 							NonFatal::NoSuchLargeStatementStatus(relay_parent, candidate_hash)
@@ -1829,7 +1852,7 @@ impl StatementDistribution {
 								.ok_or(NonFatal::NoSuchHead(relay_parent))?;
 							active_head.waiting_large_statements.insert(
 								statement.payload().candidate_hash(),
-								LargeStatementStatus::Fetched(committed.clone())
+								LargeStatementStatus::FetchedOrShared(committed.clone())
 							);
 						}
 					}
@@ -2049,7 +2072,9 @@ mod tests {
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, request_response::Recipient};
-	use polkadot_subsystem::{jaeger, ActivatedLeaf, messages::{RuntimeApiMessage, RuntimeApiRequest}};
+	use polkadot_subsystem::{
+		jaeger, ActivatedLeaf, messages::{RuntimeApiMessage, RuntimeApiRequest}, LeafStatus,
+	};
 	use polkadot_node_network_protocol::request_response::{
 		Requests,
 		v1::{
@@ -2116,14 +2141,14 @@ mod tests {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
-		assert!(head_data.check_useful_or_unknown(a_seconded_val_0.clone()).is_ok());
+		assert!(head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()).is_ok());
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note A (duplicate)
 		assert_eq!(
-			head_data.check_useful_or_unknown(a_seconded_val_0.clone()),
+			head_data.check_useful_or_unknown(&a_seconded_val_0.clone().into()),
 			Err(DeniedStatement::UsefulButKnown),
 		);
 		let noted = head_data.note_statement(a_seconded_val_0);
@@ -2138,7 +2163,7 @@ mod tests {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
-		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -2151,7 +2176,7 @@ mod tests {
 			&alice_public.into(),
 		)).ok().flatten().expect("should be signed");
 		assert_eq!(
-			head_data.check_useful_or_unknown(statement.clone()),
+			head_data.check_useful_or_unknown(&statement.clone().into()),
 			Err(DeniedStatement::NotUseful),
 		);
 		let noted = head_data.note_statement(statement);
@@ -2165,7 +2190,7 @@ mod tests {
 			ValidatorIndex(1),
 			&bob_public.into(),
 		)).ok().flatten().expect("should be signed");
-		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -2177,7 +2202,7 @@ mod tests {
 			ValidatorIndex(1),
 			&bob_public.into(),
 		)).ok().flatten().expect("should be signed");
-		assert!(head_data.check_useful_or_unknown(statement.clone()).is_ok());
+		assert!(head_data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 		let noted = head_data.note_statement(statement);
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
@@ -2406,7 +2431,7 @@ mod tests {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)).ok().flatten().expect("should be signed");
-			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
@@ -2418,7 +2443,7 @@ mod tests {
 				ValidatorIndex(1),
 				&bob_public.into(),
 			)).ok().flatten().expect("should be signed");
-			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 			let noted = data.note_statement(statement);
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
@@ -2430,7 +2455,7 @@ mod tests {
 				ValidatorIndex(2),
 				&charlie_public.into(),
 			)).ok().flatten().expect("should be signed");
-			assert!(data.check_useful_or_unknown(statement.clone()).is_ok());
+			assert!(data.check_useful_or_unknown(&statement.clone().into()).is_ok());
 			let noted = data.note_statement(statement);
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -2553,40 +2578,39 @@ mod tests {
 				::<StatementDistributionMessage,_>(pool);
 
 		executor::block_on(async move {
-			let statement = {
-				let signing_context = SigningContext {
-					parent_hash: hash_b,
-					session_index,
-				};
+			let signing_context = SigningContext {
+				parent_hash: hash_b,
+				session_index,
+			};
 
-				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-				let alice_public = CryptoStore::sr25519_generate_new(
-					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
-				).await.unwrap();
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = CryptoStore::sr25519_generate_new(
+				&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+			).await.unwrap();
 
-				let statement = SignedFullStatement::sign(
-					&keystore,
-					Statement::Seconded(candidate),
-					&signing_context,
-					ValidatorIndex(0),
-					&alice_public.into(),
-				).await.ok().flatten().expect("should be signed");
+			let statement = SignedFullStatement::sign(
+				&keystore,
+				Statement::Seconded(candidate),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			).await.ok().flatten().expect("should be signed");
 
-				StoredStatement {
-					comparator: StoredStatementComparator {
-						compact: statement.payload().to_compact(),
-						validator_index: ValidatorIndex(0),
-						signature: statement.signature().clone()
-					},
-					statement,
-				}
+			let comparator = StoredStatementComparator {
+					compact: statement.payload().to_compact(),
+					validator_index: ValidatorIndex(0),
+					signature: statement.signature().clone()
+			};
+			let statement = StoredStatement {
+				comparator: &comparator,
+				statement: &statement,
 			};
 
 			let needs_dependents = circulate_statement(
 				&mut peer_data,
 				&mut ctx,
 				hash_b,
-				&statement,
+				statement,
 				Vec::new(),
 			).await;
 
@@ -2668,6 +2692,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -2746,7 +2771,7 @@ mod tests {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()),
+						protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()),
 					)
 				)
 			}).await;
@@ -2777,7 +2802,7 @@ mod tests {
 				) => {
 					assert_eq!(recipients, vec![peer_b.clone()]);
 					assert_eq!(r, hash_a);
-					assert_eq!(s, statement);
+					assert_eq!(s, statement.into());
 				}
 			);
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
@@ -2843,6 +2868,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -2951,7 +2977,7 @@ mod tests {
 			};
 
 			let metadata =
-				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()).get_metadata();
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
@@ -3314,6 +3340,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -3454,7 +3481,7 @@ mod tests {
 			};
 
 			let metadata =
-				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone()).get_metadata();
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()).get_metadata();
 
 			handle.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone())
@@ -3506,6 +3533,184 @@ mod tests {
 			let StatementFetchingResponse::Statement(committed) =
 				Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 			assert_eq!(committed, candidate);
+
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(bg);
+
+		executor::block_on(future::join(test_fut, bg));
+	}
+
+	#[test]
+	fn peer_cant_flood_with_large_statements() {
+		sp_tracing::try_init_simple();
+		let hash_a = Hash::repeat_byte(1);
+
+		let candidate = {
+			let mut c = CommittedCandidateReceipt::default();
+			c.descriptor.relay_parent = hash_a;
+			c.descriptor.para_id = 1.into();
+			c.commitments.new_validation_code = Some(ValidationCode(vec![1,2,3]));
+			c
+		};
+
+		let peer_a = PeerId::random(); // Alice
+
+		let validators = vec![
+			Sr25519Keyring::Alice.pair(),
+			Sr25519Keyring::Bob.pair(),
+			Sr25519Keyring::Charlie.pair(),
+			// other group
+			Sr25519Keyring::Dave.pair(),
+			// We:
+			Sr25519Keyring::Ferdie.pair(),
+		];
+
+		let first_group = vec![0,1,2,4];
+		let session_info = make_session_info(
+			validators,
+			vec![first_group, vec![3]]
+		);
+
+		let session_index = 1;
+
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+		let bg = async move {
+			let s = StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore()};
+			s.run(ctx).await.unwrap();
+		};
+
+		let (_, rx_reqs) = mpsc::channel(1);
+
+		let test_fut = async move {
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs)
+			}).await;
+
+			// register our active heads.
+			handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: vec![ActivatedLeaf {
+					hash: hash_a,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
+				deactivated: vec![].into(),
+			}))).await;
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+				)
+					if r == hash_a
+				=> {
+					let _ = tx.send(Ok(session_index));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+				)
+					if r == hash_a && sess_index == session_index
+				=> {
+					let _ = tx.send(Ok(Some(session_info)));
+				}
+			);
+
+			// notify of peers and view
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						Some(Sr25519Keyring::Alice.public().into())
+					)
+				)
+			}).await;
+
+			handle.send(FromOverseer::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a])
+				)
+			}).await;
+
+			// receive a seconded statement from peer A.
+			let statement = {
+				let signing_context = SigningContext {
+					parent_hash: hash_a,
+					session_index,
+				};
+
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let alice_public = CryptoStore::sr25519_generate_new(
+					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+				).await.unwrap();
+
+				SignedFullStatement::sign(
+					&keystore,
+					Statement::Seconded(candidate.clone()),
+					&signing_context,
+					ValidatorIndex(0),
+					&alice_public.into(),
+				).await.ok().flatten().expect("should be signed")
+			};
+
+			let metadata =
+				protocol_v1::StatementDistributionMessage::Statement(hash_a, statement.clone().into()).get_metadata();
+
+			for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
+				handle.send(FromOverseer::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerMessage(
+							peer_a.clone(),
+							protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						)
+					)
+				}).await;
+			}
+
+			// We should try to fetch the data and punish the peer (but we don't know what comes
+			// first):
+			let mut requested = false;
+			let mut punished = false;
+			for _ in 0..2 {
+				match handle.recv().await {
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendRequests(
+							mut reqs, IfDisconnected::ImmediateError
+						)
+					) => {
+						let reqs = reqs.pop().unwrap();
+						let outgoing = match reqs {
+							Requests::StatementFetching(outgoing) => outgoing,
+							_ => panic!("Unexpected request"),
+						};
+						let req = outgoing.payload;
+						assert_eq!(req.relay_parent, metadata.relay_parent);
+						assert_eq!(req.candidate_hash, metadata.candidate_hash);
+						assert_eq!(outgoing.peer, Recipient::Peer(peer_a));
+						// Just drop request - should trigger error.
+						requested = true;
+					}
+
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(p, r)
+					) if p == peer_a && r == COST_APPARENT_FLOOD => {
+						punished = true;
+					}
+
+					m => panic!("Unexpected message: {:?}", m),
+				}
+			}
+			assert!(requested, "large data has not been requested.");
+			assert!(punished, "Peer should have been punished for flooding.");
 
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};

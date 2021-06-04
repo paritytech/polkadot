@@ -9,22 +9,24 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 Input:
 
 - NetworkBridgeUpdate(update)
+- StatementDistributionMessage
 
 Output:
 
 - NetworkBridge::SendMessage(`[PeerId]`, message)
+- NetworkBridge::SendRequests (StatementFetching)
 - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 
 ## Functionality
 
 Implemented as a gossip protocol. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
-It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement.
+It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer in the same backing group, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement. On receiving `StatementDistributionMessage::Share` we make sure to send messages to our backing group in addition to random other peers, to ensure a fast backing process and getting all statements quickly for distribtution.
 
 Track equivocating validators and stop accepting information from them. Establish a data-dependency order:
 
-- In order to receive a `Seconded` message we have the on corresponding chain head in our view
-- In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
+- In order to receive a `Seconded` message we have the corresponding chain head in our view
+- In order to receive an `Valid` message we must have received the corresponding `Seconded` message.
 
 And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
 
@@ -34,11 +36,18 @@ The Statement Distribution subsystem sends statements to peer nodes.
 
 There is a very simple state machine which governs which messages we are willing to receive from peers. Not depicted in the state machine: on initial receipt of any [`SignedFullStatement`](../../types/backing.md#signed-statement-type), validate that the provided signature does in fact sign the included data. Note that each individual parablock candidate gets its own instance of this state machine; it is perfectly legal to receive a `Valid(X)` before a `Seconded(Y)`, as long as a `Seconded(X)` has been received.
 
-A: Initial State. Receive `SignedFullStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing and PoV Distribution, proceed to B. Receive any other `SignedFullStatement` variant: drop it.
+A: Initial State. Receive `SignedFullStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing, proceed to B. Receive any other `SignedFullStatement` variant: drop it.
 
 B: Receive any `SignedFullStatement`: check signature and determine whether the statement is new to us. if new, forward to Candidate Backing and circulate to other peers. Receive `OverseerMessage::StopWork`: proceed to C.
 
 C: Receive any message for this block: drop it.
+
+For large statements (see below), we also keep track of the total received large
+statements per peer and have a hard limit on that number for flood protection.
+This is necessary as in the current code we only forward statements once we have
+all the data, therefore flood protection for large statement is a bit more
+subtle. This will become an obsolete problem once [off chain code
+upgrades](https://github.com/paritytech/polkadot/issues/2979) are implemented.
 
 ## Peer Knowledge Tracking
 
@@ -68,3 +77,31 @@ The fix is to track, per-peer, the hashes of up to 4 candidates per validator (p
 
 There is another caveat to the fix: we don't want to allow the peer to flood us because it has set things up in a way that it knows we will drop all of its traffic.
 We also track how many statements we have received per peer, per candidate, and per chain-head. This is any statement concerning a particular candidate: `Seconded`, `Valid`, or `Invalid`. If we ever receive a statement from a peer which would push any of these counters beyond twice the amount of validators at the chain-head, we begin to lower the peer's standing and eventually disconnect. This bound is a massive overestimate and could be reduced to twice the number of validators in the corresponding validator group. It is worth noting that the goal at the time of writing is to ensure any finite bound on the amount of stored data, as any equivocation results in a large slash.
+
+## Large statements
+
+Seconded statements can become quite large on parachain runtime upgrades for
+example. For this reason, there exists a `LargeStatement` constructor for the
+`StatementDistributionMessage` wire message, which only contains light metadata
+of a statement. The actual candidate data is not included. This message type is
+used whenever a message is deemed large. The receiver of such a message needs to
+request the actual payload via request/response by means of a
+`StatementFetching` request.
+
+This is necessary as distribution of a large payload (mega bytes) via gossip
+would make the network collapse and timely distribution of statements would no
+longer be possible. By using request/response it is ensured that each peer only
+transferes large data once. We only take good care to detect an overloaded
+peer early and immediately move on to a different peer for fetching the data.
+This mechanism should result in a good load distribution and therefore a rather
+optimal distribution path.
+
+With these optimizations, distribution of payloads in the size of up to 3 to 4
+MB should work with Kusama validator specifications. For scaling up even more,
+runtime upgrades and message passing should be done off chain at some point.
+
+Flood protection considerations: For making DoS attacks slightly harder on this
+subsystem, nodes will only respond to large statement requests, when they
+previously notified that peer via gossip about that statement. So, it is not
+possible to DoS nodes at scale, by requesting candidate data over and over
+again.

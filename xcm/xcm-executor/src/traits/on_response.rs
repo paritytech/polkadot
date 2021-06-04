@@ -17,8 +17,11 @@
 use xcm::v0::{Response, MultiLocation};
 use frame_support::weights::Weight;
 
+/// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
+	/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 	fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool;
+	/// Handler for receiving a `response` from `origin` relating to `query_id`.
 	fn on_response(origin: MultiLocation, query_id: u64, response: Response) -> Weight;
 }
 impl OnResponse for () {

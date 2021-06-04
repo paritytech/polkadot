@@ -51,7 +51,6 @@ use std::{
 use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
-pub mod validator_discovery;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
@@ -321,21 +320,6 @@ impl Validator {
 		payload: Payload,
 	) -> Result<Option<Signed<Payload, RealPayload>>, KeystoreError> {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
-	}
-
-	/// Validate the payload with this validator
-	///
-	/// Validation can only succeed if `signed.validator_index() == self.index()`.
-	/// Normally, this will always be the case for a properly operating program,
-	/// but it's double-checked here anyway.
-	pub fn check_payload<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
-		&self,
-		signed: Signed<Payload, RealPayload>,
-	) -> Result<(), ()> {
-		if signed.validator_index() != self.index {
-			return Err(());
-		}
-		signed.check_signature(&self.signing_context, &self.id())
 	}
 }
 
@@ -884,7 +868,7 @@ mod tests {
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem, ActivatedLeaf,
+		SpawnedSubsystem, ActivatedLeaf, LeafStatus,
 	};
 	use assert_matches::assert_matches;
 	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
@@ -1014,6 +998,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: relay_parent,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}),
 				)))
@@ -1044,6 +1029,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: relay_parent,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					}),
 				)))

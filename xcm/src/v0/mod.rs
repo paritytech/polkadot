@@ -33,6 +33,16 @@ pub use multi_location::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
+/// A prelude for importing all types typically used when interacting with XCM messages.
+pub mod prelude {
+	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
+	pub use super::multi_asset::{MultiAsset::{self, *}, AssetInstance::{self, *}};
+	pub use super::multi_location::MultiLocation::{self, *};
+	pub use super::order::Order::{self, *};
+	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
+	pub use super::{Xcm::{self, *}, OriginKind};
+}
+
 // TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
 //   the number of items in the vector.
 
@@ -219,7 +229,7 @@ pub enum Xcm<Call> {
 	},
 
 	/// A message to notify that the other party in an open channel decided to close it. In particular,
-	/// `inititator` is going to close the channel opened from `sender` to the `recipient`. The close
+	/// `initiator` is going to close the channel opened from `sender` to the `recipient`. The close
 	/// will be enacted at the next relay-chain session change. This message is meant to be sent by
 	/// the relay-chain to a para.
 	///

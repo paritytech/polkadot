@@ -64,7 +64,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use frame_support::{parameter_types, construct_runtime, traits::{KeyOwnerProofSystem, Randomness}};
+use frame_support::{parameter_types, construct_runtime, traits::KeyOwnerProofSystem};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
@@ -205,6 +205,7 @@ impl pallet_indices::Config for Runtime {
 parameter_types! {
 	pub storage ExistentialDeposit: Balance = 1 * CENTS;
 	pub storage MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -214,6 +215,8 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
 }
 
@@ -474,6 +477,7 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
+	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
@@ -531,6 +535,7 @@ construct_runtime! {
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
+		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
@@ -605,10 +610,6 @@ sp_api::impl_runtime_apis! {
 			data: inherents::InherentData,
 		) -> inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed().0
 		}
 	}
 

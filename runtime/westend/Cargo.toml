@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.9.0"
+version = "0.9.4"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -40,7 +40,6 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -50,7 +49,6 @@ pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -70,6 +68,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -86,6 +85,8 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -121,7 +122,6 @@ std = [
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
-	"pallet-beefy/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-collective/std",
@@ -133,7 +133,6 @@ std = [
 	"pallet-im-online/std",
 	"pallet-indices/std",
 	"pallet-membership/std",
-	"pallet-mmr/std",
 	"pallet-mmr-primitives/std",
 	"beefy-primitives/std",
 	"pallet-multisig/std",
@@ -150,6 +149,7 @@ std = [
 	"pallet-treasury/std",
 	"pallet-utility/std",
 	"pallet-vesting/std",
+	"pallet-xcm/std",
 	"pallet-babe/std",
 	"pallet-randomness-collective-flip/std",
 	"frame-executive/std",
@@ -170,6 +170,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
+	"max-encoded-len/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -198,6 +199,7 @@ runtime-benchmarks = [
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
+	"pallet-xcm/runtime-benchmarks",
 	"frame-system-benchmarking",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",

@@ -14,4 +14,13 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 
 futures = "0.3.8"
-tracing = "0.1.25"
+tracing = "0.1.26"
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+
+assert_matches = "1.4.0"

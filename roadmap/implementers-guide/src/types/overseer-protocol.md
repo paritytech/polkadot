@@ -29,8 +29,18 @@ Either way, there will be some top-level type encapsulating messages from the ov
 Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
 
 ```rust
+enum LeafStatus {
+    // A leaf is fresh when it's the first time the leaf has been encountered.
+    // Most leaves should be fresh.
+    Fresh,
+    // A leaf is stale when it's encountered for a subsequent time. This will
+    // happen when the chain is reverted or the fork-choice rule abandons some
+    // chain.
+    Stale,
+}
+
 struct ActiveLeavesUpdate {
-    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number, LeafStatus)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
@@ -83,7 +93,7 @@ enum ApprovalVotingMessage {
     ///
     /// The base number is typically the number of the last finalized block, but in GRANDPA it is
     /// possible for the base to be slightly higher than the last finalized block.
-    /// 
+    ///
     /// The `BlockNumber` provided is the number of the block's ancestor which is the
     /// earliest possible vote.
     ///
@@ -91,7 +101,7 @@ enum ApprovalVotingMessage {
     /// Return `None` if the input hash is unrecognized.
     ApprovedAncestor {
         target_hash: Hash,
-        base_number: BlockNumber, 
+        base_number: BlockNumber,
         rx: ResponseChannel<Option<(Hash, BlockNumber, Vec<(Hash, Vec<CandidateHash>)>)>>
     },
 }
@@ -156,18 +166,18 @@ enum AvailabilityDistributionMessage {
       ///
       /// NOTE: The result of this fetch is not yet locally validated and could be bogus.
       FetchPoV {
-	      /// The relay parent giving the necessary context.
-	      relay_parent: Hash,
-	      /// Validator to fetch the PoV from.
-	      from_validator: ValidatorIndex,
-	      /// Candidate hash to fetch the PoV for.
-	      candidate_hash: CandidateHash,
-	      /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
-	      pov_hash: Hash,
-	      /// Sender for getting back the result of this fetch.
-	      ///
-	      /// The sender will be canceled if the fetching failed for some reason.
-	      tx: oneshot::Sender<PoV>,
+          /// The relay parent giving the necessary context.
+          relay_parent: Hash,
+          /// Validator to fetch the PoV from.
+          from_validator: ValidatorIndex,
+          /// Candidate hash to fetch the PoV for.
+          candidate_hash: CandidateHash,
+          /// Expected hash of the PoV, a PoV not matching this hash will be rejected.
+          pov_hash: Hash,
+          /// Sender for getting back the result of this fetch.
+          ///
+          /// The sender will be canceled if the fetching failed for some reason.
+          tx: oneshot::Sender<PoV>,
       },
 }
 ```
@@ -334,7 +344,7 @@ enum CollatorProtocolMessage {
     /// Note a collator as having provided a good collation.
     NoteGoodCollation(CollatorId, SignedFullStatement),
     /// Notify a collator that its collation was seconded.
-    NotifyCollationSeconded(CollatorId, SignedFullStatement),
+    NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 }
 ```
 
@@ -378,7 +388,7 @@ enum DisputeCoordinatorMessage {
     /// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
     IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
     /// Determine the highest undisputed block within the given chain, based on where candidates
-    /// were included. If even the base block should not be finalized due to a dispute, 
+    /// were included. If even the base block should not be finalized due to a dispute,
     /// then `None` should be returned on the channel.
     ///
     /// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
@@ -446,17 +456,22 @@ enum NetworkBridgeMessage {
     /// Connect to peers who represent the given `validator_ids`.
     ///
     /// Also ask the network to stay connected to these peers at least
-    /// until the request is revoked.
-    /// This can be done by dropping the receiver.
+    /// until a new request is issued.
+    ///
+    /// Because it overrides the previous request, it must be ensured
+    /// that `validator_ids` include all peers the subsystems
+    /// are interested in (per `PeerSet`).
+    ///
+    /// A caller can learn about validator connections by listening to the
+    /// `PeerConnected` events from the network bridge.
     ConnectToValidators {
         /// Ids of the validators to connect to.
         validator_ids: Vec<AuthorityDiscoveryId>,
         /// The underlying protocol to use for this request.
         peer_set: PeerSet,
-        /// Response sender by which the issuer can learn the `PeerId`s of
-        /// the validators as they are connected.
-        /// The response is sent immediately for already connected peers.
-        connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+        /// Sends back the number of `AuthorityDiscoveryId`s which
+        /// authority discovery has failed to resolve.
+        failed: oneshot::Sender<usize>,
     },
 }
 ```

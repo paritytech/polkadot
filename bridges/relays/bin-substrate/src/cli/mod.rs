@@ -89,8 +89,23 @@ pub enum Command {
 }
 
 impl Command {
+	// Initialize logger depending on the command.
+	fn init_logger(&self) {
+		use relay_utils::initialize::{initialize_logger, initialize_relay};
+
+		match self {
+			Self::RelayHeaders(_) | Self::RelayMessages(_) | Self::RelayHeadersAndMessages(_) | Self::InitBridge(_) => {
+				initialize_relay();
+			}
+			_ => {
+				initialize_logger(false);
+			}
+		}
+	}
+
 	/// Run the command.
 	pub async fn run(self) -> anyhow::Result<()> {
+		self.init_logger();
 		match self {
 			Self::RelayHeaders(arg) => arg.run().await?,
 			Self::RelayMessages(arg) => arg.run().await?,

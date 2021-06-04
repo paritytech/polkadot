@@ -34,10 +34,10 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	/// The message and destination was recognised as being reachable but the operation could not be completed.
+	/// The message and destination was recognized as being reachable but the operation could not be completed.
 	/// A human-readable explanation of the specific issue is provided.
 	SendFailed(#[codec(skip)] &'static str),
-	/// The message and destination combination was not recognised as being reachable.
+	/// The message and destination combination was not recognized as being reachable.
 	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
@@ -77,6 +77,8 @@ pub enum Error {
 	LocationCannotHold,
 	/// The assets given to purchase weight is are insufficient for the weight desired.
 	TooExpensive,
+	/// The given asset is not handled.
+	AssetNotFound,
 }
 
 impl From<()> for Error {
@@ -90,7 +92,7 @@ pub type Result = result::Result<(), Error>;
 /// Local weight type; execution time in picoseconds.
 pub type Weight = u64;
 
-/// Outcome of an XCM excution.
+/// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
@@ -126,27 +128,106 @@ impl Outcome {
 	}
 }
 
+/// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
-	type Call;
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome;
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
+	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
+	/// other aspects.
+	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
+	}
+
+	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight.
+	///
+	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
+	/// execution without associated payment.
+	fn execute_xcm_in_credit(
+		origin: MultiLocation,
+		message: Xcm<Call>,
+		weight_limit: Weight,
+		weight_credit: Weight,
+	) -> Outcome;
 }
 
 impl<C> ExecuteXcm<C> for () {
-	type Call = C;
-	fn execute_xcm(_origin: MultiLocation, _message: Xcm<C>, _weight_limit: Weight) -> Outcome {
+	fn execute_xcm_in_credit(
+		_origin: MultiLocation,
+		_message: Xcm<C>,
+		_weight_limit: Weight,
+		_weight_credit: Weight,
+	) -> Outcome {
 		Outcome::Error(Error::Unimplemented)
 	}
 }
 
 /// Utility for sending an XCM message.
 ///
-/// These can be amalgamted in tuples to form sophisticated routing systems.
+/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
+/// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
+/// might alter the destination and the xcm message for to the next router.
+///
+///
+/// # Example
+/// ```rust
+/// # use xcm::v0::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use parity_scale_codec::Encode;
+///
+/// /// A sender that only passes the message through and does nothing.
+/// struct Sender1;
+/// impl SendXcm for Sender1 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         return Err(Error::CannotReachDestination(destination, message))
+///     }
+/// }
+///
+/// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
+/// struct Sender2;
+/// impl SendXcm for Sender2 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         if let MultiLocation::X2(j1, j2) = destination {
+///             Ok(())
+///         } else {
+///             Err(Error::Undefined)
+///         }
+///     }
+/// }
+///
+/// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
+/// struct Sender3;
+/// impl SendXcm for Sender3 {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///         match destination {
+///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
+///             _ => Err(Error::CannotReachDestination(destination, message)),
+///         }
+///     }
+/// }
+///
+/// // A call to send via XCM. We don't really care about this.
+/// # fn main() {
+/// let call: Vec<u8> = ().encode();
+/// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
+/// let destination = MultiLocation::X1(Junction::Parent);
+///
+/// assert!(
+///     // Sender2 will block this.
+///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///         .is_err()
+/// );
+///
+/// assert!(
+///     // Sender3 will catch this.
+///     <(Sender1, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///         .is_ok()
+/// );
+/// # }
+/// ```
 pub trait SendXcm {
 	/// Send an XCM `message` to a given `destination`.
 	///
-	/// If it is not a destination which can be reached with this type but possibly could by others,
-	/// then it *MUST* return `CannotReachDestination`. Any other error will cause the tuple implementation to
-	/// exit early without trying other type fields.
+	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
+	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
+	/// trying other type fields.
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
 }
 
@@ -154,6 +235,7 @@ pub trait SendXcm {
 impl SendXcm for Tuple {
 	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
 		for_tuples!( #(
+			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
 				Err(Error::CannotReachDestination(d, m)) => (d, m),
 				o @ _ => return o,

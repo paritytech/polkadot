@@ -102,7 +102,7 @@ pub trait TargetClient<P: HeadersSyncPipeline>: RelayClient {
 
 /// Synchronization maintain procedure.
 #[async_trait]
-pub trait SyncMaintain<P: HeadersSyncPipeline>: Clone + Send + Sync {
+pub trait SyncMaintain<P: HeadersSyncPipeline>: 'static + Clone + Send + Sync {
 	/// Run custom maintain procedures. This is guaranteed to be called when both source and target
 	/// clients are unoccupied.
 	async fn maintain(&self, _sync: &mut HeadersSync<P>) {}
@@ -125,7 +125,7 @@ pub async fn run<P: HeadersSyncPipeline, TC: TargetClient<P>>(
 	sync_maintain: impl SyncMaintain<P>,
 	sync_params: HeadersSyncParams,
 	metrics_params: MetricsParams,
-	exit_signal: impl Future<Output = ()>,
+	exit_signal: impl Future<Output = ()> + 'static + Send,
 ) -> Result<(), String> {
 	let exit_signal = exit_signal.shared();
 	relay_utils::relay_loop(source_client, target_client)
@@ -134,7 +134,7 @@ pub async fn run<P: HeadersSyncPipeline, TC: TargetClient<P>>(
 		.standalone_metric(|registry, prefix| GlobalMetrics::new(registry, prefix))?
 		.expose()
 		.await?
-		.run(|source_client, target_client, metrics| {
+		.run(metrics_prefix::<P>(), move |source_client, target_client, metrics| {
 			run_until_connection_lost(
 				source_client,
 				source_tick,
@@ -159,7 +159,7 @@ async fn run_until_connection_lost<P: HeadersSyncPipeline, TC: TargetClient<P>>(
 	sync_maintain: impl SyncMaintain<P>,
 	sync_params: HeadersSyncParams,
 	metrics_sync: Option<SyncLoopMetrics>,
-	exit_signal: impl Future<Output = ()>,
+	exit_signal: impl Future<Output = ()> + Send,
 ) -> Result<(), FailedClient> {
 	let mut progress_context = (Instant::now(), None, None);
 

@@ -122,9 +122,13 @@ impl From<i32> for Id {
 }
 
 const USER_INDEX_START: u32 = 1000;
+const PUBLIC_INDEX_START: u32 = 2000;
 
 /// The ID of the first user (non-system) parachain.
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
+/// The ID of the first publicly registerable parachain.
+pub const LOWEST_PUBLIC_ID: Id = Id(PUBLIC_INDEX_START);
 
 impl Id {
 	/// Create an `Id`.
@@ -133,7 +137,9 @@ impl Id {
 	}
 }
 
+/// Determine if a parachain is a system parachain or not.
 pub trait IsSystem {
+	/// Returns `true` if a parachain is a system parachain, `false` otherwise.
 	fn is_system(&self) -> bool;
 }
 
@@ -148,6 +154,14 @@ impl sp_std::ops::Add<u32> for Id {
 
 	fn add(self, other: u32) -> Self {
 		Self(self.0 + other)
+	}
+}
+
+impl sp_std::ops::Sub<u32> for Id {
+	type Output = Self;
+
+	fn sub(self, other: u32) -> Self {
+		Self(self.0 - other)
 	}
 }
 
