@@ -18,7 +18,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_runtime::generic::BlockId;
@@ -97,23 +97,53 @@ fn approval_checking_vote_to_grandpa_vote<H, N: PartialOrd>(
 	}
 }
 
+/// The maximum amount of unfinalized blocks we are willing to allow due to approval checking lag.
+/// This is a safety net that should be removed at some point in the future.
+const MAX_APPROVAL_CHECKING_FINALITY_LAG: BlockNumber = 50;
+
 #[cfg(feature = "full-node")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
-	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
+	where B: sp_blockchain::HeaderBackend<PolkadotBlock> + 'static
 {
 	fn restrict_vote(
 		&self,
-		_backend: Arc<B>,
+		backend: Arc<B>,
 		base: &PolkadotHeader,
 		best_target: &PolkadotHeader,
 		current_target: &PolkadotHeader,
 	) -> grandpa::VotingRuleResult<PolkadotBlock> {
+		// walk backwards until we find the target block
+		let find_target = move |target_number: BlockNumber, current_header: &PolkadotHeader| {
+			let mut target_hash = current_header.hash();
+			let mut target_header = current_header.clone();
+
+			loop {
+				if *target_header.number() < target_number {
+					unreachable!(
+						"we are traversing backwards from a known block; \
+							blocks are stored contiguously; \
+							qed"
+					);
+				}
+
+				if *target_header.number() == target_number {
+					return Some((target_hash, target_number));
+				}
+
+				target_hash = *target_header.parent_hash();
+				target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
+					"Header known to exist due to the existence of one of its descendents; qed",
+				);
+			}
+		};
+
 		// Query approval checking and issue metrics.
 		let mut overseer = self.overseer.clone();
 		let checking_lag = self.checking_lag.clone();
 
 		let best_hash = best_target.hash();
 		let best_number = best_target.number.clone();
+		let best_header = best_target.clone();
 
 		let current_hash = current_target.hash();
 		let current_number = current_target.number.clone();
@@ -149,14 +179,23 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				approval_checking_subsystem_lag,
 			);
 
-			Some(match approval_checking_vote_to_grandpa_vote(
+			match approval_checking_vote_to_grandpa_vote(
 				approval_checking_subsystem_vote,
 				current_number,
 			) {
-				ParachainVotingRuleTarget::Explicit(vote) => vote,
-				ParachainVotingRuleTarget::Current => (current_hash, current_number),
-				ParachainVotingRuleTarget::Base => (base_hash, base_number),
-			})
+				ParachainVotingRuleTarget::Explicit(vote) => Some(vote),
+				ParachainVotingRuleTarget::Current => Some((current_hash, current_number)),
+				ParachainVotingRuleTarget::Base => {
+					let diff = best_number.saturating_sub(base_number);
+					if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
+						// Catch up to the best, with some extra lag.
+						find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
+							.filter(|vote| vote.1 <= current_number)
+					} else {
+						Some((base_hash, base_number))
+					}
+				}
+			}
 		})
 	}
 }
