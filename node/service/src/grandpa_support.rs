@@ -172,30 +172,44 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				checking_lag.set(approval_checking_subsystem_lag as _);
 			}
 
-			tracing::trace!(
-				target: "parachain::approval-voting",
-				"GRANDPA: voting on {:?}. Approval-checking lag behind best is {}",
-				approval_checking_subsystem_vote,
-				approval_checking_subsystem_lag,
-			);
+			let min_vote = {
+				let diff = best_number.saturating_sub(base_number);
+				if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
+					// Catch up to the best, with some extra lag.
+					find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
+						.filter(|vote| vote.1 <= current_number)
+				} else {
+					Some((base_hash, base_number))
+				}
+			};
 
-			match approval_checking_vote_to_grandpa_vote(
+			let vote = match approval_checking_vote_to_grandpa_vote(
 				approval_checking_subsystem_vote,
 				current_number,
 			) {
-				ParachainVotingRuleTarget::Explicit(vote) => Some(vote),
-				ParachainVotingRuleTarget::Current => Some((current_hash, current_number)),
-				ParachainVotingRuleTarget::Base => {
-					let diff = best_number.saturating_sub(base_number);
-					if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
-						// Catch up to the best, with some extra lag.
-						find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
-							.filter(|vote| vote.1 <= current_number)
+				ParachainVotingRuleTarget::Explicit(vote) => {
+					if min_vote.as_ref().map_or(false, |min| min.1 > vote.1) {
+						min_vote
 					} else {
-						Some((base_hash, base_number))
+						Some(vote)
 					}
 				}
-			}
+				ParachainVotingRuleTarget::Current => Some((current_hash, current_number)),
+				ParachainVotingRuleTarget::Base => min_vote.or(Some((base_hash, base_number))),
+			};
+
+			tracing::trace!(
+				target: "parachain::approval-voting",
+				?vote,
+				?approval_checking_subsystem_vote,
+				approval_checking_subsystem_lag,
+				current_number,
+				best_number,
+				base_number,
+				"GRANDPA: voting based on approved ancestor.",
+			);
+
+			vote
 		})
 	}
 }
