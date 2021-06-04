@@ -143,10 +143,10 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 
 		let best_hash = best_target.hash();
 		let best_number = best_target.number.clone();
+		let best_header = best_target.clone();
 
 		let current_hash = current_target.hash();
 		let current_number = current_target.number.clone();
-		let current_header = current_target.clone();
 
 		let base_hash = base.hash();
 		let base_number = base.number;
@@ -186,10 +186,11 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				ParachainVotingRuleTarget::Explicit(vote) => Some(vote),
 				ParachainVotingRuleTarget::Current => Some((current_hash, current_number)),
 				ParachainVotingRuleTarget::Base => {
-					let diff = current_number.saturating_sub(base_number);
+					let diff = best_number.saturating_sub(base_number);
 					if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
-						// Catch up to the current, with some extra lag.
-						find_target(current_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &current_header)
+						// Catch up to the best, with some extra lag.
+						find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
+							.filter(|vote| vote.1 <= current_number)
 					} else {
 						Some((base_hash, base_number))
 					}
