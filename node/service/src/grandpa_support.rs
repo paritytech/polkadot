@@ -97,6 +97,8 @@ fn approval_checking_vote_to_grandpa_vote<H, N: PartialOrd>(
 	}
 }
 
+/// The maximum amount of unfinalized blocks we are willing to allow due to approval checking lag.
+/// This is a safety net that should be removed at some point in the future.
 const MAX_APPROVAL_CHECKING_FINALITY_LAG: BlockNumber = 50;
 
 #[cfg(feature = "full-node")]
