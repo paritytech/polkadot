@@ -496,6 +496,8 @@ mod tests {
 		type AccountStore = System;
 		type WeightInfo = ();
 		type MaxLocks = ();
+		type MaxReserves = ();
+		type ReserveIdentifier = [u8; 8];
 	}
 
 	parameter_types! {
