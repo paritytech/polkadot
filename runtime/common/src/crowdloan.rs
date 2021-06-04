@@ -236,10 +236,6 @@ pub mod pallet {
 		AllRefunded(ParaId),
 		/// Fund is dissolved. [fund_index]
 		Dissolved(ParaId),
-		/// The deploy data of the funded parachain is set. [fund_index]
-		DeployDataFixed(ParaId),
-		/// On-boarding process for a winning parachain fund is completed. [find_index, parachain_id]
-		Onboarded(ParaId, ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
 		/// The configuration to a crowdloan has been edited. [fund_index]
@@ -282,14 +278,10 @@ pub mod pallet {
 		LeaseActive,
 		/// This parachain's bid or lease is still active and withdraw cannot yet begin.
 		BidOrLeaseActive,
-		/// Funds have not yet been returned.
-		FundsNotReturned,
 		/// The crowdloan has not yet ended.
 		FundNotEnded,
 		/// There are no contributions stored in this crowdloan.
 		NoContributions,
-		/// This crowdloan has an active parachain and cannot be dissolved.
-		HasActiveParachain,
 		/// The crowdloan is not ready to dissolve. Potentially still has a slot or in retirement period.
 		NotReadyToDissolve,
 		/// Invalid signature.
