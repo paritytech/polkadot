@@ -86,10 +86,10 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 /// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
-/// Timeout for PoV like data, 2 times what it should take, assuming we can fully utilize the
-/// bandwidth. This amounts to two seconds right now.
-const POV_REQUEST_TIMEOUT_CONNECTED: Duration =
-	Duration::from_millis(2 * 1000 * (MAX_POV_SIZE as u64)  / MIN_BANDWIDTH_BYTES);
+/// This timeout is based on what seems sensible from a time budget perspective, considering 6
+/// second block time. This is going to be tough, if we have multiple forks and large PoVs, but we
+/// only have so much time.
+const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1000);
 
 /// We want timeout statement requests fast, so we don't waste time on slow nodes. Responders will
 /// try their best to either serve within that timeout or return an error immediately. (We need to

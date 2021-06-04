@@ -14,11 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Various implementations of `FilterAssetLocation`.
+
 use sp_std::marker::PhantomData;
 use xcm::v0::{MultiAsset, MultiLocation};
 use frame_support::traits::Get;
 use xcm_executor::traits::FilterAssetLocation;
 
+/// Accepts an asset IFF it is a native asset.
 pub struct NativeAsset;
 impl FilterAssetLocation for NativeAsset {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
@@ -26,6 +29,7 @@ impl FilterAssetLocation for NativeAsset {
 	}
 }
 
+/// Accepts an asset if it is contained in the given `T`'s `Get` impl.
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {

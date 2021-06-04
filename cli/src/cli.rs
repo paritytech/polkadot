@@ -100,6 +100,10 @@ pub struct RunCmd {
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
+	/// Disable BEEFY gadget.
+	#[structopt(long)]
+	pub no_beefy: bool,
+
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`

@@ -33,7 +33,9 @@ use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers as test_helpers;
-use polkadot_subsystem::{messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger, ActivatedLeaf};
+use polkadot_subsystem::{
+	messages::{RuntimeApiMessage, RuntimeApiRequest}, jaeger, ActivatedLeaf, LeafStatus,
+};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -448,6 +450,7 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -529,6 +532,7 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -610,6 +614,7 @@ fn bad_merkle_path_leads_to_recovery_error() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -666,6 +671,7 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -739,6 +745,7 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -786,6 +793,7 @@ fn fast_path_backing_group_recovers() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -838,6 +846,7 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -900,6 +909,7 @@ fn task_canceled_when_receivers_dropped() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -942,6 +952,7 @@ fn chunks_retry_until_all_nodes_respond() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -1000,6 +1011,7 @@ fn returns_early_if_we_have_the_data() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],
@@ -1037,6 +1049,7 @@ fn does_not_query_local_validator() {
 				activated: smallvec![ActivatedLeaf {
 					hash: test_state.current.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![],

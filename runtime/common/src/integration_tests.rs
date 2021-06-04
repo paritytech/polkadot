@@ -216,7 +216,6 @@ parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
 	pub const SubmissionDeposit: Balance = 100;
 	pub const MinContribution: Balance = 1;
-	pub const RetirementPeriod: BlockNumber = 10;
 	pub const RemoveKeysLimit: u32 = 100;
 	pub const MaxMemoLength: u8 = 32;
 }
@@ -301,12 +300,14 @@ fn basic_end_to_end_works() {
 		// First register 2 parathreads
 		let genesis_head = Registrar::worst_head_data();
 		let validation_code = Registrar::worst_validation_code();
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(para_1),
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -365,12 +366,12 @@ fn basic_end_to_end_works() {
 		run_to_block(109);
 		assert_eq!(
 			last_event(),
-			crowdloan::RawEvent::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
+			crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
 		);
 		run_to_block(110);
 		assert_eq!(
 			last_event(),
-			auctions::RawEvent::AuctionClosed(1).into(),
+			auctions::Event::<Test>::AuctionClosed(1).into(),
 		);
 
 		// Paras should have won slots
@@ -445,18 +446,20 @@ fn basic_errors_fail() {
 
 		let genesis_head = Registrar::worst_head_data();
 		let validation_code = Registrar::worst_validation_code();
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			para_id,
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_noop!(Registrar::register(
 			Origin::signed(2),
 			para_id,
 			genesis_head,
 			validation_code,
-		), paras_registrar::Error::<Test>::InvalidParaId);
+		), paras_registrar::Error::<Test>::NotOwner);
 
 		// Start an auction
 		let duration = 99u32;
@@ -489,6 +492,7 @@ fn competing_slots() {
 			Balances::make_free_balance_be(&n, 1_000);
 			let genesis_head = Registrar::worst_head_data();
 			let validation_code = Registrar::worst_validation_code();
+			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
 				para_id + n - 1,
@@ -566,10 +570,6 @@ fn competing_bids() {
 	// This test will verify that competing bids, from different sources will resolve appropriately.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
-		// Start a new auction in the future
-		let duration = 99u32;
-		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
 		let start_para = LOWEST_PUBLIC_ID - 1;
 		// Create 3 paras and owners
@@ -577,13 +577,25 @@ fn competing_bids() {
 			Balances::make_free_balance_be(&n, 1_000);
 			let genesis_head = Registrar::worst_head_data();
 			let validation_code = Registrar::worst_validation_code();
+			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
 				ParaId::from(start_para + n),
 				genesis_head,
 				validation_code,
 			));
+		}
 
+		// Finish registration of paras.
+		run_to_session(2);
+
+		// Start a new auction in the future
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		for n in 1 ..= 3 {
 			// Create a crowdloan for each para
 			assert_ok!(Crowdloan::create(
 				Origin::signed(n),
@@ -598,7 +610,7 @@ fn competing_bids() {
 
 		for n in 1 ..= 9 {
 			// Increment block number
-			run_to_block(n * 10);
+			run_to_block(starting_block + n * 10);
 
 			Balances::make_free_balance_be(&(n * 10), n * 1_000);
 
@@ -626,7 +638,7 @@ fn competing_bids() {
 		}
 
 		// Auction should be done
-		run_to_block(110);
+		run_to_block(starting_block + 110);
 
 		// Appropriate Paras should have won slots
 		let crowdloan_2 = Crowdloan::fund_account_id(ParaId::from(2001));
@@ -652,12 +664,14 @@ fn basic_swap_works() {
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
 		// First register 2 parathreads with different data
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -783,12 +797,14 @@ fn crowdloan_ending_period_bid() {
 		Balances::make_free_balance_be(&1, 1_000);
 		Balances::make_free_balance_be(&2, 1_000);
 		// First register 2 parathreads
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),
@@ -889,6 +905,7 @@ fn auction_bid_requires_registered_para() {
 		), AuctionsError::<Test>::ParaNotRegistered);
 
 		// Now we register the para
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
@@ -935,12 +952,14 @@ fn gap_bids_work() {
 		Balances::make_free_balance_be(&2, 1_000);
 
 		// Now register 2 paras
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
 			ParaId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
+		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
 			ParaId::from(2001),

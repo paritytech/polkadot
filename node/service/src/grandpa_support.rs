@@ -71,6 +71,32 @@ impl ApprovalCheckingVotingRule {
 	}
 }
 
+#[derive(Debug, PartialEq)]
+enum ParachainVotingRuleTarget<H, N> {
+	/// Vote explicitly on the given hash.
+	Explicit((H, N)),
+	/// Vote on the current target.
+	Current,
+	/// Vote on the base target - the minimal possible vote.
+	Base,
+}
+
+fn approval_checking_vote_to_grandpa_vote<H, N: PartialOrd>(
+	approval_checking_vote: Option<(H, N)>,
+	current_number: N,
+) -> ParachainVotingRuleTarget<H, N> {
+	match approval_checking_vote {
+		Some((hash, number)) => if number > current_number {
+			// respect other voting rule.
+			ParachainVotingRuleTarget::Current
+		} else {
+			ParachainVotingRuleTarget::Explicit((hash, number))
+		},
+		// If approval-voting chooses 'None', that means we should vote on the base (last round estimate).
+		None => ParachainVotingRuleTarget::Base,
+	}
+}
+
 #[cfg(feature = "full-node")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
@@ -92,6 +118,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 		let current_hash = current_target.hash();
 		let current_number = current_target.number.clone();
 
+		let base_hash = base.hash();
 		let base_number = base.number;
 
 		Box::pin(async move {
@@ -122,11 +149,14 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				approval_checking_subsystem_lag,
 			);
 
-			if approval_checking_subsystem_vote.map_or(false, |v| current_number < v.1) {
-				Some((current_hash, current_number))
-			} else {
-				approval_checking_subsystem_vote
-			}
+			Some(match approval_checking_vote_to_grandpa_vote(
+				approval_checking_subsystem_vote,
+				current_number,
+			) {
+				ParachainVotingRuleTarget::Explicit(vote) => vote,
+				ParachainVotingRuleTarget::Current => (current_hash, current_number),
+				ParachainVotingRuleTarget::Base => (base_hash, base_number),
+			})
 		})
 	}
 }
@@ -358,6 +388,7 @@ mod tests {
 	use sp_runtime::{generic::BlockId, traits::Header};
 	use consensus_common::BlockOrigin;
 	use std::sync::Arc;
+	use super::{approval_checking_vote_to_grandpa_vote, ParachainVotingRuleTarget};
 
 	#[test]
 	fn grandpa_pause_voting_rule_works() {
@@ -467,6 +498,29 @@ mod tests {
 				&get_header(51),
 			)),
 			None,
+		);
+	}
+
+	#[test]
+	fn approval_checking_to_grandpa_rules() {
+		assert_eq!(
+			approval_checking_vote_to_grandpa_vote::<(), _>(None, 5),
+			ParachainVotingRuleTarget::Base,
+		);
+
+		assert_eq!(
+			approval_checking_vote_to_grandpa_vote(Some(("2", 2)), 3),
+			ParachainVotingRuleTarget::Explicit(("2", 2)),
+		);
+
+		assert_eq!(
+			approval_checking_vote_to_grandpa_vote(Some(("2", 2)), 2),
+			ParachainVotingRuleTarget::Explicit(("2", 2)),
+		);
+
+		assert_eq!(
+			approval_checking_vote_to_grandpa_vote(Some(("2", 2)), 1),
+			ParachainVotingRuleTarget::Current,
 		);
 	}
 }
