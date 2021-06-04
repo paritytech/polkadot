@@ -4093,13 +4093,25 @@ checksum = "71d96e3f3c0b6325d8ccd83c33b28acb183edcb6c67938ba104ec546854b0882"
 
 [[package]]
 name = "merlin"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6feca46f4fa3443a01769d768727f10c10a20fdb65e52dc16a81f0c8269bb78"
+checksum = "4e261cf0f8b3c42ded9f7d2bb59dea03aa52bc8a1cbc7482f9fc3fd1229d3b42"
 dependencies = [
  "byteorder",
  "keccak",
  "rand_core 0.5.1",
+ "zeroize",
+]
+
+[[package]]
+name = "merlin"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c38e2799fc0978b65dfff8023ec7843e2330bb462f19198840b34b6582397d"
+dependencies = [
+ "byteorder",
+ "keccak",
+ "rand_core 0.6.1",
  "zeroize",
 ]
 
@@ -5901,7 +5913,7 @@ dependencies = [
  "kvdb",
  "kvdb-memorydb",
  "maplit",
- "merlin",
+ "merlin 3.0.0",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "polkadot-node-jaeger",
@@ -7948,7 +7960,7 @@ dependencies = [
  "futures 0.3.14",
  "futures-timer 3.0.2",
  "log",
- "merlin",
+ "merlin 2.0.1",
  "num-bigint",
  "num-rational",
  "num-traits",
@@ -8251,7 +8263,7 @@ dependencies = [
  "futures 0.3.14",
  "futures-util",
  "hex",
- "merlin",
+ "merlin 2.0.1",
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "serde_json",
@@ -8714,7 +8726,7 @@ dependencies = [
  "arrayvec 0.5.2",
  "curve25519-dalek 2.1.0",
  "getrandom 0.1.14",
- "merlin",
+ "merlin 2.0.1",
  "rand 0.7.3",
  "rand_core 0.5.1",
  "serde",
@@ -9263,7 +9275,7 @@ version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate#a57bc4445a4e0bfd5c79c111add9d0db1a265507"
 dependencies = [
  "async-trait",
- "merlin",
+ "merlin 2.0.1",
  "parity-scale-codec",
  "serde",
  "sp-api",
@@ -9320,7 +9332,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "max-encoded-len",
- "merlin",
+ "merlin 2.0.1",
  "num-traits",
  "parity-scale-codec",
  "parity-util-mem",
@@ -9451,7 +9463,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "futures 0.3.14",
- "merlin",
+ "merlin 2.0.1",
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "schnorrkel",
