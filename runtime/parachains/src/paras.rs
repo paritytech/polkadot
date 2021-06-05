@@ -180,7 +180,6 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
-	#[allow(unused)]
 	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
 		// Find out
 		// a) if there is a point where code was replaced _after_ execution in this context and
@@ -691,7 +690,6 @@ impl<T: Config> Module<T> {
 	/// Schedule a parathread to be upgraded to a parachain.
 	///
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
-	#[allow(unused)]
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
@@ -711,7 +709,6 @@ impl<T: Config> Module<T> {
 	/// Schedule a parachain to be downgraded to a parathread.
 	///
 	/// Noop if `ParaLifecycle` is not `Parachain`.
-	#[allow(unused)]
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
@@ -808,15 +805,11 @@ impl<T: Config> Module<T> {
 	/// code has been pruned.
 	///
 	/// To get associated code see [`Self::validation_code_at`].
-	#[allow(unused)]
 	pub(crate) fn validation_code_hash_at(
 		id: ParaId,
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<Hash> {
-		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Module<T>>::config();
-
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
 			return None;
 		}
@@ -839,7 +832,6 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Fetch validation code of para in specific context, see [`Self::validation_code_hash_at`].
-	#[allow(unused)]
 	pub(crate) fn validation_code_at(
 		id: ParaId,
 		at: T::BlockNumber,
