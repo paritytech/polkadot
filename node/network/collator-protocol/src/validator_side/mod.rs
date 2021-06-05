@@ -810,6 +810,10 @@ async fn remove_relay_parent(
 	state.requested_collations.retain(|k, _| {
 		k.relay_parent != relay_parent
 	});
+
+	state.seconded.retain(|k, _| {
+		k != &relay_parent
+	});
 	Ok(())
 }
 
@@ -2482,12 +2486,18 @@ mod tests {
 				}
 			});
 
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
+			) => {
+						assert_eq!(relay_parent, test_state.relay_parent);
+						assert_eq!(candidate_receipt.descriptor.para_id, test_state.chain_ids[0]);
+						assert_eq!(incoming_pov, pov);
+			});
+
 			let mut candidate_b = CandidateReceipt::default();
 			candidate_b.descriptor.para_id = test_state.chain_ids[0];
 			candidate_b.descriptor.relay_parent = test_state.relay_parent;
-
-			// Sleep to ensure we can deterministically receive the previous message first
-			std::thread::sleep(std::time::Duration::new(0, 100));
 
 			// Send second collation to ensure first collation gets seconded
 			response_channel.send(Ok(
@@ -2497,16 +2507,14 @@ mod tests {
 						block_data: BlockData(vec![]),
 					},
 				).encode()
-			)).expect("Sending response should succeed");
+			)).expect("Sending response should succeed after seconding");
 
+			// Ensure we don't receive any message related to candidate backing
+			// All Peers should get disconnected after successful Candidate Backing Message
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
-			) => {
-						assert_eq!(relay_parent, test_state.relay_parent);
-						assert_eq!(candidate_receipt.descriptor.para_id, test_state.chain_ids[0]);
-						assert_eq!(incoming_pov, pov);
-			});
+				AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(_, _)
+			) => {});
 
 			virtual_overseer
 		});
