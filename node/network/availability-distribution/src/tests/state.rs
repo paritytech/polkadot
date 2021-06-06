@@ -29,7 +29,8 @@ use sc_network as network;
 use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf, LeafStatus,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
@@ -68,7 +69,7 @@ pub struct TestState {
 	pub relay_chain: Vec<Hash>,
 	/// Whenever the subsystem tries to fetch an erasure chunk one item of the given vec will be
 	/// popped. So you can experiment with serving invalid chunks or no chunks on request and see
-	/// whether the subystem still succeds with its goal.
+	/// whether the subsystem still succeeds with its goal.
 	pub chunks: HashMap<(CandidateHash, ValidatorIndex), Vec<Option<ErasureChunk>>>,
 	/// All chunks that are valid and should be accepted.
 	pub valid_chunks: HashSet<(CandidateHash, ValidatorIndex)>,
@@ -173,6 +174,7 @@ impl TestState {
 				activated: smallvec![ActivatedLeaf {
 					hash: new.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}],
 				deactivated: smallvec![old.clone()],

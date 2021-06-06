@@ -26,7 +26,7 @@ use std::{
 };
 
 /// Transaction proof pipeline.
-pub trait TransactionProofPipeline {
+pub trait TransactionProofPipeline: 'static {
 	/// Name of the transaction proof source.
 	const SOURCE_NAME: &'static str;
 	/// Name of the transaction proof target.
@@ -35,18 +35,21 @@ pub trait TransactionProofPipeline {
 	/// Block type.
 	type Block: SourceBlock;
 	/// Transaction inclusion proof type.
-	type TransactionProof;
+	type TransactionProof: 'static + Send + Sync;
 }
 
 /// Block that is participating in exchange.
-pub trait SourceBlock {
+pub trait SourceBlock: 'static + Send + Sync {
 	/// Block hash type.
-	type Hash: Clone + Debug + Display;
+	type Hash: 'static + Clone + Send + Sync + Debug + Display;
 	/// Block number type.
-	type Number: Debug
+	type Number: 'static
+		+ Debug
 		+ Display
 		+ Clone
 		+ Copy
+		+ Send
+		+ Sync
 		+ Into<u64>
 		+ std::cmp::Ord
 		+ std::ops::Add<Output = Self::Number>
@@ -61,7 +64,7 @@ pub trait SourceBlock {
 }
 
 /// Transaction that is participating in exchange.
-pub trait SourceTransaction {
+pub trait SourceTransaction: 'static + Send {
 	/// Transaction hash type.
 	type Hash: Debug + Display;
 

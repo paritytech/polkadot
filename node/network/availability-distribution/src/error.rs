@@ -18,64 +18,74 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::request_response::request::RequestError;
-use polkadot_primitives::v1::SessionIndex;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::{
-	runtime,
-	Error as UtilError,
-};
-use polkadot_subsystem::{errors::RuntimeApiError, SubsystemError};
+use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
+use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
 
-/// Errors of this subsystem.
 #[derive(Debug, Error)]
-pub enum Error {
-	#[error("Response channel to obtain chunk failed")]
-	QueryChunkResponseChannel(#[source] oneshot::Canceled),
+#[error(transparent)]
+pub struct Error(pub Fault<NonFatal, Fatal>);
 
-	#[error("Response channel to obtain available data failed")]
-	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
+impl From<NonFatal> for Error {
+	fn from(e: NonFatal) -> Self {
+		Self(Fault::from_non_fatal(e))
+	}
+}
 
-	#[error("Receive channel closed")]
-	IncomingMessageChannel(#[source] SubsystemError),
+impl From<Fatal> for Error {
+	fn from(f: Fatal) -> Self {
+		Self(Fault::from_fatal(f))
+	}
+}
 
+impl From<runtime::Error> for Error {
+	fn from(o: runtime::Error) -> Self {
+		Self(Fault::from_other(o))
+	}
+}
+
+/// Fatal errors of this subsystem.
+#[derive(Debug, Error)]
+pub enum Fatal {
 	/// Spawning a running task failed.
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
-
-	/// We tried accessing a session that was not cached.
-	#[error("Session is not cached.")]
-	NoSuchCachedSession,
-
-	/// We tried reporting bad validators, although we are not a validator ourselves.
-	#[error("Not a validator.")]
-	NotAValidator,
 
 	/// Requester stream exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	RequesterExhausted,
 
-	/// Sending response failed.
+	#[error("Receive channel closed")]
+	IncomingMessageChannel(#[source] SubsystemError),
+
+	/// Errors coming from runtime::Runtime.
+	#[error("Error while accessing runtime information")]
+	Runtime(#[from] #[source] runtime::Fatal),
+}
+
+/// Non-fatal errors of this subsystem.
+#[derive(Debug, Error)]
+pub enum NonFatal {
+	/// av-store will drop the sender on any error that happens.
+	#[error("Response channel to obtain chunk failed")]
+	QueryChunkResponseChannel(#[source] oneshot::Canceled),
+
+	/// av-store will drop the sender on any error that happens.
+	#[error("Response channel to obtain available data failed")]
+	QueryAvailableDataResponseChannel(#[source] oneshot::Canceled),
+
+	/// We tried accessing a session that was not cached.
+	#[error("Session is not cached.")]
+	NoSuchCachedSession,
+
+	/// Sending request response failed (Can happen on timeouts for example).
 	#[error("Sending a request's response failed.")]
 	SendResponse,
-
-	/// Some request to utility functions failed.
-	/// This can be either `RuntimeRequestCanceled` or `RuntimeApiError`.
-	#[error("Utility request failed")]
-	UtilRequest(UtilError),
-
-	/// Runtime API subsystem is down, which means we're shutting down.
-	#[error("Runtime request canceled")]
-	RuntimeRequestCanceled(oneshot::Canceled),
-
-	/// Some request to the runtime failed.
-	/// For example if we prune a block we're requesting info about.
-	#[error("Runtime API error")]
-	RuntimeRequest(RuntimeApiError),
 
 	/// Fetching PoV failed with `RequestError`.
 	#[error("FetchPoV request error")]
@@ -92,45 +102,22 @@ pub enum Error {
 	#[error("Given validator index could not be found")]
 	InvalidValidatorIndex,
 
-	/// We tried fetching a session info which was not available.
-	#[error("There was no session with the given index")]
-	NoSuchSession(SessionIndex),
-
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[source] runtime::Error),
+	Runtime(#[from] #[source] runtime::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<runtime::Error> for Error {
-	fn from(err: runtime::Error) -> Self {
-		Self::Runtime(err)
-	}
-}
-
-impl From<SubsystemError> for Error {
-	fn from(err: SubsystemError) -> Self {
-		Self::IncomingMessageChannel(err)
-	}
-}
-
-/// Receive a response from a runtime request and convert errors.
-pub(crate) async fn recv_runtime<V>(
-	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-) -> std::result::Result<V, Error> {
-	r.await
-		.map_err(Error::RuntimeRequestCanceled)?
-		.map_err(Error::RuntimeRequest)
-}
-
 
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>, ctx: &'static str) {
-	if let Err(error) = result {
+pub fn log_error(result: Result<()>, ctx: &'static str)
+	-> std::result::Result<(), Fatal>
+{
+	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
 		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
 	}
+	Ok(())
 }

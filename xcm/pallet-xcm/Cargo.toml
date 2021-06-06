@@ -14,6 +14,7 @@ frame-support = { git = "https://github.com/paritytech/substrate", default-featu
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
 xcm = { path = "..", default-features = false }
+xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [features]
 default = ["std"]

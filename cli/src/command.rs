@@ -74,39 +74,39 @@ impl SubstrateCli for Cli {
 				.unwrap_or("polkadot")
 		} else { id };
 		Ok(match id {
-			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
-			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"kusama" => Box::new(service::chain_spec::kusama_config()?),
 			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()?),
 			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()?),
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
+			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
+			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
+			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
-			"kusama" => Box::new(service::chain_spec::kusama_config()?),
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
-			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
-			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
-			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			"wococo" => Box::new(service::chain_spec::wococo_config()?),
+			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
-				let starts_with = |prefix: &str| {
-					path.file_name().map(|f| f.to_str().map(|s| s.starts_with(&prefix))).flatten().unwrap_or(false)
-				};
+				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?) as Box<dyn service::ChainSpec>;
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || starts_with("rococo") || starts_with("wococo") {
+				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
-				} else if self.run.force_kusama || starts_with("kusama") {
+				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
-				} else if self.run.force_westend || starts_with("westend") {
+				} else if self.run.force_westend || chain_spec.is_westend() {
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
 				} else {
-					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
+					chain_spec
 				}
 			},
 		})
@@ -140,7 +140,7 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 }
 
 const DEV_ONLY_ERROR_PATTERN: &'static str =
-	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev], got ";
+	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev, wococo-dev], got ";
 
 fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
 	if spec.is_dev() {
@@ -187,6 +187,7 @@ pub fn run() -> Result<()> {
 						config,
 						service::IsCollator::No,
 						grandpa_pause,
+						cli.run.no_beefy,
 						jaeger_agent,
 						None,
 					).map(|full| full.task_manager)

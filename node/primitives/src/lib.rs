@@ -33,7 +33,7 @@ pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
+use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode, ValidatorIndex};
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
@@ -51,7 +51,7 @@ pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
 /// it gives access to the commitments to validators who have not executed the candidate. This
-/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// is necessary to allow a block-producing validator to include candidates from outside the para
 /// it is assigned to.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
@@ -113,6 +113,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
+
+/// Variant of `SignedFullStatement` where the signature has not yet been verified.
+pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
 
 /// Candidate invalidity details
 #[derive(Debug)]
@@ -199,7 +202,7 @@ pub struct CollationResult {
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,

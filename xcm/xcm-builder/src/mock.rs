@@ -36,8 +36,17 @@ pub use crate::{
 	FixedRateOfConcreteFungible, AllowKnownQueryResponses, LocationInverter,
 };
 
-pub enum TestOrigin { Root, Relay, Signed(u64), Parachain(u32) }
+pub enum TestOrigin {
+	Root,
+	Relay,
+	Signed(u64),
+	Parachain(u32),
+}
 
+/// A dummy call.
+///
+/// Each item contains the amount of weight that it *wants* to consume as the first item, and the actual amount (if
+/// different from the former) in the second option.
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy)]
 pub enum TestCall {
 	OnlyRoot(Weight, Option<Weight>),
@@ -60,17 +69,13 @@ impl Dispatchable for TestCall {
 			=> maybe_actual,
 		};
 		if match (&origin, &self) {
-			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j)))
-			=> i == j,
-			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j)))
-			=> i == j,
-
+			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j))) => i == j,
+			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j))) => i == j,
 			(TestOrigin::Root, TestCall::OnlyRoot(..))
 			| (TestOrigin::Parachain(_), TestCall::OnlyParachain(_, _, None))
 			| (TestOrigin::Signed(_), TestCall::OnlySigned(_, _, None))
 			| (_, TestCall::Any(..))
 			=> true,
-
 			_ => false,
 		} {
 			Ok(post_info)
@@ -144,14 +149,14 @@ impl TransactAsset for TestAssetTransactor {
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 	Ok(match l {
 		// Siblings at 2000+id
-		X2(Parent, Parachain { id }) => 2000 + id as u64,
+		X2(Parent, Parachain(id)) => 2000 + id as u64,
 		// Accounts are their number
 		X1(AccountIndex64 { index, .. }) => index,
 		// Children at 1000+id
-		X1(Parachain { id }) => 1000 + id as u64,
+		X1(Parachain(id)) => 1000 + id as u64,
 		// Self at 3000
 		Null => 3000,
-		// Parent at 3000
+		// Parent at 3001
 		X1(Parent) => 3001,
 		l => return Err(l),
 	})
@@ -160,11 +165,11 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<TestOrigin, MultiLocation> {
-		use {OriginKind::*};
+		use OriginKind::*;
 		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
-			(Native, X1(Parachain { id })) => Ok(TestOrigin::Parachain(id)),
+			(Native, X1(Parachain(id))) => Ok(TestOrigin::Parachain(id)),
 			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
 			(Native, X1(AccountIndex64 {index, ..})) => Ok(TestOrigin::Signed(index)),
 			(_, origin) => Err(origin),
@@ -243,7 +248,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: MultiLocation = X1(Parachain{id: 42});
+	pub TestAncestry: MultiLocation = X1(Parachain(42));
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
@@ -272,6 +277,6 @@ impl Config for TestConfig {
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
-	type Trader = FixedRateOfConcreteFungible<WeightPrice>;
+	type Trader = FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }

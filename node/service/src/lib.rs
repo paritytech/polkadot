@@ -25,14 +25,12 @@ mod parachains_db;
 
 #[cfg(feature = "full-node")]
 use {
-	std::time::Duration,
 	tracing::info,
 	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
-	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
 	sc_authority_discovery::Service as AuthorityDiscoveryService,
@@ -41,7 +39,7 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::{AuxStore, ExecutorProvider},
 	sc_keystore::LocalKeystore,
-	babe_primitives::BabeApi,
+	sp_consensus_babe::BabeApi,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
@@ -52,6 +50,7 @@ use sp_core::traits::SpawnNamed;
 use polkadot_subsystem::jaeger;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use prometheus_endpoint::Registry;
 use sc_executor::native_executor_instance;
@@ -263,8 +262,6 @@ fn new_partial<RuntimeApi, Executor>(
 	set_prometheus_registry(config)?;
 
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	let telemetry = config.telemetry_endpoints.clone()
 		.filter(|x| !x.is_empty())
 		.map(move |endpoints| -> Result<_, telemetry::Error> {
@@ -331,13 +328,24 @@ fn new_partial<RuntimeApi, Executor>(
 		client.clone(),
 	)?;
 
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					*timestamp,
+					slot_duration,
+				);
+
+			Ok((timestamp, slot))
+		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
 		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
@@ -407,7 +415,6 @@ fn new_partial<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, telemetry)
 	})
 }
@@ -530,6 +537,7 @@ where
 			spawner.clone(),
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
+			keystore.clone(),
 			Metrics::register(registry)?,
 		),
 		approval_distribution: ApprovalDistributionSubsystem::new(
@@ -562,7 +570,6 @@ pub struct NewFull<C> {
 	pub client: C,
 	pub overseer_handler: Option<OverseerHandler>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
@@ -576,7 +583,6 @@ impl<C> NewFull<C> {
 			task_manager: self.task_manager,
 			overseer_handler: self.overseer_handler,
 			network: self.network,
-			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
@@ -671,6 +677,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	disable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -707,7 +714,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, jaeger_agent, telemetry_worker_handle)?;
 
@@ -744,7 +750,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		multiplexer
 	};
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -799,7 +805,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager: &mut task_manager,
 		on_demand: None,
 		remote_blockchain: None,
-		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -892,21 +897,25 @@ pub fn new_full<RuntimeApi, Executor>(
 		}));
 
 		Some(overseer_handler)
-	} else { None };
+	} else {
+		None
+	};
 
 	if role.is_authority() {
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-		let proposer = ProposerFactory::new(
+		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
-			overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone(),
 			prometheus_registry.as_ref(),
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
+		let client_clone = client.clone();
+		let overseer_handler = overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
+		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
@@ -914,7 +923,32 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
-			inherent_data_providers: inherent_data_providers.clone(),
+			create_inherent_data_providers: move |parent, ()| {
+				let client_clone = client_clone.clone();
+				let overseer_handler = overseer_handler.clone();
+				async move {
+					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
+						&*client_clone,
+						overseer_handler,
+						parent,
+					).await.map_err(|e| Box::new(e))?;
+
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client_clone,
+						parent,
+					)?;
+
+					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+							*timestamp,
+							slot_duration,
+						);
+
+					Ok((timestamp, slot, uncles, parachain))
+				}
+			},
 			force_authoring,
 			backoff_authoring_blocks,
 			babe_link,
@@ -927,16 +961,28 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
+	// if the node isn't actively participating in consensus then it doesn't
+	// need a keystore, regardless of which protocol we use below.
+	let keystore_opt = if role.is_authority() {
+		Some(keystore_container.sync_keystore())
+	} else {
+		None
+	};
+
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if chain_spec.is_rococo() || chain_spec.is_wococo() {
-		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _, _>(
-			client.clone(),
-			keystore_container.sync_keystore(),
-			network.clone(),
-			beefy_link,
-			network.clone(),
-			if chain_spec.is_wococo() { 4 } else { 8 },
-			prometheus_registry.clone()
+	if !disable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
+		let beefy_params = beefy_gadget::BeefyParams {
+			client: client.clone(),
+			backend: backend.clone(),
+			key_store: keystore_opt.clone(),
+			network: network.clone(),
+			signed_commitment_sender: beefy_link,
+			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
+			prometheus_registry: prometheus_registry.clone(),
+		};
+	
+		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _>(
+			beefy_params
 		);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
@@ -948,14 +994,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		}
 	}
 
-	// if the node isn't actively participating in consensus then it doesn't
-	// need a keystore, regardless of which protocol we use below.
-	let keystore_opt = if role.is_authority() {
-		Some(keystore_container.sync_keystore())
-	} else {
-		None
-	};
-
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(1000),
@@ -963,7 +1001,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		name: Some(name),
 		observer_enabled: false,
 		keystore: keystore_opt,
-		is_authority: role.is_authority(),
+		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
 	};
 
@@ -1030,7 +1068,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		client,
 		overseer_handler,
 		network,
-		network_status_sinks,
 		rpc_handlers,
 		backend,
 	})
@@ -1071,6 +1108,8 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			telemetry
 		});
 
+	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
 	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
@@ -1081,7 +1120,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		on_demand.clone(),
 	));
 
-	let (grandpa_block_import, _) = grandpa::block_import(
+	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
 		select_chain.clone(),
@@ -1095,23 +1134,32 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		client.clone(),
 	)?;
 
-	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
+	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
-		inherent_data_providers.clone(),
+		move |_, ()| async move {
+			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					*timestamp,
+					slot_duration,
+				);
+
+			Ok((timestamp, slot))
+		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
 		consensus_common::NeverCanAuthor,
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -1121,6 +1169,26 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
 		})?;
+
+	let enable_grandpa = !config.disable_grandpa;
+	if enable_grandpa {
+		let name = config.network.node_name.clone();
+
+		let config = grandpa::Config {
+			gossip_duration: Duration::from_millis(1000),
+			justification_period: 512,
+			name: Some(name),
+			observer_enabled: false,
+			keystore: None,
+			local_role: config.role.clone(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+		};
+
+		task_manager.spawn_handle().spawn_blocking(
+			"grandpa-observer",
+			grandpa::run_grandpa_observer(config, grandpa_link, network.clone())?,
+		);
+	}
 
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
@@ -1151,7 +1219,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		transaction_pool,
 		client,
 		network,
-		network_status_sinks,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -1217,6 +1284,7 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	disable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<NewFull<Client>, Error> {
@@ -1225,6 +1293,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1234,6 +1303,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1243,6 +1313,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1252,6 +1323,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
+			disable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,

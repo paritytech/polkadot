@@ -14,11 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Various implementations for `ShouldExecute`.
+
 use sp_std::{result::Result, marker::PhantomData};
-use xcm::v0::{Xcm, Order, MultiLocation};
+use xcm::v0::{Xcm, Order, MultiLocation, Junction};
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
+use polkadot_parachain::primitives::IsSystem;
 
+/// Execution barrier that just takes `shallow_weight` from `weight_credit`.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
@@ -33,6 +37,8 @@ impl ShouldExecute for TakeWeightCredit {
 	}
 }
 
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
+/// account.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -58,6 +64,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 	}
 }
 
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without any payments.
+/// Use only for executions from trusted origin groups.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -72,6 +80,17 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	}
 }
 
+/// Allows a message only if it is from a system-level child parachain.
+pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
+impl<
+	ParaId: IsSystem + From<u32>,
+> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
+	fn contains(l: &MultiLocation) -> bool {
+		matches!(l, MultiLocation::X1(Junction::Parachain(id)) if ParaId::from(*id).is_system())
+	}
+}
+
+/// Allows only messages if the generic `ResponseHandler` expects them via `expecting_response`.
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(

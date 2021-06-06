@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Various implementations for `ConvertOrigin`.
+
 use sp_std::{marker::PhantomData, convert::TryInto};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction, BodyId, BodyPart};
 use xcm_executor::traits::{Convert, ConvertOrigin};
@@ -21,8 +23,7 @@ use frame_support::traits::{EnsureOrigin, Get, OriginTrait, GetBacking};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 
-/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
-/// `LocationConverter`.
+/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
 	PhantomData<(LocationConverter, Origin)>
 );
@@ -60,7 +61,7 @@ impl<
 > ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -75,7 +76,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -92,7 +93,7 @@ impl<
 > ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X1(Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
@@ -108,7 +109,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}

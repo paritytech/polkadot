@@ -34,8 +34,8 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
-	error::{Error, Result},
-	session_cache::{BadValidators, SessionInfo},
+	error::{Fatal, Result},
+	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
@@ -191,7 +191,7 @@ impl FetchTask {
 
 			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
 				.await
-				.map_err(|e| Error::SpawnTask(e))?;
+				.map_err(|e| Fatal::SpawnTask(e))?;
 
 			Ok(FetchTask {
 				live_in,
@@ -221,13 +221,13 @@ impl FetchTask {
 		}
 	}
 
-	/// Whether or not there are still relay parents around with this candidate pending
+	/// Whether there are still relay parents around with this candidate pending
 	/// availability.
 	pub fn is_live(&self) -> bool {
 		!self.live_in.is_empty()
 	}
 
-	/// Whether or not this task can be considered finished.
+	/// Whether this task can be considered finished.
 	///
 	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {

@@ -200,7 +200,7 @@ pub enum CollatorProtocolMessage {
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
 	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, SignedFullStatement),
+	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
@@ -224,9 +224,13 @@ pub enum NetworkBridgeMessage {
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
 	/// Send a batch of validation messages.
+	///
+	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
 	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
 
 	/// Send a batch of collation messages.
+	///
+	/// NOTE: Messages will be processed in order.
 	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
 
 	/// Send requests via substrate request/response.
@@ -236,17 +240,22 @@ pub enum NetworkBridgeMessage {
 	/// Connect to peers who represent the given `validator_ids`.
 	///
 	/// Also ask the network to stay connected to these peers at least
-	/// until the request is revoked.
-	/// This can be done by dropping the receiver.
+	/// until a new request is issued.
+	///
+	/// Because it overrides the previous request, it must be ensured
+	/// that `validator_ids` include all peers the subsystems
+	/// are interested in (per `PeerSet`).
+	///
+	/// A caller can learn about validator connections by listening to the
+	/// `PeerConnected` events from the network bridge.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// The underlying protocol to use for this request.
 		peer_set: PeerSet,
-		/// Response sender by which the issuer can learn the `PeerId`s of
-		/// the validators as they are connected.
-		/// The response is sent immediately for already connected peers.
-		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		/// Sends back the number of `AuthorityDiscoveryId`s which
+		/// authority discovery has failed to resolve.
+		failed: oneshot::Sender<usize>,
 	},
 }
 

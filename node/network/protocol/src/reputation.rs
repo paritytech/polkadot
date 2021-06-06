@@ -55,6 +55,17 @@ impl UnifiedReputationChange {
 		}
 	}
 
+	/// Whether the reputation change is for good behavior.
+	pub const fn is_benefit(&self) -> bool {
+		match self {
+			Self::BenefitMajorFirst(_) |
+			Self::BenefitMajor(_) |
+			Self::BenefitMinorFirst(_) |
+			Self::BenefitMinor(_) => true,
+			_ => false,
+		}
+	}
+
 	/// Convert into a base reputation as used with substrate.
 	pub const fn into_base_rep(self) -> ReputationChange {
 		ReputationChange::new(

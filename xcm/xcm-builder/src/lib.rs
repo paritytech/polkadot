@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! # XCM-Builder
+//!
+//! Types and helpers for *building* XCM configuration.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -37,6 +41,7 @@ pub use origin_conversion::{
 mod barriers;
 pub use barriers::{
 	TakeWeightCredit, AllowUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom, AllowKnownQueryResponses,
+	IsChildSystemParachain,
 };
 
 mod currency_adapter;
@@ -46,7 +51,7 @@ mod fungibles_adapter;
 pub use fungibles_adapter::FungiblesAdapter;
 
 mod weight;
-pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds};
+pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds, UsingComponents};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};
