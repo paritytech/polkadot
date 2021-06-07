@@ -14,6 +14,12 @@
 
 ## Functionality
 
+TODO:
+- Wire message (Valid is not a valid wire message, it must contain one
+invalid vote).
+- Distribution of backing and approval votes, in case of nodes not having them.
+
+
 ### Distribution
 
 Distributing disputes needs to be a reliable protocol. We would like to make as
@@ -51,7 +57,53 @@ recovery of the candidate, if there was no local vote for it yet and to report
 back to us via `DisputeDistributionMessage::ReportCandidateUnavailable` if a
 candidate was not found available.
 
-### Considerations
+## Backing and Approval Votes
+
+Backing and approval votes get imported when they arrive/are created via the
+distpute coordinator by corresponding subsystems.
+
+We assume that under normal operation each node will be aware of backing and
+approval votes and optimize for that case. Nevertheless we want disputes to
+conclude fast and reliable, therefore if a node is not aware of backing/approval
+votes it can request the missing votes from the node that informed it about the
+dispute. It will send the node two bitfields with
+
+
+## Bitfields
+
+Each validator is responsible for sending its vote to each other validator. For
+backing and approval votes we assume each validator is aware of those. To cather
+for imperfections, e.g.:
+
+- A validator might have missed gossip and is not aware of
+backing/approval votes
+- A validator crashed/was under attack and was only able to
+send out its vote to some validators
+
+We also have a third wire message type: `IHaveVotes` which contains a bitfield
+with a bit for each validator. 1 meaning we have some votes from that validator,
+0 meaning we don't.
+
+A validator might send those out to some validator whenever it feels like
+missing out on votes and after some timeout just to make sure it knows
+everything. The receiver of a `IHaveVotes` message will do two things:
+
+1. See if the sender is missing votes we are aware of - if so, respond with
+   those votes. Also send votes of equivocating validators, no matter the
+   bitfield.
+2. Check whether the sender knows about any votes, we don't know about and if so
+   send a `IHaveVotes` request back, with our knowledge.
+
+When to send `IHaveVotes` messages:
+
+1. Whenever we receive an `Invalid`/`Valid` vote and we are not aware of any
+   disagreeing votes. In this case we will just drop the message and send a
+   `IHaveVotes` message to the validator we received the `Invalid`/`Valid`
+   message from.
+2. Once per block to some random validator as long as the dispute is active.
+3. Whenever we learn something new via `IHaveVotes`, share that knowledge with
+   two more `IHaveVotes` messages with random other validators.
+## Considerations
 
 Dispute distribution is critical. We should keep track of available validator
 connections and issue warnings if we are not connected to a majority of
