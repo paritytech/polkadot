@@ -25,7 +25,6 @@ mod parachains_db;
 
 #[cfg(feature = "full-node")]
 use {
-	std::time::Duration,
 	tracing::info,
 	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
@@ -51,6 +50,7 @@ use sp_core::traits::SpawnNamed;
 use polkadot_subsystem::jaeger;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use prometheus_endpoint::Registry;
 use sc_executor::native_executor_instance;
@@ -570,7 +570,6 @@ pub struct NewFull<C> {
 	pub client: C,
 	pub overseer_handler: Option<OverseerHandler>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
@@ -584,7 +583,6 @@ impl<C> NewFull<C> {
 			task_manager: self.task_manager,
 			overseer_handler: self.overseer_handler,
 			network: self.network,
-			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
@@ -752,7 +750,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		multiplexer
 	};
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -807,7 +805,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager: &mut task_manager,
 		on_demand: None,
 		remote_blockchain: None,
-		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -926,6 +923,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_import,
 			env: proposer,
 			sync_oracle: network.clone(),
+			justification_sync_link: network.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handler = overseer_handler.clone();
@@ -1004,7 +1002,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		name: Some(name),
 		observer_enabled: false,
 		keystore: keystore_opt,
-		is_authority: role.is_authority(),
+		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
 	};
 
@@ -1071,7 +1069,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		client,
 		overseer_handler,
 		network,
-		network_status_sinks,
 		rpc_handlers,
 		backend,
 	})
@@ -1112,6 +1109,8 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			telemetry
 		});
 
+	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
 	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
@@ -1122,7 +1121,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		on_demand.clone(),
 	));
 
-	let (grandpa_block_import, _) = grandpa::block_import(
+	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
 		select_chain.clone(),
@@ -1161,7 +1160,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -1171,6 +1170,26 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
 		})?;
+
+	let enable_grandpa = !config.disable_grandpa;
+	if enable_grandpa {
+		let name = config.network.node_name.clone();
+
+		let config = grandpa::Config {
+			gossip_duration: Duration::from_millis(1000),
+			justification_period: 512,
+			name: Some(name),
+			observer_enabled: false,
+			keystore: None,
+			local_role: config.role.clone(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+		};
+
+		task_manager.spawn_handle().spawn_blocking(
+			"grandpa-observer",
+			grandpa::run_grandpa_observer(config, grandpa_link, network.clone())?,
+		);
+	}
 
 	if config.offchain_worker.enabled {
 		let _ = service::build_offchain_workers(
@@ -1201,7 +1220,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		transaction_pool,
 		client,
 		network,
-		network_status_sinks,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;

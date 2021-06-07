@@ -23,7 +23,6 @@ use xcm::v0::{MultiLocation, NetworkId, Junction};
 use xcm_executor::traits::{InvertLocation, Convert};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
-
 impl<
 	Network: Get<NetworkId>,
 	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
@@ -37,6 +36,8 @@ impl<
 	}
 }
 
+/// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
+/// default value of `AccountId` (e.g. all zeros for `AccountId32`).
 pub struct ParentIsDefault<AccountId>(PhantomData<AccountId>);
 impl<
 	AccountId: Default + Eq + Clone,
@@ -81,7 +82,6 @@ impl<
 }
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-
 impl<
 	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
 	AccountId: Clone,
@@ -103,6 +103,7 @@ impl<
 	}
 }
 
+/// Extracts the `AccountId32` from the passed `location` if the network matches.
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<
 	Network: Get<NetworkId>,
@@ -142,7 +143,40 @@ impl<
 	}
 }
 
-/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted location.
+/// Simple location inverter; give it this location's ancestry and it'll figure out the inverted
+/// location.
+///
+/// # Example
+/// ## Network Topology
+/// ```txt
+///                    v Source
+/// Relay -> Para 1 -> Account20
+///       -> Para 2 -> Account32
+///                    ^ Target
+/// ```
+/// ```rust
+/// # use frame_support::parameter_types;
+/// # use xcm::v0::{MultiLocation::{self, *}, Junction::*, NetworkId::Any};
+/// # use xcm_builder::LocationInverter;
+/// # use xcm_executor::traits::InvertLocation;
+/// # fn main() {
+/// parameter_types!{
+///     pub Ancestry: MultiLocation = X2(
+///         Parachain(1),
+///         AccountKey20 { network: Any, key: Default::default() },
+///     );
+/// }
+///
+/// let input = X4(Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
+/// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+/// assert_eq!(inverted, X4(
+///     Parent,
+///     Parent,
+///     Parachain(1),
+///     AccountKey20 { network: Any, key: Default::default() },
+/// ));
+/// # }
+/// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
 	fn invert_location(location: &MultiLocation) -> MultiLocation {
@@ -158,5 +192,74 @@ impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry>
 			*result.at_mut(i).expect("location and result begin equal; same size; qed") = j;
 		}
 		result
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use frame_support::parameter_types;
+	use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+
+	fn account20() -> Junction {
+		AccountKey20 { network: Any, key: Default::default() }
+	}
+
+	fn account32() -> Junction {
+		AccountId32 { network: Any, id: Default::default() }
+	}
+
+	// Network Topology
+	//                                     v Source
+	// Relay -> Para 1 -> SmartContract -> Account
+	//       -> Para 2 -> Account
+	//                    ^ Target
+	//
+	// Inputs and outputs written as file paths:
+	//
+	// input location (source to target): ../../../para_2/account32_default
+	// ancestry (root to source): para_1/account20_default/account20_default
+	// =>
+	// output (target to source): ../../para_1/account20_default/account20_default
+	#[test]
+	fn inverter_works_in_tree() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X3(Parachain(1), account20(), account20());
+		}
+
+		let input = X5(Parent, Parent, Parent, Parachain(2), account32());
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X5(Parent, Parent, Parachain(1), account20(), account20()));
+	}
+
+	// Network Topology
+	//                                     v Source
+	// Relay -> Para 1 -> SmartContract -> Account
+	//          ^ Target
+	#[test]
+	fn inverter_uses_ancestry_as_inverted_location() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X2(account20(), account20());
+		}
+
+		let input = X2(Parent, Parent);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X2(account20(), account20()));
+	}
+
+	// Network Topology
+	//                                        v Source
+	// Relay -> Para 1 -> CollectivePallet -> Plurality
+	//          ^ Target
+	#[test]
+	fn inverter_uses_only_child_on_missing_ancestry() {
+		parameter_types!{
+			pub Ancestry: MultiLocation = X1(PalletInstance(5));
+		}
+
+		let input = X2(Parent, Parent);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild));
 	}
 }

@@ -436,6 +436,8 @@ where
 						if !rep.is_benefit() {
 							tracing::debug!(
 								target: LOG_TARGET,
+								?peer,
+								?rep,
 								action = "ReportPeer"
 							);
 						}
@@ -1157,7 +1159,7 @@ mod tests {
 
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 
-	use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal};
+	use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, FromOverseer, OverseerSignal, LeafStatus};
 	use polkadot_subsystem::messages::{
 		ApprovalDistributionMessage,
 		BitfieldDistributionMessage,
@@ -1471,6 +1473,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: head,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -1568,6 +1571,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_a,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -1652,6 +1656,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_a,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -1667,6 +1672,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_b,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -1739,6 +1745,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_a,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -1956,6 +1963,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_a,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -2171,6 +2179,7 @@ mod tests {
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: hash_b,
 						number: 1,
+						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
 					})
 				))
@@ -2400,6 +2409,7 @@ mod tests {
 						activated: hashes.enumerate().map(|(i, h)| ActivatedLeaf {
 							hash: h,
 							number: i as _,
+							status: LeafStatus::Fresh,
 							span: Arc::new(jaeger::Span::Disabled),
 						}).rev().collect(),
 						deactivated: Default::default(),

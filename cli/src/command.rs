@@ -95,20 +95,18 @@ impl SubstrateCli for Cli {
 			path => {
 				let path = std::path::PathBuf::from(path);
 
-				let starts_with = |prefix: &str| {
-					path.file_name().map(|f| f.to_str().map(|s| s.starts_with(&prefix))).flatten().unwrap_or(false)
-				};
+				let chain_spec = Box::new(service::PolkadotChainSpec::from_json_file(path.clone())?) as Box<dyn service::ChainSpec>;
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo || starts_with("rococo") || starts_with("wococo") {
+				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_wococo() {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
-				} else if self.run.force_kusama || starts_with("kusama") {
+				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
-				} else if self.run.force_westend || starts_with("westend") {
+				} else if self.run.force_westend || chain_spec.is_westend() {
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
 				} else {
-					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
+					chain_spec
 				}
 			},
 		})

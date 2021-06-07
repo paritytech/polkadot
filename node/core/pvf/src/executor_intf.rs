@@ -56,7 +56,12 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 
 /// Executes the given PVF in the form of a compiled artifact and returns the result of execution
 /// upon success.
-pub fn execute(
+///
+/// # Safety
+///
+/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
+/// to arbitrary code execution.
+pub unsafe fn execute(
 	compiled_artifact: &[u8],
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
@@ -69,8 +74,8 @@ pub fn execute(
 	let mut ext = ValidationExternalities(extensions);
 
 	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime(
-			sc_executor_wasmtime::CodeSupplyMode::Artifact { compiled_artifact },
+		let runtime = sc_executor_wasmtime::create_runtime_from_artifact(
+			compiled_artifact,
 			CONFIG,
 			HostFunctions::host_functions(),
 		)?;
