@@ -137,7 +137,7 @@ fn default_parachains_host_configuration() -> polkadot_runtime_parachains::confi
 		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
 		// an import since that's a made up number and should be replaced with a constant
 		// obtained by benchmarking anyway.
-		preferred_dispatchable_upward_messages_step_weight: 4 * 1_000_000_000,
+		ump_service_total_weight: 4 * 1_000_000_000,
 		max_upward_message_size: 1024 * 1024,
 		max_upward_message_num_per_candidate: 5,
 		hrmp_open_request_ttl: 5,

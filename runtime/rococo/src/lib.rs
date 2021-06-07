@@ -218,7 +218,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
-		Ump: parachains_ump::{Pallet, Call, Storage},
+		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event, Config},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Disputes: parachains_disputes::{Pallet, Call, Storage, Event},
@@ -410,6 +410,7 @@ impl pallet_im_online::Config for Runtime {
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
 	pub const MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -419,6 +420,8 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
 }
 
@@ -762,7 +765,8 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type Event = Event;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 

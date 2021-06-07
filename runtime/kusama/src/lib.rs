@@ -121,7 +121,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9031,
+	spec_version: 9040,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -257,6 +257,7 @@ impl pallet_indices::Config for Runtime {
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
 	pub const MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -265,8 +266,10 @@ impl pallet_balances::Config for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 	type MaxLocks = MaxLocks;
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
+	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1070,7 +1073,8 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Call>;
+	type Event = Event;
+	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
@@ -1406,7 +1410,7 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 12,
 
 		// Governance stuff; uncallable initially.
-		Democracy: pallet_democracy::{Pallet, Call, Storage, Config, Event<T>} = 13,
+		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
@@ -1462,7 +1466,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>} = 56,
 		ParasInitializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 58,
-		ParasUmp: parachains_ump::{Pallet, Call, Storage} = 59,
+		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event} = 62,

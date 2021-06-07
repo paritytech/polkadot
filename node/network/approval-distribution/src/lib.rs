@@ -146,8 +146,6 @@ enum LocalSource {
 	No,
 }
 
-type BlockDepth = usize;
-
 /// Information about candidates in the context of a particular block they are included in.
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
 /// if it is included by multiple blocks - this is likely the case when there are forks.
@@ -968,7 +966,7 @@ impl State {
 	) {
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
-		let mut to_send: Vec<(BlockDepth, Hash)> = Vec::new();
+		let mut to_send: Vec<Hash> = Vec::new();
 
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
@@ -996,7 +994,7 @@ impl State {
 				block = entry.parent_hash.clone();
 				Some(interesting_block)
 			});
-			to_send.extend(interesting_blocks.enumerate());
+			to_send.extend(interesting_blocks);
 		}
 		// step 6.
 		// send all assignments and approvals for all candidates in those blocks to the peer
@@ -1012,16 +1010,13 @@ impl State {
 		entries: &HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		peer_id: PeerId,
-		blocks: Vec<(BlockDepth, Hash)>,
+		blocks: Vec<Hash>,
 	) {
-		// we will propagate only local assignment/approvals after a certain depth
-		const DEPTH_THRESHOLD: usize = 5;
-
 		let mut assignments = Vec::new();
 		let mut approvals = Vec::new();
 		let num_blocks = blocks.len();
 
-		for (depth, block) in blocks.into_iter() {
+		for block in blocks.into_iter() {
 			let entry = match entries.get(&block) {
 				Some(entry) => entry,
 				None => continue, // should be unreachable
@@ -1036,10 +1031,7 @@ impl State {
 
 			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
 				let candidate_index = candidate_index as u32;
-				for (validator_index, (approval_state, is_local)) in candidate_entry.approvals.iter() {
-					if depth >= DEPTH_THRESHOLD && !matches!(is_local, LocalSource::Yes) {
-						continue;
-					}
+				for (validator_index, (approval_state, _is_local)) in candidate_entry.approvals.iter() {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
 							assignments.push((
