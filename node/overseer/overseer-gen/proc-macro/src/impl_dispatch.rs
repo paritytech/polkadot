@@ -36,23 +36,17 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 				/// Generated dispatch iterator generator.
 				pub fn dispatch_iter(event: #extern_network_ty) -> impl Iterator<Item=Self> + Send {
 					let mut iter = None.into_iter();
-
-					use ::std::convert::TryFrom;
-
-					// creates pretty errors when the inner variant
-					// does not impl `TryFrom< #extern_network_ty >`
-					fn dispatchable_message_impls_try_from_extern_event<T: TryFrom< #extern_network_ty >>() {
-					}
-
 					#(
-						dispatchable_message_impls_try_from_extern_event::< #dispatchable >();
-
 						let mut iter = iter.chain(
 							::std::iter::once(
-								// alt:
-								// #dispatchable :: try_from( event )
-								event.focus().ok().map(|event| {
-									#message_wrapper :: #dispatchable ( event )
+								event.focus::<'_, NetworkBridgeEvent < #dispatchable >>()
+								.ok().map(|event: NetworkBridgeEvent < #dispatchable >| -> #message_wrapper {
+									#message_wrapper :: #dispatchable (
+										// the inner type of the enum variant
+										#message_wrapper :: #dispatchable (
+											#dispatchable :: from( event )
+										)
+									)
 								})
 							)
 						);
