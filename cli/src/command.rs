@@ -83,7 +83,7 @@ impl SubstrateCli for Cli {
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			#[cfg(not(feature = "kusama-native"))]
 			name if name.starts_with("kusama-") =>
-				Err(format!("`{}` only supported with `kusama-feature` enabled.", name))?,
+				Err(format!("`{}` only supported with `kusama-native` feature enabled.", name))?,
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
@@ -96,7 +96,7 @@ impl SubstrateCli for Cli {
 			#[cfg(feature = "rococo-native")]
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			name if name.starts_with("rococo-") =>
-				Err(format!("`{}` only supported with `rococo-feature` enabled.", name))?,
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			#[cfg(feature = "westend-native")]
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
@@ -106,13 +106,13 @@ impl SubstrateCli for Cli {
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
 			#[cfg(not(feature = "westend-native"))]
 			name if name.starts_with("westend-") =>
-				Err(format!("`{}` only supported with `westend-feature` enabled.", name))?,
+				Err(format!("`{}` only supported with `westend-native` feature enabled.", name))?,
 			"wococo" => Box::new(service::chain_spec::wococo_config()?),
 			#[cfg(feature = "rococo-native")]
 			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
-				Err(format!("`{}` only supported with `rococo-feature` enabled.", name))?,
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
