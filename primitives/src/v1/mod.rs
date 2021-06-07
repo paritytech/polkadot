@@ -1089,6 +1089,60 @@ pub enum DisputeStatement {
 	Invalid(InvalidDisputeStatementKind),
 }
 
+impl DisputeStatement {
+	/// Get the payload data for this type of dispute statement.
+	pub fn payload_data(&self, candidate_hash: CandidateHash, session: SessionIndex) -> Vec<u8> {
+		 match *self {
+			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement {
+					valid: true,
+					candidate_hash,
+					session,
+				}.signing_payload()
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent)) => {
+				CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+					session_index: session,
+					parent_hash: inclusion_parent,
+				})
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) => {
+				CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
+					session_index: session,
+					parent_hash: inclusion_parent,
+				})
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) => {
+				ApprovalVote(candidate_hash).signing_payload(session)
+			},
+			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement {
+					valid: false,
+					candidate_hash,
+					session,
+				}.signing_payload()
+			},
+		}
+	}
+
+	/// Check the signature on a dispute statement.
+	pub fn check_signature(
+		&self,
+		validator_public: &ValidatorId,
+		candidate_hash: CandidateHash,
+		session: SessionIndex,
+		validator_signature: &ValidatorSignature,
+	) -> Result<(), ()> {
+		let payload = self.payload_data(candidate_hash, session);
+
+		if validator_signature.verify(&payload[..] , &validator_public) {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
+}
+
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum ValidDisputeStatementKind {

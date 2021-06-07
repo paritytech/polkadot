@@ -6178,6 +6178,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
+ "sp-keystore",
  "sp-maybe-compressed-blob",
  "sp-runtime",
  "thiserror",
