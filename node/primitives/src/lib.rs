@@ -38,7 +38,7 @@ use polkadot_primitives::v1::{
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	CandidateReceipt,
+	CandidateReceipt, ValidatorId,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -290,4 +290,15 @@ pub struct CandidateVotes {
 	pub valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 	/// Votes of invalidity, sorted by validator index.
 	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+}
+
+
+/// A checked dispute statement from an associated validator.
+#[derive(Debug, Clone)]
+pub struct SignedDisputeStatement {
+	candidate_hash: CandidateHash,
+	validator_index: ValidatorIndex,
+	validator_public: ValidatorId,
+	validator_signature: ValidatorSignature,
+	session_index: SessionIndex,
 }
