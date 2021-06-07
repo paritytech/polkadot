@@ -29,37 +29,38 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 		.map(|ssf| ssf.consumes.clone())
 		.collect::<Vec<Path>>();
 
-	let extern_event_ty = &info.extern_event_ty.clone();
+	let mut ts = TokenStream::new();
+	if let Some(extern_network_ty) = &info.extern_network_ty.clone() {
+		ts.extend(quote! {
+			impl #message_wrapper {
+				/// Generated dispatch iterator generator.
+				pub fn dispatch_iter(event: #extern_network_ty) -> impl Iterator<Item=Self> + Send {
+					let mut iter = None.into_iter();
 
-	let ts = quote! {
-		impl #message_wrapper {
-			/// Generated dispatch iterator generator.
-			pub fn dispatch_iter(event: #extern_event_ty) -> impl Iterator<Item=Self> + Send {
-				let mut iter = None.into_iter();
+					use ::std::convert::TryFrom;
 
-				use ::std::convert::TryFrom;
+					// creates pretty errors when the inner variant
+					// does not impl `TryFrom< #extern_network_ty >`
+					fn dispatchable_message_impls_try_from_extern_event<T: TryFrom< #extern_network_ty >>() {
+					}
 
-				// creates pretty errors when the inner variant
-				// does not impl `TryFrom< #extern_event_ty >`
-				fn dispatchable_message_impls_try_from_extern_event<T: TryFrom< #extern_event_ty >>() {
+					#(
+						dispatchable_message_impls_try_from_extern_event::< #dispatchable >();
+
+						let mut iter = iter.chain(
+							::std::iter::once(
+								// alt:
+								// #dispatchable :: try_from( event )
+								event.focus().ok().map(|event| {
+									#message_wrapper :: #dispatchable ( event )
+								})
+							)
+						);
+					)*
+					iter.filter_map(|x: Option<_>| x)
 				}
-
-				#(
-					dispatchable_message_impls_try_from_extern_event::< #dispatchable >();
-
-					let mut iter = iter.chain(
-						::std::iter::once(
-							// alt:
-							// #dispatchable :: try_from( event )
-							event.focus().ok().map(|event| {
-								#message_wrapper :: #dispatchable ( event )
-							})
-						)
-					);
-				)*
-				iter.filter_map(|x: Option<_>| x)
 			}
-		}
-	};
+		});
+	}
 	Ok(ts)
 }

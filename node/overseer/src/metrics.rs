@@ -34,7 +34,7 @@ struct MetricsInner {
 }
 
 #[derive(Default, Clone)]
-pub(crate) struct Metrics(Option<MetricsInner>);
+pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	pub(crate) fn on_head_activated(&self) {

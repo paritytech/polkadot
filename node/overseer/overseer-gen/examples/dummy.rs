@@ -65,13 +65,24 @@ pub struct MsgStrukt(u8);
 #[derive(Debug, Clone, Copy)]
 pub struct Plinko;
 
-impl From<EvX> for MsgStrukt {
-	fn from(_event: EvX) -> Self {
+impl From<NetworkMsg> for MsgStrukt {
+	fn from(_event: NetworkMsg) -> Self {
 		MsgStrukt(1u8)
 	}
 }
 
-#[overlord(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
+
+#[derive(Debug, Clone, Copy)]
+enum NetworkMsg {
+	A,
+	B,
+	C,
+}
+
+
+
+
+#[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
 struct Xxx {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,

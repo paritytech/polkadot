@@ -236,7 +236,7 @@ impl From<FinalityNotification<Block>> for BlockInfo {
 }
 
 /// Some event from the outer world.
-enum Event {
+pub enum Event {
 	BlockImported(BlockInfo),
 	BlockFinalized(BlockInfo),
 	MsgToSubsystem(AllMessages),
@@ -245,7 +245,7 @@ enum Event {
 }
 
 /// Some request from outer world.
-enum ExternalRequest {
+pub enum ExternalRequest {
 	WaitForActivation {
 		hash: Hash,
 		response_channel: oneshot::Sender<SubsystemResult<()>>,

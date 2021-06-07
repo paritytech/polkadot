@@ -59,6 +59,7 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 		extern_event_ty: args.extern_event_ty,
 		extern_signal_ty: args.extern_signal_ty,
 		extern_error_ty: args.extern_error_ty,
+		extern_network_ty: args.extern_network_ty,
 	};
 
 	let mut additive = impl_overseer_struct(&info)?;

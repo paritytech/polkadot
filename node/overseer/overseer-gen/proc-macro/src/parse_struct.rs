@@ -113,8 +113,11 @@ pub(crate) struct OverseerInfo {
 	/// Signals to be sent, sparse information that is used intermittently.
 	pub(crate) extern_signal_ty: Path,
 
-	/// Incoming event type from the outer world, commonly from the network.
+	/// Incoming event type from the outer world, usually an external framework of some sort.
 	pub(crate) extern_event_ty: Path,
+
+	/// Incoming event type from an external entity, commonly from the network.
+	pub(crate) extern_network_ty: Option<Path>,
 
 	/// Incoming event type from the outer world, commonly from the network.
 	pub(crate) extern_error_ty: Path,
