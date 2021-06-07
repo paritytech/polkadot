@@ -1265,15 +1265,22 @@ pub fn build_light(config: Configuration) -> Result<(
 	TaskManager,
 	RpcHandlers,
 ), Error> {
+	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
-	} else if config.chain_spec.is_kusama() {
-		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
-	} else if config.chain_spec.is_westend() {
-		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
-	} else {
-		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+		return new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	}
+
+	#[cfg(feature = "kusama-native")]
+	if config.chain_spec.is_kusama() {
+		return new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+	}
+
+	#[cfg(feature = "westend-native")]
+	if config.chain_spec.is_westend() {
+		return new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
+	}
+
+	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
 }
 
 #[cfg(feature = "full-node")]
