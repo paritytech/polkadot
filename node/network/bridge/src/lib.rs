@@ -805,7 +805,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 #[tracing::instrument(skip(bridge, ctx, network_stream), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	bridge: NetworkBridge<N, AD>,
-	mut ctx: impl SubsystemContext<AllMessages><Message=NetworkBridgeMessage>,
+	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
 	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where

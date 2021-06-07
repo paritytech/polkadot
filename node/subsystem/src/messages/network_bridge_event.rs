@@ -60,12 +60,12 @@ impl<M> NetworkBridgeEvent<M> {
 		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
 	{
 		Ok(match *self {
+			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
+				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
 			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id)
 				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer)
 				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
-				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
 				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view)

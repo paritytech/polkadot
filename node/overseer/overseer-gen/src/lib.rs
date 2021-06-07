@@ -100,6 +100,9 @@ pub use futures_util::stream::StreamExt;
 #[doc(hidden)]
 pub use futures_util::future::FutureExt;
 
+
+pub use polkadot_node_network_protocol::WrongVariant;
+
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
 /// Used to launch jobs.

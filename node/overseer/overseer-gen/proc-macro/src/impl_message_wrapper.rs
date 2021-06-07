@@ -19,9 +19,9 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 		}
 
 		#(
-		impl ::std::convert::From<#consumes> for #message_wrapper {
-			fn from(inner: #consumes) -> Self {
-				#message_wrapper :: #consumes ( inner )
+		impl ::std::convert::From< #consumes > for #message_wrapper {
+			fn from(message: #consumes) -> Self {
+				#message_wrapper :: #consumes ( message )
 			}
 		}
 		)*

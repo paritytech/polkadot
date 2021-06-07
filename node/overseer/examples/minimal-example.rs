@@ -44,7 +44,7 @@ impl HeadSupportsParachains for AlwaysSupportsParachains {
 struct Subsystem1;
 
 impl Subsystem1 {
-	async fn run(mut ctx: impl SubsystemContext<AllMessages><Message=CandidateBackingMessage>)  {
+	async fn run(mut ctx: impl SubsystemContext<Message=CandidateBackingMessage>)  {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -95,7 +95,7 @@ impl<C> Subsystem<C> for Subsystem1
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: impl SubsystemContext<AllMessages><Message=CandidateValidationMessage>)  {
+	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
 		ctx.spawn(
 			"subsystem-2-job",
 			Box::pin(async {

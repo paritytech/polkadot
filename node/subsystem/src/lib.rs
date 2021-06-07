@@ -22,14 +22,9 @@
 
 #![warn(missing_docs)]
 
-use std::{pin::Pin, sync::Arc, fmt};
-
-use futures::prelude::*;
-use futures::channel::{mpsc, oneshot};
-use futures::future::BoxFuture;
+use std::{sync::Arc, fmt};
 
 use polkadot_primitives::v1::{Hash, BlockNumber};
-use async_trait::async_trait;
 use smallvec::SmallVec;
 
 pub mod errors;

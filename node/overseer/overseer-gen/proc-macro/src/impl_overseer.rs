@@ -128,11 +128,11 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			}
 
 			/// Extract information from each subsystem.
-			pub fn for_each_subsystem<Mapper, Output>(&self, mapper: Mapper)
+			pub fn map_subsystems<'a, Mapper, Output>(&'a self, mapper: Mapper)
 			-> Vec<Output>
 				where
 				#(
-					Mapper: for<'a> MapSubsystem<&'a OverseenSubsystem< #consumes >, Output=Output>,
+					Mapper: MapSubsystem<&'a OverseenSubsystem< #consumes >, Output=Output>,
 				)*
 			{
 				vec![
@@ -141,7 +141,12 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				)*
 				]
 			}
+
+			pub fn spawner<'a> (&'a mut self) -> &'a mut S {
+				&mut self.spawner
+			}
 		}
+
 	};
 
 	Ok(ts)

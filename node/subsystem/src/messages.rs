@@ -50,7 +50,6 @@ use polkadot_primitives::v1::{
 	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
 };
 use polkadot_statement_table::v1::Misbehavior;
-use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
 use std::{sync::Arc, collections::btree_map::BTreeMap};
 
 

@@ -650,7 +650,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, sender, params), fields(subsystem = LOG_TARGET))]
 	async fn background_validate_and_make_available(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages><>>,
+		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
 		params: BackgroundValidationParams<
 			impl SubsystemSender <AllMessages>,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync

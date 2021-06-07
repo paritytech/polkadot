@@ -17,7 +17,7 @@
 //! Prometheus metrics related to the overseer and its channels.
 
 use super::*;
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, metered, Metronome};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
@@ -57,30 +57,31 @@ impl Metrics {
 
 	pub(crate) fn channel_fill_level_snapshot(
 		&self,
-		to_subsystem: AllSubsystemsSame<(&'static str, SubsystemMeterReadouts)>,
+		collection: impl IntoIterator<Item=(&'static str, SubsystemMeterReadouts)>,
 	) {
-		self.0.as_ref().map(|metrics| {
-			to_subsystem.map_subsystems(
-				|(name, readouts): (_, SubsystemMeterReadouts)| {
-					metrics.to_subsystem_bounded_sent.with_label_values(&[name])
-						.set(readouts.bounded.sent as u64);
+		if let Some(metrics) = &self.0 {
+			collection.into_iter().for_each(
+					|(name, readouts): (_, SubsystemMeterReadouts)| {
+						metrics.to_subsystem_bounded_sent.with_label_values(&[name])
+							.set(readouts.bounded.sent as u64);
 
-					metrics.to_subsystem_bounded_received.with_label_values(&[name])
-						.set(readouts.bounded.received as u64);
+						metrics.to_subsystem_bounded_received.with_label_values(&[name])
+							.set(readouts.bounded.received as u64);
 
-					metrics.to_subsystem_unbounded_sent.with_label_values(&[name])
-						.set(readouts.unbounded.sent as u64);
+						metrics.to_subsystem_unbounded_sent.with_label_values(&[name])
+							.set(readouts.unbounded.sent as u64);
 
-					metrics.to_subsystem_unbounded_received.with_label_values(&[name])
-						.set(readouts.unbounded.received as u64);
+						metrics.to_subsystem_unbounded_received.with_label_values(&[name])
+							.set(readouts.unbounded.received as u64);
 
-					metrics.signals_sent.with_label_values(&[name])
-						.set(readouts.signals.sent as u64);
+						metrics.signals_sent.with_label_values(&[name])
+							.set(readouts.signals.sent as u64);
 
-					metrics.signals_received.with_label_values(&[name])
-						.set(readouts.signals.received as u64);
-				});
-		});
+						metrics.signals_received.with_label_values(&[name])
+							.set(readouts.signals.received as u64);
+					}
+			);
+		}
 	}
 }
 

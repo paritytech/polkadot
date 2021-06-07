@@ -61,25 +61,25 @@
 
 use std::fmt::{self, Debug};
 use std::pin::Pin;
-use std::sync::{atomic::{self, AtomicUsize}, Arc};
-use std::task::Poll;
+use std::sync::Arc;
 use std::time::Duration;
 use std::collections::{hash_map, HashMap};
 use std::iter::FromIterator;
 
 use futures::channel::oneshot;
 use futures::{
-	poll, select,
+	select,
 	future::BoxFuture,
-	stream::{self, FuturesUnordered, Fuse},
 	Future, FutureExt, StreamExt,
 };
-use futures_timer::Delay;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1,
+};
 use polkadot_node_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
@@ -95,22 +95,18 @@ pub use polkadot_node_subsystem::{
 	errors::{SubsystemResult, SubsystemError,},
 	ActiveLeavesUpdate, ActivatedLeaf, jaeger,
 };
-use polkadot_node_network_protocol::{
-	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
-};
 
 /// TODO legacy, to be deleted, left for easier integration
 mod subsystems;
-use self::subsystems::{AllSubsystems, AllSubsystemsSame};
+use self::subsystems::AllSubsystems;
 
 mod metrics;
 use self::metrics::Metrics;
 
-use polkadot_node_subsystem_util::{metrics::{prometheus, Metrics as MetricsTrait}, metered, Metronome};
+use polkadot_node_subsystem_util::{metrics::{prometheus, Metrics as MetricsTrait}, Metronome};
 use polkadot_overseer_gen::{
 	TimeoutExt,
 	SpawnNamed,
-	SpawnedSubsystem,
 	Subsystem,
 	SubsystemMeterReadouts,
 	SubsystemMeters,
@@ -284,33 +280,13 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 	}
 }
 
-
-// async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-// -> SubsystemResult<()>
-// {
-// self.sender().send(ToOverseer::SpawnJob {
-// 	name,
-// 	s,
-// }).await.map_err(Into::into)
-// }
-
-// async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-// -> SubsystemResult<()>
-// {
-// self.sender().send(ToOverseer::SpawnBlockingJob {
-// 	name,
-// 	s,
-// }).await.map_err(Into::into)
-// }
-
-// NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
-
 /// The `Overseer` itself.
 #[overlord(
 	gen=AllMessages,
 	event=Event,
 	signal=OverseerSignal,
-	error=SubsystemError
+	error=SubsystemError,
+	network=NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
 )]
 pub struct Overseer<SupportsParachains> {
 
@@ -489,7 +465,7 @@ where
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
-		mut s: S,
+		s: S,
 	) -> SubsystemResult<(Self, Handler)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
@@ -512,50 +488,9 @@ where
 		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError> + Send,
 		S: SpawnNamed,
 	{
-
 		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
-		// spawn the metrics metronome task
-		{
-			struct ExtractNameAndMeters;
 
-			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
-				type Output = (&'static str, SubsystemMeters);
-
-				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
-					let instance = subsystem.instance.as_ref()
-						.expect("Extraction is done directly after spawning when subsystems\
-						have not concluded; qed");
-
-					(
-						instance.name,
-						instance.meters.clone(),
-					)
-				}
-			}
-
-			let subsystem_meters = all_subsystems
-				.as_ref()
-				.map_subsystems::<ExtractNameAndMeters>(ExtractNameAndMeters);
-
-			let metronome_metrics = metrics.clone();
-			let metronome = Metronome::new(std::time::Duration::from_millis(950))
-				.for_each(move |_| {
-					let subsystem_meters = subsystem_meters.as_ref()
-						.map_subsystems(|&(name, ref meters): &(_, SubsystemMeters)| (name, meters.read()));
-
-					// We combine the amount of messages from subsystems to the overseer
-					// as well as the amount of messages from external sources to the overseer
-					// into one `to_overseer` value.
-					metronome_metrics.channel_fill_level_snapshot(subsystem_meters);
-
-					async move {
-						()
-					}
-				});
-			s.spawn("metrics_metronome", Box::pin(metronome));
-		}
-
-		let (overseer, handler) = Self::builder()
+		let (mut overseer, handler) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
 			.candidate_backing(all_subsystems.candidate_backing)
 			.candidate_selection(all_subsystems.candidate_selection)
@@ -580,9 +515,48 @@ where
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
-			.metrics(metrics)
+			.metrics(metrics.clone())
 			.spawner(s)
 			.build()?;
+
+		// spawn the metrics metronome task
+		{
+			struct ExtractNameAndMeters;
+
+			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+				type Output = Option<(&'static str, SubsystemMeters)>;
+
+				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+					subsystem.instance.as_ref().map(|instance| {
+						(
+							instance.name,
+							instance.meters.clone(),
+						)
+					})
+				}
+			}
+			let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
+
+			let metronome_metrics = metrics.clone();
+			let metronome = Metronome::new(std::time::Duration::from_millis(950))
+				.for_each(move |_| {
+
+					// We combine the amount of messages from subsystems to the overseer
+					// as well as the amount of messages from external sources to the overseer
+					// into one `to_overseer` value.
+					metronome_metrics.channel_fill_level_snapshot(
+						subsystem_meters.iter()
+							.cloned()
+							.filter_map(|x| x)
+							.map(|(name, ref meters)| (name, meters.read()))
+					);
+
+					async move {
+						()
+					}
+				});
+			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+		}
 
 		Ok((overseer, Handler(handler)))
 	}
