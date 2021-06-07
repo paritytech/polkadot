@@ -176,8 +176,10 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				let diff = best_number.saturating_sub(base_number);
 				if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
 					// Catch up to the best, with some extra lag.
-					find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
-						.filter(|vote| vote.1 <= current_number)
+					match find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header) {
+						 Some((target_hash, target_number)) if target_number < current_number => Some((target_hash, target_number)),
+						 _ => Some((current_hash, current_number)),
+					}
 				} else {
 					Some((base_hash, base_number))
 				}
