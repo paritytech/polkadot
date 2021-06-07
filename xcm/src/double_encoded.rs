@@ -18,6 +18,7 @@ use alloc::vec::Vec;
 use parity_scale_codec::{Encode, Decode};
 
 #[derive(Encode, Decode)]
+#[derive(scale_info::TypeInfo)]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub struct DoubleEncoded<T> {

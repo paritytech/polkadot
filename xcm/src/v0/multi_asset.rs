@@ -23,7 +23,7 @@ use parity_scale_codec::{self, Encode, Decode};
 use super::{MultiLocation, VersionedMultiAsset};
 
 /// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, scale_info::TypeInfo)]
 pub enum AssetInstance {
 	/// Undefined - used if the NFA class has only one instance.
 	Undefined,
@@ -105,6 +105,7 @@ pub enum AssetInstance {
 /// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
 ///
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(scale_info::TypeInfo)]
 pub enum MultiAsset {
 	/// No assets. Rarely used.
 	None,
