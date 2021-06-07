@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch, AvailableData, PoV, ErasureChunk, CandidateVotes,
+	BabeEpoch, AvailableData, PoV, ErasureChunk, CandidateVotes, SignedDisputeStatement,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
@@ -48,7 +48,6 @@ use polkadot_primitives::v1::{
 	ValidationCode, ValidatorId, CandidateHash,
 	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
-	DisputeStatement,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
@@ -231,11 +230,11 @@ pub enum DisputeCoordinatorMessage {
 		candidate_receipt: CandidateReceipt,
 		/// The session the candidate appears in.
 		session: SessionIndex,
-		/// Triples containing the following:
-		/// - A statement, either indicating validity or invalidity of the candidate.
-		/// - The validator index (within the session of the candidate) of the validator casting the vote.
-		/// - The signature of the validator casting the vote.
-		statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+		/// Statements, with signatures checked, by validators participating in disputes.
+		///
+		/// The validator index passed alongside each statement should correspond to the index
+		/// of the validator in the set.
+		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	},
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),

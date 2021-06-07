@@ -27,7 +27,7 @@
 
 use std::sync::Arc;
 
-use polkadot_node_primitives::CandidateVotes;
+use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem::{
 	messages::{
 		DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -270,6 +270,7 @@ async fn handle_incoming(
 		} => {
 			handle_import_statements(
 				ctx,
+				store,
 				state,
 				config,
 				candidate_hash,
@@ -356,10 +357,10 @@ async fn handle_import_statements(
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
-		return;
+		return Ok(());
 	}
 
 	let mut votes = db::v1::load_candidate_votes(
@@ -378,14 +379,14 @@ async fn handle_import_statements(
 	let was_undisputed = votes.valid.len() == 0 || votes.invalid.len() == 0;
 
 	// Update candidate votes.
-	for (statement, val_index, val_signature) in statements {
-		match statement {
+	for (statement, val_index) in statements {
+		match statement.statement().clone() {
 			DisputeStatement::Valid(valid_kind) => {
 				insert_into_statement_vec(
 					&mut votes.valid,
 					valid_kind,
 					val_index,
-					val_signature,
+					statement.validator_signature().clone(),
 				);
 			}
 			DisputeStatement::Invalid(invalid_kind) => {
@@ -393,7 +394,7 @@ async fn handle_import_statements(
 					&mut votes.invalid,
 					invalid_kind,
 					val_index,
-					val_signature,
+					statement.validator_signature().clone(),
 				);
 			}
 		}
@@ -405,6 +406,8 @@ async fn handle_import_statements(
 	if is_disputed && was_undisputed {
 		// TODO [now]: add to active disputes and begin local participation.
 	}
+
+	Ok(())
 }
 
 async fn issue_local_statement(
