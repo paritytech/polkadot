@@ -38,7 +38,7 @@ use polkadot_primitives::v1::{
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	CandidateReceipt, ValidatorId,
+	CandidateReceipt, ValidatorId, SessionIndex,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
