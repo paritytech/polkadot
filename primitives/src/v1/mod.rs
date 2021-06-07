@@ -1097,10 +1097,10 @@ pub enum ValidDisputeStatementKind {
 	Explicit,
 	/// A seconded statement on a candidate from the backing phase.
 	#[codec(index = 1)]
-	BackingSeconded,
+	BackingSeconded(Hash),
 	/// A valid statement on a candidate from the backing phase.
 	#[codec(index = 2)]
-	BackingValid,
+	BackingValid(Hash),
 	/// An approval vote from the approval checking phase.
 	#[codec(index = 3)]
 	ApprovalChecking,
