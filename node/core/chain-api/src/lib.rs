@@ -30,9 +30,11 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
+use polkadot_overseer::gen::{
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
+}
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
+	 OverseerSignal,
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{

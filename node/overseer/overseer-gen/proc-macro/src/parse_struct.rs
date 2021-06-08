@@ -122,6 +122,10 @@ pub(crate) struct OverseerInfo {
 	/// Incoming event type from an external entity, commonly from the network.
 	pub(crate) extern_network_ty: Option<Path>,
 
+	/// Type of messages that are sent to an external subsystem.
+	/// Merely here to be included during generation of `message_wrapper` type.
+	pub(crate) outgoing_ty: Option<Path>,
+
 	/// Incoming event type from the outer world, commonly from the network.
 	pub(crate) extern_error_ty: Path,
 }

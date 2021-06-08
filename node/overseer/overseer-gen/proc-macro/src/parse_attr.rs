@@ -17,6 +17,7 @@ enum AttrItem {
 	ExternNetworkType(Path),
 	ExternOverseerSignalType(Path),
 	ExternErrorType(Path),
+	OutgoingType(Path),
 	MessageWrapperName(Ident),
 	SignalChannelCapacity(LitInt),
 	MessageChannelCapacity(LitInt),
@@ -29,6 +30,7 @@ impl Spanned for AttrItem {
 			AttrItem::ExternNetworkType(x) => x.span(),
 			AttrItem::ExternOverseerSignalType(x) => x.span(),
 			AttrItem::ExternErrorType(x) => x.span(),
+			AttrItem::OutgoingType(x) => x.span(),
 			AttrItem::MessageWrapperName(x) => x.span(),
 			AttrItem::SignalChannelCapacity(x) => x.span(),
 			AttrItem::MessageChannelCapacity(x) => x.span(),
@@ -37,9 +39,10 @@ impl Spanned for AttrItem {
 }
 
 const TAG_EXT_EVENT_TY: &str = "event";
-const TAG_EXT_NETWORK_TY: &str = "network";
 const TAG_EXT_SIGNAL_TY: &str = "signal";
 const TAG_EXT_ERROR_TY: &str = "error";
+const TAG_EXT_NETWORK_TY: &str = "network";
+const TAG_OUTGOING_TY: &str = "out";
 const TAG_GEN_TY: &str = "gen";
 const TAG_SIGNAL_CAPACITY: &str = "signal_capacity";
 const TAG_MESSAGE_CAPACITY: &str = "message_capacity";
@@ -48,9 +51,10 @@ impl AttrItem {
 	fn key(&self) -> &'static str {
 		match self {
 			AttrItem::ExternEventType(_) => TAG_EXT_EVENT_TY,
-			AttrItem::ExternNetworkType(_) => TAG_EXT_NETWORK_TY,
 			AttrItem::ExternOverseerSignalType(_) => TAG_EXT_SIGNAL_TY,
 			AttrItem::ExternErrorType(_) => TAG_EXT_ERROR_TY,
+			AttrItem::ExternNetworkType(_) => TAG_EXT_NETWORK_TY,
+			AttrItem::OutgoingType(_) => TAG_OUTGOING_TY,
 			AttrItem::MessageWrapperName(_) => TAG_GEN_TY,
 			AttrItem::SignalChannelCapacity(_) => TAG_SIGNAL_CAPACITY,
 			AttrItem::MessageChannelCapacity(_) => TAG_MESSAGE_CAPACITY,
@@ -69,6 +73,9 @@ impl Parse for AttrItem {
 		} else if key == TAG_EXT_NETWORK_TY {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternNetworkType(path)
+		} else if key == TAG_OUTGOING_TY {
+			let path = input.parse::<Path>()?;
+			AttrItem::OutgoingType(path)
 		} else if key == TAG_EXT_EVENT_TY {
 			let path = input.parse::<Path>()?;
 			AttrItem::ExternEventType(path)
@@ -101,6 +108,7 @@ pub(crate) struct AttrArgs {
 	/// but is not part of the band of subsystems, it's a mere proxy
 	/// to another entity that consumes/produces messages.
 	pub(crate) extern_network_ty: Option<Path>,
+	pub(crate) outgoing_ty: Option<Path>,
 	pub(crate) signal_channel_capacity: usize,
 	pub(crate) message_channel_capacity: usize,
 }
@@ -163,6 +171,10 @@ impl Parse for AttrArgs {
 			.remove(TAG_EXT_NETWORK_TY)
 			.map(|x| if let AttrItem::ExternNetworkType(x) = x { x.clone() } else { unreachable!() });
 
+		let outgoing_ty = unique
+			.remove(TAG_OUTGOING_TY)
+			.map(|x| if let AttrItem::OutgoingType(x) = x { x.clone() } else { unreachable!() });
+
 		let message_wrapper = unique
 			.remove(TAG_GEN_TY)
 			.map(|x| if let AttrItem::MessageWrapperName(x) = x { x.clone() } else { unreachable!() })
@@ -182,6 +194,7 @@ impl Parse for AttrArgs {
 			extern_signal_ty,
 			extern_error_ty,
 			extern_network_ty,
+			outgoing_ty,
 			message_wrapper,
 		})
 	}

@@ -29,8 +29,22 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
 use polkadot_primitives::v1::CollatorPair;
 use polkadot_subsystem::{
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
-	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
+	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
+};
+
+use polkadot_overseer::{
+	AllMessages,
+	OverseerSignal,
+	gen::{
+		Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+		FromOverseer,
+	},
+};
+use polkadot_subsystem::{
+	errors::{RuntimeApiError, SubsystemError},
+	messages::{
+		RuntimeApiMessage, RuntimeApiRequest as Request,
+	},
 };
 
 mod error;
@@ -93,7 +107,7 @@ impl CollatorProtocolSubsystem {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
-		Context: SubsystemContext<Message = CollatorProtocolMessage>,
+		Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal>,
 	{
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
@@ -112,9 +126,9 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
+impl<Context> Subsystem<Context, OverseerError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
+	Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal> + Sync + Send,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

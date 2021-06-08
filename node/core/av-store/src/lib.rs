@@ -576,7 +576,7 @@ where
 }
 
 async fn process_block_activated(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
 ) -> Result<(), Error> {
@@ -769,7 +769,7 @@ macro_rules! peek_num {
 }
 
 async fn process_block_finalized(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,

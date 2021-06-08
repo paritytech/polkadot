@@ -72,7 +72,6 @@ use futures::{
 	future::BoxFuture,
 	Future, FutureExt, StreamExt,
 };
-use futures_timer::Delay;
 use lru::LruCache;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
@@ -95,7 +94,8 @@ use polkadot_node_subsystem::messages::{
 pub use polkadot_node_subsystem::{
 	OverseerSignal,
 	errors::{SubsystemResult, SubsystemError,},
-	ActiveLeavesUpdate, ActivatedLeaf, jaeger,
+	ActiveLeavesUpdate, ActivatedLeaf, LeafStatus,
+	jaeger,
 };
 
 /// TODO legacy, to be deleted, left for easier integration
@@ -123,6 +123,7 @@ use polkadot_overseer_gen::{
 	ToOverseer,
 	MapSubsystem,
 };
+pub use polkadot_overseer_gen as gen;
 
 // Target for logs.
 // const LOG_TARGET: &'static str = "parachain::overseer";
@@ -373,7 +374,7 @@ pub struct Overseer<SupportsParachains> {
 	pub supports_parachains: SupportsParachains,
 
 	/// An LRU cache for keeping track of relay-chain heads that have already been seen.
-	known_leaves: LruCache<Hash, ()>,
+	pub known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
 	pub metrics: Metrics,

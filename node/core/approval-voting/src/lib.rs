@@ -679,7 +679,7 @@ async fn run<C>(
 
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
@@ -878,7 +878,7 @@ fn distribution_messages_for_activation<'a>(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	db_writer: &dyn KeyValueDB,
@@ -992,7 +992,7 @@ async fn handle_from_overseer(
 }
 
 async fn handle_background_request(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
 	request: BackgroundRequest,
@@ -1022,7 +1022,7 @@ async fn handle_background_request(
 }
 
 async fn handle_approved_ancestor(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1868,7 +1868,7 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
@@ -2039,7 +2039,7 @@ async fn launch_approval(
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
 fn issue_approval(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
 	request: ApprovalVoteRequest,

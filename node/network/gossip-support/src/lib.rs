@@ -25,10 +25,12 @@ use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
-		AllMessages, GossipSupportMessage, NetworkBridgeMessage,
+		GossipSupportMessage, NetworkBridgeMessage,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-	Subsystem, SpawnedSubsystem, SubsystemContext,
+	ActiveLeavesUpdate, OverseerSignal,
+};
+use polkadot_overseer::gen::{
+	FromOverseer, AllMessages, Subsystem, SpawnedSubsystem, SubsystemContext,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{
@@ -113,7 +115,7 @@ impl GossipSupport {
 }
 
 async fn determine_relevant_authorities(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
@@ -142,7 +144,7 @@ async fn ensure_i_am_an_authority(
 
 /// A helper function for making a `ConnectToValidators` request.
 pub async fn connect_to_authorities(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
 ) -> oneshot::Receiver<usize> {
@@ -163,7 +165,7 @@ impl State {
 	///    and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
-		ctx: &mut impl SubsystemContext<AllMessages>,
+		ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {

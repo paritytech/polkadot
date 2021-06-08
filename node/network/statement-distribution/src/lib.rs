@@ -848,7 +848,7 @@ fn check_statement_signature(
 async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	priority_peers: Vec<PeerId>,
@@ -948,7 +948,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 #[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement<'a>(
 	peers: &mut HashMap<PeerId, PeerData>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
@@ -1026,7 +1026,7 @@ async fn circulate_statement<'a>(
 async fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
@@ -1064,7 +1064,7 @@ async fn send_statements_about(
 async fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
@@ -1096,7 +1096,7 @@ async fn send_statements(
 }
 
 async fn report_peer(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	peer: PeerId,
 	rep: Rep,
 ) {
@@ -1116,7 +1116,7 @@ async fn retrieve_statement_from_message<'a>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
 	active_head: &'a mut ActiveHeadData,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<UncheckedSignedFullStatement> {
@@ -1218,7 +1218,7 @@ async fn launch_request(
 	meta: StatementMetadata,
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	metrics: &Metrics,
 ) -> Option<LargeStatementStatus> {
 
@@ -1256,7 +1256,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1304,7 +1304,7 @@ async fn handle_incoming_message<'a>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1454,7 +1454,7 @@ async fn handle_incoming_message<'a>(
 async fn update_peer_view_and_send_unlocked(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
@@ -1489,7 +1489,7 @@ async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
 	metrics: &Metrics,
@@ -1670,7 +1670,7 @@ impl StatementDistribution {
 
 	async fn handle_requester_message(
 		&self,
-		ctx: &mut impl SubsystemContext<AllMessages>,
+		ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1790,7 +1790,7 @@ impl StatementDistribution {
 
 	async fn handle_subsystem_message(
 		&self,
-		ctx: &mut impl SubsystemContext<AllMessages>,
+		ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,

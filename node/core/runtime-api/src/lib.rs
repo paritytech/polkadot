@@ -22,14 +22,13 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
-	FromOverseer, OverseerSignal,
-	messages::{
-		RuntimeApiMessage, RuntimeApiRequest as Request,
-	},
-	errors::RuntimeApiError,
+use polkadot_overseer::gen::{
+	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+	FromOverseer,
 };
+use polkadot_subsystem::{OverseerSignal, errors::RuntimeApiError, messages::{
+		RuntimeApiMessage, RuntimeApiRequest as Request,
+	}};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
@@ -82,10 +81,10 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
+impl<Client, Context> Subsystem<Context, OverseerError> for RuntimeApiSubsystem<Client> where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>
+	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -263,12 +262,13 @@ impl<Client> RuntimeApiSubsystem<Client> where
 }
 
 #[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
-async fn run<Client>(
-	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
+async fn run<Client, Context>(
+	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal>
 {
 	loop {
 		select! {

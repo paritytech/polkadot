@@ -21,9 +21,17 @@ use sp_core::Pair;
 
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash, Id as ParaId};
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger,
+	PerLeafSpan, jaeger,
 	messages::{
-		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+	},
+};
+use polkadot_overseer::{
+	AllMessages,
+	OverseerSignal,
+	gen::{
+		Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+		FromOverseer,
 	},
 };
 use polkadot_node_network_protocol::{
@@ -260,7 +268,7 @@ impl State {
 /// elsewhere in the node.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state, pov), fields(subsystem = LOG_TARGET))]
 async fn distribute_collation(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	id: ParaId,
@@ -359,7 +367,7 @@ async fn distribute_collation(
 /// and the total number of cores.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn determine_core(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext,
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>> {
@@ -389,7 +397,7 @@ struct GroupValidators {
 /// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
 #[tracing::instrument(level = "trace", skip(ctx, runtime), fields(subsystem = LOG_TARGET))]
 async fn determine_our_validators(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
@@ -469,7 +477,7 @@ async fn connect_to_validators(
 /// set as validator for our para at the given `relay_parent`.
 #[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn advertise_collation(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
@@ -671,7 +679,7 @@ async fn send_collation(
 /// A networking messages switch.
 #[tracing::instrument(level = "trace", skip(ctx, runtime, state), fields(subsystem = LOG_TARGET))]
 async fn handle_incoming_peer_message(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	origin: PeerId,
@@ -869,12 +877,15 @@ async fn handle_our_view_change(
 
 /// The collator protocol collator side main loop.
 #[tracing::instrument(skip(ctx, collator_pair, metrics), fields(subsystem = LOG_TARGET))]
-pub(crate) async fn run(
-	mut ctx: impl SubsystemContext<Message = CollatorProtocolMessage>,
+pub(crate) async fn run<Context>(
+	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	metrics: Metrics,
-) -> Result<()> {
+) -> Result<()>
+where
+	Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal>,
+{
 	use FromOverseer::*;
 	use OverseerSignal::*;
 
@@ -882,7 +893,7 @@ pub(crate) async fn run(
 	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
-		let msg = ctx.recv().fuse().await.map_err(Fatal::SubsystemReceive)?;
+		let msg = ctx.recv().fuse().await.map_err(Fatal::Overseer)?;
 		match msg {
 			Communication { msg } => {
 				log_error(

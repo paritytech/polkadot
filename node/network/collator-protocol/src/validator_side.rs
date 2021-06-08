@@ -37,14 +37,26 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::SubsystemSender;
 use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_overseer::{
+	AllMessages,
+	gen::{
+		Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+		FromOverseer,
+	},
+};
 use polkadot_subsystem::{
+	errors::SubsystemError,
+	OverseerSignal, errors::RuntimeApiError, messages::{
+		RuntimeApiMessage, RuntimeApiRequest as Request,
+	},
 	jaeger,
 	messages::{
-		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, IfDisconnected,
+		CandidateSelectionMessage, CollatorProtocolMessage, IfDisconnected,
 		NetworkBridgeEvent, NetworkBridgeMessage,
 	},
-	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
+	PerLeafSpan,
 };
 
 use crate::error::Fatal;
@@ -312,7 +324,7 @@ struct ActiveParas {
 impl ActiveParas {
 	async fn assign_incoming(
 		&mut self,
-		sender: &mut impl SubsystemSender <AllMessages>,
+		sender: &mut impl SubsystemSender<AllMessages>,
 		keystore: &SyncCryptoStorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
@@ -477,7 +489,7 @@ fn collator_peer_id(
 		)
 }
 
-async fn disconnect_peer(ctx: &mut impl SubsystemContext<AllMessages>, peer_id: PeerId) {
+async fn disconnect_peer(ctx: &mut impl SubsystemContext<Signal=OverseerSignal>, peer_id: PeerId) {
 	ctx.send_message(
 		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation).into()
 	).await
@@ -813,7 +825,7 @@ async fn remove_relay_parent(
 /// Our view has changed.
 #[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext<Signal=OverseerSignal>,
 	state: &mut State,
 	keystore: &SyncCryptoStorePtr,
 	view: OurView,
@@ -983,7 +995,7 @@ pub(crate) async fn run<Context>(
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> Result<()>
-	where Context: SubsystemContext<Message = CollatorProtocolMessage>
+	where Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal>
 {
 	use FromOverseer::*;
 	use OverseerSignal::*;
@@ -1060,7 +1072,7 @@ pub(crate) async fn run<Context>(
 // earliest possible point. This does not yet clean up any metadata, as that will be done upon
 // receipt of the `PeerDisconnected` event.
 async fn disconnect_inactive_peers(
-	ctx: &mut impl SubsystemContext<AllMessages>,
+	ctx: &mut impl SubsystemContext,
 	eviction_policy: &crate::CollatorEvictionPolicy,
 	peers: &HashMap<PeerId, PeerData>,
 ) {

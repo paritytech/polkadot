@@ -19,6 +19,7 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-overseer = { path = "../../overseer" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
