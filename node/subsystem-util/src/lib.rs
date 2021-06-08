@@ -71,6 +71,8 @@ pub mod reexports {
 
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+/// A rolling session window cache.
+pub mod rolling_session_window;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
