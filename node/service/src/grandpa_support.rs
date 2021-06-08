@@ -112,31 +112,6 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 		best_target: &PolkadotHeader,
 		current_target: &PolkadotHeader,
 	) -> grandpa::VotingRuleResult<PolkadotBlock> {
-		// walk backwards until we find the target block
-		let find_target = move |target_number: BlockNumber, current_header: &PolkadotHeader| {
-			let mut target_hash = current_header.hash();
-			let mut target_header = current_header.clone();
-
-			loop {
-				if *target_header.number() < target_number {
-					unreachable!(
-						"we are traversing backwards from a known block; \
-							blocks are stored contiguously; \
-							qed"
-					);
-				}
-
-				if *target_header.number() == target_number {
-					return Some((target_hash, target_number));
-				}
-
-				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
-					"Header known to exist due to the existence of one of its descendents; qed",
-				);
-			}
-		};
-
 		// Query approval checking and issue metrics.
 		let mut overseer = self.overseer.clone();
 		let checking_lag = self.checking_lag.clone();
@@ -176,8 +151,12 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				let diff = best_number.saturating_sub(base_number);
 				if diff >= MAX_APPROVAL_CHECKING_FINALITY_LAG {
 					// Catch up to the best, with some extra lag.
-					find_target(best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG, &best_header)
-						.filter(|vote| vote.1 <= current_number)
+					let target_number = best_number - MAX_APPROVAL_CHECKING_FINALITY_LAG;
+					if target_number >= current_number {
+						Some((current_hash, current_number))
+					} else {
+						walk_backwards_to_target_block(&*backend, target_number, &best_header).ok()
+					}
 				} else {
 					Some((base_hash, base_number))
 				}
@@ -214,6 +193,40 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 	}
 }
 
+/// Returns the block hash of the block at the given `target_number` by walking
+/// backwards from the given `current_header`.
+fn walk_backwards_to_target_block<Block, B>(
+	backend: &B,
+	target_number: NumberFor<Block>,
+	current_header: &Block::Header,
+) -> Result<(Block::Hash, NumberFor<Block>), sp_blockchain::Error>
+where
+	Block: BlockT,
+	B: sp_blockchain::HeaderBackend<Block>,
+{
+	let mut target_hash = current_header.hash();
+	let mut target_header = current_header.clone();
+
+	loop {
+		if *target_header.number() < target_number {
+			unreachable!(
+				"we are traversing backwards from a known block; \
+				 blocks are stored contiguously; \
+				 qed"
+			);
+		}
+
+		if *target_header.number() == target_number {
+			return Ok((target_hash, target_number));
+		}
+
+		target_hash = *target_header.parent_hash();
+		target_header = backend
+			.header(BlockId::Hash(target_hash))?
+			.expect("Header known to exist due to the existence of one of its descendents; qed");
+	}
+}
+
 /// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
 /// same last finalized block) after a given block at height `N` has been
 /// finalized and for a delay of `M` blocks, i.e. until the best block reaches
@@ -234,31 +247,6 @@ where
 		current_target: &Block::Header,
 	) -> grandpa::VotingRuleResult<Block> {
 		let aux = || {
-			// walk backwards until we find the target block
-			let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
-				let mut target_hash = current_header.hash();
-				let mut target_header = current_header.clone();
-
-				loop {
-					if *target_header.number() < target_number {
-						unreachable!(
-							"we are traversing backwards from a known block; \
-							 blocks are stored contiguously; \
-							 qed"
-						);
-					}
-
-					if *target_header.number() == target_number {
-						return Some((target_hash, target_number));
-					}
-
-					target_hash = *target_header.parent_hash();
-					target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
-						"Header known to exist due to the existence of one of its descendents; qed",
-					);
-				}
-			};
-
 			// only restrict votes targeting a block higher than the block
 			// we've set for the pause
 			if *current_target.number() > self.0 {
@@ -276,7 +264,7 @@ where
 
 				// otherwise find the target header at the pause block
 				// to vote on
-				return find_target(self.0, current_target);
+				return walk_backwards_to_target_block(&*backend, self.0, current_target).ok();
 			}
 
 			None
