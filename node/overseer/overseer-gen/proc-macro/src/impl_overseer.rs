@@ -86,7 +86,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			/// implementation specific.
 			pub async fn wait_terminate(&mut self, signal: #signal_ty, timeout: ::std::time::Duration) -> ::polkadot_overseer_gen::SubsystemResult<()> {
 				#(
-					self. #subsystem_name .send_signal(signal.clone()).await;
+					let _ = self. #subsystem_name .send_signal(signal.clone()).await;
 				)*
 				let _ = signal;
 
@@ -112,7 +112,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			/// Broadcast a signal to all subsystems.
 			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> ::polkadot_overseer_gen::SubsystemResult<()> {
 				#(
-					self. #subsystem_name .send_signal(signal.clone()).await;
+					let _ = self. #subsystem_name .send_signal(signal.clone()).await;
 				)*
 				let _ = signal;
 

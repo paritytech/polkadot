@@ -308,7 +308,12 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 
 			<TK as TaskKind>::launch_task(spawner, name, fut);
 
-			futures.push(Box::pin(rx.map(|e| { tracing::warn!(err = ?e, "dropping error"); Ok(()) })));
+			futures.push(Box::pin(
+				rx.map(|e| {
+					tracing::warn!(err = ?e, "dropping error");
+					Ok(())
+				})
+			));
 
 			let instance = Some(SubsystemInstance {
 				meters: ::polkadot_overseer_gen::SubsystemMeters {

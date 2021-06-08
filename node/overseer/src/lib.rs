@@ -116,7 +116,6 @@ use polkadot_overseer_gen::{
 	SubsystemContext,
 	overlord,
 	MessagePacket,
-	make_packet,
 	SignalsReceived,
 	FromOverseer,
 	ToOverseer,
@@ -355,10 +354,10 @@ pub struct Overseer<SupportsParachains> {
 	gossip_support: GossipSupport,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
-	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
+	pub activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
 
 	/// Stores the [`jaeger::Span`] per active leaf.
-	span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
+	pub span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
 
 	/// A set of leaves that `Overseer` starts working with.
 	///
@@ -525,6 +524,7 @@ where
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
+			.supports_parachains(supports_parachains)
 			.metrics(metrics.clone())
 			.spawner(s)
 			.build()?;
@@ -607,6 +607,7 @@ where
 
 					match msg {
 						Event::MsgToSubsystem(msg) => {
+							self.metrics.on_message_relayed();
 							self.route_message(msg.into()).await?;
 						}
 						Event::Stop => {

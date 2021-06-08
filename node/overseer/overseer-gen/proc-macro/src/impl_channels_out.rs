@@ -72,7 +72,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				#(
 					#message_wrapper :: #consumes (inner) => {
 						self. #channel_name_unbounded .unbounded_send(
-							make_packet(signals_received, inner)
+							::polkadot_overseer_gen::make_packet(signals_received, inner)
 						)
 						.map_err(|e| e.into_send_error())
 					},

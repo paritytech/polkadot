@@ -481,11 +481,5 @@ impl<F> Future for Timeout<F> where F: Future {
 	}
 }
 
-
-
-
-
-
-
 #[cfg(test)]
 mod tests;
