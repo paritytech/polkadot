@@ -2371,4 +2371,159 @@ mod tests {
 			virtual_overseer
 		});
 	}
+
+	// A test scenario that takes the following steps
+	//  - RESERVOIR_SIZE many collators connection and declare themselves
+    //  - A random number of peers connect at the same time before the activity pole timeout
+    //  - A single peer Declares
+    //  - Validate that this declaration forces all excess peers to get evicted
+	#[cfg(feature = "sampling")]
+	#[test]
+	fn validate_concurrent_sampling() {
+		let test_state = TestState::new(RESERVOIR_SIZE + u8::MAX as usize);
+
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut virtual_overseer,
+			} = test_harness;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent])
+				),
+			).await;
+
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+			let mut peer = PeerId::random();
+
+			for i in 0..RESERVOIR_SIZE {
+				overseer_send(
+					&mut virtual_overseer,
+					CollatorProtocolMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerConnected(
+							peer.clone(),
+							ObservedRole::Full,
+							None,
+						),
+					)
+				).await;
+
+				overseer_send(
+					&mut virtual_overseer,
+					CollatorProtocolMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerMessage(
+							peer.clone(),
+							protocol_v1::CollatorProtocolMessage::Declare(
+								test_state.collators[i].public(),
+								test_state.chain_ids[0],
+								test_state.collators[i].sign(&protocol_v1::declare_signature_payload(&peer)),
+							)
+						)
+					)
+				).await;
+
+				peer = PeerId::random();
+			}
+
+			use rand::Rng;
+			let mut rng = rand::thread_rng();
+			let mut concurrent_peers: u8 = rng.gen();
+			concurrent_peers %= 5;
+			for _ in 0..concurrent_peers {
+				overseer_send(
+					&mut virtual_overseer,
+					CollatorProtocolMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerConnected(
+							peer.clone(),
+							ObservedRole::Full,
+							None,
+						),
+					)
+				).await;
+				peer = PeerId::random();
+			}
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(
+						peer.clone(),
+						ObservedRole::Full,
+						None,
+					),
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer.clone(),
+						protocol_v1::CollatorProtocolMessage::Declare(
+							test_state.collators[RESERVOIR_SIZE+concurrent_peers as usize].public(),
+							test_state.chain_ids[0],
+							test_state.collators[RESERVOIR_SIZE+concurrent_peers as usize].sign(&protocol_v1::declare_signature_payload(&peer)),
+						)
+					)
+				)
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer.clone(),
+						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+							test_state.relay_parent,
+						)
+					)
+				)
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+			) => {
+				let req = reqs.into_iter().next()
+					.expect("There should be exactly one request");
+				match req {
+					Requests::CollationFetching(req) => {
+						let payload = req.payload;
+						assert_eq!(payload.relay_parent, test_state.relay_parent);
+						assert_eq!(payload.para_id, test_state.chain_ids[0]);
+					}
+					_ => panic!("Unexpected request"),
+				}
+			});
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+					new_peer,
+					rep,
+				)) => {
+					assert_eq!(peer, new_peer);
+					assert_eq!(rep, COST_REQUEST_TIMED_OUT);
+				}
+			);
+
+			for i in 0..concurrent_peers {
+				println!("\n\n i is {:?}\n\n", i);
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+						new_peer,
+						peer_set,
+					)) => {
+						assert!(peer != new_peer);
+						assert_eq!(peer_set, PeerSet::Collation);
+					}
+				);
+			}
+
+			virtual_overseer
+		})
+	}
 }
