@@ -181,6 +181,12 @@ type PendingCollationFetch = (
 	Option<std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>>
 );
 
+#[derive(Hash, Eq, PartialEq)]
+enum ID {
+	PeerId(PeerId),
+	CollatorId(CollatorId),
+}
+
 /// All state relevant for the validator side of the protocol lives here.
 #[derive(Default)]
 struct State {
@@ -208,6 +214,9 @@ struct State {
 
 	/// Keep track of all pending candidate collations
 	pending_candidates: HashMap<Hash, CollationEvent>,
+
+	/// Keep track of all evicted peers
+	evicted_peers: HashSet<ID>,
 }
 
 // O(n) search for collator ID by iterating through the peers map. This should be fast enough
@@ -417,13 +426,24 @@ where
 	use sp_runtime::traits::AppVerify;
 	match msg {
 		Declare(collator_id, para_id, signature) => {
+			if state.evicted_peers.get(&ID::CollatorId(collator_id.clone())).is_some() {
+				state.evicted_peers.insert(ID::PeerId(origin.clone()));
+				peer_slots::insert_event(
+					ctx,
+					&mut state.peer_slots,
+					&origin,
+					&collator_id,
+					FitnessEvent::Unexpected,
+				).await;
+				return disconnect_peer(ctx, origin).await;
+			}
 			if collator_peer_id(&state.peer_slots.peer_data, &collator_id).is_some() {
 				return peer_slots::insert_event(
 					ctx,
 					&mut state.peer_slots,
 					&origin,
 					&collator_id,
-					FitnessEvent::Unexpected
+					FitnessEvent::Unexpected,
 				).await;
 			}
 
@@ -435,7 +455,7 @@ where
 						&mut state.peer_slots,
 						&origin,
 						&collator_id,
-						FitnessEvent::Unexpected
+						FitnessEvent::Unexpected,
 					).await;
 				}
 			};
@@ -493,6 +513,12 @@ where
 			for stale_peer_id in
 				peer_slots::sample_connection(&mut state.peer_slots, &origin).into_iter()
 			{
+				self.evicted_peers.insert(ID::PeerId(stale_peer_id.clone()));
+				if let Some(peer_data) = self.peer_slots.peer_data.get(&stale_peer_id) {
+					if let Some(collator_id) = peer_data.collator_id() {
+						self.evicted_peers.insert(ID::CollatorId(collator_id.clone()));
+					}
+				}
 				disconnect_peer(ctx, stale_peer_id).await;
 			}
 		}
@@ -514,7 +540,7 @@ where
 					ctx,
 					&mut state.peer_slots,
 					&origin,
-					FitnessEvent::Unexpected
+					FitnessEvent::Unexpected,
 				).await;
 			}
 
@@ -524,7 +550,7 @@ where
 						ctx,
 						&mut state.peer_slots,
 						&origin,
-						FitnessEvent::Unexpected
+						FitnessEvent::Unexpected,
 					).await;
 				}
 				Some(p) => p,
@@ -653,6 +679,7 @@ async fn handle_our_view_change(
 		disconnect_peer(ctx, peer_id).await;
 	}
 
+	state.evicted_peers.clear();
 	state.peer_slots.reset_sample();
 
 	Ok(())
@@ -673,8 +700,18 @@ where
 
 	match bridge_message {
 		PeerConnected(peer_id, _role, _) => {
-			let peer_count = peer_slots::handle_connection(&mut state.peer_slots, peer_id);
-			state.metrics.note_collator_peer_count(peer_count);
+			if state.evicted_peers.get(&ID::PeerId(peer_id.clone())).is_some() {
+				insert_event_by_peer_id(
+					ctx,
+					&mut state.peer_slots,
+					&peer_id,
+					FitnessEvent::Unexpected,
+				).await;
+				disconnect_peer(ctx, peer_id).await;
+			} else {
+				let peer_count = peer_slots::handle_connection(&mut state.peer_slots, peer_id);
+				state.metrics.note_collator_peer_count(peer_count);
+			}
 		},
 		PeerDisconnected(peer_id) => {
 			state.peer_slots.peer_data.remove(&peer_id);
