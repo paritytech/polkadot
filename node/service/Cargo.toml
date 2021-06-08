@@ -97,7 +97,6 @@ polkadot-node-collation-generation = { path = "../collation-generation", optiona
 polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
 polkadot-node-core-backing = { path = "../core/backing", optional = true }
 polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
-polkadot-node-core-candidate-selection = { path = "../core/candidate-selection", optional = true }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation", optional = true }
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
@@ -125,7 +124,6 @@ full-node = [
 	"polkadot-node-collation-generation",
 	"polkadot-node-core-backing",
 	"polkadot-node-core-bitfield-signing",
-	"polkadot-node-core-candidate-selection",
 	"polkadot-node-core-candidate-validation",
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-provisioner",
