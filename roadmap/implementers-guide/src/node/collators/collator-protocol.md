@@ -66,6 +66,10 @@ Once connected to the relevant peers for the current group assigned to the core 
 
 On the validator side of the protocol, validators need to accept incoming connections from collators. They should keep some peer slots open for accepting new speculative connections from collators and should disconnect from collators who are not relevant.
 
+In addition, each validator maintains set of historic metrics for all collators in the system. Currently, this is maintained in-memory and all metrics are lost upon restart. In the future, we will introduce a database which will enable validators to maintain these historic metrics across restart periods. These metrics enable to keep track of a priority queue of collator fitness across all connected collator peers.
+
+The Collator Protocol includes a `sampling` feature, which ensures that as the number of connections increase, validators may evict peers to maintain an upper bound on the number of collator connections (currently set to 128). In order to ensure that collators have a fair chance of connecting to a validator throughout a collation period, this feature implements a simplified reservoir sampling algorithm in order to ensure that each collator that attempts to connect to a specific validator has a fair probability of successfully connecting to that validator. As collators attempt to re-connect, the probability that they will successfully establish a connection tends to zero. This simplified reservoir sampling algorithm implements a protection against re-connections by not allowing evicted peers to re-connect. The goal is to bridge this gap via a weighted sampling algorithm to ensure that re-connection attempts are weighted by Collator Fitness to ensure that only honest collators can successfully re-connect after they have been evicted by a validator.
+
 ```dot process
 digraph G {
   label = "Declaring, advertising, and providing collations";
@@ -94,11 +98,11 @@ digraph G {
 
   c2 -> v2 [label = "Provide"];
 
-  v2 -> v2 [label = "Note Good/Bad"];
+  v2 -> v2 [label = "Notify Collator"];
 }
 ```
 
-When peers connect to us, they can `Declare` that they represent a collator with given public key and intend to collate on a specific para ID. Once they've declared that, and we checked their signature, they can begin to send advertisements of collations. The peers should not send us any advertisements for collations that are on a relay-parent outside of our view or for a para outside of the one they've declared.
+When peers connect to us, they can `Declare` that they represent a collator with given public key and intend to collate on a specific para ID. Upon declaration, the validator node will sample this peer into the reservoir. This is achieved via an online randomized algorithm in order to ensure that the probability a collator successfully connects to a validator is uniform. Once they've declared that, and we checked their signature, they can begin to send advertisements of collations. The peers should not send us any advertisements for collations that are on a relay-parent outside of our view or for a para outside of the one they've declared.
 
 The protocol tracks advertisements received and the source of the advertisement. The advertisement source is the `PeerId` of the peer who sent the message. We accept one advertisement per collator per source per relay-parent.
 
