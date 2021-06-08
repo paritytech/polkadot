@@ -87,13 +87,15 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
+/// Implement `TryFrom` for one enum variant into the inner type.
+/// `$m_ty::$variant(inner) -> Ok(inner)`
 macro_rules! impl_try_from {
 	($m_ty:ident, $variant:ident, $out:ty) => {
 		impl TryFrom<$m_ty> for $out {
 			type Error = crate::WrongVariant;
 
-			#[allow(unreachable_patterns)] // when there is only one variant
 			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
 				match x {
 					$m_ty::$variant(y) => Ok(y),
 					_ => Err(crate::WrongVariant),
@@ -301,7 +303,7 @@ pub mod v1 {
 		UncheckedSignedFullStatement,
 	};
 
-	
+
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {

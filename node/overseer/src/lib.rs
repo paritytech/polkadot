@@ -231,17 +231,25 @@ impl From<FinalityNotification<Block>> for BlockInfo {
 	}
 }
 
-/// Some event from the outer world.
+/// An event from outside the overseer scope, such
+/// as the substrate framework or user interaction.
 pub enum Event {
+	/// A new block was imported.
 	BlockImported(BlockInfo),
+	/// A block was finalized with i.e. babe or another consensus algorithm.
 	BlockFinalized(BlockInfo),
+	/// An explicit message to the subsystem.
 	MsgToSubsystem(AllMessages),
+	/// An external request, see the inner type for details.
 	ExternalRequest(ExternalRequest),
+	/// Stop the overseer on i.e. a UNIX signal.
 	Stop,
 }
 
 /// Some request from outer world.
 pub enum ExternalRequest {
+	/// Wait for the activation of a particular hash
+	/// and be notified by means of the return channel.
 	WaitForActivation {
 		hash: Hash,
 		response_channel: oneshot::Sender<SubsystemResult<()>>,
@@ -308,10 +316,10 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, BitfieldSigningMessage)]
+	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage)]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(no_dispatch, BitfieldDistributionMessage)]
+	#[subsystem(BitfieldDistributionMessage)]
 	bitfield_distribution: BitfieldDistribution,
 
 	#[subsystem(no_dispatch, ProvisionerMessage)]

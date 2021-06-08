@@ -706,6 +706,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 		where
 			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 			Context: SubsystemContext<Message=<Job as JobTrait>::ToJob, Signal=OverseerSignal>,
+			<Context as SubsystemContext>::Sender: Clone,
 			Job: 'static + JobTrait + Send,
 			Job::RunArgs: Clone + Sync,
 			Job::ToJob: From<RuntimeApiMessage>,

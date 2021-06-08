@@ -240,10 +240,3 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 }
-
-pub type AllSubsystemsSame<T> = AllSubsystems<
-	T, T, T, T, T,
-    T, T, T, T, T,
-    T, T, T, T, T,
-    T, T, T,
->;
