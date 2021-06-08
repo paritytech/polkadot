@@ -23,7 +23,7 @@ structopt = "0.3.21"
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli" }
-polkadot-service = { path = "../../../../node/service" }
+polkadot-service = { path = "../../../../node/service", features = [ "rococo-native" ] }
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 

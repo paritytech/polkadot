@@ -75,23 +75,44 @@ impl SubstrateCli for Cli {
 		} else { id };
 		Ok(match id {
 			"kusama" => Box::new(service::chain_spec::kusama_config()?),
+			#[cfg(feature = "kusama-native")]
 			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()?),
+			#[cfg(feature = "kusama-native")]
 			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()?),
+			#[cfg(feature = "kusama-native")]
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
+			#[cfg(not(feature = "kusama-native"))]
+			name if name.starts_with("kusama-") =>
+				Err(format!("`{}` only supported with `kusama-native` feature enabled.", name))?,
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
 			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			#[cfg(feature = "rococo-native")]
 			"rococo-dev" => Box::new(service::chain_spec::rococo_development_config()?),
+			#[cfg(feature = "rococo-native")]
 			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			#[cfg(feature = "rococo-native")]
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			name if name.starts_with("rococo-") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			"westend" => Box::new(service::chain_spec::westend_config()?),
+			#[cfg(feature = "westend-native")]
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
+			#[cfg(feature = "westend-native")]
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
+			#[cfg(feature = "westend-native")]
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
+			#[cfg(not(feature = "westend-native"))]
+			name if name.starts_with("westend-") =>
+				Err(format!("`{}` only supported with `westend-native` feature enabled.", name))?,
 			"wococo" => Box::new(service::chain_spec::wococo_config()?),
+			#[cfg(feature = "rococo-native")]
 			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
+			#[cfg(not(feature = "rococo-native"))]
+			name if name.starts_with("wococo-") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -113,15 +134,25 @@ impl SubstrateCli for Cli {
 	}
 
 	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
+		#[cfg(feature = "kusama-native")]
 		if spec.is_kusama() {
-			&service::kusama_runtime::VERSION
-		} else if spec.is_westend() {
-			&service::westend_runtime::VERSION
-		} else if spec.is_rococo() || spec.is_wococo() {
-			&service::rococo_runtime::VERSION
-		} else {
-			&service::polkadot_runtime::VERSION
+			return &service::kusama_runtime::VERSION
 		}
+
+		#[cfg(feature = "westend-native")]
+		if spec.is_westend() {
+			return &service::westend_runtime::VERSION
+		}
+
+		#[cfg(feature = "rococo-native")]
+		if spec.is_rococo() || spec.is_wococo() {
+			return &service::rococo_runtime::VERSION
+		}
+
+		#[cfg(not(all(feature = "rococo-native", feature = "westend-native", feature = "kusama-native")))]
+		let _ = spec;
+
+		&service::polkadot_runtime::VERSION
 	}
 }
 
@@ -181,8 +212,11 @@ pub fn run() -> Result<()> {
 			runner.run_node_until_exit(move |config| async move {
 				let role = config.role.clone();
 
-				let task_manager = match role {
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+				match role {
+					#[cfg(feature = "browser")]
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager).map_err(Into::into),
+					#[cfg(not(feature = "browser"))]
+					Role::Light => Err(Error::Other("Light client not enabled".into())),
 					_ => service::build_full(
 						config,
 						service::IsCollator::No,
@@ -190,9 +224,8 @@ pub fn run() -> Result<()> {
 						cli.run.no_beefy,
 						jaeger_agent,
 						None,
-					).map(|full| full.task_manager)
-				}?;
-				Ok::<_, Error>(task_manager)
+					).map(|full| full.task_manager).map_err(Into::into)
+				}
 			})
 		},
 		Some(Subcommand::BuildSpec(cmd)) => {
@@ -304,23 +337,28 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
+
+			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
-				Ok(runner.sync_run(|config| {
+				return Ok(runner.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
-			} else if chain_spec.is_westend() {
-				Ok(runner.sync_run(|config| {
+			}
+
+			#[cfg(feature = "westend-native")]
+			if chain_spec.is_westend() {
+				return Ok(runner.sync_run(|config| {
 					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 						.map_err(|e| Error::SubstrateCli(e))
 				})?)
-			} else {
-				// else we assume it is polkadot.
-				Ok(runner.sync_run(|config| {
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
-						.map_err(|e| Error::SubstrateCli(e))
-				})?)
 			}
+
+			// else we assume it is polkadot.
+			Ok(runner.sync_run(|config| {
+				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+					.map_err(|e| Error::SubstrateCli(e))
+			})?)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
@@ -337,29 +375,34 @@ pub fn run() -> Result<()> {
 			).map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
+
+			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
-				runner.async_run(|config| {
+				return runner.async_run(|config| {
 					Ok((cmd.run::<
 						service::kusama_runtime::Block,
 						service::KusamaExecutor,
 					>(config).map_err(Error::SubstrateCli), task_manager))
 				})
-			} else if chain_spec.is_westend() {
-				runner.async_run(|config| {
+			}
+
+			#[cfg(feature = "westend-native")]
+			if chain_spec.is_westend() {
+				return runner.async_run(|config| {
 					Ok((cmd.run::<
 						service::westend_runtime::Block,
 						service::WestendExecutor,
 					>(config).map_err(Error::SubstrateCli), task_manager))
 				})
-			} else {
-				// else we assume it is polkadot.
-				runner.async_run(|config| {
-					Ok((cmd.run::<
-						service::polkadot_runtime::Block,
-						service::PolkadotExecutor,
-					>(config).map_err(Error::SubstrateCli), task_manager))
-				})
 			}
+
+			// else we assume it is polkadot.
+			runner.async_run(|config| {
+				Ok((cmd.run::<
+					service::polkadot_runtime::Block,
+					service::PolkadotExecutor,
+				>(config).map_err(Error::SubstrateCli), task_manager))
+			})
 		}
 	}?;
 	Ok(())

@@ -56,7 +56,6 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -72,6 +71,7 @@ kvdb-rocksdb = { version = "0.11.0", optional = true }
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
 polkadot-overseer = { path = "../overseer" }
+polkadot-client = { path = "../client" }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
@@ -82,9 +82,9 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot" }
-kusama-runtime = { path = "../../runtime/kusama" }
-westend-runtime = { path = "../../runtime/westend" }
-rococo-runtime = { path = "../../runtime/rococo" }
+kusama-runtime = { path = "../../runtime/kusama", optional = true }
+westend-runtime = { path = "../../runtime/westend", optional = true }
+rococo-runtime = { path = "../../runtime/rococo", optional = true }
 
 # Polkadot Subsystems
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
@@ -111,7 +111,11 @@ env_logger = "0.8.2"
 
 [features]
 default = ["db", "full-node"]
-db = ["service/db"]
+
+db = [
+	"service/db"
+]
+
 full-node = [
 	"polkadot-node-core-av-store",
 	"polkadot-node-core-approval-voting",
@@ -133,6 +137,15 @@ full-node = [
 	"sc-finality-grandpa-warp-sync",
 	"kvdb-rocksdb"
 ]
+
+light-node = []
+
+# Configure the native runtimes to use. Polkadot is always enabled by default.
+#
+# Validators require the native runtime currently
+kusama-native = [ "kusama-runtime", "polkadot-client/kusama" ]
+westend-native = [ "westend-runtime", "polkadot-client/westend" ]
+rococo-native = [ "rococo-runtime", "polkadot-client/rococo" ]
 
 runtime-benchmarks = [
 	"polkadot-runtime/runtime-benchmarks",
