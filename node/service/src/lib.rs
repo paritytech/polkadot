@@ -432,7 +432,6 @@ where
 	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
 	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
 	use polkadot_node_core_backing::CandidateBackingSubsystem;
-	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
 	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 	use polkadot_node_core_chain_api::ChainApiSubsystem;
 	use polkadot_node_collation_generation::CollationGenerationSubsystem;
@@ -467,11 +466,6 @@ where
 			Metrics::register(registry)?,
 		),
 		candidate_backing: CandidateBackingSubsystem::new(
-			spawner.clone(),
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		candidate_selection: CandidateSelectionSubsystem::new(
 			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,

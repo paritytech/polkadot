@@ -867,7 +867,7 @@ mod tests {
 	use thiserror::Error;
 	use polkadot_node_jaeger as jaeger;
 	use polkadot_node_subsystem::{
-		messages::{AllMessages, CandidateSelectionMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+		messages::{AllMessages, CollatorProtocolMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 		SpawnedSubsystem, ActivatedLeaf, LeafStatus,
 	};
 	use assert_matches::assert_matches;
@@ -884,8 +884,8 @@ mod tests {
 
 	// job structs are constructed within JobTrait::run
 	// most will want to retain the sender and receiver, as well as whatever other data they like
-	struct FakeCandidateSelectionJob {
-		receiver: mpsc::Receiver<CandidateSelectionMessage>,
+	struct FakeCollatorProtocolJob {
+		receiver: mpsc::Receiver<CollatorProtocolMessage>,
 	}
 
 	// Error will mostly be a wrapper to make the try operator more convenient;
@@ -897,13 +897,13 @@ mod tests {
 		Sending(#[from]mpsc::SendError),
 	}
 
-	impl JobTrait for FakeCandidateSelectionJob {
-		type ToJob = CandidateSelectionMessage;
+	impl JobTrait for FakeCollatorProtocolJob {
+		type ToJob = CollatorProtocolMessage;
 		type Error = Error;
 		type RunArgs = bool;
 		type Metrics = ();
 
-		const NAME: &'static str = "FakeCandidateSelectionJob";
+		const NAME: &'static str = "FakeCollatorProtocolJob";
 
 		/// Run a job for the parent block indicated
 		//
@@ -913,14 +913,14 @@ mod tests {
 			_: Arc<jaeger::Span>,
 			run_args: Self::RunArgs,
 			_metrics: Self::Metrics,
-			receiver: mpsc::Receiver<CandidateSelectionMessage>,
+			receiver: mpsc::Receiver<CollatorProtocolMessage>,
 			mut sender: JobSender<S>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 			async move {
-				let job = FakeCandidateSelectionJob { receiver };
+				let job = FakeCollatorProtocolJob { receiver };
 
 				if run_args {
-					sender.send_message(CandidateSelectionMessage::Invalid(
+					sender.send_message(CollatorProtocolMessage::Invalid(
 						Default::default(),
 						Default::default(),
 					).into()).await;
@@ -934,7 +934,7 @@ mod tests {
 		}
 	}
 
-	impl FakeCandidateSelectionJob {
+	impl FakeCollatorProtocolJob {
 		async fn run_loop(mut self) -> Result<(), Error> {
 			loop {
 				match self.receiver.next().await {
@@ -950,11 +950,11 @@ mod tests {
 	}
 
 	// with the job defined, it's straightforward to get a subsystem implementation.
-	type FakeCandidateSelectionSubsystem<Spawner> =
-		JobSubsystem<FakeCandidateSelectionJob, Spawner>;
+	type FakeCollatorProtocolSubsystem<Spawner> =
+		JobSubsystem<FakeCollatorProtocolJob, Spawner>;
 
 	// this type lets us pretend to be the overseer
-	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
+	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
 
 	fn test_harness<T: Future<Output = ()>>(
 		run_args: bool,
@@ -971,7 +971,7 @@ mod tests {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 
-		let subsystem = FakeCandidateSelectionSubsystem::new(
+		let subsystem = FakeCollatorProtocolSubsystem::new(
 			pool,
 			run_args,
 			(),
@@ -1005,7 +1005,7 @@ mod tests {
 				.await;
 			assert_matches!(
 				overseer_handle.recv().await,
-				AllMessages::CandidateSelection(_)
+				AllMessages::CollatorProtocol(_)
 			);
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
@@ -1045,7 +1045,7 @@ mod tests {
 			// the subsystem is still alive
 			assert_matches!(
 				overseer_handle.recv().await,
-				AllMessages::CandidateSelection(_)
+				AllMessages::CollatorProtocol(_)
 			);
 
 			overseer_handle
@@ -1057,11 +1057,11 @@ mod tests {
 	#[test]
 	fn test_subsystem_impl_and_name_derivation() {
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
+		let (context, _) = make_subsystem_context::<CollatorProtocolMessage, _>(pool.clone());
 
 		let SpawnedSubsystem { name, .. } =
-			FakeCandidateSelectionSubsystem::new(pool, false, ()).start(context);
-		assert_eq!(name, "FakeCandidateSelection");
+			FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
+		assert_eq!(name, "FakeCollatorProtocol");
 	}
 
 
