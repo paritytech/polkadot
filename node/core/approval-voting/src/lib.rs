@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
+	rolling_session_window::RollingSessionWindow,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
@@ -495,7 +496,7 @@ struct ApprovalStatus {
 }
 
 struct State<T> {
-	session_window: import::RollingSessionWindow,
+	session_window: RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: T,
@@ -589,7 +590,7 @@ async fn run<C>(
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
-		session_window: Default::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),

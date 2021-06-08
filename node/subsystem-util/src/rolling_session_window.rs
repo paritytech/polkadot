@@ -59,6 +59,7 @@ pub struct SessionsUnavailable {
 }
 
 /// An indicated update of the rolling session window.
+#[derive(Debug, PartialEq, Clone)]
 pub enum SessionWindowUpdate {
 	/// The session window was just initialized to the current values.
 	Initialized {
