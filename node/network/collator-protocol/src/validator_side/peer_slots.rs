@@ -1,4 +1,4 @@
-#![warn(dead_code)]
+#!`[allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -35,7 +35,10 @@ use polkadot_subsystem::{messages::{AllMessages, NetworkBridgeMessage}, Subsyste
 // Cache are stored in a database.
 const CACHE_SIZE: usize = 1_000;
 // RESERVOIR SIZE determines the upper bound on the number of collator connections
+#[cfg(not(test))]
 pub(super) const RESERVOIR_SIZE: usize = 128;
+#[cfg(test)]
+pub(super) const RESERVOIR_SIZE: usize = 16;
 
 /// Message was went out-of-order
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -43,7 +46,7 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 const COST_CORRUPTED_MESSAGE: Rep = Rep::CostMinor("Message was corrupt");
 /// Network errors that originated at the remote host should have same cost as timeout.
 const COST_NETWORK_ERROR: Rep = Rep::CostMinor("Some network error");
-const COST_REQUEST_TIMED_OUT: Rep =
+pub(super) const COST_REQUEST_TIMED_OUT: Rep =
 	Rep::CostMinor("A collation request has timed out");
 pub(super) const COST_INVALID_SIGNATURE: Rep =
 	Rep::Malicious("Invalid network message signature");
@@ -56,7 +59,8 @@ pub(super) const COST_REPORT_BAD: Rep =
 pub(super) const BENEFIT_NOTIFY_GOOD: Rep =
 	Rep::BenefitMinor("A collator was noted good by another subsystem");
 
-const COLLATOR_METRICS: [Rep; 9] = [
+pub(super) const NUM_METRICS: usize = 7;
+pub(super) const COLLATOR_METRICS: [Rep; NUM_METRICS] = [
 	COST_UNEXPECTED_MESSAGE,
 	COST_CORRUPTED_MESSAGE,
 	COST_NETWORK_ERROR,
@@ -64,8 +68,6 @@ const COLLATOR_METRICS: [Rep; 9] = [
 	COST_INVALID_SIGNATURE,
 	COST_WRONG_PARA,
 	COST_UNNEEDED_COLLATOR,
-	COST_REPORT_BAD,
-	BENEFIT_NOTIFY_GOOD,
 ];
 
 #[derive(Eq, PartialEq, Copy, Clone)]
@@ -78,8 +80,6 @@ pub enum FitnessEvent {
 	SigError = 4,
 	ParaError = 5,
 	Superfluous = 6,
-	ReportBad = 7,
-	NotifyGood = 8,
 }
 
 #[derive(Copy, Clone)]
@@ -122,14 +122,14 @@ impl FitnessMetric {
 		}
 	}
 
-	pub fn _insert_event(&mut self, elapsed: Duration) {
+	pub fn insert_event(&mut self, elapsed: Duration) {
 		self.total += 1;
 		self.cumulative += elapsed;
 		self.last = std::time::Instant::now();
 	}
 
-	pub fn insert_event(&mut self) {
-		self._insert_event(self.last.elapsed());
+	pub fn elapsed(&self) -> Duration {
+		self.last.elapsed()
 	}
 
 	pub fn fitness(&self) -> f64 {
@@ -141,7 +141,7 @@ impl FitnessMetric {
 	}
 }
 
-pub struct CollatorFitnessMetric([FitnessMetric; 8]);
+pub struct CollatorFitnessMetric([FitnessMetric; NUM_METRICS]);
 
 impl Index<FitnessEvent> for CollatorFitnessMetric {
 	type Output = FitnessMetric;
@@ -157,12 +157,12 @@ impl IndexMut<FitnessEvent> for CollatorFitnessMetric {
 }
 
 impl CollatorFitnessMetric {
-	pub fn _insert_event(&mut self, event: FitnessEvent, elapsed: Duration) {
-		(&mut self[event])._insert_event(elapsed)
+	pub fn insert_event(&mut self, event: FitnessEvent, elapsed: Duration) {
+		(&mut self[event]).insert_event(elapsed)
 	}
 
-	pub fn insert_event(&mut self, event: FitnessEvent) {
-		(&mut self[event]).insert_event()
+	pub fn elapsed(&self, event: FitnessEvent) -> Duration {
+		(&self[event]).elapsed()
 	}
 
 	// Compute collator's fitness value.
@@ -177,7 +177,7 @@ impl CollatorFitnessMetric {
 
 impl Default for CollatorFitnessMetric {
 	fn default() -> Self {
-		Self([FitnessMetric::new(); COLLATOR_METRICS.len() - 1])
+		Self([FitnessMetric::new(); COLLATOR_METRICS.len()])
 	}
 }
 
@@ -210,6 +210,12 @@ pub(super) struct PeerData {
 	view: View,
 	state: PeerState,
 	pub(super) slot_idx: usize,
+}
+
+impl Default for PeerData {
+	fn default() -> Self {
+		Self::new(Default::default(), Default::default())
+	}
 }
 
 impl PeerData {
@@ -495,23 +501,21 @@ impl PeerSlots {
 		}
 	}
 
-	pub fn _insert_event(&mut self, collator_id: &CollatorId, event: FitnessEvent, elapsed: Duration) {
+	pub fn insert_event(&mut self, collator_id: &CollatorId, event: FitnessEvent, elapsed: Duration) {
 		if let Some(metric) = self.fitness.peek_mut(collator_id) {
-			metric._insert_event(event, elapsed);
+			metric.insert_event(event, elapsed);
 		} else {
 			let mut metric = CollatorFitnessMetric::default();
-			metric._insert_event(event, elapsed);
+			metric.insert_event(event, elapsed);
 			self.fitness.put(collator_id.clone(), metric);
 		}
 	}
 
-	fn insert_event(&mut self, collator_id: &CollatorId, event: FitnessEvent) {
-		if let Some(metric) = self.fitness.peek_mut(collator_id) {
-			metric.insert_event(event);
+	pub fn elapsed(&self, collator_id: &CollatorId, event: FitnessEvent) -> Duration {
+		if let Some(metric) = self.fitness.peek(collator_id) {
+			metric.elapsed(event)
 		} else {
-			let mut metric = CollatorFitnessMetric::default();
-			metric.insert_event(event);
-			self.fitness.put(collator_id.clone(), metric);
+			Duration::new(0, 0)
 		}
 	}
 
@@ -598,10 +602,6 @@ impl PeerSlots {
 	}
 
 	pub fn reprioritize(&mut self, peer_id: &PeerId, reverse: bool) -> (Option<usize>, Option<usize>) {
-		println!("\n Total number of peers {}", self.peer_data.len());
-		for peer_id in self.peers.iter() {
-			println!("{:?} \t {}", peer_id, self.compute_peer_fitness(peer_id));
-		}
 		let temp = self.peer_slot(peer_id);
 
 		if temp.is_none() {
@@ -629,12 +629,6 @@ impl PeerSlots {
 				)
 			)
 		};
-		println!("Total number of peers after {}", self.peer_data.len());
-		for peer_id in self.peers.iter() {
-			println!("{:?} \t {}", peer_id, self.compute_peer_fitness(peer_id));
-		}
-
-		println!("DONE\n\n");
 		out
 	}
 
@@ -740,13 +734,14 @@ pub(super) async fn cycle_para(
 pub fn handle_connection(
 	peer_slots: &mut PeerSlots,
 	peer_id: PeerId,
-) {
+) -> usize {
 	peer_slots
 		.peer_data
 		.insert(
 			peer_id.clone(),
 			PeerData::new(Default::default(), 0),
 		);
+	peer_slots.peer_data.len()
 }
 
 pub fn reprioritize(
@@ -790,12 +785,12 @@ pub fn _insert_event(
 	event: FitnessEvent,
 	elapsed: Duration,
 ) {
-	peer_slots._insert_event(collator_id, event, elapsed);
+	peer_slots.insert_event(collator_id, event, elapsed);
 
 	reprioritize(peer_slots, peer_id, false);
 }
 
-pub async fn insert_event<Context>(
+pub(super) async fn insert_event<Context>(
 	ctx: &mut Context,
 	peer_slots: &mut PeerSlots,
 	peer_id: &PeerId,
@@ -805,16 +800,13 @@ pub async fn insert_event<Context>(
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	modify_reputation(ctx, *peer_id, COLLATOR_METRICS[event as usize]).await;
-	if event != FitnessEvent::NotifyGood {
-		peer_slots.insert_event(collator_id, event);	
-
-		reprioritize(peer_slots, peer_id, false);
-	}
+	let elapsed = peer_slots.elapsed(collator_id, event);
+	_insert_event(peer_slots, peer_id, collator_id, event, elapsed);
 }
 
 /// Modify the reputation of a peer based on its behavior.
 #[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
+pub(super) async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext,
 {

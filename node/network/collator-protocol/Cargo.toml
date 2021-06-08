@@ -32,3 +32,6 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+
+[features]
+sampling = []
