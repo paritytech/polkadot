@@ -60,7 +60,7 @@ impl BridgeInstance for RialtoPoA {
 				.collect(),
 		);
 
-		rialto_runtime::Call::BridgeRialtoPoA(pallet_call)
+		rialto_runtime::Call::BridgeRialtoPoa(pallet_call)
 	}
 
 	fn build_unsigned_header_call(&self, header: QueuedEthereumHeader) -> Call {
@@ -69,7 +69,7 @@ impl BridgeInstance for RialtoPoA {
 			into_substrate_ethereum_receipts(header.extra()),
 		);
 
-		rialto_runtime::Call::BridgeRialtoPoA(pallet_call)
+		rialto_runtime::Call::BridgeRialtoPoa(pallet_call)
 	}
 
 	fn build_currency_exchange_call(&self, proof: Proof) -> Call {
