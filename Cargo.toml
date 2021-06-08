@@ -12,11 +12,8 @@ edition = "2018"
 readme = "README.md"
 
 [dependencies]
-cli = { package = "polkadot-cli", path = "cli" }
+polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 color-eyre = "0.5.10"
-thiserror = "1.0.23"
-futures = "0.3.12"
-service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -43,6 +40,7 @@ members = [
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"xcm/pallet-xcm",
+	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
@@ -96,8 +94,8 @@ opt-level = 3
 panic = "unwind"
 
 [features]
-runtime-benchmarks=["cli/runtime-benchmarks"]
-try-runtime = ["cli/try-runtime"]
+runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
+try-runtime = [ "polkadot-cli/try-runtime" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
