@@ -100,6 +100,20 @@ impl RollingSessionWindow {
 		}
 	}
 
+	/// Initialize a new session info cache with the given window size and
+	/// initial data.
+	pub fn with_session_info(
+		window_size: SessionIndex,
+		earliest_session: SessionIndex,
+		session_info: Vec<SessionInfo>,
+	) -> Self {
+		RollingSessionWindow {
+			earliest_session: Some(earliest_session),
+			session_info,
+			window_size,
+		}
+	}
+
 	/// Access the session info for the given session index, if stored within the window.
 	pub fn session_info(&self, index: SessionIndex) -> Option<&SessionInfo> {
 		self.earliest_session.and_then(|earliest| {
@@ -274,4 +288,347 @@ async fn load_all_sessions(
 	}
 
 	Ok(v)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_node_subsystem::messages::AllMessages;
+	use sp_core::testing::TaskExecutor;
+	use assert_matches::assert_matches;
+
+	const TEST_WINDOW_SIZE: SessionIndex = 6;
+
+	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
+		SessionInfo {
+			validators: Vec::new(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Vec::new(),
+			n_cores: index as _,
+			zeroth_delay_tranche_width: index as _,
+			relay_vrf_modulo_samples: index as _,
+			n_delay_tranches: index as _,
+			no_show_slots: index as _,
+			needed_approvals: index as _,
+		}
+	}
+
+	fn cache_session_info_test(
+		expected_start_session: SessionIndex,
+		session: SessionIndex,
+		mut window: RollingSessionWindow,
+		expect_requests_from: SessionIndex,
+	) {
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				window.cache_session_info_for_head(
+					&mut ctx,
+					hash,
+					&header,
+				).await.unwrap();
+
+				assert_eq!(window.earliest_session, Some(expected_start_session));
+				assert_eq!(
+					window.session_info,
+					(expected_start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
+				);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			for i in expect_requests_from..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+						let _ = s_tx.send(Ok(Some(dummy_session_info(i))));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn cache_session_info_first_early() {
+		cache_session_info_test(
+			0,
+			1,
+			RollingSessionWindow::new(TEST_WINDOW_SIZE),
+			0,
+		);
+	}
+
+	#[test]
+	fn cache_session_info_does_not_underflow() {
+		let window = RollingSessionWindow {
+			earliest_session: Some(1),
+			session_info: vec![dummy_session_info(1)],
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			1,
+			2,
+			window,
+			2,
+		);
+	}
+
+	#[test]
+	fn cache_session_info_first_late() {
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+			100,
+			RollingSessionWindow::new(TEST_WINDOW_SIZE),
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+		);
+	}
+
+	#[test]
+	fn cache_session_info_jump() {
+		let window = RollingSessionWindow {
+			earliest_session: Some(50),
+			session_info: vec![dummy_session_info(50), dummy_session_info(51), dummy_session_info(52)],
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+			100,
+			window,
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_full() {
+		let start = 99 - (TEST_WINDOW_SIZE - 1);
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (start..=99).map(dummy_session_info).collect(),
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+			100,
+			window,
+			100, // should only make one request.
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_many_full() {
+		let start = 97 - (TEST_WINDOW_SIZE - 1);
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (start..=97).map(dummy_session_info).collect(),
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE - 1),
+			100,
+			window,
+			98,
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_early() {
+		let start = 0;
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (0..=1).map(dummy_session_info).collect(),
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			0,
+			2,
+			window,
+			2, // should only make one request.
+		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_many_early() {
+		let start = 0;
+		let window = RollingSessionWindow {
+			earliest_session: Some(start),
+			session_info: (0..=1).map(dummy_session_info).collect(),
+			window_size: TEST_WINDOW_SIZE,
+		};
+
+		cache_session_info_test(
+			0,
+			3,
+			window,
+			2,
+		);
+	}
+
+	#[test]
+	fn any_session_unavailable_for_caching_means_no_change() {
+		let session: SessionIndex = 6;
+		let start_session = session.saturating_sub(TEST_WINDOW_SIZE - 1);
+
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let mut window = RollingSessionWindow::new(TEST_WINDOW_SIZE);
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				let res = window.cache_session_info_for_head(
+					&mut ctx,
+					hash,
+					&header,
+				).await;
+
+				assert!(res.is_err());
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.parent_hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			for i in start_session..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+
+						let _ = s_tx.send(Ok(if i == session {
+							None
+						} else {
+							Some(dummy_session_info(i))
+						}));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn request_session_info_for_genesis() {
+		let session: SessionIndex = 0;
+
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let mut window = RollingSessionWindow::new(TEST_WINDOW_SIZE);
+		let hash = header.hash();
+
+		let test_fut = {
+			let header = header.clone();
+			Box::pin(async move {
+				window.cache_session_info_for_head(
+					&mut ctx,
+					hash,
+					&header,
+				).await.unwrap();
+
+				assert_eq!(window.earliest_session, Some(session));
+				assert_eq!(
+					window.session_info,
+					vec![dummy_session_info(session)],
+				);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionInfo(s, s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					assert_eq!(s, session);
+
+					let _ = s_tx.send(Ok(Some(dummy_session_info(s))));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
 }
