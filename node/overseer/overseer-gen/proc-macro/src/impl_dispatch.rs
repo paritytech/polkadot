@@ -40,12 +40,10 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 						let mut iter = iter.chain(
 							::std::iter::once(
 								event.focus::<'_, NetworkBridgeEvent < #dispatchable >>()
-								.ok().map(|event: NetworkBridgeEvent < #dispatchable >| -> #message_wrapper {
+								.ok().map(|event| -> #message_wrapper {
 									#message_wrapper :: #dispatchable (
 										// the inner type of the enum variant
-										#message_wrapper :: #dispatchable (
-											#dispatchable :: from( event )
-										)
+										#dispatchable :: from( event )
 									)
 								})
 							)
