@@ -84,8 +84,8 @@ pub struct ParaPastCodeMeta<N> {
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
 	upgrade_times: Vec<ReplacementTimes<N>>,
-	/// Tracks the highest pruned code-replacement, if any. This is the `expected_at` value,
-	/// not the `activated_at` value.
+	/// Tracks the highest pruned code-replacement, if any. This is the `activated_at` value,
+	/// not the `expected_at` value.
 	last_pruned: Option<N>,
 }
 
@@ -169,23 +169,45 @@ impl ParaLifecycle {
 	}
 }
 
-impl<N: Ord + Copy> ParaPastCodeMeta<N> {
+impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
 	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
 	// Yields an identifier that should be used for validating a
-	// parablock in the context of a particular relay-chain block number.
+	// parablock in the context of a particular relay-chain block number in this chain.
 	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
-	#[allow(unused)]
 	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
 		// Find out
-		// a) if there is a point where code was replaced _after_ execution in this context and
+		// a) if there is a point where code was replaced in the current chain after the context
+		//    we are finding out code for.
 		// b) what the index of that point is.
-		let replaced_after_pos = self.upgrade_times.iter().position(|t| t.expected_at >= para_at);
+		//
+		// The reason we use `activated_at` instead of `expected_at` is that a gap may occur
+		// between expectation and actual activation. Any block executed in a context from
+		// `expected_at..activated_at` is expected to activate the code upgrade and therefore should
+		// use the previous code.
+		//
+		// A block executed in the context of `activated_at` should use the new code.
+		//
+		// Cases where `expected_at` and `activated_at` are the same, that is, zero-delay code upgrades
+		// are also handled by this rule correctly.
+		let replaced_after_pos = self.upgrade_times.iter().position(|t| {
+			// example: code replaced at (5, 5)
+			//
+			// context #4 should use old code
+			// context #5 should use new code
+			//
+			// example: code replaced at (10, 20)
+			// context #9 should use the old code
+			// context #10 should use the old code
+			// context #19 should use the old code
+			// context #20 should use the new code
+			para_at < t.activated_at
+		});
 
 		if let Some(replaced_after_pos) = replaced_after_pos {
 			// The earliest stored code replacement needs to be special-cased, since we need to check
@@ -205,7 +227,11 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 			// we don't know the code necessary anymore. Compare against `last_pruned` to determine.
 			self.last_pruned.as_ref().map_or(
 				Some(UseCodeAt::Current), // nothing pruned, use current
-				|t| if t >= &para_at { None } else { Some(UseCodeAt::Current) },
+				|earliest_activation| if &para_at < earliest_activation {
+					None
+				} else {
+					Some(UseCodeAt::Current)
+				},
 			)
 		}
 	}
@@ -233,7 +259,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 			self.upgrade_times.drain(self.upgrade_times.len()..)
 		} else {
 			// if we are actually pruning something, update the last_pruned member.
-			self.last_pruned = Some(self.upgrade_times[to_prune - 1].expected_at);
+			self.last_pruned = Some(self.upgrade_times[to_prune - 1].activated_at);
 			self.upgrade_times.drain(..to_prune)
 		};
 
@@ -691,7 +717,6 @@ impl<T: Config> Module<T> {
 	/// Schedule a parathread to be upgraded to a parachain.
 	///
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
-	#[allow(unused)]
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
@@ -711,7 +736,6 @@ impl<T: Config> Module<T> {
 	/// Schedule a parachain to be downgraded to a parathread.
 	///
 	/// Noop if `ParaLifecycle` is not `Parachain`.
-	#[allow(unused)]
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
 		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
@@ -808,15 +832,11 @@ impl<T: Config> Module<T> {
 	/// code has been pruned.
 	///
 	/// To get associated code see [`Self::validation_code_at`].
-	#[allow(unused)]
 	pub(crate) fn validation_code_hash_at(
 		id: ParaId,
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<Hash> {
-		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Module<T>>::config();
-
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
 			return None;
 		}
@@ -839,7 +859,6 @@ impl<T: Config> Module<T> {
 	}
 
 	/// Fetch validation code of para in specific context, see [`Self::validation_code_hash_at`].
-	#[allow(unused)]
 	pub(crate) fn validation_code_at(
 		id: ParaId,
 		at: T::BlockNumber,
@@ -1011,19 +1030,34 @@ mod tests {
 		past_code.note_replacement(10, 12);
 		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
 		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::Current));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(12), Some(UseCodeAt::Current));
 
 		past_code.note_replacement(20, 25);
 		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
 		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(20), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(21), Some(UseCodeAt::Current));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(25), Some(UseCodeAt::Current));
+
+		past_code.note_replacement(30, 30);
+		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
+		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
 
 		past_code.last_pruned = Some(5);
 		assert_eq!(past_code.code_at(1), None);
 		assert_eq!(past_code.code_at(5), None);
 		assert_eq!(past_code.code_at(6), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
+		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
+
 	}
 
 	#[test]
@@ -1048,7 +1082,7 @@ mod tests {
 		assert_eq!(past_code.prune_up_to(26).collect::<Vec<_>>(), vec![20]);
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: vec![upgrade_at(30, 35)],
-			last_pruned: Some(20),
+			last_pruned: Some(25),
 		});
 
 		past_code.note_replacement(40, 42);
@@ -1057,20 +1091,21 @@ mod tests {
 
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: vec![upgrade_at(30, 35), upgrade_at(40, 42), upgrade_at(50, 53), upgrade_at(60, 66)],
-			last_pruned: Some(20),
+			last_pruned: Some(25),
 		});
 
 		assert_eq!(past_code.prune_up_to(60).collect::<Vec<_>>(), vec![30, 40, 50]);
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: vec![upgrade_at(60, 66)],
-			last_pruned: Some(50),
+			last_pruned: Some(53),
 		});
 
+		assert_eq!(past_code.most_recent_change(), Some(60));
 		assert_eq!(past_code.prune_up_to(66).collect::<Vec<_>>(), vec![60]);
 
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: Vec::new(),
-			last_pruned: Some(60),
+			last_pruned: Some(66),
 		});
 	}
 
@@ -1371,6 +1406,28 @@ mod tests {
 					Paras::past_code_meta(&para_id).most_recent_change(),
 					Some(expected_at),
 				);
+
+				// Some hypothetical block which would have triggered the code change
+				// should still use the old code.
+				assert_eq!(
+					Paras::past_code_meta(&para_id).code_at(expected_at),
+					Some(UseCodeAt::ReplacedAt(expected_at)),
+				);
+
+				// Some hypothetical block at the context which actually triggered the
+				// code change should still use the old code.
+				assert_eq!(
+					Paras::past_code_meta(&para_id).code_at(expected_at + 4),
+					Some(UseCodeAt::ReplacedAt(expected_at)),
+				);
+
+				// Some hypothetical block at the context after the code was upgraded
+				// should use the new code.
+				assert_eq!(
+					Paras::past_code_meta(&para_id).code_at(expected_at + 4 + 1),
+					Some(UseCodeAt::Current),
+				);
+
 				assert_eq!(
 					<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
 					Some(original_code.hash()),
@@ -1694,12 +1751,16 @@ mod tests {
 			);
 
 			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 9, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period, None);
 
 			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 9, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period + 1, None);
 
@@ -1709,12 +1770,14 @@ mod tests {
 				Paras::past_code_meta(&para_id),
 				ParaPastCodeMeta {
 					upgrade_times: Vec::new(),
-					last_pruned: Some(2),
+					last_pruned: Some(10),
 				},
 			);
 
 			assert_eq!(Paras::validation_code_at(para_id, 2, None), None); // pruned :(
-			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 9, None), None);
+			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 11, None), Some(new_code.clone()));
 		});
 	}
 

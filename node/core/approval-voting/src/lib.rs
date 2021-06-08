@@ -2006,17 +2006,27 @@ async fn launch_approval(
 					candidate_index,
 				})).await;
 			}
-			Ok(Ok(ValidationResult::Invalid(_))) => {
+			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
 					target: LOG_TARGET,
-					"Detected invalid candidate as an approval checker {:?}",
-					(candidate_hash, para_id),
+					?reason,
+					?candidate_hash,
+					?para_id,
+					"Detected invalid candidate as an approval checker.",
 				);
 
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
 			}
-			Ok(Err(_)) => return, // internal error.
+			Ok(Err(e)) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Failed to validate candidate due to internal error",
+				);
+
+				return
+			}
 		}
 	};
 

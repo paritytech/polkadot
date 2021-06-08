@@ -18,6 +18,10 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
+#[cfg(test)]
+mod tests;
+
+use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
 	messages::{
@@ -35,6 +39,9 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use sp_application_crypto::{Public, AppKey};
 
 const LOG_TARGET: &str = "parachain::gossip-support";
+// How much time should we wait since the last
+// authority discovery resolution failure.
+const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
@@ -44,8 +51,10 @@ pub struct GossipSupport {
 #[derive(Default)]
 struct State {
 	last_session_index: Option<SessionIndex>,
-	/// when we overwrite this, it automatically drops the previous request
-	_last_connection_request: Option<oneshot::Sender<()>>,
+	// Some(timestamp) if we failed to resolve
+	// at least a third of authorities the last time.
+	// `None` otherwise.
+	last_failure: Option<Instant>,
 }
 
 impl GossipSupport {
@@ -56,12 +65,18 @@ impl GossipSupport {
 		}
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
-	async fn run<Context>(self, mut ctx: Context)
+	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
+		self.run_inner(ctx, &mut state).await;
+	}
+
+	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+	{
 		let Self { keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
@@ -102,6 +117,11 @@ async fn determine_relevant_authorities(
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
+	tracing::debug!(
+		target: LOG_TARGET,
+		authority_count = ?authorities.len(),
+		"Determined relevant authorities"
+	);
 	Ok(authorities)
 }
 
@@ -125,18 +145,16 @@ pub async fn connect_to_authorities(
 	ctx: &mut impl SubsystemContext<AllMessages>,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
-) -> oneshot::Sender<()> {
-	let (keep_alive_handle, keep_alive) = oneshot::channel();
-
+) -> oneshot::Receiver<usize> {
+	let (failed, failed_rx) = oneshot::channel();
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ConnectToValidators {
 			validator_ids,
 			peer_set,
-			keep_alive,
+			failed,
 		}
 	)).await;
-
-	keep_alive_handle
+	failed_rx
 }
 
 impl State {
@@ -151,25 +169,43 @@ impl State {
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
 			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
+			let force_request = since_failure >= BACKOFF_DURATION;
 			let maybe_new_session = match self.last_session_index {
-				Some(i) if i <= current_index => None,
+				Some(i) if current_index <= i && !force_request => None,
 				_ => Some((current_index, leaf)),
 			};
 
 			if let Some((new_session, relay_parent)) = maybe_new_session {
-				tracing::debug!(target: LOG_TARGET, %new_session, "New session detected");
+				tracing::debug!(
+					target: LOG_TARGET,
+					%new_session,
+					%force_request,
+					"New session detected",
+				);
 				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
 				ensure_i_am_an_authority(keystore, &authorities).await?;
-				tracing::debug!(target: LOG_TARGET, num = ?authorities.len(), "Issuing a connection request");
+				let num = authorities.len();
+				tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-				let keep_alive_handle = connect_to_authorities(
+				let failures = connect_to_authorities(
 					ctx,
 					authorities,
 					PeerSet::Validation,
 				).await;
 
+				// we await for the request to be processed
+				// this is fine, it should take much less time than one session
+				let failures = failures.await.unwrap_or(num);
+
 				self.last_session_index = Some(new_session);
-				self._last_connection_request = Some(keep_alive_handle);
+				// issue another request for the same session
+				// if at least a third of the authorities were not resolved
+				self.last_failure = if failures >= num / 3 {
+					Some(Instant::now())
+				} else {
+					None
+				}
 			}
 		}
 

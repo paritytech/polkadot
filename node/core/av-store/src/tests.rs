@@ -32,7 +32,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, ActivatedLeaf,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -258,6 +258,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 				activated: vec![ActivatedLeaf {
 					hash: new_leaf,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -994,6 +995,7 @@ async fn import_leaf(
 			activated: vec![ActivatedLeaf {
 				hash: new_leaf,
 				number: 1,
+				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
 			}].into(),
 			deactivated: vec![].into(),

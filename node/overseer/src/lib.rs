@@ -72,6 +72,8 @@ use futures::{
 	future::BoxFuture,
 	Future, FutureExt, StreamExt,
 };
+use futures_timer::Delay;
+use lru::LruCache;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -370,6 +372,9 @@ pub struct Overseer<SupportsParachains> {
 	/// An implementation for checking whether a header supports parachain consensus.
 	pub supports_parachains: SupportsParachains,
 
+	/// An LRU cache for keeping track of relay-chain heads that have already been seen.
+	known_leaves: LruCache<Hash, ()>,
+
 	/// Various Prometheus metrics.
 	pub metrics: Metrics,
 }
@@ -583,10 +588,11 @@ where
 
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some(span) = self.on_head_activated(&hash, None) {
+			if let Some((span, status)) = self.on_head_activated(&hash, None) {
 				update.activated.push(ActivatedLeaf {
 					hash,
 					number,
+					status,
 					span,
 				});
 			}
@@ -670,9 +676,10 @@ where
 		};
 
 		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)) {
-			Some(span) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			Some((span, status)) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: block.hash,
 				number: block.number,
+				status,
 				span
 			}),
 			None => ActiveLeavesUpdate::default(),
@@ -725,7 +732,7 @@ where
 	/// this returns `None`.
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>)
-		-> Option<Arc<jaeger::Span>>
+		-> Option<(Arc<jaeger::Span>, LeafStatus)>
 	{
 		if !self.supports_parachains.head_supports_parachains(hash) {
 			return None;
@@ -747,7 +754,14 @@ where
 
 		let span = Arc::new(span);
 		self.span_per_active_leaf.insert(*hash, span.clone());
-		Some(span)
+
+		let status = if let Some(_) = self.known_leaves.put(*hash, ()) {
+			LeafStatus::Stale
+		} else {
+			LeafStatus::Fresh
+		};
+
+		Some((span, status))
 	}
 
 	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]

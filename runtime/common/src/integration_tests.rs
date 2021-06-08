@@ -144,6 +144,7 @@ impl pallet_timestamp::Config for Test {
 
 parameter_types! {
 	pub static ExistentialDeposit: Balance = 1;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
@@ -154,6 +155,8 @@ impl pallet_balances::Config for Test {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 }
 
 impl configuration::Config for Test { }
@@ -366,12 +369,12 @@ fn basic_end_to_end_works() {
 		run_to_block(109);
 		assert_eq!(
 			last_event(),
-			crowdloan::RawEvent::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
+			crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
 		);
 		run_to_block(110);
 		assert_eq!(
 			last_event(),
-			auctions::RawEvent::AuctionClosed(1).into(),
+			auctions::Event::<Test>::AuctionClosed(1).into(),
 		);
 
 		// Paras should have won slots

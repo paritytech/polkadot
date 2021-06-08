@@ -56,14 +56,14 @@ Candidate Acceptance Function:
 
 Candidate Enactment:
 
-* `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+* `receive_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
     1. Process each upward message `M` in order:
         1. Append the message to `RelayDispatchQueues` for `P`
         1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
         1. Ensure that `P` is present in `NeedsDispatch`.
 
 The following routine is meant to execute pending entries in upward message queues. This function doesn't fail, even if
-dispatcing any of individual upward messages returns an error.
+dispatching any of individual upward messages returns an error.
 
 `process_pending_upward_messages()`:
     1. Initialize a cumulative weight counter `T` to 0
@@ -71,7 +71,7 @@ dispatcing any of individual upward messages returns an error.
         1. Dequeue the first upward message `D` from `RelayDispatchQueues` for `P`
         1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
         1. Delegate processing of the message to the runtime. The weight consumed is added to `T`.
-        1. If `T >= config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+        1. If `T >= config.ump_service_total_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
         1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
         1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
         > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations

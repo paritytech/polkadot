@@ -131,6 +131,14 @@ impl Metrics {
 				.inc_by((size * to_peers) as u64);
 		}
 	}
+
+	fn note_desired_peer_count(&self, peer_set: PeerSet, size: usize) {
+		self.0.as_ref().map(|metrics| metrics
+			.desired_peer_count
+			.with_label_values(&[peer_set.get_protocol_name_static()])
+			.set(size as u64)
+		);
+	}
 }
 
 #[derive(Clone)]
@@ -138,6 +146,7 @@ struct MetricsInner {
 	peer_count: prometheus::GaugeVec<prometheus::U64>,
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
+	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
 
 	notifications_received: prometheus::CounterVec<prometheus::U64>,
 	notifications_sent: prometheus::CounterVec<prometheus::U64>,
@@ -176,6 +185,16 @@ impl metrics::Metrics for Metrics {
 					prometheus::Opts::new(
 						"parachain_peer_disconnect_events_total",
 						"The number of peer disconnect events on a parachain notifications protocol",
+					),
+					&["protocol"]
+				)?,
+				registry,
+			)?,
+			desired_peer_count: prometheus::register(
+				prometheus::GaugeVec::new(
+					prometheus::Opts::new(
+						"parachain_desired_peer_count",
+						"The number of peers that the local node is expected to connect to on a parachain-related peer-set",
 					),
 					&["protocol"]
 				)?,
@@ -414,10 +433,14 @@ where
 				}
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							action = "ReportPeer"
-						);
+						if !rep.is_benefit() {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?peer,
+								?rep,
+								action = "ReportPeer"
+							);
+						}
 						network_service.report_peer(peer, rep).await?
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
@@ -509,7 +532,7 @@ where
 					NetworkBridgeMessage::ConnectToValidators {
 						validator_ids,
 						peer_set,
-						keep_alive,
+						failed,
 					} => {
 						tracing::trace!(
 							target: LOG_TARGET,
@@ -519,10 +542,12 @@ where
 							"Received a validator connection request",
 						);
 
+						metrics.note_desired_peer_count(peer_set, validator_ids.len());
+
 						let (ns, ads) = validator_discovery.on_request(
 							validator_ids,
 							peer_set,
-							keep_alive,
+							failed,
 							network_service,
 							authority_discovery_service,
 						).await;

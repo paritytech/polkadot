@@ -23,7 +23,7 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
+use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore, UsageProvider};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
 use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
@@ -78,6 +78,8 @@ pub trait AbstractClient<Block, Backend>:
 		Block,
 		StateBackend = Backend::State
 	>
+	+ AuxStore
+	+ UsageProvider<Block>
 	where
 		Block: BlockT,
 		Backend: BackendT<Block>,
@@ -90,8 +92,14 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 		Block: BlockT,
 		Backend: BackendT<Block>,
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block> + HeaderBackend<Block>
-			+ Sized + Send + Sync
+		Client: BlockchainEvents<Block>
+			+ ProvideRuntimeApi<Block>
+			+ HeaderBackend<Block>
+			+ AuxStore
+			+ UsageProvider<Block>
+			+ Sized
+			+ Send
+			+ Sync
 			+ CallApiAt<
 				Block,
 				StateBackend = Backend::State
@@ -167,7 +175,7 @@ impl ClientHandle for Client {
 	}
 }
 
-impl sc_client_api::UsageProvider<Block> for Client {
+impl UsageProvider<Block> for Client {
 	fn usage_info(&self) -> sc_client_api::ClientInfo<Block> {
 		match self {
 			Self::Polkadot(client) => client.usage_info(),
@@ -245,6 +253,17 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
+	fn block_indexed_body(
+		&self,
+		id: &BlockId<Block>
+	) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {
+		match self {
+			Self::Polkadot(client) => client.block_indexed_body(id),
+			Self::Westend(client) => client.block_indexed_body(id),
+			Self::Kusama(client) => client.block_indexed_body(id),
+			Self::Rococo(client) => client.block_indexed_body(id),
+		}
+	}
 }
 
 impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
