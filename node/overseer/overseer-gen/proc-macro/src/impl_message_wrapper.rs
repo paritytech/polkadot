@@ -11,6 +11,7 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 
 	let ts = quote! {
 		/// Generated message type wrapper
+		#[allow(missing_docs)]
 		#[derive(Debug)]
 		pub enum #message_wrapper {
 			#(

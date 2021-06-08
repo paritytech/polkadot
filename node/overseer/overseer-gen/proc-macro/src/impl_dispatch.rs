@@ -35,17 +35,17 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 			impl #message_wrapper {
 				/// Generated dispatch iterator generator.
 				pub fn dispatch_iter(extern_msg: #extern_network_ty) -> impl Iterator<Item=Self> + Send {
-					None.into_iter()
+					None
+						.into_iter()
+
 					#(
 						.chain(
 							::std::iter::once(
 								extern_msg
-									// focuses on a `NetworkBridgeEvent< protocol_v1::*Message >`
+									// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
 									.focus()
 									.ok()
-									// TODO introduce a `net_protocol_ty` to clean this up.
-									// TODO avoid hardcoding the `NetworkBridgeEvent` type.
-									.map(|event: NetworkBridgeEvent< protocol_v1:: #dispatchable >| {
+									.map(|event: NetworkBridgeEvent< _ >| {
 										#message_wrapper :: #dispatchable (
 											// the inner type of the enum variant
 											#dispatchable :: from( event )

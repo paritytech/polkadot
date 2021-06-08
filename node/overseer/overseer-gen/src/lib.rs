@@ -159,7 +159,9 @@ impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
 }
 
 /// A wrapping type for messages.
-// FIXME XXX elaborate the purpose of this.
+///
+/// Includes a counter to synchronize signals with messages,
+/// such that no inconsistent message sequences are prevented.
 #[derive(Debug)]
 pub struct MessagePacket<T> {
 	/// Signal level at the point of reception.
@@ -187,8 +189,7 @@ pub type SubsystemIncomingMessages<M> = self::stream::Select<
 >;
 
 
-/// Meter to count the received signals in total.
-// XXX FIXME is there a necessity for this? Seems redundant to `ReadOuts`
+/// Watermark to track the received signals.
 #[derive(Debug, Default, Clone)]
 pub struct SignalsReceived(Arc<AtomicUsize>);
 

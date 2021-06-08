@@ -13,9 +13,13 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 	let consumes = &info.consumes();
 
 	let ts = quote! {
+		/// Collection of channels to the individual subsystems.
+		///
+		/// Naming is from the point of view of the overseer.
 		#[derive(Debug, Clone)]
 		pub struct ChannelsOut {
 			#(
+				/// Bounded channel sender, connected to a subsystem.
 				pub #channel_name:
 					::polkadot_overseer_gen::metered::MeteredSender<
 						MessagePacket< #consumes >
@@ -23,6 +27,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 			)*
 
 			#(
+				/// Unbounded channel sender, connected to a subsystem.
 				pub #channel_name_unbounded:
 					::polkadot_overseer_gen::metered::UnboundedMeteredSender<
 						MessagePacket< #consumes >

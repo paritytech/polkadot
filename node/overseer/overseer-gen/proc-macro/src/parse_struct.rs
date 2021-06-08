@@ -1,4 +1,6 @@
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
+use quote::quote;
+use syn::Visibility;
 use std::collections::{hash_map::RandomState, HashSet};
 use syn::parse::Parse;
 use syn::parse::ParseStream;
@@ -90,6 +92,7 @@ pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
 	pub(crate) field_ty: Path,
 	pub(crate) generic: bool,
+	pub(crate) vis: Visibility,
 }
 
 #[derive(Clone, Debug)]
@@ -133,7 +136,8 @@ impl OverseerInfo {
 	}
 
 	#[allow(dead_code)]
-	// FIXME use as the defaults
+	// TODO use as the defaults, if no subsystem is specified
+	// TODO or drop the type argument.
 	pub(crate) fn subsystem_types(&self) -> Vec<Path> {
 		self.subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>()
 	}
@@ -143,6 +147,17 @@ impl OverseerInfo {
 	}
 	pub(crate) fn baggage_types(&self) -> Vec<Path> {
 		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
+	}
+	pub(crate) fn baggage_decl(&self) -> Vec<TokenStream> {
+		self.baggage.iter().map(|bag| {
+			let BaggageField {
+				vis,
+				field_ty,
+				field_name,
+				..
+			} = bag;
+			quote!{ #vis #field_name: #field_ty }
+		}).collect::<Vec<TokenStream>>()
 	}
 
 	/// Generic types per subsystem, in the form `Sub#N`.
@@ -183,7 +198,7 @@ impl OverseerGuts {
 		let n = fields.named.len();
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
-		for (idx, Field { attrs, vis: _, ident, ty, .. }) in fields.named.into_iter().enumerate() {
+		for (idx, Field { attrs, vis, ident, ty, .. }) in fields.named.into_iter().enumerate() {
 			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 				let span = attr.path.span();
 				attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
@@ -225,7 +240,7 @@ impl OverseerGuts {
 				let field_ty: Path = try_type_to_path(ty, ident.span())?;
 				let generic: bool =
 					if let Some(ident) = field_ty.get_ident() { baggage_generics.contains(ident) } else { false };
-				baggage.push(BaggageField { field_name: ident, generic, field_ty });
+				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}
 		Ok(Self { name, subsystems, baggage })

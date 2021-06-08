@@ -13,9 +13,13 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 	let signal = &info.extern_signal_ty;
 
 	let ts = quote! {
+		/// Connector to send messages towards all subsystems,
+		/// while tracking the which signals where already received.
 		#[derive(Debug, Clone)]
 		pub struct #subsystem_sender_name {
+			/// Collection of channels to all subsystems.
 			channels: ChannelsOut,
+			/// Systemwide tick for which signals were received by all subsystems.
 			signals_received: SignalsReceived,
 		}
 
@@ -49,6 +53,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		/// [`Subsystem`]: trait.Subsystem.html
 		/// [`SubsystemJob`]: trait.SubsystemJob.html
 		#[derive(Debug)]
+		#[allow(missing_docs)]
 		pub struct #subsystem_ctx_name<M>{
 			signals: ::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
 			messages: SubsystemIncomingMessages<M>,

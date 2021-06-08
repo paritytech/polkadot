@@ -73,6 +73,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 	let mut ts = quote! {
 		impl #generics #overseer_name #generics #where_clause {
+			/// Create a new overseer utilizing the builder.
 			pub fn builder #builder_additional_generics () -> #builder #builder_generics
 				#builder_where_clause
 			{
@@ -80,8 +81,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			}
 		}
 
+		/// Handler for an overseer.
 		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
 
+		#[allow(missing_docs)]
 		pub struct #builder #builder_generics {
 			#(
 				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
@@ -121,6 +124,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			}
 
 			#(
+				/// Specify the particular subsystem implementation.
 				pub fn #subsystem_name (mut self, subsystem: #builder_generic_ty ) -> Self {
 					self. #subsystem_name = Some( subsystem );
 					self
@@ -128,12 +132,14 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			)*
 
 			#(
+				/// Attach the user defined addendum type.
 				pub fn #baggage_name (mut self, baggage: #baggage_ty ) -> Self {
 					self. #baggage_name = Some( baggage );
 					self
 				}
 			)*
 
+			/// Complete the construction and create the overseer type.
 			pub fn build(mut self) -> SubsystemResult<(#overseer_name #generics, #handler)>
 			{
 				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
@@ -178,7 +184,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 					>::new();
 
 				#(
-					// FIXME generate a builder pattern that ensures this
+					// TODO generate a builder pattern that ensures this
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
@@ -246,9 +252,11 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 
 		/// Task kind to launch.
 		pub trait TaskKind {
+			/// Spawn a task, it depends on the implementer if this is blocking or not.
 			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>);
 		}
 
+		#[allow(missing_docs)]
 		struct Regular;
 		impl TaskKind for Regular {
 			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>) {
@@ -256,6 +264,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			}
 		}
 
+		#[allow(missing_docs)]
 		struct Blocking;
 		impl TaskKind for Blocking {
 			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>) {

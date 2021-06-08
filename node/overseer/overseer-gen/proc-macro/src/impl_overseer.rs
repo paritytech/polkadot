@@ -8,8 +8,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names();
 
-	let baggage_name = &info.baggage_names();
-	let baggage_ty = &info.baggage_types();
+	let baggage_decl = &info.baggage_decl();
 
 	let baggage_generic_ty = &info.baggage_generic_types();
 
@@ -21,7 +20,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
 	};
-	// FIXME add `where ..` clauses for baggage types
+	// TODO add `where ..` clauses for baggage types
 
 	let consumes = &info.consumes();
 
@@ -51,14 +50,15 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 		/// The overseer.
 		pub struct #overseer_name #generics {
-			// Subsystem instances.
+
 			#(
+				/// A subsystem instance.
 				#subsystem_name: OverseenSubsystem< #consumes >,
 			)*
 
-			// Non-subsystem members.
 			#(
-				#baggage_name: #baggage_ty,
+				/// A user specified addendum field.
+				#baggage_decl ,
 			)*
 
 			/// Responsible for driving the subsystem futures.
@@ -109,6 +109,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				Ok(())
 			}
 
+			/// Broadcast a signal to all subsystems.
 			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> ::polkadot_overseer_gen::SubsystemResult<()> {
 				#(
 					self. #subsystem_name .send_signal(signal.clone()).await;
@@ -118,6 +119,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				Ok(())
 			}
 
+			/// Route a particular message to a subsystem that consumes the message.
 			pub async fn route_message(&mut self, message: #message_wrapper) -> ::polkadot_overseer_gen::SubsystemResult<()> {
 				match message {
 					#(
@@ -142,6 +144,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				]
 			}
 
+			/// Get access to internal task spawner.
 			pub fn spawner<'a> (&'a mut self) -> &'a mut S {
 				&mut self.spawner
 			}
@@ -165,6 +168,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 		///
 		/// [`Subsystem`]: trait.Subsystem.html
 		pub struct OverseenSubsystem<M> {
+			/// The instance.
 			pub instance: std::option::Option<
 				::polkadot_overseer_gen::SubsystemInstance<M, #signal>
 			>,

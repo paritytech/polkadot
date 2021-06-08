@@ -251,7 +251,9 @@ pub enum ExternalRequest {
 	/// Wait for the activation of a particular hash
 	/// and be notified by means of the return channel.
 	WaitForActivation {
+		/// The relay parent for which activation to wait for.
 		hash: Hash,
+		/// Response channel to await on.
 		response_channel: oneshot::Sender<SubsystemResult<()>>,
 	},
 }
@@ -361,16 +363,16 @@ pub struct Overseer<SupportsParachains> {
 	/// A set of leaves that `Overseer` starts working with.
 	///
 	/// Drained at the beginning of `run` and never used again.
-	leaves: Vec<(Hash, BlockNumber)>,
+	pub leaves: Vec<(Hash, BlockNumber)>,
 
 	/// The set of the "active leaves".
-	active_leaves: HashMap<Hash, BlockNumber>,
+	pub active_leaves: HashMap<Hash, BlockNumber>,
 
 	/// An implementation for checking whether a header supports parachain consensus.
-	supports_parachains: SupportsParachains,
+	pub supports_parachains: SupportsParachains,
 
 	/// Various Prometheus metrics.
-	metrics: Metrics,
+	pub metrics: Metrics,
 }
 
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
