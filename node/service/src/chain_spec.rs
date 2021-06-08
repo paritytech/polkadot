@@ -1453,7 +1453,7 @@ pub fn rococo_testnet_genesis(
 		im_online: Default::default(),
 		collective: Default::default(),
 		membership: Default::default(),
-		pallet_authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
+		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
 		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
