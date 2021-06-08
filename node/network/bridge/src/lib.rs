@@ -2365,7 +2365,6 @@ mod tests {
 			match msg {
 				AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
 				AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
-				AllMessages::CandidateSelection(_) => unreachable!("Not interested in network events"),
 				AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
 				AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
 				AllMessages::StatementDistribution(_) => { cnt += 1; }

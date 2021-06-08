@@ -6056,22 +6056,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-candidate-selection"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.14",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keystore",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [
@@ -6667,7 +6651,6 @@ dependencies = [
  "polkadot-node-core-av-store",
  "polkadot-node-core-backing",
  "polkadot-node-core-bitfield-signing",
- "polkadot-node-core-candidate-selection",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-chain-api",
  "polkadot-node-core-parachains-inherent",
