@@ -332,10 +332,6 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
-	level = "trace",
-	skip(validation_backend, validation_code, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
 async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
