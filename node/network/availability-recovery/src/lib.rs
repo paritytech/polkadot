@@ -611,7 +611,6 @@ async fn handle_signal(
 async fn launch_interaction(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
-	session_index: SessionIndex,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
 	backing_group: Option<GroupIndex>,
@@ -704,7 +703,6 @@ async fn handle_recover(
 			launch_interaction(
 				state,
 				ctx,
-				session_index,
 				session_info,
 				receipt,
 				backing_group,

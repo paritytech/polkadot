@@ -274,10 +274,6 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-	level = "trace",
-	skip(ctx, validation_host, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_host: &mut ValidationHost,
