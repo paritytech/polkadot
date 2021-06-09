@@ -570,28 +570,10 @@ async fn process_msg(
 				}
 			}
 		}
-		FetchCollation(_, _, _, _) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"FetchCollation message is not expected on the collator side of the protocol",
-			);
-		}
 		ReportCollator(_) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
-			);
-		}
-		NoteGoodCollation(_) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"NoteGoodCollation message is not expected on the collator side of the protocol",
-			);
-		}
-		NotifyCollationSeconded(_, _, _) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"NotifyCollationSeconded message is not expected on the collator side of the protocol",
 			);
 		}
 		NetworkBridgeUpdateV1(event) => {
@@ -646,6 +628,7 @@ async fn process_msg(
 				}
 			}
 		}
+		_ => {},
 	}
 
 	Ok(())

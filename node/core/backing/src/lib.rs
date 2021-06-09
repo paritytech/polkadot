@@ -39,7 +39,7 @@ use polkadot_subsystem::{
 	jaeger,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
-		CandidateBackingMessage, CandidateSelectionMessage, CandidateValidationMessage,
+		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
 		StatementDistributionMessage, ValidationFailed
 	}
@@ -600,14 +600,14 @@ impl CandidateBackingJob {
 								root_span,
 							).await? {
 								sender.send_message(
-									CandidateSelectionMessage::Seconded(self.parent, stmt).into()
+									CollatorProtocolMessage::Seconded(self.parent, stmt).into()
 								).await;
 							}
 						}
 					}
 					Err(candidate) => {
 						sender.send_message(
-							CandidateSelectionMessage::Invalid(self.parent, candidate).into()
+							CollatorProtocolMessage::Invalid(self.parent, candidate).into()
 						).await;
 					}
 				}
@@ -685,7 +685,7 @@ impl CandidateBackingJob {
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
 			sender.send_message(
-				CandidateSelectionMessage::Invalid(self.parent, candidate.clone()).into()
+				CollatorProtocolMessage::Invalid(self.parent, candidate.clone()).into()
 			).await;
 			return Ok(());
 		}
@@ -1332,7 +1332,7 @@ mod tests {
 	use futures::{future, Future};
 	use polkadot_primitives::v1::{GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
-		messages::{RuntimeApiRequest, RuntimeApiMessage},
+		messages::{RuntimeApiRequest, RuntimeApiMessage, CollatorProtocolMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf, LeafStatus,
 	};
 	use polkadot_node_primitives::{InvalidCandidate, BlockData};
@@ -1648,7 +1648,7 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(CandidateSelectionMessage::Seconded(hash, statement)) => {
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
 					assert_eq!(test_state.relay_parent, hash);
 					assert_matches!(statement.payload(), Statement::Seconded(_));
 				}
@@ -2172,8 +2172,8 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent_hash, c)
+				AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::Invalid(parent_hash, c)
 				) if parent_hash == test_state.relay_parent && c == candidate_a.to_plain()
 			);
 
@@ -2482,8 +2482,8 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent, c)
+				AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::Invalid(parent, c)
 				) if parent == test_state.relay_parent && c == candidate.to_plain() => {
 				}
 			);
