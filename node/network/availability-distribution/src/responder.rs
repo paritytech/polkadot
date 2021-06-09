@@ -149,7 +149,6 @@ where
 }
 
 /// Query chunk from the availability store.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
@@ -178,7 +177,6 @@ where
 }
 
 /// Query PoV from the availability store.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_available_data<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,

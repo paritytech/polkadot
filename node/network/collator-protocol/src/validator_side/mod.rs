@@ -513,7 +513,6 @@ async fn disconnect_peer(ctx: &mut impl SubsystemContext, peer_id: PeerId) {
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
-#[tracing::instrument(level = "trace", skip(ctx, state, tx, pc), fields(subsystem = LOG_TARGET))]
 async fn fetch_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -530,7 +529,6 @@ where
 }
 
 /// Report a collator for some malicious actions.
-#[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn report_collator<Context>(
 	ctx: &mut Context,
 	peer_data: &HashMap<PeerId, PeerData>,
@@ -545,7 +543,6 @@ where
 }
 
 /// Some other subsystem has reported a collator as a good one, bump reputation.
-#[tracing::instrument(level = "trace", skip(ctx, peer_data), fields(subsystem = LOG_TARGET))]
 async fn note_good_collation<Context>(
 	ctx: &mut Context,
 	peer_data: &HashMap<PeerId, PeerData>,
@@ -560,7 +557,6 @@ where
 }
 
 /// Notify a collator that its collation got seconded.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn notify_collation_seconded(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	peer_id: PeerId,
@@ -581,7 +577,6 @@ async fn notify_collation_seconded(
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be cancelled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
-#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
@@ -602,7 +597,6 @@ async fn handle_peer_view_change(
 ///  - Check if the requested collation is in our view.
 ///  - Update PerRequest records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
-#[tracing::instrument(level = "trace", skip(ctx, state, result), fields(subsystem = LOG_TARGET))]
 async fn request_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -671,7 +665,6 @@ where
 }
 
 /// Networking message has been received.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -806,7 +799,6 @@ where
 /// A leaf has become inactive so we want to
 ///   - Cancel all ongoing collation requests that are on top of that leaf.
 ///   - Remove all stored collations relevant to that leaf.
-#[tracing::instrument(level = "trace", skip(state), fields(subsystem = LOG_TARGET))]
 async fn remove_relay_parent(
 	state: &mut State,
 	relay_parent: Hash,
@@ -822,7 +814,6 @@ async fn remove_relay_parent(
 }
 
 /// Our view has changed.
-#[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_our_view_change(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State,
@@ -874,7 +865,6 @@ async fn handle_our_view_change(
 }
 
 /// Bridge event switch.
-#[tracing::instrument(level = "trace", skip(ctx, state, keystore), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -910,7 +900,6 @@ where
 }
 
 /// The main message receiver switch.
-#[tracing::instrument(level = "trace", skip(ctx, keystore, state), fields(subsystem = LOG_TARGET))]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	keystore: &SyncCryptoStorePtr,
@@ -1003,7 +992,6 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 }
 
 /// The main run loop.
-#[tracing::instrument(skip(ctx, keystore, metrics), fields(subsystem = LOG_TARGET))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	keystore: SyncCryptoStorePtr,

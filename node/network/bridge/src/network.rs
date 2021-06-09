@@ -192,7 +192,6 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn action_sink<'a>(
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>> {
