@@ -43,7 +43,7 @@ rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.0", default-features = false }
 
 [dev-dependencies]
-futures = "0.3.12"
+futures = "0.3.15"
 hex-literal = "0.3.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -827,7 +827,6 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-#[tracing::instrument(skip(bridge, ctx, network_stream), fields(subsystem = LOG_TARGET))]
 async fn run_network<N, AD>(
 	bridge: NetworkBridge<N, AD>,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -924,7 +923,6 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 	)
 }
 
-#[tracing::instrument(level = "trace", skip(net, ctx, shared, metrics), fields(subsystem = LOG_TARGET))]
 async fn update_our_view(
 	net: &mut impl Network,
 	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
@@ -997,7 +995,6 @@ async fn update_our_view(
 
 // Handle messages on a specific peer-set. The peer is expected to be connected on that
 // peer-set.
-#[tracing::instrument(level = "trace", skip(peers, messages, metrics), fields(subsystem = LOG_TARGET))]
 fn handle_peer_messages<M>(
 	peer: PeerId,
 	peer_set: PeerSet,
@@ -1048,7 +1045,6 @@ fn handle_peer_messages<M>(
 	(outgoing_messages, reports)
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -1062,7 +1058,6 @@ async fn send_validation_message<I>(
 	send_message(net, peers, PeerSet::Validation, message, metrics).await
 }
 
-#[tracing::instrument(level = "trace", skip(net, peers, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_collation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -1109,7 +1104,6 @@ fn dispatch_collation_event_to_all_unbounded(
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemSender
@@ -1121,7 +1115,6 @@ async fn dispatch_validation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
 }
 
-#[tracing::instrument(level = "trace", skip(events, ctx), fields(subsystem = LOG_TARGET))]
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
 	ctx: &mut impl SubsystemSender

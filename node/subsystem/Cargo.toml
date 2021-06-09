@@ -9,7 +9,7 @@ description = "Subsystem traits and message definitions"
 async-std = "1.8.0"
 async-trait = "0.1.42"
 derive_more = "0.99.11"
-futures = "0.3.12"
+futures = "0.3.15"
 futures-timer = "3.0.2"
 mick-jaeger = "0.1.2"
 lazy_static = "1.4"
@@ -33,5 +33,5 @@ log = "0.4.13"
 [dev-dependencies]
 assert_matches = "1.4.0"
 async-trait = "0.1.42"
-futures = { version = "0.3.12", features = ["thread-pool"] }
+futures = { version = "0.3.15", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

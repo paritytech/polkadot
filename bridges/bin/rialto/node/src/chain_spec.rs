@@ -16,7 +16,7 @@
 
 use bp_rialto::derive_account_from_millau_id;
 use rialto_runtime::{
-	AccountId, AuraConfig, BalancesConfig, BridgeKovanConfig, BridgeRialtoPoAConfig, GenesisConfig, GrandpaConfig,
+	AccountId, AuraConfig, BalancesConfig, BridgeKovanConfig, BridgeRialtoPoaConfig, GenesisConfig, GrandpaConfig,
 	SessionConfig, SessionKeys, Signature, SudoConfig, SystemConfig, WASM_BINARY,
 };
 use serde_json::json;
@@ -176,23 +176,23 @@ fn testnet_genesis(
 	_enable_println: bool,
 ) -> GenesisConfig {
 	GenesisConfig {
-		frame_system: SystemConfig {
+		system: SystemConfig {
 			code: WASM_BINARY.expect("Rialto development WASM not available").to_vec(),
 			changes_trie_config: Default::default(),
 		},
-		pallet_balances: BalancesConfig {
+		balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 40)).collect(),
 		},
-		pallet_aura: AuraConfig {
+		aura: AuraConfig {
 			authorities: Vec::new(),
 		},
-		pallet_bridge_eth_poa_Instance1: load_rialto_poa_bridge_config(),
-		pallet_bridge_eth_poa_Instance2: load_kovan_bridge_config(),
-		pallet_grandpa: GrandpaConfig {
+		bridge_rialto_poa: load_rialto_poa_bridge_config(),
+		bridge_kovan: load_kovan_bridge_config(),
+		grandpa: GrandpaConfig {
 			authorities: Vec::new(),
 		},
-		pallet_sudo: SudoConfig { key: root_key },
-		pallet_session: SessionConfig {
+		sudo: SudoConfig { key: root_key },
+		session: SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone())))
@@ -201,8 +201,8 @@ fn testnet_genesis(
 	}
 }
 
-fn load_rialto_poa_bridge_config() -> BridgeRialtoPoAConfig {
-	BridgeRialtoPoAConfig {
+fn load_rialto_poa_bridge_config() -> BridgeRialtoPoaConfig {
+	BridgeRialtoPoaConfig {
 		initial_header: rialto_runtime::rialto_poa::genesis_header(),
 		initial_difficulty: 0.into(),
 		initial_validators: rialto_runtime::rialto_poa::genesis_validators(),
