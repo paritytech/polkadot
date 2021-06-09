@@ -171,7 +171,7 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender <AllMessages> for TestSubsystemSender {
+impl SubsystemSender<AllMessages> for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.tx
 			.send(msg)

@@ -80,7 +80,7 @@ impl CollationGenerationSubsystem {
 	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
-		Context: SubsystemContext<Message = CollationGenerationMessage>,
+		Context: SubsystemContext<Message = CollationGenerationMessage, AllMessages = AllMessages>,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop

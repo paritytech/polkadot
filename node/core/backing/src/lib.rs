@@ -293,7 +293,7 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+	sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
@@ -369,7 +369,7 @@ async fn make_pov_available(
 }
 
 async fn request_pov(
-	sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+	sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
@@ -390,7 +390,7 @@ async fn request_pov(
 }
 
 async fn request_candidate_validation(
-	sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+	sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 	candidate: CandidateDescriptor,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
@@ -428,7 +428,7 @@ struct BackgroundValidationParams<S, F> {
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl SubsystemSender <AllMessages>,
+		impl SubsystemSender<AllMessages>,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>
 ) -> Result<(), Error> {
@@ -541,7 +541,7 @@ impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(
 		mut self,
-		mut sender: JobSender<impl SubsystemSender <AllMessages>>,
+		mut sender: JobSender<impl SubsystemSender<AllMessages>>,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
@@ -574,7 +574,7 @@ impl CandidateBackingJob {
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -650,9 +650,9 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, sender, params), fields(subsystem = LOG_TARGET))]
 	async fn background_validate_and_make_available(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		params: BackgroundValidationParams<
-			impl SubsystemSender <AllMessages>,
+			impl SubsystemSender<AllMessages>,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync
 		>,
 	) -> Result<(), Error> {
@@ -676,7 +676,7 @@ impl CandidateBackingJob {
 		&mut self,
 		parent_span: &jaeger::Span,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -727,7 +727,7 @@ impl CandidateBackingJob {
 
 	async fn sign_import_and_distribute_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		statement: Statement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
@@ -744,7 +744,7 @@ impl CandidateBackingJob {
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
 	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
-	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl SubsystemSender <AllMessages>>) {
+	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl SubsystemSender<AllMessages>>) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
@@ -761,7 +761,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
 	async fn import_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
@@ -832,7 +832,7 @@ impl CandidateBackingJob {
 	async fn process_msg(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		msg: CandidateBackingMessage,
 	) -> Result<(), Error> {
 		match msg {
@@ -898,7 +898,7 @@ impl CandidateBackingJob {
 	#[tracing::instrument(level = "trace", skip(self, sender, attesting, span), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		attesting: AttestingData,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
@@ -955,7 +955,7 @@ impl CandidateBackingJob {
 	async fn maybe_validate_and_import(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender <AllMessages>>,
+		sender: &mut JobSender<impl SubsystemSender<AllMessages>>,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(sender, &statement, root_span).await? {

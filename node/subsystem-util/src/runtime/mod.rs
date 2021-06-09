@@ -102,7 +102,7 @@ impl RuntimeInfo {
 			Some(index) => Ok(*index),
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
+					recv_runtime(request_session_index_for_child::<M,_>(parent, ctx.sender()).await)
 						.await?;
 				self.session_index_cache.put(parent, index);
 				Ok(index)
@@ -120,7 +120,7 @@ impl RuntimeInfo {
 		M: From<RuntimeApiMessage>,
 		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 	{
-		let session_index = self.get_session_index(ctx, parent).await?;
+		let session_index = self.get_session_index::<_,M>(ctx, parent).await?;
 
 		self.get_session_info_by_index(ctx, parent, session_index).await
 	}
@@ -141,7 +141,7 @@ impl RuntimeInfo {
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
-				recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
+				recv_runtime(request_session_info::<M,_>(parent, session_index, ctx.sender()).await)
 					.await?
 					.ok_or(NonFatal::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;
@@ -172,8 +172,8 @@ impl RuntimeInfo {
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
-		let session_index = self.get_session_index(ctx, parent).await?;
-		let info = self.get_session_info_by_index(ctx, parent, session_index).await?;
+		let session_index = self.get_session_index::<_,M>(ctx, parent).await?;
+		let info = self.get_session_info_by_index::<_,M>(ctx, parent, session_index).await?;
 		Ok(check_signature(session_index, &info.session_info, parent, signed))
 	}
 
@@ -255,7 +255,7 @@ pub async fn get_availability_cores<Context, M>(ctx: &mut Context, relay_parent:
 		M: From<RuntimeApiMessage>,
 		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
 {
-	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
+	recv_runtime(request_availability_cores::<M,_>(relay_parent, ctx.sender()).await).await
 }
 
 /// Variant of `request_availability_cores` that only returns occupied ones.
@@ -291,6 +291,6 @@ where
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.
-	let (_, info) = recv_runtime(request_validator_groups(relay_parent, ctx.sender()).await).await?;
+	let (_, info) = recv_runtime(request_validator_groups::<M,_>(relay_parent, ctx.sender()).await).await?;
 	Ok(info)
 }

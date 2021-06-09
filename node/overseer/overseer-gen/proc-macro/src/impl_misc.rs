@@ -11,6 +11,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 	let subsystem_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
 	let consumes = &info.consumes();
 	let signal = &info.extern_signal_ty;
+	let wrapper_message = &info.message_wrapper;
 
 	let ts = quote! {
 		/// Connector to send messages towards all subsystems,
@@ -23,15 +24,17 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			signals_received: SignalsReceived,
 		}
 
-		#(
+		/// impl for wrapping message type...
 		#[::polkadot_overseer_gen::async_trait]
-		impl SubsystemSender< #consumes > for #subsystem_sender_name {
-			async fn send_message(&mut self, msg: #consumes) {
-				self.channels.send_and_log_error(self.signals_received.load(), msg.into()).await;
+		impl SubsystemSender< #wrapper_message > for #subsystem_sender_name {
+			async fn send_message(&mut self, msg: #wrapper_message) {
+				self.channels.send_and_log_error(self.signals_received.load(), msg).await;
 			}
 
 			async fn send_messages<T>(&mut self, msgs: T)
-				where T: IntoIterator<Item = #consumes> + Send, T::IntoIter: Send
+			where
+				T: IntoIterator<Item = #wrapper_message> + Send,
+				T::IntoIter: Send,
 			{
 				// This can definitely be optimized if necessary.
 				for msg in msgs {
@@ -39,8 +42,34 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 				}
 			}
 
+			fn send_unbounded_message(&mut self, msg: #wrapper_message) {
+				self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+			}
+		}
+
+		// ... but also implement for all individual messages to avoid
+		// the necessity for manual wrapping, and do the conversion
+		// based on the generated `From::from` impl for the individual variants.
+		#(
+		#[::polkadot_overseer_gen::async_trait]
+		impl SubsystemSender< #consumes > for #subsystem_sender_name {
+			async fn send_message(&mut self, msg: #consumes) {
+				self.channels.send_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg )).await;
+			}
+
+			async fn send_messages<T>(&mut self, msgs: T)
+			where
+				T: IntoIterator<Item = #consumes> + Send,
+				T::IntoIter: Send,
+			{
+				// This can definitely be optimized if necessary.
+				for msg in msgs {
+					self.send_message( #wrapper_message ::from ( msg )).await;
+				}
+			}
+
 			fn send_unbounded_message(&mut self, msg: #consumes) {
-				self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg.into());
+				self.channels.send_unbounded_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg ));
 			}
 		}
 		)*
@@ -91,11 +120,14 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		#[::polkadot_overseer_gen::async_trait]
 		impl<M: std::fmt::Debug + Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
 		where
-			#subsystem_sender_name: polkadot_overseer_gen::SubsystemSender<M>,
+			#subsystem_sender_name: ::polkadot_overseer_gen::SubsystemSender< #wrapper_message >,
+			#subsystem_sender_name: ::polkadot_overseer_gen::SubsystemSender< M >,
+			AllMessages: From<M>,
 		{
 			type Message = M;
 			type Signal = #signal;
 			type Sender = #subsystem_sender_name;
+			type AllMessages = #wrapper_message;
 
 			async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, #signal>>, ()> {
 				match ::polkadot_overseer_gen::poll!(self.recv()) {

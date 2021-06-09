@@ -17,7 +17,6 @@ pub struct DummySubsystem;
 impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
 	Context: SubsystemContext<Signal=OverseerSignal>,
-	<Context as SubsystemContext>::Message: std::fmt::Debug + Send + 'static,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {

@@ -359,12 +359,17 @@ pub enum FromOverseer<Message, Signal> {
 #[async_trait::async_trait]
 pub trait SubsystemContext: Send + 'static {
 	/// The message type of this context. Subsystems launched with this context will expect
-	/// to receive messages of this type.
+	/// to receive messages of this type. Commonly uses the wrapping enum commonly called
+	/// `AllMessages`.
 	type Message: std::fmt::Debug + Send + 'static;
 	/// And the same for signals.
 	type Signal: std::fmt::Debug + Send + 'static;
+	/// The overarching all messages enum.
+	/// In some cases can be identical to `Self::Message`.
+	type AllMessages: From<Self::Message> + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: SubsystemSender<Self::Message> + std::fmt::Debug + Send;
+	type Sender: SubsystemSender<Self::AllMessages> + SubsystemSender<Self::Message> + std::fmt::Debug + Send;
+
 
 	/// Try to asynchronously receive a message.
 	///
@@ -386,15 +391,23 @@ pub trait SubsystemContext: Send + 'static {
 	) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: Self::Message) {
-		self.sender().send_message(msg).await
+	async fn send_message<X>(&mut self, msg: X)
+		where
+			Self::AllMessages: From<X>,
+			X: Send,
+	{
+		self.sender().send_message(<Self::AllMessages>::from(msg)).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = Self::Message> + Send, T::IntoIter: Send
+	async fn send_messages<X, T>(&mut self, msgs: T)
+		where
+			T: IntoIterator<Item = X> + Send,
+			T::IntoIter: Send,
+			Self::AllMessages: From<X>,
+			X: Send,
 	{
-		self.sender().send_messages(msgs).await
+		self.sender().send_messages(msgs.into_iter().map(|x| <Self::AllMessages>::from(x))).await
 	}
 
 	/// Obtain the sender.
@@ -419,22 +432,22 @@ where
 }
 
 
-/// TODO FIXME
+/// Sender end of a channel to interface with a subsystem.
 #[async_trait::async_trait]
-pub trait SubsystemSender<M>: Send + Clone + 'static {
+pub trait SubsystemSender<Message>: Send + Clone + 'static {
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: M);
+	async fn send_message(&mut self, msg: Message);
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send;
+		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send;
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: M);
+	fn send_unbounded_message(&mut self, msg: Message);
 }
 
 /// A future that wraps another future with a `Delay` allowing for time-limited futures.

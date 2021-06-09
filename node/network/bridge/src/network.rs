@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{Block, Hash};
-use polkadot_subsystem::{SubsystemError, SubsystemResult};
+use polkadot_subsystem::errors::{SubsystemError, SubsystemResult};
 
 use crate::validator_discovery::AuthorityDiscovery;
 

@@ -31,10 +31,11 @@
 #![warn(missing_docs)]
 
 use polkadot_overseer::gen::{
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
-}
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext,
+};
 use polkadot_subsystem::{
-	 OverseerSignal,
+	errors::{SubsystemResult, SubsystemError},
+	OverseerSignal,
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{
@@ -64,11 +65,11 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
+impl<Client, Context> Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>
+	Context: SubsystemContext<Message = ChainApiMessage, Signal = OverseerSignal>,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = run(ctx, self)
 			.map_err(|e| SubsystemError::with_origin("chain-api", e))
 			.boxed();
@@ -81,7 +82,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 
 #[tracing::instrument(skip(ctx, subsystem), fields(subsystem = LOG_TARGET))]
 async fn run<Client>(
-	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
+	mut ctx: impl SubsystemContext<Message = ChainApiMessage, Signal = OverseerSignal>,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where

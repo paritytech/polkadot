@@ -285,7 +285,7 @@ impl Validator {
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
 		let (validators, session_index) = futures::try_join!(
 			request_validators(parent, sender).await,
-			request_session_index_for_child(parent, sender).await,
+			request_session_index_for_child::<M,_>(parent, sender).await,
 		)?;
 
 		let signing_context = SigningContext {
