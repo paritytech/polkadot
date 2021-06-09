@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.12"
+futures = "0.3.15"
 futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.2"
 tracing = "0.1.26"
