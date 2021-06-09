@@ -134,8 +134,8 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{pallet_prelude::*, traits::EnsureOrigin, weights::{Pays, DispatchClass}};
-	use frame_system::{pallet_prelude::*, ensure_signed, ensure_root, ensure_none};
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 	use super::*;
 
 	#[pallet::pallet]
