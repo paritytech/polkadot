@@ -631,6 +631,7 @@ struct ActiveHeadData {
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
 	span: PerLeafSpan,
+	timer: Option<prometheus::prometheus::HistogramTimer>,
 }
 
 impl ActiveHeadData {
@@ -638,6 +639,7 @@ impl ActiveHeadData {
 		validators: Vec<ValidatorId>,
 		session_index: sp_staking::SessionIndex,
 		span: PerLeafSpan,
+		timer: Option<prometheus::prometheus::HistogramTimer>,
 	) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
@@ -647,6 +649,7 @@ impl ActiveHeadData {
 			session_index,
 			seconded_counts: Default::default(),
 			span,
+			timer,
 		}
 	}
 
@@ -1826,7 +1829,7 @@ impl StatementDistribution {
 					let session_info = &info.session_info;
 
 					active_heads.entry(relay_parent)
-						.or_insert(ActiveHeadData::new(session_info.validators.clone(), session_index, span));
+						.or_insert(ActiveHeadData::new(session_info.validators.clone(), session_index, span, metrics.time_leaf()));
 
 					active_heads.retain(|h, _| {
 						let live = !deactivated.contains(h);
@@ -1960,6 +1963,7 @@ struct MetricsInner {
 	sent_requests: prometheus::Counter<prometheus::U64>,
 	received_responses: prometheus::CounterVec<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
+	active_leaves_time: prometheus::Histogram,
 	share: prometheus::Histogram,
 	network_bridge_update_v1: prometheus::Histogram,
 }
@@ -1996,6 +2000,10 @@ impl Metrics {
 	/// Provide a timer for `share` which observes on drop.
 	fn time_share(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.share.start_timer())
+	}
+
+	fn time_leaf(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.active_leaves_time.start_timer())
 	}
 
 	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
@@ -2054,6 +2062,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"parachain_statement_distribution_network_bridge_update_v1",
 						"Time spent within `statement_distribution::network_bridge_update_v1`",
+					)
+				)?,
+				registry,
+			)?,
+			active_leaves_time: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_statement_distribution_leaf_timer",
+						"Time a leaf stayed active",
 					)
 				)?,
 				registry,
