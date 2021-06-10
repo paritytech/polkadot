@@ -484,6 +484,8 @@ mod tests {
 		type OnSetCode = ();
 	}
 
+    impl pallet_randomness_collective_flip::Config for Runtime {}
+
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
