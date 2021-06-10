@@ -417,8 +417,8 @@ async fn handle_import_statements(
 		&candidate_hash
 	)?
 		.map(CandidateVotes::from)
-		.unwrap_or_else(move || CandidateVotes {
-			candidate_receipt,
+		.unwrap_or_else(|| CandidateVotes {
+			candidate_receipt: candidate_receipt.clone(),
 			valid: Vec::new(),
 			invalid: Vec::new(),
 		});
@@ -454,7 +454,6 @@ async fn handle_import_statements(
 	let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
 	let mut tx = db::v1::Transaction::default();
-	tx.put_candidate_votes(session, candidate_hash, votes.into());
 
 	if freshly_disputed && !concluded_valid {
 		// add to active disputes and begin local participation.
@@ -465,7 +464,23 @@ async fn handle_import_statements(
 			|active| active.insert(session, candidate_hash),
 		)?;
 
-		// TODO [now]: begin local participation.
+		let voted_indices = {
+			let mut v: Vec<_> = votes.valid.iter().map(|x| x.1).chain(
+				votes.invalid.iter().map(|x| x.1)
+			).collect();
+
+			v.sort();
+			v.dedup();
+
+			v
+		};
+
+		ctx.send_message(DisputeParticipationMessage::Participate {
+			candidate_hash,
+			candidate_receipt,
+			session,
+			voted_indices,
+		}.into()).await;
 	}
 
 	if concluded_valid && already_disputed {
@@ -478,6 +493,7 @@ async fn handle_import_statements(
 		)?;
 	}
 
+	tx.put_candidate_votes(session, candidate_hash, votes.into());
 	tx.write(store, &config.column_config())?;
 
 	Ok(())
