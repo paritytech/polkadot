@@ -31,15 +31,14 @@ use std::sync::Arc;
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem::{
 	messages::{
-		DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
-		ChainApiMessage, DisputeParticipationMessage,
+		DisputeCoordinatorMessage, ChainApiMessage, DisputeParticipationMessage,
 	},
-	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	Subsystem, SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
+	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
 	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
@@ -157,7 +156,7 @@ impl Error {
 	}
 }
 
-async fn run<Context>(mut subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
+async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	loop {
@@ -310,7 +309,7 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				statements,
-			).await;
+			).await?;
 		}
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
 			let active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
@@ -550,7 +549,7 @@ async fn issue_local_statement(
 	let voted_indices = votes.voted_indices();
 	let mut statements = Vec::new();
 
-	let mut voted_indices: HashSet<_> = voted_indices.into_iter().collect();
+	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
 	for (index, validator) in validators.iter().enumerate() {
 		let index = ValidatorIndex(index as _);
 		if voted_indices.contains(&index) { continue }

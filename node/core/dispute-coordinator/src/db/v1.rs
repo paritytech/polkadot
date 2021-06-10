@@ -126,8 +126,6 @@ impl ActiveDisputes {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 	) -> bool {
-		use std::cmp::Ordering;
-
 		let new_entry = (session, candidate_hash);
 
 		let pos = self.disputed.iter()
