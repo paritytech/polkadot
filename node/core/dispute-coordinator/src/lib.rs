@@ -31,7 +31,7 @@ use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem::{
 	messages::{
 		DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
-		ChainApiMessage,
+		ChainApiMessage, DisputeParticipationMessage,
 	},
 	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
@@ -50,6 +50,8 @@ use futures::channel::oneshot;
 use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 use sc_keystore::LocalKeystore;
+
+use db::v1::ActiveDisputes;
 
 mod db;
 
@@ -393,6 +395,21 @@ async fn handle_import_statements(
 		return Ok(());
 	}
 
+	let n_validators = match state.rolling_session_window.session_info(session) {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				session,
+				"Missing info for session which has an active dispute",
+			);
+
+			return Ok(())
+		}
+		Some(info) => info.validators.len(),
+	};
+
+	let supermajority_threshold = polkadot_primitives::v1::supermajority_threshold(n_validators);
+
 	let mut votes = db::v1::load_candidate_votes(
 		store,
 		&config.column_config(),
@@ -432,9 +449,51 @@ async fn handle_import_statements(
 
 	// Check if newly disputed.
 	let is_disputed = !votes.valid.is_empty() && !votes.invalid.is_empty();
+	let freshly_disputed = is_disputed && was_undisputed;
+	let already_disputed = is_disputed && !was_undisputed;
+	let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
-	if is_disputed && was_undisputed {
-		// TODO [now]: add to active disputes and begin local participation.
+	let mut tx = db::v1::Transaction::default();
+	tx.put_candidate_votes(session, candidate_hash, votes.into());
+
+	if freshly_disputed && !concluded_valid {
+		// add to active disputes and begin local participation.
+		update_active_disputes(
+			store,
+			config,
+			&mut tx,
+			|active| active.insert(session, candidate_hash),
+		)?;
+
+		// TODO [now]: begin local participation.
+	}
+
+	if concluded_valid && already_disputed {
+		// remove from active disputes.
+		update_active_disputes(
+			store,
+			config,
+			&mut tx,
+			|active| active.delete(session, candidate_hash),
+		)?;
+	}
+
+	tx.write(store, &config.column_config())?;
+
+	Ok(())
+}
+
+fn update_active_disputes(
+	store: &dyn KeyValueDB,
+	config: &Config,
+	tx: &mut db::v1::Transaction,
+	with_active: impl FnOnce(&mut ActiveDisputes) -> bool,
+) -> Result<(), Error> {
+	let mut active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
+		.unwrap_or_default();
+
+	if with_active(&mut active_disputes) {
+		tx.put_active_disputes(active_disputes);
 	}
 
 	Ok(())

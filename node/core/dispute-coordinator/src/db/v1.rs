@@ -109,6 +109,48 @@ pub struct ActiveDisputes {
 	pub disputed: Vec<(SessionIndex, CandidateHash)>,
 }
 
+impl ActiveDisputes {
+	/// Insert the session and candidate hash from the set of active disputes.
+	/// Returns 'true' if the entry was not already in the set.
+	pub(crate) fn insert(
+		&mut self,
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+	) -> bool {
+		use std::cmp::Ordering;
+
+		let new_entry = (session, candidate_hash);
+
+		let pos = self.disputed.iter()
+			.take_while(|&e| &new_entry < e)
+			.count();
+		if self.disputed.get(pos).map_or(false, |&e| new_entry == e) {
+			false
+		} else {
+			self.disputed.insert(pos, new_entry);
+			true
+		}
+	}
+
+	/// Delete the session and candidate hash from the set of active disputes.
+	/// Returns 'true' if the entry was present.
+	pub(crate) fn delete(
+		&mut self,
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+	) -> bool {
+		let new_entry = (session, candidate_hash);
+
+		match self.disputed.iter().position(|e| &new_entry == e) {
+			None => false,
+			Some(pos) => {
+				self.disputed.remove(pos);
+				true
+			}
+		}
+	}
+}
+
 /// Errors while accessing things from the DB.
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum Error {
