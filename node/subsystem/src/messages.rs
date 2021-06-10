@@ -800,6 +800,12 @@ pub enum AllMessages {
 	/// Message for the Gossip Support subsystem.
 	#[skip]
 	GossipSupport(GossipSupportMessage),
+	/// Message for the dispute coordinator subsystem.
+	#[skip]
+	DisputeCoordinator(DisputeCoordinatorMessage),
+	/// Message for the dispute participation subsystem.
+	#[skip]
+	DisputeParticipation(DisputeParticipationMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
