@@ -31,10 +31,14 @@ use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem::{
 	messages::{
 		DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
+		ChainApiMessage,
 	},
 	Subsystem, SubsystemContext, SubsystemResult, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
+};
+use polkadot_node_subsystem_util::rolling_session_window::{
+	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
 use polkadot_primitives::v1::{
 	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
@@ -185,6 +189,7 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 	let mut state = State {
 		keystore: keystore.clone(),
 		highest_session: None,
+		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
 	};
 
 	loop {
@@ -223,30 +228,54 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		// Get the new session index of the leaf.
-		let (tx, rx) = oneshot::channel();
+		let block_header = {
+			let (tx, rx) = oneshot::channel();
 
-		ctx.send_message(RuntimeApiMessage::Request(
+			ctx.send_message(
+				ChainApiMessage::BlockHeader(new_leaf, tx).into()
+			).await;
+
+			match rx.await?? {
+				None => continue,
+				Some(header) => header,
+			}
+		};
+
+		match state.rolling_session_window.cache_session_info_for_head(
+			ctx,
 			new_leaf,
-			RuntimeApiRequest::SessionIndexForChild(tx)
-		).into()).await;
+			&block_header,
+		).await {
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Failed to update session cache for disputes",
+				);
 
-		let session = rx.await??;
+				continue
+			}
+			Ok(SessionWindowUpdate::Initialized { window_end, .. })
+				| Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. })
+			=> {
+				let session = window_end;
+				if state.highest_session.map_or(true, |s| s < session) {
+					tracing::trace!(
+						target: LOG_TARGET,
+						session,
+						"Observed new session. Pruning",
+					);
 
-		if state.highest_session.map_or(true, |s| s < session) {
-			tracing::trace!(
-				target: LOG_TARGET,
-				session,
-				"Observed new session. Pruning",
-			);
+					state.highest_session = Some(session);
 
-			state.highest_session = Some(session);
-
-			db::v1::note_current_session(
-				store,
-				&config.column_config(),
-				session,
-			)?;
+					db::v1::note_current_session(
+						store,
+						&config.column_config(),
+						session,
+					)?;
+				}
+			}
+			_ => {}
 		}
 
 		// TODO [after https://github.com/paritytech/polkadot/issues/3160]: chain rollbacks
