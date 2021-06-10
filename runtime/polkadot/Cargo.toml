@@ -67,6 +67,7 @@ pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -157,6 +158,7 @@ std = [
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
 	"max-encoded-len/std",
+	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -189,6 +191,7 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
+	"frame-election-provider-support/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
