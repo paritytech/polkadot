@@ -295,6 +295,20 @@ pub struct CandidateVotes {
 	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl CandidateVotes {
+	/// Get the set of all validators who have votes in the set, ascending.
+	pub fn voted_indices(&self) -> Vec<ValidatorIndex> {
+		let mut v: Vec<_> = self.valid.iter().map(|x| x.1).chain(
+			self.invalid.iter().map(|x| x.1)
+		).collect();
+
+		v.sort();
+		v.dedup();
+
+		v
+	}
+}
+
 
 /// A checked dispute statement from an associated validator.
 #[derive(Debug, Clone)]

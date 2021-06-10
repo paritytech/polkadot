@@ -25,6 +25,7 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
@@ -42,7 +43,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
-	ValidatorSignature, BlockNumber,
+	ValidatorSignature, BlockNumber, ValidatorPair,
 };
 
 use futures::prelude::*;
@@ -341,12 +342,13 @@ async fn handle_incoming(
 			issue_local_statement(
 				ctx,
 				state,
+				store,
 				config,
 				candidate_hash,
 				candidate_receipt,
 				session,
 				valid,
-			).await;
+			).await?;
 		}
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
 			base_number,
@@ -464,16 +466,7 @@ async fn handle_import_statements(
 			|active| active.insert(session, candidate_hash),
 		)?;
 
-		let voted_indices = {
-			let mut v: Vec<_> = votes.valid.iter().map(|x| x.1).chain(
-				votes.invalid.iter().map(|x| x.1)
-			).collect();
-
-			v.sort();
-			v.dedup();
-
-			v
-		};
+		let voted_indices = votes.voted_indices();
 
 		ctx.send_message(DisputeParticipationMessage::Participate {
 			candidate_hash,
@@ -518,13 +511,92 @@ fn update_active_disputes(
 async fn issue_local_statement(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State,
+	store: &dyn KeyValueDB,
 	config: &Config,
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	valid: bool,
-) {
-	unimplemented!()
+) -> Result<(), Error> {
+	// Load session info.
+	let validators = match state.rolling_session_window.session_info(session) {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				session,
+				"Missing info for session which has an active dispute",
+			);
+
+			return Ok(())
+		}
+		Some(info) => info.validators.clone(),
+	};
+
+	let votes = db::v1::load_candidate_votes(
+		store,
+		&config.column_config(),
+		session,
+		&candidate_hash
+	)?
+		.map(CandidateVotes::from)
+		.unwrap_or_else(|| CandidateVotes {
+			candidate_receipt: candidate_receipt.clone(),
+			valid: Vec::new(),
+			invalid: Vec::new(),
+		});
+
+	// Sign a statement for each validator index we control which has
+	// not already voted. This should generally be maximum 1 statement.
+	let voted_indices = votes.voted_indices();
+	let mut statements = Vec::new();
+
+	let mut voted_indices: HashSet<_> = voted_indices.into_iter().collect();
+	for (index, validator) in validators.iter().enumerate() {
+		let index = ValidatorIndex(index as _);
+		if voted_indices.contains(&index) { continue }
+		if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+			continue
+		}
+
+		let keystore = state.keystore.clone() as Arc<_>;
+		let res = SignedDisputeStatement::sign_explicit(
+			&keystore,
+			valid,
+			candidate_hash,
+			session,
+			validator.clone(),
+		).await;
+
+		match res {
+			Ok(Some(signed_dispute_statement)) => {
+				statements.push((signed_dispute_statement, index));
+			}
+			Ok(None) => {}
+			Err(e) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Encountered keystore error while signing dispute statement",
+				);
+			}
+		}
+	}
+
+	// Do import
+	if !statements.is_empty() {
+		handle_import_statements(
+			ctx,
+			store,
+			state,
+			config,
+			candidate_hash,
+			candidate_receipt,
+			session,
+			statements,
+		).await?;
+	}
+
+	Ok(())
 }
 
 fn determine_undisputed_chain(
