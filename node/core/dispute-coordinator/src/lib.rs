@@ -605,5 +605,28 @@ fn determine_undisputed_chain(
 	base_number: BlockNumber,
 	block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
 ) -> Result<Option<(BlockNumber, Hash)>, Error> {
-	unimplemented!()
+	let last = block_descriptions.last()
+		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.0));
+
+	// Fast path for no disputes.
+	let active_disputes = match db::v1::load_active_disputes(store, &config.column_config())? {
+		None => return Ok(last),
+		Some(a) if a.disputed.is_empty() => return Ok(last),
+		Some(a) => a,
+	};
+
+	for (i, (_, session, candidates)) in block_descriptions.iter().enumerate() {
+		if candidates.iter().any(|c| active_disputes.contains(*session, *c)) {
+			if i == 0 {
+				return Ok(None);
+			} else {
+				return Ok(Some((
+					base_number + i as BlockNumber,
+					block_descriptions[base_number as usize + i].0,
+				)));
+			}
+		}
+	}
+
+	Ok(last)
 }
