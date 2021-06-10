@@ -285,7 +285,7 @@ fn new_partial<RuntimeApi, Executor>(
 		config.transaction_pool.clone(),
 		config.role.is_authority().into(),
 		config.prometheus_registry(),
-		task_manager.spawn_handle(),
+		task_manager.spawn_essential_handle(),
 		client.clone(),
 	);
 
@@ -1096,7 +1096,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
 		config.transaction_pool.clone(),
 		config.prometheus_registry(),
-		task_manager.spawn_handle(),
+		task_manager.spawn_essential_handle(),
 		client.clone(),
 		on_demand.clone(),
 	));
