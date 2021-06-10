@@ -1228,6 +1228,19 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub parent_header: HDR,
 }
 
+/// The maximum number of validators `f` which may safely be faulty.
+///
+/// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
+pub fn byzantine_threshold(n: usize) -> usize {
+	n.saturating_sub(1) / 3
+}
+
+/// The supermajority threshold of validators which represents a subset
+/// guaranteed to have at least f+1 honest validators.
+pub fn supermajority_threshold(n: usize) -> usize {
+	n - byzantine_threshold(n)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -1277,5 +1290,29 @@ mod tests {
 			&Hash::repeat_byte(3),
 			&Hash::repeat_byte(4),
 		);
+	}
+
+	#[test]
+	fn test_byzantine_threshold() {
+		assert_eq!(byzantine_threshold(0), 0);
+		assert_eq!(byzantine_threshold(1), 0);
+		assert_eq!(byzantine_threshold(2), 0);
+		assert_eq!(byzantine_threshold(3), 0);
+		assert_eq!(byzantine_threshold(4), 1);
+		assert_eq!(byzantine_threshold(5), 1);
+		assert_eq!(byzantine_threshold(6), 1);
+		assert_eq!(byzantine_threshold(7), 2);
+	}
+
+	#[test]
+	fn test_supermajority_threshold() {
+		assert_eq!(supermajority_threshold(0), 0);
+		assert_eq!(supermajority_threshold(1), 1);
+		assert_eq!(supermajority_threshold(2), 2);
+		assert_eq!(supermajority_threshold(3), 3);
+		assert_eq!(supermajority_threshold(4), 3);
+		assert_eq!(supermajority_threshold(5), 4);
+		assert_eq!(supermajority_threshold(6), 5);
+		assert_eq!(supermajority_threshold(7), 5);
 	}
 }
