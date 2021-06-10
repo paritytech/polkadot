@@ -642,6 +642,8 @@ impl ChannelsOut {
 			AllMessages::GossipSupport(msg) => {
 				self.gossip_support.send(make_packet(signals_received, msg)).await
 			},
+			AllMessages::DisputeCoordinator(_) => Ok(()),
+			AllMessages::DisputeParticipation(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -749,6 +751,8 @@ impl ChannelsOut {
 					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
+			AllMessages::DisputeCoordinator(_) => Ok(()),
+			AllMessages::DisputeParticipation(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -2101,6 +2105,8 @@ where
 			AllMessages::GossipSupport(msg) => {
 				self.subsystems.gossip_support.send_message(msg).await?;
 			},
+			AllMessages::DisputeCoordinator(_) => {}
+			AllMessages::DisputeParticipation(_) => {}
 		}
 
 		Ok(())
