@@ -629,3 +629,105 @@ fn determine_undisputed_chain(
 
 	Ok(last)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_primitives::v1::ValidatorId;
+	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+	use sp_core::testing::TaskExecutor;
+	use sp_keyring::Sr25519Keyring;
+	use sp_keystore::SyncCryptoStore;
+	use futures::future::{self, BoxFuture};
+
+	// sets up a keystore with the given keyring accounts.
+	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+		let store = LocalKeystore::in_memory();
+
+		for s in accounts.iter().copied().map(|k| k.to_seed()) {
+			store.sr25519_generate_new(
+				polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
+				Some(s.as_str()),
+			).unwrap();
+		}
+
+		store
+	}
+
+	struct TestState {
+		validators: Vec<Sr25519Keyring>,
+		validator_public: Vec<ValidatorId>,
+		master_keystore: Arc<sc_keystore::LocalKeystore>,
+		subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
+		db: Arc<dyn KeyValueDB>,
+		config: Config,
+	}
+
+	impl Default for TestState {
+		fn default() -> TestState {
+			let validators = vec![
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+				Sr25519Keyring::Eve,
+				Sr25519Keyring::One,
+			];
+
+			let validator_public = validators.iter()
+				.map(|k| ValidatorId::from(k.public()))
+				.collect();
+
+			let master_keystore = make_keystore(&validators).into();
+			let subsystem_keystore = make_keystore(&[Sr25519Keyring::Alice]).into();
+
+			let db = Arc::new(kvdb_memorydb::create(1));
+			let config = Config {
+				col_data: 0,
+			};
+
+			TestState {
+				validators,
+				validator_public,
+				master_keystore,
+				subsystem_keystore,
+				db,
+				config,
+			}
+		}
+	}
+
+	fn test_harness<F, T>(test: F) where F:
+		FnOnce(TestState, TestSubsystemContextHandle<DisputeCoordinatorMessage>)
+		-> BoxFuture<'static, ()>
+	{
+		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+
+		let state = TestState::default();
+		let subsystem = DisputeCoordinatorSubsystem::new(
+			state.db.clone(),
+			state.config.clone(),
+			state.subsystem_keystore.clone(),
+		);
+
+		let subsystem_task = run(subsystem, ctx);
+		let test_task = test(state, ctx_handle);
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn finality_votes_ignore_disputed_candidates() {
+
+	}
+
+	#[test]
+	fn conflicting_votes_lead_to_dispute_participation() {
+
+	}
+
+	#[test]
+	fn supermajority_valid_dispute_may_be_finalized() {
+
+	}
+}
