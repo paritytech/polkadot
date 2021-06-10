@@ -52,12 +52,13 @@ mod db;
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
 // It would be nice to draw this from the chain state, but we have no tools for it right now.
-// On Polkadot this is 2 days, and on Kusama it's 12 hours.
-const DISPUTE_WINDOW: SessionIndex = 12;
+// On Polkadot this is 1 day, and on Kusama it's 6 hours.
+const DISPUTE_WINDOW: SessionIndex = 6;
 
 struct State {
 	keystore: Arc<LocalKeystore>,
 	highest_session: Option<SessionIndex>,
+	rolling_session_window: RollingSessionWindow,
 }
 
 /// Configuration for the dispute coordinator subsystem.
