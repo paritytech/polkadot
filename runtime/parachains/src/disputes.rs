@@ -22,6 +22,7 @@ use primitives::v1::{
 	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
 	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
 	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
+	byzantine_threshold, supermajority_threshold
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
@@ -184,19 +185,6 @@ pub mod pallet {
 		/// Too many spam slots used by some specific validator.
 		PotentialSpam,
 	}
-}
-
-// The maximum number of validators `f` which may safely be faulty.
-//
-// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
-fn byzantine_threshold(n: usize) -> usize {
-	n.saturating_sub(1) / 3
-}
-
-// The supermajority threshold of validators which is required to
-// conclude a dispute.
-fn supermajority_threshold(n: usize) -> usize {
-	n - byzantine_threshold(n)
 }
 
 bitflags::bitflags! {
@@ -847,30 +835,6 @@ mod tests {
 				);
 			}
 		}
-	}
-
-	#[test]
-	fn test_byzantine_threshold() {
-		assert_eq!(byzantine_threshold(0), 0);
-		assert_eq!(byzantine_threshold(1), 0);
-		assert_eq!(byzantine_threshold(2), 0);
-		assert_eq!(byzantine_threshold(3), 0);
-		assert_eq!(byzantine_threshold(4), 1);
-		assert_eq!(byzantine_threshold(5), 1);
-		assert_eq!(byzantine_threshold(6), 1);
-		assert_eq!(byzantine_threshold(7), 2);
-	}
-
-	#[test]
-	fn test_supermajority_threshold() {
-		assert_eq!(supermajority_threshold(0), 0);
-		assert_eq!(supermajority_threshold(1), 1);
-		assert_eq!(supermajority_threshold(2), 2);
-		assert_eq!(supermajority_threshold(3), 3);
-		assert_eq!(supermajority_threshold(4), 3);
-		assert_eq!(supermajority_threshold(5), 4);
-		assert_eq!(supermajority_threshold(6), 5);
-		assert_eq!(supermajority_threshold(7), 5);
 	}
 
 	#[test]
