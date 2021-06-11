@@ -29,7 +29,7 @@ use sp_wasm_interface::HostFunctions as _;
 
 const CONFIG: Config = Config {
 	// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-	heap_pages: 1024,
+	heap_pages: 2048,
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
