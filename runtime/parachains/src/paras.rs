@@ -858,25 +858,6 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Fetch validation code of para in specific context, see [`Self::validation_code_hash_at`].
-	pub(crate) fn validation_code_at(
-		id: ParaId,
-		at: T::BlockNumber,
-		assume_intermediate: Option<T::BlockNumber>,
-	) -> Option<ValidationCode> {
-		Self::validation_code_hash_at(id, at, assume_intermediate).and_then(|code_hash| {
-			let code = CodeByHash::get(&code_hash);
-			if code.is_none() {
-				log::error!(
-					"Pallet paras storage is inconsistent, code not found for hash {}",
-					code_hash,
-				);
-				debug_assert!(false, "inconsistent paras storages");
-			}
-			code
-		})
-	}
-
 	/// Returns the current lifecycle state of the para.
 	pub fn lifecycle(id: ParaId) -> Option<ParaLifecycle> {
 		ParaLifecycles::get(&id)
@@ -1020,6 +1001,15 @@ mod tests {
 	fn check_code_is_not_stored(validation_code: &ValidationCode) {
 		assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
 		assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	}
+
+	fn fetch_validation_code_at(
+		para_id: ParaId,
+		at: BlockNumber,
+		assume_intermediate: Option<BlockNumber>,
+	) -> Option<ValidationCode> {
+		Paras::validation_code_hash_at(para_id, at, assume_intermediate)
+			.and_then(Paras::code_by_hash)
 	}
 
 	#[test]
@@ -1661,7 +1651,7 @@ mod tests {
 	}
 
 	#[test]
-	fn code_at_with_intermediate() {
+	fn code_hash_at_with_intermediate() {
 		let code_retention_period = 10;
 
 		let paras = vec![
@@ -1691,29 +1681,29 @@ mod tests {
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 10);
 
 			// no intermediate, falls back on current/past.
-			assert_eq!(Paras::validation_code_at(para_id, 1, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 100, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 1, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 100, None), Some(old_code.clone()));
 
 			// intermediate before upgrade meant to be applied, falls back on current.
-			assert_eq!(Paras::validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
 
 			// intermediate at or after upgrade applied
-			assert_eq!(Paras::validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
 
 			run_to_block(code_retention_period + 5, None);
 
 			// at <= intermediate not allowed
-			assert_eq!(Paras::validation_code_at(para_id, 10, Some(10)), None);
-			assert_eq!(Paras::validation_code_at(para_id, 9, Some(10)), None);
+			assert_eq!(fetch_validation_code_at(para_id, 10, Some(10)), None);
+			assert_eq!(fetch_validation_code_at(para_id, 9, Some(10)), None);
 		});
 	}
 
 	#[test]
-	fn code_at_returns_up_to_end_of_code_retention_period() {
+	fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let code_retention_period = 10;
 
 		let paras = vec![
@@ -1750,17 +1740,17 @@ mod tests {
 				vec![upgrade_at(2, 10)],
 			);
 
-			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period, None);
 
-			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period + 1, None);
 
@@ -1774,10 +1764,10 @@ mod tests {
 				},
 			);
 
-			assert_eq!(Paras::validation_code_at(para_id, 2, None), None); // pruned :(
-			assert_eq!(Paras::validation_code_at(para_id, 9, None), None);
-			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(new_code.clone()));
-			assert_eq!(Paras::validation_code_at(para_id, 11, None), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 2, None), None); // pruned :(
+			assert_eq!(fetch_validation_code_at(para_id, 9, None), None);
+			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(fetch_validation_code_at(para_id, 11, None), Some(new_code.clone()));
 		});
 	}
 

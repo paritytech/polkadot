@@ -271,7 +271,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Requires `(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, backing_group, block_hash, candidate_index)`
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, Some(backing_group), response_sender)`
-  * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.
+  * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::ValidationCodeByHash(`descriptor.validation_code_hash`)` against the state of `block_hash`.
   * Spawn a background task with a clone of `background_tx`
     * Wait for the available data
     * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message

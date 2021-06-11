@@ -1223,12 +1223,6 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn historical_validation_code(para_id: ParaId, context_height: BlockNumber)
-			-> Option<ValidationCode>
-		{
-			parachains_runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
-		}
-
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			parachains_runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}

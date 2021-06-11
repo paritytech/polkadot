@@ -144,7 +144,7 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 /// The number of references on the validation code in `CodeByHash` storage.
 CodeByHashRefs: map Hash => u32;
 /// Validation code stored by its hash.
-CoeByHash: map Hash => Option<ValidationCode>
+CodeByHash: map Hash => Option<ValidationCode>
 ```
 
 ## Session Change

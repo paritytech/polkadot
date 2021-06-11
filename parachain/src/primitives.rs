@@ -62,6 +62,9 @@ impl ValidationCode {
 	}
 }
 
+/// A hash of the parachain validation code.
+pub type ValidationCodeHash = Hash;
+
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
