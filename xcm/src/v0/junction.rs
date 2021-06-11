@@ -21,7 +21,7 @@ use parity_scale_codec::{self, Encode, Decode};
 use scale_info::TypeInfo;
 
 /// A global identifier of an account-bearing consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum NetworkId {
 	/// Unidentified/any.
 	Any,
