@@ -294,8 +294,9 @@ pub mod v1 {
 	use polkadot_primitives::v1::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature,
 		CompactStatement, Hash, Id as ParaId, UncheckedSignedAvailabilityBitfield,
-		ValidatorIndex, ValidatorSignature
+		ValidatorIndex, ValidatorSignature,
 	};
+
 	use polkadot_node_primitives::{
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		UncheckedSignedFullStatement,

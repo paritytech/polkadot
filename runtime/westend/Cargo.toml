@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.9.3"
+version = "0.9.4"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"

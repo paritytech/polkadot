@@ -192,7 +192,6 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn action_sink<'a>(
 		&'a mut self,
 	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>> {
@@ -211,12 +210,6 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
 				match action {
 					NetworkAction::ReputationChange(peer, cost_benefit) => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							"Changing reputation: {:?} for {}",
-							cost_benefit,
-							peer
-						);
 						self.0.report_peer(peer, cost_benefit.into_base_rep())
 					}
 					NetworkAction::DisconnectPeer(peer, peer_set) => self

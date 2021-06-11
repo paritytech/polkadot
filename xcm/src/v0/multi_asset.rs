@@ -61,35 +61,34 @@ pub enum AssetInstance {
 /// ### Abstract identifiers
 ///
 /// Abstract identifiers are absolute identifiers that represent a notional asset which can exist within multiple
-/// consensus systems. These tend to be simpler to deal with since their broad meaning is unchanged regardless stay
-/// of the consensus system in which it is interpreted.
+/// consensus systems. These tend to be simpler to deal with since their broad meaning is unchanged regardless stay of
+/// the consensus system in which it is interpreted.
 ///
 /// However, in the attempt to provide uniformity across consensus systems, they may conflate different instantiations
 /// of some notional asset (e.g. the reserve asset and a local reserve-backed derivative of it) under the same name,
-/// leading to confusion. It also implies that one notional asset is accounted for locally in only one way. This may
-/// not be the case, e.g. where there are multiple bridge instances each providing a bridged "BTC" token yet none
-/// being fungible between the others.
+/// leading to confusion. It also implies that one notional asset is accounted for locally in only one way. This may not
+/// be the case, e.g. where there are multiple bridge instances each providing a bridged "BTC" token yet none being
+/// fungible between the others.
 ///
-/// Since they are meant to be absolute and universal, a global registry is needed to ensure that name collisions
-/// do not occur.
+/// Since they are meant to be absolute and universal, a global registry is needed to ensure that name collisions do not
+/// occur.
 ///
 /// An abstract identifier is represented as a simple variable-size byte string. As of writing, no global registry
 /// exists and no proposals have been put forth for asset labeling.
 ///
 /// ### Concrete identifiers
 ///
-/// Concrete identifiers are *relative identifiers* that specifically identify a single asset through its location in
-/// a consensus system relative to the context interpreting. Use of a `MultiLocation` ensures that similar but non
-/// fungible variants of the same underlying asset can be properly distinguished, and obviates the need for any kind
-/// of central registry.
+/// Concrete identifiers are *relative identifiers* that specifically identify a single asset through its location in a
+/// consensus system relative to the context interpreting. Use of a `MultiLocation` ensures that similar but non
+/// fungible variants of the same underlying asset can be properly distinguished, and obviates the need for any kind of
+/// central registry.
 ///
-/// The limitation is that the asset identifier cannot be trivially copied between consensus
-/// systems and must instead be "re-anchored" whenever being moved to a new consensus system, using the two systems'
-/// relative paths.
+/// The limitation is that the asset identifier cannot be trivially copied between consensus systems and must instead be
+/// "re-anchored" whenever being moved to a new consensus system, using the two systems' relative paths.
 ///
-/// Throughout XCM, messages are authored such that *when interpreted from the receiver's point of view* they will
-/// have the desired meaning/effect. This means that relative paths should always by constructed to be read from the
-/// point of view of the receiving system, *which may be have a completely different meaning in the authoring system*.
+/// Throughout XCM, messages are authored such that *when interpreted from the receiver's point of view* they will have
+/// the desired meaning/effect. This means that relative paths should always by constructed to be read from the point of
+/// view of the receiving system, *which may be have a completely different meaning in the authoring system*.
 ///
 /// Concrete identifiers are the preferred way of identifying an asset since they are entirely unambiguous.
 ///
@@ -99,8 +98,8 @@ pub enum AssetInstance {
 ///
 /// - `<chain>/PalletInstance(<id>)` for a Frame chain with a single-asset pallet instance (such as an instance of the
 ///   Balances pallet).
-/// - `<chain>/PalletInstance(<id>)/GeneralIndex(<index>)` for a Frame chain with an indexed multi-asset pallet
-///   instance (such as an instance of the Assets pallet).
+/// - `<chain>/PalletInstance(<id>)/GeneralIndex(<index>)` for a Frame chain with an indexed multi-asset pallet instance
+///   (such as an instance of the Assets pallet).
 /// - `<chain>/AccountId32` for an ERC-20-style single-asset smart-contract on a Frame-based contracts chain.
 /// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
 ///
@@ -147,6 +146,9 @@ pub enum MultiAsset {
 }
 
 impl MultiAsset {
+	/// Returns `true` if the `MultiAsset` is a wildcard and can refer to classes of assets, instead of just one.
+	///
+	/// Typically can also be inferred by the name starting with `All`.
 	pub fn is_wildcard(&self) -> bool {
 		match self {
 			MultiAsset::None
@@ -209,7 +211,6 @@ impl MultiAsset {
 	fn is_concrete_fungible(&self, id: &MultiLocation) -> bool {
 		match self {
 			MultiAsset::AllFungible => true,
-
 			MultiAsset::AllConcreteFungible { id: i }
 			| MultiAsset::ConcreteFungible { id: i, .. }
 			=> i == id,
@@ -250,8 +251,13 @@ impl MultiAsset {
 
 	fn is_all(&self) -> bool { matches!(self, MultiAsset::All) }
 
+	/// Returns true if `self` is a super-set of the given `inner`.
+	///
+	/// Typically, any wildcard is never contained in anything else, and a wildcard can contain any other non-wildcard.
+	/// For more details, see the implementation and tests.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use MultiAsset::*;
+
 		// Inner cannot be wild
 		if inner.is_wildcard() { return false }
 		// Everything contains nothing.
@@ -273,15 +279,16 @@ impl MultiAsset {
 			AllConcreteNonFungible { class } => inner.is_concrete_non_fungible(class),
 			AllAbstractNonFungible { class } => inner.is_abstract_non_fungible(class),
 
-			ConcreteFungible { id, amount }
-			=> matches!(inner, ConcreteFungible { id: i , amount: a } if i == id && a >= amount),
-			AbstractFungible { id, amount }
-			=> matches!(inner, AbstractFungible { id: i , amount: a } if i == id && a >= amount),
-			ConcreteNonFungible { class, instance }
-			=> matches!(inner, ConcreteNonFungible { class: i , instance: a } if i == class && a == instance),
-			AbstractNonFungible { class, instance }
-			=> matches!(inner, AbstractNonFungible { class: i , instance: a } if i == class && a == instance),
-
+			ConcreteFungible { id, amount } => matches!(
+				inner,
+				ConcreteFungible { id: inner_id , amount: inner_amount } if inner_id == id && amount >= inner_amount
+			),
+			AbstractFungible { id, amount } => matches!(
+				inner,
+				AbstractFungible { id: inner_id , amount: inner_amount } if inner_id == id && amount >= inner_amount
+			),
+			ConcreteNonFungible { .. } => self == inner,
+			AbstractNonFungible { .. } => self == inner,
 			_ => false,
 		}
 	}
@@ -311,5 +318,62 @@ impl TryFrom<VersionedMultiAsset> for MultiAsset {
 		match x {
 			VersionedMultiAsset::V0(x) => Ok(x),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn contains_works() {
+		use alloc::vec;
+		use MultiAsset::*;
+		// trivial case: all contains any non-wildcard.
+		assert!(All.contains(&None));
+		assert!(All.contains(&AbstractFungible { id: alloc::vec![99u8], amount: 1 }));
+
+		// trivial case: none contains nothing, except itself.
+		assert!(None.contains(&None));
+		assert!(!None.contains(&AllFungible));
+		assert!(!None.contains(&All));
+
+		// A bit more sneaky: Nothing can contain wildcard, even All ir the thing itself.
+		assert!(!All.contains(&All));
+		assert!(!All.contains(&AllFungible));
+		assert!(!AllFungible.contains(&AllFungible));
+		assert!(!AllNonFungible.contains(&AllNonFungible));
+
+		// For fungibles, containing is basically equality, or equal id with higher amount.
+		assert!(
+			!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![1u8], amount: 99 })
+		);
+		assert!(
+			AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 99 })
+		);
+		assert!(
+			AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 9 })
+		);
+		assert!(
+			!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 100 })
+		);
+
+		// For non-fungibles, containing is equality.
+		assert!(
+			!AbstractNonFungible {class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
+			.contains(&AbstractNonFungible { class: vec![98u8], instance: AssetInstance::Index { id: 9 } })
+		);
+		assert!(
+			!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 8 } }
+			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
+		);
+		assert!(
+			AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
+			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
+		);
 	}
 }

@@ -114,18 +114,18 @@ fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	runtime::GenesisConfig {
-		frame_system: runtime::SystemConfig {
+		system: runtime::SystemConfig {
 			code: runtime::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
 			..Default::default()
 		},
-		pallet_indices: runtime::IndicesConfig { indices: vec![] },
-		pallet_balances: runtime::BalancesConfig {
+		indices: runtime::IndicesConfig { indices: vec![] },
+		balances: runtime::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
 				.map(|k| (k.clone(), ENDOWMENT))
 				.collect(),
 		},
-		pallet_session: runtime::SessionConfig {
+		session: runtime::SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| {
@@ -143,7 +143,7 @@ fn polkadot_testnet_genesis(
 				})
 				.collect::<Vec<_>>(),
 		},
-		pallet_staking: runtime::StakingConfig {
+		staking: runtime::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities
@@ -162,18 +162,18 @@ fn polkadot_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		pallet_babe: runtime::BabeConfig {
+		babe: runtime::BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
 		},
-		pallet_grandpa: Default::default(),
-		pallet_authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		grandpa: Default::default(),
+		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: runtime::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
 		},
-		pallet_vesting: runtime::VestingConfig { vesting: vec![] },
-		pallet_sudo: runtime::SudoConfig { key: root_key },
+		vesting: runtime::VestingConfig { vesting: vec![] },
+		sudo: runtime::SudoConfig { key: root_key },
 		parachains_configuration: runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,
