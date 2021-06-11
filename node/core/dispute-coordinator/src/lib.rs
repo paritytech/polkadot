@@ -1226,6 +1226,114 @@ mod tests {
 
 	#[test]
 	fn supermajority_valid_dispute_may_be_finalized() {
+		test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+			let session = 1;
 
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(
+				&mut virtual_overseer,
+				session,
+				1,
+			).await;
+
+			let supermajority_threshold = polkadot_primitives::v1::supermajority_threshold(
+				test_state.validators.len()
+			);
+
+			let valid_vote = test_state.issue_statement_with_index(
+				0,
+				candidate_hash,
+				session,
+				true,
+			).await;
+
+			let invalid_vote = test_state.issue_statement_with_index(
+				1,
+				candidate_hash,
+				session,
+				false,
+			).await;
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt: candidate_receipt.clone(),
+					session,
+					statements: vec![
+						(valid_vote, ValidatorIndex(0)),
+						(invalid_vote, ValidatorIndex(1)),
+					],
+				},
+			}).await;
+
+			let _ = virtual_overseer.recv().await;
+
+			let mut statements = Vec::new();
+			for i in (0..supermajority_threshold - 1).map(|i| i + 2) {
+				let vote = test_state.issue_statement_with_index(
+					i,
+					candidate_hash,
+					session,
+					true,
+				).await;
+
+				statements.push((vote, ValidatorIndex(i as _)));
+			};
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt: candidate_receipt.clone(),
+					session,
+					statements,
+				},
+			}).await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+				}).await;
+
+				assert!(rx.await.unwrap().is_empty());
+
+				let (tx, rx) = oneshot::channel();
+
+				let block_hash_a = Hash::repeat_byte(0x0a);
+				let block_hash_b = Hash::repeat_byte(0x0b);
+
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: 10,
+						block_descriptions: vec![
+							(block_hash_a, session, vec![candidate_hash]),
+						],
+						tx,
+					},
+				}).await;
+
+				assert_eq!(rx.await.unwrap(), Some((11, block_hash_a)));
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: 10,
+						block_descriptions: vec![
+							(block_hash_a, session, vec![]),
+							(block_hash_b, session, vec![candidate_hash]),
+						],
+						tx,
+					},
+				}).await;
+
+				assert_eq!(rx.await.unwrap(), Some((12, block_hash_b)));
+			}
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+		}));
 	}
 }
