@@ -2372,6 +2372,8 @@ mod tests {
 				AllMessages::ApprovalVoting(_) => unreachable!("Not interested in network events"),
 				AllMessages::ApprovalDistribution(_) => { cnt += 1; }
 				AllMessages::GossipSupport(_) => unreachable!("Not interested in network events"),
+				AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
+				AllMessages::DisputeParticipation(_) => unreachable!("Not interetsed in network events"),
 				// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 				// notified, `unreachable!()` for those that should not.
 			}
