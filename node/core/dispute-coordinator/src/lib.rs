@@ -633,12 +633,18 @@ fn determine_undisputed_chain(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::ValidatorId;
+	use polkadot_primitives::v1::{BlakeTwo256, HashT, ValidatorId, Header, SessionInfo};
+	use polkadot_node_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf};
+	use polkadot_node_subsystem::messages::{
+		AllMessages, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	};
 	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_core::testing::TaskExecutor;
 	use sp_keyring::Sr25519Keyring;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use futures::future::{self, BoxFuture};
+	use parity_scale_codec::Encode;
+	use assert_matches::assert_matches;
 
 	// sets up a keystore with the given keyring accounts.
 	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
@@ -654,11 +660,16 @@ mod tests {
 		store
 	}
 
+	fn session_to_hash(session: SessionIndex, extra: impl Encode) -> Hash {
+		BlakeTwo256::hash_of(&(session, extra))
+	}
+
 	type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 	struct TestState {
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
+		validator_groups: Vec<Vec<ValidatorIndex>>,
 		master_keystore: Arc<sc_keystore::LocalKeystore>,
 		subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
 		db: Arc<dyn KeyValueDB>,
@@ -680,6 +691,12 @@ mod tests {
 				.map(|k| ValidatorId::from(k.public()))
 				.collect();
 
+			let validator_groups = vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2), ValidatorIndex(3)],
+				vec![ValidatorIndex(4), ValidatorIndex(5)],
+			];
+
 			let master_keystore = make_keystore(&validators).into();
 			let subsystem_keystore = make_keystore(&[Sr25519Keyring::Alice]).into();
 
@@ -691,6 +708,7 @@ mod tests {
 			TestState {
 				validators,
 				validator_public,
+				validator_groups,
 				master_keystore,
 				subsystem_keystore,
 				db,
@@ -700,6 +718,91 @@ mod tests {
 	}
 
 	impl TestState {
+		async fn activate_leaf_at_session(
+			&self,
+			virtual_overseer: &mut VirtualOverseer,
+			session: SessionIndex,
+			block_number: BlockNumber,
+		) {
+			assert!(block_number > 0);
+
+			let parent_hash = session_to_hash(session, b"parent");
+			let block_header = Header {
+				parent_hash,
+				number: block_number,
+				digest: Default::default(),
+				state_root: Default::default(),
+				extrinsics_root: Default::default(),
+			};
+			let block_hash = block_header.hash();
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: block_hash,
+					span: Arc::new(jaeger::Span::Disabled),
+					number: block_number,
+				})
+			))).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					assert_eq!(h, block_hash);
+					let _ = tx.send(Ok(Some(block_header)));
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) => {
+					assert_eq!(h, parent_hash);
+					let _ = tx.send(Ok(session));
+				}
+			);
+
+			loop {
+				// answer session info queries until the current session is reached.
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(session_index, tx),
+					)) => {
+						assert_eq!(h, block_hash);
+
+						let _ = tx.send(Ok(Some(self.session_info())));
+						if session_index == session { break }
+					}
+				)
+			}
+		}
+
+		fn session_info(&self) -> SessionInfo {
+			let discovery_keys = self.validators.iter()
+				.map(|k| <_>::from(k.public()))
+				.collect();
+
+			let assignment_keys = self.validators.iter()
+				.map(|k| <_>::from(k.public()))
+				.collect();
+
+			SessionInfo {
+				validators: self.validator_public.clone(),
+				discovery_keys,
+				assignment_keys,
+				validator_groups: self.validator_groups.clone(),
+				n_cores: self.validator_groups.len() as _,
+				zeroth_delay_tranche_width: 0,
+				relay_vrf_modulo_samples: 1,
+				n_delay_tranches: 100,
+				no_show_slots: 1,
+				needed_approvals: 10,
+			}
+		}
+
 		async fn issue_statement_with_index(
 			&self,
 			index: usize,
@@ -721,9 +824,8 @@ mod tests {
 		}
 	}
 
-	fn test_harness<F, T>(test: F) where F:
-		FnOnce(TestState, VirtualOverseer)
-		-> BoxFuture<'static, ()>
+	fn test_harness<F>(test: F)
+		where F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, ()>
 	{
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
@@ -742,7 +844,7 @@ mod tests {
 
 	#[test]
 	fn conflicting_votes_lead_to_dispute_participation() {
-		test_harness(|test_state, mut virtual_overseer| Box::new(async move {
+		test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
 
 		}))
 	}
