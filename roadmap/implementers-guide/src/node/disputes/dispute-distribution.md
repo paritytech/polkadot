@@ -1,5 +1,15 @@
 # Dispute Distribution
 
+## Design Goals
+
+This design should result in a protocol that is:
+
+- resilient to nodes being temporarily unavailable
+- make sure nodes are aware of a dispute quickly
+- relatively efficient, should not cause too much stress on the network
+- be resilient when it comes to spam
+- be simple and boring: We want disputes to work when they happen
+
 ## Protocol
 
 ### Input
@@ -10,52 +20,156 @@
 
 - [`DisputeCoordinatorMessage::ActiveDisputes`][DisputeParticipationMessage]
 - [`DisputeCoordinatorMessage::ImportStatements`][DisputeParticipationMessage]
+- [`DisputeCoordinatorMessage::QueryCandidateVotes`][DisputeParticipationMessage]
 - [`RuntimeApiMessage`][RuntimeApiMessage]
 
+### Wire format
+
+#### Disputes
+
+Protocol: "/polkadot/dispute/1"
+
+Request:
+
+```rust
+struct DisputeRequest {
+  // Either initiating invalid vote or our own (if we voted invalid).
+  invalid_vote: SignedV2<InvalidVote>,
+  // Some invalid vote (can be from backing/approval) or our own if we voted
+  // valid.
+  valid_vote: SignedV2<ValidVote>,
+}
+
+struct InvalidVote {
+  /// The candidate being disputed.
+  candidate_hash: CandidateHash,
+  /// The voting validator.
+  validator_index: ValidatorIndex,
+  /// The session the candidate appears in.
+  candidate_session: SessionIndex,
+}
+
+struct ValidVote {
+  candidate_hash: CandidateHash,
+  validator_index: ValidatorIndex,
+  candidate_session: SessionIndex,
+  kind: ValidDisputeStatementKind,
+}
+```
+
+Response:
+
+```rust
+enum DisputeResponse {
+  Confirmed
+}
+```
+
+#### Vote Recovery
+
+Protocol: "/polkadot/vote-recovery/1"
+
+```rust
+struct IHaveVotesRequest {
+  candidate_hash: CandidateHash,
+  session: SessionIndex,
+  votes: VotesBitfield,
+}
+
+struct VotesBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
+```
+
+Response:
+
+```rust
+struct VotesResponse {
+  /// All votes we have, but the requester was missing.
+  missing: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+  /// Any additional equivocating votes, we transmit those even if the sender
+  /// claims to have votes for that validator (as it might only have one).
+  equivocating: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+}
+```
+
 ## Functionality
-
-TODO:
-- Wire message (Valid is not a valid wire message, it must contain one
-invalid vote).
-- Distribution of backing and approval votes, in case of nodes not having them.
-
-
-### Distribution
 
 Distributing disputes needs to be a reliable protocol. We would like to make as
 sure as possible that our vote got properly delivered to all concerned
 validators. For this to work, this subsystem won't be gossip based, but instead
 will use a request/response protocol for application level confirmations. The
-request will be the payload (the `ExplicitDisputeStatement`), the response will
-be the confirmation. On reception of `DistributeStatement` a node will send and
-keep retrying delivering that statement in case of failures as long as the
-dispute is active to all concerned validators. The list of concerned validators
-will be updated on every block and will change at session boundaries.
+request will be the payload (the actual votes/statements), the response will
+be the confirmation. See [above][#wire-format].
 
-As can be determined from the protocol section, this subsystem is only concerned
-with delivering `ExplicityDisputeStatement`s, for all other votes
-(backing/approval) the dispute coordinator is responsible of keeping track of
-those statements.
+### Starting a Dispute
+
+A dispute is initiated once a node sends the first `Dispute` wire message,
+which must contain an "invalid" vote and some "valid" vote.
+
+The dispute distribution subsystem can instructed to send that message out to
+all concerned validators by means of a `DisputeDistributionMessage::SendDispute`
+message. That message must contain an invalid vote from the local node and some
+valid one, e.g. a backing statement.
+
+We include a valid vote as well so any node regardless of whether it is synced
+with the chain or not or has seen backing/approval vote can see that there are
+conflicting votes available, hence we have a valid dispute. Nodes will still
+need to check whether the disputing votes are somewhat current and not some
+stale ones.
+
+### Participating in a Dispute
+
+Upon receiving a `Dispute` message, a dispute distribution will trigger the
+import of the received votes via the dispute coordinator
+(`DisputeCoordinatorMessage::ImportStatements`). The dispute coordinator will
+take care of participating in that dispute if necessary. Once it is done, the
+coordinator will send a `DisputeDistributionMessage::SendDispute` message to dispute
+distribution. From here, everything is the same as for starting a dispute,
+except that if the local node deemed the candidate valid, the `SendDispute`
+message will contain a valid vote signed by our node and will contain the
+initially received `Invalid` vote.
+
+### Sending of messages
+
+Starting and participting in a dispute are pretty similar from the perspective
+of disptute distribution. Once we receive a `SendDispute` message we try to make
+sure to get the data out. We keep track of all the parachain validators that
+should see the message, which are all the parachain validators of the session
+where the dispute happened as they will want to participate in the dispute.  In
+addition we also need to get the votes out to all authorities of the current
+session (which might be the same or not). Those authorities will not
+participtate in the dispute, but need to see the statements so they can include
+them in blocks.
+
+We keep track of connected parachain validators and authorities and will issue
+warnings in the logs if connected nodes are less than two thirds of the
+corresponding sets. We also only consider a message transmitted, once we
+received a confirmation message. If not we will keep retrying getting that
+message out as long as the dispute is deemed alive. To determine whether a
+dispute is still alive we will issue a
+`DisputeCoordinatorMessage::ActiveDisputes` message before each retry run. Once
+a dispute is no longer live, we will clean up the state coordingly.
 
 To cather with spam issues, we will in a first implementation only consider
 disputes of already included data. Therefore only for candidates that are
 already available. These are the only disputes representing an actual threat to
 the system and are also the easiest to implement with regards to spam.
 
+Votes can still be old/ not relevant. In this case we will drop those messages
+and we might want to decrease reputation of peers sending old data.
+
 ### Reception
 
-Apart from making sure that local statements are sent out to all relevant
-validators, this subsystem is also responsible for receiving votes from other
-nodes. Because we are not forwarding foreign statements, spam is not so much of
-an issue. We should just make sure to punish a node if it issues a statement for
-a candidate that was not found available.
+Because we are not forwarding foreign statements, spam is not so much of
+an issue. Rate limiting should be implemented at the substrate level, see
+[#7750](https://github.com/paritytech/substrate/issues/7750).
 
-For each received vote, the subsystem will send an
-`DisputeCoordinatorMessage::ImportStatements` message to the dispute
-coordinator. We rely on the coordinator to trigger validation and availability
-recovery of the candidate, if there was no local vote for it yet and to report
-back to us via `DisputeDistributionMessage::ReportCandidateUnavailable` if a
-candidate was not found available.
+### Node Startup
+
+On startup we need to check with the dispute coordinator for any ongoing
+disputes and assume we have not yet sent our statement for those. In case we
+find an explicit statement from ourselves via
+`DisputeCoordinatorMessage::QueryCandidateVotes` we will pretend to just have
+received a `SendDispute` message for that candidate.
 
 ## Backing and Approval Votes
 
@@ -66,43 +180,50 @@ We assume that under normal operation each node will be aware of backing and
 approval votes and optimize for that case. Nevertheless we want disputes to
 conclude fast and reliable, therefore if a node is not aware of backing/approval
 votes it can request the missing votes from the node that informed it about the
-dispute. It will send the node two bitfields with
+dispute.
 
+## Resiliency
 
-## Bitfields
+The above protocol should be sufficient for most cases, but there are certain
+cases we also want to have covered:
 
-Each validator is responsible for sending its vote to each other validator. For
-backing and approval votes we assume each validator is aware of those. To cather
-for imperfections, e.g.:
+- Non validator nodes might be interested in ongoing voting, even before it is
+  recorded on chain.
+- Nodes might have missed votes, especially backing or approval votes.
+  Recovering them from chain is difficult and expensive, due to runtime upgrades
+  and untyped extrinsics.
 
-- A validator might have missed gossip and is not aware of
-backing/approval votes
-- A validator crashed/was under attack and was only able to
-send out its vote to some validators
+To cover those cases, we introduce a second request/response protocol, which can
+be handled on a lower priority basis as the one above. It consists of the
+request/response messages as described in the [protocol
+section][#vote-recovery].
 
-We also have a third wire message type: `IHaveVotes` which contains a bitfield
-with a bit for each validator. 1 meaning we have some votes from that validator,
-0 meaning we don't.
+Nodes may send those requests to validators, if they feel they are missing
+votes. E.g. after some timeout, if no majority was reached yet in their point of
+view or if they are not aware of any backing/approval votes for a received
+disputed candidate.
 
-A validator might send those out to some validator whenever it feels like
-missing out on votes and after some timeout just to make sure it knows
-everything. The receiver of a `IHaveVotes` message will do two things:
+The receiver of a `IHaveVotesRequests` message will do the following:
 
 1. See if the sender is missing votes we are aware of - if so, respond with
    those votes. Also send votes of equivocating validators, no matter the
    bitfield.
 2. Check whether the sender knows about any votes, we don't know about and if so
    send a `IHaveVotes` request back, with our knowledge.
+3. Record the peer's knowledge.
 
 When to send `IHaveVotes` messages:
 
-1. Whenever we receive an `Invalid`/`Valid` vote and we are not aware of any
-   disagreeing votes. In this case we will just drop the message and send a
-   `IHaveVotes` message to the validator we received the `Invalid`/`Valid`
-   message from.
-2. Once per block to some random validator as long as the dispute is active.
-3. Whenever we learn something new via `IHaveVotes`, share that knowledge with
-   two more `IHaveVotes` messages with random other validators.
+1. Whenever we are asked to do so via
+   `DisputeDistributionMessage::FetchMissingVotes`.
+2. Approximately once per block to some random validator as long as the dispute
+   is active.
+
+Spam considerations: Nodes want to accept those messages once per validator and
+per slot. They are free to drop more frequent requests or requests for stale
+data. Requests coming from non validator nodes, can be handled on a best effort
+basis.
+
 ## Considerations
 
 Dispute distribution is critical. We should keep track of available validator
@@ -129,13 +250,8 @@ providers of the data, hence distributing load and making prevention of the
 dispute from concluding harder and harder over time. Assuming an attacker can
 not DoS a node forever, the dispute will succeed eventually, which is all that
 matters. And again, even if an attacker managed to prevent such a dispute from
-happening somehow, there is no real harm done, there was no serious attack to
+happening somehow, there is no real harm done: There was no serious attack to
 begin with.
-
-Third: As candidates can be made up at will, we are susceptible to spam. Two
-validators can continuously contradict each other. This will result in a slash
-of one of them. Still it would be good to consider that possibility and make
-sure the network will work properly in such an event.
 
 [DistputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message

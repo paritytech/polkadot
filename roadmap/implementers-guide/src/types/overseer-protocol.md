@@ -432,10 +432,22 @@ responsible of distributing explicit dispute statements.
 
 ```rust
 enum DisputeDistributionMessage {
+
   /// Tell dispute distribution to distribute an explicit dispute statement to
   validators.
-  DistributeStatement(ExplicitDisputeStatement),
-  /// Tell the subsystem that a candidate is not availble. Dispute distribution
+  SendDispute((ValidVote, InvalidVote)),
+
+  /// Ask DisputeDistribution to get votes we don't know about.
+  /// Fetched votes will be reported via `DisputeCoordinatorMessage::ImportStatements`
+  FetchMissingVotes {
+    candiate_hash: CandidateHash,
+    session: SessionIndex,
+    knownVotes: Bitfield,
+    /// Optional validator to query from. `ValidatorIndex` as in the above
+    referenced session.
+    from_validator: Option<ValidatorIndex>,
+  }
+  /// Tell the subsystem that a candidate is not available. Dispute distribution
   can punish peers distributing votes on unavailable hashes for example.
   ReportCandidateUnavailable(CandidateHash),
 }
