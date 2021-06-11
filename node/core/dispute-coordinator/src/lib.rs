@@ -352,7 +352,7 @@ async fn handle_incoming(
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
 			base_number,
 			block_descriptions,
-			rx,
+			tx,
 		} => {
 			let undisputed_chain = determine_undisputed_chain(
 				store,
@@ -361,7 +361,7 @@ async fn handle_incoming(
 				block_descriptions
 			)?;
 
-			let _ = rx.send(undisputed_chain);
+			let _ = tx.send(undisputed_chain);
 		}
 	}
 
@@ -637,7 +637,7 @@ fn determine_undisputed_chain(
 			} else {
 				return Ok(Some((
 					base_number + i as BlockNumber,
-					block_descriptions[base_number as usize + i].0,
+					block_descriptions[i - 1].0,
 				)));
 			}
 		}
@@ -1147,7 +1147,81 @@ mod tests {
 
 	#[test]
 	fn finality_votes_ignore_disputed_candidates() {
+		test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+			let session = 1;
 
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(
+				&mut virtual_overseer,
+				session,
+				1,
+			).await;
+
+			let valid_vote = test_state.issue_statement_with_index(
+				0,
+				candidate_hash,
+				session,
+				true,
+			).await;
+
+			let invalid_vote = test_state.issue_statement_with_index(
+				1,
+				candidate_hash,
+				session,
+				false,
+			).await;
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt: candidate_receipt.clone(),
+					session,
+					statements: vec![
+						(valid_vote, ValidatorIndex(0)),
+						(invalid_vote, ValidatorIndex(1)),
+					],
+				},
+			}).await;
+			let _ = virtual_overseer.recv().await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+
+				let block_hash_a = Hash::repeat_byte(0x0a);
+				let block_hash_b = Hash::repeat_byte(0x0b);
+
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: 10,
+						block_descriptions: vec![
+							(block_hash_a, session, vec![candidate_hash]),
+						],
+						tx,
+					},
+				}).await;
+
+				assert!(rx.await.unwrap().is_none());
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: 10,
+						block_descriptions: vec![
+							(block_hash_a, session, vec![]),
+							(block_hash_b, session, vec![candidate_hash]),
+						],
+						tx,
+					},
+				}).await;
+
+				assert_eq!(rx.await.unwrap(), Some((11, block_hash_a)));
+			}
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+		}));
 	}
 
 	#[test]

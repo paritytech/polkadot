@@ -255,7 +255,7 @@ pub enum DisputeCoordinatorMessage {
 		/// Descriptions of all the blocks counting upwards from the block after the base number
 		block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
 		/// A response channel - `None` to vote on base, `Some` to vote higher.
-		rx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
+		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
 	}
 }
 
