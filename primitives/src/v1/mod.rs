@@ -38,7 +38,7 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
+	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode, ValidationCodeHash,
 };
 
 // Export some basic parachain primitives from v0.
@@ -907,15 +907,6 @@ sp_api::decl_runtime_apis! {
 		/// and the para already occupies a core.
 		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode>;
-
-		/// Fetch the historical validation code used by a para for candidates executed in the
-		/// context of a given block height in the current chain.
-		///
-		/// `context_height` may be no greater than the height of the block in whose
-		/// state the runtime API is executed.
-		#[skip_initialize_block]
-		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras

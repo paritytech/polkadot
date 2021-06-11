@@ -1879,7 +1879,6 @@ async fn launch_approval(
 ) -> SubsystemResult<Option<RemoteHandle<()>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
-	let (context_num_tx, context_num_rx) = oneshot::channel();
 
 	let candidate_hash = candidate.hash();
 
@@ -1898,29 +1897,10 @@ async fn launch_approval(
 	).into()).await;
 
 	ctx.send_message(
-		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
-	).await;
-
-	let in_context_number = match context_num_rx.await {
-		Ok(Ok(Some(n))) => n,
-		Ok(Ok(None)) | Ok(Err(_)) | Err(_) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Could not launch approval work for candidate {:?}: Number of block {} unknown",
-				(candidate_hash, candidate.descriptor.para_id),
-				candidate.descriptor.relay_parent,
-			);
-
-			return Ok(None);
-		}
-	};
-
-	ctx.send_message(
 		RuntimeApiMessage::Request(
 			block_hash,
-			RuntimeApiRequest::HistoricalValidationCode(
-				candidate.descriptor.para_id,
-				in_context_number,
+			RuntimeApiRequest::ValidationCodeByHash(
+				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
 		).into()

@@ -22,37 +22,34 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
+use std::{collections::btree_map::BTreeMap, sync::Arc};
+
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange, peer_set::PeerSet,
-	request_response::{
-		Requests, request::IncomingRequest, v1 as req_res_v1
-	},
-	v1 as protocol_v1,
+	peer_set::PeerSet,
+	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
-	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch, AvailableData, PoV, ErasureChunk
+	AvailableData, BabeEpoch, CollationGenerationConfig, ErasureChunk, PoV, SignedFullStatement,
+	ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
-	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreState,
-	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, CandidateHash,
-	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
-	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
-use polkadot_statement_table::v1::Misbehavior;
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
-use std::{sync::Arc, collections::btree_map::BTreeMap};
-
+use polkadot_statement_table::v1::Misbehavior;
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
 pub mod network_bridge_event;
@@ -464,16 +461,9 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
-	/// Fetch the historical validation code used by a para for candidates executed in the
-	/// context of a given block height in the current chain.
-	///
-	/// `context_height` may be no greater than the height of the block in whose
-	/// state the runtime API is executed. Otherwise `None` is returned.
-	HistoricalValidationCode(
-		ParaId,
-		BlockNumber,
-		RuntimeApiSender<Option<ValidationCode>>,
-	),
+	/// Get validation code by its hash, either past, current or future code can be returned, as long as state is still
+	/// available.
+	ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of

@@ -119,8 +119,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_session_index_for_child(relay_parent, session_index),
 			ValidationCode(relay_parent, para_id, assumption, code) =>
 				self.requests_cache.cache_validation_code((relay_parent, para_id, assumption), code),
-			HistoricalValidationCode(relay_parent, para_id, n, code) =>
-				self.requests_cache.cache_historical_validation_code((relay_parent, para_id, n), code),
+			ValidationCodeByHash(relay_parent, validation_code_hash, code) =>
+				self.requests_cache.cache_validation_code_by_hash((relay_parent, validation_code_hash), code),
 			CandidatePendingAvailability(relay_parent, para_id, candidate) =>
 				self.requests_cache.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
@@ -183,9 +183,9 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			Request::ValidationCode(para, assumption, sender) =>
 				query!(validation_code(para, assumption), sender)
 					.map(|sender| Request::ValidationCode(para, assumption, sender)),
-			Request::HistoricalValidationCode(para, at, sender) =>
-				query!(historical_validation_code(para, at), sender)
-					.map(|sender| Request::HistoricalValidationCode(para, at, sender)),
+			Request::ValidationCodeByHash(validation_code_hash, sender) =>
+				query!(validation_code_by_hash(validation_code_hash), sender)
+					.map(|sender| Request::ValidationCodeByHash(validation_code_hash, sender)),
 			Request::CandidatePendingAvailability(para, sender) =>
 				query!(candidate_pending_availability(para), sender)
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
@@ -341,8 +341,8 @@ where
 		Request::SessionIndexForChild(sender) => query!(SessionIndexForChild, session_index_for_child(), sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(ValidationCode, validation_code(para, assumption), sender),
-		Request::HistoricalValidationCode(para, at, sender) =>
-			query!(HistoricalValidationCode, historical_validation_code(para, at), sender),
+		Request::ValidationCodeByHash(validation_code_hash, sender) =>
+			query!(ValidationCodeByHash, validation_code_by_hash(validation_code_hash), sender),
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(CandidatePendingAvailability, candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(CandidateEvents, candidate_events(), sender),
