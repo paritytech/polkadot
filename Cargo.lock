@@ -14,20 +14,11 @@ dependencies = [
 
 [[package]]
 name = "addr2line"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55f82cfe485775d02112886f4169bde0c5894d75e79ead7eafe7e40a25e45f7"
-dependencies = [
- "gimli 0.23.0",
-]
-
-[[package]]
-name = "addr2line"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03345e98af8f3d786b6d9f656ccfa6ac316d954e92bc4841f0bba20789d5fb5a"
 dependencies = [
- "gimli 0.24.0",
+ "gimli",
 ]
 
 [[package]]
@@ -447,12 +438,12 @@ version = "0.3.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4717cfcbfaa661a0fd48f8453951837ae7e8f81e481fbb136e3202d72805a744"
 dependencies = [
- "addr2line 0.15.1",
+ "addr2line",
  "cc",
  "cfg-if 1.0.0",
  "libc",
  "miniz_oxide",
- "object 0.24.0",
+ "object",
  "rustc-demangle",
 ]
 
@@ -494,7 +485,7 @@ name = "beefy-gadget"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#72f19ce64e2e54f9bf4d397934cd9b8268db7323"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "futures 0.3.15",
  "hex",
  "log",
@@ -523,7 +514,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#72f19ce64e2e54f9bf4d397934cd9b8268db7323"
 dependencies = [
  "beefy-gadget",
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "futures 0.3.15",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -545,6 +536,19 @@ source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-meta
 dependencies = [
  "parity-scale-codec",
  "scale-info",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "beefy-primitives"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#42412a85f6b330dec3c4db1ccfbe5c2584aa3768"
+dependencies = [
+ "parity-scale-codec",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -1065,24 +1069,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f1885697ee8a177096d42f158922251a41973117f6d8a234cee94b9509157b7"
 dependencies = [
  "backtrace",
- "color-spantrace",
  "eyre",
  "indenter",
  "once_cell",
  "owo-colors",
- "tracing-error",
-]
-
-[[package]]
-name = "color-spantrace"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6eee477a4a8a72f4addd4de416eb56d54bc307b284d6601bafdee1f4ea462d1"
-dependencies = [
- "once_cell",
- "owo-colors",
- "tracing-core",
- "tracing-error",
 ]
 
 [[package]]
@@ -1175,40 +1165,11 @@ checksum = "dcb25d077389e53838a8158c8e99174c5a9d902dee4904320db714f3c653ffba"
 
 [[package]]
 name = "cranelift-bforest"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcee7a5107071484772b89fdf37f0f460b7db75f476e43ea7a684fd942470bcf"
-dependencies = [
- "cranelift-entity 0.71.0",
-]
-
-[[package]]
-name = "cranelift-bforest"
 version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8ca3560686e7c9c7ed7e0fe77469f2410ba5d7781b1acaa9adc8d8deea28e3e"
 dependencies = [
- "cranelift-entity 0.74.0",
-]
-
-[[package]]
-name = "cranelift-codegen"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "654ab96f0f1cab71c0d323618a58360a492da2c341eb2c1f977fc195c664001b"
-dependencies = [
- "byteorder",
- "cranelift-bforest 0.71.0",
- "cranelift-codegen-meta 0.71.0",
- "cranelift-codegen-shared 0.71.0",
- "cranelift-entity 0.71.0",
- "gimli 0.23.0",
- "log",
- "regalloc",
- "serde",
- "smallvec 1.6.1",
- "target-lexicon 0.11.2",
- "thiserror",
+ "cranelift-entity",
 ]
 
 [[package]]
@@ -1217,26 +1178,16 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf9bf1ffffb6ce3d2e5ebc83549bd2436426c99b31cc550d521364cbe35d276"
 dependencies = [
- "cranelift-bforest 0.74.0",
- "cranelift-codegen-meta 0.74.0",
- "cranelift-codegen-shared 0.74.0",
- "cranelift-entity 0.74.0",
- "gimli 0.24.0",
+ "cranelift-bforest",
+ "cranelift-codegen-meta",
+ "cranelift-codegen-shared",
+ "cranelift-entity",
+ "gimli",
  "log",
  "regalloc",
  "serde",
  "smallvec 1.6.1",
- "target-lexicon 0.12.0",
-]
-
-[[package]]
-name = "cranelift-codegen-meta"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65994cfc5be9d5fd10c5fc30bcdddfa50c04bb79c91329287bff846434ff8f14"
-dependencies = [
- "cranelift-codegen-shared 0.71.0",
- "cranelift-entity 0.71.0",
+ "target-lexicon",
 ]
 
 [[package]]
@@ -1245,17 +1196,8 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cc21936a5a6d07e23849ffe83e5c1f6f50305c074f4b2970ca50c13bf55b821"
 dependencies = [
- "cranelift-codegen-shared 0.74.0",
- "cranelift-entity 0.74.0",
-]
-
-[[package]]
-name = "cranelift-codegen-shared"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "889d720b688b8b7df5e4903f9b788c3c59396050f5548e516e58ccb7312463ab"
-dependencies = [
- "serde",
+ "cranelift-codegen-shared",
+ "cranelift-entity",
 ]
 
 [[package]]
@@ -1263,15 +1205,6 @@ name = "cranelift-codegen-shared"
 version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca5b6ffaa87560bebe69a5446449da18090b126037920b0c1c6d5945f72faf6b"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "cranelift-entity"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a2e6884a363e42a9ba980193ea8603a4272f8a92bd8bbaf9f57a94dbea0ff96"
 dependencies = [
  "serde",
 ]
@@ -1287,36 +1220,14 @@ dependencies = [
 
 [[package]]
 name = "cranelift-frontend"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6f41e2f9b57d2c030e249d0958f1cdc2c3cd46accf8c0438b3d1944e9153444"
-dependencies = [
- "cranelift-codegen 0.71.0",
- "log",
- "smallvec 1.6.1",
- "target-lexicon 0.11.2",
-]
-
-[[package]]
-name = "cranelift-frontend"
 version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c31b783b351f966fce33e3c03498cb116d16d97a8f9978164a60920bd0d3a99c"
 dependencies = [
- "cranelift-codegen 0.74.0",
+ "cranelift-codegen",
  "log",
  "smallvec 1.6.1",
- "target-lexicon 0.12.0",
-]
-
-[[package]]
-name = "cranelift-native"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aab70ba7575665375d31cbdea2462916ce58be887834e1b83c860b43b51af637"
-dependencies = [
- "cranelift-codegen 0.71.0",
- "target-lexicon 0.11.2",
+ "target-lexicon",
 ]
 
 [[package]]
@@ -1325,25 +1236,8 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a77c88d3dd48021ff1e37e978a00098524abd3513444ae252c08d37b310b3d2a"
 dependencies = [
- "cranelift-codegen 0.74.0",
- "target-lexicon 0.12.0",
-]
-
-[[package]]
-name = "cranelift-wasm"
-version = "0.71.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2fc3d2e70da6439adf97648dcdf81834363154f2907405345b6fbe7ca38918c"
-dependencies = [
- "cranelift-codegen 0.71.0",
- "cranelift-entity 0.71.0",
- "cranelift-frontend 0.71.0",
- "itertools 0.10.0",
- "log",
- "serde",
- "smallvec 1.6.1",
- "thiserror",
- "wasmparser 0.76.0",
+ "cranelift-codegen",
+ "target-lexicon",
 ]
 
 [[package]]
@@ -1352,15 +1246,15 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb6d408e2da77cdbbd65466298d44c86ae71c1785d2ab0d8657753cdb4d9d89"
 dependencies = [
- "cranelift-codegen 0.74.0",
- "cranelift-entity 0.74.0",
- "cranelift-frontend 0.74.0",
+ "cranelift-codegen",
+ "cranelift-entity",
+ "cranelift-frontend",
  "itertools 0.10.0",
  "log",
  "serde",
  "smallvec 1.6.1",
  "thiserror",
- "wasmparser 0.78.2",
+ "wasmparser",
 ]
 
 [[package]]
@@ -1595,6 +1489,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "diff"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e25ea47919b1560c4e3b7fe0aaab9becf5b84a10325ddf7db0f0ba5e1026499"
 
 [[package]]
 name = "difference"
@@ -2134,7 +2034,7 @@ dependencies = [
  "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "once_cell",
  "parity-scale-codec",
  "paste",
@@ -2190,7 +2090,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "pretty_assertions",
+ "pretty_assertions 0.6.1",
  "rustversion",
  "serde",
  "sp-core",
@@ -2549,17 +2449,6 @@ checksum = "97304e4cd182c3846f7575ced3890c53012ce534ad9114046b0a9e00bb30a375"
 dependencies = [
  "opaque-debug 0.3.0",
  "polyval",
-]
-
-[[package]]
-name = "gimli"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6503fe142514ca4799d4c26297c4248239fe8838d827db6bd6065c6ed29a6ce"
-dependencies = [
- "fallible-iterator",
- "indexmap",
- "stable_deref_trait",
 ]
 
 [[package]]
@@ -3389,9 +3278,9 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
@@ -3403,6 +3292,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
+ "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -4195,7 +4085,18 @@ name = "max-encoded-len"
 version = "3.0.0"
 dependencies = [
  "impl-trait-for-tuples",
- "max-encoded-len-derive",
+ "max-encoded-len-derive 3.0.0",
+ "parity-scale-codec",
+ "primitive-types",
+]
+
+[[package]]
+name = "max-encoded-len"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#2c84b31c86a62353ad3dbf04fae971b18470c9f5"
+dependencies = [
+ "impl-trait-for-tuples",
+ "max-encoded-len-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "parity-scale-codec",
  "primitive-types",
 ]
@@ -4203,6 +4104,17 @@ dependencies = [
 [[package]]
 name = "max-encoded-len-derive"
 version = "3.0.0"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "max-encoded-len-derive"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#2c84b31c86a62353ad3dbf04fae971b18470c9f5"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -4655,16 +4567,6 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9a7ab5d64814df0fe4a4b5ead45ed6c5f181ee3ff04ba344313a6c80446c5d4"
-dependencies = [
- "crc32fast",
- "indexmap",
-]
-
-[[package]]
-name = "object"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a5b3dd1c072ee7963717671d1ca129f1048fda25edea6b752bfc71ac8854170"
@@ -4790,7 +4692,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "parity-scale-codec",
  "sp-runtime",
  "sp-std",
@@ -4801,7 +4703,7 @@ name = "pallet-beefy"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#72f19ce64e2e54f9bf4d397934cd9b8268db7323"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "frame-support",
  "frame-system",
  "pallet-session",
@@ -5123,7 +5025,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -5809,17 +5711,14 @@ checksum = "989d43012e2ca1c4a02507c67282691a0a3207f9dc67cec596b43fe925b3d325"
 
 [[package]]
 name = "polkadot"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "assert_cmd",
  "color-eyre",
- "futures 0.3.15",
  "nix",
  "parity-util-mem",
  "polkadot-cli",
- "polkadot-service",
  "tempfile",
- "thiserror",
 ]
 
 [[package]]
@@ -5924,7 +5823,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.15",
@@ -5942,6 +5841,37 @@ dependencies = [
  "try-runtime-cli",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "polkadot-client"
+version = "0.9.3"
+dependencies = [
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
+ "frame-benchmarking",
+ "frame-system-rpc-runtime-api",
+ "kusama-runtime",
+ "pallet-mmr-primitives",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "polkadot-primitives",
+ "polkadot-runtime",
+ "rococo-runtime",
+ "sc-client-api",
+ "sc-executor",
+ "sc-service",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-finality-grandpa",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-storage",
+ "sp-transaction-pool",
+ "westend-runtime",
 ]
 
 [[package]]
@@ -5970,7 +5900,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-core-primitives"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
@@ -5981,7 +5911,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "parity-scale-codec",
  "polkadot-node-primitives",
@@ -6158,22 +6088,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-core-candidate-selection"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.15",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-util",
- "polkadot-primitives",
- "sp-core",
- "sp-keystore",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [
@@ -6272,7 +6186,6 @@ dependencies = [
  "test-parachain-adder",
  "test-parachain-halt",
  "tracing",
- "wasmtime-jit 0.24.0",
 ]
 
 [[package]]
@@ -6441,6 +6354,7 @@ dependencies = [
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "kv-log-macro",
+ "lru",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -6455,7 +6369,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "derive_more",
  "parity-scale-codec",
@@ -6469,7 +6383,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -6478,13 +6392,14 @@ dependencies = [
  "parity-util-mem",
  "polkadot-core-primitives",
  "polkadot-parachain",
- "pretty_assertions",
+ "pretty_assertions 0.7.2",
  "scale-info",
  "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-authority-discovery",
+ "sp-consensus-slots",
  "sp-core",
  "sp-inherents",
  "sp-io",
@@ -6522,7 +6437,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "beefy-gadget",
  "beefy-gadget-rpc",
@@ -6554,9 +6469,9 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
@@ -6568,6 +6483,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
+ "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -6635,9 +6551,9 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bitvec",
  "frame-benchmarking",
  "frame-support",
@@ -6688,7 +6604,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-parachains"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "bitvec",
  "derive_more",
@@ -6739,12 +6655,11 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "beefy-gadget",
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "env_logger 0.8.3",
- "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "futures 0.3.15",
  "hex-literal",
@@ -6760,6 +6675,7 @@ dependencies = [
  "polkadot-availability-bitfield-distribution",
  "polkadot-availability-distribution",
  "polkadot-availability-recovery",
+ "polkadot-client",
  "polkadot-collator-protocol",
  "polkadot-gossip-support",
  "polkadot-network-bridge",
@@ -6768,7 +6684,6 @@ dependencies = [
  "polkadot-node-core-av-store",
  "polkadot-node-core-backing",
  "polkadot-node-core-bitfield-signing",
- "polkadot-node-core-candidate-selection",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-chain-api",
  "polkadot-node-core-parachains-inherent",
@@ -6860,7 +6775,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -6869,7 +6784,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-client"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "futures 0.3.15",
  "parity-scale-codec",
@@ -6895,9 +6810,9 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bitvec",
  "frame-election-provider-support",
  "frame-executive",
@@ -6957,7 +6872,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-service"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "frame-benchmarking",
  "frame-system",
@@ -7084,6 +6999,18 @@ dependencies = [
  "ansi_term 0.11.0",
  "ctor",
  "difference",
+ "output_vt100",
+]
+
+[[package]]
+name = "pretty_assertions"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cab0e7c02cf376875e9335e0ba1da535775beb5450d21e1dffca068818ed98b"
+dependencies = [
+ "ansi_term 0.12.1",
+ "ctor",
+ "diff",
  "output_vt100",
 ]
 
@@ -7651,9 +7578,9 @@ dependencies = [
 
 [[package]]
 name = "rococo-runtime"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bp-rococo",
  "bp-wococo",
  "frame-executive",
@@ -7662,6 +7589,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",
+ "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -9163,7 +9091,7 @@ dependencies = [
 
 [[package]]
 name = "slot-range-helper"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "enumn",
  "parity-scale-codec",
@@ -9308,7 +9236,7 @@ dependencies = [
 name = "sp-application-crypto"
 version = "3.0.0"
 dependencies = [
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "parity-scale-codec",
  "serde",
  "sp-core",
@@ -9471,7 +9399,7 @@ dependencies = [
  "lazy_static",
  "libsecp256k1",
  "log",
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "merlin",
  "num-traits",
  "parity-scale-codec",
@@ -9668,7 +9596,7 @@ dependencies = [
  "hash256-std-hasher",
  "impl-trait-for-tuples",
  "log",
- "max-encoded-len",
+ "max-encoded-len 3.0.0",
  "parity-scale-codec",
  "parity-util-mem",
  "paste",
@@ -10232,12 +10160,6 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "target-lexicon"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "422045212ea98508ae3d28025bc5aaa2bd4a9cdaecd442a08da2ee620ee9ea95"
-
-[[package]]
-name = "target-lexicon"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64ae3b39281e4b14b8123bdbaddd472b7dfe215e444181f2f9d2443c2444f834"
@@ -10267,7 +10189,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -10280,7 +10202,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder-collator"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "futures 0.3.15",
  "futures-timer 3.0.2",
@@ -10307,14 +10229,14 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "substrate-wasm-builder",
 ]
 
 [[package]]
 name = "test-parachains"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
@@ -10784,16 +10706,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-error"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4d7c0b83d4a500748fa5879461652b361edf5c9d51ede2a2ac03875ca185e24"
-dependencies = [
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "tracing-futures"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10968,7 +10880,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.3.23",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
@@ -11333,12 +11245,6 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.76.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755a9a4afe3f6cccbbe6d7e965eef44cf260b001f93e547eba84255c1d0187d8"
-
-[[package]]
-name = "wasmparser"
 version = "0.78.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52144d4c78e5cf8b055ceab8e5fa22814ce4315d6002ad32cfd914f37c12fd65"
@@ -11364,14 +11270,14 @@ dependencies = [
  "rustc-demangle",
  "serde",
  "smallvec 1.6.1",
- "target-lexicon 0.12.0",
- "wasmparser 0.78.2",
+ "target-lexicon",
+ "wasmparser",
  "wasmtime-cache",
- "wasmtime-environ 0.27.0",
+ "wasmtime-environ",
  "wasmtime-fiber",
- "wasmtime-jit 0.27.0",
- "wasmtime-profiling 0.27.0",
- "wasmtime-runtime 0.27.0",
+ "wasmtime-jit",
+ "wasmtime-profiling",
+ "wasmtime-runtime",
  "wat",
  "winapi 0.3.9",
 ]
@@ -11399,47 +11305,17 @@ dependencies = [
 
 [[package]]
 name = "wasmtime-cranelift"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a05abbf94e03c2c8ee02254b1949320c4d45093de5d9d6ed4d9351d536075c9"
-dependencies = [
- "cranelift-codegen 0.71.0",
- "cranelift-entity 0.71.0",
- "cranelift-frontend 0.71.0",
- "cranelift-wasm 0.71.0",
- "wasmparser 0.76.0",
- "wasmtime-environ 0.24.0",
-]
-
-[[package]]
-name = "wasmtime-cranelift"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c525b39f062eada7db3c1298287b96dcb6e472b9f6b22501300b28d9fa7582f6"
 dependencies = [
- "cranelift-codegen 0.74.0",
- "cranelift-entity 0.74.0",
- "cranelift-frontend 0.74.0",
- "cranelift-wasm 0.74.0",
- "target-lexicon 0.12.0",
- "wasmparser 0.78.2",
- "wasmtime-environ 0.27.0",
-]
-
-[[package]]
-name = "wasmtime-debug"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "382eecd6281c6c1d1f3c904c3c143e671fc1a9573820cbfa777fba45ce2eda9c"
-dependencies = [
- "anyhow",
- "gimli 0.23.0",
- "more-asserts",
- "object 0.23.0",
- "target-lexicon 0.11.2",
- "thiserror",
- "wasmparser 0.76.0",
- "wasmtime-environ 0.24.0",
+ "cranelift-codegen",
+ "cranelift-entity",
+ "cranelift-frontend",
+ "cranelift-wasm",
+ "target-lexicon",
+ "wasmparser",
+ "wasmtime-environ",
 ]
 
 [[package]]
@@ -11449,33 +11325,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5d2a763e7a6fc734218e0e463196762a4f409c483063d81e0e85f96343b2e0a"
 dependencies = [
  "anyhow",
- "gimli 0.24.0",
+ "gimli",
  "more-asserts",
- "object 0.24.0",
- "target-lexicon 0.12.0",
+ "object",
+ "target-lexicon",
  "thiserror",
- "wasmparser 0.78.2",
- "wasmtime-environ 0.27.0",
-]
-
-[[package]]
-name = "wasmtime-environ"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81011b2b833663d7e0ce34639459a0e301e000fc7331e0298b3a27c78d0cec60"
-dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
- "cranelift-codegen 0.71.0",
- "cranelift-entity 0.71.0",
- "cranelift-wasm 0.71.0",
- "gimli 0.23.0",
- "indexmap",
- "log",
- "more-asserts",
- "serde",
- "thiserror",
- "wasmparser 0.76.0",
+ "wasmparser",
+ "wasmtime-environ",
 ]
 
 [[package]]
@@ -11485,16 +11341,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f64d0c2d881c31b0d65c1f2695e022d71eb60b9fbdd336aacca28208b58eac90"
 dependencies = [
  "cfg-if 1.0.0",
- "cranelift-codegen 0.74.0",
- "cranelift-entity 0.74.0",
- "cranelift-wasm 0.74.0",
- "gimli 0.24.0",
+ "cranelift-codegen",
+ "cranelift-entity",
+ "cranelift-wasm",
+ "gimli",
  "indexmap",
  "log",
  "more-asserts",
  "serde",
  "thiserror",
- "wasmparser 0.78.2",
+ "wasmparser",
 ]
 
 [[package]]
@@ -11510,81 +11366,35 @@ dependencies = [
 
 [[package]]
 name = "wasmtime-jit"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b5f649623859a12d361fe4cc4793de44f7c3ff34c322c5714289787e89650bb"
-dependencies = [
- "addr2line 0.14.1",
- "anyhow",
- "cfg-if 1.0.0",
- "cranelift-codegen 0.71.0",
- "cranelift-entity 0.71.0",
- "cranelift-frontend 0.71.0",
- "cranelift-native 0.71.0",
- "cranelift-wasm 0.71.0",
- "gimli 0.23.0",
- "log",
- "more-asserts",
- "object 0.23.0",
- "region",
- "serde",
- "target-lexicon 0.11.2",
- "thiserror",
- "wasmparser 0.76.0",
- "wasmtime-cranelift 0.24.0",
- "wasmtime-debug 0.24.0",
- "wasmtime-environ 0.24.0",
- "wasmtime-obj 0.24.0",
- "wasmtime-profiling 0.24.0",
- "wasmtime-runtime 0.24.0",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "wasmtime-jit"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d4539ea734422b7c868107e2187d7746d8affbcaa71916d72639f53757ad707"
 dependencies = [
- "addr2line 0.15.1",
+ "addr2line",
  "anyhow",
  "cfg-if 1.0.0",
- "cranelift-codegen 0.74.0",
- "cranelift-entity 0.74.0",
- "cranelift-frontend 0.74.0",
- "cranelift-native 0.74.0",
- "cranelift-wasm 0.74.0",
- "gimli 0.24.0",
+ "cranelift-codegen",
+ "cranelift-entity",
+ "cranelift-frontend",
+ "cranelift-native",
+ "cranelift-wasm",
+ "gimli",
  "log",
  "more-asserts",
- "object 0.24.0",
+ "object",
  "rayon",
  "region",
  "serde",
- "target-lexicon 0.12.0",
+ "target-lexicon",
  "thiserror",
- "wasmparser 0.78.2",
- "wasmtime-cranelift 0.27.0",
- "wasmtime-debug 0.27.0",
- "wasmtime-environ 0.27.0",
- "wasmtime-obj 0.27.0",
- "wasmtime-profiling 0.27.0",
- "wasmtime-runtime 0.27.0",
+ "wasmparser",
+ "wasmtime-cranelift",
+ "wasmtime-debug",
+ "wasmtime-environ",
+ "wasmtime-obj",
+ "wasmtime-profiling",
+ "wasmtime-runtime",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "wasmtime-obj"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef2e99cd9858f57fd062e9351e07881cedfc8597928385e02a48d9333b9e15a1"
-dependencies = [
- "anyhow",
- "more-asserts",
- "object 0.23.0",
- "target-lexicon 0.11.2",
- "wasmtime-debug 0.24.0",
- "wasmtime-environ 0.24.0",
 ]
 
 [[package]]
@@ -11595,26 +11405,10 @@ checksum = "8e1a8ff85246d091828e2225af521a6208ed28c997bb5c39eb697366dc2e2f2b"
 dependencies = [
  "anyhow",
  "more-asserts",
- "object 0.24.0",
- "target-lexicon 0.12.0",
- "wasmtime-debug 0.27.0",
- "wasmtime-environ 0.27.0",
-]
-
-[[package]]
-name = "wasmtime-profiling"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e46c0a590e49278ba7f79ef217af9db4ecc671b50042c185093e22d73524abb2"
-dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
- "lazy_static",
- "libc",
- "serde",
- "target-lexicon 0.11.2",
- "wasmtime-environ 0.24.0",
- "wasmtime-runtime 0.24.0",
+ "object",
+ "target-lexicon",
+ "wasmtime-debug",
+ "wasmtime-environ",
 ]
 
 [[package]]
@@ -11625,37 +11419,15 @@ checksum = "e24364d522dcd67c897c8fffc42e5bdfc57207bbb6d7eeade0da9d4a7d70105b"
 dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
- "gimli 0.24.0",
+ "gimli",
  "lazy_static",
  "libc",
- "object 0.24.0",
+ "object",
  "scroll",
  "serde",
- "target-lexicon 0.12.0",
- "wasmtime-environ 0.27.0",
- "wasmtime-runtime 0.27.0",
-]
-
-[[package]]
-name = "wasmtime-runtime"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1438a09185fc7ca067caf1a80d7e5b398eefd4fb7630d94841448ade60feb3d0"
-dependencies = [
- "backtrace",
- "cc",
- "cfg-if 1.0.0",
- "indexmap",
- "lazy_static",
- "libc",
- "log",
- "memoffset 0.6.3",
- "more-asserts",
- "psm",
- "region",
- "thiserror",
- "wasmtime-environ 0.24.0",
- "winapi 0.3.9",
+ "target-lexicon",
+ "wasmtime-environ",
+ "wasmtime-runtime",
 ]
 
 [[package]]
@@ -11678,7 +11450,7 @@ dependencies = [
  "rand 0.8.3",
  "region",
  "thiserror",
- "wasmtime-environ 0.27.0",
+ "wasmtime-environ",
  "wasmtime-fiber",
  "winapi 0.3.9",
 ]
@@ -11741,9 +11513,9 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
- "beefy-primitives",
+ "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
@@ -11755,6 +11527,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
+ "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -11922,7 +11695,7 @@ dependencies = [
 
 [[package]]
 name = "xcm"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "derivative",
  "impl-trait-for-tuples",
@@ -11932,7 +11705,7 @@ dependencies = [
 
 [[package]]
 name = "xcm-builder"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11950,7 +11723,7 @@ dependencies = [
 
 [[package]]
 name = "xcm-executor"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
