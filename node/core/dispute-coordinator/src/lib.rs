@@ -637,7 +637,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_core::testing::TaskExecutor;
 	use sp_keyring::Sr25519Keyring;
-	use sp_keystore::SyncCryptoStore;
+	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use futures::future::{self, BoxFuture};
 
 	// sets up a keystore with the given keyring accounts.
@@ -653,6 +653,8 @@ mod tests {
 
 		store
 	}
+
+	type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 	struct TestState {
 		validators: Vec<Sr25519Keyring>,
@@ -697,8 +699,30 @@ mod tests {
 		}
 	}
 
+	impl TestState {
+		async fn issue_statement_with_index(
+			&self,
+			index: usize,
+			candidate_hash: CandidateHash,
+			session: SessionIndex,
+			valid: bool,
+		) -> SignedDisputeStatement {
+			let public = self.validator_public[index].clone();
+
+			let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+
+			SignedDisputeStatement::sign_explicit(
+				&keystore,
+				valid,
+				candidate_hash,
+				session,
+				public,
+			).await.unwrap().unwrap()
+		}
+	}
+
 	fn test_harness<F, T>(test: F) where F:
-		FnOnce(TestState, TestSubsystemContextHandle<DisputeCoordinatorMessage>)
+		FnOnce(TestState, VirtualOverseer)
 		-> BoxFuture<'static, ()>
 	{
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
@@ -717,12 +741,14 @@ mod tests {
 	}
 
 	#[test]
-	fn finality_votes_ignore_disputed_candidates() {
+	fn conflicting_votes_lead_to_dispute_participation() {
+		test_harness(|test_state, mut virtual_overseer| Box::new(async move {
 
+		}))
 	}
 
 	#[test]
-	fn conflicting_votes_lead_to_dispute_participation() {
+	fn finality_votes_ignore_disputed_candidates() {
 
 	}
 
