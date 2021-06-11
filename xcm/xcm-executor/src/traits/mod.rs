@@ -22,6 +22,8 @@ mod filter_asset_location;
 pub use filter_asset_location::{FilterAssetLocation};
 mod matches_fungible;
 pub use matches_fungible::{MatchesFungible};
+mod matches_fungibles;
+pub use matches_fungibles::{MatchesFungibles, Error};
 mod on_response;
 pub use on_response::OnResponse;
 mod should_execute;

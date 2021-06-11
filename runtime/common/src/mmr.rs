@@ -20,10 +20,11 @@ use beefy_primitives::ValidatorSetId;
 use sp_core::H256;
 use sp_runtime::traits::Convert;
 use sp_std::prelude::*;
-use frame_support::{decl_module, decl_storage, RuntimeDebug};
+use frame_support::RuntimeDebug;
 use pallet_mmr::primitives::LeafDataProvider;
 use parity_scale_codec::{Encode, Decode};
 use runtime_parachains::paras;
+pub use pallet::*;
 
 /// A BEEFY consensus digest item with MMR root hash.
 pub struct DepositBeefyDigest<T>(sp_std::marker::PhantomData<T>);
@@ -95,23 +96,6 @@ pub struct BeefyNextAuthoritySet<MerkleRoot> {
 
 type MerkleRootOf<T> = <T as pallet_mmr::Config>::Hash;
 
-/// The module's configuration trait.
-pub trait Config: pallet_mmr::Config + pallet_beefy::Config {
-	/// Convert BEEFY AuthorityId to a form that would end up in the Merkle Tree.
-	///
-	/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
-	/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
-	/// is storing them compressed (33 bytes) for efficiency reasons.
-	type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::AuthorityId, Vec<u8>>;
-
-	/// Retrieve a list of current parachain heads.
-	///
-	/// The trait is implemented for `paras` module, but since not all chains might have parachains,
-	/// and we want to keep the MMR leaf structure uniform, it's possible to use `()` as well to
-	/// simply put dummy data to the leaf.
-	type ParachainHeads: ParachainHeadsProvider;
-}
-
 /// A type that is able to return current list of parachain heads that end up in the MMR leaf.
 pub trait ParachainHeadsProvider {
 	/// Return a list of encoded parachain heads.
@@ -135,18 +119,51 @@ impl<T: Config + paras::Config> ParachainHeadsProvider for paras::Pallet<T> {
 	}
 }
 
-decl_storage! {
-	trait Store for Pallet<T: Config> as Beefy {
-		/// Details of next BEEFY authority set.
-		///
-		/// This storage entry is used as cache for calls to [`update_beefy_next_authority_set`].
-		pub BeefyNextAuthorities get(fn beefy_next_authorities): BeefyNextAuthoritySet<MerkleRootOf<T>>;
-	}
-}
+#[frame_support::pallet]
+pub mod pallet {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use super::*;
 
-decl_module! {
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	/// The module's configuration trait.
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: pallet_mmr::Config + pallet_beefy::Config {
+		/// Convert BEEFY AuthorityId to a form that would end up in the Merkle Tree.
+		///
+		/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
+		/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
+		/// is storing them compressed (33 bytes) for efficiency reasons.
+		type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::AuthorityId, Vec<u8>>;
+
+		/// Retrieve a list of current parachain heads.
+		///
+		/// The trait is implemented for `paras` module, but since not all chains might have parachains,
+		/// and we want to keep the MMR leaf structure uniform, it's possible to use `()` as well to
+		/// simply put dummy data to the leaf.
+		type ParachainHeads: ParachainHeadsProvider;
 	}
+
+	/// Details of next BEEFY authority set.
+	///
+	/// This storage entry is used as cache for calls to [`update_beefy_next_authority_set`].
+	#[pallet::storage]
+	#[pallet::getter(fn beefy_next_authorities)]
+	pub type BeefyNextAuthorities<T: Config> = StorageValue<
+		_,
+		BeefyNextAuthoritySet<MerkleRootOf<T>>,
+		ValueQuery,
+	>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {}
 }
 
 impl<T: Config> LeafDataProvider for Pallet<T> where

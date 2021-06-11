@@ -232,7 +232,6 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
 		debug_assert!(
 			self.can_send(fingerprint),
@@ -295,7 +294,6 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn receive(
 		&mut self,
 		fingerprint: &(CompactStatement, ValidatorIndex),
@@ -422,7 +420,6 @@ impl PeerData {
 	///
 	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn send(
 		&mut self,
 		relay_parent: &Hash,
@@ -466,7 +463,6 @@ impl PeerData {
 	///
 	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn receive(
 		&mut self,
 		relay_parent: &Hash,
@@ -664,7 +660,6 @@ impl ActiveHeadData {
 	///
 	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted
 	/// and will return `NotedStatement::NotUseful`.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
 		let validator_index = statement.validator_index();
 		let comparator = StoredStatementComparator {
@@ -844,7 +839,6 @@ fn check_statement_signature(
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
-#[tracing::instrument(level = "trace", skip(peers, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
@@ -903,7 +897,7 @@ async fn circulate_statement_and_dependents(
 
 fn statement_message(relay_parent: Hash, statement: SignedFullStatement)
 	-> protocol_v1::ValidationProtocol
-{ 
+{
 	let msg = if is_statement_large(&statement) {
 		protocol_v1::StatementDistributionMessage::LargeStatement(
 			StatementMetadata {
@@ -945,7 +939,6 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
-#[tracing::instrument(level = "trace", skip(peers, ctx), fields(subsystem = LOG_TARGET))]
 async fn circulate_statement<'a>(
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext,
@@ -1022,7 +1015,6 @@ async fn circulate_statement<'a>(
 }
 
 /// Send all statements about a given candidate hash to a peer.
-#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1060,7 +1052,6 @@ async fn send_statements_about(
 }
 
 /// Send all statements at a given relay-parent to a peer.
-#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_head, metrics), fields(subsystem = LOG_TARGET))]
 async fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1198,7 +1189,7 @@ async fn retrieve_statement_from_message<'a>(
 					).await {
 						vacant.insert(new_status);
 					}
-				} 
+				}
 				protocol_v1::StatementDistributionMessage::Statement(_, s) => {
 					// No fetch in progress, safe to return any statement immediately (we don't bother
 					// about normal network jitter which might cause `Valid` statements to arrive early
@@ -1450,7 +1441,6 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
-#[tracing::instrument(level = "trace", skip(peer_data, ctx, active_heads, metrics), fields(subsystem = LOG_TARGET))]
 async fn update_peer_view_and_send_unlocked(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1560,7 +1550,6 @@ async fn handle_network_update(
 }
 
 impl StatementDistribution {
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
@@ -1594,7 +1583,7 @@ impl StatementDistribution {
 					match result {
 						Ok(true) => break,
 						Ok(false) => {}
-						Err(Error(Fault::Fatal(f))) => return Err(f), 
+						Err(Error(Fault::Fatal(f))) => return Err(f),
 						Err(Error(Fault::Err(error))) =>
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
@@ -2072,7 +2061,9 @@ mod tests {
 	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 	use polkadot_node_network_protocol::{view, ObservedRole, request_response::Recipient};
-	use polkadot_subsystem::{jaeger, ActivatedLeaf, messages::{RuntimeApiMessage, RuntimeApiRequest}};
+	use polkadot_subsystem::{
+		jaeger, ActivatedLeaf, messages::{RuntimeApiMessage, RuntimeApiRequest}, LeafStatus,
+	};
 	use polkadot_node_network_protocol::request_response::{
 		Requests,
 		v1::{
@@ -2690,6 +2681,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -2865,6 +2857,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -3336,6 +3329,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -3591,6 +3585,7 @@ mod tests {
 				activated: vec![ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
@@ -3634,7 +3629,7 @@ mod tests {
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a])
 				)
 			}).await;
-			
+
 			// receive a seconded statement from peer A.
 			let statement = {
 				let signing_context = SigningContext {

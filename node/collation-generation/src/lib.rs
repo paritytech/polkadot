@@ -77,7 +77,6 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
@@ -110,7 +109,6 @@ impl CollationGenerationSubsystem {
 	// note: this doesn't strictly need to be a separate function; it's more an administrative function
 	// so that we don't clutter the run loop. It could in principle be inlined directly into there.
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
-	#[tracing::instrument(level = "trace", skip(self, ctx, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_incoming<Context>(
 		&mut self,
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
@@ -184,7 +182,6 @@ where
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, metrics, sender, activated), fields(subsystem = LOG_TARGET))]
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: impl IntoIterator<Item = Hash>,
@@ -419,7 +416,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn erasure_root(
 	n_validators: usize,
 	persisted_validation: PersistedValidationData,

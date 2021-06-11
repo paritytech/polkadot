@@ -64,37 +64,6 @@ pub trait BoundToRelayParent {
 	fn relay_parent(&self) -> Hash;
 }
 
-/// Messages received by the Candidate Selection subsystem.
-#[derive(Debug)]
-pub enum CandidateSelectionMessage {
-	/// A candidate collation can be fetched from a collator and should be considered for seconding.
-	Collation(Hash, ParaId, CollatorId),
-	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-	///
-	/// The hash is the relay parent.
-	Invalid(Hash, CandidateReceipt),
-	/// The candidate we recommended to be seconded was validated successfully.
-	///
-	/// The hash is the relay parent.
-	Seconded(Hash, SignedFullStatement),
-}
-
-impl BoundToRelayParent for CandidateSelectionMessage {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::Collation(hash, ..) => *hash,
-			Self::Invalid(hash, _) => *hash,
-			Self::Seconded(hash, _) => *hash,
-		}
-	}
-}
-
-impl Default for CandidateSelectionMessage {
-	fn default() -> Self {
-		CandidateSelectionMessage::Invalid(Default::default(), Default::default())
-	}
-}
-
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -192,20 +161,34 @@ pub enum CollatorProtocolMessage {
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
 	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
-	/// Fetch a collation under the given relay-parent for the given ParaId.
-	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
-	/// Note a collator as having provided a good collation.
-	NoteGoodCollation(CollatorId),
-	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 	/// Incoming network request for a collation.
-	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
+	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>),
+	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	///
+	/// The hash is the relay parent.
+	Invalid(Hash, CandidateReceipt),
+	/// The candidate we recommended to be seconded was validated successfully.
+	///
+	/// The hash is the relay parent.
+	Seconded(Hash, SignedFullStatement),
+}
+
+impl Default for CollatorProtocolMessage {
+	fn default() -> Self {
+		Self::CollateOn(Default::default())
+	}
+}
+
+impl BoundToRelayParent for CollatorProtocolMessage {
+	fn relay_parent(&self) -> Hash {
+		Default::default()
+	}
 }
 
 /// Messages received by the network bridge subsystem.
@@ -688,9 +671,6 @@ pub enum AllMessages {
 	/// Message for the candidate backing subsystem.
 	#[skip]
 	CandidateBacking(CandidateBackingMessage),
-	/// Message for the candidate selection subsystem.
-	#[skip]
-	CandidateSelection(CandidateSelectionMessage),
 	/// Message for the Chain API subsystem.
 	#[skip]
 	ChainApi(ChainApiMessage),
