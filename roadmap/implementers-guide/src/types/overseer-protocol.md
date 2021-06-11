@@ -29,8 +29,18 @@ Either way, there will be some top-level type encapsulating messages from the ov
 Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
 
 ```rust
+enum LeafStatus {
+    // A leaf is fresh when it's the first time the leaf has been encountered.
+    // Most leaves should be fresh.
+    Fresh,
+    // A leaf is stale when it's encountered for a subsequent time. This will
+    // happen when the chain is reverted or the fork-choice rule abandons some
+    // chain.
+    Stale,
+}
+
 struct ActiveLeavesUpdate {
-    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number, LeafStatus)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
@@ -608,9 +618,9 @@ enum RuntimeApiRequest {
     SessionIndexForChild(ResponseChannel<SessionIndex>),
     /// Get the validation code for a specific para, using the given occupied core assumption.
     ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-    /// Fetch the historical validation code used by a para for candidates executed in
-    /// the context of a given block height in the current chain.
-    HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+    /// Get validation code by its hash, either past, current or future code can be returned,
+    /// as long as state is still available.
+    ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
     /// Get a committed candidate receipt for all candidates pending availability.
     CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
     /// Get all events concerning candidates in the last block.

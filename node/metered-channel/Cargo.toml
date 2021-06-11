@@ -6,10 +6,10 @@ edition = "2018"
 description = "Channels with attached Meters"
 
 [dependencies]
-futures = "0.3.12"
+futures = "0.3.15"
 futures-timer = "3.0.2"
 derive_more = "0.99"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-futures = { version = "0.3.12", features = ["thread-pool"] }
+futures = { version = "0.3.15", features = ["thread-pool"] }

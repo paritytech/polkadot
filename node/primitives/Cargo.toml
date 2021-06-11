@@ -6,7 +6,7 @@ edition = "2018"
 description = "Primitives types for the Node-side"
 
 [dependencies]
-futures = "0.3.12"
+futures = "0.3.15"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }

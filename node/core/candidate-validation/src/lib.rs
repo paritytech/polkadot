@@ -94,7 +94,6 @@ impl<C> Subsystem<C> for CandidateValidationSubsystem where
 	}
 }
 
-#[tracing::instrument(skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	metrics: Metrics,
@@ -194,7 +193,6 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -245,7 +243,6 @@ async fn check_assumption_validation_data(
 	})
 }
 
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn find_assumed_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
@@ -277,11 +274,6 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-#[tracing::instrument(
-	level = "trace",
-	skip(ctx, validation_host, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_host: &mut ValidationHost,
@@ -340,11 +332,6 @@ async fn spawn_validate_from_chain_state(
 	validation_result
 }
 
-#[tracing::instrument(
-	level = "trace",
-	skip(validation_backend, validation_code, pov, metrics),
-	fields(subsystem = LOG_TARGET),
-)]
 async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
@@ -478,7 +465,6 @@ impl ValidationBackend for &'_ mut ValidationHost {
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
 /// are passed, `Err` otherwise.
-#[tracing::instrument(level = "trace", skip(pov, validation_code), fields(subsystem = LOG_TARGET))]
 fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,

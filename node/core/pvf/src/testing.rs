@@ -34,7 +34,10 @@ pub fn validate_candidate(
 	let blob = prevalidate(code)?;
 	let artifact = prepare(blob)?;
 	let executor = TaskExecutor::new()?;
-	let result = execute(&artifact, params, executor)?;
+	let result = unsafe {
+		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
+		execute(&artifact, params, executor)?
+	};
 
 	Ok(result)
 }

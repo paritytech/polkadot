@@ -22,37 +22,34 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
+use std::{collections::btree_map::BTreeMap, sync::Arc};
+
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange, peer_set::PeerSet,
-	request_response::{
-		Requests, request::IncomingRequest, v1 as req_res_v1
-	},
-	v1 as protocol_v1,
+	peer_set::PeerSet,
+	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
-	CollationGenerationConfig, SignedFullStatement, ValidationResult,
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	BabeEpoch, AvailableData, PoV, ErasureChunk, CandidateVotes, SignedDisputeStatement,
+	AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, ErasureChunk, PoV,
+	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, SessionInfo,
-	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreState,
-	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, CandidateHash,
-	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
-	CandidateIndex, GroupIndex, MultiDisputeStatementSet, SignedAvailabilityBitfields,
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
-use polkadot_statement_table::v1::Misbehavior;
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
-use std::{sync::Arc, collections::btree_map::BTreeMap};
-
+use polkadot_statement_table::v1::Misbehavior;
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
 pub mod network_bridge_event;
@@ -62,37 +59,6 @@ pub use network_bridge_event::NetworkBridgeEvent;
 pub trait BoundToRelayParent {
 	/// Returns the relay parent this message is bound to.
 	fn relay_parent(&self) -> Hash;
-}
-
-/// Messages received by the Candidate Selection subsystem.
-#[derive(Debug)]
-pub enum CandidateSelectionMessage {
-	/// A candidate collation can be fetched from a collator and should be considered for seconding.
-	Collation(Hash, ParaId, CollatorId),
-	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-	///
-	/// The hash is the relay parent.
-	Invalid(Hash, CandidateReceipt),
-	/// The candidate we recommended to be seconded was validated successfully.
-	///
-	/// The hash is the relay parent.
-	Seconded(Hash, SignedFullStatement),
-}
-
-impl BoundToRelayParent for CandidateSelectionMessage {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::Collation(hash, ..) => *hash,
-			Self::Invalid(hash, _) => *hash,
-			Self::Seconded(hash, _) => *hash,
-		}
-	}
-}
-
-impl Default for CandidateSelectionMessage {
-	fn default() -> Self {
-		CandidateSelectionMessage::Invalid(Default::default(), Default::default())
-	}
 }
 
 /// Messages received by the Candidate Backing subsystem.
@@ -192,20 +158,34 @@ pub enum CollatorProtocolMessage {
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
 	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
-	/// Fetch a collation under the given relay-parent for the given ParaId.
-	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
-	/// Note a collator as having provided a good collation.
-	NoteGoodCollation(CollatorId),
-	/// Notify a collator that its collation was seconded.
-	NotifyCollationSeconded(CollatorId, Hash, SignedFullStatement),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 	/// Incoming network request for a collation.
-	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>)
+	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>),
+	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	///
+	/// The hash is the relay parent.
+	Invalid(Hash, CandidateReceipt),
+	/// The candidate we recommended to be seconded was validated successfully.
+	///
+	/// The hash is the relay parent.
+	Seconded(Hash, SignedFullStatement),
+}
+
+impl Default for CollatorProtocolMessage {
+	fn default() -> Self {
+		Self::CollateOn(Default::default())
+	}
+}
+
+impl BoundToRelayParent for CollatorProtocolMessage {
+	fn relay_parent(&self) -> Hash {
+		Default::default()
+	}
 }
 
 /// Messages received by the dispute coordinator subsystem.
@@ -548,16 +528,9 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
-	/// Fetch the historical validation code used by a para for candidates executed in the
-	/// context of a given block height in the current chain.
-	///
-	/// `context_height` may be no greater than the height of the block in whose
-	/// state the runtime API is executed. Otherwise `None` is returned.
-	HistoricalValidationCode(
-		ParaId,
-		BlockNumber,
-		RuntimeApiSender<Option<ValidationCode>>,
-	),
+	/// Get validation code by its hash, either past, current or future code can be returned, as long as state is still
+	/// available.
+	ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
@@ -755,9 +728,6 @@ pub enum AllMessages {
 	/// Message for the candidate backing subsystem.
 	#[skip]
 	CandidateBacking(CandidateBackingMessage),
-	/// Message for the candidate selection subsystem.
-	#[skip]
-	CandidateSelection(CandidateSelectionMessage),
 	/// Message for the Chain API subsystem.
 	#[skip]
 	ChainApi(ChainApiMessage),

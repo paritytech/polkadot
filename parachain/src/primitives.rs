@@ -62,6 +62,9 @@ impl ValidationCode {
 	}
 }
 
+/// A hash of the parachain validation code.
+pub type ValidationCodeHash = Hash;
+
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
@@ -137,7 +140,9 @@ impl Id {
 	}
 }
 
+/// Determine if a parachain is a system parachain or not.
 pub trait IsSystem {
+	/// Returns `true` if a parachain is a system parachain, `false` otherwise.
 	fn is_system(&self) -> bool;
 }
 
