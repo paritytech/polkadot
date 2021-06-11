@@ -618,9 +618,9 @@ enum RuntimeApiRequest {
     SessionIndexForChild(ResponseChannel<SessionIndex>),
     /// Get the validation code for a specific para, using the given occupied core assumption.
     ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-    /// Fetch the historical validation code used by a para for candidates executed in
-    /// the context of a given block height in the current chain.
-    HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+    /// Get validation code by its hash, either past, current or future code can be returned,
+    /// as long as state is still available.
+    ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
     /// Get a committed candidate receipt for all candidates pending availability.
     CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
     /// Get all events concerning candidates in the last block.
