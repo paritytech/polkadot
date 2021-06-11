@@ -28,7 +28,7 @@ use sp_std::result;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, SessionIndex, Hash, ConsensusLog,
+	Id as ParaId, ValidationCode, ValidationCodeHash, HeadData, SessionIndex, ConsensusLog,
 };
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use frame_system::ensure_root;
@@ -290,12 +290,12 @@ decl_storage! {
 		/// The validation code hash of every live para.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		CurrentCodeHash: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		CurrentCodeHash: map hasher(twox_64_concat) ParaId => Option<ValidationCodeHash>;
 		/// Actual past code hash, indicated by the para id as well as the block number at which it
 		/// became outdated.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		PastCodeHash: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<Hash>;
+		PastCodeHash: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<ValidationCodeHash>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to keep it available for secondary checkers.
@@ -315,18 +315,18 @@ decl_storage! {
 		/// The actual future code hash of a para.
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
-		FutureCodeHash: map hasher(twox_64_concat) ParaId => Option<Hash>;
+		FutureCodeHash: map hasher(twox_64_concat) ParaId => Option<ValidationCodeHash>;
 		/// The actions to perform during the start of a specific session index.
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// The number of reference on the validation code in [`CodeByHash`] storage.
-		CodeByHashRefs: map hasher(identity) Hash => u32;
+		CodeByHashRefs: map hasher(identity) ValidationCodeHash => u32;
 		/// Validation code stored by its hash.
 		///
 		/// This storage is consistent with [`FutureCodeHash`], [`CurrentCodeHash`] and
 		/// [`PastCodeHash`].
-		CodeByHash get(fn code_by_hash): map hasher(identity) Hash => Option<ValidationCode>;
+		CodeByHash get(fn code_by_hash): map hasher(identity) ValidationCodeHash => Option<ValidationCode>;
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
@@ -577,9 +577,8 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 		at: T::BlockNumber,
 		now: T::BlockNumber,
-		old_code_hash: Hash,
+		old_code_hash: ValidationCodeHash,
 	) -> Weight {
-
 		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
 			past_meta.note_replacement(at, now);
 		});
@@ -836,7 +835,7 @@ impl<T: Config> Module<T> {
 		id: ParaId,
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
-	) -> Option<Hash> {
+	) -> Option<ValidationCodeHash> {
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
 			return None;
 		}
@@ -916,7 +915,7 @@ impl<T: Config> Module<T> {
 	/// Store the validation code if not already stored, and increase the number of reference.
 	///
 	/// Returns the number of storage reads and number of storage writes.
-	fn increase_code_ref(code_hash: &Hash, code: &ValidationCode) -> (u64, u64) {
+	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> (u64, u64) {
 		let reads = 1;
 		let mut writes = 1;
 		<Self as Store>::CodeByHashRefs::mutate(code_hash, |refs| {
@@ -931,7 +930,7 @@ impl<T: Config> Module<T> {
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
 	/// is reached.
-	fn decrease_code_ref(code_hash: &Hash) {
+	fn decrease_code_ref(code_hash: &ValidationCodeHash) {
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
 		if refs <= 1 {
 			<Self as Store>::CodeByHash::remove(code_hash);

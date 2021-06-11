@@ -117,9 +117,9 @@ ParaLifecycle: map ParaId => Option<ParaLifecycle>,
 /// The head-data of every registered para.
 Heads: map ParaId => Option<HeadData>;
 /// The validation code hash of every live para.
-CurrentCodeHash: map ParaId => Option<Hash>;
+CurrentCodeHash: map ParaId => Option<ValidationCodeHash>;
 /// Actual past code hash, indicated by the para id as well as the block number at which it became outdated.
-PastCodeHash: map (ParaId, BlockNumber) => Option<Hash>;
+PastCodeHash: map (ParaId, BlockNumber) => Option<ValidationCodeHash>;
 /// Past code of parachains. The parachains themselves may not be registered anymore,
 /// but we also keep their code on-chain for the same amount of time as outdated code
 /// to keep it available for secondary checkers.
@@ -136,15 +136,15 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// in the context of a relay chain block with a number >= `expected_at`.
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
 /// The actual future code of a para.
-FutureCodeHash: map ParaId => Option<Hash>;
+FutureCodeHash: map ParaId => Option<ValidationCodeHash>;
 /// The actions to perform during the start of a specific session index.
 ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 /// The number of references on the validation code in `CodeByHash` storage.
-CodeByHashRefs: map Hash => u32;
+CodeByHashRefs: map ValidationCodeHash => u32;
 /// Validation code stored by its hash.
-CodeByHash: map Hash => Option<ValidationCode>
+CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 ```
 
 ## Session Change
