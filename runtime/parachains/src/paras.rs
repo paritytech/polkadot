@@ -1003,7 +1003,6 @@ mod tests {
 		assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
 	}
 
-
 	fn fetch_validation_code_at(
 		para_id: ParaId,
 		at: BlockNumber,
