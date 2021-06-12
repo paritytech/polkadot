@@ -220,6 +220,39 @@ pub enum DisputeCoordinatorMessage {
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),
+	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
+	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
+	/// Determine the highest undisputed block within the given chain, based on where candidates
+	/// were included. If even the base block should not be finalized due to a dispute,
+	/// then `None` should be returned on the channel.
+	///
+	/// The block descriptions begin counting upwards from the block after the given `base_number`. The `base_number`
+	/// is typically the number of the last finalized block but may be slightly higher. This block
+	/// is inevitably going to be finalized so it is not accounted for by this function.
+	DetermineUndisputedChain {
+		/// The number of the lowest possible block to vote on.
+		base_number: BlockNumber,
+		/// Descriptions of all the blocks counting upwards from the block after the base number
+		block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
+		/// A response channel - `None` to vote on base, `Some` to vote higher.
+		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
+	}
+}
+
+/// Messages received by the dispute participation subsystem.
+#[derive(Debug)]
+pub enum DisputeParticipationMessage {
+	/// Validate a candidate for the purposes of participating in a dispute.
+	Participate {
+		/// The hash of the candidate
+		candidate_hash: CandidateHash,
+		/// The candidate receipt itself.
+		candidate_receipt: CandidateReceipt,
+		/// The session the candidate appears in.
+		session: SessionIndex,
+		/// The indices of validators who have already voted on this candidate.
+		voted_indices: Vec<ValidatorIndex>,
+	}
 }
 
 /// Messages received by the network bridge subsystem.
@@ -740,6 +773,9 @@ pub enum AllMessages {
 	/// Message for the dispute coordinator subsystem.
 	#[skip]
 	DisputeCoordinator(DisputeCoordinatorMessage),
+	/// Message for the dispute participation subsystem.
+	#[skip]
+	DisputeParticipation(DisputeParticipationMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {

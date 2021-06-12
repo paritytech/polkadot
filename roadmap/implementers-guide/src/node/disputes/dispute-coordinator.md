@@ -44,6 +44,7 @@ Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 
 Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
+  - [`DisputeParticipationMessage`][DisputeParticipationMessage]
 
 ## Functionality
 
@@ -87,7 +88,7 @@ Do nothing.
 * Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`. 
 * Write the `CandidateVotes` to the underyling DB.
 * If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
-* If freshly disputed, load `"active-disputes"` and add the candidate hash and session index.
+* If freshly disputed, load `"active-disputes"` and add the candidate hash and session index. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
 * If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, remove from `"active-disputes"`.
 * If the dispute now has supermajority votes in the "invalid" direction, there is no need to do anything explicitly. The actual rollback will be handled during the active leaves update by observing digests from the runtime.
 * Write `"active-disputes"`
@@ -106,7 +107,17 @@ Do nothing.
 * Construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine. 
 * Sign the statement with each key in the `SessionInfo`'s list of parachain validation keys which is present in the keystore, except those whose indices appear in `voted_indices`. This will typically just be one key, but this does provide some future-proofing for situations where the same node may run on behalf multiple validators. At the time of writing, this is not a use-case we support as other subsystems do not invariably provide this guarantee.
 
+### On `DisputeCoordinatorMessage::DetermineUndisputedChain`
+
+* Load `"active-disputes"`.
+* Deconstruct into parts `{ base_number, block_descriptions, rx }`
+* Starting from the beginning of `block_descriptions`:
+  1. Check the `ActiveDisputes` for a dispute of each candidate in the block description.
+  1. If there is a dispute, exit the loop.
+* For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
+
 [DisputeTypes]: ../../types/disputes.md
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
+[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message
