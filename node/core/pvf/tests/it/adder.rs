@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::TestHost;
+use super::{TestHost, ValidationResult};
 use polkadot_parachain::{
 	primitives::{
 		RelayChainBlockNumber, BlockData as GenericBlockData, HeadData as GenericHeadData,
@@ -48,8 +48,9 @@ async fn execute_good_on_parent() {
 		)
 		.await
 		.unwrap();
+	let rd = ValidationResult::decode(&mut &ret[..]).unwrap();
 
-	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
+	let new_head = HeadData::decode(&mut &rd.head_data.0[..]).unwrap();
 
 	assert_eq!(new_head.number, 1);
 	assert_eq!(new_head.parent_hash, parent_head.hash());
@@ -82,14 +83,15 @@ async fn execute_good_chain_on_parent() {
 				ValidationParams {
 					parent_head: GenericHeadData(parent_head.encode()),
 					block_data: GenericBlockData(block_data.encode()),
-					relay_parent_number: number as RelayChainBlockNumber + 1,
+					relay_parent_number: 1,
 					relay_parent_storage_root: Default::default(),
 				},
 			)
 			.await
 			.unwrap();
+		let rd = ValidationResult::decode(&mut &ret[..]).unwrap();
 
-		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
+		let new_head = HeadData::decode(&mut &rd.head_data.0[..]).unwrap();
 
 		assert_eq!(new_head.number, number + 1);
 		assert_eq!(new_head.parent_hash, parent_head.hash());

@@ -56,7 +56,7 @@ impl TestHost {
 		&self,
 		code: &[u8],
 		params: ValidationParams,
-	) -> Result<ValidationResult, ValidationError> {
+	) -> Result<Vec<u8>, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
 		self.host
 			.lock()

@@ -21,7 +21,7 @@
 //! [`ValidationHost`], that allows communication with that event-loop.
 
 use crate::{
-	Priority, Pvf, ValidationError,
+	Priority, Pvf, ValidationError, InvalidCandidate,
 	artifacts::{Artifacts, ArtifactState, ArtifactId},
 	execute, prepare,
 };
@@ -40,7 +40,7 @@ use futures::{
 };
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
-pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
+pub(crate) type ResultSender = oneshot::Sender<Result<Vec<u8>, ValidationError>>;
 
 /// A handle to the async process serving the validation host requests.
 #[derive(Clone)]
@@ -85,6 +85,22 @@ impl ValidationHost {
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
+	}
+
+	/// Utility function enabling to convert the ValidationResult buffer back to Validation Result
+	/// 
+	/// This function enables the implementation of the Candidate Validation subsystem to delineate
+	/// the entry-point of the PVF and the oneshot channel passed to the execution of any function
+	/// exported in the pvf.
+	/// 
+	/// Returns an error if the worker has generated an invalid Validation Result buffer
+	pub fn parse(&self, input: Vec<u8>) -> Result<ValidationResult, ValidationError> {
+		use parity_scale_codec::Decode;
+		ValidationResult::decode(&mut &input[..]).map_err(|_| {
+			ValidationError::InvalidCandidate(
+				InvalidCandidate::WorkerReportedError("Worker produced invalid ValidationResult".to_string())
+			)
+		})
 	}
 }
 

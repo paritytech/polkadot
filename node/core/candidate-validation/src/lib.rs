@@ -455,11 +455,11 @@ impl ValidationBackend for &'_ mut ValidationHost {
 			return Err(ValidationError::InternalError(format!("cannot send pvf to the validation host: {:?}", err)));
 		}
 
-		let validation_result = rx
+		let validation_result_buf: Vec<u8> = rx
 			.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
-
-		validation_result
+			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))??;
+		
+		self.parse(validation_result_buf)
 	}
 }
 

@@ -31,7 +31,6 @@ use async_std::{
 };
 use futures::FutureExt;
 use futures_timer::Delay;
-use polkadot_parachain::primitives::ValidationResult;
 use parity_scale_codec::{Encode, Decode};
 
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
@@ -57,7 +56,7 @@ pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
 	Ok {
-		result_descriptor: ValidationResult,
+		result_descriptor: Vec<u8>,
 		duration_ms: u64,
 		idle_worker: IdleWorker,
 	},
@@ -168,7 +167,7 @@ async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 #[derive(Encode, Decode)]
 enum Response {
 	Ok {
-		result_descriptor: ValidationResult,
+		result_descriptor: Vec<u8>,
 		duration_ms: u64,
 	},
 	InvalidCandidate(String),
@@ -245,7 +244,7 @@ async fn validate_using_artifact(
 	};
 
 	let validation_started_at = Instant::now();
-	let descriptor_bytes =
+	let result_descriptor =
 		match unsafe {
 			// SAFETY: this should be safe since the compiled artifact passed here comes from the
 			//         file created by the prepare workers. These files are obtained by calling
@@ -259,16 +258,6 @@ async fn validate_using_artifact(
 		};
 
 	let duration_ms = validation_started_at.elapsed().as_millis() as u64;
-
-	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
-		Err(err) => {
-			return Response::InvalidCandidate(format!(
-				"validation result decoding failed: {}",
-				err
-			))
-		}
-		Ok(r) => r,
-	};
 
 	Response::Ok {
 		result_descriptor,
