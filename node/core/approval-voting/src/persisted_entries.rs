@@ -250,6 +250,7 @@ pub struct CandidateEntry {
 	// based on the block we are looking at.
 	block_assignments: BTreeMap<Hash, ApprovalEntry>,
 	approvals: BitVec<BitOrderLsb0, u8>,
+	disapprovals: BitVec<BitOrderLsb0, u8>,
 }
 
 impl CandidateEntry {
@@ -258,10 +259,22 @@ impl CandidateEntry {
 		&self.approvals
 	}
 
+	/// Access the bit-vec of approvals.
+	pub fn disapprovals(&self) -> &BitSlice<BitOrderLsb0, u8> {
+		&self.disapprovals
+	}
+
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
 		let prev = self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
 		self.approvals.set(validator.0 as usize, true);
+		prev
+	}
+
+	/// Note that a given validator has approved. Return the previous disapproval state.
+	pub fn mark_disapproval(&mut self, validator: ValidatorIndex) -> bool {
+		let prev = self.disapprovals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
+		self.disapprovals.set(validator.0 as usize, true);
 		prev
 	}
 
@@ -297,6 +310,7 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 			session: entry.session,
 			block_assignments: entry.block_assignments.into_iter().map(|(h, ae)| (h, ae.into())).collect(),
 			approvals: entry.approvals,
+			disapprovals: entry.disapprovals,
 		}
 	}
 }
@@ -308,6 +322,7 @@ impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
 			session: entry.session,
 			block_assignments: entry.block_assignments.into_iter().map(|(h, ae)| (h, ae.into())).collect(),
 			approvals: entry.approvals,
+			disapprovals: entry.disapprovals,
 		}
 	}
 }

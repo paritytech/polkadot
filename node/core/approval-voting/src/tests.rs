@@ -353,6 +353,7 @@ fn add_candidate_to_block(
 			block_assignments: Default::default(),
 			candidate: CandidateReceipt::default(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 		}.into());
 
 	block_entry.add_candidate(core, candidate_hash);
@@ -892,6 +893,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -938,6 +940,7 @@ fn assignment_not_triggered_by_all_with_threshold() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -990,6 +993,7 @@ fn assignment_not_triggered_if_already_triggered() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -1028,6 +1032,7 @@ fn assignment_not_triggered_by_exact() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -1067,6 +1072,7 @@ fn assignment_not_triggered_more_than_maximum() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -1111,6 +1117,7 @@ fn assignment_triggered_if_at_maximum() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -1155,6 +1162,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 
@@ -1199,6 +1207,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
+			disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
 		}.into()
 	};
 

@@ -397,6 +397,7 @@ mod tests {
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: Default::default(),
+			disapprovals: Default::default(),
 		}.into();
 
 		let approval_entry = approval_db::v1::ApprovalEntry {
@@ -427,6 +428,7 @@ mod tests {
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+			disapprovals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}.into();
 
 		for i in 0..3 {
@@ -491,6 +493,7 @@ mod tests {
 			session: 0,
 			block_assignments: Default::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
+			disapprovals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}.into();
 
 		for i in 0..3 {

@@ -89,6 +89,7 @@ pub struct CandidateEntry {
 	// based on the block we are looking at.
 	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
 	pub approvals: Bitfield,
+	pub disapprovals: Bitfield,
 }
 
 /// Metadata regarding approval of a particular block, by way of approval of the
@@ -384,6 +385,7 @@ pub(crate) fn add_block_entry(
 					session,
 					block_assignments: BTreeMap::new(),
 					approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					disapprovals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 				});
 
 			candidate_entry.block_assignments.insert(

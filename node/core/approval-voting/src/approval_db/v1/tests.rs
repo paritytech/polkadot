@@ -122,6 +122,7 @@ fn read_write() {
 			})
 		].into_iter().collect(),
 		approvals: Default::default(),
+		disapprovals: Default::default(),
 	};
 
 	let mut tx = DBTransaction::new();
