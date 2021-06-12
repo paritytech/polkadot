@@ -224,6 +224,7 @@ pub fn run() -> Result<()> {
 						cli.run.no_beefy,
 						jaeger_agent,
 						None,
+						service::RealOverseerGen,
 					).map(|full| full.task_manager).map_err(Into::into)
 				}
 			})

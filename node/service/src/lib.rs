@@ -25,7 +25,13 @@ mod parachains_db;
 #[cfg(feature = "full-node")]
 mod overseer;
 #[cfg(feature = "full-node")]
-pub use self::overseer::*;
+pub use self::overseer::{
+	OverseerGen,
+	RealOverseerGen,
+	OverseerGenArgs,
+};
+
+pub use sp_authority_discovery::AuthorityDiscoveryApi;
 
 #[cfg(feature = "full-node")]
 use {
@@ -35,15 +41,10 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
-	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
-	polkadot_primitives::v1::ParachainHost,
-	sc_authority_discovery::Service as AuthorityDiscoveryService,
-	sp_authority_discovery::AuthorityDiscoveryApi,
+	polkadot_overseer::{BlockInfo, OverseerHandler},
 	sp_blockchain::HeaderBackend,
 	sp_trie::PrefixedMemoryDB,
-	sc_client_api::{AuxStore, ExecutorProvider},
-	sc_keystore::LocalKeystore,
-	sp_consensus_babe::BabeApi,
+	sc_client_api::ExecutorProvider,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
@@ -518,7 +519,7 @@ where
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
 #[cfg(feature = "full-node")]
-pub fn new_full<RuntimeApi, Executor>(
+pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
@@ -526,18 +527,15 @@ pub fn new_full<RuntimeApi, Executor>(
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
+	overseer_gen: OverseerGenerator,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
+		OverseerGenerator: OverseerGen,
 {
-	let overseer_gen: &OverseerGenFn<
-		service::SpawnTaskHandle,
-		FullClient<RuntimeApi, Executor>,
-	>  = &crate::overseer::real_overseer;
-
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -711,8 +709,11 @@ pub fn new_full<RuntimeApi, Executor>(
 		.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		let (overseer, overseer_handler) = overseer_gen(
-			OverseerArgs {
+		let (overseer, overseer_handler) = overseer_gen.generate::<
+			service::SpawnTaskHandle,
+			FullClient<RuntimeApi, Executor>,
+		>(
+			OverseerGenArgs {
 				leaves: active_leaves,
 				keystore,
 				runtime_client: overseer_client.clone(),
@@ -1158,10 +1159,11 @@ pub fn build_full(
 	disable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		return new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
+		return new_full::<rococo_runtime::RuntimeApi, RococoExecutor, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1169,12 +1171,13 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_gen,
 		).map(|full| full.with_client(Client::Rococo))
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
+		return new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1182,12 +1185,13 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_gen,
 		).map(|full| full.with_client(Client::Kusama))
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+		return new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1195,10 +1199,11 @@ pub fn build_full(
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_gen,
 		).map(|full| full.with_client(Client::Westend))
 	}
 
-	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
 		config,
 		is_collator,
 		grandpa_pause,
@@ -1206,5 +1211,6 @@ pub fn build_full(
 		jaeger_agent,
 		telemetry_worker_handle,
 		None,
+		overseer_gen,
 	).map(|full| full.with_client(Client::Polkadot))
 }
