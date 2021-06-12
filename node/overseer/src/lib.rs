@@ -98,6 +98,9 @@ use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, mete
 use polkadot_node_primitives::SpawnNamed;
 use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 
+#[cfg(test)]
+mod tests;
+
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
 // The capacity of signal channels to subsystems.
@@ -2196,6 +2199,3 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 		instance,
 	})
 }
-
-#[cfg(test)]
-mod tests;

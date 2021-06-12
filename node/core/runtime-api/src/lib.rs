@@ -44,6 +44,9 @@ use cache::{RequestResult, RequestResultCache};
 
 mod cache;
 
+#[cfg(test)]
+mod tests;
+
 const LOG_TARGET: &str = "parachain::runtime-api";
 
 /// The number of maximum runtime api requests can be executed in parallel. Further requests will be buffered.
@@ -411,6 +414,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;
