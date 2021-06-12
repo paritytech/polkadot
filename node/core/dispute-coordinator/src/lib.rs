@@ -650,7 +650,7 @@ fn determine_undisputed_chain(
 mod tests {
 	use super::*;
 	use polkadot_primitives::v1::{BlakeTwo256, HashT, ValidatorId, Header, SessionInfo};
-	use polkadot_node_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf};
+	use polkadot_node_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf, LeafStatus};
 	use polkadot_node_subsystem::messages::{
 		AllMessages, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};
@@ -757,6 +757,7 @@ mod tests {
 					hash: block_hash,
 					span: Arc::new(jaeger::Span::Disabled),
 					number: block_number,
+					status: LeafStatus::Fresh,
 				})
 			))).await;
 
