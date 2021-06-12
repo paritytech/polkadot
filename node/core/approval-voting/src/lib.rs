@@ -537,6 +537,7 @@ impl<T> State<T> {
 			let required_tranches = approval_checking::tranches_to_approve(
 				approval_entry,
 				candidate_entry.approvals(),
+				candidate_entry.disapprovals(),
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -1764,6 +1765,7 @@ fn process_wakeup(
 		let tranches_to_approve = approval_checking::tranches_to_approve(
 			&approval_entry,
 			candidate_entry.approvals(),
+			candidate_entry.disapprovals(),
 			tranche_now,
 			block_tick,
 			no_show_duration,
@@ -1834,6 +1836,7 @@ fn process_wakeup(
 	let tranches_to_approve = approval_checking::tranches_to_approve(
 		&approval_entry,
 		candidate_entry.approvals(),
+		candidate_entry.disapprovals(),
 		tranche_now,
 		block_tick,
 		no_show_duration,

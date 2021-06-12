@@ -267,6 +267,7 @@ impl State {
 pub fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
 	approvals: &BitSlice<BitOrderLsb0, u8>,
+	disapprovals: &BitSlice<BitOrderLsb0, u8>,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
 	no_show_duration: Tick,
@@ -336,17 +337,35 @@ pub fn tranches_to_approve(
 			//
 			// While we count the no-shows, we also determine the next possible no-show we might
 			// see within this tranche.
+			//
+			// Additionally, we check to see if any of the currently
+			// assigned validators have disapproved the candidate.
 			let mut next_no_show = None;
+			let mut is_disapproved = false;
 			let no_shows = {
 				let next_no_show = &mut next_no_show;
+				let is_disapproved = &mut is_disapproved;
+
 				assignments.iter()
 					.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
 					.filter(|&(v_index, no_show_at)| {
-						let has_approved = approvals.get(v_index.0 as usize).map(|b| *b).unwrap_or(false);
+						let has_approved = approvals
+							.get(v_index.0 as usize)
+							.map(|b| *b)
+							.unwrap_or(false);
 
-						let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
+						let has_disapproved = disapprovals
+							.get(v_index.0 as usize)
+							.map(|b| *b)
+							.unwrap_or(false);
 
-						if !is_no_show && !has_approved {
+						if has_disapproved {
+							*is_disapproved = true;
+						}
+
+						let is_no_show = !has_approved && !has_disapproved && no_show_at <= drifted_tick_now;
+
+						if !is_no_show && !has_approved && !has_disapproved {
 							*next_no_show = super::min_prefer_some(
 								*next_no_show,
 								Some(no_show_at + clock_drift),
@@ -358,7 +377,12 @@ pub fn tranches_to_approve(
 			};
 
 			let s = s.advance(n_assignments, no_shows, next_no_show);
-			let output = s.output(tranche, needed_approvals, n_validators, no_show_duration);
+			let output = if is_disapproved {
+				// immediately escalate to all validators.
+				RequiredTranches::All
+			} else {
+				s.output(tranche, needed_approvals, n_validators, no_show_duration)
+			};
 
 			*state = match output {
 				RequiredTranches::Exact { .. } | RequiredTranches::All => {
@@ -599,11 +623,13 @@ mod tests {
 		approval_entry.import_assignment(2,ValidatorIndex(4), block_tick + 2);
 
 		let approvals = bitvec![BitOrderLsb0, u8; 1; 5];
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; 5];
 
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				2,
 				block_tick,
 				no_show_duration,
@@ -632,12 +658,14 @@ mod tests {
 		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
 
 		let approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; 10];
 
 		let tranche_now = 2;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -676,11 +704,14 @@ mod tests {
 		approvals.set(0, true);
 		approvals.set(1, true);
 
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; 10];
+
 		let tranche_now = no_show_duration as DelayTranche + 1;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -723,11 +754,14 @@ mod tests {
 		// skip 2
 		approvals.set(3, true);
 
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+
 		let tranche_now = no_show_duration as DelayTranche + 1;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -747,6 +781,7 @@ mod tests {
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -794,11 +829,14 @@ mod tests {
 		// skip 4
 		approvals.set(5, true);
 
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+
 		let tranche_now = 1;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -817,6 +855,7 @@ mod tests {
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -835,6 +874,7 @@ mod tests {
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -882,11 +922,14 @@ mod tests {
 		approvals.set(4, true);
 		approvals.set(5, true);
 
+		let disapprovals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+
 		let tranche_now = no_show_duration as DelayTranche + 2;
 		assert_eq!(
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -908,6 +951,7 @@ mod tests {
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -929,6 +973,7 @@ mod tests {
 			tranches_to_approve(
 				&approval_entry,
 				&approvals,
+				&disapprovals,
 				tranche_now,
 				block_tick,
 				no_show_duration,
@@ -941,47 +986,129 @@ mod tests {
 			},
 		);
 	}
-}
 
-#[test]
-fn depth_0_covering_not_treated_as_such() {
-	let state = State {
-		assignments: 0,
-		depth: 0,
-		covered: 0,
-		covering: 10,
-		uncovered: 0,
-		next_no_show: None,
-	};
+	#[test]
+	fn any_disapproval_of_assigned_leads_to_escalation() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
 
-	assert_eq!(
-		state.output(0, 10, 10, 20),
-		RequiredTranches::Pending {
-			considered: 0,
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
+			our_assignment: None,
+			our_approval_sig: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, ValidatorIndex(0), block_tick);
+		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+		let mut disapprovals = bitvec![BitOrderLsb0, u8; 0; 10];
+
+		disapprovals.set(0, true);
+
+		let tranche_now = 2;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				&disapprovals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::All,
+		);
+	}
+
+	#[test]
+	fn disapproval_of_not_yet_assigned_does_not_escalate() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 4;
+
+		let mut approval_entry: ApprovalEntry = approval_db::v2::ApprovalEntry {
+			tranches: Vec::new(),
+			assignments: bitvec![BitOrderLsb0, u8; 0; 10],
+			our_assignment: None,
+			our_approval_sig: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		approval_entry.import_assignment(0, ValidatorIndex(0), block_tick);
+		approval_entry.import_assignment(1, ValidatorIndex(2), block_tick);
+
+		let approvals = bitvec![BitOrderLsb0, u8; 0; 10];
+		let mut disapprovals = bitvec![BitOrderLsb0, u8; 0; 10];
+
+		disapprovals.set(2, true);
+
+		let tranche_now = 0;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				&disapprovals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending {
+				considered: 0,
+				next_no_show: Some(block_tick + no_show_duration),
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
+		);
+	}
+
+	#[test]
+	fn depth_0_covering_not_treated_as_such() {
+		let state = State {
+			assignments: 0,
+			depth: 0,
+			covered: 0,
+			covering: 10,
+			uncovered: 0,
 			next_no_show: None,
-			maximum_broadcast: DelayTranche::max_value(),
-			clock_drift: 0,
-		},
-	);
-}
+		};
 
-#[test]
-fn depth_0_issued_as_exact_even_when_all() {
-	let state = State {
-		assignments: 10,
-		depth: 0,
-		covered: 0,
-		covering: 0,
-		uncovered: 0,
-		next_no_show: None,
-	};
+		assert_eq!(
+			state.output(0, 10, 10, 20),
+			RequiredTranches::Pending {
+				considered: 0,
+				next_no_show: None,
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
+		);
+	}
 
-	assert_eq!(
-		state.output(0, 10, 10, 20),
-		RequiredTranches::Exact {
-			needed: 0,
-			tolerated_missing: 0,
+	#[test]
+	fn depth_0_issued_as_exact_even_when_all() {
+		let state = State {
+			assignments: 10,
+			depth: 0,
+			covered: 0,
+			covering: 0,
+			uncovered: 0,
 			next_no_show: None,
-		},
-	);
+		};
+
+		assert_eq!(
+			state.output(0, 10, 10, 20),
+			RequiredTranches::Exact {
+				needed: 0,
+				tolerated_missing: 0,
+				next_no_show: None,
+			},
+		);
+	}
+
 }
