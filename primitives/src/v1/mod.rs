@@ -863,7 +863,7 @@ impl ApprovalVote {
 pub struct DisapprovalVote(pub CandidateHash);
 
 impl DisapprovalVote {
-	/// Yields the signing payload for this approval vote.
+	/// Yields the signing payload for this disapproval vote.
 	pub fn signing_payload(
 		&self,
 		session_index: SessionIndex,

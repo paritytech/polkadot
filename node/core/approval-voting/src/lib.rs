@@ -43,7 +43,8 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
+	IndirectAssignmentCert, IndirectSignedApprovalOrDisapproval, DelayTranche, BlockApprovalMeta,
+	ApprovalVoteKind,
 };
 use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
@@ -850,11 +851,12 @@ fn distribution_messages_for_activation<'a>(
 							));
 
 							messages.push(ApprovalDistributionMessage::DistributeApproval(
-								IndirectSignedApprovalVote {
+								IndirectSignedApprovalOrDisapproval {
 									block_hash,
 									candidate_index: i as _,
 									validator: assignment.validator_index(),
 									signature: approval_sig,
+									kind: unimplemented!(),
 								}
 							))
 						}
@@ -1429,7 +1431,7 @@ fn check_and_import_assignment(
 fn check_and_import_approval<T>(
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
-	approval: IndirectSignedApprovalVote,
+	approval: IndirectSignedApprovalOrDisapproval,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
 ) -> SubsystemResult<(Vec<Action>, T)> {
 	macro_rules! respond_early {
@@ -1457,15 +1459,17 @@ fn check_and_import_approval<T>(
 		None => respond_early!(ApprovalCheckResult::Bad)
 	};
 
-	let approval_payload = ApprovalVote(approved_candidate_hash)
-		.signing_payload(block_entry.session());
+	let signing_payload = approval.kind.signing_payload(
+		approved_candidate_hash,
+		block_entry.session(),
+	);
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad)
 	};
 
-	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
+	let approval_sig_valid = approval.signature.verify(signing_payload.as_slice(), pubkey);
 
 	if !approval_sig_valid {
 		respond_early!(ApprovalCheckResult::Bad)
@@ -1503,14 +1507,17 @@ fn check_and_import_approval<T>(
 		"Importing approval vote",
 	);
 
-	let actions = import_checked_approval(
-		state,
-		&metrics,
-		block_entry,
-		approved_candidate_hash,
-		candidate_entry,
-		ApprovalSource::Remote(approval.validator),
-	);
+	let actions = match approval.kind {
+		ApprovalVoteKind::Approval => import_checked_approval(
+			state,
+			&metrics,
+			block_entry,
+			approved_candidate_hash,
+			candidate_entry,
+			ApprovalSource::Remote(approval.validator),
+		),
+		ApprovalVoteKind::Disapproval => unimplemented!(),
+	};
 
 	Ok((actions, t))
 }
@@ -1586,6 +1593,7 @@ fn import_checked_approval(
 			status.required_tranches.clone(),
 		);
 
+		// TODO [now]: If there is a disapproval, then require 2f+1
 		let is_approved = check.is_approved();
 
 		if is_approved {
@@ -1667,6 +1675,8 @@ fn import_checked_approval(
 
 	actions
 }
+
+// TODO [now]: import_checked_disapproval
 
 fn should_trigger_assignment(
 	approval_entry: &ApprovalEntry,
@@ -2118,11 +2128,12 @@ fn issue_approval(
 
 	// dispatch to approval distribution.
 	ctx.send_unbounded_message(
-		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalOrDisapproval {
 			block_hash,
 			candidate_index: candidate_index as _,
 			validator: validator_index,
 			signature: sig,
+			kind: ApprovalVoteKind::Approval,
 		}
 	).into());
 

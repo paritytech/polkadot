@@ -21,7 +21,8 @@ pub use sp_consensus_babe::Slot;
 
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
-	Header, BlockNumber, CandidateIndex,
+	Header, BlockNumber, CandidateIndex, SessionIndex, ApprovalVote,
+	DisapprovalVote,
 };
 use parity_scale_codec::{Encode, Decode};
 use sp_consensus_babe as babe_primitives;
@@ -99,7 +100,7 @@ pub struct IndirectAssignmentCert {
 }
 
 /// Kinds of approval votes.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
 pub enum ApprovalVoteKind {
 	/// An approval on a candidate.
 	#[codec(index = 0)]
@@ -107,6 +108,22 @@ pub enum ApprovalVoteKind {
 	/// A disapproval on a candidate.
 	#[codec(index = 1)]
 	Disapproval,
+}
+
+impl ApprovalVoteKind {
+	/// Yileds the signing payload for this approval vote.
+	pub fn signing_payload(
+		&self,
+		candidate_hash: CandidateHash,
+		session: SessionIndex,
+	) -> Vec<u8> {
+		match *self {
+			ApprovalVoteKind::Approval => ApprovalVote(candidate_hash)
+				.signing_payload(session),
+			ApprovalVoteKind::Disapproval => DisapprovalVote(candidate_hash)
+				.signing_payload(session),
+		}
+	}
 }
 
 /// A signed approval vote which references the candidate indirectly via the block.
