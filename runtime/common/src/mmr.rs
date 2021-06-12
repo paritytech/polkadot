@@ -158,12 +158,6 @@ pub mod pallet {
 		BeefyNextAuthoritySet<MerkleRootOf<T>>,
 		ValueQuery,
 	>;
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
 }
 
 impl<T: Config> LeafDataProvider for Pallet<T> where
