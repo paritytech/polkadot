@@ -110,15 +110,6 @@ pub struct ActiveDisputes {
 }
 
 impl ActiveDisputes {
-	/// Whether the set of active disputes contains the given candidate.
-	pub(crate) fn contains(
-		&self,
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		self.disputed.contains(&(session, candidate_hash))
-	}
-
 	/// Insert the session and candidate hash from the set of active disputes.
 	/// Returns 'true' if the entry was not already in the set.
 	pub(crate) fn insert(
