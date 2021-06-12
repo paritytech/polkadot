@@ -23,6 +23,11 @@ mod grandpa_support;
 mod parachains_db;
 
 #[cfg(feature = "full-node")]
+mod overseer;
+#[cfg(feature = "full-node")]
+pub use self::overseer::*;
+
+#[cfg(feature = "full-node")]
 use {
 	tracing::info,
 	polkadot_network_bridge::RequestMultiplexer,
@@ -405,145 +410,6 @@ fn new_partial<RuntimeApi, Executor>(
 }
 
 #[cfg(feature = "full-node")]
-fn real_overseer<Spawner, RuntimeClient>(
-	leaves: impl IntoIterator<Item = BlockInfo>,
-	keystore: Arc<LocalKeystore>,
-	runtime_client: Arc<RuntimeClient>,
-	parachains_db: Arc<dyn kvdb::KeyValueDB>,
-	availability_config: AvailabilityConfig,
-	approval_voting_config: ApprovalVotingConfig,
-	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
-	authority_discovery: AuthorityDiscoveryService,
-	request_multiplexer: RequestMultiplexer,
-	registry: Option<&Registry>,
-	spawner: Spawner,
-	is_collator: IsCollator,
-	candidate_validation_config: CandidateValidationConfig,
-) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
-where
-	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
-	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Spawner: 'static + SpawnNamed + Clone + Unpin,
-{
-	use polkadot_node_subsystem_util::metrics::Metrics;
-
-	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-	use polkadot_node_core_backing::CandidateBackingSubsystem;
-	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-	use polkadot_node_core_chain_api::ChainApiSubsystem;
-	use polkadot_node_collation_generation::CollationGenerationSubsystem;
-	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
-	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-	use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
-	use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-	use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-	use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
-
-	let all_subsystems = AllSubsystems {
-		availability_distribution: AvailabilityDistributionSubsystem::new(
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
-		),
-		availability_store: AvailabilityStoreSubsystem::new(
-			parachains_db.clone(),
-			availability_config,
-			Metrics::register(registry)?,
-		),
-		bitfield_distribution: BitfieldDistributionSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		bitfield_signing: BitfieldSigningSubsystem::new(
-			spawner.clone(),
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		candidate_backing: CandidateBackingSubsystem::new(
-			spawner.clone(),
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		candidate_validation: CandidateValidationSubsystem::with_config(
-			candidate_validation_config,
-			Metrics::register(registry)?,
-		),
-		chain_api: ChainApiSubsystem::new(
-			runtime_client.clone(),
-			Metrics::register(registry)?,
-		),
-		collation_generation: CollationGenerationSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		collator_protocol: {
-			let side = match is_collator {
-				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
-					network_service.local_peer_id().clone(),
-					collator_pair,
-					Metrics::register(registry)?,
-				),
-				IsCollator::No => ProtocolSide::Validator {
-					keystore: keystore.clone(),
-					eviction_policy: Default::default(),
-					metrics: Metrics::register(registry)?,
-				},
-			};
-			CollatorProtocolSubsystem::new(
-				side,
-			)
-		},
-		network_bridge: NetworkBridgeSubsystem::new(
-			network_service.clone(),
-			authority_discovery,
-			request_multiplexer,
-			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
-		),
-		provisioner: ProvisionerSubsystem::new(
-			spawner.clone(),
-			(),
-			Metrics::register(registry)?,
-		),
-		runtime_api: RuntimeApiSubsystem::new(
-			runtime_client.clone(),
-			Metrics::register(registry)?,
-			spawner.clone(),
-		),
-		statement_distribution: StatementDistributionSubsystem::new(
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		approval_distribution: ApprovalDistributionSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		approval_voting: ApprovalVotingSubsystem::with_config(
-			approval_voting_config,
-			parachains_db,
-			keystore.clone(),
-			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
-		),
-		gossip_support: GossipSupportSubsystem::new(
-			keystore.clone(),
-		),
-	};
-
-	Overseer::new(
-		leaves,
-		all_subsystems,
-		registry,
-		runtime_client.clone(),
-		spawner,
-	).map_err(|e| e.into())
-}
-
-#[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
@@ -667,6 +533,11 @@ pub fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
+	let overseer_gen: &OverseerGenFn<
+		service::SpawnTaskHandle,
+		FullClient<RuntimeApi, Executor>,
+	>  = &crate::overseer::real_overseer;
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -840,20 +711,22 @@ pub fn new_full<RuntimeApi, Executor>(
 		.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		let (overseer, overseer_handler) = real_overseer(
-			active_leaves,
-			keystore,
-			overseer_client.clone(),
-			parachains_db,
-			availability_config,
-			approval_voting_config,
-			network.clone(),
-			authority_discovery_service,
-			request_multiplexer,
-			prometheus_registry.as_ref(),
-			spawner,
-			is_collator,
-			candidate_validation_config,
+		let (overseer, overseer_handler) = overseer_gen(
+			OverseerArgs {
+				leaves: active_leaves,
+				keystore,
+				runtime_client: overseer_client.clone(),
+				parachains_db,
+				availability_config,
+				approval_voting_config,
+				network_service: network.clone(),
+				authority_discovery_service,
+				request_multiplexer,
+				registry: prometheus_registry.as_ref(),
+				spawner,
+				is_collator,
+				candidate_validation_config,
+			}
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
