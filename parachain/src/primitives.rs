@@ -53,24 +53,66 @@ impl HeadData {
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl ValidationCode {
 	/// Get the blake2-256 hash of the validation code bytes.
-	pub fn hash(&self) -> Hash {
-		sp_runtime::traits::BlakeTwo256::hash(&self.0[..])
+	pub fn hash(&self) -> ValidationCodeHash {
+		ValidationCodeHash(sp_runtime::traits::BlakeTwo256::hash(&self.0[..]))
 	}
 }
 
-/// A hash of the parachain validation code.
-pub type ValidationCodeHash = Hash;
+/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+///
+/// This type is produced by [`ValidationCode::hash`].
+///
+/// This type makes it easy to enforce that a hash is a validation code hash on the type level.
+#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+pub struct ValidationCodeHash(Hash);
+
+impl sp_std::fmt::Display for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
+impl sp_std::fmt::Debug for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		write!(f, "{:?}", self.0)
+	}
+}
+
+impl AsRef<[u8]> for ValidationCodeHash {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_ref()
+	}
+}
+
+impl From<Hash> for ValidationCodeHash {
+	fn from(hash: Hash) -> ValidationCodeHash {
+		ValidationCodeHash(hash)
+	}
+}
+
+impl From<[u8; 32]> for ValidationCodeHash {
+	fn from(hash: [u8; 32]) -> ValidationCodeHash {
+		ValidationCodeHash(hash.into())
+	}
+}
+
+impl sp_std::fmt::LowerHex for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+        sp_std::fmt::LowerHex::fmt(&self.0, f)
+	}
+}
 
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
-pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
 #[derive(

@@ -144,7 +144,7 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn validation_code_by_hash(
 			&self,
-			hash: Hash,
+			hash: ValidationCodeHash,
 		) -> Option<ValidationCode> {
 			self.validation_code_by_hash.get(&hash).map(|c| c.clone())
 		}
