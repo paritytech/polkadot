@@ -631,6 +631,7 @@ struct ActiveHeadData {
 	seconded_counts: HashMap<ValidatorIndex, usize>,
 	/// A Jaeger span for this head, so we can attach data to it.
 	span: PerLeafSpan,
+	#[allow(dead_code)]
 	timer: Option<prometheus::prometheus::HistogramTimer>,
 }
 
