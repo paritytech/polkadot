@@ -35,7 +35,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
-	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalOrDisapproval},
 	AvailableData, BabeEpoch, CollationGenerationConfig, ErasureChunk, PoV, SignedFullStatement,
 	ValidationResult,
 };
@@ -610,12 +610,12 @@ pub enum ApprovalVotingMessage {
 		CandidateIndex,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
-	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// Check if the approval or disapproval vote is valid and can be accepted by our view of the
 	/// protocol.
 	///
 	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
-		IndirectSignedApprovalVote,
+		IndirectSignedApprovalOrDisapproval,
 		oneshot::Sender<ApprovalCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
@@ -640,7 +640,7 @@ pub enum ApprovalDistributionMessage {
 	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
 	/// valid, relevant, and the corresponding approval already issued.
 	/// If not, the subsystem is free to drop the message.
-	DistributeApproval(IndirectSignedApprovalVote),
+	DistributeApproval(IndirectSignedApprovalOrDisapproval),
 	/// An update from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),

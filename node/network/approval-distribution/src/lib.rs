@@ -26,7 +26,10 @@ use polkadot_primitives::v1::{
 	Hash, BlockNumber, ValidatorIndex, ValidatorSignature, CandidateIndex,
 };
 use polkadot_node_primitives::{
-	approval::{AssignmentCert, BlockApprovalMeta, IndirectSignedApprovalVote, IndirectAssignmentCert},
+	approval::{
+		AssignmentCert, BlockApprovalMeta, IndirectSignedApprovalOrDisapproval,
+		IndirectAssignmentCert, ApprovalVoteKind,
+	},
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -87,6 +90,7 @@ struct State {
 enum MessageFingerprint {
 	Assignment(Hash, CandidateIndex, ValidatorIndex),
 	Approval(Hash, CandidateIndex, ValidatorIndex),
+	Disapproval(Hash, CandidateIndex, ValidatorIndex),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -137,6 +141,12 @@ struct BlockEntry {
 enum ApprovalState {
 	Assigned(AssignmentCert),
 	Approved(AssignmentCert, ValidatorSignature),
+	Disapproved(AssignmentCert, ValidatorSignature),
+	Equivocated {
+		cert: AssignmentCert,
+		approval_signature: ValidatorSignature,
+		disapproval_signature: ValidatorSignature,
+	}
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -177,7 +187,7 @@ impl MessageSource {
 
 enum PendingMessage {
 	Assignment(IndirectAssignmentCert, CandidateIndex),
-	Approval(IndirectSignedApprovalVote),
+	Approval(IndirectSignedApprovalOrDisapproval),
 }
 
 impl State {
@@ -415,7 +425,7 @@ impl State {
 
 						pending.push((
 							peer_id.clone(),
-							PendingMessage::Approval(approval_vote),
+							PendingMessage::Approval(approval_vote.into()),
 						));
 
 						continue;
@@ -425,7 +435,45 @@ impl State {
 						ctx,
 						metrics,
 						MessageSource::Peer(peer_id.clone()),
-						approval_vote,
+						approval_vote.into(),
+					).await;
+				}
+			}
+			protocol_v1::ApprovalDistributionMessage::Disapprovals(disapprovals) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					peer_id = %peer_id,
+					num = disapprovals.len(),
+					"Processingdis approvals from a peer",
+				);
+				for disapproval_vote in disapprovals.into_iter() {
+					if let Some(pending) = self.pending_known.get_mut(&disapproval_vote.block_hash) {
+						let fingerprint = MessageFingerprint::Disapproval(
+							disapproval_vote.block_hash,
+							disapproval_vote.candidate_index,
+							disapproval_vote.validator,
+						);
+
+						tracing::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?fingerprint,
+							"Pending approval",
+						);
+
+						pending.push((
+							peer_id.clone(),
+							PendingMessage::Approval(disapproval_vote.into()),
+						));
+
+						continue;
+					}
+
+					self.import_and_circulate_approval(
+						ctx,
+						metrics,
+						MessageSource::Peer(peer_id.clone()),
+						disapproval_vote.into(),
 					).await;
 				}
 			}
@@ -722,7 +770,7 @@ impl State {
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		source: MessageSource,
-		vote: IndirectSignedApprovalVote,
+		vote: IndirectSignedApprovalOrDisapproval,
 	) {
 		let block_hash = vote.block_hash.clone();
 		let validator_index = vote.validator;
@@ -739,11 +787,18 @@ impl State {
 		};
 
 		// compute a fingerprint of the approval
-		let fingerprint = MessageFingerprint::Approval(
-			block_hash.clone(),
-			candidate_index,
-			validator_index,
-		);
+		let fingerprint = match vote.kind {
+			ApprovalVoteKind::Approval => MessageFingerprint::Approval(
+				block_hash.clone(),
+				candidate_index,
+				validator_index,
+			),
+			ApprovalVoteKind::Disapproval => MessageFingerprint::Disapproval(
+				block_hash.clone(),
+				candidate_index,
+				validator_index,
+			),
+		};
 
 		if let Some(peer_id) = source.peer_id() {
 			let assignment_fingerprint = MessageFingerprint::Assignment(
@@ -883,12 +938,61 @@ impl State {
 				// it should be in assigned state already
 				match candidate_entry.approvals.remove(&validator_index) {
 					Some((ApprovalState::Assigned(cert), _local)) => {
+						let state = match vote.kind {
+							ApprovalVoteKind::Approval => ApprovalState::Approved(
+								cert,
+								vote.signature.clone(),
+							),
+							ApprovalVoteKind::Disapproval => ApprovalState::Disapproved(
+								cert,
+								vote.signature.clone(),
+							),
+						};
+
 						candidate_entry.approvals.insert(
 							validator_index,
-							(ApprovalState::Approved(cert, vote.signature.clone()), local_source),
+							(state, local_source),
 						);
 					}
-					Some((ApprovalState::Approved(..), _)) => {
+					Some((ApprovalState::Approved(cert, approval_signature), _)) => {
+						assert_eq!(
+							vote.kind,
+							ApprovalVoteKind::Disapproval,
+							"we only insert it after the fingerprint, checked the fingerprint above; qed"
+						);
+
+						candidate_entry.approvals.insert(
+							validator_index,
+							(
+								ApprovalState::Equivocated {
+									cert,
+									approval_signature,
+									disapproval_signature: vote.signature.clone(),
+								},
+								local_source,
+							),
+						);
+					}
+					Some((ApprovalState::Disapproved(cert, disapproval_signature), _)) => {
+						assert_eq!(
+							vote.kind,
+							ApprovalVoteKind::Approval,
+							"we only insert it after the fingerprint, checked the fingerprint above; qed"
+						);
+
+						candidate_entry.approvals.insert(
+							validator_index,
+							(
+								ApprovalState::Equivocated {
+									cert,
+									approval_signature: vote.signature.clone(),
+									disapproval_signature,
+								},
+								local_source,
+							),
+						);
+					}
+					Some((ApprovalState::Equivocated { .. }, _)) => {
 						unreachable!(
 							"we only insert it after the fingerprint, checked the fingerprint above; qed"
 						);
@@ -936,22 +1040,39 @@ impl State {
 			}
 		}
 
-		let approvals = vec![vote];
+		let message = match vote.kind {
+			ApprovalVoteKind::Approval => protocol_v1::ApprovalDistributionMessage::Approvals(
+				vec![protocol_v1::IndirectSignedApprovalVote {
+					block_hash,
+					candidate_index,
+					validator: validator_index,
+					signature: vote.signature.clone(),
+				}]
+			),
+			ApprovalVoteKind::Disapproval => protocol_v1::ApprovalDistributionMessage::Disapprovals(
+				vec![protocol_v1::IndirectSignedDisapprovalVote {
+					block_hash,
+					candidate_index,
+					validator: validator_index,
+					signature: vote.signature.clone(),
+				}]
+			),
+		};
+
 		if !peers.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,
 				?local_source,
+				kind = ?vote.kind,
 				num_peers = peers.len(),
 				"Sending an approval to peers",
 			);
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
-				),
+				protocol_v1::ValidationProtocol::ApprovalDistribution(message),
 			).into()).await;
 		}
 	}
@@ -1013,6 +1134,7 @@ impl State {
 	) {
 		let mut assignments = Vec::new();
 		let mut approvals = Vec::new();
+		let mut disapprovals = Vec::new();
 		let num_blocks = blocks.len();
 
 		for block in blocks.into_iter() {
@@ -1051,11 +1173,53 @@ impl State {
 								},
 								candidate_index.clone(),
 							));
-							approvals.push(IndirectSignedApprovalVote {
+							approvals.push(protocol_v1::IndirectSignedApprovalVote {
 								block_hash: block.clone(),
 								validator: validator_index.clone(),
 								candidate_index: candidate_index.clone(),
 								signature: signature.clone(),
+							});
+						}
+						ApprovalState::Disapproved(assignment_cert, signature) => {
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: assignment_cert.clone(),
+								},
+								candidate_index.clone(),
+							));
+							disapprovals.push(protocol_v1::IndirectSignedDisapprovalVote {
+								block_hash: block.clone(),
+								validator: validator_index.clone(),
+								candidate_index: candidate_index.clone(),
+								signature: signature.clone(),
+							});
+						}
+						ApprovalState::Equivocated {
+							cert,
+							approval_signature,
+							disapproval_signature,
+						} => {
+							assignments.push((
+								IndirectAssignmentCert {
+									block_hash: block.clone(),
+									validator: validator_index.clone(),
+									cert: cert.clone(),
+								},
+								candidate_index.clone(),
+							));
+							approvals.push(protocol_v1::IndirectSignedApprovalVote {
+								block_hash: block.clone(),
+								validator: validator_index.clone(),
+								candidate_index: candidate_index.clone(),
+								signature: approval_signature.clone(),
+							});
+							disapprovals.push(protocol_v1::IndirectSignedDisapprovalVote {
+								block_hash: block.clone(),
+								validator: validator_index.clone(),
+								candidate_index: candidate_index.clone(),
+								signature: disapproval_signature.clone(),
 							});
 						}
 					}
@@ -1093,6 +1257,23 @@ impl State {
 				vec![peer_id],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
+				),
+			).into()).await;
+		}
+
+		if !disapprovals.is_empty() {
+			tracing::trace!(
+				target: LOG_TARGET,
+				num = disapprovals.len(),
+				?num_blocks,
+				?peer_id,
+				"Sending disapprovals to a peer",
+			);
+
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				vec![peer_id],
+				protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Disapprovals(disapprovals)
 				),
 			).into()).await;
 		}
