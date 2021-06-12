@@ -1187,7 +1187,7 @@ mod tests {
 			&5u32.into(),
 			&Hash::repeat_byte(2),
 			&Hash::repeat_byte(3),
-			&Hash::repeat_byte(4),
+			&Hash::repeat_byte(4).into(),
 		);
 	}
 }
