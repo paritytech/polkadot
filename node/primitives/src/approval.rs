@@ -98,16 +98,28 @@ pub struct IndirectAssignmentCert {
 	pub cert: AssignmentCert,
 }
 
-/// A vote of approval on a candidate.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct ApprovalVote(pub CandidateHash);
-
 /// A signed approval vote which references the candidate indirectly via the block.
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectSignedApprovalVote {
+	/// A block hash where the candidate appears.
+	pub block_hash: Hash,
+	/// The index of the candidate in the list of candidates fully included as-of the block.
+	pub candidate_index: CandidateIndex,
+	/// The validator index.
+	pub validator: ValidatorIndex,
+	/// The signature by the validator.
+	pub signature: ValidatorSignature,
+}
+
+/// A signed disapproval vote which references the candidate indirectly via the block.
+///
+/// In practice, we have a look-up from block hash and candidate index to candidate hash,
+/// so this can be transformed into a `SignedDisapprovalVote`.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct IndirectSignedDisapprovalVote {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
 	/// The index of the candidate in the list of candidates fully included as-of the block.

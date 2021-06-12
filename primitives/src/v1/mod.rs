@@ -858,6 +858,22 @@ impl ApprovalVote {
 	}
 }
 
+/// A vote of disapproval on a candidate.
+#[derive(Clone, RuntimeDebug)]
+pub struct DisapprovalVote(pub CandidateHash);
+
+impl DisapprovalVote {
+	/// Yields the signing payload for this approval vote.
+	pub fn signing_payload(
+		&self,
+		session_index: SessionIndex,
+	) -> Vec<u8> {
+		const MAGIC: [u8; 7] = *b"DISAPPR";
+
+		(MAGIC, &self.0, session_index).encode()
+	}
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
