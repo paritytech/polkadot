@@ -36,7 +36,7 @@ pub fn validate_candidate(
 	let executor = TaskExecutor::new()?;
 	let result = unsafe {
 		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
-		execute(&artifact, params, executor)?
+		execute(&artifact, params, executor, "validate_block".to_string())?
 	};
 
 	Ok(result)

@@ -40,6 +40,7 @@ pub enum ToQueue {
 		artifact_path: PathBuf,
 		params: Vec<u8>,
 		result_tx: ResultSender,
+		entry_point: String,
 	},
 }
 
@@ -47,6 +48,7 @@ struct ExecuteJob {
 	artifact_path: PathBuf,
 	params: Vec<u8>,
 	result_tx: ResultSender,
+	entry_point: String,
 }
 
 struct WorkerData {
@@ -171,12 +173,14 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 		artifact_path,
 		params,
 		result_tx,
+		entry_point,
 	} = to_queue;
 
 	let job = ExecuteJob {
 		artifact_path,
 		params,
 		result_tx,
+		entry_point,
 	};
 
 	if let Some(available) = queue.workers.find_available() {
@@ -320,7 +324,7 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 		);
 	queue.mux.push(
 		async move {
-			let outcome = super::worker::start_work(idle, job.artifact_path, job.params).await;
+			let outcome = super::worker::start_work(idle, job.artifact_path, job.params, job.entry_point).await;
 			QueueEvent::StartWork(worker, outcome, job.result_tx)
 		}
 		.boxed(),

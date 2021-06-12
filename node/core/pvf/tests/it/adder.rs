@@ -17,7 +17,7 @@
 use super::{TestHost, ValidationResult};
 use polkadot_parachain::{
 	primitives::{
-		RelayChainBlockNumber, BlockData as GenericBlockData, HeadData as GenericHeadData,
+		BlockData as GenericBlockData, HeadData as GenericHeadData,
 		ValidationParams,
 	},
 };

@@ -38,7 +38,6 @@ const CONFIG: Config = Config {
 	},
 };
 
-/// Runs the prevaldation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
 pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
 	let blob = RuntimeBlob::new(code)?;
 	// It's assumed this function will take care of any prevalidation logic
@@ -65,6 +64,7 @@ pub unsafe fn execute(
 	compiled_artifact: &[u8],
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
+	entry_point: String,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
 	let mut extensions = sp_externalities::Extensions::new();
 
@@ -81,7 +81,7 @@ pub unsafe fn execute(
 		)?;
 		runtime
 			.new_instance()?
-			.call(InvokeMethod::Export("validate_block"), params)
+			.call(InvokeMethod::Export(entry_point.as_str()), params)
 	})?
 }
 

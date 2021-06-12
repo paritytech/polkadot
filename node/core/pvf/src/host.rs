@@ -63,12 +63,41 @@ impl ValidationHost {
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
+		self.execute(pvf, params, priority, result_tx, "validate_block").await
+	}
+
+	/// Execute PVF with the given code, params and priority. The result of execution will be sent
+	/// to the provided result sender.
+	///
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
+	///
+	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
+	pub async fn execute_pprevf(
+		&mut self,
+		pvf: Pvf,
+		params: Vec<u8>,
+		priority: Priority,
+		result_tx: ResultSender,
+	) -> Result<(), String> {
+		self.execute(pvf, params, priority, result_tx, "validate_collator").await
+	}
+
+	async fn execute(
+		&mut self,
+		pvf: Pvf,
+		params: Vec<u8>,
+		priority: Priority,
+		result_tx: ResultSender,
+		entry_point: &str,
+	) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::ExecutePvf {
 				pvf,
 				params,
 				priority,
 				result_tx,
+				entry_point: entry_point.to_string(),
 			})
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
@@ -110,6 +139,7 @@ enum ToHost {
 		params: Vec<u8>,
 		priority: Priority,
 		result_tx: ResultSender,
+		entry_point: String,
 	},
 	HeadsUp {
 		active_pvfs: Vec<Pvf>,
@@ -396,6 +426,7 @@ async fn handle_to_host(
 			params,
 			priority,
 			result_tx,
+			entry_point,
 		} => {
 			handle_execute_pvf(
 				cache_path,
@@ -407,6 +438,7 @@ async fn handle_to_host(
 				params,
 				priority,
 				result_tx,
+				entry_point,
 			)
 			.await?;
 		}
@@ -428,6 +460,7 @@ async fn handle_execute_pvf(
 	params: Vec<u8>,
 	priority: Priority,
 	result_tx: ResultSender,
+	entry_point: String,
 ) -> Result<(), Fatal> {
 	let artifact_id = pvf.as_artifact_id();
 
@@ -444,6 +477,7 @@ async fn handle_execute_pvf(
 						artifact_path: artifact_id.path(cache_path),
 						params,
 						result_tx,
+						entry_point,
 					},
 				)
 				.await?;
@@ -559,6 +593,7 @@ async fn handle_prepare_done(
 				artifact_path: artifact_path.clone(),
 				params,
 				result_tx,
+				entry_point: "validate_block".to_string(),
 			},
 		)
 		.await?;

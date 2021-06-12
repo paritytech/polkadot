@@ -85,6 +85,7 @@ pub async fn start_work(
 	worker: IdleWorker,
 	artifact_path: PathBuf,
 	validation_params: Vec<u8>,
+	entry_point: String,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
@@ -95,7 +96,7 @@ pub async fn start_work(
 		artifact_path.display(),
 	);
 
-	if send_request(&mut stream, &artifact_path, &validation_params).await.is_err() {
+	if send_request(&mut stream, &artifact_path, &validation_params, entry_point).await.is_err() {
 		return Outcome::IoErr;
 	}
 
@@ -133,12 +134,14 @@ async fn send_request(
 	stream: &mut UnixStream,
 	artifact_path: &Path,
 	validation_params: &[u8],
+	entry_point: String,
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await
+	framed_send(stream, validation_params).await?;
+	framed_send(stream, entry_point.as_bytes()).await
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, String)> {
 	let artifact_path = framed_recv(stream).await?;
 	let artifact_path = bytes_to_path(&artifact_path).ok_or_else(|| {
 		io::Error::new(
@@ -147,7 +150,13 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)>
 		)
 	})?;
 	let params = framed_recv(stream).await?;
-	Ok((artifact_path, params))
+	let entry_point = String::from_utf8(framed_recv(stream).await?).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"execute pvf recv_request: non utf-8 entry-point".to_string(),
+		)
+	})?;
+	Ok((artifact_path, params, entry_point))
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
@@ -195,14 +204,14 @@ pub fn worker_entrypoint(socket_path: &str) {
 			)
 		})?;
 		loop {
-			let (artifact_path, params) = recv_request(&mut stream).await?;
+			let (artifact_path, params, entry_point) = recv_request(&mut stream).await?;
 			tracing::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: validating artifact {}",
 				artifact_path.display(),
 			);
-			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
+			let response = validate_using_artifact(&artifact_path, &params, &executor, entry_point).await;
 			send_response(&mut stream, response).await?;
 		}
 	});
@@ -212,6 +221,7 @@ async fn validate_using_artifact(
 	artifact_path: &Path,
 	params: &[u8],
 	spawner: &TaskExecutor,
+	entry_point: String,
 ) -> Response {
 	let artifact_bytes = match async_std::fs::read(artifact_path).await {
 		Err(e) => {
@@ -249,7 +259,7 @@ async fn validate_using_artifact(
 			// SAFETY: this should be safe since the compiled artifact passed here comes from the
 			//         file created by the prepare workers. These files are obtained by calling
 			//         [`executor_intf::prepare`].
-			crate::executor_intf::execute(compiled_artifact, params, spawner.clone())
+			crate::executor_intf::execute(compiled_artifact, params, spawner.clone(), entry_point)
 		 } {
 			Err(err) => {
 				return Response::format_invalid("execute", &err.to_string());
