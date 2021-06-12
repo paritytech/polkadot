@@ -159,13 +159,13 @@ impl ActiveDisputes {
 }
 
 /// Errors while accessing things from the DB.
-#[derive(Debug, derive_more::From, derive_more::Display)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-	Io(std::io::Error),
-	Codec(parity_scale_codec::Error),
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
+	#[error(transparent)]
+	Codec(#[from] parity_scale_codec::Error),
 }
-
-impl std::error::Error for Error {}
 
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
