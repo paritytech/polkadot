@@ -41,7 +41,7 @@ use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
@@ -695,7 +695,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}

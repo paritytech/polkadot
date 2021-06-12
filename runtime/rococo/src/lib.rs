@@ -26,7 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
+	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
 	SessionInfo as SessionInfoData,
@@ -1136,7 +1136,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
