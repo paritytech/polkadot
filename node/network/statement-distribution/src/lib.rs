@@ -2148,6 +2148,7 @@ mod tests {
 			validators,
 			session_index,
 			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
+			Metrics(None).time_leaf(),
 		);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
@@ -2447,6 +2448,7 @@ mod tests {
 				validators,
 				session_index,
 				PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
+				Metrics(None).time_leaf(),
 			);
 
 			let statement = block_on(SignedFullStatement::sign(
