@@ -281,7 +281,7 @@ pub mod pallet {
 		/// Total Complexity: O(1)
 		/// </weight>
 		#[pallet::weight(T::WeightInfo::claim())]
-		pub(super) fn claim(
+		pub fn claim(
 			origin: OriginFor<T>,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature
@@ -313,7 +313,7 @@ pub mod pallet {
 		/// Total Complexity: O(1)
 		/// </weight>
 		#[pallet::weight(T::WeightInfo::mint_claim())]
-		pub(super) fn mint_claim(
+		pub fn mint_claim(
 			origin: OriginFor<T>,
 			who: EthereumAddress,
 			value: BalanceOf<T>,
@@ -360,7 +360,7 @@ pub mod pallet {
 		/// Total Complexity: O(1)
 		/// </weight>
 		#[pallet::weight(T::WeightInfo::claim_attest())]
-		pub(super) fn claim_attest(
+		pub fn claim_attest(
 			origin: OriginFor<T>,
 			dest: T::AccountId,
 			ethereum_signature: EcdsaSignature,
@@ -400,7 +400,7 @@ pub mod pallet {
 			DispatchClass::Normal,
 			Pays::No
 		))]
-		pub(super) fn attest(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
+		pub fn attest(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let signer = Preclaims::<T>::get(&who).ok_or(Error::<T>::SenderHasNoClaim)?;
 			if let Some(s) = Signing::<T>::get(signer) {
@@ -412,7 +412,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(T::WeightInfo::move_claim())]
-		pub(super) fn move_claim(
+		pub fn move_claim(
 			origin: OriginFor<T>,
 			old: EthereumAddress,
 			new: EthereumAddress,
