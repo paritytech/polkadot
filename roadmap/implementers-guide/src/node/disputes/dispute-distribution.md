@@ -41,19 +41,22 @@ struct DisputeRequest {
 }
 
 struct InvalidVote {
+  subject: VoteSubject,
+  kind: InvalidDisputeStatementKind,
+}
+
+struct ValidVote {
+  subject: VoteSubject,
+  kind: ValidDisputeStatementKind,
+}
+
+struct VoteSubject {
   /// The candidate being disputed.
   candidate_hash: CandidateHash,
   /// The voting validator.
   validator_index: ValidatorIndex,
   /// The session the candidate appears in.
   candidate_session: SessionIndex,
-}
-
-struct ValidVote {
-  candidate_hash: CandidateHash,
-  validator_index: ValidatorIndex,
-  candidate_session: SessionIndex,
-  kind: ValidDisputeStatementKind,
 }
 ```
 
