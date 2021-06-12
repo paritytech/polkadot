@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 	OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, PoV};
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 use polkadot_subsystem::{
 	jaeger,
@@ -52,8 +52,6 @@ use super::{modify_reputation, Result, LOG_TARGET};
 
 #[cfg(test)]
 mod tests;
-
-const COLLATION_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// Message could not be decoded properly.
@@ -287,10 +285,10 @@ impl PeerData {
 	}
 
 	/// Whether the peer is now inactive according to the current instant and the eviction policy.
-	fn is_inactive(&self, now: Instant, policy: &crate::CollatorEvictionPolicy) -> bool {
+	fn is_inactive(&self, policy: &crate::CollatorEvictionPolicy) -> bool {
 		match self.state {
-			PeerState::Connected(connected_at) => connected_at + policy.undeclared < now,
-			PeerState::Collating(ref state) => state.last_active + policy.inactive_collator < now,
+			PeerState::Connected(connected_at) => connected_at.elapsed() >= policy.undeclared,
+			PeerState::Collating(ref state) => state.last_active.elapsed() >= policy.inactive_collator,
 		}
 	}
 }
@@ -348,7 +346,7 @@ impl ActiveParas {
 				_ => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						relay_parent = ?relay_parent,
+						?relay_parent,
 						"Failed to query runtime API for relay-parent",
 					);
 
@@ -378,7 +376,7 @@ impl ActiveParas {
 				None => {
 					tracing::trace!(
 						target: LOG_TARGET,
-						relay_parent = ?relay_parent,
+						?relay_parent,
 						"Not a validator",
 					);
 
@@ -395,7 +393,16 @@ impl ActiveParas {
 			// However, this'll work fine for parachains, as each parachain gets a dedicated
 			// core.
 			if let Some(para_now) = para_now {
-				*self.current_assignments.entry(para_now).or_default() += 1;
+				let entry = self.current_assignments.entry(para_now).or_default();
+				*entry += 1;
+				if *entry == 1 {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?relay_parent,
+						para_id = ?para_now,
+						"Assigned to a parachain",
+					);
+				}
 			}
 
 			if let Some(para_next) = para_next {
@@ -422,6 +429,11 @@ impl ActiveParas {
 						*occupied.get_mut() -= 1;
 						if *occupied.get() == 0 {
 							occupied.remove_entry();
+							tracing::debug!(
+								target: LOG_TARGET,
+								para_id = ?cur,
+								"Unassigned from a parachain",
+							);
 						}
 					}
 				}
@@ -462,7 +474,7 @@ type CollationEvent = (CollatorId, PendingCollation);
 
 type PendingCollationFetch = (
 	CollationEvent,
-	Option<std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>>
+	std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>,
 );
 
 /// All state relevant for the validator side of the protocol lives here.
@@ -763,7 +775,6 @@ where
 						PoV,
 					)>();
 
-
 					let pending_collation = PendingCollation::new(
 						relay_parent,
 						&para_id,
@@ -771,17 +782,17 @@ where
 					);
 					fetch_collation(ctx, state, pending_collation.clone(), tx).await;
 
-					let future = async move {
-						((id, pending_collation), rx.timeout(COLLATION_FETCH_TIMEOUT).await)
-					};
+					let future = rx.map(|r|
+						((id, pending_collation), r)
+					);
 					state.collations.push(Box::pin(future));
 				}
-				Err(e) => {
+				Err(error) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						peer_id = ?origin,
 						?relay_parent,
-						error = ?e,
+						?error,
 						"Invalid advertisement",
 					);
 
@@ -1045,7 +1056,7 @@ pub(crate) async fn run<Context>(
 				// notify the collator of their successful second backing
 				if let Some((relay_parent, collation_event)) = match res {
 					Some(
-						(mut collation_event, Some(Ok((candidate_receipt, pov))))
+						(mut collation_event, Ok((candidate_receipt, pov)))
 					) => {
 						let relay_parent = &collation_event.1.relay_parent;
 						// Verify whether this relay_parent has already been seconded
@@ -1113,9 +1124,8 @@ async fn disconnect_inactive_peers(
 	eviction_policy: &crate::CollatorEvictionPolicy,
 	peers: &HashMap<PeerId, PeerData>,
 ) {
-	let now = Instant::now();
 	for (peer, peer_data) in peers {
-		if peer_data.is_inactive(now, &eviction_policy) {
+		if peer_data.is_inactive(&eviction_policy) {
 			disconnect_peer(ctx, peer.clone()).await;
 		}
 	}
