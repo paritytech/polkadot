@@ -54,8 +54,6 @@ use thiserror::Error;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
-mod error_handling;
-
 /// Error classification.
 pub use error_handling::{Fault, unwrap_non_fatal};
 
@@ -71,6 +69,11 @@ pub mod reexports {
 
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+
+mod error_handling;
+
+#[cfg(test)]
+mod tests;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -859,6 +862,3 @@ impl futures::Stream for Metronome
 		Poll::Pending
 	}
 }
-
-#[cfg(test)]
-mod tests;

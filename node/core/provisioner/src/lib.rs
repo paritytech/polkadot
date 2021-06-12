@@ -43,6 +43,9 @@ use std::{pin::Pin, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 use futures_timer::Delay;
 
+#[cfg(test)]
+mod tests;
+
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
@@ -599,6 +602,3 @@ impl metrics::Metrics for Metrics {
 
 /// The provisioning subsystem.
 pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
-
-#[cfg(test)]
-mod tests;

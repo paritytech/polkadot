@@ -50,6 +50,9 @@ use polkadot_subsystem::{
 
 use super::{modify_reputation, Result, LOG_TARGET};
 
+#[cfg(test)]
+mod tests;
+
 const COLLATION_FETCH_TIMEOUT: Duration = Duration::from_secs(2);
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -1244,6 +1247,3 @@ where
 		false
 	}
 }
-
-#[cfg(test)]
-mod tests;
