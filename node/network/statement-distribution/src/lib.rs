@@ -71,6 +71,9 @@ use requester::{RequesterMessage, fetch};
 mod responder;
 use responder::{ResponderMessage, respond};
 
+#[cfg(test)]
+mod tests;
+
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_FETCH_FAIL: Rep = Rep::CostMinor("Requesting `CommittedCandidateReceipt` from peer failed");
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
@@ -2044,6 +2047,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;

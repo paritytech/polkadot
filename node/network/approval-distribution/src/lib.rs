@@ -20,10 +20,6 @@
 
 #![warn(missing_docs)]
 
-#[cfg(test)]
-mod tests;
-
-
 use std::collections::{BTreeMap, HashMap, HashSet, hash_map};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_primitives::v1::{
@@ -46,6 +42,9 @@ use polkadot_node_subsystem_util::{
 use polkadot_node_network_protocol::{
 	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
 
