@@ -66,7 +66,7 @@ pub trait OverseerGen {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin;
 }
-
+/// The regular set of subsystems.
 pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {
@@ -85,6 +85,7 @@ impl OverseerGen for RealOverseerGen {
 			spawner,
 			is_collator,
 			candidate_validation_config,
+			..
 		} : OverseerGenArgs<'a, Spawner, RuntimeClient>
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
