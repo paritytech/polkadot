@@ -71,6 +71,7 @@ impl ArtifactId {
 	#[cfg(test)]
 	pub fn from_file_name(file_name: &str) -> Option<Self> {
 		use std::str::FromStr as _;
+		use polkadot_core_primitives::Hash;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
 		let code_hash = Hash::from_str(file_name).ok()?.into();
@@ -212,7 +213,7 @@ mod tests {
 	#[test]
 	fn path() {
 		let path = Path::new("/test");
-		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
+		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap().into();
 
 		assert_eq!(
 			ArtifactId::new(hash).path(path).to_str(),
