@@ -20,6 +20,9 @@ use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{borrow::Cow, ops::{Index, IndexMut}};
 use strum::{EnumIter, IntoEnumIterator};
 
+/// Upper bound on concurrent incoming collator connections
+pub const RESERVOIR_SIZE: u32 = 25;
+
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum PeerSet {
@@ -72,7 +75,7 @@ impl PeerSet {
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
-					in_peers: if is_authority == IsAuthority::Yes { 25 } else { 0 },
+					in_peers: if is_authority == IsAuthority::Yes { RESERVOIR_SIZE } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: if is_authority == IsAuthority::Yes {

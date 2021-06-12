@@ -667,9 +667,12 @@ async fn handle_our_view_change(
 		state.span_per_relay_parent.remove(&removed);
 	}
 
-	peer_slots::cycle_para(
+	if peer_slots::cycle_para(
 		ctx.sender(), &mut state.peer_slots.active_paras, keystore, added, removed,
-	).await;
+	).await {
+		state.evicted_peers.clear();
+		state.peer_slots.reset_sample();
+	}
 
 	for peer_id in peer_slots::handle_view_change(&mut state.peer_slots, &state.view).into_iter() {
 		// Disconnect peers who are not relevant to our current or next para.
@@ -678,9 +681,6 @@ async fn handle_our_view_change(
 		// declare.
 		disconnect_peer(ctx, peer_id).await;
 	}
-
-	state.evicted_peers.clear();
-	state.peer_slots.reset_sample();
 
 	Ok(())
 }
@@ -1148,7 +1148,7 @@ mod tests {
 	}
 
 	impl TestState {
-		fn new(size: usize) -> Self {
+		fn new(size: u32) -> Self {
 			let chain_a = ParaId::from(1);
 			let chain_b = ParaId::from(2);
 
@@ -1156,7 +1156,7 @@ mod tests {
 			let relay_parent = Hash::repeat_byte(0x05);
 			let collators = iter::repeat(())
 				.map(|_| CollatorPair::generate().0)
-				.take(size)
+				.take(size as usize)
 				.collect();
 
 			let validators = vec![

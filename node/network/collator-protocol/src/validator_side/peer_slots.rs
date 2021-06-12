@@ -36,9 +36,9 @@ use polkadot_subsystem::{messages::{AllMessages, NetworkBridgeMessage}, Subsyste
 const CACHE_SIZE: usize = 1_000;
 // RESERVOIR SIZE determines the upper bound on the number of collator connections
 #[cfg(not(test))]
-pub(super) const RESERVOIR_SIZE: usize = 128;
+use polkadot_node_network_protocol::peer_set::RESERVOIR_SIZE;
 #[cfg(test)]
-pub(super) const RESERVOIR_SIZE: usize = 16;
+pub(super) const RESERVOIR_SIZE: u32 = 16;
 
 /// Message was went out-of-order
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -133,8 +133,9 @@ impl FitnessMetric {
 	}
 
 	pub fn fitness(&self) -> f64 {
-		if self.total != 0 {
-			self.total as f64 / self.cumulative.as_nanos() as f64
+		let cumulative = self.cumulative.as_nanos();
+		if self.total != 0 && cumulative != 0 {
+			self.total as f64 / cumulative as f64
 		} else {
 			0f64
 		}
@@ -432,7 +433,8 @@ impl ActiveParas {
 	pub(super) fn remove_outgoing(
 		&mut self,
 		old_relay_parents: impl IntoIterator<Item = Hash>,
-	) {
+	) -> bool {
+		let mut out = false;
 		for old_relay_parent in old_relay_parents {
 			if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
 				let GroupAssignments { current, next } = assignments;
@@ -442,6 +444,7 @@ impl ActiveParas {
 						*occupied.get_mut() -= 1;
 						if *occupied.get() == 0 {
 							occupied.remove_entry();
+							out = true;
 						}
 					}
 				}
@@ -451,11 +454,13 @@ impl ActiveParas {
 						*occupied.get_mut() -= 1;
 						if *occupied.get() == 0 {
 							occupied.remove_entry();
+							out = true;
 						}
 					}
 				}
 			}
 		}
+		out
 	}
 
 	pub(super) fn is_current_or_next(&self, id: ParaId) -> bool {
@@ -468,7 +473,7 @@ pub(super) type CollatorFitness = LruCache<CollatorId, CollatorFitnessMetric>;
 pub(super) type Reservoir = HashMap<PeerId, PeerData>;
 
 pub struct PeerSlots {
-	seq_nr: u64,
+	seq_nr: u32,
 	pub(super) fitness: CollatorFitness,
 	pub(super) peer_data: Reservoir,
 	pub(super) active_paras: ActiveParas,
@@ -478,7 +483,7 @@ pub struct PeerSlots {
 impl Default for PeerSlots {
 	fn default() -> Self {
 		Self {
-			seq_nr: 0u64,
+			seq_nr: 0u32,
 			fitness: LruCache::new(CACHE_SIZE),
 			peer_data: HashMap::new(),
 			active_paras: ActiveParas::default(),
@@ -638,13 +643,13 @@ impl PeerSlots {
 
 	fn evict_peers(&mut self) -> Vec<PeerId> {
 		// Total number of peers
-		let total_peers = self.peers.len();
+		let total_peers = self.peers.len() as u32;
 		// Determine how many peer we need to evict
 		let surplus_peers = total_peers.saturating_sub(RESERVOIR_SIZE);
 		// Evict the worst peers
 		let mut out = Vec::new();
 		if total_peers > RESERVOIR_SIZE {
-			out = self.peers.drain(total_peers - surplus_peers..).collect();
+			out = self.peers.drain((total_peers - surplus_peers) as usize..).collect();
 		}
 		let n = out.len();
 		if n > 1 {
@@ -688,7 +693,7 @@ impl PeerSlots {
 			let sample_idx = rng.gen_range(0..self.seq_nr);
 			// This ensures that after we reset the seq_nr, we will always collate at least
 			// RESERVOIR_SIZE new collators for the current and next parachain
-			if (sample_idx as usize) < RESERVOIR_SIZE {
+			if sample_idx < RESERVOIR_SIZE {
 				// We are sampling peer_id into our reservoir
 				// Therefore, we must compute CollatorId to determine the peer's fitness
 				out.push(available_slot);
@@ -726,9 +731,9 @@ pub(super) async fn cycle_para(
 	keystore: &SyncCryptoStorePtr,
 	new_relay_parents: impl IntoIterator<Item = Hash>,
 	old_relay_parents: impl IntoIterator<Item = Hash>,
-) {
+) -> bool {
 	active_paras.assign_incoming(sender, keystore, new_relay_parents).await;
-	active_paras.remove_outgoing(old_relay_parents);
+	active_paras.remove_outgoing(old_relay_parents)
 }
 
 pub fn handle_connection(
@@ -832,7 +837,7 @@ mod tests {
 		let mut peer_slots = PeerSlots::default();
 		let collators: Vec<CollatorPair> = std::iter::repeat(())
 				.map(|_| CollatorPair::generate().0)
-				.take(RESERVOIR_SIZE)
+				.take(RESERVOIR_SIZE as usize)
 				.collect();
 		let mut ids = Vec::new();
 
@@ -862,12 +867,12 @@ mod tests {
 	fn test_find_key() {
 		let (mut peer_slots, ids) = full_reservoir_setup();
 		for i in 0..RESERVOIR_SIZE {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			_insert_event(&mut peer_slots, target_peer_id, target_collator_id, FitnessEvent::Unexpected, Duration::new(i as u64, RESERVOIR_SIZE as u32));
 		}
 
 		for i in 0..RESERVOIR_SIZE {
-			let (target_peer_id, _) = &ids[i];
+			let (target_peer_id, _) = &ids[i as usize];
 			let peer_fitness = peer_slots.compute_peer_fitness(target_peer_id);
 			assert_eq!(
 				peer_slots.find_key(
@@ -879,7 +884,7 @@ mod tests {
 		}
 
 		for i in 0..RESERVOIR_SIZE {
-			let (target_peer_id, _) = &ids[i];
+			let (target_peer_id, _) = &ids[i as usize];
 			let peer_fitness = peer_slots.compute_peer_fitness(target_peer_id);
 			let key = peer_slots.find_key(
 				peer_fitness,
@@ -887,14 +892,14 @@ mod tests {
 				false
 			);
 			if i == 0 {
-				assert_eq!(key, None);
+				assert_eq!(key.map(|v| v as u32), None);
 			} else {
-				assert_eq!(key, Some(RESERVOIR_SIZE - i));
+				assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE - i));
 			}
 		}
 
 		for i in 0..RESERVOIR_SIZE {
-			let (target_peer_id, _) = &ids[i];
+			let (target_peer_id, _) = &ids[i as usize];
 			let peer_fitness = peer_slots.compute_peer_fitness(target_peer_id);
 			let key = peer_slots.find_key(
 				peer_fitness,
@@ -902,21 +907,21 @@ mod tests {
 				false
 			);
 			if i == 0 {
-				assert_eq!(key, None);
+				assert_eq!(key.map(|v| v as u32), None);
 			} else {
-				assert_eq!(key, Some(RESERVOIR_SIZE-1));
+				assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE-1));
 			}
 		}
 
 		for i in 0..RESERVOIR_SIZE {
-			let (target_peer_id, _) = &ids[i];
+			let (target_peer_id, _) = &ids[i as usize];
 			let peer_fitness = peer_slots.compute_peer_fitness(target_peer_id);
 			let key = peer_slots.find_key(
 				peer_fitness,
 				&mut peer_slots.peers[..].iter().enumerate().rev(),
 				true
 			);
-			assert_eq!(key, Some(RESERVOIR_SIZE - i -  1));
+			assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE - i -  1));
 		}
 	}
 
@@ -925,7 +930,7 @@ mod tests {
 		let (mut peer_slots, ids) = full_reservoir_setup();
 
 		for i in 1..RESERVOIR_SIZE {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			_insert_event(
 				&mut peer_slots,
 				target_peer_id,
@@ -933,7 +938,7 @@ mod tests {
 				FitnessEvent::Unexpected,
 				Duration::new(i as u64, 0),
 			);
-			assert_eq!(peer_slots.peer_slot(target_peer_id), Some(RESERVOIR_SIZE - i));
+			assert_eq!(peer_slots.peer_slot(target_peer_id), Some((RESERVOIR_SIZE - i) as usize));
 			for peer in peer_slots.peers.iter() {
 				if let Some(slot_idx) = peer_slots.peer_slot(peer) {
 					assert_eq!(&peer_slots.peers[slot_idx], peer);
@@ -947,7 +952,7 @@ mod tests {
 		let (mut peer_slots, ids) = full_reservoir_setup();
 
 		for i in 1..RESERVOIR_SIZE/4 {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			_insert_event(
 				&mut peer_slots,
 				target_peer_id,
@@ -956,7 +961,7 @@ mod tests {
 				Duration::new(i as u64, 0),
 			);
 			let key = peer_slots.peer_slot(target_peer_id);
-			assert_eq!(key, Some(RESERVOIR_SIZE - i));
+			assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE - i));
 			for peer in peer_slots.peers.iter() {
 				if let Some(slot_idx) = peer_slots.peer_slot(peer) {
 					assert_eq!(&peer_slots.peers[slot_idx], peer);
@@ -965,9 +970,9 @@ mod tests {
 		}
 
 		for i in RESERVOIR_SIZE - RESERVOIR_SIZE/4..RESERVOIR_SIZE - 1 {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			assert!(
-				peer_slots.peer_slot(target_peer_id) != Some(i)
+				peer_slots.peer_slot(target_peer_id) != Some(i as usize)
 			);
 			_insert_event(
 				&mut peer_slots,
@@ -977,7 +982,7 @@ mod tests {
 				Duration::new(i as u64, 0),
 			);
 			let key = peer_slots.peer_slot(target_peer_id);
-			assert_eq!(key, Some(RESERVOIR_SIZE + RESERVOIR_SIZE/2 + 1 - i - 1));
+			assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE + RESERVOIR_SIZE/2 + 1 - i - 1));
 			for peer in peer_slots.peers.iter() {
 				if let Some(slot_idx) = peer_slots.peer_slot(peer) {
 					assert_eq!(&peer_slots.peers[slot_idx], peer);
@@ -986,7 +991,7 @@ mod tests {
 		}
 
 		for i in RESERVOIR_SIZE/4..RESERVOIR_SIZE/2 {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			assert_eq!(peer_slots.peer_slot(target_peer_id), Some(1));
 			_insert_event(
 				&mut peer_slots,
@@ -995,7 +1000,7 @@ mod tests {
 				FitnessEvent::Unexpected,
 				Duration::new(i as u64, 0),
 			);
-			assert_eq!(peer_slots.peer_slot(target_peer_id), Some(RESERVOIR_SIZE - i));
+			assert_eq!(peer_slots.peer_slot(target_peer_id), Some((RESERVOIR_SIZE - i) as usize));
 			for peer in peer_slots.peers.iter() {
 				if let Some(slot_idx) = peer_slots.peer_slot(peer) {
 					assert_eq!(&peer_slots.peers[slot_idx], peer);
@@ -1004,7 +1009,7 @@ mod tests {
 		}
 
 		for i in 1..RESERVOIR_SIZE/4 {
-			let (target_peer_id, target_collator_id) = &ids[i];
+			let (target_peer_id, target_collator_id) = &ids[i as usize];
 			_insert_event(
 				&mut peer_slots,
 				target_peer_id,
@@ -1015,9 +1020,9 @@ mod tests {
 			);
 			let key = peer_slots.peer_slot(target_peer_id);
 			if i == 0 {
-				assert_eq!(key, Some(0));
+				assert_eq!(key.map(|v| v as u32), Some(0));
 			} else {
-				assert_eq!(key, Some(RESERVOIR_SIZE - i));
+				assert_eq!(key.map(|v| v as u32), Some(RESERVOIR_SIZE - i));
 			}
 			for peer in peer_slots.peers.iter() {
 				if let Some(slot_idx) = peer_slots.peer_slot(peer) {
