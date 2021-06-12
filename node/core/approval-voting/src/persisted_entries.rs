@@ -54,8 +54,8 @@ impl TrancheEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
-	fn from(entry: crate::approval_db::v1::TrancheEntry) -> Self {
+impl From<crate::approval_db::v2::TrancheEntry> for TrancheEntry {
+	fn from(entry: crate::approval_db::v2::TrancheEntry) -> Self {
 		TrancheEntry {
 			tranche: entry.tranche,
 			assignments: entry.assignments.into_iter().map(|(v, t)| (v, t.into())).collect(),
@@ -63,7 +63,7 @@ impl From<crate::approval_db::v1::TrancheEntry> for TrancheEntry {
 	}
 }
 
-impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
+impl From<TrancheEntry> for crate::approval_db::v2::TrancheEntry {
 	fn from(entry: TrancheEntry) -> Self {
 		Self {
 			tranche: entry.tranche,
@@ -215,8 +215,8 @@ impl ApprovalEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
-	fn from(entry: crate::approval_db::v1::ApprovalEntry) -> Self {
+impl From<crate::approval_db::v2::ApprovalEntry> for ApprovalEntry {
+	fn from(entry: crate::approval_db::v2::ApprovalEntry) -> Self {
 		ApprovalEntry {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
 			backing_group: entry.backing_group,
@@ -228,7 +228,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 	}
 }
 
-impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
+impl From<ApprovalEntry> for crate::approval_db::v2::ApprovalEntry {
 	fn from(entry: ApprovalEntry) -> Self {
 		Self {
 			tranches: entry.tranches.into_iter().map(Into::into).collect(),
@@ -303,8 +303,8 @@ impl CandidateEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
-	fn from(entry: crate::approval_db::v1::CandidateEntry) -> Self {
+impl From<crate::approval_db::v2::CandidateEntry> for CandidateEntry {
+	fn from(entry: crate::approval_db::v2::CandidateEntry) -> Self {
 		CandidateEntry {
 			candidate: entry.candidate,
 			session: entry.session,
@@ -315,7 +315,7 @@ impl From<crate::approval_db::v1::CandidateEntry> for CandidateEntry {
 	}
 }
 
-impl From<CandidateEntry> for crate::approval_db::v1::CandidateEntry {
+impl From<CandidateEntry> for crate::approval_db::v2::CandidateEntry {
 	fn from(entry: CandidateEntry) -> Self {
 		Self {
 			candidate: entry.candidate,
@@ -439,8 +439,8 @@ impl BlockEntry {
 	}
 }
 
-impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
-	fn from(entry: crate::approval_db::v1::BlockEntry) -> Self {
+impl From<crate::approval_db::v2::BlockEntry> for BlockEntry {
+	fn from(entry: crate::approval_db::v2::BlockEntry) -> Self {
 		BlockEntry {
 			block_hash: entry.block_hash,
 			parent_hash: entry.parent_hash,
@@ -455,7 +455,7 @@ impl From<crate::approval_db::v1::BlockEntry> for BlockEntry {
 	}
 }
 
-impl From<BlockEntry> for crate::approval_db::v1::BlockEntry {
+impl From<BlockEntry> for crate::approval_db::v2::BlockEntry {
 	fn from(entry: BlockEntry) -> Self {
 		Self {
 			block_hash: entry.block_hash,

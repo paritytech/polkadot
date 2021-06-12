@@ -66,8 +66,8 @@ impl OurAssignment {
 	}
 }
 
-impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
-	fn from(entry: crate::approval_db::v1::OurAssignment) -> Self {
+impl From<crate::approval_db::v2::OurAssignment> for OurAssignment {
+	fn from(entry: crate::approval_db::v2::OurAssignment) -> Self {
 		OurAssignment {
 			cert: entry.cert,
 			tranche: entry.tranche,
@@ -77,7 +77,7 @@ impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
 	}
 }
 
-impl From<OurAssignment> for crate::approval_db::v1::OurAssignment {
+impl From<OurAssignment> for crate::approval_db::v2::OurAssignment {
 	fn from(entry: OurAssignment) -> Self {
 		Self {
 			cert: entry.cert,

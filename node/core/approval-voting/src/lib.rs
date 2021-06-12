@@ -73,7 +73,7 @@ mod import;
 mod time;
 mod persisted_entries;
 
-use crate::approval_db::v1::Config as DatabaseConfig;
+use crate::approval_db::v2::Config as DatabaseConfig;
 
 #[cfg(test)]
 mod tests;
@@ -467,7 +467,7 @@ mod approval_db_v1_reader {
 			&self,
 			block_hash: &Hash,
 		) -> SubsystemResult<Option<BlockEntry>> {
-			approval_db::v1::load_block_entry(&*self.inner, &self.config, block_hash)
+			approval_db::v2::load_block_entry(&*self.inner, &self.config, block_hash)
 				.map(|e| e.map(Into::into))
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
@@ -476,13 +476,13 @@ mod approval_db_v1_reader {
 			&self,
 			candidate_hash: &CandidateHash,
 		) -> SubsystemResult<Option<CandidateEntry>> {
-			approval_db::v1::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
+			approval_db::v2::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
 				.map(|e| e.map(Into::into))
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
 
 		fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
-			approval_db::v1::load_all_blocks(&*self.inner, &self.config)
+			approval_db::v2::load_all_blocks(&*self.inner, &self.config)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		}
 	}
@@ -688,7 +688,7 @@ async fn handle_actions(
 	mode: &mut Mode,
 	actions: impl IntoIterator<Item = Action>,
 ) -> SubsystemResult<bool> {
-	let mut transaction = approval_db::v1::Transaction::new(db_config);
+	let mut transaction = approval_db::v2::Transaction::new(db_config);
 	let mut conclude = false;
 
 	for action in actions {
@@ -951,7 +951,7 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			*last_finalized_height = Some(block_number);
 
-			approval_db::v1::canonicalize(db_writer, &db_config, block_number, block_hash)
+			approval_db::v2::canonicalize(db_writer, &db_config, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			wakeups.prune_finalized_wakeups(block_number);

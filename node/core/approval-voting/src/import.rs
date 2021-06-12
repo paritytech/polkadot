@@ -56,7 +56,7 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use crate::approval_db::{self, v1::Config as DatabaseConfig};
+use crate::approval_db::{self, v2::Config as DatabaseConfig};
 use crate::persisted_entries::CandidateEntry;
 use crate::criteria::{AssignmentCriteria, OurAssignment};
 use crate::time::{slot_number_to_tick, Tick};
@@ -565,7 +565,7 @@ pub(crate) async fn handle_new_head(
 			}
 		};
 
-		let block_entry = approval_db::v1::BlockEntry {
+		let block_entry = approval_db::v2::BlockEntry {
 			block_hash,
 			parent_hash: block_header.parent_hash,
 			block_number: block_header.number,
@@ -586,7 +586,7 @@ pub(crate) async fn handle_new_head(
 				"Enacting force-approve",
 			);
 
-			approval_db::v1::force_approve(db_writer, db_config, block_hash, up_to)
+			approval_db::v2::force_approve(db_writer, db_config, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		}
 
@@ -597,14 +597,14 @@ pub(crate) async fn handle_new_head(
 			"Writing BlockEntry",
 		);
 
-		let candidate_entries = approval_db::v1::add_block_entry(
+		let candidate_entries = approval_db::v2::add_block_entry(
 			db_writer,
 			&db_config,
 			block_entry,
 			n_validators,
 			|candidate_hash| {
 				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
-					.map(|(_, receipt, core, backing_group)| approval_db::v1::NewCandidateInfo {
+					.map(|(_, receipt, core, backing_group)| approval_db::v2::NewCandidateInfo {
 						candidate: receipt.clone(),
 						backing_group: *backing_group,
 						our_assignment: assignments.get(core).map(|a| a.clone().into()),
@@ -958,7 +958,7 @@ mod tests {
 
 		db.block_entries.insert(
 			known_hash,
-			crate::approval_db::v1::BlockEntry {
+			crate::approval_db::v2::BlockEntry {
 				block_hash: known_hash,
 				parent_hash: Default::default(),
 				block_number: known_number,
@@ -1035,7 +1035,7 @@ mod tests {
 
 		db.block_entries.insert(
 			head_hash,
-			crate::approval_db::v1::BlockEntry {
+			crate::approval_db::v2::BlockEntry {
 				block_hash: head_hash,
 				parent_hash: Default::default(),
 				block_number: 18,
@@ -1085,7 +1085,7 @@ mod tests {
 
 		db.block_entries.insert(
 			parent_hash,
-			crate::approval_db::v1::BlockEntry {
+			crate::approval_db::v2::BlockEntry {
 				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 18,
@@ -1133,7 +1133,7 @@ mod tests {
 
 		db.block_entries.insert(
 			parent_hash,
-			crate::approval_db::v1::BlockEntry {
+			crate::approval_db::v2::BlockEntry {
 				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 18,
@@ -1720,7 +1720,7 @@ mod tests {
 		let mut state = single_session_state(session, session_info);
 		state.db.block_entries.insert(
 			parent_hash.clone(),
-			crate::approval_db::v1::BlockEntry {
+			crate::approval_db::v2::BlockEntry {
 				block_hash: parent_hash.clone(),
 				parent_hash: Default::default(),
 				block_number: 4,
@@ -1753,7 +1753,7 @@ mod tests {
 				assert_eq!(candidates[1].1.approvals().len(), 6);
 				// the first candidate should be insta-approved
 				// the second should not
-				let entry: BlockEntry = crate::approval_db::v1::load_block_entry(
+				let entry: BlockEntry = crate::approval_db::v2::load_block_entry(
 					&db_writer,
 					&TEST_CONFIG,
 					&hash,

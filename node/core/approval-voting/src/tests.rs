@@ -322,7 +322,7 @@ fn add_block(
 ) {
 	db.block_entries.insert(
 		block_hash,
-		approval_db::v1::BlockEntry {
+		approval_db::v2::BlockEntry {
 			block_hash,
 			parent_hash: Default::default(),
 			block_number: 0,
@@ -348,7 +348,7 @@ fn add_candidate_to_block(
 
 	let candidate_entry = db.candidate_entries
 		.entry(candidate_hash)
-		.or_insert_with(|| approval_db::v1::CandidateEntry {
+		.or_insert_with(|| approval_db::v2::CandidateEntry {
 			session: block_entry.session(),
 			block_assignments: Default::default(),
 			candidate: CandidateReceipt::default(),
@@ -360,7 +360,7 @@ fn add_candidate_to_block(
 
 	candidate_entry.add_approval_entry(
 		block_hash,
-		approval_db::v1::ApprovalEntry {
+		approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group,
 			our_assignment: None,
@@ -872,10 +872,10 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -888,7 +888,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -919,10 +919,10 @@ fn assignment_not_triggered_by_all_with_threshold() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let mut candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -935,7 +935,7 @@ fn assignment_not_triggered_by_all_with_threshold() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -972,10 +972,10 @@ fn assignment_not_triggered_if_already_triggered() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -988,7 +988,7 @@ fn assignment_not_triggered_if_already_triggered() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1011,10 +1011,10 @@ fn assignment_not_triggered_by_exact() {
 	let block_hash = Hash::repeat_byte(0x01);
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -1027,7 +1027,7 @@ fn assignment_not_triggered_by_exact() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1051,10 +1051,10 @@ fn assignment_not_triggered_more_than_maximum() {
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -1067,7 +1067,7 @@ fn assignment_not_triggered_more_than_maximum() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1096,10 +1096,10 @@ fn assignment_triggered_if_at_maximum() {
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -1112,7 +1112,7 @@ fn assignment_triggered_if_at_maximum() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1141,10 +1141,10 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -1157,7 +1157,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1186,10 +1186,10 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 	let maximum_broadcast = 10;
 
 	let candidate_entry: CandidateEntry = {
-		let approval_entry = approval_db::v1::ApprovalEntry {
+		let approval_entry = approval_db::v2::ApprovalEntry {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
-			our_assignment: Some(approval_db::v1::OurAssignment {
+			our_assignment: Some(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
@@ -1202,7 +1202,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 			approved: false,
 		};
 
-		approval_db::v1::CandidateEntry {
+		approval_db::v2::CandidateEntry {
 			candidate: Default::default(),
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
@@ -1620,7 +1620,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		.unwrap()
 		.approval_entry_mut(&block_hash)
 		.unwrap()
-		.set_our_assignment(approval_db::v1::OurAssignment {
+		.set_our_assignment(approval_db::v2::OurAssignment {
 			cert: garbage_assignment_cert(
 				AssignmentCertKind::RelayVRFModulo { sample: 0 }
 			),
@@ -1698,7 +1698,7 @@ fn process_wakeup_schedules_wakeup() {
 		.unwrap()
 		.approval_entry_mut(&block_hash)
 		.unwrap()
-		.set_our_assignment(approval_db::v1::OurAssignment {
+		.set_our_assignment(approval_db::v2::OurAssignment {
 			cert: garbage_assignment_cert(
 				AssignmentCertKind::RelayVRFModulo { sample: 0 }
 			),
@@ -1781,7 +1781,7 @@ fn local_approval_import_always_updates_approval_entry() {
 				.approval_entry_mut(&block_hash)
 				.unwrap();
 
-			approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
+			approval_entry.set_our_assignment(approval_db::v2::OurAssignment {
 				cert: garbage_assignment_cert(
 					AssignmentCertKind::RelayVRFModulo { sample: 0 }
 				),
