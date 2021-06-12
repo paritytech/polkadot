@@ -98,12 +98,23 @@ pub struct IndirectAssignmentCert {
 	pub cert: AssignmentCert,
 }
 
+/// Kinds of approval votes.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub enum ApprovalVoteKind {
+	/// An approval on a candidate.
+	#[codec(index = 0)]
+	Approval,
+	/// A disapproval on a candidate.
+	#[codec(index = 1)]
+	Disapproval,
+}
+
 /// A signed approval vote which references the candidate indirectly via the block.
 ///
 /// In practice, we have a look-up from block hash and candidate index to candidate hash,
 /// so this can be transformed into a `SignedApprovalVote`.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct IndirectSignedApprovalVote {
+pub struct IndirectSignedApprovalOrDisapproval {
 	/// A block hash where the candidate appears.
 	pub block_hash: Hash,
 	/// The index of the candidate in the list of candidates fully included as-of the block.
@@ -112,22 +123,8 @@ pub struct IndirectSignedApprovalVote {
 	pub validator: ValidatorIndex,
 	/// The signature by the validator.
 	pub signature: ValidatorSignature,
-}
-
-/// A signed disapproval vote which references the candidate indirectly via the block.
-///
-/// In practice, we have a look-up from block hash and candidate index to candidate hash,
-/// so this can be transformed into a `SignedDisapprovalVote`.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct IndirectSignedDisapprovalVote {
-	/// A block hash where the candidate appears.
-	pub block_hash: Hash,
-	/// The index of the candidate in the list of candidates fully included as-of the block.
-	pub candidate_index: CandidateIndex,
-	/// The validator index.
-	pub validator: ValidatorIndex,
-	/// The signature by the validator.
-	pub signature: ValidatorSignature,
+	/// The kind of approval vote.
+	pub kind: ApprovalVoteKind,
 }
 
 /// Metadata about a block which is now live in the approval protocol.

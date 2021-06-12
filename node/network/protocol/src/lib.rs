@@ -298,11 +298,13 @@ pub mod v1 {
 	};
 
 	use polkadot_node_primitives::{
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		approval::{
+			IndirectAssignmentCert, IndirectSignedApprovalOrDisapproval, ApprovalVoteKind,
+		},
 		UncheckedSignedFullStatement,
 	};
 
-	
+
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
@@ -380,6 +382,56 @@ pub mod v1 {
 		}
 	}
 
+	/// A signed approval vote which references the candidate indirectly via the block.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectSignedApprovalVote {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The index of the candidate in the list of candidates fully included as-of the block.
+		pub candidate_index: CandidateIndex,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The signature by the validator.
+		pub signature: ValidatorSignature,
+	}
+
+	/// A signed disapproval vote which references the candidate indirectly via the block.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct IndirectSignedDisapprovalVote {
+		/// A block hash where the candidate appears.
+		pub block_hash: Hash,
+		/// The index of the candidate in the list of candidates fully included as-of the block.
+		pub candidate_index: CandidateIndex,
+		/// The validator index.
+		pub validator: ValidatorIndex,
+		/// The signature by the validator.
+		pub signature: ValidatorSignature,
+	}
+
+	impl Into<IndirectSignedApprovalOrDisapproval> for IndirectSignedApprovalVote {
+		fn into(self) -> IndirectSignedApprovalOrDisapproval {
+			IndirectSignedApprovalOrDisapproval {
+				block_hash: self.block_hash,
+				candidate_index: self.candidate_index,
+				validator: self.validator,
+				signature: self.signature,
+				kind: ApprovalVoteKind::Approval,
+			}
+		}
+	}
+
+	impl Into<IndirectSignedApprovalOrDisapproval> for IndirectSignedDisapprovalVote {
+		fn into(self) -> IndirectSignedApprovalOrDisapproval {
+			IndirectSignedApprovalOrDisapproval {
+				block_hash: self.block_hash,
+				candidate_index: self.candidate_index,
+				validator: self.validator,
+				signature: self.signature,
+				kind: ApprovalVoteKind::Disapproval,
+			}
+		}
+	}
+
 	/// Network messages used by the approval distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum ApprovalDistributionMessage {
@@ -391,6 +443,9 @@ pub mod v1 {
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),
+		/// Disapprovals for candidates in some recent, unfinalized block.
+		#[codec(index = 2)]
+		Disapprovals(Vec<IndirectSignedDisapprovalVote>),
 	}
 
 	/// Network messages used by the collator protocol subsystem
