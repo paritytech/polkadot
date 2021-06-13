@@ -14,9 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious actor.
+//! A malicious overseer.
+//!
+//! An example on how to use the `OverseerGen` pattern to
+//! instantiate a modified subsystem implementation
+//! for usage with simnet/gurke.
 
-#![warn(missing_docs)]
+#![allow(missing_docs)]
 
 use color_eyre::eyre;
 use polkadot_cli::{
@@ -27,6 +31,7 @@ use polkadot_cli::{
 		OverseerGen,
 		OverseerGenArgs,
 		RealOverseerGen,
+		create_default_subsystems,
 		SpawnNamed,
 		Block,
 		AuthorityDiscoveryApi,
@@ -39,20 +44,62 @@ use polkadot_cli::{
 	},
 };
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use structopt::StructOpt;
 
-/// Does some misbehavior.
-struct MisbehaveVariantA;
+use malus::*;
 
-impl OverseerGen for MisbehaveVariantA {
+/// Silly example, just drop every second outgoing message.
+#[derive(Clone, Default, Debug)]
+struct Skippy(Arc<AtomicUsize>);
+
+impl MsgFilter for Skippy {
+
+	type Message = AllMessages;
+
+	fn filter_in(&self, msg: Self::Message) -> Option<Self::Message> {
+		if self.0.fetch_add(1, Ordering::Relaxed) % 2 {
+			Some(msg)
+		} else {
+			None
+		}
+	}
+	fn filter_out(&self, msg: Self::Message) -> Option<Self::Message> {
+		Some(msg)
+	}
+}
+
+/// Generates an overseer that exposes bad behavior.
+struct BehaveMaleficient;
+
+impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(&self, args: OverseerGenArgs<'a, Spawner, RuntimeClient>) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin
 	{
-		let gen = RealOverseerGen;
-		RealOverseerGen::generate::<Spawner, RuntimeClient>(&gen, args)
+		let spawner = args.spawner.clone();
+		let leaves = args.leaves.clone();
+		let runtime_client = args.runtime_client.clone();
+		let registry = args.registry.clone();
+
+		// modify the subsystem(s) as needed:
+		let all_subsystems = create_default_subsystems(args)?
+			.replace_candidate_validation(
+				FilteredSubsystem::new(
+					args.candidate_validation,
+					Skippy::default()
+				)
+			);
+
+		Overseer::new(
+			leaves,
+			all_subsystems,
+			registry,
+			runtime_client,
+			spawner,
+		).map_err(|e| e.into())
 	}
 }
 
@@ -60,6 +107,6 @@ fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = Cli::from_args();
 	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, MisbehaveVariantA)?;
+	polkadot_cli::run_node(cli, BehaveMaleficient)?;
 	Ok(())
 }
