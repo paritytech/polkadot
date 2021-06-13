@@ -18,9 +18,6 @@
 //! and issuing a connection request to the validators relevant to
 //! the gossiping subsystems on every new session.
 
-#[cfg(test)]
-mod tests;
-
 use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_subsystem::{
@@ -37,6 +34,9 @@ use polkadot_primitives::v1::{
 use polkadot_node_network_protocol::peer_set::PeerSet;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use sp_application_crypto::{Public, AppKey};
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "parachain::gossip-support";
 // How much time should we wait since the last

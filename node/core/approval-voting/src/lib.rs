@@ -23,9 +23,10 @@
 
 use polkadot_node_subsystem::{
 	messages::{
-		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed, CandidateValidationMessage, AvailabilityRecoveryMessage,
+		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
+		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
+		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
+		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -33,20 +34,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
+	rolling_session_window::RollingSessionWindow,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex, GroupIndex,
+	CandidateIndex, GroupIndex, ApprovalVote,
 };
 use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
-	BlockApprovalMeta,
+	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
 use polkadot_node_jaeger as jaeger;
-use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
@@ -129,6 +129,7 @@ struct MetricsInner {
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
+	time_recover_and_approve: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -180,6 +181,10 @@ impl Metrics {
 
 	fn time_db_transaction(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
+	}
+
+	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
 	}
 }
 
@@ -246,6 +251,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"parachain_time_approval_db_transaction",
 						"Time spent writing an approval db transaction.",
+					)
+				)?,
+				registry,
+			)?,
+			time_recover_and_approve: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_recover_and_approve",
+						"Time spent recovering and approving data in approval voting",
 					)
 				)?,
 				registry,
@@ -497,7 +511,7 @@ struct ApprovalStatus {
 }
 
 struct State<T> {
-	session_window: import::RollingSessionWindow,
+	session_window: RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: T,
@@ -591,7 +605,7 @@ async fn run<C>(
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
-		session_window: Default::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
@@ -730,6 +744,7 @@ async fn handle_actions(
 
 				let handle = launch_approval(
 					ctx,
+					metrics.clone(),
 					background_tx.clone(),
 					session,
 					&candidate,
@@ -1226,15 +1241,6 @@ async fn handle_approved_ancestor(
 	Ok(all_approved_max)
 }
 
-fn approval_signing_payload(
-	approval_vote: ApprovalVote,
-	session_index: SessionIndex,
-) -> Vec<u8> {
-	const MAGIC: [u8; 4] = *b"APPR";
-
-	(MAGIC, approval_vote, session_index).encode()
-}
-
 // `Option::cmp` treats `None` as less than `Some`.
 fn min_prefer_some<T: std::cmp::Ord>(
 	a: Option<T>,
@@ -1329,14 +1335,17 @@ fn check_and_import_assignment(
 	let tick_now = state.clock.tick_now();
 	let block_entry = match state.db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
-		None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+		None => return Ok((AssignmentCheckResult::Bad(
+			AssignmentCheckError::UnknownBlock(assignment.block_hash),
+		), Vec::new())),
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+			return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::UnknownSessionIndex(block_entry.session()),
+			), Vec::new()));
 		}
 	};
 
@@ -1344,20 +1353,17 @@ fn check_and_import_assignment(
 		= match block_entry.candidate(candidate_index as usize)
 	{
 		Some((c, h)) => (*c, *h),
-		None => return Ok((AssignmentCheckResult::Bad, Vec::new())), // no candidate at core.
+		None => return Ok((AssignmentCheckResult::Bad(
+			AssignmentCheckError::InvalidCandidateIndex(candidate_index),
+		), Vec::new())), // no candidate at core.
 	};
 
 	let mut candidate_entry = match state.db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Missing candidate entry {} referenced in live block {}",
-				assigned_candidate_hash,
-				assignment.block_hash,
-			);
-
-			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+			return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::InvalidCandidate(candidate_index, assigned_candidate_hash),
+			), Vec::new()));
 		}
 	};
 
@@ -1367,7 +1373,9 @@ fn check_and_import_assignment(
 			candidate_entry.approval_entry_mut(&assignment.block_hash)
 		{
 			Some(a) => a,
-			None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+			None => return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::Internal(assignment.block_hash, assigned_candidate_hash),
+			), Vec::new())),
 		};
 
 		let res = state.assignment_criteria.check_assignment_cert(
@@ -1380,7 +1388,9 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::InvalidCert(assignment.validator),
+			), Vec::new())),
 			Ok(tranche) => {
 				let current_tranche = state.clock.tranche_now(
 					state.slot_duration_millis,
@@ -1450,56 +1460,69 @@ fn check_and_import_approval<T>(
 
 	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownBlock(approval.block_hash),
+			))
+		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownSessionIndex(block_entry.session()),
+			))
 		}
 	};
 
 	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
 		Some((_, h)) => *h,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
+		))
 	};
 
-	let approval_payload = approval_signing_payload(
-		ApprovalVote(approved_candidate_hash),
-		block_entry.session(),
-	);
+	let approval_payload = ApprovalVote(approved_candidate_hash)
+		.signing_payload(block_entry.session());
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
+		))
 	};
 
 	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
 
 	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad)
+		respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidSignature(approval.validator),
+		))
 	}
 
 	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Unknown candidate entry for {}",
-				approved_candidate_hash,
-			);
-
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::InvalidCandidate(approval.candidate_index, approved_candidate_hash),
+			))
 		}
 	};
 
 	// Don't accept approvals until assignment.
-	if candidate_entry.approval_entry(&approval.block_hash)
-		.map_or(true, |e| !e.is_assigned(approval.validator))
-	{
-		respond_early!(ApprovalCheckResult::Bad)
+	match candidate_entry.approval_entry(&approval.block_hash) {
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::Internal(approval.block_hash, approved_candidate_hash),
+			))
+		}
+		Some(e) if !e.is_assigned(approval.validator) => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::NoAssignment(approval.validator),
+			))
+		}
+		_ => {},
 	}
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
@@ -1869,6 +1892,7 @@ fn process_wakeup(
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
+	metrics: Metrics,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
@@ -1879,7 +1903,6 @@ async fn launch_approval(
 ) -> SubsystemResult<Option<RemoteHandle<()>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
-	let (context_num_tx, context_num_rx) = oneshot::channel();
 
 	let candidate_hash = candidate.hash();
 
@@ -1890,6 +1913,7 @@ async fn launch_approval(
 		"Recovering data.",
 	);
 
+	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
 		session_index,
@@ -1898,29 +1922,10 @@ async fn launch_approval(
 	).into()).await;
 
 	ctx.send_message(
-		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
-	).await;
-
-	let in_context_number = match context_num_rx.await {
-		Ok(Ok(Some(n))) => n,
-		Ok(Ok(None)) | Ok(Err(_)) | Err(_) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Could not launch approval work for candidate {:?}: Number of block {} unknown",
-				(candidate_hash, candidate.descriptor.para_id),
-				candidate.descriptor.relay_parent,
-			);
-
-			return Ok(None);
-		}
-	};
-
-	ctx.send_message(
 		RuntimeApiMessage::Request(
 			block_hash,
-			RuntimeApiRequest::HistoricalValidationCode(
-				candidate.descriptor.para_id,
-				in_context_number,
+			RuntimeApiRequest::ValidationCodeByHash(
+				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
 		).into()
@@ -1928,6 +1933,8 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let background = async move {
+		// Force the move of the timer into the background task.
+		let _timer = timer;
 		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
 			.with_relay_parent(block_hash)
 			.with_candidate(candidate_hash)
@@ -2167,10 +2174,7 @@ fn sign_approval(
 ) -> Option<ValidatorSignature> {
 	let key = keystore.key_pair::<ValidatorPair>(public).ok().flatten()?;
 
-	let payload = approval_signing_payload(
-		ApprovalVote(candidate_hash),
-		session_index,
-	);
+	let payload = ApprovalVote(candidate_hash).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
 }
