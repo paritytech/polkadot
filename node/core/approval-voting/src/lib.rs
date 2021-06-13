@@ -128,6 +128,7 @@ struct MetricsInner {
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
+	time_recover_and_approve: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -179,6 +180,10 @@ impl Metrics {
 
 	fn time_db_transaction(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
+	}
+
+	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
 	}
 }
 
@@ -245,6 +250,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"parachain_time_approval_db_transaction",
 						"Time spent writing an approval db transaction.",
+					)
+				)?,
+				registry,
+			)?,
+			time_recover_and_approve: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_recover_and_approve",
+						"Time spent recovering and approving data in approval voting",
 					)
 				)?,
 				registry,
@@ -729,6 +743,7 @@ async fn handle_actions(
 
 				let handle = launch_approval(
 					ctx,
+					metrics.clone(),
 					background_tx.clone(),
 					session,
 					&candidate,
@@ -1857,6 +1872,7 @@ fn process_wakeup(
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
+	metrics: Metrics,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
@@ -1877,6 +1893,7 @@ async fn launch_approval(
 		"Recovering data.",
 	);
 
+	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
 		session_index,
@@ -1896,6 +1913,8 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let background = async move {
+		// Force the move of the timer into the background task.
+		let _timer = timer;
 		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
 			.with_relay_parent(block_hash)
 			.with_candidate(candidate_hash)
