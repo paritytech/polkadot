@@ -6092,6 +6092,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-dispute-coordinator"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "derive_more",
+ "futures 0.3.15",
+ "kvdb",
+ "kvdb-memorydb",
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sc-keystore",
+ "sp-core",
+ "sp-keyring",
+ "sp-keystore",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-parachains-inherent"
 version = "0.1.0"
 dependencies = [
@@ -6221,6 +6245,7 @@ dependencies = [
  "sp-consensus-babe",
  "sp-consensus-vrf",
  "sp-core",
+ "sp-keystore",
  "sp-maybe-compressed-blob",
  "sp-runtime",
  "thiserror",
