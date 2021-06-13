@@ -452,7 +452,7 @@ enum DisputeDistributionMessage {
     known_valid_votes: Bitfield,
     known_invalid_votes: Bitfield,
     /// Optional validator to query from. `ValidatorIndex` as in the above
-    referenced session.
+    /// referenced session.
     from_validator: Option<ValidatorIndex>,
   }
   /// Tell the subsystem that a candidate is not available. Dispute distribution
