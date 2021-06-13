@@ -51,13 +51,13 @@ use {
 #[cfg(feature = "full-node")]
 pub use {
 	sp_blockchain::HeaderBackend,
-	sp_core::traits::SpawnNamed,
 	sp_consensus_babe::BabeApi,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sc_client_api::AuxStore,
 	polkadot_primitives::v1::ParachainHost,
 	polkadot_overseer::{Overseer, OverseerHandler},
 };
+pub use sp_core::traits::SpawnNamed;
 
 use polkadot_subsystem::jaeger;
 
