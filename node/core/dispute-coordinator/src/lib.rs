@@ -426,7 +426,7 @@ async fn handle_import_statements(
 			invalid: Vec::new(),
 		});
 
-	let was_undisputed = votes.valid.len() == 0 || votes.invalid.len() == 0;
+	let was_undisputed = votes.valid.is_empty() || votes.invalid.is_empty();
 
 	// Update candidate votes.
 	for (statement, val_index) in statements {
