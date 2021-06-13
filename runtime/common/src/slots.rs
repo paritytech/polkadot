@@ -140,7 +140,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::force_lease()]
-		fn force_lease(origin,
+		pub fn force_lease(origin,
 			para: ParaId,
 			leaser: T::AccountId,
 			amount: BalanceOf<T>,
@@ -157,7 +157,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::clear_all_leases()]
-		fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
+		pub fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let deposits = Self::all_deposits_held(para);
 
@@ -179,7 +179,7 @@ decl_module! {
 		///
 		/// Origin must be signed, but can be called by anyone.
 		#[weight = T::WeightInfo::trigger_onboard()]
-		fn trigger_onboard(origin, para: ParaId) -> DispatchResult {
+		pub fn trigger_onboard(origin, para: ParaId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let leases = Leases::<T>::get(para);
 			match leases.first() {

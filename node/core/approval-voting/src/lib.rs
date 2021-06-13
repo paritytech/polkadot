@@ -33,20 +33,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
+	rolling_session_window::RollingSessionWindow,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex, GroupIndex,
+	CandidateIndex, GroupIndex, ApprovalVote,
 };
 use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
-	BlockApprovalMeta,
+	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
 use polkadot_node_jaeger as jaeger;
-use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
@@ -129,6 +128,7 @@ struct MetricsInner {
 	candidate_approval_time_ticks: prometheus::Histogram,
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
+	time_recover_and_approve: prometheus::Histogram,
 }
 
 /// Aproval Voting metrics.
@@ -180,6 +180,10 @@ impl Metrics {
 
 	fn time_db_transaction(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
+	}
+
+	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
 	}
 }
 
@@ -246,6 +250,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"parachain_time_approval_db_transaction",
 						"Time spent writing an approval db transaction.",
+					)
+				)?,
+				registry,
+			)?,
+			time_recover_and_approve: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_time_recover_and_approve",
+						"Time spent recovering and approving data in approval voting",
 					)
 				)?,
 				registry,
@@ -497,7 +510,7 @@ struct ApprovalStatus {
 }
 
 struct State<T> {
-	session_window: import::RollingSessionWindow,
+	session_window: RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: T,
@@ -591,7 +604,7 @@ async fn run<C>(
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
-		session_window: Default::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
@@ -730,6 +743,7 @@ async fn handle_actions(
 
 				let handle = launch_approval(
 					ctx,
+					metrics.clone(),
 					background_tx.clone(),
 					session,
 					&candidate,
@@ -1226,15 +1240,6 @@ async fn handle_approved_ancestor(
 	Ok(all_approved_max)
 }
 
-fn approval_signing_payload(
-	approval_vote: ApprovalVote,
-	session_index: SessionIndex,
-) -> Vec<u8> {
-	const MAGIC: [u8; 4] = *b"APPR";
-
-	(MAGIC, approval_vote, session_index).encode()
-}
-
 // `Option::cmp` treats `None` as less than `Some`.
 fn min_prefer_some<T: std::cmp::Ord>(
 	a: Option<T>,
@@ -1466,10 +1471,8 @@ fn check_and_import_approval<T>(
 		None => respond_early!(ApprovalCheckResult::Bad)
 	};
 
-	let approval_payload = approval_signing_payload(
-		ApprovalVote(approved_candidate_hash),
-		block_entry.session(),
-	);
+	let approval_payload = ApprovalVote(approved_candidate_hash)
+		.signing_payload(block_entry.session());
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
@@ -1869,6 +1872,7 @@ fn process_wakeup(
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
+	metrics: Metrics,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
@@ -1879,7 +1883,6 @@ async fn launch_approval(
 ) -> SubsystemResult<Option<RemoteHandle<()>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
-	let (context_num_tx, context_num_rx) = oneshot::channel();
 
 	let candidate_hash = candidate.hash();
 
@@ -1890,6 +1893,7 @@ async fn launch_approval(
 		"Recovering data.",
 	);
 
+	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
 		session_index,
@@ -1898,29 +1902,10 @@ async fn launch_approval(
 	).into()).await;
 
 	ctx.send_message(
-		ChainApiMessage::BlockNumber(candidate.descriptor.relay_parent, context_num_tx).into()
-	).await;
-
-	let in_context_number = match context_num_rx.await {
-		Ok(Ok(Some(n))) => n,
-		Ok(Ok(None)) | Ok(Err(_)) | Err(_) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Could not launch approval work for candidate {:?}: Number of block {} unknown",
-				(candidate_hash, candidate.descriptor.para_id),
-				candidate.descriptor.relay_parent,
-			);
-
-			return Ok(None);
-		}
-	};
-
-	ctx.send_message(
 		RuntimeApiMessage::Request(
 			block_hash,
-			RuntimeApiRequest::HistoricalValidationCode(
-				candidate.descriptor.para_id,
-				in_context_number,
+			RuntimeApiRequest::ValidationCodeByHash(
+				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
 		).into()
@@ -1928,6 +1913,8 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let background = async move {
+		// Force the move of the timer into the background task.
+		let _timer = timer;
 		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
 			.with_relay_parent(block_hash)
 			.with_candidate(candidate_hash)
@@ -2167,10 +2154,7 @@ fn sign_approval(
 ) -> Option<ValidatorSignature> {
 	let key = keystore.key_pair::<ValidatorPair>(public).ok().flatten()?;
 
-	let payload = approval_signing_payload(
-		ApprovalVote(candidate_hash),
-		session_index,
-	);
+	let payload = ApprovalVote(candidate_hash).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
 }

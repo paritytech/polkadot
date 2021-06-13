@@ -97,7 +97,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
-		fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
+		pub fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone())
 				.map_err(|e| match e {
@@ -130,7 +130,7 @@ pub mod pallet {
 			};
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
-		fn teleport_assets(
+		pub fn teleport_assets(
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
@@ -188,7 +188,7 @@ pub mod pallet {
 			};
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
-		fn reserve_transfer_assets(
+		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
@@ -233,7 +233,7 @@ pub mod pallet {
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
-		fn execute(origin: OriginFor<T>, message: Box<Xcm<T::Call>>, max_weight: Weight)
+		pub fn execute(origin: OriginFor<T>, message: Box<Xcm<T::Call>>, max_weight: Weight)
 			-> DispatchResult
 		{
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;

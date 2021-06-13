@@ -191,7 +191,7 @@ impl DBReader for TestStore {
 
 fn blank_state() -> State<TestStore> {
 	State {
-		session_window: import::RollingSessionWindow::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: Arc::new(LocalKeystore::in_memory()),
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		db: TestStore::default(),
@@ -204,10 +204,11 @@ fn single_session_state(index: SessionIndex, info: SessionInfo)
 	-> State<TestStore>
 {
 	State {
-		session_window: import::RollingSessionWindow {
-			earliest_session: Some(index),
-			session_info: vec![info],
-		},
+		session_window: RollingSessionWindow::with_session_info(
+			APPROVAL_SESSIONS,
+			index,
+			vec![info],
+		),
 		..blank_state()
 	}
 }
@@ -231,7 +232,7 @@ fn sign_approval(
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
 ) -> ValidatorSignature {
-	key.sign(&super::approval_signing_payload(ApprovalVote(candidate_hash), session_index)).into()
+	key.sign(&ApprovalVote(candidate_hash).signing_payload(session_index)).into()
 }
 
 #[derive(Clone)]

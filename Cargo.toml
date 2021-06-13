@@ -48,6 +48,7 @@ members = [
 	"node/core/bitfield-signing",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
+	"node/core/dispute-coordinator",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",

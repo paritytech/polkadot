@@ -189,6 +189,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 	}
 
 	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol.clone(), multiaddresses.clone())?;
 		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 

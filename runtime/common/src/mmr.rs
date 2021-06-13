@@ -122,7 +122,6 @@ impl<T: Config + paras::Config> ParachainHeadsProvider for paras::Pallet<T> {
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
 	use super::*;
 
 	#[pallet::pallet]
@@ -158,12 +157,6 @@ pub mod pallet {
 		BeefyNextAuthoritySet<MerkleRootOf<T>>,
 		ValueQuery,
 	>;
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
 }
 
 impl<T: Config> LeafDataProvider for Pallet<T> where
