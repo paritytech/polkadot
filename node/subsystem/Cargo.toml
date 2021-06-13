@@ -20,6 +20,7 @@ pin-project = "1.0.7"
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-parachain = { path = "../../../parachain" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-procmacro-subsystem-dispatch-gen = { path = "dispatch-gen" }

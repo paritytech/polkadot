@@ -34,10 +34,11 @@ use polkadot_node_network_protocol::{
 	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
 	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
+use polkadot_parachain::primitives::PreValidationResult;
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, CollationGenerationConfig, ErasureChunk, PoV, SignedFullStatement,
-	ValidationResult,
+	PreValidationResult, ValidationResult,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -128,6 +129,11 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
+	/// Validate a collator with provided PreValidationParams for execution.
+	PreValidate(
+		PreValidationParams,	
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
