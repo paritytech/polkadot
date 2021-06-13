@@ -51,7 +51,7 @@ struct FilteredSender<Sender, Fil> {
 impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil>
 where
 	Sender: SubsystemSender,
-	Fil: MsgFilter,
+	Fil: MsgFilter<Message=AllMessages>,
 {
 	async fn send_message(&mut self, msg: AllMessages) {
 		if let Some(msg) = self.message_filter.filter_out(msg) {
@@ -61,9 +61,9 @@ where
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send {
-		for msg in msgs {
-			self.send_message(msg)
-		}
+		self.inner.send_message(msgs.into_iter().filter_map(|msg| {
+			self.message_filter.filter_out(msg)
+		}) ).await;
 	}
 
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
@@ -85,7 +85,7 @@ where
 	X: SubsystemContext,
 	Fil: MsgFilter,
 {
-	pub fn new(inner: X, message_filter: Fil) {
+	pub fn new(inner: X, message_filter: Fil) -> Self {
 		Self {
 			inner,
 			message_filter,
@@ -125,7 +125,7 @@ where
 	}
 
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
-		self.inner.spawn(name, s)
+		self.inner.spawn(name, s).await
 	}
 
 	async fn spawn_blocking(
@@ -133,11 +133,14 @@ where
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.inner.spawn_blocking(name, s)
+		self.inner.spawn_blocking(name, s).await
 	}
 
 	fn sender(&mut self) -> &mut Self::Sender {
-		self.inner.sender()
+		FilteredSender::<<X as SubsystemContext>::Sender, Fil> {
+			inner: self.inner.sender(),
+			message_filter: self.message_filter.clone(),
+		}
 	}
 }
 
