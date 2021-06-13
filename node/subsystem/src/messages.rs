@@ -34,7 +34,7 @@ use polkadot_node_network_protocol::{
 	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
 	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
-use polkadot_parachain::primitives::PreValidationParams;
+use polkadot_parachain::primitives::{PreValidationParams, PreValidationResult};
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, CollationGenerationConfig, ErasureChunk, PoV, SignedFullStatement,
@@ -133,8 +133,10 @@ pub enum CandidateValidationMessage {
 	),
 	/// Validate a collator with provided PreValidationParams for execution.
 	PreValidate(
+		ParaId,
+		Hash,
 		PreValidationParams,
-		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+		oneshot::Sender<Result<PreValidationResult, ValidationFailed>>,
 	),
 }
 
@@ -144,7 +146,7 @@ impl CandidateValidationMessage {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
 			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
-			Self::PreValidate(_, _) => None,
+			Self::PreValidate(_, _, _, _) => None,
 		}
 	}
 }

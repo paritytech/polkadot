@@ -169,9 +169,62 @@ async fn run(
 					}
 				}
 				CandidateValidationMessage::PreValidate(
-					_params,
-					_response_sender,
-				) => {}
+					para_id,
+					relay_parent,
+					params,
+					response_sender,
+				) => {
+					let (code_tx, code_rx) = oneshot::channel();
+					// TODO ensure that we needn't call this every time
+					let validation_code = match runtime_api_request(
+						&mut ctx,
+						relay_parent,
+						RuntimeApiRequest::ValidationCode(
+							para_id,
+							OccupiedCoreAssumption::Included,
+							code_tx,
+						),
+						code_rx,
+					).await {
+						Ok(Ok(Some(x))) => x,
+						Ok(Err(_)) => unimplemented!{"TODO Ladi"},
+						Ok(Ok(None)) => unimplemented!{"TODO Ladi"},
+						Err(e) => return Err(e),
+					};
+
+					let raw_validation_code = match sp_maybe_compressed_blob::decompress(
+						&validation_code.0,
+						VALIDATION_CODE_BOMB_LIMIT,
+					) {
+						Ok(code) => code,
+						Err(e) => {
+							tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+							// If the validation code is invalid, the candidate certainly is.
+							if let Err(_) = response_sender.send(
+								Err(ValidationFailed("Assumption Check: Bad request".into()))
+							) {
+								tracing::warn!(
+									target: LOG_TARGET,
+									"Requester of candidate pre-validation dropped",
+								)
+							}
+							continue;
+						}
+					};
+					let result = (&mut validation_host).validate_collator(
+							raw_validation_code.to_vec(),
+							params
+						)
+						.await
+						.map_err(|_| ValidationFailed("PreValidation Failed".into()));
+					if let Err(_) = response_sender.send(result) {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Requester of candidate pre-validation dropped",
+						)
+					}
+				}
 			}
 		}
 	}
