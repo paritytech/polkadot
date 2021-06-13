@@ -78,7 +78,7 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
 		config,
 		is_collator,
 		None,
