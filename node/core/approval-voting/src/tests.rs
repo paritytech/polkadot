@@ -580,9 +580,7 @@ fn rejects_approval_before_assignment() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad {
-		reason: "No assignment for 0".into(),
-	});
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(ValidatorIndex(0))));
 	assert!(actions.is_empty());
 }
 
@@ -614,9 +612,7 @@ fn rejects_approval_if_no_candidate_entry() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad {
-		reason: format!("Unknown candidate: {}", candidate_hash),
-	});
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(0, candidate_hash)));
 	assert!(actions.is_empty());
 }
 
@@ -654,9 +650,7 @@ fn rejects_approval_if_no_block_entry() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad {
-		reason: format!("Unknown block: {}", block_hash),
-	});
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(block_hash)));
 	assert!(actions.is_empty());
 }
 

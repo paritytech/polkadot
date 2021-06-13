@@ -23,9 +23,10 @@
 
 use polkadot_node_subsystem::{
 	messages::{
-		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed, CandidateValidationMessage, AvailabilityRecoveryMessage,
+		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
+		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
+		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
+		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -1445,26 +1446,26 @@ fn check_and_import_approval<T>(
 	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
 		None => {
-			respond_early!(ApprovalCheckResult::Bad {
-				reason: format!("Unknown block: {}", approval.block_hash),
-			})
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownBlock(approval.block_hash),
+			))
 		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			respond_early!(ApprovalCheckResult::Bad {
-				reason: format!("Unknown session index: {}", block_entry.session()),
-			})
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownSessionIndex(block_entry.session()),
+			))
 		}
 	};
 
 	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
 		Some((_, h)) => *h,
-		None => respond_early!(ApprovalCheckResult::Bad {
-			reason: format!("Invalid candidate index: {}", approval.candidate_index),
-		})
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
+		))
 	};
 
 	let approval_payload = ApprovalVote(approved_candidate_hash)
@@ -1472,35 +1473,41 @@ fn check_and_import_approval<T>(
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
-		None => respond_early!(ApprovalCheckResult::Bad {
-			reason: format!("Invalid validator index: {}", approval.validator.0),
-		})
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
+		))
 	};
 
 	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
 
 	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad {
-			reason: "Invalid signature".into(),
-		})
+		respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidSignature(approval.validator),
+		))
 	}
 
 	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			respond_early!(ApprovalCheckResult::Bad {
-				reason: format!("Unknown candidate: {}", approved_candidate_hash),
-			})
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::InvalidCandidate(approval.candidate_index, approved_candidate_hash),
+			))
 		}
 	};
 
 	// Don't accept approvals until assignment.
-	if candidate_entry.approval_entry(&approval.block_hash)
-		.map_or(true, |e| !e.is_assigned(approval.validator))
-    {
-		respond_early!(ApprovalCheckResult::Bad {
-			reason: format!("No assignment for {}", approval.validator.0),
-		})
+	match candidate_entry.approval_entry(&approval.block_hash) {
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::Internal(approval.block_hash, approved_candidate_hash),
+			))
+		}
+		Some(e) if !e.is_assigned(approval.validator) => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::NoAssignment(approval.validator),
+			))
+		}
+		_ => {},
 	}
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.

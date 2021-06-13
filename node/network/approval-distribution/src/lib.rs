@@ -860,12 +860,12 @@ impl State {
 						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
-				ApprovalCheckResult::Bad { reason } => {
+				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
 						?peer_id,
-						%reason,
+						%error,
 						"Got a bad approval from peer",
 					);
 					return;

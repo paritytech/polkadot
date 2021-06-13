@@ -74,10 +74,18 @@ enum ApprovalCheckResult {
     // The vote was accepted and should be propagated onwards.
     Accepted,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad {
-        /// The reason for the vote being bad.
-        reason: String,
-    },
+    Bad(ApprovalCheckError),
+}
+
+pub enum ApprovalCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidValidatorIndex(ValidatorIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidSignature(ValidatorIndex),
+    NoAssignment(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalVotingMessage {
