@@ -49,7 +49,10 @@ struct FilteredSender<Sender, Fil> {
 }
 
 #[async_trait::async_trait]
-impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil> where Sender: SubsystemSender {
+impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil>
+where
+	Sender: SubsystemSender,
+{
 	async fn send_message(&mut self, msg: AllMessages) {
 		if let Some(msg) = self.message_filter.filter_out(msg) {
 			self.inner.send_message(msg);
@@ -90,6 +93,7 @@ where
 	}
 }
 
+#[async_trait::async_trait]
 impl<X, Fil> SubsystemContext for FilteredContext<X, Fil>
 where
 	X: SubsystemContext,
@@ -143,10 +147,8 @@ struct FilteredSubsystem<Sub, Fil> {
 	pub message_filter: Fil,
 }
 
-impl<Context, Sub, Fil> FilteredSubsystem<Sub, Fil>
+impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
 where
-	Sub: Subsystem<Context>,
-	Context: SubsystemContext,
 	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
 {
 	fn new(subsystem: Sub, message_filter: Fil) -> Self {
@@ -157,7 +159,7 @@ where
 	}
 }
 
-impl<Context, Sub> Subsystem<Context> for FilteredSubsystem<Sub>
+impl<Context, Sub, Fil> Subsystem<Context> for FilteredSubsystem<Sub, Fil>
 where
 	Sub: Subsystem<Context>,
 	Context: SubsystemContext + Sync + Send,
