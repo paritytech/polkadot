@@ -624,13 +624,29 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint);
 					}
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an `AcceptedDuplicate` assignment",
+					);
 					return;
 				}
 				AssignmentCheckResult::TooFarInFuture => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an assignment too far in the future",
+					);
 					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return;
 				}
-				AssignmentCheckResult::Bad => {
+				AssignmentCheckResult::Bad(error) => {
+					tracing::info!(
+						target: LOG_TARGET,
+						?peer_id,
+						%error,
+						"Got a bad assignment from peer",
+					);
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					return;
 				}
@@ -844,11 +860,12 @@ impl State {
 						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
-				ApprovalCheckResult::Bad => {
+				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
 						?peer_id,
+						%error,
 						"Got a bad approval from peer",
 					);
 					return;

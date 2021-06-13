@@ -23,9 +23,10 @@
 
 use polkadot_node_subsystem::{
 	messages::{
-		AssignmentCheckResult, ApprovalCheckResult, ApprovalVotingMessage,
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ValidationFailed, CandidateValidationMessage, AvailabilityRecoveryMessage,
+		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
+		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
+		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
+		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -1334,14 +1335,17 @@ fn check_and_import_assignment(
 	let tick_now = state.clock.tick_now();
 	let block_entry = match state.db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
-		None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+		None => return Ok((AssignmentCheckResult::Bad(
+			AssignmentCheckError::UnknownBlock(assignment.block_hash),
+		), Vec::new())),
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+			return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::UnknownSessionIndex(block_entry.session()),
+			), Vec::new()));
 		}
 	};
 
@@ -1349,20 +1353,17 @@ fn check_and_import_assignment(
 		= match block_entry.candidate(candidate_index as usize)
 	{
 		Some((c, h)) => (*c, *h),
-		None => return Ok((AssignmentCheckResult::Bad, Vec::new())), // no candidate at core.
+		None => return Ok((AssignmentCheckResult::Bad(
+			AssignmentCheckError::InvalidCandidateIndex(candidate_index),
+		), Vec::new())), // no candidate at core.
 	};
 
 	let mut candidate_entry = match state.db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Missing candidate entry {} referenced in live block {}",
-				assigned_candidate_hash,
-				assignment.block_hash,
-			);
-
-			return Ok((AssignmentCheckResult::Bad, Vec::new()));
+			return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::InvalidCandidate(candidate_index, assigned_candidate_hash),
+			), Vec::new()));
 		}
 	};
 
@@ -1372,7 +1373,9 @@ fn check_and_import_assignment(
 			candidate_entry.approval_entry_mut(&assignment.block_hash)
 		{
 			Some(a) => a,
-			None => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+			None => return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::Internal(assignment.block_hash, assigned_candidate_hash),
+			), Vec::new())),
 		};
 
 		let res = state.assignment_criteria.check_assignment_cert(
@@ -1385,7 +1388,9 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad, Vec::new())),
+			Err(crate::criteria::InvalidAssignment) => return Ok((AssignmentCheckResult::Bad(
+				AssignmentCheckError::InvalidCert(assignment.validator),
+			), Vec::new())),
 			Ok(tranche) => {
 				let current_tranche = state.clock.tranche_now(
 					state.slot_duration_millis,
@@ -1455,20 +1460,27 @@ fn check_and_import_approval<T>(
 
 	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownBlock(approval.block_hash),
+			))
+		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::UnknownSessionIndex(block_entry.session()),
+			))
 		}
 	};
 
 	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
 		Some((_, h)) => *h,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
+		))
 	};
 
 	let approval_payload = ApprovalVote(approved_candidate_hash)
@@ -1476,33 +1488,41 @@ fn check_and_import_approval<T>(
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
+		))
 	};
 
 	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
 
 	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad)
+		respond_early!(ApprovalCheckResult::Bad(
+			ApprovalCheckError::InvalidSignature(approval.validator),
+		))
 	}
 
 	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Unknown candidate entry for {}",
-				approved_candidate_hash,
-			);
-
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::InvalidCandidate(approval.candidate_index, approved_candidate_hash),
+			))
 		}
 	};
 
 	// Don't accept approvals until assignment.
-	if candidate_entry.approval_entry(&approval.block_hash)
-		.map_or(true, |e| !e.is_assigned(approval.validator))
-	{
-		respond_early!(ApprovalCheckResult::Bad)
+	match candidate_entry.approval_entry(&approval.block_hash) {
+		None => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::Internal(approval.block_hash, approved_candidate_hash),
+			))
+		}
+		Some(e) if !e.is_assigned(approval.validator) => {
+			respond_early!(ApprovalCheckResult::Bad(
+				ApprovalCheckError::NoAssignment(approval.validator),
+			))
+		}
+		_ => {},
 	}
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.

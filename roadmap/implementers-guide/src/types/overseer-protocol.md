@@ -58,14 +58,34 @@ enum AssignmentCheckResult {
     // The vote was valid but too far in the future to accept right now.
     TooFarInFuture,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad(AssignmentCheckError),
+}
+
+pub enum AssignmentCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidCert(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalCheckResult {
     // The vote was accepted and should be propagated onwards.
     Accepted,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad(ApprovalCheckError),
+}
+
+pub enum ApprovalCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidValidatorIndex(ValidatorIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidSignature(ValidatorIndex),
+    NoAssignment(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalVotingMessage {
