@@ -842,6 +842,22 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+/// A vote of approval on a candidate.
+#[derive(Clone, RuntimeDebug)]
+pub struct ApprovalVote(pub CandidateHash);
+
+impl ApprovalVote {
+	/// Yields the signing payload for this approval vote.
+	pub fn signing_payload(
+		&self,
+		session_index: SessionIndex,
+	) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"APPR";
+
+		(MAGIC, &self.0, session_index).encode()
+	}
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
@@ -1064,6 +1080,60 @@ pub enum DisputeStatement {
 	Invalid(InvalidDisputeStatementKind),
 }
 
+impl DisputeStatement {
+	/// Get the payload data for this type of dispute statement.
+	pub fn payload_data(&self, candidate_hash: CandidateHash, session: SessionIndex) -> Vec<u8> {
+		 match *self {
+			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement {
+					valid: true,
+					candidate_hash,
+					session,
+				}.signing_payload()
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent)) => {
+				CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+					session_index: session,
+					parent_hash: inclusion_parent,
+				})
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) => {
+				CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
+					session_index: session,
+					parent_hash: inclusion_parent,
+				})
+			},
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) => {
+				ApprovalVote(candidate_hash).signing_payload(session)
+			},
+			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement {
+					valid: false,
+					candidate_hash,
+					session,
+				}.signing_payload()
+			},
+		}
+	}
+
+	/// Check the signature on a dispute statement.
+	pub fn check_signature(
+		&self,
+		validator_public: &ValidatorId,
+		candidate_hash: CandidateHash,
+		session: SessionIndex,
+		validator_signature: &ValidatorSignature,
+	) -> Result<(), ()> {
+		let payload = self.payload_data(candidate_hash, session);
+
+		if validator_signature.verify(&payload[..] , &validator_public) {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
+}
+
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub enum ValidDisputeStatementKind {
@@ -1072,10 +1142,10 @@ pub enum ValidDisputeStatementKind {
 	Explicit,
 	/// A seconded statement on a candidate from the backing phase.
 	#[codec(index = 1)]
-	BackingSeconded,
+	BackingSeconded(Hash),
 	/// A valid statement on a candidate from the backing phase.
 	#[codec(index = 2)]
-	BackingValid,
+	BackingValid(Hash),
 	/// An approval vote from the approval checking phase.
 	#[codec(index = 3)]
 	ApprovalChecking,
@@ -1090,7 +1160,7 @@ pub enum InvalidDisputeStatementKind {
 }
 
 /// An explicit statement on a candidate issued as part of a dispute.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
+#[derive(Clone, PartialEq, RuntimeDebug)]
 pub struct ExplicitDisputeStatement {
 	/// Whether the candidate is valid
 	pub valid: bool,
@@ -1098,6 +1168,15 @@ pub struct ExplicitDisputeStatement {
 	pub candidate_hash: CandidateHash,
 	/// The session index of the candidate.
 	pub session: SessionIndex,
+}
+
+impl ExplicitDisputeStatement {
+	/// Produce the payload used for signing this type of statement.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"DISP";
+
+		(MAGIC, self.valid, self.candidate_hash, self.session).encode()
+	}
 }
 
 /// A set of statements about a specific candidate.
@@ -1138,6 +1217,19 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// The maximum number of validators `f` which may safely be faulty.
+///
+/// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
+pub fn byzantine_threshold(n: usize) -> usize {
+	n.saturating_sub(1) / 3
+}
+
+/// The supermajority threshold of validators which represents a subset
+/// guaranteed to have at least f+1 honest validators.
+pub fn supermajority_threshold(n: usize) -> usize {
+	n - byzantine_threshold(n)
 }
 
 #[cfg(test)]
@@ -1189,5 +1281,29 @@ mod tests {
 			&Hash::repeat_byte(3),
 			&Hash::repeat_byte(4).into(),
 		);
+	}
+
+	#[test]
+	fn test_byzantine_threshold() {
+		assert_eq!(byzantine_threshold(0), 0);
+		assert_eq!(byzantine_threshold(1), 0);
+		assert_eq!(byzantine_threshold(2), 0);
+		assert_eq!(byzantine_threshold(3), 0);
+		assert_eq!(byzantine_threshold(4), 1);
+		assert_eq!(byzantine_threshold(5), 1);
+		assert_eq!(byzantine_threshold(6), 1);
+		assert_eq!(byzantine_threshold(7), 2);
+	}
+
+	#[test]
+	fn test_supermajority_threshold() {
+		assert_eq!(supermajority_threshold(0), 0);
+		assert_eq!(supermajority_threshold(1), 1);
+		assert_eq!(supermajority_threshold(2), 2);
+		assert_eq!(supermajority_threshold(3), 3);
+		assert_eq!(supermajority_threshold(4), 3);
+		assert_eq!(supermajority_threshold(5), 4);
+		assert_eq!(supermajority_threshold(6), 5);
+		assert_eq!(supermajority_threshold(7), 5);
 	}
 }

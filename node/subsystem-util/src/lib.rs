@@ -69,6 +69,8 @@ pub mod reexports {
 
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+/// A rolling session window cache.
+pub mod rolling_session_window;
 
 mod error_handling;
 

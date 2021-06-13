@@ -33,20 +33,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
+	rolling_session_window::RollingSessionWindow,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber, PersistedValidationData,
 	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex, GroupIndex,
+	CandidateIndex, GroupIndex, ApprovalVote,
 };
 use polkadot_node_primitives::{ValidationResult, PoV};
 use polkadot_node_primitives::approval::{
-	IndirectAssignmentCert, IndirectSignedApprovalVote, ApprovalVote, DelayTranche,
-	BlockApprovalMeta,
+	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
 use polkadot_node_jaeger as jaeger;
-use parity_scale_codec::Encode;
 use sc_keystore::LocalKeystore;
 use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
@@ -497,7 +496,7 @@ struct ApprovalStatus {
 }
 
 struct State<T> {
-	session_window: import::RollingSessionWindow,
+	session_window: RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	db: T,
@@ -591,7 +590,7 @@ async fn run<C>(
 {
 	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
-		session_window: Default::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
@@ -1226,15 +1225,6 @@ async fn handle_approved_ancestor(
 	Ok(all_approved_max)
 }
 
-fn approval_signing_payload(
-	approval_vote: ApprovalVote,
-	session_index: SessionIndex,
-) -> Vec<u8> {
-	const MAGIC: [u8; 4] = *b"APPR";
-
-	(MAGIC, approval_vote, session_index).encode()
-}
-
 // `Option::cmp` treats `None` as less than `Some`.
 fn min_prefer_some<T: std::cmp::Ord>(
 	a: Option<T>,
@@ -1466,10 +1456,8 @@ fn check_and_import_approval<T>(
 		None => respond_early!(ApprovalCheckResult::Bad)
 	};
 
-	let approval_payload = approval_signing_payload(
-		ApprovalVote(approved_candidate_hash),
-		block_entry.session(),
-	);
+	let approval_payload = ApprovalVote(approved_candidate_hash)
+		.signing_payload(block_entry.session());
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
@@ -2147,10 +2135,7 @@ fn sign_approval(
 ) -> Option<ValidatorSignature> {
 	let key = keystore.key_pair::<ValidatorPair>(public).ok().flatten()?;
 
-	let payload = approval_signing_payload(
-		ApprovalVote(candidate_hash),
-		session_index,
-	);
+	let payload = ApprovalVote(candidate_hash).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
 }
