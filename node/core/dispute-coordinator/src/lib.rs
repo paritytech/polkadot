@@ -172,11 +172,10 @@ async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
 					break;
 				}
 			}
-			Ok(true) => {
+			Ok(()) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break;
 			}
-			Ok(false) => continue,
 		}
 	}
 }
@@ -184,10 +183,10 @@ async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
 // Run the subsystem until an error is encountered or a `conclude` signal is received.
 // Most errors are non-fatal and should lead to another call to this function.
 //
-// A return value of `true` indicates that an exit should be made, while a return value of
-// `false` indicates that another iteration should be performed.
+// A return value of `Ok` indicates that an exit should be made, while non-fatal errors
+// lead to another call to this function.
 async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinatorSubsystem)
-	-> Result<bool, Error>
+	-> Result<(), Error>
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	let DisputeCoordinatorSubsystem { ref store, ref keystore, ref config } = *subsystem;
@@ -200,7 +199,7 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => {
-				return Ok(true)
+				return Ok(())
 			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				handle_new_activations(
