@@ -333,6 +333,13 @@ pub struct ValidationParams {
 	pub relay_parent_storage_root: Hash,
 }
 
+#[derive(PartialEq, Eq, Decode, Clone)]
+#[cfg_attr(feature = "std", derive(Debug, Encode))]
+pub struct PreValidationParams {
+	// Serialized input data for the parachain pre-validation function
+	pub statement: Vec<u8>,
+}
+
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Clone, Encode)]
@@ -352,4 +359,12 @@ pub struct ValidationResult {
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	pub hrmp_watermark: RelayChainBlockNumber,
+}
+
+/// The result of collator prevalidation
+#[derive(PartialEq, Eq, Clone, Encode)]
+#[cfg_attr(feature = "std", derive(Debug, Decode))]
+pub struct PreValidationResult {
+	/// Boolean to indicate whether pre-validation succeeded
+	pub valid: bool,
 }

@@ -40,7 +40,10 @@ use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, CandidateCommitments,
 };
-use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
+use polkadot_parachain::primitives::{
+	ValidationParams, PreValidationParams,
+	ValidationResult as WasmValidationResult, PreValidationResult as WasmPreValidationResult,
+};
 use polkadot_node_core_pvf::{Pvf, ValidationHost, ValidationError, InvalidCandidate as WasmInvalidCandidate};
 
 use parity_scale_codec::Encode;
@@ -431,6 +434,12 @@ async fn validate_candidate_exhaustive(
 
 #[async_trait]
 trait ValidationBackend {
+	async fn validate_collator(
+		&mut self,
+		raw_validation_code: Vec<u8>,
+		params: PreValidationParams,
+	) -> Result<WasmPreValidationResult, ValidationError>;	
+
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -440,6 +449,28 @@ trait ValidationBackend {
 
 #[async_trait]
 impl ValidationBackend for &'_ mut ValidationHost {
+	async fn validate_collator(
+		&mut self,
+		raw_validation_code: Vec<u8>,
+		params: PreValidationParams,
+	) -> Result<WasmPreValidationResult, ValidationError> {
+		let (tx, rx) = oneshot::channel();
+		if let Err(err) = self.execute_pprevf(
+			Pvf::from_code(raw_validation_code),
+			params.encode(),
+			polkadot_node_core_pvf::Priority::Normal,
+			tx,
+		).await {
+			return Err(ValidationError::InternalError(format!("cannot send pvf to the validation host: {:?}", err)));
+		}
+
+		let validation_result_buf: Vec<u8> = rx
+			.await
+			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))??;
+		
+		self.parse_prevalidation(validation_result_buf)
+	}
+
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -459,7 +490,7 @@ impl ValidationBackend for &'_ mut ValidationHost {
 			.await
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))??;
 		
-		self.parse(validation_result_buf)
+		self.parse_validation(validation_result_buf)
 	}
 }
 
@@ -900,10 +931,18 @@ mod tests {
 
 	#[async_trait]
 	impl ValidationBackend for MockValidatorBackend {
+		async fn validate_collator(
+			&mut self,
+			_raw_validation_code: Vec<u8>,
+			_params: PreValidationParams,
+		) -> Result<WasmPreValidationResult, ValidationError> {
+			Ok(WasmPreValidationResult{ valid: true })
+		}
+
 		async fn validate_candidate(
 			&mut self,
 			_raw_validation_code: Vec<u8>,
-			_params: ValidationParams
+			_params: ValidationParams,
 		) -> Result<WasmValidationResult, ValidationError> {
 			self.result.clone()
 		}

@@ -33,7 +33,7 @@ use always_assert::never;
 use async_std::{
 	path::{Path, PathBuf},
 };
-use polkadot_parachain::primitives::ValidationResult;
+use polkadot_parachain::primitives::{PreValidationResult, ValidationResult};
 use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 	channel::{mpsc, oneshot},
@@ -123,9 +123,26 @@ impl ValidationHost {
 	/// exported in the pvf.
 	/// 
 	/// Returns an error if the worker has generated an invalid Validation Result buffer
-	pub fn parse(&self, input: Vec<u8>) -> Result<ValidationResult, ValidationError> {
+	pub fn parse_validation(&self, input: Vec<u8>) -> Result<ValidationResult, ValidationError> {
 		use parity_scale_codec::Decode;
 		ValidationResult::decode(&mut &input[..]).map_err(|_| {
+			ValidationError::InvalidCandidate(
+				InvalidCandidate::WorkerReportedError("Worker produced invalid ValidationResult".to_string())
+			)
+		})
+	}
+
+
+	/// Utility function enabling to convert the ValidationResult buffer back to Validation Result
+	/// 
+	/// This function enables the implementation of the Candidate Validation subsystem to delineate
+	/// the entry-point of the PVF and the oneshot channel passed to the execution of any function
+	/// exported in the pvf.
+	/// 
+	/// Returns an error if the worker has generated an invalid Validation Result buffer
+	pub fn parse_prevalidation(&self, input: Vec<u8>) -> Result<PreValidationResult, ValidationError> {
+		use parity_scale_codec::Decode;
+		PreValidationResult::decode(&mut &input[..]).map_err(|_| {
 			ValidationError::InvalidCandidate(
 				InvalidCandidate::WorkerReportedError("Worker produced invalid ValidationResult".to_string())
 			)
