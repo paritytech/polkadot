@@ -58,13 +58,182 @@ pub struct OverseerGenArgs<'a, Spawner, RuntimeClient> where
 	pub candidate_validation_config: CandidateValidationConfig,
 }
 
+
+
+use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
+use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
+use polkadot_node_core_backing::CandidateBackingSubsystem;
+use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+use polkadot_node_core_chain_api::ChainApiSubsystem;
+use polkadot_node_collation_generation::CollationGenerationSubsystem;
+use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
+use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
+use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
+use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
+use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
+
+
+pub fn create_default_subsystems<'a, Spawner, RuntimeClient>
+(
+	OverseerGenArgs {
+		keystore,
+		runtime_client,
+		parachains_db,
+		availability_config,
+		approval_voting_config,
+		network_service,
+		authority_discovery_service,
+		request_multiplexer,
+		registry,
+		spawner,
+		is_collator,
+		candidate_validation_config,
+		..
+	} : OverseerGenArgs<'a, Spawner, RuntimeClient>
+) -> Result<
+	AllSubsystems<
+	CandidateValidationSubsystem,
+	CandidateBackingSubsystem<Spawner>,
+	StatementDistributionSubsystem,
+	AvailabilityDistributionSubsystem,
+	AvailabilityRecoverySubsystem,
+	BitfieldSigningSubsystem<Spawner>,
+	BitfieldDistributionSubsystem,
+	ProvisionerSubsystem<Spawner>,
+	RuntimeApiSubsystem<RuntimeClient>,
+	AvailabilityStoreSubsystem,
+	NetworkBridgeSubsystem<Arc<sc_network::NetworkService<Block, Hash>>, AuthorityDiscoveryService>,
+	ChainApiSubsystem<RuntimeClient>,
+	CollationGenerationSubsystem,
+	CollatorProtocolSubsystem,
+	ApprovalDistributionSubsystem,
+	ApprovalVotingSubsystem,
+	GossipSupportSubsystem,
+>,
+	Error
+>
+where
+	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
+	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Spawner: 'static + SpawnNamed + Clone + Unpin
+{
+	use polkadot_node_subsystem_util::metrics::Metrics;
+
+	let all_subsystems = AllSubsystems {
+		availability_distribution: AvailabilityDistributionSubsystem::new(
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
+		),
+		availability_store: AvailabilityStoreSubsystem::new(
+			parachains_db.clone(),
+			availability_config,
+			Metrics::register(registry)?,
+		),
+		bitfield_distribution: BitfieldDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		bitfield_signing: BitfieldSigningSubsystem::new(
+			spawner.clone(),
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		candidate_backing: CandidateBackingSubsystem::new(
+			spawner.clone(),
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		candidate_validation: CandidateValidationSubsystem::with_config(
+			candidate_validation_config,
+			Metrics::register(registry)?,
+		),
+		chain_api: ChainApiSubsystem::new(
+			runtime_client.clone(),
+			Metrics::register(registry)?,
+		),
+		collation_generation: CollationGenerationSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		collator_protocol: {
+			let side = match is_collator {
+				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
+					network_service.local_peer_id().clone(),
+					collator_pair,
+					Metrics::register(registry)?,
+				),
+				IsCollator::No => ProtocolSide::Validator {
+					keystore: keystore.clone(),
+					eviction_policy: Default::default(),
+					metrics: Metrics::register(registry)?,
+				},
+			};
+			CollatorProtocolSubsystem::new(
+				side,
+			)
+		},
+		network_bridge: NetworkBridgeSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service,
+			request_multiplexer,
+			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
+		),
+		provisioner: ProvisionerSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::register(registry)?,
+		),
+		runtime_api: RuntimeApiSubsystem::new(
+			runtime_client.clone(),
+			Metrics::register(registry)?,
+			spawner.clone(),
+		),
+		statement_distribution: StatementDistributionSubsystem::new(
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		approval_distribution: ApprovalDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		approval_voting: ApprovalVotingSubsystem::with_config(
+			approval_voting_config,
+			parachains_db,
+			keystore.clone(),
+			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
+		),
+		gossip_support: GossipSupportSubsystem::new(
+			keystore.clone(),
+		),
+	};
+	Ok(all_subsystems)
+}
+
+
 /// Trait for the fn generating the overseer.
+///
+/// Default behavior is to creat an unmodified overseer, as `RealOverseerGen`
+/// would do.
 pub trait OverseerGen {
+	/// Overwrite the full generation of the overseer, including the subsystems.
 	fn generate<'a, Spawner, RuntimeClient>(&self, args: OverseerGenArgs<'a, Spawner, RuntimeClient>) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-		Spawner: 'static + SpawnNamed + Clone + Unpin;
+		Spawner: 'static + SpawnNamed + Clone + Unpin {
+		let gen = RealOverseerGen;
+		RealOverseerGen::generate::<Spawner, RuntimeClient>(&gen, args)
+	}
+	// It would be nice to make `create_subsystems` part of this trait,
+	// but the amount of generic arguments that would be required as
+	// as consequence make this rather annoying to implement and use.
 }
 
 /// The regular set of subsystems.
@@ -72,142 +241,25 @@ pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {
 	fn generate<'a, Spawner, RuntimeClient>(&self,
-		OverseerGenArgs {
-			leaves,
-			keystore,
-			runtime_client,
-			parachains_db,
-			availability_config,
-			approval_voting_config,
-			network_service,
-			authority_discovery_service,
-			request_multiplexer,
-			registry,
-			spawner,
-			is_collator,
-			candidate_validation_config,
-			..
-		} : OverseerGenArgs<'a, Spawner, RuntimeClient>
+		args : OverseerGenArgs<'a, Spawner, RuntimeClient>
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin
 	{
-		use polkadot_node_subsystem_util::metrics::Metrics;
+		let spawner = args.spawner.clone();
+		let leaves = args.leaves.clone();
+		let runtime_client = args.runtime_client.clone();
+		let registry = args.registry.clone();
 
-		use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-		use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-		use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-		use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-		use polkadot_node_core_backing::CandidateBackingSubsystem;
-		use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-		use polkadot_node_core_chain_api::ChainApiSubsystem;
-		use polkadot_node_collation_generation::CollationGenerationSubsystem;
-		use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
-		use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-		use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-		use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-		use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-		use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
-		use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-		use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-		use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
-
-		let all_subsystems = AllSubsystems {
-			availability_distribution: AvailabilityDistributionSubsystem::new(
-				keystore.clone(),
-				Metrics::register(registry)?,
-			),
-			availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
-			),
-			availability_store: AvailabilityStoreSubsystem::new(
-				parachains_db.clone(),
-				availability_config,
-				Metrics::register(registry)?,
-			),
-			bitfield_distribution: BitfieldDistributionSubsystem::new(
-				Metrics::register(registry)?,
-			),
-			bitfield_signing: BitfieldSigningSubsystem::new(
-				spawner.clone(),
-				keystore.clone(),
-				Metrics::register(registry)?,
-			),
-			candidate_backing: CandidateBackingSubsystem::new(
-				spawner.clone(),
-				keystore.clone(),
-				Metrics::register(registry)?,
-			),
-			candidate_validation: CandidateValidationSubsystem::with_config(
-				candidate_validation_config,
-				Metrics::register(registry)?,
-			),
-			chain_api: ChainApiSubsystem::new(
-				runtime_client.clone(),
-				Metrics::register(registry)?,
-			),
-			collation_generation: CollationGenerationSubsystem::new(
-				Metrics::register(registry)?,
-			),
-			collator_protocol: {
-				let side = match is_collator {
-					IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
-						network_service.local_peer_id().clone(),
-						collator_pair,
-						Metrics::register(registry)?,
-					),
-					IsCollator::No => ProtocolSide::Validator {
-						keystore: keystore.clone(),
-						eviction_policy: Default::default(),
-						metrics: Metrics::register(registry)?,
-					},
-				};
-				CollatorProtocolSubsystem::new(
-					side,
-				)
-			},
-			network_bridge: NetworkBridgeSubsystem::new(
-				network_service.clone(),
-				authority_discovery_service,
-				request_multiplexer,
-				Box::new(network_service.clone()),
-				Metrics::register(registry)?,
-			),
-			provisioner: ProvisionerSubsystem::new(
-				spawner.clone(),
-				(),
-				Metrics::register(registry)?,
-			),
-			runtime_api: RuntimeApiSubsystem::new(
-				runtime_client.clone(),
-				Metrics::register(registry)?,
-				spawner.clone(),
-			),
-			statement_distribution: StatementDistributionSubsystem::new(
-				keystore.clone(),
-				Metrics::register(registry)?,
-			),
-			approval_distribution: ApprovalDistributionSubsystem::new(
-				Metrics::register(registry)?,
-			),
-			approval_voting: ApprovalVotingSubsystem::with_config(
-				approval_voting_config,
-				parachains_db,
-				keystore.clone(),
-				Box::new(network_service.clone()),
-				Metrics::register(registry)?,
-			),
-			gossip_support: GossipSupportSubsystem::new(
-				keystore.clone(),
-			),
-		};
+		let all_subsystems = create_default_subsystems::<Spawner, RuntimeClient>(args)?;
 
 		Overseer::new(
 			leaves,
 			all_subsystems,
 			registry,
-			runtime_client.clone(),
+			runtime_client,
 			spawner,
 		).map_err(|e| e.into())
 	}
