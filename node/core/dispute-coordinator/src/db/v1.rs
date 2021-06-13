@@ -322,13 +322,12 @@ pub(crate) fn note_current_session(
 			{
 				let end_prefix = candidate_votes_range_upper_bound(new_earliest);
 
-				let iter = store.iter_with_prefix(config.col_data, CANDIDATE_VOTES_SUBKEY)
+				store.iter_with_prefix(config.col_data, CANDIDATE_VOTES_SUBKEY)
 					.take_while(|(k, _)| &k[..] < &end_prefix[..])
-					.filter_map(|(k, _)| decode_candidate_votes_key(&k[..]));
-
-				for (session, candidate_hash) in iter {
-					tx.delete_candidate_votes(session, candidate_hash);
-				}
+					.filter_map(|(k, _)| decode_candidate_votes_key(&k[..]))
+					.for_each(|(session, candidate_hash)| {
+						tx.delete_candidate_votes(session, candidate_hash);
+					});
 			}
 		}
 		Some(_) => {
