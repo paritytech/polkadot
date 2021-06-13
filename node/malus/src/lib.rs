@@ -25,7 +25,7 @@ use std::pin::Pin;
 use std::future::Future;
 use polkadot_node_subsystem::messages::AllMessages;
 /// Filter incoming and outgoing messages.
-trait MsgFilter: Send + Clone + 'static {
+pub trait MsgFilter: Send + Clone + 'static {
 	type Message: Send + 'static;
 
 	/// Filter messages that are to be received by
@@ -42,7 +42,7 @@ trait MsgFilter: Send + Clone + 'static {
 
 /// A sender with the outgoing messages filtered.
 #[derive(Clone)]
-struct FilteredSender<Sender, Fil> {
+pub struct FilteredSender<Sender, Fil> {
 	inner: Sender,
 	message_filter: Fil,
 }
@@ -75,7 +75,7 @@ where
 }
 
 /// A subsystem context, that filters the outgoing messages.
-struct FilteredContext<X, Fil>{
+pub struct FilteredContext<X, Fil>{
 	inner: X,
 	message_filter: Fil,
 }
@@ -152,7 +152,7 @@ struct FilteredSubsystem<Sub, Fil> {
 
 impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
 {
-	fn new(subsystem: Sub, message_filter: Fil) -> Self {
+	pub fn new(subsystem: Sub, message_filter: Fil) -> Self {
 		Self {
 			subsystem,
 			message_filter,
