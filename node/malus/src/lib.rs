@@ -21,7 +21,8 @@
 //! messages on the overseer level.
 
 use polkadot_node_subsystem::*;
-
+use std::pin::Pin;
+use std::future::Future;
 
 /// Filter incoming and outgoing messages.
 trait MsgFilter: Send + Clone + 'static {
@@ -48,7 +49,7 @@ struct FilteredSender<Sender, Fil> {
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender for FilteredSender<Sender> where Sender: SubsystemSender {
+impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil> where Sender: SubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
 		if let Some(msg) = self.message_filter.filter_out(msg) {
 			self.inner.send_message(msg);
@@ -76,7 +77,11 @@ struct FilteredContext<X, Fil>{
 	message_filter: Fil,
 }
 
-impl FilteredContext<X: SubsystemContext, Fil: MsgFilter> {
+impl<X, Fil> FilteredContext<X, Fil>
+where
+	X: SubsystemContext,
+	Fil: MsgFilter,
+{
 	pub fn new(inner: X, message_filter: Fil) {
 		Self {
 			inner,
@@ -87,8 +92,8 @@ impl FilteredContext<X: SubsystemContext, Fil: MsgFilter> {
 
 impl<X, Fil> SubsystemContext for FilteredContext<X, Fil>
 where
-X: SubsystemContext,
-Fil: MsgFilter,
+	X: SubsystemContext,
+	Fil: MsgFilter,
 {
 	type Message = <X as SubsystemContext>::Message;
 	type Sender = FilteredSender<

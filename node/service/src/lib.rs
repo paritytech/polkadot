@@ -66,7 +66,9 @@ use std::time::Duration;
 
 use prometheus_endpoint::Registry;
 use service::RpcHandlers;
-use telemetry::{Telemetry, TelemetryWorker, TelemetryWorkerHandle};
+#[cfg(feature = "full-node")]
+use telemetry::{Telemetry, TelemetryWorkerHandle};
+use telemetry::TelemetryWorker;
 
 #[cfg(feature = "rococo-native")]
 pub use polkadot_client::RococoExecutor;
