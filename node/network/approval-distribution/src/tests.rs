@@ -594,7 +594,7 @@ fn import_approval_bad() {
 				tx,
 			)) => {
 				assert_eq!(vote, approval);
-				tx.send(ApprovalCheckResult::Bad).unwrap();
+				tx.send(ApprovalCheckResult::Bad { reason: "".into() }).unwrap();
 			}
 		);
 

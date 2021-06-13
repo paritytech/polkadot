@@ -1440,20 +1440,27 @@ fn check_and_import_approval<T>(
 
 	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => {
+			respond_early!(ApprovalCheckResult::Bad {
+				reason: format!("Unknown block: {}", approval.block_hash),
+			})
+		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "Unknown session info for {}", block_entry.session());
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad {
+				reason: format!("Unknown session index: {}", block_entry.session()),
+			})
 		}
 	};
 
 	let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
 		Some((_, h)) => *h,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad {
+			reason: format!("Invalid candidate index: {}", approval.candidate_index),
+		})
 	};
 
 	let approval_payload = ApprovalVote(approved_candidate_hash)
@@ -1461,33 +1468,35 @@ fn check_and_import_approval<T>(
 
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
-		None => respond_early!(ApprovalCheckResult::Bad)
+		None => respond_early!(ApprovalCheckResult::Bad {
+			reason: format!("Invalid validator index: {}", approval.validator.0),
+		})
 	};
 
 	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
 
 	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad)
+		respond_early!(ApprovalCheckResult::Bad {
+			reason: "Invalid signature".into(),
+		})
 	}
 
 	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"Unknown candidate entry for {}",
-				approved_candidate_hash,
-			);
-
-			respond_early!(ApprovalCheckResult::Bad)
+			respond_early!(ApprovalCheckResult::Bad {
+				reason: format!("Unknown candidate: {}", approved_candidate_hash),
+			})
 		}
 	};
 
 	// Don't accept approvals until assignment.
 	if candidate_entry.approval_entry(&approval.block_hash)
 		.map_or(true, |e| !e.is_assigned(approval.validator))
-	{
-		respond_early!(ApprovalCheckResult::Bad)
+    {
+		respond_early!(ApprovalCheckResult::Bad {
+			reason: format!("No assignment for {}", approval.validator.0),
+		})
 	}
 
 	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.

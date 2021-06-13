@@ -65,7 +65,9 @@ enum ApprovalCheckResult {
     // The vote was accepted and should be propagated onwards.
     Accepted,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad {
+        reason: String,
+    },
 }
 
 enum ApprovalVotingMessage {
