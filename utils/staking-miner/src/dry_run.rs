@@ -24,11 +24,18 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 	ext.execute_with(|| {
 		if <EPM::Snapshot<T>>::exists() {
 			log::info!(target: LOG_TARGET, "snapshot already exists.");
+			Ok(())
 		} else {
 			log::info!(target: LOG_TARGET, "creating a fake snapshot now.");
+			<EPM::Pallet<T>>::create_snapshot().map(|_| ()).map_err(Into::into)
 		}
-		let _ = <EPM::Pallet<T>>::create_snapshot()?;
-		Ok(())
+	})
+}
+
+fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
+	ext.execute_with(|| {
+		log::info!(target: LOG_TARGET, "Metadata: {:?}", <EPM::Pallet<T>>::snapshot_metadata());
+		log::info!(target: LOG_TARGET, "Encoded Length: {:?}", <EPM::Pallet<T>>::snapshot().encode().len());
 	})
 }
 
@@ -43,6 +50,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
+		measure_snapshot_size::<Runtime>(&mut ext);
 		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 

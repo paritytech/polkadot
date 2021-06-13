@@ -84,7 +84,10 @@ macro_rules! construct_runtime_prelude {
 							let (call, extra, _) = raw_payload.deconstruct();
 							let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
 							let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
-							log::debug!(target: crate::LOG_TARGET, "constructed extrinsic {:?}", extrinsic);
+							log::debug!(
+								target: crate::LOG_TARGET, "constructed extrinsic {}",
+								sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode())
+							);
 							extrinsic
 						}
 					}
@@ -461,7 +464,7 @@ fn mine_dpos<T: EPM::Config>(
 	ext.execute_with(|| {
 		use EPM::RoundSnapshot;
 		use std::collections::BTreeMap;
-		let RoundSnapshot { voters, targets } = EPM::Snapshot::<T>::get().unwrap();
+		let RoundSnapshot { voters, .. } = EPM::Snapshot::<T>::get().unwrap();
 		let desired_targets = EPM::DesiredTargets::<T>::get().unwrap();
 		let mut candidates_and_backing = BTreeMap::<T::AccountId, u128>::new();
 		voters.into_iter().for_each(|(who, stake, targets)| {
