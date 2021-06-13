@@ -44,6 +44,9 @@ use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 use crate::error::{Fatal, NonFatal, log_error};
 use super::{LOG_TARGET,  Result};
 
+#[cfg(test)]
+mod tests;
+
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 
 #[derive(Clone, Default)]
@@ -866,6 +869,3 @@ pub(crate) async fn run(
 		}
 	}
 }
-
-#[cfg(test)]
-mod tests;
