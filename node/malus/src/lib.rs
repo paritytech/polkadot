@@ -24,6 +24,8 @@ use polkadot_node_subsystem::*;
 use std::pin::Pin;
 use std::future::Future;
 use polkadot_node_subsystem::messages::AllMessages;
+use polkadot_node_subsystem::FromOverseer;
+
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Clone + 'static {
 	type Message: Send + 'static;
@@ -61,7 +63,7 @@ where
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send {
-		self.inner.send_message(msgs.into_iter().filter_map(|msg| {
+		self.inner.send_messages(msgs.into_iter().filter_map(|msg| {
 			self.message_filter.filter_out(msg)
 		}) ).await;
 	}
@@ -75,9 +77,13 @@ where
 }
 
 /// A subsystem context, that filters the outgoing messages.
-pub struct FilteredContext<X, Fil>{
+pub struct FilteredContext<X: SubsystemContext, Fil: MsgFilter>{
 	inner: X,
 	message_filter: Fil,
+	sender: FilteredSender<
+		<X as SubsystemContext>::Sender,
+		Fil,
+	>
 }
 
 impl<X, Fil> FilteredContext<X, Fil>
@@ -86,9 +92,14 @@ where
 	Fil: MsgFilter,
 {
 	pub fn new(inner: X, message_filter: Fil) -> Self {
+		let sender = FilteredSender::<<X as SubsystemContext>::Sender, Fil> {
+			inner: inner.sender().clone(),
+			message_filter: message_filter.clone(),
+		};
 		Self {
 			inner,
 			message_filter,
+			sender,
 		}
 	}
 }
@@ -97,7 +108,7 @@ where
 impl<X, Fil> SubsystemContext for FilteredContext<X, Fil>
 where
 	X: SubsystemContext,
-	Fil: MsgFilter,
+	Fil: MsgFilter<Message=FromOverseer<<X as polkadot_node_subsystem::SubsystemContext>::Message>>,
 {
 	type Message = <X as SubsystemContext>::Message;
 	type Sender = FilteredSender<
@@ -137,10 +148,7 @@ where
 	}
 
 	fn sender(&mut self) -> &mut Self::Sender {
-		FilteredSender::<<X as SubsystemContext>::Sender, Fil> {
-			inner: self.inner.sender(),
-			message_filter: self.message_filter.clone(),
-		}
+		&mut self.sender
 	}
 }
 
