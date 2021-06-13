@@ -1867,6 +1867,7 @@ fn process_wakeup(
 // Launch approval work, returning an `AbortHandle` which corresponds to the background task
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
+// TODO How do we leverage this for prevalidation of collators
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,

@@ -168,6 +168,10 @@ async fn run(
 						Err(e) => return Err(e),
 					}
 				}
+				CandidateValidationMessage::PreValidate(
+					_params,
+					_response_sender,
+				) => {}
 			}
 		}
 	}
