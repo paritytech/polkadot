@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -182,6 +182,8 @@ async fn participate(
 	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
 	let (validation_tx, validation_rx) = oneshot::channel();
 
+	// in order to validate a candidate we need to start by recovering the
+	// available data
 	ctx.send_message(
 		AvailabilityRecoveryMessage::RecoverAvailableData(
 			candidate_receipt.clone(),
@@ -196,6 +198,8 @@ async fn participate(
 	let available_data = match recover_available_data_rx.await? {
 		Ok(data) => data,
 		Err(RecoveryError::Invalid) => {
+			// the available data was recovered but it is invalid, therefore we'll
+			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			return Ok(());
 		}
@@ -204,6 +208,8 @@ async fn participate(
 		}
 	};
 
+	// we also need to fetch the validation code which we can reference by its
+	// hash as taken from the candidate descriptor
 	ctx.send_message(
 		RuntimeApiMessage::Request(
 			block_hash,
@@ -230,6 +236,9 @@ async fn participate(
 		}
 	};
 
+	// we dispatch a request to store the available data for the candidate. we
+	// want to maximize data availability for other potential checkers involved
+	// in the dispute
 	ctx.send_message(
 		AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
@@ -253,6 +262,8 @@ async fn participate(
 		Ok(()) => {}
 	}
 
+	// we issue a request to validate the candidate with the provided exhaustive
+	// parameters
 	ctx.send_message(
 		CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
@@ -265,6 +276,8 @@ async fn participate(
 	)
 	.await;
 
+	// we cast votes (either positive or negative) depending on the outcome of
+	// the validation and if valid, whether the commitments hash matches
 	match validation_rx.await? {
 		Err(err) => {
 			tracing::warn!(
