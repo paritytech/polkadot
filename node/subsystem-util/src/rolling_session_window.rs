@@ -231,7 +231,7 @@ impl RollingSessionWindow {
 						Err(SessionsUnavailable {
 							kind,
 							info: Some(SessionsUnavailableInfo {
-								window_start: latest +1,
+								window_start: fresh_start,
 								window_end: session_index,
 								block_hash,
 							}),
