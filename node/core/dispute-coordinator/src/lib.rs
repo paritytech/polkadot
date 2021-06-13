@@ -483,13 +483,11 @@ async fn handle_import_statements(
 			|active| active.insert(session, candidate_hash),
 		)?;
 
-		let voted_indices = votes.voted_indices();
-
 		ctx.send_message(DisputeParticipationMessage::Participate {
 			candidate_hash,
 			candidate_receipt,
 			session,
-			voted_indices,
+			n_validators: n_validators as u32,
 		}.into()).await;
 	}
 

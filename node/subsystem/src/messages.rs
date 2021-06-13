@@ -250,9 +250,9 @@ pub enum DisputeParticipationMessage {
 		candidate_receipt: CandidateReceipt,
 		/// The session the candidate appears in.
 		session: SessionIndex,
-		/// The indices of validators who have already voted on this candidate.
-		voted_indices: Vec<ValidatorIndex>,
-	}
+		/// The number of validators in the session.
+		n_validators: u32,
+	},
 }
 
 /// Messages received by the network bridge subsystem.
