@@ -147,11 +147,7 @@ struct FilteredSubsystem<Sub, Fil> {
 	pub message_filter: Fil,
 }
 
-impl<Sub, Fil, Context> FilteredSubsystem<Sub, Fil>
-where
-	Context: SubsystemContext + Sync + Send,
-	Sub: Subsystem<Context>,
-	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
+impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
 {
 	fn new(subsystem: Sub, message_filter: Fil) -> Self {
 		Self {
