@@ -1,5 +1,7 @@
 # Dispute Distribution
 
+Dispute distribution is responsible for ensuring all concerned validators will be aware of a dispute and have the relevant votes.
+
 ## Design Goals
 
 This design should result in a protocol that is:
@@ -34,10 +36,10 @@ Request:
 ```rust
 struct DisputeRequest {
   // Either initiating invalid vote or our own (if we voted invalid).
-  invalid_vote: SignedV2<InvalidVote>,
+  invalid_vote: InvalidVote,
   // Some invalid vote (can be from backing/approval) or our own if we voted
   // valid.
-  valid_vote: SignedV2<ValidVote>,
+  valid_vote: ValidVote,
 }
 
 struct InvalidVote {
@@ -57,6 +59,9 @@ struct VoteSubject {
   validator_index: ValidatorIndex,
   /// The session the candidate appears in.
   candidate_session: SessionIndex,
+  /// The validator signature, that can be verified when constructing a
+  `SignedDisputeStatement`.
+  validator_signature: ValidatorSignature,
 }
 ```
 
@@ -76,10 +81,10 @@ Protocol: "/polkadot/vote-recovery/1"
 struct IHaveVotesRequest {
   candidate_hash: CandidateHash,
   session: SessionIndex,
-  votes: VotesBitfield,
+  valid_votes: Bitfield,
+  invalid_votes: Bitfield,
 }
 
-struct VotesBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 ```
 
 Response:
@@ -88,9 +93,6 @@ Response:
 struct VotesResponse {
   /// All votes we have, but the requester was missing.
   missing: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
-  /// Any additional equivocating votes, we transmit those even if the sender
-  /// claims to have votes for that validator (as it might only have one).
-  equivocating: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 ```
 
@@ -105,15 +107,15 @@ be the confirmation. See [above][#wire-format].
 
 ### Starting a Dispute
 
-A dispute is initiated once a node sends the first `Dispute` wire message,
-which must contain an "invalid" vote and some "valid" vote.
+A dispute is initiated once a node sends the first `DisputeRequest` wire message,
+which must contain an "invalid" vote and a "valid" vote.
 
-The dispute distribution subsystem can instructed to send that message out to
+The dispute distribution subsystem can get instructed to send that message out to
 all concerned validators by means of a `DisputeDistributionMessage::SendDispute`
 message. That message must contain an invalid vote from the local node and some
 valid one, e.g. a backing statement.
 
-We include a valid vote as well so any node regardless of whether it is synced
+We include a valid vote as well, so any node regardless of whether it is synced
 with the chain or not or has seen backing/approval vote can see that there are
 conflicting votes available, hence we have a valid dispute. Nodes will still
 need to check whether the disputing votes are somewhat current and not some
@@ -121,7 +123,7 @@ stale ones.
 
 ### Participating in a Dispute
 
-Upon receiving a `Dispute` message, a dispute distribution will trigger the
+Upon receiving a `DisputeRequest` message, a dispute distribution will trigger the
 import of the received votes via the dispute coordinator
 (`DisputeCoordinatorMessage::ImportStatements`). The dispute coordinator will
 take care of participating in that dispute if necessary. Once it is done, the
@@ -133,38 +135,109 @@ initially received `Invalid` vote.
 
 ### Sending of messages
 
-Starting and participting in a dispute are pretty similar from the perspective
+Starting and participating in a dispute are pretty similar from the perspective
 of disptute distribution. Once we receive a `SendDispute` message we try to make
 sure to get the data out. We keep track of all the parachain validators that
 should see the message, which are all the parachain validators of the session
 where the dispute happened as they will want to participate in the dispute.  In
 addition we also need to get the votes out to all authorities of the current
-session (which might be the same or not). Those authorities will not
-participtate in the dispute, but need to see the statements so they can include
-them in blocks.
+session (which might be the same or not and may change during the dispute).
+Those authorities will not participate in the dispute, but need to see the
+statements so they can include them in blocks.
 
 We keep track of connected parachain validators and authorities and will issue
 warnings in the logs if connected nodes are less than two thirds of the
 corresponding sets. We also only consider a message transmitted, once we
-received a confirmation message. If not we will keep retrying getting that
+received a confirmation message. If not, we will keep retrying getting that
 message out as long as the dispute is deemed alive. To determine whether a
 dispute is still alive we will issue a
 `DisputeCoordinatorMessage::ActiveDisputes` message before each retry run. Once
-a dispute is no longer live, we will clean up the state coordingly.
+a dispute is no longer live, we will clean up the state accordingly.
 
-To cather with spam issues, we will in a first implementation only consider
-disputes of already included data. Therefore only for candidates that are
-already available. These are the only disputes representing an actual threat to
-the system and are also the easiest to implement with regards to spam.
-
-Votes can still be old/ not relevant. In this case we will drop those messages
-and we might want to decrease reputation of peers sending old data.
-
-### Reception
+### Reception & Spam Considerations
 
 Because we are not forwarding foreign statements, spam is not so much of
 an issue. Rate limiting should be implemented at the substrate level, see
-[#7750](https://github.com/paritytech/substrate/issues/7750).
+[#7750](https://github.com/paritytech/substrate/issues/7750). Still we should
+make sure that it is not possible via spamming to prevent a dispute concluding
+or worse from getting noticed.
+
+Considered attack vectors:
+
+1. A flood of invalid statements could make us run out of resources. E.g. if we
+   recorded every statement, we could run out of disk space eventually.
+2. An attacker can just flood us with notifications on any notification
+   protocol, assuming flood protection is not effective enough, our unbounded
+   buffers can fill up and we will run out of memory eventually.
+3. Attackers could spam us with invalid disputes (dispute statements that don't
+   exist). Our incoming queue of requests could get monopolized by those
+   malicious requests and we won't be able to import any valid disputes and we
+   could run out of resources.
+
+For tackling 1, we make sure to not occupy resources before we don't know a
+candidate is available. So we will not record those statements to disk until we
+recovered availability for the candidate or know by some other means that it is
+valid.
+
+For 2, we will pick up on any dispute on restart, so assuming that any realistic
+memory filling attack will take some time, we should be able to participate in a
+dispute under such attacks.
+
+For 3, full monopolization of the incoming queue should not be possible assuming
+substrate handles incoming requests in a somewhat fair way. Still we want some defense mechanisms, at the very least we need to make sure to not exhaust resources.
+
+The dispute coordinator will notify us
+via `DisputeDistributionMessage::ReportCandidateUnavailable` about unavailable
+candidates and we can disconnect from such peers/decrease their reputation
+dramatically. This alone should get us quite far with regards to queue
+monopolization, as availability recovery is expected to fail relatively quickly
+for unavailable data.
+
+Still if those spam messages come at a very high rate, we might still run out of
+resources if we immediately call `DisputeCoordinatorMessage::ImportStatements`
+on each one of them. Secondly with our assumption of 1/3 dishonest validators,
+getting rid of all of them will take some time, depending on reputation timeouts
+some of them might even be able to reconnect eventually.
+
+To mitigate those issues we will process dispute messages with a maximum
+parallelism `N`. We initiate import processes for up to `N` candidates in
+parallel. Once we reached `N` parallel requests we will start back pressuring on
+the incoming requests. This saves us from resource exhaustion.
+
+To reduce impact of malicious nodes further, we can keep track from which nodes the
+currently importing statements came from and will drop requests from nodes that
+already have imports in flight.
+
+Honest nodes are not expected to send dispute statements at a high rate, but
+even if they did - we will import at least the first one and if it is valid it
+will trigger a dispute, preventing finality. For the dropped request any honest
+node will retry sending. Also there will be other nodes notifying us about that
+dispute and chances are good that the first sent candidate is indeed the oldest
+one (if they differ in age at all). So this general rate limit, that we drop
+requests if they come faster than we can import the statements should not cause
+any problems. At the same time we maximize chances for other validators to be
+able to notify us about disputes quickly. Whether this optimization is worth
+the trouble is up for discussion.
+
+Size of `N`: For performance it makes sense to make `N` greater then one for
+some pipelining. If we implement the above optimization, a greater `N` allows us
+to take care of colluding spammers a bit better. It should defintely not be too
+large as multiple availability recovery processes just slow each other down and
+we want one to finish. If we don't go with the above optimization, I would
+suggest
+
+The larger `N` the better we can handle distributed flood attacks,
+but we also get potentially more availability recovery processes happening at
+the same time, which slows down the individual processes. And we rather want to
+have one finish quickly than lots slowly at the same time. On the other hand
+valid disputes are expected to be rare, so if we ever exhaust `N` it is very
+likely that this is caused by spam and spam recoveries don't cost too much
+bandwidth due to empty responses.
+
+Considering that an attacker would need to attack many nodes in parallel to have
+any effect, an `N` of 10 seems to be a good compromise. For honest requests, most
+of those imports will likely concern the same candidate, and for dishonest ones
+we get to disconnect from up to ten colluding adversaries at a time.
 
 ### Node Startup
 
@@ -183,7 +256,7 @@ We assume that under normal operation each node will be aware of backing and
 approval votes and optimize for that case. Nevertheless we want disputes to
 conclude fast and reliable, therefore if a node is not aware of backing/approval
 votes it can request the missing votes from the node that informed it about the
-dispute.
+dispute (see [Resiliency](#Resiliency])
 
 ## Resiliency
 
@@ -206,16 +279,15 @@ votes. E.g. after some timeout, if no majority was reached yet in their point of
 view or if they are not aware of any backing/approval votes for a received
 disputed candidate.
 
-The receiver of a `IHaveVotesRequests` message will do the following:
+The receiver of a `IHaveVotesRequest` message will do the following:
 
 1. See if the sender is missing votes we are aware of - if so, respond with
-   those votes. Also send votes of equivocating validators, no matter the
-   bitfield.
+   those votes.
 2. Check whether the sender knows about any votes, we don't know about and if so
-   send a `IHaveVotes` request back, with our knowledge.
+   send a `IHaveVotesRequest` request back, with our knowledge.
 3. Record the peer's knowledge.
 
-When to send `IHaveVotes` messages:
+When to send `IHaveVotesRequest` messages:
 
 1. Whenever we are asked to do so via
    `DisputeDistributionMessage::FetchMissingVotes`.
@@ -236,25 +308,23 @@ warnings accordingly. As disputes are rare and TCP is a reliable protocol,
 probably each failed attempt should trigger a warning in logs and also logged
 into some Prometheus metric.
 
-## Disputes for non included candidates
+## Disputes for non available candidates
 
-If deemed necessary we can later on also support disputes for non included
+If deemed necessary we can later on also support disputes for non available
 candidates, but disputes for those cases have totally different requirements.
 
 First of all such disputes are not time critical. We just want to have
 some offender slashed at some point, but we have no risk of finalizing any bad
 data.
 
-Second, we won't have availability for such data, but it also really does not
-matter as we have relaxed timing requirements as just mentioned. Instead a node
-disputing non included candidates, will be responsible for providing the
-disputed data initially. Then nodes which did the check already are also
-providers of the data, hence distributing load and making prevention of the
-dispute from concluding harder and harder over time. Assuming an attacker can
-not DoS a node forever, the dispute will succeed eventually, which is all that
-matters. And again, even if an attacker managed to prevent such a dispute from
-happening somehow, there is no real harm done: There was no serious attack to
-begin with.
+Second, as we won't have availability for such data, the node that initiated the
+dispute will be responsible for providing the disputed data initially. Then
+nodes which did the check already are also providers of the data, hence
+distributing load and making prevention of the dispute from concluding harder
+and harder over time. Assuming an attacker can not DoS a node forever, the
+dispute will succeed eventually, which is all that matters. And again, even if
+an attacker managed to prevent such a dispute from happening somehow, there is
+no real harm done: There was no serious attack to begin with.
 
 [DistputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
