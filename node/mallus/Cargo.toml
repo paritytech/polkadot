@@ -16,3 +16,4 @@ polkadot-cli = { path = "../../cli", features = [ "cli", "mallus" ]  }
 color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 assert_matches = "1.5"
+structopt = "0.3.21"

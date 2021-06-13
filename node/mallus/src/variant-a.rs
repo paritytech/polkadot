@@ -22,19 +22,26 @@ use color_eyre::eyre;
 use polkadot_cli::{
 	Cli,
 	service::{
+		Overseer,
+		OverseerHandler,
 		OverseerGen,
 		OverseerGenArgs,
 		RealOverseerGen,
 		SpawnNamed,
 		Block,
+		AuthorityDiscoveryApi,
+		AuxStore,
+		BabeApi,
+		HeaderBackend,
 		ParachainHost,
 		ProvideRuntimeApi,
-		AuthorityDiscoveryApi,
+		Error,
 	},
-	Error,
 };
 use std::sync::Arc;
+use structopt::StructOpt;
 
+/// Does some misbehavior.
 struct MisbehaveVariantA;
 
 impl OverseerGen for MisbehaveVariantA {
@@ -45,7 +52,7 @@ impl OverseerGen for MisbehaveVariantA {
 		Spawner: 'static + SpawnNamed + Clone + Unpin
 	{
 		let gen = RealOverseerGen;
-		RealOverseerGen::generate::<'a, Spawner, RuntimeClient>(gen, args)
+		RealOverseerGen::generate::<Spawner, RuntimeClient>(&gen, args)
 	}
 }
 
