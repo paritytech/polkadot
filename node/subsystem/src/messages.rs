@@ -646,7 +646,7 @@ impl CollationGenerationMessage {
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignmentCheckResult {
 	/// The vote was accepted and should be propagated onwards.
 	Accepted,
@@ -655,7 +655,25 @@ pub enum AssignmentCheckResult {
 	/// The vote was valid but too far in the future to accept right now.
 	TooFarInFuture,
 	/// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad,
+	Bad(AssignmentCheckError),
+}
+
+/// The error result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[allow(missing_docs)]
+pub enum AssignmentCheckError {
+	#[error("Unknown block: {0:?}")]
+	UnknownBlock(Hash),
+	#[error("Unknown session index: {0}")]
+	UnknownSessionIndex(SessionIndex),
+	#[error("Invalid candidate index: {0}")]
+	InvalidCandidateIndex(CandidateIndex),
+	#[error("Invalid candidate {0}: {1:?}")]
+	InvalidCandidate(CandidateIndex, CandidateHash),
+	#[error("Invalid cert: {0:?}")]
+	InvalidCert(ValidatorIndex),
+	#[error("Internal state mismatch: {0:?}, {1:?}")]
+	Internal(Hash, CandidateHash),
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.

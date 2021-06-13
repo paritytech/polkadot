@@ -58,7 +58,16 @@ enum AssignmentCheckResult {
     // The vote was valid but too far in the future to accept right now.
     TooFarInFuture,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad(AssignmentCheckError),
+}
+
+pub enum AssignmentCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidCert(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalCheckResult {
@@ -66,6 +75,7 @@ enum ApprovalCheckResult {
     Accepted,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
     Bad {
+        /// The reason for the vote being bad.
         reason: String,
     },
 }

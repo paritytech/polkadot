@@ -397,8 +397,9 @@ fn rejects_bad_assignment() {
 	assert!(res.1.iter().any(|action| matches!(action, Action::WriteCandidateEntry(..))));
 
 	// unknown hash
+	let unknown_hash = Hash::repeat_byte(0x02);
 	let assignment = IndirectAssignmentCert {
-		block_hash: Hash::repeat_byte(0x02),
+		block_hash: unknown_hash,
 		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
@@ -412,7 +413,7 @@ fn rejects_bad_assignment() {
 		assignment,
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(unknown_hash)));
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -427,7 +428,7 @@ fn rejects_bad_assignment() {
 		assignment_good,
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(ValidatorIndex(0))));
 }
 
 #[test]
@@ -495,7 +496,7 @@ fn rejects_assignment_with_unknown_candidate() {
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index)));
 }
 
 #[test]
