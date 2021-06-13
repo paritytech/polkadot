@@ -62,6 +62,7 @@ members = [
 	"node/network/collator-protocol",
 	"node/network/gossip-support",
 	"node/overseer",
+	"node/mallus",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",

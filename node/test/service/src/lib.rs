@@ -86,6 +86,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		polkadot_service::RealOverseerGen,
 	)
 }
 

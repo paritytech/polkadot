@@ -24,12 +24,23 @@ mod parachains_db;
 
 #[cfg(feature = "full-node")]
 mod overseer;
+
 #[cfg(feature = "full-node")]
 pub use self::overseer::{
 	OverseerGen,
 	RealOverseerGen,
 	OverseerGenArgs,
 };
+
+#[cfg(feature = "mallus")]
+pub mod mallus {
+	pub use super::RuntimeClient;
+	pub use super::ParachainHost;
+	pub use super::SpawnNamed;
+	pub use super::Unpin;
+	pub use super::AuthorityDiscoveryApi;
+	pub use super::Block;
+}
 
 pub use sp_authority_discovery::AuthorityDiscoveryApi;
 

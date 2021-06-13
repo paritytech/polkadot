@@ -1,0 +1,17 @@
+[[bin]]
+name = "mallus-variant-a"
+path = "src/variant-a.rs"
+
+[package]
+name = "polkadot-mallus"
+description = "Misbehaving nodes for local testnets, system and scale tests."
+license = "GPL-3.0-only"
+version = "0.9.4"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+readme = "README.md"
+
+[dependencies]
+polkadot-cli = { path = "cli", features = [ "cli", "mallus" ]  }
+color-eyre = { version = "0.5.11", default-features = false }
+parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
