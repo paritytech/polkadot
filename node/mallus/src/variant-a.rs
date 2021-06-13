@@ -19,8 +19,21 @@
 #![warn(missing_docs)]
 
 use color_eyre::eyre;
-use polkadot_cli::cli::Cli;
-use polkadot_cli::mallus::*;
+use polkadot_cli::{
+	Cli,
+	service::{
+		OverseerGen,
+		OverseerGenArgs,
+		RealOverseerGen,
+		SpawnNamed,
+		Block,
+		ParachainHost,
+		ProvideRuntimeApi,
+		AuthorityDiscoveryApi,
+	},
+	Error,
+};
+use std::sync::Arc;
 
 struct MisbehaveVariantA;
 
@@ -31,7 +44,8 @@ impl OverseerGen for MisbehaveVariantA {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin
 	{
-		unimplemented!("yikes, not yet")
+		let gen = RealOverseerGen;
+		RealOverseerGen::generate::<'a, Spawner, RuntimeClient>(gen, args)
 	}
 }
 
@@ -39,6 +53,6 @@ fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = Cli::from_args();
 	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, polkadot_cli)?;
+	polkadot_cli::run_node(cli, MisbehaveVariantA)?;
 	Ok(())
 }

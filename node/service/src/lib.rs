@@ -28,21 +28,9 @@ mod overseer;
 #[cfg(feature = "full-node")]
 pub use self::overseer::{
 	OverseerGen,
-	RealOverseerGen,
 	OverseerGenArgs,
+	RealOverseerGen,
 };
-
-#[cfg(feature = "mallus")]
-pub mod mallus {
-	pub use super::RuntimeClient;
-	pub use super::ParachainHost;
-	pub use super::SpawnNamed;
-	pub use super::Unpin;
-	pub use super::AuthorityDiscoveryApi;
-	pub use super::Block;
-}
-
-pub use sp_authority_discovery::AuthorityDiscoveryApi;
 
 #[cfg(feature = "full-node")]
 use {
@@ -52,8 +40,7 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
-	polkadot_overseer::{BlockInfo, OverseerHandler},
-	sp_blockchain::HeaderBackend,
+	polkadot_overseer::BlockInfo,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
@@ -61,7 +48,16 @@ use {
 	sp_runtime::traits::Header as HeaderT,
 };
 
-use sp_core::traits::SpawnNamed;
+#[cfg(feature = "full-node")]
+pub use {
+	sp_blockchain::HeaderBackend,
+	sp_core::traits::SpawnNamed,
+	sp_consensus_babe::BabeApi,
+	sp_authority_discovery::AuthorityDiscoveryApi,
+	sc_client_api::AuxStore,
+	polkadot_primitives::v1::ParachainHost,
+	polkadot_overseer::{Overseer, OverseerHandler},
+};
 
 use polkadot_subsystem::jaeger;
 
