@@ -6814,6 +6814,7 @@ dependencies = [
  "polkadot-cli",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "structopt",
 ]
 
