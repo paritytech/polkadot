@@ -16,14 +16,6 @@ Output:
 
 ## Functionality
 
-In-memory state:
-
-```rust
-struct State {
-    recent_block_hash: Hash
-}
-```
-
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
 Do nothing.
@@ -38,16 +30,14 @@ Conclude.
 
 ### On `DisputeParticipationMessage::Participate`
 
-> TODO: this validation code fetching procedure is not helpful for disputed blocks that are in chains we do not know. After https://github.com/paritytech/polkadot/issues/2457 we should use the `ValidationCodeByHash` runtime API using the code hash in the candidate receipt.
-
 * Decompose into parts: `{ candidate_hash, candidate_receipt, session, voted_indices }`
 * Issue an [`AvailabilityRecoveryMessage::RecoverAvailableData`][AvailabilityRecoveryMessage]
 * If the result is `Unavailable`, return.
 * If the result is `Invalid`, [cast invalid votes](#cast-votes) and return.
 * Fetch the block number of `candidate_receipt.descriptor.relay_parent` using a [`ChainApiMessage::BlockNumber`][ChainApiMessage].
-* If the data is recovered, dispatch a [`RuntimeApiMessage::HistoricalValidationCode`][RuntimeApiMessage] with the parameters `(candidate_receipt.descriptor.para_id, relay_parent_number)`.
+* If the data is recovered, dispatch a [`RuntimeApiMessage::ValidationCodeByHash`][RuntimeApiMessage] with the parameters `(candidate_receipt.descriptor.validation_code_hash)`.
 * Dispatch a [`AvailabilityStoreMessage::StoreAvailableData`][AvailabilityStoreMessage] with the data.
-* If the code is not fetched from the chain, return. This should be impossible with correct relay chain configuration after the TODO above is addressed and is unlikely before then, at least if chain synchronization is working correctly.
+* If the code is not fetched from the chain, return. This should be impossible with correct relay chain configuration, at least if chain synchronization is working correctly.
 * Dispatch a [`CandidateValidationMessage::ValidateFromExhaustive`][CandidateValidationMessage] with the available data and the validation code.
 * If the validation result is `Invalid`, [cast invalid votes](#cast-votes) and return.
 * If the validation fails, [cast invalid votes](#cast-votes) and return.
@@ -57,9 +47,7 @@ Conclude.
 
 This requires the parameters `{ candidate_receipt, candidate_hash, session, voted_indices }` as well as a choice of either `Valid` or `Invalid`.
 
-Invoke [`DisputeCoordinatorMessage::IssueLocalStatement`][DisputeCoordinatorMessage] with `is_valid` according to the parameterization.
-
-Invoke [`DisputeCoordinatorMessage::ImportStatements`][DisputeCoordinatorMessage] with each signed statement.
+Invoke [`DisputeCoordinatorMessage::IssueLocalStatement`][DisputeCoordinatorMessage] with `is_valid` according to the parametrization.
 
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
 [DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

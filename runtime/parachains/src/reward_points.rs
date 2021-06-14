@@ -54,7 +54,7 @@ impl<C> crate::inclusion::RewardValidators for RewardValidatorsWithEraPoints<C>
 			.into_iter()
 			.map(|v| (v.clone(), BACKING_POINTS));
 
-		<pallet_staking::Module<C>>::reward_by_ids(rewards);
+		<pallet_staking::Pallet<C>>::reward_by_ids(rewards);
 	}
 
 	fn reward_bitfields(_validators: impl IntoIterator<Item=ValidatorIndex>) { }

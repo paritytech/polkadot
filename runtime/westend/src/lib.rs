@@ -27,8 +27,8 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	paras_sudo_wrapper, paras_registrar, xcm_sender, slots, crowdloan, auctions,
@@ -182,6 +182,8 @@ impl frame_system::Config for Runtime {
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
 }
+
+impl pallet_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
@@ -1227,12 +1229,6 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn historical_validation_code(para_id: ParaId, context_height: BlockNumber)
-			-> Option<ValidationCode>
-		{
-			parachains_runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
-		}
-
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			parachains_runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
@@ -1262,7 +1258,7 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
