@@ -29,7 +29,7 @@ This design should result in a protocol that is:
 
 #### Disputes
 
-Protocol: "/polkadot/dispute/1"
+Protocol: "/polkadot/send\_dispute/1"
 
 Request:
 
@@ -60,7 +60,7 @@ struct VoteSubject {
   /// The session the candidate appears in.
   candidate_session: SessionIndex,
   /// The validator signature, that can be verified when constructing a
-  `SignedDisputeStatement`.
+  /// `SignedDisputeStatement`.
   validator_signature: ValidatorSignature,
 }
 ```
@@ -75,7 +75,7 @@ enum DisputeResponse {
 
 #### Vote Recovery
 
-Protocol: "/polkadot/vote-recovery/1"
+Protocol: "/polkadot/req\_votes/1"
 
 ```rust
 struct IHaveVotesRequest {
@@ -132,6 +132,15 @@ distribution. From here, everything is the same as for starting a dispute,
 except that if the local node deemed the candidate valid, the `SendDispute`
 message will contain a valid vote signed by our node and will contain the
 initially received `Invalid` vote.
+
+Note, that we rely on the coordinator to check availability for spam protection
+(see below).
+In case the current node is only a potential block producer and does not
+actually need to recover availability (as it is not going to participate in the
+dispute), there is a potential optimization available: The coordinator could
+first just check whether we have our piece and only if we don't, try to recover
+availability. Our node having a piece would be proof enough of the
+data to be available and thus the dispute to not be spam.
 
 ### Sending of messages
 
@@ -247,7 +256,7 @@ For the size of the channel for incoming requests: Due to dropping of repeated
 requests from same nodes we can make the channel relatively large without fear
 of lots of spam requests sitting there wasting our time, even after we already
 blocked a peer. For valid disputes, incoming requests can become bursty. On the
-other hand we will also be very quick in processing them. A channel size of 50
+other hand we will also be very quick in processing them. A channel size of 100
 requests seems plenty and should be able to handle bursts adequately.
 
 ### Node Startup
