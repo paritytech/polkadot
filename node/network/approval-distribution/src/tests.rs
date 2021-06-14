@@ -17,6 +17,7 @@
 use std::time::Duration;
 use futures::{future, Future, executor};
 use assert_matches::assert_matches;
+use polkadot_node_subsystem::messages::ApprovalCheckError;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use polkadot_node_network_protocol::{view, ObservedRole};
@@ -594,7 +595,7 @@ fn import_approval_bad() {
 				tx,
 			)) => {
 				assert_eq!(vote, approval);
-				tx.send(ApprovalCheckResult::Bad).unwrap();
+				tx.send(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(hash))).unwrap();
 			}
 		);
 

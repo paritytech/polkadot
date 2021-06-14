@@ -26,7 +26,7 @@ use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, ValidationCode, CandidateEvent,
+	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
 	SessionInfo as SessionInfoData,
@@ -1107,12 +1107,6 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn historical_validation_code(para_id: Id, context_height: BlockNumber)
-			-> Option<ValidationCode>
-		{
-			runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
-		}
-
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
@@ -1142,7 +1136,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
