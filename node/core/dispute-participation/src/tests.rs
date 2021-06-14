@@ -33,7 +33,7 @@ type VirtualOverseer = TestSubsystemContextHandle<DisputeParticipationMessage>;
 
 fn test_harness<F>(test: F)
 where
-	F: FnOnce(VirtualOverseer) -> BoxFuture<'static, ()>,
+	F: FnOnce(VirtualOverseer) -> BoxFuture<'static, VirtualOverseer>,
 {
 	let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
@@ -42,7 +42,16 @@ where
 	let test_future = test(ctx_handle);
 
 	let (subsystem_result, _) =
-		futures::executor::block_on(future::join(spawned_subsystem.future, test_future));
+		futures::executor::block_on(future::join(spawned_subsystem.future, async move {
+			let mut ctx_handle = test_future.await;
+			ctx_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+
+			// no further request is received by the overseer which means that
+			// no further attempt to participate was made
+			assert!(ctx_handle.try_recv().await.is_none());
+		}));
 
 	subsystem_result.unwrap();
 }
@@ -159,12 +168,6 @@ fn cannot_participate_when_recent_block_state_is_missing() {
 			participate(&mut virtual_overseer).await;
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no request is received by the overseer which means that no
-			// attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 
@@ -186,8 +189,6 @@ fn cannot_participate_when_recent_block_state_is_missing() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
 		})
 	});
 }
@@ -210,12 +211,6 @@ fn cannot_participate_if_cannot_recover_available_data() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -243,12 +238,6 @@ fn cannot_participate_if_cannot_recover_validation_code() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -282,12 +271,6 @@ fn cast_invalid_vote_if_available_data_is_invalid() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -324,12 +307,6 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -370,12 +347,6 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -412,12 +383,6 @@ fn cast_valid_vote_if_validation_passes() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
@@ -455,12 +420,6 @@ fn failure_to_store_available_data_does_not_preclude_participation() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-
-			// no further request is received by the overseer which means that
-			// no further attempt to participate was made
-			assert!(virtual_overseer.try_recv().await.is_none());
 		})
 	});
 }
