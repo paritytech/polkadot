@@ -49,6 +49,7 @@ members = [
 	"node/core/candidate-validation",
 	"node/core/chain-api",
 	"node/core/dispute-coordinator",
+	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",

@@ -6118,6 +6118,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-dispute-participation"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.15",
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-primitives",
+ "sp-core",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-parachains-inherent"
 version = "0.1.0"
 dependencies = [
