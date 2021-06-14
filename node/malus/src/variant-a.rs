@@ -28,7 +28,7 @@ use polkadot_cli::{
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
 		HeaderBackend, Overseer, OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost,
-		ProvideRuntimeApi, RealOverseerGen, SpawnNamed,
+		ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
