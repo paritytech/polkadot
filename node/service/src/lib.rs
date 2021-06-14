@@ -60,6 +60,7 @@ pub use {
 };
 pub use sp_core::traits::SpawnNamed;
 
+#[cfg(feature = "full-node")]
 use polkadot_subsystem::jaeger;
 
 use std::sync::Arc;
@@ -108,6 +109,7 @@ pub use rococo_runtime;
 pub use westend_runtime;
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
+#[cfg(any(test,feature = "full-node"))]
 const MAX_ACTIVE_LEAVES: usize = 4;
 
 #[derive(thiserror::Error, Debug)]
@@ -198,6 +200,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
+#[cfg(any(test,feature = "full-node"))]
 fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
