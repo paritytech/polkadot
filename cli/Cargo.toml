@@ -68,4 +68,4 @@ kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
 
-malus = [ "service/malus" ]
+malus = [ "full-node", "service/malus" ]

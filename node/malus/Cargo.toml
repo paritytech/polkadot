@@ -17,7 +17,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-polkadot-cli = { path = "../../cli", features = [ "cli", "malus" ]  }
+polkadot-cli = { path = "../../cli", default-features = false, features = [ "cli", "malus" ]  }
 polkadot-node-subsystem = { path = "../subsystem" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.5.11", default-features = false }

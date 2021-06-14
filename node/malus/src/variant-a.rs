@@ -55,16 +55,16 @@ struct Skippy(Arc<AtomicUsize>);
 
 impl MsgFilter for Skippy {
 
-	type Message = AllMessages;
+	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: Self::Message) -> Option<Self::Message> {
+	fn filter_in(&self, msg: Self::Message) -> Option<FromOverseer<Self::Message>> {
 		if self.0.fetch_add(1, Ordering::Relaxed) % 2 {
 			Some(msg)
 		} else {
 			None
 		}
 	}
-	fn filter_out(&self, msg: Self::Message) -> Option<Self::Message> {
+	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }

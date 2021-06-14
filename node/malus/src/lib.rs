@@ -28,6 +28,7 @@ use polkadot_node_subsystem::FromOverseer;
 
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
+	/// The message type the original subsystm handles incoming.
 	type Message: Send + 'static;
 
 	/// Filter messages that are to be received by
@@ -37,7 +38,7 @@ pub trait MsgFilter: Send + Sync + Clone + 'static {
 	}
 
 	/// Modify outgoing messages.
-	fn filter_out(&self, msg: Self::Message) -> Option<Self::Message> {
+	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
@@ -53,11 +54,11 @@ pub struct FilteredSender<Sender, Fil> {
 impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil>
 where
 	Sender: SubsystemSender,
-	Fil: MsgFilter<Message=AllMessages>,
+	Fil: MsgFilter,
 {
 	async fn send_message(&mut self, msg: AllMessages) {
 		if let Some(msg) = self.message_filter.filter_out(msg) {
-			self.inner.send_message(msg);
+			self.inner.send_message(msg).await;
 		}
 	}
 
@@ -91,7 +92,7 @@ where
 	X: SubsystemContext,
 	Fil: MsgFilter,
 {
-	pub fn new(inner: X, message_filter: Fil) -> Self {
+	pub fn new(mut inner: X, message_filter: Fil) -> Self {
 		let sender = FilteredSender::<<X as SubsystemContext>::Sender, Fil> {
 			inner: inner.sender().clone(),
 			message_filter: message_filter.clone(),
@@ -155,8 +156,8 @@ where
 
 /// A subsystem to which incoming and outgoing filters are applied.
 struct FilteredSubsystem<Sub, Fil> {
-	pub subsystem: Sub,
-	pub message_filter: Fil,
+	subsystem: Sub,
+	message_filter: Fil,
 }
 
 impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
