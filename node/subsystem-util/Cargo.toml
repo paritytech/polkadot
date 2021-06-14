@@ -25,11 +25,11 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

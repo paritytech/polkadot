@@ -15,9 +15,9 @@ relay-utils = { path = "../utils" }
 bp-rococo = { path = "../../primitives/chain-rococo" }
 
 # Substrate Dependencies
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }

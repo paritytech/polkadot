@@ -23,12 +23,12 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-polkadot-v930-rpc-patched" }
 
 [features]
 default = ["std"]

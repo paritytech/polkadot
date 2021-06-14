@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -17,9 +17,9 @@ futures = "0.3.8"
 tracing = "0.1.25"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v0.9.3" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "kiz-polkadot-v930-rpc-patched" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-polkadot-v930-rpc-patched" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
