@@ -32,6 +32,7 @@ tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/parit
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -171,6 +172,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-builder/std",
 	"max-encoded-len/std",
+	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -203,6 +205,7 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
+	"frame-election-provider-support/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
