@@ -122,7 +122,7 @@ pub struct ApprovalVotingSubsystem {
 struct MetricsInner {
 	imported_candidates_total: prometheus::Counter<prometheus::U64>,
 	assignments_produced_total: prometheus::Counter<prometheus::U64>,
-	approvals_produced_total: prometheus::Counter<prometheus::U64>,
+	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	candidate_approval_time_ticks: prometheus::Histogram,
@@ -148,9 +148,33 @@ impl Metrics {
 		}
 	}
 
+	fn on_approval_stale(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["stale"]).inc()
+		}
+	}
+
+	fn on_approval_invalid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["invalid"]).inc()
+		}
+	}
+
+	fn on_approval_unavailable(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["unavailable"]).inc()
+		}
+	}
+
+	fn on_approval_error(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["internal error"]).inc()
+		}
+	}
+
 	fn on_approval_produced(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.approvals_produced_total.inc();
+			metrics.approvals_produced_total.with_label_values(&["success"]).inc()
 		}
 	}
 
@@ -207,9 +231,12 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			approvals_produced_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_approvals_produced_total",
-					"Number of approvals produced by the approval voting subsystem",
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_approvals_produced_total",
+						"Number of approvals produced by the approval voting subsystem",
+					),
+					&["status"]
 				)?,
 				registry,
 			)?,
@@ -1930,6 +1957,7 @@ async fn launch_approval(
 					(candidate_hash, candidate.descriptor.para_id),
 				);
 				// do nothing. we'll just be a no-show and that'll cause others to rise up.
+				metrics.on_approval_unavailable();
 				return;
 			}
 			Ok(Err(RecoveryError::Invalid)) => {
@@ -1941,6 +1969,7 @@ async fn launch_approval(
 
 				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
 				// https://github.com/paritytech/polkadot/issues/2176
+				metrics.on_approval_invalid();
 				return;
 			}
 		};
@@ -1959,6 +1988,7 @@ async fn launch_approval(
 
 				// No dispute necessary, as this indicates that the chain is not behaving
 				// according to expectations.
+				metrics.on_approval_unavailable();
 				return;
 			}
 		};
@@ -2004,6 +2034,7 @@ async fn launch_approval(
 
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
+				metrics.on_approval_invalid();
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2012,6 +2043,7 @@ async fn launch_approval(
 					"Failed to validate candidate due to internal error",
 				);
 
+				metrics.on_approval_error();
 				return
 			}
 		}
@@ -2035,7 +2067,11 @@ fn issue_approval(
 
 	let block_entry = match state.db.load_block_entry(&block_hash)? {
 		Some(b) => b,
-		None => return Ok(Vec::new()), // not a cause for alarm - just lost a race with pruning, most likely.
+		None => {
+			// not a cause for alarm - just lost a race with pruning, most likely.
+			metrics.on_approval_stale();
+			return Ok(Vec::new())
+		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
@@ -2048,6 +2084,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2062,6 +2099,7 @@ fn issue_approval(
 				block_hash,
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2076,6 +2114,7 @@ fn issue_approval(
 				block_hash,
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2090,6 +2129,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2109,6 +2149,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
