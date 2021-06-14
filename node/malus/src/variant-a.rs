@@ -24,27 +24,15 @@
 
 use color_eyre::eyre;
 use polkadot_cli::{
-	Cli,
 	service::{
-		Overseer,
-		OverseerHandler,
-		OverseerGen,
-		OverseerGenArgs,
-		RealOverseerGen,
-		create_default_subsystems,
-		SpawnNamed,
-		Block,
-		AuthorityDiscoveryApi,
-		AuxStore,
-		BabeApi,
-		HeaderBackend,
-		ParachainHost,
-		ProvideRuntimeApi,
-		Error,
+		create_default_subsystems, AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
+		HeaderBackend, Overseer, OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost,
+		ProvideRuntimeApi, RealOverseerGen, SpawnNamed,
 	},
+	Cli,
 };
-use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 use structopt::StructOpt;
 
 use malus::*;
@@ -54,7 +42,6 @@ use malus::*;
 struct Skippy(Arc<AtomicUsize>);
 
 impl MsgFilter for Skippy {
-
 	type Message = CandidateValidationMessage;
 
 	fn filter_in(&self, msg: Self::Message) -> Option<FromOverseer<Self::Message>> {
@@ -73,11 +60,14 @@ impl MsgFilter for Skippy {
 struct BehaveMaleficient;
 
 impl OverseerGen for BehaveMaleficient {
-	fn generate<'a, Spawner, RuntimeClient>(&self, args: OverseerGenArgs<'a, Spawner, RuntimeClient>) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+	fn generate<'a, Spawner, RuntimeClient>(
+		&self,
+		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-		Spawner: 'static + SpawnNamed + Clone + Unpin
+		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let spawner = args.spawner.clone();
 		let leaves = args.leaves.clone();
@@ -85,21 +75,12 @@ impl OverseerGen for BehaveMaleficient {
 		let registry = args.registry.clone();
 
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?
-			.replace_candidate_validation(
-				FilteredSubsystem::new(
-					args.candidate_validation,
-					Skippy::default()
-				)
-			);
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
+			FilteredSubsystem::new(args.candidate_validation, Skippy::default()),
+		);
 
-		Overseer::new(
-			leaves,
-			all_subsystems,
-			registry,
-			runtime_client,
-			spawner,
-		).map_err(|e| e.into())
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+			.map_err(|e| e.into())
 	}
 }
 

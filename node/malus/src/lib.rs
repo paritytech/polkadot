@@ -20,11 +20,11 @@
 //! multiple subsystems and intercept or replace incoming and outgoing
 //! messages on the overseer level.
 
-use polkadot_node_subsystem::*;
-use std::pin::Pin;
-use std::future::Future;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::FromOverseer;
+use polkadot_node_subsystem::*;
+use std::future::Future;
+use std::pin::Pin;
 
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
@@ -63,7 +63,10 @@ where
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send {
+	where
+		T: IntoIterator<Item = AllMessages> + Send,
+		T::IntoIter: Send,
+	{
 		for msg in msgs {
 			self.send_message(msg).await;
 		}
@@ -74,17 +77,13 @@ where
 			self.inner.send_unbounded_message(msg);
 		}
 	}
-
 }
 
 /// A subsystem context, that filters the outgoing messages.
-pub struct FilteredContext<X: SubsystemContext, Fil: MsgFilter>{
+pub struct FilteredContext<X: SubsystemContext, Fil: MsgFilter> {
 	inner: X,
 	message_filter: Fil,
-	sender: FilteredSender<
-		<X as SubsystemContext>::Sender,
-		Fil,
-	>
+	sender: FilteredSender<<X as SubsystemContext>::Sender, Fil>,
 }
 
 impl<X, Fil> FilteredContext<X, Fil>
@@ -112,17 +111,16 @@ where
 	Fil: MsgFilter<Message = FromOverseer<<Context as SubsystemContext>::Message>>,
 {
 	type Message = <Context as SubsystemContext>::Message;
-	type Sender = FilteredSender<
-		<Context as SubsystemContext>::Sender,
-		Fil,
-	>;
+	type Sender = FilteredSender<<Context as SubsystemContext>::Sender, Fil>;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()> {
 		loop {
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
-				Some(msg) => if let Some(msg) = self.message_filter.filter_in(msg) {
-					return Ok(Some(msg))
+				Some(msg) => {
+					if let Some(msg) = self.message_filter.filter_in(msg) {
+						return Ok(Some(msg));
+					}
 				}
 			}
 		}
@@ -132,12 +130,16 @@ where
 		loop {
 			let msg = self.inner.recv().await?;
 			if let Some(msg) = self.message_filter.filter_in(msg) {
-				return Ok(msg)
+				return Ok(msg);
 			}
 		}
 	}
 
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
+	async fn spawn(
+		&mut self,
+		name: &'static str,
+		s: Pin<Box<dyn Future<Output = ()> + Send>>,
+	) -> SubsystemResult<()> {
 		self.inner.spawn(name, s).await
 	}
 
@@ -155,13 +157,12 @@ where
 }
 
 /// A subsystem to which incoming and outgoing filters are applied.
-struct FilteredSubsystem<Sub, Fil> {
+pub struct FilteredSubsystem<Sub, Fil> {
 	subsystem: Sub,
 	message_filter: Fil,
 }
 
-impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
-{
+impl<Sub, Fil> FilteredSubsystem<Sub, Fil> {
 	pub fn new(subsystem: Sub, message_filter: Fil) -> Self {
 		Self {
 			subsystem,
@@ -172,9 +173,9 @@ impl<Sub, Fil> FilteredSubsystem<Sub, Fil>
 
 impl<Context, Sub, Fil> Subsystem<Context> for FilteredSubsystem<Sub, Fil>
 where
-	Context: SubsystemContext + Sync + Send,
 	Sub: Subsystem<Context>,
 	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
+	Context: FilteredContext<impl SubsystemContext + Sync + Send, Fil>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		self.subsystem.start(ctx)
