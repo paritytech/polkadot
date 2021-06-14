@@ -121,7 +121,7 @@ pub struct ApprovalVotingSubsystem {
 #[derive(Clone)]
 struct MetricsInner {
 	imported_candidates_total: prometheus::Counter<prometheus::U64>,
-	assignments_produced_total: prometheus::Counter<prometheus::U64>,
+	assignments_produced: prometheus::Histogram,
 	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
@@ -142,9 +142,9 @@ impl Metrics {
 		}
 	}
 
-	fn on_assignment_produced(&self) {
+	fn on_assignment_produced(&self, tranche: DelayTranche) {
 		if let Some(metrics) = &self.0 {
-			metrics.assignments_produced_total.inc();
+			metrics.assignments_produced.observe(tranche as f64);
 		}
 	}
 
@@ -223,10 +223,12 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			assignments_produced_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_assignments_produced_total",
-					"Number of assignments produced by the approval voting subsystem",
+			assignments_produced: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_assignments_produced",
+						"Assignments and tranches produced by the approval voting subsystem",
+					).buckets(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 25.0, 40.0, 70.0]),
 				)?,
 				registry,
 			)?,
@@ -609,6 +611,7 @@ enum Action {
 	WriteCandidateEntry(CandidateHash, CandidateEntry),
 	LaunchApproval {
 		indirect_cert: IndirectAssignmentCert,
+		assignment_tranche: DelayTranche,
 		relay_block_number: BlockNumber,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
@@ -750,6 +753,7 @@ async fn handle_actions(
 			}
 			Action::LaunchApproval {
 				indirect_cert,
+				assignment_tranche,
 				relay_block_number,
 				candidate_index,
 				session,
@@ -759,7 +763,7 @@ async fn handle_actions(
 				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode { continue }
 
-				metrics.on_assignment_produced();
+				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
@@ -1837,7 +1841,7 @@ fn process_wakeup(
 		(Vec::new(), None)
 	};
 
-	if let Some((cert, val_index)) = maybe_cert {
+	if let Some((cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert = IndirectAssignmentCert {
 			block_hash: relay_block,
 			validator: val_index,
@@ -1859,6 +1863,7 @@ fn process_wakeup(
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				indirect_cert,
+				assignment_tranche: tranche,
 				relay_block_number: block_entry.block_number(),
 				candidate_index: i as _,
 				session: block_entry.session(),
