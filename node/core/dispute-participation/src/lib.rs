@@ -308,9 +308,9 @@ async fn participate(
 			if commitments.hash() != candidate_receipt.commitments_hash {
 				tracing::warn!(
 					target: LOG_TARGET,
-					"Candidate is valid but commitments hash doesn't match. Got: {:?}, expected: {:?}",
-					commitments.hash(),
-					candidate_receipt.commitments_hash,
+					expected = ?candidate_receipt.commitments_hash,
+					got = ?commitments.hash(),
+					"Candidate is valid but commitments hash doesn't match",
 				);
 
 				cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
