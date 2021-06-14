@@ -36,6 +36,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
+#[cfg(test)]
+mod tests;
+
 const LOG_TARGET: &str = "parachain::dispute-participation";
 
 struct State {
