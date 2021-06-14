@@ -51,6 +51,8 @@ pub enum Requests {
 	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
 	/// Requests for fetching large statements as part of statement distribution.
 	StatementFetching(OutgoingRequest<v1::StatementFetchingRequest>),
+	/// Requests for notifying about an ongoing dispute.
+	DisputeSending(OutgoingRequest<v1::DisputeRequest>),
 }
 
 impl Requests {
@@ -62,6 +64,7 @@ impl Requests {
 			Self::PoVFetching(_) => Protocol::PoVFetching,
 			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
 			Self::StatementFetching(_) => Protocol::StatementFetching,
+			Self::DisputeSending(_) => Protocol::DisputeSending,
 		}
 	}
 
@@ -79,6 +82,7 @@ impl Requests {
 			Self::PoVFetching(r) => r.encode_request(),
 			Self::AvailableDataFetching(r) => r.encode_request(),
 			Self::StatementFetching(r) => r.encode_request(),
+			Self::DisputeSending(r) => r.encode_request(),
 		}
 	}
 }
