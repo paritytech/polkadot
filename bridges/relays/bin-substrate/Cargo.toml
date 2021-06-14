@@ -51,13 +51,13 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 hex-literal = "0.3"

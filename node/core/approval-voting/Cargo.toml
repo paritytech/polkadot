@@ -22,21 +22,21 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
 rand_core = "0.5.1" # should match schnorrkel
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"

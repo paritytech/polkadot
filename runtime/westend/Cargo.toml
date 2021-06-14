@@ -15,66 +15,66 @@ serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
 static_assertions = "1.1.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "polkadot-v0.9.3" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", default-features = false , branch = "kiz-buirnin-allocator" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 
-frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-nicks = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-recovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-society = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-elections-phragmen = { package = "pallet-elections-phragmen", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-nicks = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-society = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
-frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
-pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
-pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.3" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-buirnin-allocator" }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-buirnin-allocator" }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-buirnin-allocator" }
+pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-buirnin-allocator" }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-buirnin-allocator" }
 hex-literal = { version = "0.3.1", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -90,8 +90,8 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 hex-literal = "0.3.1"
 libsecp256k1 = "0.3.5"
 tiny-keccak = "2.0.2"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 serde_json = "1.0.61"
 
 [build-dependencies]

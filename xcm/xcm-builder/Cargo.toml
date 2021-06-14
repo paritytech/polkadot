@@ -10,13 +10,13 @@ impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }

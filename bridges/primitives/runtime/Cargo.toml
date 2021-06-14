@@ -13,16 +13,16 @@ num-traits = { version = "0.2", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 
 [features]

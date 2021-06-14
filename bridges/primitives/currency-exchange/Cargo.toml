@@ -11,9 +11,9 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
 
 [features]
 default = ["std"]

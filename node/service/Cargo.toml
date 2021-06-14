@@ -6,59 +6,59 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "polkadot-v0.9.3" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "polkadot-v0.9.3" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.3" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "kiz-buirnin-allocator" }
+beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "kiz-buirnin-allocator" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "kiz-buirnin-allocator" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 
 # External Crates
 futures = "0.3.12"

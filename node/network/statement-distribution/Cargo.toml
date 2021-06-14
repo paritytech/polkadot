@@ -9,9 +9,9 @@ edition = "2018"
 futures = "0.3.12"
 tracing = "0.1.25"
 polkadot-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-buirnin-allocator" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -24,10 +24,10 @@ thiserror = "1.0.23"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.3" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-buirnin-allocator" }
 futures-timer = "3.0.2"
