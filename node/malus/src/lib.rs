@@ -20,11 +20,8 @@
 //! multiple subsystems and intercept or replace incoming and outgoing
 //! messages on the overseer level.
 
-pub use polkadot_node_subsystem::{
-	FromOverseer,
-	messages::AllMessages,
-};
 use polkadot_node_subsystem::*;
+pub use polkadot_node_subsystem::{messages::AllMessages, FromOverseer};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -91,7 +88,7 @@ pub struct FilteredContext<Context: SubsystemContext, Fil: MsgFilter> {
 impl<Context, Fil> FilteredContext<Context, Fil>
 where
 	Context: SubsystemContext,
-	Fil: MsgFilter<Message=<Context as SubsystemContext>::Message>,
+	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
 {
 	pub fn new(mut inner: Context, message_filter: Fil) -> Self {
 		let sender = FilteredSender::<<Context as SubsystemContext>::Sender, Fil> {

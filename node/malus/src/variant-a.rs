@@ -26,30 +26,26 @@ use color_eyre::eyre;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
-		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
-		HeaderBackend, Overseer, OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
+		OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost, ProvideRuntimeApi,
+		SpawnNamed,
 	},
 	Cli,
 };
 
 // Import extra types relevant to the particular
 // subsystem.
+use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
 use polkadot_node_subsystem::messages::CandidateValidationMessage;
-use polkadot_node_core_candidate_validation::{
-	Metrics, CandidateValidationSubsystem,
-};
 use polkadot_node_subsystem_util::metrics::Metrics as _;
 
 // Filter wrapping related types.
 use malus::*;
 
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use structopt::StructOpt;
-
 
 /// Silly example, just drop every second outgoing message.
 #[derive(Clone, Default, Debug)]
@@ -89,14 +85,16 @@ impl OverseerGen for BehaveMaleficient {
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?
-			.replace_candidate_validation(
-				// create the filtered subsystem
-				FilteredSubsystem::new(CandidateValidationSubsystem::with_config(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
+			// create the filtered subsystem
+			FilteredSubsystem::new(
+				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
 					Metrics::register(registry)?,
-				), Skippy::default()),
-			);
+				),
+				Skippy::default(),
+			),
+		);
 
 		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
 			.map_err(|e| e.into())
