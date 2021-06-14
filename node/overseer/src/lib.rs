@@ -1538,7 +1538,7 @@ where
 			&mut s,
 			statement_distribution_bounded_tx,
 			stream::select(statement_distribution_bounded_rx, statement_distribution_unbounded_rx),
-			candidate_validation_unbounded_tx.meter().clone(),
+			statement_distribution_unbounded_tx.meter().clone(),
 			channels_out.clone(),
 			to_overseer_tx.clone(),
 			all_subsystems.statement_distribution,
