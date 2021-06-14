@@ -24,18 +24,31 @@
 
 use color_eyre::eyre;
 use polkadot_cli::{
+	create_default_subsystems,
 	service::{
-		create_default_subsystems, AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
+		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
 		HeaderBackend, Overseer, OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost,
 		ProvideRuntimeApi, RealOverseerGen, SpawnNamed,
 	},
 	Cli,
 };
-use std::sync::atomic::AtomicUsize;
+
+// Import extra types relevant to the particular
+// subsystem.
+use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_core_candidate_validation::{
+	Metrics, CandidateValidationSubsystem,
+};
+
+// Filter wrapping related types.
+use malus::*;
+
+
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+
 use structopt::StructOpt;
 
-use malus::*;
 
 /// Silly example, just drop every second outgoing message.
 #[derive(Clone, Default, Debug)]
@@ -44,8 +57,8 @@ struct Skippy(Arc<AtomicUsize>);
 impl MsgFilter for Skippy {
 	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: Self::Message) -> Option<FromOverseer<Self::Message>> {
-		if self.0.fetch_add(1, Ordering::Relaxed) % 2 {
+	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
 			Some(msg)
 		} else {
 			None
@@ -73,11 +86,16 @@ impl OverseerGen for BehaveMaleficient {
 		let leaves = args.leaves.clone();
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
-
+		let candidate_validation_config = args.candidate_validation_config.clone();
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
-			FilteredSubsystem::new(args.candidate_validation, Skippy::default()),
-		);
+		let all_subsystems = create_default_subsystems(args)?
+			.replace_candidate_validation(
+				// create the filtered subsystem
+				FilteredSubsystem::new(CandidateValidationSubsystem::from_config(
+					candidate_validation_config,
+					Metrics::register(registry)?,
+				), Skippy::default()),
+			);
 
 		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
 			.map_err(|e| e.into())

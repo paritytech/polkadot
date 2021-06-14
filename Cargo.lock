@@ -6809,6 +6809,7 @@ dependencies = [
  "color-eyre",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-node-core-candidate-validation",
  "polkadot-node-subsystem",
  "structopt",
 ]
