@@ -122,8 +122,8 @@ pub struct ApprovalVotingSubsystem {
 #[derive(Clone)]
 struct MetricsInner {
 	imported_candidates_total: prometheus::Counter<prometheus::U64>,
-	assignments_produced_total: prometheus::Counter<prometheus::U64>,
-	approvals_produced_total: prometheus::Counter<prometheus::U64>,
+	assignments_produced: prometheus::Histogram,
+	approvals_produced_total: prometheus::CounterVec<prometheus::U64>,
 	no_shows_total: prometheus::Counter<prometheus::U64>,
 	wakeups_triggered_total: prometheus::Counter<prometheus::U64>,
 	candidate_approval_time_ticks: prometheus::Histogram,
@@ -143,15 +143,39 @@ impl Metrics {
 		}
 	}
 
-	fn on_assignment_produced(&self) {
+	fn on_assignment_produced(&self, tranche: DelayTranche) {
 		if let Some(metrics) = &self.0 {
-			metrics.assignments_produced_total.inc();
+			metrics.assignments_produced.observe(tranche as f64);
+		}
+	}
+
+	fn on_approval_stale(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["stale"]).inc()
+		}
+	}
+
+	fn on_approval_invalid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["invalid"]).inc()
+		}
+	}
+
+	fn on_approval_unavailable(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["unavailable"]).inc()
+		}
+	}
+
+	fn on_approval_error(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["internal error"]).inc()
 		}
 	}
 
 	fn on_approval_produced(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.approvals_produced_total.inc();
+			metrics.approvals_produced_total.with_label_values(&["success"]).inc()
 		}
 	}
 
@@ -200,17 +224,22 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			assignments_produced_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_assignments_produced_total",
-					"Number of assignments produced by the approval voting subsystem",
+			assignments_produced: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_assignments_produced",
+						"Assignments and tranches produced by the approval voting subsystem",
+					).buckets(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 25.0, 40.0, 70.0]),
 				)?,
 				registry,
 			)?,
 			approvals_produced_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_approvals_produced_total",
-					"Number of approvals produced by the approval voting subsystem",
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_approvals_produced_total",
+						"Number of approvals produced by the approval voting subsystem",
+					),
+					&["status"]
 				)?,
 				registry,
 			)?,
@@ -583,6 +612,7 @@ enum Action {
 	WriteCandidateEntry(CandidateHash, CandidateEntry),
 	LaunchApproval {
 		indirect_cert: IndirectAssignmentCert,
+		assignment_tranche: DelayTranche,
 		relay_block_number: BlockNumber,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
@@ -724,6 +754,7 @@ async fn handle_actions(
 			}
 			Action::LaunchApproval {
 				indirect_cert,
+				assignment_tranche,
 				relay_block_number,
 				candidate_index,
 				session,
@@ -733,7 +764,7 @@ async fn handle_actions(
 				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode { continue }
 
-				metrics.on_assignment_produced();
+				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
@@ -1830,7 +1861,7 @@ fn process_wakeup(
 		(Vec::new(), None)
 	};
 
-	if let Some((cert, val_index)) = maybe_cert {
+	if let Some((cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert = IndirectAssignmentCert {
 			block_hash: relay_block,
 			validator: val_index,
@@ -1852,6 +1883,7 @@ fn process_wakeup(
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				indirect_cert,
+				assignment_tranche: tranche,
 				relay_block_number: block_entry.block_number(),
 				candidate_index: i as _,
 				session: block_entry.session(),
@@ -1950,6 +1982,7 @@ async fn launch_approval(
 					(candidate_hash, candidate.descriptor.para_id),
 				);
 				// do nothing. we'll just be a no-show and that'll cause others to rise up.
+				metrics.on_approval_unavailable();
 				return;
 			}
 			Ok(Err(RecoveryError::Invalid)) => {
@@ -1961,6 +1994,7 @@ async fn launch_approval(
 
 				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
 				// https://github.com/paritytech/polkadot/issues/2176
+				metrics.on_approval_invalid();
 				return;
 			}
 		};
@@ -1979,6 +2013,7 @@ async fn launch_approval(
 
 				// No dispute necessary, as this indicates that the chain is not behaving
 				// according to expectations.
+				metrics.on_approval_unavailable();
 				return;
 			}
 		};
@@ -2024,6 +2059,7 @@ async fn launch_approval(
 
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
+				metrics.on_approval_invalid();
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2032,6 +2068,7 @@ async fn launch_approval(
 					"Failed to validate candidate due to internal error",
 				);
 
+				metrics.on_approval_error();
 				return
 			}
 		}
@@ -2055,7 +2092,11 @@ fn issue_approval(
 
 	let block_entry = match state.db.load_block_entry(&block_hash)? {
 		Some(b) => b,
-		None => return Ok(Vec::new()), // not a cause for alarm - just lost a race with pruning, most likely.
+		None => {
+			// not a cause for alarm - just lost a race with pruning, most likely.
+			metrics.on_approval_stale();
+			return Ok(Vec::new())
+		}
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
@@ -2068,6 +2109,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2082,6 +2124,7 @@ fn issue_approval(
 				block_hash,
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2096,6 +2139,7 @@ fn issue_approval(
 				block_hash,
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2110,6 +2154,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
@@ -2129,6 +2174,7 @@ fn issue_approval(
 				block_entry.session(),
 			);
 
+			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
