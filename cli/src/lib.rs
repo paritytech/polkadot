@@ -28,7 +28,8 @@ mod command;
 pub use service::{
 	self,
 	ProvideRuntimeApi, CoreApi, IdentifyVariant,
-	Block, RuntimeApiCollection, TFullClient
+	Block, RuntimeApiCollection, TFullClient,
+	create_default_subsystems,
 };
 
 #[cfg(feature = "cli")]
