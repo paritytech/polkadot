@@ -84,10 +84,12 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParticipationError {
-	#[error("Missing recent block state to participate in dispute.")]
+	#[error("Missing recent block state to participate in dispute")]
 	MissingRecentBlockState,
-	#[error("Failed to recover available data.")]
-	MissingAvailableData,
+	#[error("Failed to recover available data for candidate {0}")]
+	MissingAvailableData(CandidateHash),
+	#[error("Failed to recover validation code for candidate {0}")]
+	MissingValidationCode(CandidateHash),
 }
 
 impl Error {
@@ -204,7 +206,7 @@ async fn participate(
 			return Ok(());
 		}
 		Err(RecoveryError::Unavailable) => {
-			return Err(ParticipationError::MissingAvailableData.into());
+			return Err(ParticipationError::MissingAvailableData(candidate_hash).into());
 		}
 	};
 
@@ -232,7 +234,7 @@ async fn participate(
 				block_hash,
 			);
 
-			return Ok(());
+			return Err(ParticipationError::MissingValidationCode(candidate_hash).into());
 		}
 	};
 
@@ -365,6 +367,3 @@ async fn issue_local_statement(
 	))
 	.await
 }
-
-#[cfg(test)]
-mod tests {}
