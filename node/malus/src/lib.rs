@@ -27,7 +27,7 @@ use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::FromOverseer;
 
 /// Filter incoming and outgoing messages.
-pub trait MsgFilter: Send + Clone + 'static {
+pub trait MsgFilter: Send + Sync + Clone + 'static {
 	type Message: Send + 'static;
 
 	/// Filter messages that are to be received by
@@ -63,9 +63,9 @@ where
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send {
-		self.inner.send_messages(msgs.into_iter().filter_map(|msg| {
-			self.message_filter.filter_out(msg)
-		}) ).await;
+		for msg in msgs {
+			self.send_message(msg).await;
+		}
 	}
 
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
@@ -105,21 +105,21 @@ where
 }
 
 #[async_trait::async_trait]
-impl<X, Fil> SubsystemContext for FilteredContext<X, Fil>
+impl<Context, Fil> SubsystemContext for FilteredContext<Context, Fil>
 where
-	X: SubsystemContext,
-	Fil: MsgFilter<Message=FromOverseer<<X as polkadot_node_subsystem::SubsystemContext>::Message>>,
+	Context: SubsystemContext,
+	Fil: MsgFilter<Message = FromOverseer<<Context as SubsystemContext>::Message>>,
 {
-	type Message = <X as SubsystemContext>::Message;
+	type Message = <Context as SubsystemContext>::Message;
 	type Sender = FilteredSender<
-		<X as SubsystemContext>::Sender,
+		<Context as SubsystemContext>::Sender,
 		Fil,
 	>;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()> {
 		loop {
 			match self.inner.try_recv().await? {
-				None => return None,
+				None => return Ok(None),
 				Some(msg) => if let Some(msg) = self.message_filter.filter_in(msg) {
 					return Ok(Some(msg))
 				}
@@ -129,7 +129,8 @@ where
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>> {
 		loop {
-			if let Some(msg) = self.message_filter.filter_in(self.inner.recv().await?) {
+			let msg = self.inner.recv().await?;
+			if let Some(msg) = self.message_filter.filter_in(msg) {
 				return Ok(msg)
 			}
 		}
