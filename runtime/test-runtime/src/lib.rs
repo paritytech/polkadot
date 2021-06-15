@@ -41,7 +41,7 @@ use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
 };
 use runtime_common::{
@@ -160,6 +160,8 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 	type OverarchingCall = Call;
 	type Extrinsic = UncheckedExtrinsic;
 }
+
+impl pallet_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
 	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
@@ -317,7 +319,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
 	type BlockWeights = ();
 	type Accuracy = sp_runtime::Perbill;
-	type DataProvider = pallet_staking::Module<Self>;
+	type DataProvider = Staking;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -339,6 +341,8 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	type GenesisElectionProvider =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
 }
 
@@ -695,7 +699,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}

@@ -196,7 +196,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(200_000_000 + T::DbWeight::get().reads_writes(4, 1))]
-		pub(super) fn create_account(
+		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			signature: Vec<u8>
@@ -230,7 +230,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub(super) fn update_validity_status(
+		pub fn update_validity_status(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			validity: AccountValidity
@@ -252,7 +252,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
-		pub(super) fn update_balance(
+		pub fn update_balance(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			free_balance: BalanceOf<T>,
@@ -281,7 +281,7 @@ pub mod pallet {
 		///
 		/// Origin must match the configured `PaymentAccount`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(4, 2))]
-		pub(super) fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
+		pub fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			// Payments must be made directly by the `PaymentAccount`.
 			let payment_account = ensure_signed(origin)?;
 			ensure!(payment_account == PaymentAccount::<T>::get(), DispatchError::BadOrigin);
@@ -334,7 +334,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
+		pub fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
 			PaymentAccount::<T>::set(who.clone());
@@ -346,7 +346,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
+		pub fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!((statement.len() as u32) < T::MaxStatementLength::get(), Error::<T>::InvalidStatement);
 			// Possibly this is worse than having the caller account be the payment account?
@@ -359,7 +359,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_unlock_block(origin: OriginFor<T>, unlock_block: T::BlockNumber) -> DispatchResult {
+		pub fn set_unlock_block(origin: OriginFor<T>, unlock_block: T::BlockNumber) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(unlock_block > frame_system::Pallet::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
 			// Possibly this is worse than having the caller account be the payment account?

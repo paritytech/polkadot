@@ -285,7 +285,7 @@ pub mod pallet {
 		///
 		/// Can only be called by the Root origin.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
 			Ok(())
