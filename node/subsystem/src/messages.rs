@@ -34,11 +34,7 @@ use polkadot_node_network_protocol::{
 	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
 	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
-use polkadot_node_primitives::{
-	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, ValidationResult,
-};
+use polkadot_node_primitives::{AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
@@ -253,6 +249,18 @@ pub enum DisputeParticipationMessage {
 		/// The indices of validators who have already voted on this candidate.
 		voted_indices: Vec<ValidatorIndex>,
 	}
+}
+
+/// Messages going to the dispute distribution subsystem.
+pub enum DisputeDistributionMessage {
+
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  /// validators.
+  SendDispute(DisputeMessage),
+
+  /// Tell the subsystem that a candidate is not available. Dispute distribution
+  /// can punish peers distributing votes on unavailable hashes.
+  ReportCandidateUnavailable(CandidateHash),
 }
 
 /// Messages received by the network bridge subsystem.

@@ -25,6 +25,7 @@
 use std::convert::TryInto;
 use std::pin::Pin;
 
+use polkadot_primitives::v1::SessionInfo;
 use serde::{Serialize, Deserialize};
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
@@ -404,4 +405,141 @@ impl SignedDisputeStatement {
 	pub fn session_index(&self) -> SessionIndex {
 		self.session_index
 	}
+}
+
+/// A `DisputeMessage` where signatures of statements have not yet been checked.
+#[derive(Encode, Decode, Debug)]
+pub struct UncheckedDisputeMessage {
+	/// The candidate being disputed.
+	pub candidate_hash: CandidateHash,
+
+	/// The session the candidate appears in.
+	pub session_index: SessionIndex,
+
+	/// The invalid vote data that makes up this dispute.
+	pub invalid_vote: InvalidDisputeVote,
+
+	/// The valid vote that makes this dispute request valid.
+	pub valid_vote: ValidDisputeVote,
+}
+
+/// A dispute initiating/participtating message that is guaranteed to have been built from signed
+/// statements.
+///
+/// And most likely has been constructed correctly.
+pub struct DisputeMessage(UncheckedDisputeMessage);
+
+impl DisputeMessage {
+
+	/// Build a `SignedDisputeMessage` and check what can be checked.
+	///
+	/// This function checks that:
+	///
+	/// - both statements concern the same candidate
+	/// - both statements concern the same session
+	/// - the invalid statement is indeed an invalid one
+	/// - the valid statement is indeed a valid one
+	/// - the given validator indeces match with the given `ValidatorId`s in the statements,
+	///   given a `SessionInfo`.
+	///
+	/// We don't check whether the given `SessionInfo` matches the `SessionIndex` in the
+	/// statements, because we can't without doing a runtime query. Nevertheless this smart
+	/// constructor gives relative strong guarantees that the resulting `SignedDisputeStatement` is
+	/// valid and good.  Even the passed `SessionInfo` is most likely right if this function
+	/// returns `Some`, because otherwise the passed `ValidatorId`s in the `SessionInfo` at
+	/// their given index would very likely not match the `ValidatorId`s in the statements.
+	///
+	/// So in summary, this smart constructor should be smart enough to prevent from almost all
+	/// programming errors that one could realistically make here.
+	pub fn from_signed_statements(
+		valid_statement: SignedDisputeStatement,
+		valid_index: ValidatorIndex,
+		invalid_statement: SignedDisputeStatement,
+		invalid_index: ValidatorIndex,
+		session_info: &SessionInfo,
+	) -> Option<Self> {
+		let candidate_hash = *valid_statement.candidate_hash();
+		// Check statements concern same candidate:
+		if candidate_hash != *invalid_statement.candidate_hash() {
+			return None
+		}
+
+		let session_index = valid_statement.session_index();
+		if session_index != invalid_statement.session_index() {
+			return None
+		}
+
+		let valid_id = session_info.validators.get(valid_index.0 as usize)?;
+		let invalid_id = session_info.validators.get(invalid_index.0 as usize)?;
+
+		if valid_id != valid_statement.validator_public() {
+			return None
+		}
+
+		if invalid_id != invalid_statement.validator_public() {
+			return None
+		}
+
+		let valid_kind = match valid_statement.statement() {
+			DisputeStatement::Valid(v) => v,
+			_ => return None,
+		};
+
+		let invalid_kind = match invalid_statement.statement() {
+			DisputeStatement::Invalid(v) => v,
+			_ => return None,
+		};
+
+		let valid_vote = ValidDisputeVote {
+			validator_index: valid_index,
+			signature: valid_statement.validator_signature().clone(),
+			kind: valid_kind.clone(),
+		};
+
+		let invalid_vote = InvalidDisputeVote {
+			validator_index: invalid_index,
+			signature: invalid_statement.validator_signature().clone(),
+			kind: invalid_kind.clone(),
+		};
+		Some(DisputeMessage(UncheckedDisputeMessage {
+			candidate_hash,
+			session_index,
+			valid_vote,
+			invalid_vote,
+		}))
+	}
+}
+
+impl From<DisputeMessage> for UncheckedDisputeMessage {
+	fn from(message: DisputeMessage) -> Self {
+		message.0
+	}
+}
+
+/// Any invalid vote (currently only explicit).
+#[derive(Encode, Decode, Debug)]
+pub struct InvalidDisputeVote {
+	/// The voting validator index.
+	pub validator_index: ValidatorIndex,
+
+	/// The validator signature, that can be verified when constructing a
+	/// `SignedDisputeStatement`.
+	pub signature: ValidatorSignature,
+
+	/// Kind of dispute statement.
+	kind: InvalidDisputeStatementKind,
+}
+
+/// Any valid vote (backing, approval, explicit).
+#[derive(Encode, Decode, Debug)]
+pub struct ValidDisputeVote {
+	/// The voting validator index.
+	pub validator_index: ValidatorIndex,
+
+	/// The validator signature, that can be verified when constructing a
+	/// `SignedDisputeStatement`.
+	pub signature: ValidatorSignature,
+
+	/// Kind of dispute statement.
+	kind: ValidDisputeStatementKind,
 }

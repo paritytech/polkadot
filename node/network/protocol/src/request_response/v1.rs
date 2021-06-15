@@ -18,9 +18,9 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex, ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, PoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, DisputeMessage, ErasureChunk, PoV, UncheckedDisputeMessage};
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -197,18 +197,12 @@ impl IsRequest for StatementFetchingRequest {
 ///
 /// Contains an invalid vote a valid one for a particular candidate in a given session.
 #[derive(Encode, Decode, Debug)]
-pub struct DisputeRequest {
-	/// The candidate being disputed.
-	pub candidate_hash: CandidateHash,
+pub struct DisputeRequest(pub UncheckedDisputeMessage);
 
-	/// The session the candidate appears in.
-	pub candidate_session: SessionIndex,
-
-	/// The invalid vote data that makes up this dispute.
-	pub invalid_vote: InvalidDisputeVote,
-
-	/// The valid vote that makes this dispute request valid.
-	pub valid_vote: ValidDisputeVote,
+impl From<DisputeMessage> for DisputeRequest {
+	fn from(msg: DisputeMessage) -> Self {
+		Self(msg.into())
+	}
 }
 
 /// Possible responses to a `DisputeRequest`.
@@ -217,30 +211,6 @@ pub enum DisputeResponse {
 	/// Recipient successfully processed the dispute request.
 	#[codec(index = 0)]
 	Confirmed
-}
-
-/// Any invalid vote (currently only explicit).
-#[derive(Encode, Decode, Debug)]
-pub struct InvalidDisputeVote {
-	from: DisputingValidator,
-	kind: InvalidDisputeStatementKind,
-}
-
-/// Any valid vote (backing, approval, explicit).
-#[derive(Encode, Decode, Debug)]
-pub struct ValidDisputeVote {
-	from: DisputingValidator,
-	kind: ValidDisputeStatementKind,
-}
-
-/// Information to identify and verify a disputing validator.
-#[derive(Encode, Decode, Debug)]
-pub struct DisputingValidator {
-	/// The voting validator index.
-	pub index: ValidatorIndex,
-	/// The validator signature, that can be verified when constructing a
-	/// `SignedDisputeStatement`.
-	pub dispute_signature: ValidatorSignature,
 }
 
 impl IsRequest for DisputeRequest {
