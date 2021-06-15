@@ -32,11 +32,10 @@ use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 mod metrics;
 
-
 /// Sending of disputes to all relevant validator nodes.
 pub struct DisputeSender {
-	/// Easy and efficient runtime access for this subsystem.
-	runtime: RuntimeInfo,
+	/// All heads we currently consider active.
+	active_heads: Vec<Hash>,
 
 	/// All ongoing dispute sendings this subsystem is aware of.
 	sendings: HashMap<CandidateHash, DisputeInfo>,
@@ -101,13 +100,77 @@ impl DisputeSender
 				return
 			}
 			Entry::Vacant(vacant) => {
+				let dispute = initiate_dispute_sending(
+					ctx,
+					runtime,
+					req,
+				).await;
+				vacant.insert(dispute);
 			}
 		}
 	}
+
+	/// Determine all validators that should receive the given dispute requests.
+	///
+	/// This is all parachain validators of the session the candidate occurred and all authorities
+	/// of all currently active sessions, determined by currently active heads.
+	async fn get_relevant_validators<Context: SubsystemContext>(
+		&self,
+		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
+		req: DisputeRequest,
+	) -> HashSet<AuthorityDiscoveryId> {
+		/// We need some relay chain head for context for receiving session info information:
+		let ref_head = if let Some(head) = self.active_heads.iter().next() {
+			head
+		} else {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"No active heads - not able to determine relevant authorities."
+			);
+			return Vec::new()
+		};
+		// Parachain validators:
+		let info = runtime.get_session_info_by_index(ref_head, req.session_index).await?;
+		let session_info = info.session_info;
+		let validator_count = session_info.validators.len();
+		let mut authorities: HashSet<_> = session_info
+			.discovery_keys
+			.iter()
+			.take(validator_count)
+			.enumerate()
+			.filter(|(i, _)| Some(i) != info.validator_info.our_index)
+			.map(|(_, v)| v)
+			.collect();
+
+		// Current authorities:
+		for head in self.active_heads {
+			let info = runtime.get_session_info(head).await?;
+			let session_info = info.session_info;
+			let new_set = session_info
+				.discovery_keys
+				.iter()
+				.enumerate()
+				.filter(|(i, _)| Some(i) != info.validator_info.our_index)
+				.map(|(_, v)| v);
+			authorities.extend(new_set);
+		}
+		authorities
+	}
 }
 
+/// Initiate requests for notifying nodes about a dispute to all concerned authorities.
+async fn initiate_dispute_sending<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	req: DisputeRequest,
+) -> DisputeInfo {
+	j
+}
+
+
 /// Initialize sending of the given msg to all given authorities.
-fn send_request<Context>(
+async fn send_request<Context>(
 	ctx: &mut Context,
 	tx: mpsc::Sender<FromSendingTask>,
 	receivers: Vec<AuthorityDiscoveryId>,
