@@ -20,10 +20,6 @@
 
 #![warn(missing_docs)]
 
-#[cfg(test)]
-mod tests;
-
-
 use std::collections::{BTreeMap, HashMap, HashSet, hash_map};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_primitives::v1::{
@@ -46,6 +42,9 @@ use polkadot_node_subsystem_util::{
 use polkadot_node_network_protocol::{
 	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
 
@@ -145,8 +144,6 @@ enum LocalSource {
 	Yes,
 	No,
 }
-
-type BlockDepth = usize;
 
 /// Information about candidates in the context of a particular block they are included in.
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
@@ -627,13 +624,29 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint);
 					}
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an `AcceptedDuplicate` assignment",
+					);
 					return;
 				}
 				AssignmentCheckResult::TooFarInFuture => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an assignment too far in the future",
+					);
 					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return;
 				}
-				AssignmentCheckResult::Bad => {
+				AssignmentCheckResult::Bad(error) => {
+					tracing::info!(
+						target: LOG_TARGET,
+						?peer_id,
+						%error,
+						"Got a bad assignment from peer",
+					);
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					return;
 				}
@@ -847,11 +860,12 @@ impl State {
 						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
-				ApprovalCheckResult::Bad => {
+				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
 						?peer_id,
+						%error,
 						"Got a bad approval from peer",
 					);
 					return;
@@ -968,7 +982,7 @@ impl State {
 	) {
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
-		let mut to_send: Vec<(BlockDepth, Hash)> = Vec::new();
+		let mut to_send: Vec<Hash> = Vec::new();
 
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
@@ -996,7 +1010,7 @@ impl State {
 				block = entry.parent_hash.clone();
 				Some(interesting_block)
 			});
-			to_send.extend(interesting_blocks.enumerate());
+			to_send.extend(interesting_blocks);
 		}
 		// step 6.
 		// send all assignments and approvals for all candidates in those blocks to the peer
@@ -1012,16 +1026,13 @@ impl State {
 		entries: &HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		peer_id: PeerId,
-		blocks: Vec<(BlockDepth, Hash)>,
+		blocks: Vec<Hash>,
 	) {
-		// we will propagate only local assignment/approvals after a certain depth
-		const DEPTH_THRESHOLD: usize = 5;
-
 		let mut assignments = Vec::new();
 		let mut approvals = Vec::new();
 		let num_blocks = blocks.len();
 
-		for (depth, block) in blocks.into_iter() {
+		for block in blocks.into_iter() {
 			let entry = match entries.get(&block) {
 				Some(entry) => entry,
 				None => continue, // should be unreachable
@@ -1036,10 +1047,7 @@ impl State {
 
 			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
 				let candidate_index = candidate_index as u32;
-				for (validator_index, (approval_state, is_local)) in candidate_entry.approvals.iter() {
-					if depth >= DEPTH_THRESHOLD && !matches!(is_local, LocalSource::Yes) {
-						continue;
-					}
+				for (validator_index, (approval_state, _is_local)) in candidate_entry.approvals.iter() {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
 							assignments.push((
@@ -1110,7 +1118,6 @@ impl State {
 
 
 /// Modify the reputation of a peer based on its behavior.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation(
 	ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 	peer_id: PeerId,
@@ -1134,7 +1141,6 @@ impl ApprovalDistribution {
 		Self { metrics }
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
@@ -1144,7 +1150,6 @@ impl ApprovalDistribution {
 	}
 
 	/// Used for testing.
-	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,

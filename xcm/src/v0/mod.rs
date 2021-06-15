@@ -229,7 +229,7 @@ pub enum Xcm<Call> {
 	},
 
 	/// A message to notify that the other party in an open channel decided to close it. In particular,
-	/// `inititator` is going to close the channel opened from `sender` to the `recipient`. The close
+	/// `initiator` is going to close the channel opened from `sender` to the `recipient`. The close
 	/// will be enacted at the next relay-chain session change. This message is meant to be sent by
 	/// the relay-chain to a para.
 	///

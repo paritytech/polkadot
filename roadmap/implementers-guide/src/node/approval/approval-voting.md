@@ -170,7 +170,7 @@ On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `
 #### `OverseerSignal::ActiveLeavesUpdate`
 
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
-  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem.
+  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. Stale leaves in the update can be ignored.
   * We update the `StoredBlockRange` and the `BlockNumber` maps.
   * We use the RuntimeApiSubsystem to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
     * We fetch the set of candidates included by each block by dispatching a `RuntimeApiRequest::CandidateEvents` and checking the `CandidateIncluded` events.
@@ -271,7 +271,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Requires `(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, backing_group, block_hash, candidate_index)`
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, Some(backing_group), response_sender)`
-  * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::HistoricalValidationCode(`descriptor.para_id`, `descriptor.relay_parent`)` against the state of `block_hash`.
+  * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::ValidationCodeByHash(`descriptor.validation_code_hash`)` against the state of `block_hash`.
   * Spawn a background task with a clone of `background_tx`
     * Wait for the available data
     * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message

@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Various implementations for `ConvertOrigin`.
+
 use sp_std::{marker::PhantomData, convert::TryInto};
 use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction, BodyId, BodyPart};
 use xcm_executor::traits::{Convert, ConvertOrigin};
@@ -21,8 +23,7 @@ use frame_support::traits::{EnsureOrigin, Get, OriginTrait, GetBacking};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 
-/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
-/// `LocationConverter`.
+/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
 	PhantomData<(LocationConverter, Origin)>
 );
