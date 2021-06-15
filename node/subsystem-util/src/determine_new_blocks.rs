@@ -25,13 +25,16 @@ use futures::prelude::*;
 use futures::channel::oneshot;
 
 /// Given a new chain-head hash, this determines the hashes of all new blocks we should track
-/// metadata for, given this head. The list will typically include the `head` hash provided unless
-/// that block is already known, in which case the list should be empty. This is guaranteed to be
-/// a subset of the ancestry of `head`, as well as `head`, starting from `head` and moving
-/// backwards.
+/// metadata for, given this head.
 ///
-/// This returns the entire ancestry up to the provided lower bound height or the last item we
-/// have in the DB. This may be somewhat expensive when first recovering from major sync.
+/// This is guaranteed to be a subset of the (inclusive) ancestry of `head` determined as all
+/// blocks above the lower bound or above the highest known block, whichever is higher.
+/// This is formatted in descending order by block height.
+///
+/// An implication of this is that if `head` itself is known or not above the lower bound,
+/// then the returned list will be empty.
+///
+/// This may be somewhat expensive when first recovering from major sync.
 pub async fn determine_new_blocks<E>(
 	ctx: &mut impl SubsystemSender,
 	is_known: impl Fn(&Hash) -> Result<bool, E>,
