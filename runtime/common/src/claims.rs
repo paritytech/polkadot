@@ -429,6 +429,53 @@ pub mod pallet {
 			Ok(Pays::No.into())
 		}
 	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			const PRIORITY: u64 = 100;
+
+			let (maybe_signer, maybe_statement) = match call {
+				// <weight>
+				// The weight of this logic is included in the `claim` dispatchable.
+				// </weight>
+				Call::claim(account, ethereum_signature) => {
+					let data = account.using_encoded(to_ascii_hex);
+					(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
+				}
+				// <weight>
+				// The weight of this logic is included in the `claim_attest` dispatchable.
+				// </weight>
+				Call::claim_attest(account, ethereum_signature, statement) => {
+					let data = account.using_encoded(to_ascii_hex);
+					(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
+				}
+				_ => return Err(InvalidTransaction::Call.into()),
+			};
+
+			let signer = maybe_signer
+				.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
+
+			let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
+			ensure!(<Claims<T>>::contains_key(&signer), e);
+
+			let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
+			match Signing::<T>::get(signer) {
+				None => ensure!(maybe_statement.is_none(), e),
+				Some(s) => ensure!(Some(s.to_text()) == maybe_statement, e),
+			}
+
+			Ok(ValidTransaction {
+				priority: PRIORITY,
+				requires: vec![],
+				provides: vec![("claims", signer).encode()],
+				longevity: TransactionLongevity::max_value(),
+				propagate: true,
+			})
+		}
+	}
 }
 
 /// Converts the given binary data into ASCII-encoded hex. It will be twice the length.
@@ -500,52 +547,6 @@ impl<T: Config> Pallet<T> {
 		Self::deposit_event(Event::<T>::Claimed(dest, signer, balance_due));
 
 		Ok(())
-	}
-}
-
-impl<T: Config> sp_runtime::traits::ValidateUnsigned for Pallet<T> {
-	type Call = Call<T>;
-
-	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-		const PRIORITY: u64 = 100;
-
-		let (maybe_signer, maybe_statement) = match call {
-			// <weight>
-			// The weight of this logic is included in the `claim` dispatchable.
-			// </weight>
-			Call::claim(account, ethereum_signature) => {
-				let data = account.using_encoded(to_ascii_hex);
-				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
-			}
-			// <weight>
-			// The weight of this logic is included in the `claim_attest` dispatchable.
-			// </weight>
-			Call::claim_attest(account, ethereum_signature, statement) => {
-				let data = account.using_encoded(to_ascii_hex);
-				(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
-			}
-			_ => return Err(InvalidTransaction::Call.into()),
-		};
-
-		let signer = maybe_signer
-			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
-
-		let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
-		ensure!(<Claims<T>>::contains_key(&signer), e);
-
-		let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
-		match Signing::<T>::get(signer) {
-			None => ensure!(maybe_statement.is_none(), e),
-			Some(s) => ensure!(Some(s.to_text()) == maybe_statement, e),
-		}
-
-		Ok(ValidTransaction {
-			priority: PRIORITY,
-			requires: vec![],
-			provides: vec![("claims", signer).encode()],
-			longevity: TransactionLongevity::max_value(),
-			propagate: true,
-		})
 	}
 }
 
