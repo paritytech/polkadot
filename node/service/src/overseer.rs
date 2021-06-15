@@ -37,6 +37,24 @@ use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
 use sp_consensus_babe::BabeApi;
 
+pub use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+pub use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
+pub use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+pub use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
+pub use polkadot_node_core_backing::CandidateBackingSubsystem;
+pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+pub use polkadot_node_core_chain_api::ChainApiSubsystem;
+pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
+pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
+pub use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+pub use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+pub use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+pub use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
+pub use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
+pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
+pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
+
 /// Arguments passed for overseer construction.
 pub struct OverseerGenArgs<'a, Spawner, RuntimeClient> where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -57,25 +75,6 @@ pub struct OverseerGenArgs<'a, Spawner, RuntimeClient> where
 	pub is_collator: IsCollator,
 	pub candidate_validation_config: CandidateValidationConfig,
 }
-
-pub use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-pub use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-pub use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-pub use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-pub use polkadot_node_core_backing::CandidateBackingSubsystem;
-pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-pub use polkadot_node_core_chain_api::ChainApiSubsystem;
-pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
-pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
-pub use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-pub use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-pub use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-pub use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
-pub use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
-pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
-pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
-
 
 pub fn create_default_subsystems<'a, Spawner, RuntimeClient>
 (
