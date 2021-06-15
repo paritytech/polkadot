@@ -78,8 +78,7 @@ pub fn craft_valid_storage_proof() -> (sp_core::H256, StorageProof) {
 		// Value is too big to fit in a branch node
 		(None, vec![(b"key11".to_vec(), Some(vec![0u8; 32]))]),
 	]);
-	// using inner hashed.
-	let root = backend.storage_root(std::iter::empty(), true).0;
+	let root = backend.storage_root(std::iter::empty()).0;
 	let proof = StorageProof::new(
 		prove_read(backend, &[&b"key1"[..], &b"key2"[..], &b"key22"[..]])
 			.unwrap()

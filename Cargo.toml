@@ -132,6 +132,7 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [patch.'https://github.com/paritytech/substrate']
 sp-core = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-std = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-client-api = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-treasury = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-randomness-collective-flip = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -150,7 +151,6 @@ pallet-authorship = { git="https://github.com/cheme/substrate", branch="state-up
 sp-staking = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-runtime = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-io = { git="https://github.com/cheme/substrate", branch="state-update4" }
-sp-std = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-inherents = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-api = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-sudo = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -266,6 +266,8 @@ sc-executor-wasmtime = { git="https://github.com/cheme/substrate", branch="state
 sc-consensus-uncles = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-authorship = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-utils = { git="https://github.com/cheme/substrate", branch="state-update4" }
+max-encoded-len = { git="https://github.com/cheme/substrate", branch="state-update4" }
+max-encoded-len-derive = { git="https://github.com/cheme/substrate", branch="state-update4" }
 
 [patch.crates-io]
 hash-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }

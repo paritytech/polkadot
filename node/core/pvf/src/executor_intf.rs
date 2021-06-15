@@ -197,10 +197,6 @@ impl sp_externalities::Externalities for ValidationExternalities {
 	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
 		panic!("set_offchain_storage: unsupported feature for parachain validation")
 	}
-
-	fn flag_hash_value(&mut self) {
-		panic!("flag_hash_value: unsupported feature for parachain validation")
-	}
 }
 
 impl sp_externalities::ExtensionStore for ValidationExternalities {
