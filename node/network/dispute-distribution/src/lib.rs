@@ -23,6 +23,8 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError,
 };
 
+mod sender;
+
 /// Error and [`Result`] type for this subsystem.
 mod error;
 use error::Fatal;
@@ -31,7 +33,6 @@ use error::{Result, log_error};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 mod metrics;
-mod sender;
 /// Prometheus `Metrics` for dispute distribution.
 pub use metrics::Metrics;
 

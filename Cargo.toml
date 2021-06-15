@@ -62,6 +62,7 @@ members = [
 	"node/network/availability-recovery",
 	"node/network/collator-protocol",
 	"node/network/gossip-support",
+	"node/network/dispute-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
