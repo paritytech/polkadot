@@ -427,6 +427,7 @@ pub struct UncheckedDisputeMessage {
 /// statements.
 ///
 /// And most likely has been constructed correctly.
+#[derive(Debug)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
 impl DisputeMessage {

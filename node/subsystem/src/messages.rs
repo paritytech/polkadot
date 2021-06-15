@@ -252,6 +252,7 @@ pub enum DisputeParticipationMessage {
 }
 
 /// Messages going to the dispute distribution subsystem.
+#[derive(Debug)]
 pub enum DisputeDistributionMessage {
 
   /// Tell dispute distribution to distribute an explicit dispute statement to
@@ -261,6 +262,9 @@ pub enum DisputeDistributionMessage {
   /// Tell the subsystem that a candidate is not available. Dispute distribution
   /// can punish peers distributing votes on unavailable hashes.
   ReportCandidateUnavailable(CandidateHash),
+  
+  /// Get receiver for receiving incoming network requests for dispute sending.
+  DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
@@ -824,6 +828,9 @@ pub enum AllMessages {
 	/// Message for the dispute participation subsystem.
 	#[skip]
 	DisputeParticipation(DisputeParticipationMessage),
+	/// Message for the dispute participation subsystem.
+	#[skip]
+	DisputeDistribution(DisputeDistributionMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {

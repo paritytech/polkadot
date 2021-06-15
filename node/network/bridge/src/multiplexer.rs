@@ -42,6 +42,7 @@ use polkadot_subsystem::messages::AllMessages;
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
 	statement_fetching: Option<mpsc::Receiver<network::IncomingRequest>>,
+	dispute_sending: Option<mpsc::Receiver<network::IncomingRequest>>,
 	next_poll: usize,
 }
 
@@ -68,19 +69,31 @@ impl RequestMultiplexer {
 			})
 			.unzip();
 
+		// Ok this code is ugly as hell, it is also a hack, see #2842. But it works and is executed
+		// on startup so, if anything is wrong here it will be noticed immediately.
 		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
 			if let Protocol::StatementFetching = p {
 				Some(i)
 			} else {
 				None
 			}
-		).expect("Statement fetching must be registered. qed.");
+		).expect("Statement fetching must be registered.");
 		let statement_fetching = Some(receivers.remove(index).1);
+
+		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
+			if let Protocol::DisputeSending = p {
+				Some(i)
+			} else {
+				None
+			}
+		).expect("Dispute sending must be registered.");
+		let dispute_sending = Some(receivers.remove(index).1);
 
 		(
 			Self {
 				receivers,
 				statement_fetching,
+                dispute_sending,
 				next_poll: 0,
 			},
 			cfgs,
@@ -92,6 +105,13 @@ impl RequestMultiplexer {
 	/// This function will only return `Some` once.
 	pub fn get_statement_fetching(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
 		std::mem::take(&mut self.statement_fetching)
+	}
+
+	/// Get the receiver for handling dispute sending requests.
+	///
+	/// This function will only return `Some` once.
+	pub fn get_dispute_sending(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
+		std::mem::take(&mut self.dispute_sending)
 	}
 }
 
@@ -173,6 +193,9 @@ fn multiplex_single(
 		)),
 		Protocol::StatementFetching => {
 			panic!("Statement fetching requests are handled directly. qed.");
+		}
+		Protocol::DisputeSending => {
+			panic!("Dispute sending request are handled directly. qed.");
 		}
 	};
 	Ok(r)

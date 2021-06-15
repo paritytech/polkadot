@@ -24,6 +24,7 @@ use parity_scale_codec::{Encode, Decode};
 use parking_lot::Mutex;
 use futures::prelude::*;
 use futures::stream::BoxStream;
+use polkadot_subsystem::messages::DisputeDistributionMessage;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
@@ -852,6 +853,10 @@ where
 		.get_statement_fetching()
 		.expect("Gets initialized, must be `Some` on startup. qed.");
 
+	let dispute_receiver = request_multiplexer
+		.get_dispute_sending()
+		.expect("Gets initialized, must be `Some` on startup. qed.");
+
 	let (remote, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
@@ -866,6 +871,9 @@ where
 
 	ctx.send_message(AllMessages::StatementDistribution(
 		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
+	)).await;
+	ctx.send_message(AllMessages::DisputeDistribution(
+		DisputeDistributionMessage::DisputeSendingReceiver(dispute_receiver)
 	)).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(
