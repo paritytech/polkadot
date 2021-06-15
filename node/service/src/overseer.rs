@@ -219,7 +219,7 @@ where
 
 /// Trait for the fn generating the overseer.
 ///
-/// Default behavior is to creat an unmodified overseer, as `RealOverseerGen`
+/// Default behavior is to create an unmodified overseer, as `RealOverseerGen`
 /// would do.
 pub trait OverseerGen {
 	/// Overwrite the full generation of the overseer, including the subsystems.
