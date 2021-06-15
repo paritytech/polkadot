@@ -118,11 +118,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8]) {
+	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8]) {
+	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
