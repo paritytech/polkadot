@@ -269,7 +269,7 @@ impl State {
 fn filled_tranche_iterator<'a>(
 	tranches: &'a [TrancheEntry],
 ) -> impl Iterator<Item = (DelayTranche, &[(ValidatorIndex, Tick)])> {
-	let mut gap_end = 0;
+	let mut gap_end = None;
 
 	let approval_entries_filled = tranches
 		.iter()
@@ -277,8 +277,11 @@ fn filled_tranche_iterator<'a>(
 			let tranche = tranche_entry.tranche();
 			let assignments = tranche_entry.assignments();
 
-			let gap_start = gap_end + 1;
-			gap_end = tranche;
+			// The new gap_start immediately follows the prior gap_end, if one exists.
+			// Otherwise, on the first pass, the new gap_start is set to the first
+			// tranche so that the range below will be empty.
+			let gap_start = gap_end.map(|end| end + 1).unwrap_or(tranche);
+			gap_end = Some(tranche);
 
 			(gap_start..tranche).map(|i| (i, &[] as &[_]))
 				.chain(std::iter::once((tranche, assignments)))
@@ -287,8 +290,7 @@ fn filled_tranche_iterator<'a>(
 	let pre_end = tranches.first().map(|t| t.tranche());
 	let post_start = tranches.last().map_or(0, |t| t.tranche() + 1);
 
-	let pre = pre_end
-		.into_iter()
+	let pre = pre_end.into_iter()
 		.flat_map(|pre_end| (0..pre_end).map(|i| (i, &[] as &[_])));
 	let post = (post_start..).map(|i| (i, &[] as &[_]));
 
@@ -945,6 +947,48 @@ mod tests {
 				next_no_show: None,
 			},
 		);
+	}
+
+	#[test]
+	fn filled_tranche_iterator_yields_sequential_tranches() {
+		const PREFIX: u32 = 10;
+
+		let test_tranches = vec![
+			vec![],	 // empty set
+			vec![0],	// zero start
+			vec![0, 3], // zero start with gap
+			vec![2],	// non-zero start
+			vec![2, 4], // non-zero start with gap
+		];
+
+		for test_tranche in test_tranches {
+			let mut approval_entry: ApprovalEntry = approval_db::v1::ApprovalEntry {
+				tranches: Vec::new(),
+				backing_group: GroupIndex(0),
+				our_assignment: None,
+				our_approval_sig: None,
+				assignments: bitvec![BitOrderLsb0, u8; 0; 3],
+				approved: false,
+			}.into();
+
+			// Populate the requested tranches. The assignemnts aren't inspected in
+			// this test.
+			for &t in &test_tranche {
+				approval_entry.import_assignment(t, ValidatorIndex(0), 0)
+			}
+
+			let filled_tranches = filled_tranche_iterator(approval_entry.tranches());
+
+			// Take the first PREFIX entries and map them to their tranche.
+			let tranches: Vec<DelayTranche> = filled_tranches
+				.take(PREFIX as usize)
+				.map(|e| e.0)
+				.collect();
+
+			// We expect this sequence to be sequential.
+			let exp_tranches: Vec<DelayTranche> = (0..PREFIX).collect();
+			assert_eq!(tranches, exp_tranches, "for test tranches: {:?}", test_tranche);
+		}
 	}
 }
 
