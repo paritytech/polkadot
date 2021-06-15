@@ -27,8 +27,7 @@ use sp_runtime::traits::Zero;
 use sp_runtime::{
 	traits::{CheckedSub, SignedExtension, DispatchInfoOf}, RuntimeDebug,
 	transaction_validity::{
-		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction,
-		TransactionSource, TransactionValidityError,
+		TransactionValidity, ValidTransaction, InvalidTransaction, TransactionValidityError,
 	},
 };
 use primitives::v1::ValidityError;
@@ -650,7 +649,11 @@ mod tests {
 	use parity_scale_codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sp_runtime::{traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
+	use sp_runtime::{
+		traits::{BlakeTwo256, IdentityLookup, Identity},
+		transaction_validity::TransactionLongevity,
+		testing::Header,
+	};
 	use frame_support::{
 		assert_ok, assert_err, assert_noop, parameter_types,
 		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::{ExistenceRequirement, GenesisBuild},
