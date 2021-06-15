@@ -1942,12 +1942,12 @@ async fn launch_approval(
 	struct StaleGuard(Option<Metrics>);
 
 	impl StaleGuard {
-		fn forget_with(mut self, f: impl Fn(&Metrics)) {
-			if let Some(metrics) = self.0.take() {
-				f(&metrics);
-			}
-
-			std::mem::forget(self);
+		fn take(mut self) -> Metrics {
+			self.0.take().expect("
+				consumed after take; so this cannot be called twice; \
+				nothing in this function reaches into the struct to avoid this API; \
+				qed
+			")
 		}
 	}
 
@@ -2006,7 +2006,7 @@ async fn launch_approval(
 					(candidate_hash, candidate.descriptor.para_id),
 				);
 				// do nothing. we'll just be a no-show and that'll cause others to rise up.
-				metrics_guard.forget_with(|m| m.on_approval_unavailable());
+				metrics_guard.take().on_approval_unavailable();
 				return;
 			}
 			Ok(Err(RecoveryError::Invalid)) => {
@@ -2018,7 +2018,7 @@ async fn launch_approval(
 
 				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
 				// https://github.com/paritytech/polkadot/issues/2176
-				metrics_guard.forget_with(|m| m.on_approval_invalid());
+				metrics_guard.take().on_approval_invalid();
 				return;
 			}
 		};
@@ -2037,7 +2037,7 @@ async fn launch_approval(
 
 				// No dispute necessary, as this indicates that the chain is not behaving
 				// according to expectations.
-				metrics_guard.forget_with(|m| m.on_approval_unavailable());
+				metrics_guard.take().on_approval_unavailable();
 				return;
 			}
 		};
@@ -2066,7 +2066,7 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
-				metrics_guard.forget_with(|_| {});
+				let _ = metrics_guard.take();
 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
 					validator_index,
 					block_hash,
@@ -2084,7 +2084,7 @@ async fn launch_approval(
 
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
-				metrics_guard.forget_with(|m| m.on_approval_invalid());
+				metrics_guard.take().on_approval_invalid();
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2092,8 +2092,7 @@ async fn launch_approval(
 					err = ?e,
 					"Failed to validate candidate due to internal error",
 				);
-
-				metrics_guard.forget_with(|m| m.on_approval_error());
+				metrics_guard.take().on_approval_error();
 				return
 			}
 		}
