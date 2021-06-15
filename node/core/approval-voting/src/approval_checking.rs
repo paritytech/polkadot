@@ -17,10 +17,11 @@
 //! Utilities for checking whether a candidate has been approved under a given block.
 
 use polkadot_node_primitives::approval::DelayTranche;
+use polkadot_primitives::v1::ValidatorIndex;
 use bitvec::slice::BitSlice;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 
-use crate::persisted_entries::{ApprovalEntry, CandidateEntry};
+use crate::persisted_entries::{TrancheEntry, ApprovalEntry, CandidateEntry};
 use crate::time::Tick;
 
 /// The required tranches of assignments needed to determine whether a candidate is approved.
@@ -263,6 +264,37 @@ impl State {
 	}
 }
 
+/// Constructs an infinite iterator from an array of `TrancheEntry` values. Any missing tranches
+/// are filled with empty assignments, as they are needed to compute the approved tranches.
+fn filled_tranche_iterator<'a>(
+	tranches: &'a [TrancheEntry],
+) -> impl Iterator<Item = (DelayTranche, &[(ValidatorIndex, Tick)])> {
+	let mut gap_end = 0;
+
+	let approval_entries_filled = tranches
+		.iter()
+		.flat_map(move |tranche_entry| {
+			let tranche = tranche_entry.tranche();
+			let assignments = tranche_entry.assignments();
+
+			let gap_start = gap_end + 1;
+			gap_end = tranche;
+
+			(gap_start..tranche).map(|i| (i, &[] as &[_]))
+				.chain(std::iter::once((tranche, assignments)))
+		});
+
+	let pre_end = tranches.first().map(|t| t.tranche());
+	let post_start = tranches.last().map_or(0, |t| t.tranche() + 1);
+
+	let pre = pre_end
+		.into_iter()
+		.flat_map(|pre_end| (0..pre_end).map(|i| (i, &[] as &[_])));
+	let post = (post_start..).map(|i| (i, &[] as &[_]));
+
+	pre.chain(approval_entries_filled).chain(post)
+}
+
 /// Determine the amount of tranches of assignments needed to determine approval of a candidate.
 pub fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
@@ -288,31 +320,7 @@ pub fn tranches_to_approve(
 	// these empty tranches, so we create an iterator to fill the gaps.
 	//
 	// This iterator has an infinitely long amount of non-empty tranches appended to the end.
-	let tranches_with_gaps_filled = {
-		let mut gap_end = 0;
-
-		let approval_entries_filled = approval_entry.tranches()
-			.iter()
-			.flat_map(move |tranche_entry| {
-				let tranche = tranche_entry.tranche();
-				let assignments = tranche_entry.assignments();
-
-				let gap_start = gap_end + 1;
-				gap_end = tranche;
-
-				(gap_start..tranche).map(|i| (i, &[] as &[_]))
-					.chain(std::iter::once((tranche, assignments)))
-			});
-
-		let pre_end = approval_entry.tranches().first().map(|t| t.tranche());
-		let post_start = approval_entry.tranches().last().map_or(0, |t| t.tranche() + 1);
-
-		let pre = pre_end.into_iter()
-			.flat_map(|pre_end| (0..pre_end).map(|i| (i, &[] as &[_])));
-		let post = (post_start..).map(|i| (i, &[] as &[_]));
-
-		pre.chain(approval_entries_filled).chain(post)
-	};
+	let tranches_with_gaps_filled = filled_tranche_iterator(approval_entry.tranches());
 
 	tranches_with_gaps_filled
 		.scan(Some(initial_state), |state, (tranche, assignments)| {
@@ -384,7 +392,7 @@ pub fn tranches_to_approve(
 mod tests {
 	use super::*;
 
-	use polkadot_primitives::v1::{GroupIndex, ValidatorIndex};
+	use polkadot_primitives::v1::GroupIndex;
 	use bitvec::bitvec;
 	use bitvec::order::Lsb0 as BitOrderLsb0;
 
