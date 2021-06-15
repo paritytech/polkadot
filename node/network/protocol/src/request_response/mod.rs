@@ -175,7 +175,7 @@ impl Protocol {
 				max_response_size: 100,
 				/// We can have relative large timeouts here, there is no value of hitting a
 				/// timeout as we want to get statements through to each node in any case.
-				request_timeout: Duration::from_secs(10),
+				request_timeout: Duration::from_secs(12),
 				inbound_queue: Some(tx),
 			},
 		};
