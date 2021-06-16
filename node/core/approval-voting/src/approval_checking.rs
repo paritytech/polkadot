@@ -954,11 +954,14 @@ mod tests {
 		const PREFIX: u32 = 10;
 
 		let test_tranches = vec![
-			vec![],	 // empty set
-			vec![0],	// zero start
-			vec![0, 3], // zero start with gap
-			vec![2],	// non-zero start
-			vec![2, 4], // non-zero start with gap
+			vec![],					// empty set
+			vec![0],				// zero start
+			vec![0, 3],				// zero start with gap
+			vec![2],				// non-zero start
+			vec![2, 4],				// non-zero start with gap
+			vec![0, 1, 2],			// zero start with run and no gap
+			vec![2, 3, 4, 8],		// non-zero start with run and gap
+			vec![0, 1, 2, 5, 6, 7],	// zero start with runs and gap
 		];
 
 		for test_tranche in test_tranches {
