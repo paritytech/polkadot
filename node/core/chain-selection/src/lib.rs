@@ -77,6 +77,36 @@ struct LeafEntry {
 }
 
 #[derive(Debug, Clone)]
+struct LeafEntrySet {
+	inner: Vec<LeafEntry>
+}
+
+impl LeafEntrySet {
+	fn contains(&self, hash: &Hash) -> bool {
+		self.inner.iter().position(|e| &e.block_hash == hash).is_some()
+	}
+
+	fn remove(&mut self, hash: &Hash) -> bool {
+		match self.inner.iter().position(|e| &e.block_hash == hash) {
+			None => false,
+			Some(i) => {
+				self.inner.remove(i);
+				true
+			}
+		}
+	}
+
+	fn insert(&mut self, new: LeafEntry) {
+		match self.inner.iter().position(|e| e.weight < new.weight) {
+			None => self.inner.push(new),
+			Some(i) => if self.inner[i].block_hash != new.block_hash {
+				self.inner.insert(i, new);
+			}
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
 struct BlockEntry {
 	block_hash: Hash,
 	parent_hash: Hash,
@@ -118,7 +148,7 @@ impl Error {
 enum BackendWriteOp {
 	WriteBlockEntry(Hash, BlockEntry),
 	WriteBlocksByNumber(BlockNumber, Vec<Hash>),
-	WriteActiveLeaves(Vec<LeafEntry>),
+	WriteViableLeaves(LeafEntrySet),
 	WriteStagnantAt(Timestamp, Vec<Hash>),
 	DeleteBlocksByNumber(BlockNumber),
 	DeleteBlockEntry(Hash),
@@ -129,7 +159,7 @@ trait Backend {
 	/// Load a block entry from the DB.
 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error>;
 	/// Load the active-leaves set.
-	fn load_leaves(&self) -> Result<Vec<LeafEntry>, Error>;
+	fn load_leaves(&self) -> Result<LeafEntrySet, Error>;
 	/// Load the stagnant list at the given timestamp.
 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
 	/// Load all stagnant lists up to and including the given unix timestamp.
@@ -152,6 +182,8 @@ struct OverlayedBackend<'a, B: 'a> {
 	block_entries: HashMap<Hash, Option<BlockEntry>>,
 	// `None` means 'deleted', missing means query inner.
 	blocks_by_number: HashMap<BlockNumber, Option<Vec<Hash>>>,
+	// 'None' means query inner.
+	leaves: Option<LeafEntrySet>,
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
@@ -160,6 +192,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			inner: backend,
 			block_entries: HashMap::new(),
 			blocks_by_number: HashMap::new(),
+			leaves: None,
 		}
 	}
 
@@ -179,6 +212,14 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_blocks_by_number(number)
 	}
 
+	fn load_leaves(&self) -> Result<LeafEntrySet, Error> {
+		if let Some(ref set) = self.leaves {
+			return Ok(set.clone())
+		}
+
+		self.inner.load_leaves()
+	}
+
 	fn write_block_entry(&mut self, hash: Hash, entry: BlockEntry) {
 		self.block_entries.insert(hash, Some(entry));
 	}
@@ -195,6 +236,10 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.blocks_by_number.insert(number, None);
 	}
 
+	fn write_leaves(&mut self, leaves: LeafEntrySet) {
+		self.leaves = Some(leaves);
+	}
+
 	fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
 		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
 			Some(v) => BackendWriteOp::WriteBlockEntry(h, v),
@@ -206,7 +251,9 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			None => BackendWriteOp::DeleteBlocksByNumber(n),
 		});
 
-		block_entry_ops.chain(blocks_by_number_ops)
+		let leaf_ops = self.leaves.into_iter().map(BackendWriteOp::WriteViableLeaves);
+
+		block_entry_ops.chain(blocks_by_number_ops).chain(leaf_ops)
 	}
 }
 
