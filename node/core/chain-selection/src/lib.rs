@@ -166,6 +166,7 @@ enum BackendWriteOp {
 	WriteStagnantAt(Timestamp, Vec<Hash>),
 	DeleteBlocksByNumber(BlockNumber),
 	DeleteBlockEntry(Hash),
+	DeleteStagnantAt(Timestamp),
 }
 
 // An abstraction over backend for the logic of this subsystem.
@@ -196,6 +197,8 @@ struct OverlayedBackend<'a, B: 'a> {
 	block_entries: HashMap<Hash, Option<BlockEntry>>,
 	// `None` means 'deleted', missing means query inner.
 	blocks_by_number: HashMap<BlockNumber, Option<Vec<Hash>>>,
+	// 'None' means 'deleted', missing means query inner.
+	stagnant_at: HashMap<Timestamp, Option<Vec<Hash>>>,
 	// 'None' means query inner.
 	leaves: Option<LeafEntrySet>,
 }
@@ -206,6 +209,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			inner: backend,
 			block_entries: HashMap::new(),
 			blocks_by_number: HashMap::new(),
+			stagnant_at: HashMap::new(),
 			leaves: None,
 		}
 	}
@@ -234,6 +238,14 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_leaves()
 	}
 
+	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error> {
+		if let Some(val) = self.stagnant_at.get(&timestamp) {
+			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone));
+		}
+
+		self.inner.load_stagnant_at(timestamp)
+	}
+
 	fn write_block_entry(&mut self, hash: Hash, entry: BlockEntry) {
 		self.block_entries.insert(hash, Some(entry));
 	}
@@ -254,6 +266,14 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.leaves = Some(leaves);
 	}
 
+	fn write_stagnant_at(&mut self, timestamp: Timestamp, hashes: Vec<Hash>) {
+		self.stagnant_at.insert(timestamp, Some(hashes));
+	}
+
+	fn delete_stagnant_at(&mut self, timestamp: Timestamp) {
+		self.stagnant_at.insert(timestamp, None);
+	}
+
 	fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
 		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
 			Some(v) => BackendWriteOp::WriteBlockEntry(h, v),
@@ -267,7 +287,15 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 		let leaf_ops = self.leaves.into_iter().map(BackendWriteOp::WriteViableLeaves);
 
-		block_entry_ops.chain(blocks_by_number_ops).chain(leaf_ops)
+		let stagnant_at_ops = self.stagnant_at.into_iter().map(|(n, v)| match v {
+			Some(v) => BackendWriteOp::WriteStagnantAt(n, v),
+			None => BackendWriteOp::DeleteStagnantAt(n),
+		});
+
+		block_entry_ops
+			.chain(blocks_by_number_ops)
+			.chain(leaf_ops)
+			.chain(stagnant_at_ops)
 	}
 }
 
