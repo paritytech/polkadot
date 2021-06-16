@@ -214,7 +214,13 @@ impl State {
 				})
 			}
 			NetworkBridgeEvent::NewGossipTopology(peers) => {
+				let newly_added: Vec<PeerId> = peers.difference(&self.gossip_peers).cloned().collect();
 				self.gossip_peers = peers;
+				for peer_id in newly_added {
+					if let Some(view) = self.peer_views.remove(&peer_id) {
+						self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+					}
+				}
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;

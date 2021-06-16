@@ -1483,21 +1483,14 @@ async fn update_peer_view_and_maybe_send_unlocked(
 		is_gossip_peer
 	};
 
-	if !lucky {
-		tracing::trace!(
-			target: LOG_TARGET,
-			?peer,
-			"Unlucky peer",
-		);
-		return;
-	}
-
 	// Add entries for all relay-parents in the new view but not the old.
 	// Furthermore, send all statements we have for those relay parents.
 	let new_view = peer_data.view.difference(&old_view).copied().collect::<Vec<_>>();
 	for new in new_view.iter().copied() {
 		peer_data.view_knowledge.insert(new, Default::default());
-
+		if !lucky {
+			continue;
+		}
 		if let Some(active_head) = active_heads.get(&new) {
 			send_statements(
 				peer.clone(),
@@ -1548,8 +1541,23 @@ async fn handle_network_update(
 				authorities.remove(&auth_id);
 			}
 		}
-		NetworkBridgeEvent::NewGossipTopology(peers) => {
-			*gossip_peers = peers;
+		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
+			*gossip_peers = new_peers;
+			for peer in newly_added {
+				if let Some(data) = peers.get_mut(&peer) {
+					let view = std::mem::take(&mut data.view);
+					update_peer_view_and_maybe_send_unlocked(
+						peer,
+						gossip_peers,
+						data,
+						ctx,
+						&*active_heads,
+						view,
+						metrics,
+					).await
+				}
+			}
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			handle_incoming_message_and_circulate(

@@ -543,7 +543,13 @@ where
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::NewGossipTopology(peers) => {
+			let newly_added: Vec<PeerId> = peers.difference(&state.gossip_peers).cloned().collect();
 			state.gossip_peers = peers;
+			for peer in newly_added {
+				if let Some(view) = state.peer_views.remove(&peer) {
+					handle_peer_view_change(ctx, state, peer, view).await;
+				}
+			}
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
 			tracing::trace!(
@@ -617,9 +623,9 @@ where
 		);
 		return;
 	}
+
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
-
 	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
