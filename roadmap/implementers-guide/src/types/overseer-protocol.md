@@ -336,6 +336,23 @@ enum ChainApiMessage {
 }
 ```
 
+## Chain Selection Message
+
+Messages received by the [Chain Selection subsystem](../node/utility/chain-selection.md)
+
+```rust
+enum ChainSelectionMessage {
+    /// Signal to the chain selection subsystem that a specific block has been approved.
+    Approved(Hash),
+    /// Request the leaves in descending order by score.
+    Leaves(ResponseChannel<Vec<Hash>>),
+    /// Request the best leaf containing the given block in its ancestry. Return `None` if
+    /// there is no such leaf.
+    BestLeafContaining(Hash, ResponseChannel<Option<Hash>>),
+    
+}
+```
+
 ## Collator Protocol Message
 
 Messages received by the [Collator Protocol subsystem](../node/collators/collator-protocol.md)
