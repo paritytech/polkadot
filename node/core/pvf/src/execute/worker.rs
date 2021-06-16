@@ -35,6 +35,12 @@ use parity_scale_codec::{Encode, Decode};
 
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
+pub struct ReceiveMsg {
+	path: PathBuf,
+	params: Vec<u8>,
+	entry_point: String,
+}
+
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
 /// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
@@ -141,7 +147,7 @@ async fn send_request(
 	framed_send(stream, entry_point.as_bytes()).await
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, String)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<ReceiveMsg> {
 	let artifact_path = framed_recv(stream).await?;
 	let artifact_path = bytes_to_path(&artifact_path).ok_or_else(|| {
 		io::Error::new(
