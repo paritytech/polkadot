@@ -1,0 +1,14 @@
+[settings.defaults]
+chain-name = "polkadot-local"
+
+[nodes.alice]
+validator = true
+extra-args = ["--alice"]
+image = "parity/polkadot"
+command = "polkadot"
+
+[nodes.bob]
+validator = true
+extra-args = ["--bob"]
+image = "paritypr/forrestgump:v3"
+command = "/usr/local/bin/polkadot-simnet"

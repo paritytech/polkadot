@@ -1,5 +1,5 @@
 use polkadot_cli::Cli;
-use sc_cli::SubstrateCli;
+use sc_cli::{SubstrateCli, CliConfiguration};
 use structopt::StructOpt;
 use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_pallet_democracy};
 use test_runner::{Node, ChainInfo};
@@ -34,7 +34,14 @@ impl ChainInfo for PolkadotSimnetChainInfo {
 
     fn config(task_executor: TaskExecutor) -> Configuration {
         let cmd = <Cli as StructOpt>::from_args();
-        cmd.create_configuration(&cmd.run.base, task_executor).unwrap()
+        let config = cmd.create_configuration(&cmd.run.base, task_executor).unwrap();
+        // print_node_infos(&config);
+
+        let filters = cmd.run.base.log_filters().unwrap();
+        let logger = sc_tracing::logging::LoggerBuilder::new(filters);
+        logger.init().unwrap();
+
+        config
     }
 
     fn create_client_parts(config: &Configuration) -> Result<

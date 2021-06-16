@@ -36,6 +36,7 @@ use std::str::FromStr;
 use codec::Encode;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
 use sp_inherents::CreateInherentDataProviders;
+use sp_runtime::app_crypto::sp_core::H256;
 
 pub type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
 pub type Block = polkadot_primitives::v1::Block;
@@ -180,6 +181,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     type DemocracyCall = pallet_democracy::Call<Runtime>;
     type TechnicalCollectiveCall = pallet_collective::Call<Runtime, TechnicalCollective>;
     type CouncilCollectiveCall = pallet_collective::Call<Runtime, CouncilCollective>;
+    type CouncilEvent = pallet_collective::Event::<Runtime, CouncilCollective>;
+    type TechnicalCommitteeEvent = pallet_collective::Event::<Runtime, TechnicalCollective>;
 
     // here lies a black mirror esque copy of on chain whales.
     let whales = vec![
@@ -204,8 +207,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     let events = node.events();
     let proposal_hash = events.into_iter()
         .filter_map(|event| match event.event {
-            Event::pallet_democracy(
-                pallet_democracy::RawEvent::PreimageNoted(proposal_hash, _, _)
+            Event::Democracy(
+                pallet_democracy::Event::PreimageNoted(proposal_hash, _, _)
             ) => Some(proposal_hash),
             _ => None
         })
@@ -227,12 +230,10 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
 
     // fetch proposal index from event emitted by the runtime
     let events = node.events();
-    let (council_proposal_index, council_proposal_hash) = events.into_iter()
+    let (council_proposal_index, council_proposal_hash): (u32, H256) = events.into_iter()
         .filter_map(|event| {
             match event.event {
-                Event::pallet_collective_Instance1(
-                    pallet_collective::RawEvent::Proposed(_, index, proposal_hash, _)
-                ) => Some((index, proposal_hash)),
+                Event::Council(CouncilEvent::Proposed(_, index, proposal_hash, _)) => Some((index, proposal_hash)),
                 _ => None
             }
         })
@@ -256,9 +257,9 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::pallet_collective_Instance1(pallet_collective::RawEvent::Closed(_, _, _)) |
-                Event::pallet_collective_Instance1(pallet_collective::RawEvent::Approved(_,)) |
-                Event::pallet_collective_Instance1(pallet_collective::RawEvent::Executed(_, Ok(()))) => true,
+                Event::Council(CouncilEvent::Closed(_, _, _)) |
+                Event::Council(CouncilEvent::Approved(_,)) |
+                Event::Council(CouncilEvent::Executed(_, Ok(()))) => true,
                 _ => false,
             }
         })
@@ -284,8 +285,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         .into_iter()
         .filter_map(|event| {
             match event.event {
-                Event::pallet_collective_Instance2(
-                    pallet_collective::RawEvent::Proposed(_, index, hash, _)
+                Event::TechnicalCommittee(
+                    TechnicalCommitteeEvent::Proposed(_, index, hash, _)
                 ) => Some((index, hash)),
                 _ => None
             }
@@ -315,9 +316,9 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::pallet_collective_Instance2(pallet_collective::RawEvent::Closed(_, _, _)) |
-                Event::pallet_collective_Instance2(pallet_collective::RawEvent::Approved(_)) |
-                Event::pallet_collective_Instance2(pallet_collective::RawEvent::Executed(_, Ok(()))) => true,
+                Event::TechnicalCommittee(TechnicalCommitteeEvent::Closed(_, _, _)) |
+                Event::TechnicalCommittee(TechnicalCommitteeEvent::Approved(_)) |
+                Event::TechnicalCommittee(TechnicalCommitteeEvent::Executed(_, Ok(()))) => true,
                 _ => false,
             }
         })
@@ -329,7 +330,7 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     // now runtime upgrade proposal is a fast-tracked referendum we can vote for.
     let referendum_index = events.into_iter()
         .filter_map(|event| match event.event {
-            Event::pallet_democracy(pallet_democracy::Event::<Runtime>::Started(index, _)) => Some(index),
+            Event::Democracy(pallet_democracy::Event::<Runtime>::Started(index, _)) => Some(index),
             _ => None,
         })
         .next()
@@ -354,9 +355,9 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::pallet_democracy(pallet_democracy::RawEvent::Passed(_)) |
-                Event::pallet_democracy(pallet_democracy::RawEvent::PreimageUsed(_, _, _)) |
-                Event::pallet_democracy(pallet_democracy::RawEvent::Executed(_, true)) => true,
+                Event::Democracy(pallet_democracy::Event::Passed(_)) |
+                Event::Democracy(pallet_democracy::Event::PreimageUsed(_, _, _)) |
+                Event::Democracy(pallet_democracy::Event::Executed(_, true)) => true,
                 _ => false,
             }
         })

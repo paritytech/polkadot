@@ -9,6 +9,7 @@ edition = "2018"
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -25,4 +26,4 @@ structopt = "0.3.21"
 log = "0.4.14"
 
 # avoids crate resolution errors
-tokio = { version = "=1.4.0", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1.6.0", features = ["macros", "rt-multi-thread", "signal"] }
