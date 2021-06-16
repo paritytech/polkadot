@@ -119,6 +119,16 @@ struct BlockEntry {
 	weight: Weight,
 }
 
+impl BlockEntry {
+	fn non_viable_ancestor_for_child(&self) -> Option<Hash> {
+		if self.viability.is_viable() {
+			None
+		} else {
+			self.viability.earliest_non_viable_ancestor.or(Some(self.block_hash))
+		}
+	}
+}
+
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
 pub enum Error {
@@ -368,7 +378,8 @@ async fn handle_active_leaf(
 	// determine_new_blocks gives blocks in descending order.
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
-		import_block(&mut overlay, hash, header)?;
+		let weight = unimplemented!();
+		import_block(&mut overlay, hash, header, weight)?;
 	}
 
 	Ok(overlay.into_write_ops().collect())
@@ -378,6 +389,63 @@ fn import_block(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
 	block_header: Header,
+	weight: Weight,
 ) -> Result<(), Error> {
-	unimplemented!()
+	import_block_ignoring_reversions(backend, block_hash, block_header, weight)?;
+
+	// TODO [now]: apply reversions.
+
+	Ok(())
+}
+
+fn import_block_ignoring_reversions(
+	backend: &mut OverlayedBackend<impl Backend>,
+	block_hash: Hash,
+	block_header: Header,
+	weight: Weight,
+) -> Result<(), Error> {
+	let parent_hash = block_header.parent_hash;
+
+	let mut leaves = backend.load_leaves()?;
+	let parent_entry = backend.load_block_entry(&parent_hash)?;
+
+	let inherited_viability = parent_entry.as_ref()
+		.and_then(|parent| parent.non_viable_ancestor_for_child());
+
+	// 1. Add the block to the DB assuming it's not reverted.
+	backend.write_block_entry(
+		block_hash,
+		BlockEntry {
+			block_hash,
+			parent_hash: parent_hash,
+			children: Vec::new(),
+			viability: ViabilityCriteria {
+				earliest_non_viable_ancestor: inherited_viability,
+				explicitly_reverted: false,
+				approval: Approval::Unapproved,
+			},
+			weight,
+		}
+	);
+
+	// 2. Update leaves if parent was a viable leaf or the parent is unknown.
+	if leaves.remove(&parent_hash) || parent_entry.is_none() {
+		leaves.insert(LeafEntry { block_hash, weight });
+		backend.write_leaves(leaves);
+	}
+
+	// 3. Update and write the parent
+	if let Some(mut parent_entry) = parent_entry {
+		parent_entry.children.push(block_hash);
+		backend.write_block_entry(parent_hash, parent_entry);
+	}
+
+	// 4. Add to blocks-by-number.
+	let mut blocks_by_number = backend.load_blocks_by_number(block_header.number)?;
+	blocks_by_number.push(block_hash);
+	backend.write_blocks_by_number(block_header.number, blocks_by_number);
+
+	// 5. TODO [now]: Add stagnation timeout.
+
+	Ok(())
 }
