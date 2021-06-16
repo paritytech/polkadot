@@ -72,7 +72,7 @@ impl<T: Decode> DoubleEncoded<T> {
 	/// Returns a reference to the value in case of success and `Err(())` in case the decoding fails.
 	pub fn ensure_decoded(&mut self) -> Result<&T, ()> {
 		if self.decoded.is_none() {
-			self.decoded = T::decode_with_depth_limit(
+			self.decoded = T::decode_all_with_depth_limit(
 				MAX_XCM_DECODE_DEPTH,
 				&mut &self.encoded[..],
 			).ok();
@@ -83,7 +83,7 @@ impl<T: Decode> DoubleEncoded<T> {
 	/// Move the decoded value out or (if not present) decode `encoded`.
 	pub fn take_decoded(&mut self) -> Result<T, ()> {
 		self.decoded.take().or_else(|| {
-			T::decode_with_depth_limit(
+			T::decode_all_with_depth_limit(
 				MAX_XCM_DECODE_DEPTH,
 				&mut &self.encoded[..],
 			).ok()
