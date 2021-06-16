@@ -19,6 +19,7 @@
 use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
+	OverseerSignal, FromOverseer,
 	messages::{ChainSelectionMessage, ChainApiMessage},
 	errors::ChainApiError,
 };
@@ -124,5 +125,61 @@ trait Backend {
 	fn load_stagnant_up_to(&self, up_to: Timestamp) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
-	fn write(&self, ops: Vec<BackendWriteOp>) -> Result<(), Error>;
+	fn write(&mut self, ops: Vec<BackendWriteOp>) -> Result<(), Error>;
+}
+
+async fn run<Context, B>(mut ctx: Context, mut backend: B)
+	where
+		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		B: Backend,
+{
+	loop {
+		let res = run_iteration(&mut ctx, &mut backend).await;
+		match res {
+			Err(e) => {
+				e.trace();
+
+				if let Error::Subsystem(SubsystemError::Context(_)) = e {
+					break;
+				}
+			}
+			Ok(()) => {
+				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				break;
+			}
+		}
+	}
+}
+
+// Run the subsystem until an error is encountered or a `conclude` signal is received.
+// Most errors are non-fatal and should lead to another call to this function.
+//
+// A return value of `Ok` indicates that an exit should be made, while non-fatal errors
+// lead to another call to this function.
+async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
+	-> Result<(), Error>
+	where
+		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		B: Backend,
+{
+	loop {
+		let ops: Vec<BackendWriteOp> = match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::Conclude) => {
+				return Ok(())
+			}
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				unimplemented!()
+			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
+				unimplemented!()
+			}
+			FromOverseer::Communication { msg } => {
+				unimplemented!()
+			}
+		};
+
+		if !ops.is_empty() {
+			backend.write(ops)?;
+		}
+	}
 }
