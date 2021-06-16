@@ -441,8 +441,10 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		update_peer_view_and_send_unlocked(
+		let gossip_peers = vec![peer.clone()];
+		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
+			&gossip_peers,
 			&mut peer_data,
 			&mut ctx,
 			&active_heads,
@@ -562,7 +564,9 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			statement: &statement,
 		};
 
+		let gossip_peers = vec![peer_a.clone(), peer_b.clone(), peer_c.clone()];
 		let needs_dependents = circulate_statement(
+			&gossip_peers,
 			&mut peer_data,
 			&mut ctx,
 			hash_b,

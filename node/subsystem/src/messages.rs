@@ -304,6 +304,11 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+	/// TODO (ordian): docs
+	NewGossipTopology {
+		/// TODO (ordian): docs
+		our_neighbors: Vec<AuthorityDiscoveryId>,
+	}
 }
 
 impl NetworkBridgeMessage {
@@ -318,6 +323,7 @@ impl NetworkBridgeMessage {
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 			Self::SendRequests { .. } => None,
+			Self::NewGossipTopology { .. } => None,
 		}
 	}
 }

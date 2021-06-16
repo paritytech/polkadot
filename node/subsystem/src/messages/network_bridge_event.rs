@@ -30,6 +30,9 @@ pub enum NetworkBridgeEvent<M> {
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
 
+	/// TODO (ordian): docs
+	NewGossipTopology(Vec<PeerId>),
+
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),
 
@@ -64,6 +67,8 @@ impl<M> NetworkBridgeEvent<M> {
 				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer)
 				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+			NetworkBridgeEvent::NewGossipTopology(ref peers)
+				=> NetworkBridgeEvent::NewGossipTopology(peers.clone()),
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
 				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)

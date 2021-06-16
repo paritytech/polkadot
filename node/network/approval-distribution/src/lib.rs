@@ -81,6 +81,10 @@ struct State {
 
 	/// Peer view data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_views: HashMap<PeerId, View>,
+
+	/// Track all our neighbors in the current gossip topology.
+	/// We're not necessarily connected to all of them.
+	gossip_peers: Vec<PeerId>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -209,6 +213,9 @@ impl State {
 					entry.known_by.remove(&peer_id);
 				})
 			}
+			NetworkBridgeEvent::NewGossipTopology(peers) => {
+				self.gossip_peers = peers;
+			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
 			}
@@ -336,6 +343,7 @@ impl State {
 			);
 			Self::unify_with_peer(
 				ctx,
+				&self.gossip_peers,
 				metrics,
 				&mut self.blocks,
 				peer_id.clone(),
@@ -439,11 +447,10 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
-		let lucky = util::gen_ratio_sqrt_subset(self.peer_views.len(), util::MIN_GOSSIP_PEERS);
+		// TODO (ordian): make this logic reusable
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
-			?lucky,
 			"Peer view change",
 		);
 		let finalized_number = view.finalized_number;
@@ -468,12 +475,9 @@ impl State {
 			});
 		}
 
-		if !lucky {
-			return;
-		}
-
 		Self::unify_with_peer(
 			ctx,
+			&self.gossip_peers,
 			metrics,
 			&mut self.blocks,
 			peer_id.clone(),
@@ -704,7 +708,12 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.binary_search(e).is_ok(),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -943,7 +952,13 @@ impl State {
 			.cloned()
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.binary_search(e).is_ok(),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -975,11 +990,29 @@ impl State {
 
 	async fn unify_with_peer(
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		gossip_peers: &[PeerId],
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
 		view: View,
 	) {
+		let is_gossip_peer = gossip_peers.binary_search(&peer_id).is_ok();
+		let lucky = if gossip_peers.len() < util::MIN_GOSSIP_PEERS {
+			is_gossip_peer ||
+				util::gen_ratio(util::MIN_GOSSIP_PEERS - gossip_peers.len(), util::MIN_GOSSIP_PEERS)
+		} else {
+			is_gossip_peer
+		};
+
+		if !lucky {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				"Unlucky peer",
+			);
+			return;
+		}
+
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
 		let mut to_send: Vec<Hash> = Vec::new();

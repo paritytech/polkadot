@@ -58,7 +58,7 @@ mod validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 mod network;
-use network::{Network, send_message};
+use network::{Network, send_message, get_peer_id_by_authority_id};
 
 /// Request multiplexer for combining the multiple request sources into a single `Stream` of `AllMessages`.
 mod multiplexer;
@@ -556,6 +556,35 @@ where
 
 						network_service = ns;
 						authority_discovery_service = ads;
+					}
+					NetworkBridgeMessage::NewGossipTopology {
+						our_neighbors,
+					} => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							action = "NewGossipTopology",
+							neighbors = our_neighbors.len(),
+							"Gossip topology has changed",
+						);
+
+						let ads = &mut authority_discovery_service;
+						let mut gossip_peers = Vec::with_capacity(our_neighbors.len());
+						for authority in our_neighbors {
+							let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
+							// TODO (ordian): what if None? We could try mapping later
+							if let Some(peer_id) = addr {
+								gossip_peers.push(peer_id);
+							}
+						}
+
+						// TODO (ordian): consider using a HashSet instead
+						gossip_peers.sort();
+						gossip_peers.dedup();
+
+						dispatch_validation_event_to_all(
+							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
+							ctx.sender(),
+						).await;
 					}
 				}
 				Err(e) => return Err(e.into()),

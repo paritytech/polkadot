@@ -77,9 +77,13 @@ impl BitfieldGossipMessage {
 /// overseer ordered us to work on.
 #[derive(Default, Debug)]
 struct ProtocolState {
-	/// track all active peers and their views
+	/// Track all active peers and their views
 	/// to determine what is relevant to them.
 	peer_views: HashMap<PeerId, View>,
+
+	/// Track all our neighbors in the current gossip topology.
+	/// We're not necessarily connected to all of them.
+	gossip_peers: Vec<PeerId>,
 
 	/// Our current view.
 	view: OurView,
@@ -291,13 +295,14 @@ where
 		return;
 	};
 
-	let peer_views = &mut state.peer_views;
 	let msg = BitfieldGossipMessage {
 		relay_parent,
 		signed_availability,
 	};
 
-	relay_message(ctx, job_data, peer_views, validator, msg).await;
+	let gossip_peers = &state.gossip_peers;
+	let peer_views = &mut state.peer_views;
+	relay_message(ctx, job_data, gossip_peers, peer_views, validator, msg).await;
 
 	metrics.on_own_bitfield_gossipped();
 }
@@ -308,6 +313,7 @@ where
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
+	gossip_peers: &[PeerId],
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -350,7 +356,11 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
-	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
+	let interested_peers = util::choose_random_subset(
+		|e| gossip_peers.binary_search(e).is_ok(),
+		interested_peers,
+		MIN_GOSSIP_PEERS,
+	);
 	interested_peers.iter()
 		.for_each(|peer|{
 			// track the message as sent for this peer
@@ -494,7 +504,7 @@ where
 	metrics.on_bitfield_received();
 	one_per_validator.insert(validator.clone(), message.clone());
 
-	relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
+	relay_message(ctx, job_data, &state.gossip_peers, &mut state.peer_views, validator, message).await;
 
 	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 }
@@ -531,6 +541,9 @@ where
 			);
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
+		}
+		NetworkBridgeEvent::NewGossipTopology(peers) => {
+			state.gossip_peers = peers;
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
 			tracing::trace!(
@@ -587,7 +600,15 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
-	let lucky = util::gen_ratio_sqrt_subset(state.peer_views.len(), util::MIN_GOSSIP_PEERS);
+
+	let is_gossip_peer = state.gossip_peers.binary_search(&origin).is_ok();
+	let lucky = if state.gossip_peers.len() < util::MIN_GOSSIP_PEERS {
+		is_gossip_peer ||
+			util::gen_ratio(util::MIN_GOSSIP_PEERS - state.gossip_peers.len(), util::MIN_GOSSIP_PEERS)
+	} else {
+		is_gossip_peer
+	};
+
 	if !lucky {
 		tracing::trace!(
 			target: LOG_TARGET,
@@ -863,9 +884,11 @@ mod test {
 					},
 			},
 			peer_views: peers
-				.into_iter()
+				.iter()
+				.cloned()
 				.map(|peer| (peer, view!(relay_parent)))
 				.collect(),
+			gossip_peers: peers.into_iter().collect(),
 			view: our_view!(relay_parent),
 		}
 	}
@@ -1224,9 +1247,11 @@ mod test {
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
+			let gossip_peers = vec![peer_a.clone(), peer_b.clone()];
 			relay_message(
 				&mut ctx,
 				state.per_relay_parent.get_mut(&hash).unwrap(),
+				&gossip_peers,
 				&mut state.peer_views,
 				validator.clone(),
 				msg.clone(),
@@ -1259,6 +1284,7 @@ mod test {
 			relay_message(
 				&mut ctx,
 				state.per_relay_parent.get_mut(&hash).unwrap(),
+				&gossip_peers,
 				&mut state.peer_views,
 				validator.clone(),
 				msg.clone(),

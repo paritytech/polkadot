@@ -319,3 +319,18 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	assert!(state.last_failure.is_none());
 }
 
+#[test]
+fn test_matrix_neighbors() {
+	for (our_index, len, expected) in vec![
+		(0usize, 1usize, vec![]),
+		(1, 2, vec![0usize]),
+		(0, 9, vec![1, 2, 3, 6]),
+		(9, 10, vec![0, 3, 6]),
+		(10, 11, vec![1, 4, 7, 9]),
+		(7, 11, vec![1, 4, 6, 8, 10]),
+	].into_iter() {
+		let mut result: Vec<_> = matrix_neighbors(our_index, len).collect();
+		result.sort();
+		assert_eq!(result, expected);
+	}
+}
