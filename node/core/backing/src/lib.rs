@@ -39,7 +39,7 @@ use polkadot_subsystem::{
 	jaeger,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
-		CandidateBackingMessage, CandidateSelectionMessage, CandidateValidationMessage,
+		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
 		StatementDistributionMessage, ValidationFailed
 	}
@@ -241,7 +241,6 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(attested, table_context), fields(subsystem = LOG_TARGET))]
 fn table_attested_to_backed(
 	attested: TableAttestedCandidate<
 		ParaId,
@@ -317,7 +316,6 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-#[tracing::instrument(level = "trace", skip(sender, pov, span), fields(subsystem = LOG_TARGET))]
 async fn make_pov_available(
 	sender: &mut JobSender<impl SubsystemSender>,
 	validator_index: Option<ValidatorIndex>,
@@ -570,7 +568,6 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -600,14 +597,14 @@ impl CandidateBackingJob {
 								root_span,
 							).await? {
 								sender.send_message(
-									CandidateSelectionMessage::Seconded(self.parent, stmt).into()
+									CollatorProtocolMessage::Seconded(self.parent, stmt).into()
 								).await;
 							}
 						}
 					}
 					Err(candidate) => {
 						sender.send_message(
-							CandidateSelectionMessage::Invalid(self.parent, candidate).into()
+							CollatorProtocolMessage::Invalid(self.parent, candidate).into()
 						).await;
 					}
 				}
@@ -647,7 +644,6 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, sender, params), fields(subsystem = LOG_TARGET))]
 	async fn background_validate_and_make_available(
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
@@ -671,7 +667,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off background validation with intent to second.
-	#[tracing::instrument(level = "trace", skip(self, parent_span, sender, pov), fields(subsystem = LOG_TARGET))]
 	async fn validate_and_second(
 		&mut self,
 		parent_span: &jaeger::Span,
@@ -685,7 +680,7 @@ impl CandidateBackingJob {
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
 			sender.send_message(
-				CandidateSelectionMessage::Invalid(self.parent, candidate.clone()).into()
+				CollatorProtocolMessage::Invalid(self.parent, candidate.clone()).into()
 			).await;
 			return Ok(());
 		}
@@ -743,7 +738,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
 	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl SubsystemSender>) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
@@ -758,7 +752,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Import a statement into the statement table and return the summary of the import.
-	#[tracing::instrument(level = "trace", skip(self, sender), fields(subsystem = LOG_TARGET))]
 	async fn import_statement(
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
@@ -828,7 +821,6 @@ impl CandidateBackingJob {
 		Ok(summary)
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn process_msg(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -895,7 +887,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
-	#[tracing::instrument(level = "trace", skip(self, sender, attesting, span), fields(subsystem = LOG_TARGET))]
 	async fn kick_off_validation_work(
 		&mut self,
 		sender: &mut JobSender<impl SubsystemSender>,
@@ -951,7 +942,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
-	#[tracing::instrument(level = "trace", skip(self, root_span, sender), fields(subsystem = LOG_TARGET))]
 	async fn maybe_validate_and_import(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -1014,7 +1004,6 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self.table_context
 			.validator
@@ -1090,7 +1079,6 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "CandidateBackingJob";
 
-	#[tracing::instrument(skip(span, keystore, metrics, rx_to, sender), fields(subsystem = LOG_TARGET))]
 	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
@@ -1332,7 +1320,7 @@ mod tests {
 	use futures::{future, Future};
 	use polkadot_primitives::v1::{GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore};
 	use polkadot_subsystem::{
-		messages::{RuntimeApiRequest, RuntimeApiMessage},
+		messages::{RuntimeApiRequest, RuntimeApiMessage, CollatorProtocolMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf, LeafStatus,
 	};
 	use polkadot_node_primitives::{InvalidCandidate, BlockData};
@@ -1648,7 +1636,7 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(CandidateSelectionMessage::Seconded(hash, statement)) => {
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
 					assert_eq!(test_state.relay_parent, hash);
 					assert_matches!(statement.payload(), Statement::Seconded(_));
 				}
@@ -2172,8 +2160,8 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent_hash, c)
+				AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::Invalid(parent_hash, c)
 				) if parent_hash == test_state.relay_parent && c == candidate_a.to_plain()
 			);
 
@@ -2482,8 +2470,8 @@ mod tests {
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent, c)
+				AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::Invalid(parent, c)
 				) if parent == test_state.relay_parent && c == candidate.to_plain() => {
 				}
 			);

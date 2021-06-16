@@ -155,8 +155,6 @@ pub mod pallet {
 		CannotUpgrade,
 		/// Para is locked from manipulation by the manager. Must use parachain or relay chain governance.
 		ParaLocked,
-		/// The id you are trying to register is reserved for system parachains.
-		InvalidParaId,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
 	}
@@ -287,7 +285,7 @@ pub mod pallet {
 		///
 		/// Can only be called by the Root origin.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
 			Ok(())
@@ -630,6 +628,8 @@ mod tests {
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type MaxLocks = ();
+		type MaxReserves = ();
+		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
 	}
 

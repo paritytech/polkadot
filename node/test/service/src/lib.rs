@@ -180,6 +180,7 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
+		rpc_http_threads: None,
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,

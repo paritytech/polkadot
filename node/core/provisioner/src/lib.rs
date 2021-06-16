@@ -43,6 +43,9 @@ use std::{pin::Pin, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 use futures_timer::Delay;
 
+#[cfg(test)]
+mod tests;
+
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
 
@@ -140,7 +143,6 @@ impl JobTrait for ProvisioningJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	#[tracing::instrument(skip(span, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
@@ -242,7 +244,6 @@ impl ProvisioningJob {
 		}
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn note_provisionable_data(&mut self, span: &jaeger::Span, provisionable_data: ProvisionableData) {
 		match provisionable_data {
 			ProvisionableData::Bitfield(_, signed_bitfield) => {
@@ -277,7 +278,6 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// When we're choosing bitfields to include, the rule should be simple:
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
-#[tracing::instrument(level = "trace", skip(return_senders, from_job), fields(subsystem = LOG_TARGET))]
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -321,7 +321,6 @@ async fn send_inherent_data(
 ///
 /// Note: This does not enforce any sorting precondition on the output; the ordering there will be unrelated
 /// to the sorting of the input.
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -353,7 +352,6 @@ fn select_availability_bitfields(
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -475,7 +473,6 @@ async fn select_candidates(
 
 /// Produces a block number 1 higher than that of the relay parent
 /// in the event of an invalid `relay_parent`, returns `Ok(0)`
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,
@@ -501,7 +498,6 @@ async fn get_block_number_under_construction(
 /// - construct a transverse slice along `core_idx`
 /// - bitwise-or it with the availability slice
 /// - count the 1 bits, compare to the total length; true on 2/3+
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn bitfields_indicate_availability(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -606,6 +602,3 @@ impl metrics::Metrics for Metrics {
 
 /// The provisioning subsystem.
 pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
-
-#[cfg(test)]
-mod tests;

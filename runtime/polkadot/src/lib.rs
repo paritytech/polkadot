@@ -36,8 +36,8 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult,
@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9031,
+	spec_version: 9050,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -129,9 +129,8 @@ impl Filter<Call> for BaseFilter {
 			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::PhragmenElection(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) | Call::Balances(_) |
-			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
+			Call::Authorship(_) | Call::Staking(_) |
 			Call::Session(_) | Call::Grandpa(_) | Call::ImOnline(_) |
-			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
 			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
 			Call::Bounties(_) | Call::Tips(_) | Call::ElectionProviderMultiPhase(_)
@@ -176,6 +175,8 @@ impl frame_system::Config for Runtime {
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
 }
+
+impl pallet_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
@@ -241,6 +242,7 @@ impl pallet_indices::Config for Runtime {
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
 	pub const MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -250,6 +252,8 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 }
 
@@ -326,7 +330,7 @@ parameter_types! {
 
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
-		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
+		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
@@ -418,6 +422,10 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
+	type GenesisElectionProvider =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
+			pallet_election_provider_multi_phase::OnChainConfig<Self>
+		>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -895,11 +903,9 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
 				Call::Staking(..) |
-				Call::Offences(..) |
 				Call::Session(..) |
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
-				Call::AuthorityDiscovery(..) |
 				Call::Democracy(..) |
 				Call::Council(..) |
 				Call::TechnicalCommittee(..) |
@@ -989,15 +995,15 @@ construct_runtime! {
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 6,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 7,
-		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 8,
+		Offences: pallet_offences::{Pallet, Storage, Event} = 8,
 		Historical: session_historical::{Pallet} = 33,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 9,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 11,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 12,
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 13,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 13,
 
 		// Governance stuff.
-		Democracy: pallet_democracy::{Pallet, Call, Storage, Config, Event<T>} = 14,
+		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 14,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
 		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
@@ -1184,10 +1190,6 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
-			None
-		}
-
 		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
 			None
 		}
@@ -1208,7 +1210,7 @@ sp_api::impl_runtime_apis! {
 			BTreeMap::new()
 		}
 
-		fn validation_code_by_hash(_hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(_hash: ValidationCodeHash) -> Option<ValidationCode> {
 			None
 		}
 	}

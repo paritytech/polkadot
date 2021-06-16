@@ -29,7 +29,7 @@ use sp_wasm_interface::HostFunctions as _;
 
 const CONFIG: Config = Config {
 	// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-	heap_pages: 1024,
+	heap_pages: 2048,
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
@@ -118,11 +118,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8]) {
+	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8]) {
+	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
