@@ -84,7 +84,7 @@ struct State {
 
 	/// Track all our neighbors in the current gossip topology.
 	/// We're not necessarily connected to all of them.
-	gossip_peers: Vec<PeerId>,
+	gossip_peers: HashSet<PeerId>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -710,7 +710,7 @@ impl State {
 		let assignments = vec![(assignment, claimed_candidate_index)];
 		let gossip_peers = &self.gossip_peers;
 		let peers = util::choose_random_subset(
-			|e| gossip_peers.binary_search(e).is_ok(),
+			|e| gossip_peers.contains(e),
 			peers,
 			MIN_GOSSIP_PEERS,
 		);
@@ -955,7 +955,7 @@ impl State {
 
 		let gossip_peers = &self.gossip_peers;
 		let peers = util::choose_random_subset(
-			|e| gossip_peers.binary_search(e).is_ok(),
+			|e| gossip_peers.contains(e),
 			peers,
 			MIN_GOSSIP_PEERS,
 		);
@@ -990,13 +990,13 @@ impl State {
 
 	async fn unify_with_peer(
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		gossip_peers: &[PeerId],
+		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
 		view: View,
 	) {
-		let is_gossip_peer = gossip_peers.binary_search(&peer_id).is_ok();
+		let is_gossip_peer = gossip_peers.contains(&peer_id);
 		let lucky = if gossip_peers.len() < util::MIN_GOSSIP_PEERS {
 			is_gossip_peer ||
 				util::gen_ratio(util::MIN_GOSSIP_PEERS - gossip_peers.len(), util::MIN_GOSSIP_PEERS)

@@ -83,7 +83,7 @@ struct ProtocolState {
 
 	/// Track all our neighbors in the current gossip topology.
 	/// We're not necessarily connected to all of them.
-	gossip_peers: Vec<PeerId>,
+	gossip_peers: HashSet<PeerId>,
 
 	/// Our current view.
 	view: OurView,
@@ -313,7 +313,7 @@ where
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
-	gossip_peers: &[PeerId],
+	gossip_peers: &HashSet<PeerId>,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -357,7 +357,7 @@ where
 		})
 		.collect::<Vec<PeerId>>();
 	let interested_peers = util::choose_random_subset(
-		|e| gossip_peers.binary_search(e).is_ok(),
+		|e| gossip_peers.contains(e),
 		interested_peers,
 		MIN_GOSSIP_PEERS,
 	);
@@ -601,7 +601,7 @@ where
 {
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
 
-	let is_gossip_peer = state.gossip_peers.binary_search(&origin).is_ok();
+	let is_gossip_peer = state.gossip_peers.contains(&origin);
 	let lucky = if state.gossip_peers.len() < util::MIN_GOSSIP_PEERS {
 		is_gossip_peer ||
 			util::gen_ratio(util::MIN_GOSSIP_PEERS - state.gossip_peers.len(), util::MIN_GOSSIP_PEERS)
@@ -846,6 +846,7 @@ mod test {
 	use sp_keystore::testing::KeyStore;
 	use std::sync::Arc;
 	use std::time::Duration;
+	use std::iter::FromIterator as _;
 	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::{view, ObservedRole, our_view};
 	use polkadot_subsystem::jaeger;
@@ -1247,7 +1248,9 @@ mod test {
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
-			let gossip_peers = vec![peer_a.clone(), peer_b.clone()];
+			let gossip_peers = HashSet::from_iter(vec![
+				peer_a.clone(), peer_b.clone(),
+			].into_iter());
 			relay_message(
 				&mut ctx,
 				state.per_relay_parent.get_mut(&hash).unwrap(),

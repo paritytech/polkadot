@@ -22,7 +22,7 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use std::{collections::btree_map::BTreeMap, sync::Arc};
+use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
@@ -307,7 +307,7 @@ pub enum NetworkBridgeMessage {
 	/// TODO (ordian): docs
 	NewGossipTopology {
 		/// TODO (ordian): docs
-		our_neighbors: Vec<AuthorityDiscoveryId>,
+		our_neighbors: HashSet<AuthorityDiscoveryId>,
 	}
 }
 

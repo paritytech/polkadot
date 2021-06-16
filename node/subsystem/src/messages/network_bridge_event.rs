@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::convert::TryFrom;
+use std::collections::HashSet;
 
 pub use sc_network::{ReputationChange, PeerId};
 
@@ -31,7 +32,7 @@ pub enum NetworkBridgeEvent<M> {
 	PeerDisconnected(PeerId),
 
 	/// TODO (ordian): docs
-	NewGossipTopology(Vec<PeerId>),
+	NewGossipTopology(HashSet<PeerId>),
 
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),

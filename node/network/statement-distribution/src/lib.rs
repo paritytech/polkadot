@@ -843,7 +843,7 @@ fn check_statement_signature(
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
 async fn circulate_statement_and_dependents(
-	gossip_peers: &[PeerId],
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -951,7 +951,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
 async fn circulate_statement<'a>(
-	gossip_peers: &[PeerId],
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
@@ -978,7 +978,7 @@ async fn circulate_statement<'a>(
 
 	let mut peers_to_send =
 		util::choose_random_subset(
-			|e| gossip_peers.binary_search(e).is_ok(),
+			|e| gossip_peers.contains(e),
 			peers_to_send,
 			MIN_GOSSIP_PEERS,
 		);
@@ -1261,7 +1261,7 @@ async fn launch_request(
 ///
 async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
-	gossip_peers: &[PeerId],
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -1461,7 +1461,7 @@ async fn handle_incoming_message<'a>(
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
 async fn update_peer_view_and_maybe_send_unlocked(
 	peer: PeerId,
-	gossip_peers: &[PeerId],
+	gossip_peers: &HashSet<PeerId>,
 	peer_data: &mut PeerData,
 	ctx: &mut impl SubsystemContext,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
@@ -1475,7 +1475,7 @@ async fn update_peer_view_and_maybe_send_unlocked(
 		let _ = peer_data.view_knowledge.remove(removed);
 	}
 
-	let is_gossip_peer = gossip_peers.binary_search(&peer).is_ok();
+	let is_gossip_peer = gossip_peers.contains(&peer);
 	let lucky = if gossip_peers.len() < util::MIN_GOSSIP_PEERS {
 		is_gossip_peer ||
 			util::gen_ratio(util::MIN_GOSSIP_PEERS - gossip_peers.len(), util::MIN_GOSSIP_PEERS)
@@ -1513,7 +1513,7 @@ async fn update_peer_view_and_maybe_send_unlocked(
 
 async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
-	gossip_peers: &mut Vec<PeerId>,
+	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -1597,7 +1597,7 @@ impl StatementDistribution {
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> std::result::Result<(), Fatal> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut gossip_peers: Vec<PeerId> = Vec::new();
+		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 
@@ -1705,7 +1705,7 @@ impl StatementDistribution {
 	async fn handle_requester_message(
 		&self,
 		ctx: &mut impl SubsystemContext,
-		gossip_peers: &[PeerId],
+		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1829,7 +1829,7 @@ impl StatementDistribution {
 		ctx: &mut impl SubsystemContext,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
-		gossip_peers: &mut Vec<PeerId>,
+		gossip_peers: &mut HashSet<PeerId>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,

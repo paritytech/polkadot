@@ -15,9 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::time::Duration;
+use std::sync::Arc;
+use std::iter::FromIterator as _;
 use parity_scale_codec::{Decode, Encode};
 use super::*;
-use std::sync::Arc;
 use sp_keyring::Sr25519Keyring;
 use sp_application_crypto::{AppKey, sr25519::Pair, Pair as TraitPair};
 use polkadot_node_primitives::Statement;
@@ -441,7 +442,7 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let gossip_peers = vec![peer.clone()];
+		let gossip_peers = HashSet::from_iter(vec![peer.clone()].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
 			&gossip_peers,
@@ -564,7 +565,9 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			statement: &statement,
 		};
 
-		let gossip_peers = vec![peer_a.clone(), peer_b.clone(), peer_c.clone()];
+		let gossip_peers = HashSet::from_iter(vec![
+			peer_a.clone(), peer_b.clone(), peer_c.clone(),
+		].into_iter());
 		let needs_dependents = circulate_statement(
 			&gossip_peers,
 			&mut peer_data,

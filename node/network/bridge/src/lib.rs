@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 /// To be added to [`NetworkConfiguration::extra_sets`].
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
-use std::collections::{HashMap, hash_map};
+use std::collections::{HashMap, hash_map, HashSet};
 use std::iter::ExactSizeIterator;
 use std::sync::Arc;
 
@@ -568,18 +568,17 @@ where
 						);
 
 						let ads = &mut authority_discovery_service;
-						let mut gossip_peers = Vec::with_capacity(our_neighbors.len());
+						let mut gossip_peers = HashSet::with_capacity(our_neighbors.len());
 						for authority in our_neighbors {
-							let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
-							// TODO (ordian): what if None? We could try mapping later
+							let addr = get_peer_id_by_authority_id(
+								ads,
+								authority.clone(),
+							).await;
+
 							if let Some(peer_id) = addr {
-								gossip_peers.push(peer_id);
+								gossip_peers.insert(peer_id);
 							}
 						}
-
-						// TODO (ordian): consider using a HashSet instead
-						gossip_peers.sort();
-						gossip_peers.dedup();
 
 						dispatch_validation_event_to_all(
 							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
