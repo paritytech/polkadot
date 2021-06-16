@@ -296,7 +296,7 @@ pub mod pallet {
 			for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 				CurrencyOf::<T>::unreserve(&bidder, amount);
 			}
-			Winning::<T>::remove_all();
+			Winning::<T>::remove_all(None);
 			AuctionInfo::<T>::kill();
 			Ok(())
 		}
@@ -511,7 +511,7 @@ impl<T: Config> Pallet<T> {
 					let res = Winning::<T>::get(offset).unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
 					// which should be bounded and sensibly configured in the runtime.
-					Winning::<T>::remove_all();
+					Winning::<T>::remove_all(None);
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
 				}
