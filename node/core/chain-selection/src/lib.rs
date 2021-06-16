@@ -19,7 +19,14 @@
 use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
+	messages::{ChainSelectionMessage, ChainApiMessage},
+	errors::ChainApiError,
 };
+
+use parity_scale_codec::Error as CodecError;
+use futures::channel::oneshot;
+
+const LOG_TARGET: &str = "parachain::chain-selection";
 
 type Weight = u64;
 type Timestamp = u64;
@@ -71,6 +78,36 @@ struct BlockEntry {
 	weight: Weight,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)]
+pub enum Error {
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
+
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
+
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
+
+	#[error(transparent)]
+	Codec(#[from] CodecError),
+}
+
+impl Error {
+	fn trace(&self) {
+		match self {
+			// don't spam the log with spurious errors
+			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, err = ?self),
+			// it's worth reporting otherwise
+			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
+		}
+	}
+}
+
 enum BackendWriteOp {
 	WriteBlockEntry(Hash, BlockEntry),
 	DeleteBlockEntry(Hash),
@@ -79,17 +116,13 @@ enum BackendWriteOp {
 
 // An abstraction over backend for the logic of this subsystem.
 trait Backend {
-	/// The error type of this backend, which is assumed to indicate a
-	/// fatal database error.
-	type Error: Into<SubsystemError>;
-
 	/// Load a block entry from the DB.
-	fn load_block_entry(&self) -> Result<BlockEntry, Self::Error>;
+	fn load_block_entry(&self) -> Result<BlockEntry, Error>;
 	/// Load the active-leaves set.
-	fn load_leaves(&self) -> Result<Vec<LeafEntry>, Self::Error>;
+	fn load_leaves(&self) -> Result<Vec<LeafEntry>, Error>;
 	/// Load all stagnant lists up to and including the given unix timestamp.
-	fn load_stagnant_up_to(&self, up_to: Timestamp) -> Result<Vec<(Timestamp, Vec<Hash>)>, Self::Error>;
+	fn load_stagnant_up_to(&self, up_to: Timestamp) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
-	fn write(&self, ops: Vec<BackendWriteOp>) -> Result<(), Self::Error>;
+	fn write(&self, ops: Vec<BackendWriteOp>) -> Result<(), Error>;
 }
