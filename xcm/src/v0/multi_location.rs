@@ -571,7 +571,7 @@ impl MultiLocation {
 	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
 	/// removing any internal `[Non-Parent, Parent`]  combinations.
 	///
-	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
+	/// Modifies `self` and returns `Err` with `suffix` in case of overflow.
 	///
 	/// # Example
 	/// ```rust
@@ -598,7 +598,7 @@ impl MultiLocation {
 	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalized form is returned,
 	/// removing any internal [Non-Parent, `Parent`] combinations.
 	///
-	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	/// Modifies `self` and returns `Err` with `prefix` in case of overflow.
 	///
 	/// # Example
 	/// ```rust
