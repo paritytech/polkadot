@@ -15,13 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use polkadot_primitives::v1::{CoreIndex, GroupIndex, ValidatorSignature};
+use std::{iter, time::Duration};
+use polkadot_primitives::v1::{
+	CoreIndex, GroupIndex, ValidatorSignature, Id as ParaId, CoreState, CollatorPair,
+	GroupRotationInfo, ScheduledCore, OccupiedCore,
+};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
-use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_node_subsystem::messages::AllMessages;
+use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
+use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
+use polkadot_node_subsystem_util::TimeoutExt;
 use sp_core::testing::TaskExecutor;
 
 use parking_lot::Mutex;
@@ -29,9 +34,22 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::pin::Pin;
 use std::sync::Arc;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
+use sc_keystore::LocalKeystore;
+use sp_keystore::CryptoStore;
 use assert_matches::assert_matches;
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
+
+#[cfg(test)]
+pub mod test_constants {
+	use crate::approval_db::v1::Config as DatabaseConfig;
+	const DATA_COL: u32 = 0;
+	pub(crate) const NUM_COLUMNS: u32 = 1;
+
+	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
+		col_data: DATA_COL,
+	};
+}
 
 fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
 	crate::time::slot_number_to_tick(SLOT_DURATION_MILLIS, t.into())
@@ -1846,3 +1864,225 @@ fn local_approval_import_always_updates_approval_entry() {
 }
 
 // TODO [now]: handling `BecomeActive` action broadcasts everything.
+
+#[derive(Clone)]
+struct TestState {
+	chain_ids: Vec<ParaId>,
+	relay_parent: Hash,
+	collators: Vec<CollatorPair>,
+	validators: Vec<Sr25519Keyring>,
+	validator_public: Vec<ValidatorId>,
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+	group_rotation_info: GroupRotationInfo,
+	cores: Vec<CoreState>,
+}
+
+impl Default for TestState {
+	fn default() -> Self {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+
+		let chain_ids = vec![chain_a, chain_b];
+		let relay_parent = Hash::repeat_byte(0x05);
+		let collators = iter::repeat(())
+			.map(|_| CollatorPair::generate().0)
+			.take(4)
+			.collect();
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
+
+		let validator_public = validators.iter().map(|k| k.public().into()).collect();
+		let validator_groups = vec![
+			vec![ValidatorIndex(0), ValidatorIndex(1)],
+			vec![ValidatorIndex(2), ValidatorIndex(3)],
+			vec![ValidatorIndex(4)],
+		];
+
+		let group_rotation_info = GroupRotationInfo {
+			session_start_block: 0,
+			group_rotation_frequency: 1,
+			now: 0,
+		};
+
+		let cores = vec![
+			CoreState::Scheduled(ScheduledCore {
+				para_id: chain_ids[0],
+				collator: None,
+			}),
+			CoreState::Free,
+			CoreState::Occupied(OccupiedCore {
+				next_up_on_available: None,
+				occupied_since: 0,
+				time_out_at: 1,
+				next_up_on_time_out: None,
+				availability: Default::default(),
+				group_responsible: GroupIndex(0),
+				candidate_hash: Default::default(),
+				candidate_descriptor: {
+					let mut d = CandidateDescriptor::default();
+					d.para_id = chain_ids[1];
+
+					d
+				},
+			}),
+		];
+
+		Self {
+			chain_ids,
+			relay_parent,
+			collators,
+			validators,
+			validator_public,
+			validator_groups,
+			group_rotation_info,
+			cores,
+		}
+	}
+}
+
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
+
+struct TestHarness {
+	virtual_overseer: VirtualOverseer,
+}
+
+fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
+	let _ = env_logger::builder()
+		.is_test(true)
+		.filter(
+			Some("polkadot_collator_protocol"),
+			log::LevelFilter::Trace,
+		)
+		.filter(
+			Some(LOG_TARGET),
+			log::LevelFilter::Trace,
+		)
+		.try_init();
+
+	let pool = sp_core::testing::TaskExecutor::new();
+
+	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+
+	let keystore = LocalKeystore::in_memory();
+	keystore.sr25519_generate_new(
+		polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
+		Some(&Sr25519Keyring::Alice.to_seed()),
+	);
+
+	let subsystem = run(
+		context,
+		ApprovalVotingSubsystem::with_config(
+			Config{
+				col_data: test_constants::TEST_CONFIG.col_data,
+				 slot_duration_millis: 100u64,
+			},
+			Arc::new(kvdb_memorydb::create(test_constants::NUM_COLUMNS)),
+			Arc::new(keystore),
+			Mode::Active,
+			Metrics::default(),
+		),
+		Box::new(MockClock::default()),
+		Box::new(MockAssignmentCriteria::check_only(|| { Ok(0) })),
+	);
+
+	let test_fut = test(TestHarness { virtual_overseer });
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
+
+	futures::executor::block_on(future::join(async move {
+		let mut overseer = test_fut.await;
+		overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
+	}, subsystem)).1.unwrap();
+}
+
+async fn overseer_send(
+	overseer: &mut VirtualOverseer,
+	msg: ApprovalVotingMessage,
+) {
+	tracing::trace!("Sending message:\n{:?}", &msg);
+	overseer
+		.send(FromOverseer::Communication { msg })
+		.timeout(TIMEOUT)
+		.await
+		.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
+}
+
+async fn overseer_recv(
+	overseer: &mut VirtualOverseer,
+) -> AllMessages {
+	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
+		.await
+		.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
+
+	tracing::trace!("Received message:\n{:?}", &msg);
+
+	msg
+}
+
+async fn overseer_recv_with_timeout(
+	overseer: &mut VirtualOverseer,
+	timeout: Duration,
+) -> Option<AllMessages> {
+	tracing::trace!("Waiting for message...");
+	overseer
+		.recv()
+		.timeout(timeout)
+		.await
+}
+
+const TIMEOUT: Duration = Duration::from_millis(200);
+async fn overseer_signal(
+	overseer: &mut VirtualOverseer,
+	signal: OverseerSignal,
+) {
+	overseer
+		.send(FromOverseer::Signal(signal))
+		.timeout(TIMEOUT)
+		.await
+		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
+}
+
+async fn respond_to_core_info_queries(
+	virtual_overseer: &mut VirtualOverseer,
+	test_state: &TestState,
+) {
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_,
+			RuntimeApiRequest::Validators(tx),
+		)) => {
+			let _ = tx.send(Ok(test_state.validator_public.clone()));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_,
+			RuntimeApiRequest::ValidatorGroups(tx),
+		)) => {
+			let _ = tx.send(Ok((
+				test_state.validator_groups.clone(),
+				test_state.group_rotation_info.clone(),
+			)));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_,
+			RuntimeApiRequest::AvailabilityCores(tx),
+		)) => {
+			let _ = tx.send(Ok(test_state.cores.clone()));
+		}
+	);
+}

@@ -101,7 +101,7 @@ pub struct Config {
 // When transitioning from `Syncing` to `Active`, the node notifies the `ApprovalDistribution`
 // subsystem of all unfinalized blocks and the candidates included within them, as well as all
 // votes that the local node itself has cast on candidates within those blocks.
-enum Mode {
+pub enum Mode {
 	Active,
 	Syncing(Box<dyn SyncOracle + Send>),
 }
@@ -305,7 +305,7 @@ impl ApprovalVotingSubsystem {
 		config: Config,
 		db: Arc<dyn KeyValueDB>,
 		keystore: Arc<LocalKeystore>,
-		sync_oracle: Box<dyn SyncOracle + Send>,
+		mode: Mode,
 		metrics: Metrics,
 	) -> Self {
 		ApprovalVotingSubsystem {
@@ -315,7 +315,7 @@ impl ApprovalVotingSubsystem {
 			db_config: DatabaseConfig {
 				col_data: config.col_data,
 			},
-			mode: Mode::Syncing(sync_oracle),
+			mode,
 			metrics,
 		}
 	}

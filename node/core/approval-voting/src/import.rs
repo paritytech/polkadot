@@ -56,7 +56,6 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
-
 use crate::approval_db::{self, v1::Config as DatabaseConfig};
 use crate::persisted_entries::CandidateEntry;
 use crate::criteria::{AssignmentCriteria, OurAssignment};
@@ -547,8 +546,9 @@ pub(crate) async fn handle_new_head(
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
 	use super::*;
+	use crate::tests::test_constants::{NUM_COLUMNS, TEST_CONFIG};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
@@ -565,13 +565,6 @@ mod tests {
 	use std::{pin::Pin, sync::Arc};
 
 	use crate::{APPROVAL_SESSIONS, criteria, BlockEntry};
-
-	const DATA_COL: u32 = 0;
-	const NUM_COLUMNS: u32 = 1;
-
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
-		col_data: DATA_COL,
-	};
 
 	#[derive(Default)]
 	struct TestDB {

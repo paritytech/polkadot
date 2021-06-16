@@ -26,7 +26,7 @@ use super::{
 use std::sync::Arc;
 use polkadot_network_bridge::RequestMultiplexer;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
-use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
+use polkadot_node_core_approval_voting::{Config as ApprovalVotingConfig, Mode};
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
 use polkadot_primitives::v1::ParachainHost;
@@ -220,7 +220,7 @@ where
 			approval_voting_config,
 			parachains_db,
 			keystore.clone(),
-			Box::new(network_service.clone()),
+			Mode::Syncing(Box::new(network_service.clone())),
 			Metrics::register(registry)?,
 		),
 		gossip_support: GossipSupportSubsystem::new(
