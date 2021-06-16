@@ -312,5 +312,21 @@ async fn handle_active_leaf(
 		lower_bound,
 	).await?;
 
+	let mut overlay = OverlayedBackend::new(backend);
+
+	// determine_new_blocks gives blocks in descending order.
+	// for this, we want ascending order.
+	for (hash, header) in new_blocks.into_iter().rev() {
+		import_block(&mut overlay, hash, header)?;
+	}
+
+	Ok(overlay.into_write_ops().collect())
+}
+
+fn import_block(
+	backend: &mut OverlayedBackend<impl Backend>,
+	block_hash: Hash,
+	block_header: Header,
+) -> Result<(), Error> {
 	unimplemented!()
 }
