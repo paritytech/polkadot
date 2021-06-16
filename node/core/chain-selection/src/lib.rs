@@ -64,9 +64,13 @@ struct ViabilityCriteria {
 
 impl ViabilityCriteria {
 	fn is_viable(&self) -> bool {
-		self.earliest_non_viable_ancestor.is_none()
+		self.is_parent_viable()
 			&& !self.explicitly_reverted
 			&& !self.approval.is_stagnant()
+	}
+
+	fn is_parent_viable(&self) -> bool {
+		self.earliest_non_viable_ancestor.is_none()
 	}
 }
 
