@@ -2070,7 +2070,7 @@ where
 			},
 			AllMessages::DisputeCoordinator(_) => {}
 			AllMessages::DisputeParticipation(_) => {}
-			AllMessages::ChainSelectionMessage(_) => {}
+			AllMessages::ChainSelection(_) => {}
 		}
 
 		Ok(())
