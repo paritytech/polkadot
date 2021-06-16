@@ -40,6 +40,9 @@ use polkadot_subsystem::SubsystemContext;
 
 
 mod send_task;
+use send_task::SendTask;
+pub use send_task::FromSendingTask;
+
 /// Error and [`Result`] type for sender
 mod error;
 use error::Fatal;
@@ -62,14 +65,22 @@ pub struct DisputeSender {
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<FromSendingTask>,
 
-	/// Receive messages from `SendTask`.
-	rx: mpsc::Receiver<FromSendingTask>,
+	//// Receive messages from `SendTask`.
+	// rx: mpsc::Receiver<FromSendingTask>,
 }
 
 impl DisputeSender
 {
+	pub fn new(tx: mpsc::Sender<FromSendingTask>) -> Self {
+		Self {
+			active_heads: Vec::new(),
+			sendings: HashMap::new(),
+			tx,
+		}
+	}
+
 	/// Initiates sending a dispute message to peers.
-	async fn start_send_dispute<Context>(
+	async fn start_send_dispute<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context, 
 		runtime: &mut RuntimeInfo,
@@ -86,93 +97,18 @@ impl DisputeSender
 				return Ok(())
 			}
 			Entry::Vacant(vacant) => {
-				let mut dispute_info = DisputeInfo {
-					request: req,
-					deliveries: HashMap::new(),
-				};
-				self.update_dispute_sending(
+				let send_task = SendTask::new(
 					ctx,
 					runtime,
-					&mut dispute_info,
+					&self.active_heads,
+					self.tx.clone(),
+					req,
 				).await?;
-				vacant.insert(dispute_info);
+				vacant.insert(send_task);
 			}
 		}
 		Ok(())
 	}
-
-	/// Initiate requests for notifying nodes about a dispute to all concerned authorities.
-	///
-	/// Any missing tasks will be added/started and obsolete tasks will be killed.
-	async fn update_dispute_sending<Context>(
-		&self,
-		ctx: &mut Context,
-		runtime: &mut RuntimeInfo,
-		dispute_info: &mut DisputeInfo
-	) -> Result<()> {
-		let req = &dispute_info.request;
-		let new_authorities = self.get_relevant_validators(ctx, runtime, &req).await?;
-		let old_authorities = dispute_info.deliveries.keys();
-
-		let add_authorities = new_authorities
-			.difference(old_authorities)
-			.collect();
-
-		// Get rid of dead/irrelevant tasks/statuses:
-		dispute_info.deliveries.retain(|k, _| new_authorities.contains(k));
-
-		// Start any new tasks that are needed:
-		let new_statuses = send_requests(
-			ctx,
-			self.tx.clone(),
-			add_authorities,
-			req.clone(),
-		).await?;
-
-		dispute_info.delivieres.extend(new_statuses.into_iter());
-	}
-
-
-	/// Determine all validators that should receive the given dispute requests.
-	///
-	/// This is all parachain validators of the session the candidate occurred and all authorities
-	/// of all currently active sessions, determined by currently active heads.
-	async fn get_relevant_validators<Context: SubsystemContext>(
-		&self,
-		ctx: &mut Context,
-		runtime: &mut RuntimeInfo,
-		req: &DisputeRequest,
-	) -> Result<HashSet<AuthorityDiscoveryId>> {
-		// We need some relay chain head for context for receiving session info information:
-		let ref_head = self.active_heads.get(0).ok_or(NonFatal::NoActiveHeads)?;
-		// Parachain validators:
-		let info = runtime.get_session_info_by_index(ref_head, req.session_index).await?;
-		let session_info = info.session_info;
-		let validator_count = session_info.validators.len();
-		let mut authorities: HashSet<_> = session_info
-			.discovery_keys
-			.iter()
-			.take(validator_count)
-			.enumerate()
-			.filter(|(i, _)| Some(i) != info.validator_info.our_index)
-			.map(|(_, v)| v)
-			.collect();
-
-		// Current authorities:
-		for head in self.active_heads {
-			let info = runtime.get_session_info(head).await?;
-			let session_info = info.session_info;
-			let new_set = session_info
-				.discovery_keys
-				.iter()
-				.enumerate()
-				.filter(|(i, _)| Some(i) != info.validator_info.our_index)
-				.map(|(_, v)| v);
-			authorities.extend(new_set);
-		}
-		authorities
-	}
-
 }
 
 /// Retrieve the currently active sessions.
@@ -187,83 +123,4 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 		indeces.insert(session_index);
 	}
 	Ok(indeces)
-}
-
-/// Start sending of the given msg to all given authorities.
-async fn send_requests<Context>(
-	ctx: &mut Context,
-	tx: mpsc::Sender<FromSendingTask>,
-	receivers: Vec<AuthorityDiscoveryId>,
-	req: DisputeRequest,
-) -> Result<HashMap<AuthorityDiscoveryId, DeliveryStatus>> {
-	let mut statuses = HashMap::with_capacity(receivers.len());
-	let mut reqs = Vec::with_capacity(receivers.len());
-
-	for receiver in receivers {
-		let (outgoing, pending_response) = OutgoingRequest::new(
-			Recipient::AuthorityDiscoveryId(receiver),
-			req,
-		);
-
-		reqs.push(Requests::DisputeSending(outgoing));
-
-		let receiver = wait_response_task(
-			pending_response,
-			&req.candidate_hash,
-			&receiver,
-			tx,
-		);
-
-		let (remote, remote_handle) = receiver.remote_handle();
-		ctx.spawn("dispute-sender", remote)
-			.await
-			.map_err(Fatal::SpawnTask)?;
-		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
-	}
-
-	let msg = NetworkBridgeMessage::SendRequests(
-		reqs,
-		// We should be connected, but the hell - if not, try!
-		IfDisconnected::TryConnect,
-	);
-	ctx.send_message(AllMessages::NetworkBridge(msg)).await;
-	Ok(statuses)
-}
-
-/// Future to be spawned in a task for awaiting a response.
-async fn wait_response_task(
-	pending_response: impl Future<Output = OutgoingResult<DisputeResponse>>,
-	candidate_hash: CandidateHash,
-	receiver: AuthorityDiscoveryId,
-	tx: mpsc::Sender<FromSendingTask>,
-) {
-	let result = pending_response.await;
-	let msg = match result {
-		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				%candidate_hash,
-				%receiver,
-				%err,
-				"Error sending dispute statements to node."
-			);
-			FromSendingTask::Failed(candidate_hash, receiver)
-		}
-		Ok(DisputeResponse::Confirmed) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				%candidate_hash,
-				%receiver,
-				"Sending dispute message succeeded"
-			);
-			FromSendingTask::Succeeded(candidate_hash, receiver)
-		}
-	};
-	if let Err(err) = tx.seed(msg).await {
-		tracing::debug!(
-			target: LOG_TARGET,
-			%err,
-			"Failed to notify susystem about dispute sending result."
-		);
-	}
 }
