@@ -16,7 +16,7 @@
 
 //! Implements the Chain Selection Subsystem.
 
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v1::{BlockNumber, Hash, Header};
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
@@ -27,11 +27,14 @@ use polkadot_subsystem::{
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
 
+use std::collections::HashMap;
+
 const LOG_TARGET: &str = "parachain::chain-selection";
 
 type Weight = u64;
 type Timestamp = u64;
 
+#[derive(Debug, Clone)]
 enum Approval {
 	// Approved
 	Approved,
@@ -50,6 +53,7 @@ impl Approval {
 	}
 }
 
+#[derive(Debug, Clone)]
 struct ViabilityCriteria {
 	// Whether this block has been explicitly reverted by one of its descendants.
 	explicitly_reverted: bool,
@@ -66,11 +70,13 @@ impl ViabilityCriteria {
 	}
 }
 
+#[derive(Debug, Clone)]
 struct LeafEntry {
 	weight: Weight,
 	block_hash: Hash,
 }
 
+#[derive(Debug, Clone)]
 struct BlockEntry {
 	block_hash: Hash,
 	parent_hash: Hash,
@@ -111,21 +117,89 @@ impl Error {
 
 enum BackendWriteOp {
 	WriteBlockEntry(Hash, BlockEntry),
-	DeleteBlockEntry(Hash),
+	WriteBlocksByNumber(BlockNumber, Vec<Hash>),
 	WriteActiveLeaves(Vec<LeafEntry>),
+	WriteStagnantAt(Timestamp, Vec<Hash>),
+	DeleteBlocksByNumber(BlockNumber),
+	DeleteBlockEntry(Hash),
 }
 
 // An abstraction over backend for the logic of this subsystem.
 trait Backend {
 	/// Load a block entry from the DB.
-	fn load_block_entry(&self) -> Result<BlockEntry, Error>;
+	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error>;
 	/// Load the active-leaves set.
 	fn load_leaves(&self) -> Result<Vec<LeafEntry>, Error>;
+	/// Load the stagnant list at the given timestamp.
+	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
 	/// Load all stagnant lists up to and including the given unix timestamp.
-	fn load_stagnant_up_to(&self, up_to: Timestamp) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
+	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
+		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
+	/// Load the earliest kept block number.
+	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error>;
+	/// Load blocks by number.
+	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error>;
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
 	fn write(&mut self, ops: Vec<BackendWriteOp>) -> Result<(), Error>;
+}
+
+// An in-memory overlay over the backend.
+struct OverlayedBackend<'a, B: 'a> {
+	inner: &'a B,
+
+	// `None` means 'deleted', missing means query inner.
+	block_entries: HashMap<Hash, Option<BlockEntry>>,
+	// `None` means 'deleted', missing means query inner.
+	blocks_by_number: HashMap<BlockNumber, Option<Vec<Hash>>>,
+}
+
+impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
+	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error> {
+		if let Some(val) = self.block_entries.get(&hash) {
+			return Ok(val.clone())
+		}
+
+		self.inner.load_block_entry(hash)
+	}
+
+	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
+		if let Some(val) = self.blocks_by_number.get(&number) {
+			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone));
+		}
+
+		self.inner.load_blocks_by_number(number)
+	}
+
+	fn write_block_entry(&mut self, hash: Hash, entry: BlockEntry) {
+		self.block_entries.insert(hash, Some(entry));
+	}
+
+	fn delete_block_entry(&mut self, hash: &Hash) {
+		self.block_entries.remove(hash);
+	}
+
+	fn write_blocks_by_number(&mut self, number: BlockNumber, blocks: Vec<Hash>) {
+		self.blocks_by_number.insert(number, Some(blocks));
+	}
+
+	fn delete_blocks_by_number(&mut self, number: BlockNumber) {
+		self.blocks_by_number.insert(number, None);
+	}
+
+	fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
+		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
+			Some(v) => BackendWriteOp::WriteBlockEntry(h, v),
+			None => BackendWriteOp::DeleteBlockEntry(h),
+		});
+
+		let blocks_by_number_ops = self.blocks_by_number.into_iter().map(|(n, v)| match v {
+			Some(v) => BackendWriteOp::WriteBlocksByNumber(n, v),
+			None => BackendWriteOp::DeleteBlocksByNumber(n),
+		});
+
+		block_entry_ops.chain(blocks_by_number_ops)
+	}
 }
 
 async fn run<Context, B>(mut ctx: Context, mut backend: B)
@@ -163,7 +237,7 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 		B: Backend,
 {
 	loop {
-		let ops: Vec<BackendWriteOp> = match ctx.recv().await? {
+		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => {
 				return Ok(())
 			}
@@ -177,9 +251,58 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 				unimplemented!()
 			}
 		};
-
-		if !ops.is_empty() {
-			backend.write(ops)?;
-		}
 	}
+}
+
+async fn fetch_finalized_number(
+	ctx: &mut impl SubsystemContext,
+) -> Result<BlockNumber, Error> {
+	unimplemented!()
+}
+
+async fn fetch_header(
+	ctx: &mut impl SubsystemContext,
+	hash: Hash,
+) -> Result<Option<Header>, Error> {
+	let (h_tx, h_rx) = oneshot::channel();
+	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx).into()).await;
+
+	match h_rx.await?? {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?hash,
+				"Missing header for new head",
+			);
+			Ok(None)
+		}
+		Some(h) => Ok(Some(h)),
+	}
+}
+
+// Handle a new active leaf.
+async fn handle_active_leaf(
+	ctx: &mut impl SubsystemContext,
+	backend: &impl Backend,
+	hash: Hash,
+) -> Result<Vec<BackendWriteOp>, Error> {
+	let lower_bound = match backend.load_first_block_number()? {
+		Some(l) => l,
+		None => fetch_finalized_number(ctx).await?,
+	};
+
+	let header = match fetch_header(ctx, hash).await? {
+		None => return Ok(Vec::new()),
+		Some(h) => h,
+	};
+
+	let new_blocks = polkadot_node_subsystem_util::determine_new_blocks(
+		ctx.sender(),
+		|h| backend.load_block_entry(h).map(|b| b.is_some()),
+		hash,
+		&header,
+		lower_bound,
+	).await?;
+
+	unimplemented!()
 }
