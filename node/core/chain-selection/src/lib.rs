@@ -155,6 +155,14 @@ struct OverlayedBackend<'a, B: 'a> {
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
+	fn new(backend: &'a B) -> Self {
+		OverlayedBackend {
+			inner: backend,
+			block_entries: HashMap::new(),
+			blocks_by_number: HashMap::new(),
+		}
+	}
+
 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error> {
 		if let Some(val) = self.block_entries.get(&hash) {
 			return Ok(val.clone())
