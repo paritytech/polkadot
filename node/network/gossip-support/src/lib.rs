@@ -199,8 +199,12 @@ async fn update_gossip_topology(
 	let len = authorities.len();
 	let mut indices: Vec<usize> = (0..len).collect();
 	indices.shuffle(&mut rng);
+	let mut reverse_indices = vec![0usize; len];
+	for (i, idx) in indices.iter().enumerate() {
+		reverse_indices[*idx] = i;
+	}
 
-	let neighbors = matrix_neighbors(indices[our_index], len);
+	let neighbors = matrix_neighbors(reverse_indices[our_index], len);
 	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
 
 	ctx.send_message(AllMessages::NetworkBridge(
