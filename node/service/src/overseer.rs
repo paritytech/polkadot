@@ -61,21 +61,38 @@ pub struct OverseerGenArgs<'a, Spawner, RuntimeClient> where
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
+	/// Set of initial relay chain leaves to track.
 	pub leaves: Vec<BlockInfo>,
+	/// The keystore to use for i.e. validator keys.
 	pub keystore: Arc<LocalKeystore>,
+	/// Runtime client generic, providing the `ProvieRuntimeApi` trait besides others.
 	pub runtime_client: Arc<RuntimeClient>,
+	/// The underlying key value store for the parachains.
 	pub parachains_db: Arc<dyn kvdb::KeyValueDB>,
+	/// Configuration for the availability store subsystem.
 	pub availability_config: AvailabilityConfig,
+	/// Configuration for the approval voting subsystem.
 	pub approval_voting_config: ApprovalVotingConfig,
+	/// Underlying network service implementation.
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
+	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
+	/// A multiplexer to arbitrate incoming `IncomingRequest`s from the network.
 	pub request_multiplexer: RequestMultiplexer,
+	/// Prometheus registry, commonly used for production systems, less so for test.
 	pub registry: Option<&'a Registry>,
+	/// Task spawner to be used throughout the overseer and the APIs it provides.
 	pub spawner: Spawner,
+	/// Determines the behavior of the collator.
 	pub is_collator: IsCollator,
+	/// Configuration for the candidate validation subsystem.
 	pub candidate_validation_config: CandidateValidationConfig,
 }
 
+/// Create a default, unaltered set of subsystems.
+///
+/// A convenience for usage with malus, to avoid
+/// repetitive code across multiple behavior strain implementations.
 pub fn create_default_subsystems<'a, Spawner, RuntimeClient>
 (
 	OverseerGenArgs {
@@ -214,7 +231,7 @@ where
 }
 
 
-/// Trait for the fn generating the overseer.
+/// Trait for the `fn` generating the overseer.
 ///
 /// Default behavior is to create an unmodified overseer, as `RealOverseerGen`
 /// would do.
