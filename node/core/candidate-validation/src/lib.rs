@@ -56,6 +56,7 @@ use async_trait::async_trait;
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
 /// Configuration for the candidate validation subsystem
+#[derive(Clone)]
 pub struct Config {
 	/// The path where candidate validation can store compiled artifacts for PVFs.
 	pub artifacts_cache_path: PathBuf,

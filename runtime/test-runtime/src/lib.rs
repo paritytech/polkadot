@@ -517,11 +517,11 @@ construct_runtime! {
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage},
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Offences: pallet_offences::{Pallet, Call, Storage, Event},
+		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
 
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
