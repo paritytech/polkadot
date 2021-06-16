@@ -741,6 +741,11 @@ mod tests {
 		let prefix = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent);
 		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
 		assert_eq!(m, X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent));
+
+		let mut m = X1(Parent);
+		let prefix = X8(Parent, Parent, Parent, Parent, OnlyChild, Parent, Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
+		assert_eq!(m, X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent));
 	}
 
 	#[test]
