@@ -17,8 +17,7 @@
 //! A utility for fetching all unknown blocks based on a new chain-head hash.
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage,
-	SubsystemSender, SubsystemError, SubsystemResult,
+	messages::ChainApiMessage, SubsystemSender,
 };
 use polkadot_primitives::v1::{Hash, Header, BlockNumber};
 use futures::prelude::*;
@@ -41,9 +40,7 @@ pub async fn determine_new_blocks<E>(
 	head: Hash,
 	header: &Header,
 	lower_bound_number: BlockNumber,
-) -> SubsystemResult<Vec<(Hash, Header)>>
-	where SubsystemError: From<E>
-{
+) -> Result<Vec<(Hash, Header)>, E> {
 	const ANCESTRY_STEP: usize = 4;
 
 	// Early exit if the block is in the DB or too early.
@@ -151,7 +148,7 @@ mod tests {
 			self.blocks.insert(hash);
 		}
 
-		fn is_known(&self, hash: &Hash) -> Result<bool, SubsystemError> {
+		fn is_known(&self, hash: &Hash) -> Result<bool, ()> {
 			Ok(self.blocks.contains(hash))
 		}
 	}
