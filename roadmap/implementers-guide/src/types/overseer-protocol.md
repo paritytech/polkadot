@@ -287,21 +287,6 @@ enum CandidateBackingMessage {
 }
 ```
 
-## Candidate Selection Message
-
-These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.md) as a means of providing feedback on its outputs.
-
-```rust
-enum CandidateSelectionMessage {
-    /// A candidate collation can be fetched from a collator and should be considered for seconding.
-    Collation(RelayParent, ParaId, CollatorId),
-    /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-    Invalid(RelayParent, CandidateReceipt),
-    /// The candidate we recommended to be seconded was validated successfully.
-    Seconded(RelayParent, SignedFullStatement),
-}
-```
-
 ## Chain API Message
 
 The Chain API subsystem is responsible for providing an interface to chain data.
