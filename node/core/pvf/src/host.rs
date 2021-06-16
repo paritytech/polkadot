@@ -117,11 +117,11 @@ impl ValidationHost {
 	}
 
 	/// Utility function enabling to convert the ValidationResult buffer back to Validation Result
-	/// 
+	///
 	/// This function enables the implementation of the Candidate Validation subsystem to delineate
 	/// the entry-point of the PVF and the oneshot channel passed to the execution of any function
 	/// exported in the pvf.
-	/// 
+	///
 	/// Returns an error if the worker has generated an invalid Validation Result buffer
 	pub fn parse_validation(&self, input: Vec<u8>) -> Result<ValidationResult, ValidationError> {
 		use parity_scale_codec::Decode;
@@ -134,11 +134,11 @@ impl ValidationHost {
 
 
 	/// Utility function enabling to convert the ValidationResult buffer back to Validation Result
-	/// 
+	///
 	/// This function enables the implementation of the Candidate Validation subsystem to delineate
 	/// the entry-point of the PVF and the oneshot channel passed to the execution of any function
 	/// exported in the pvf.
-	/// 
+	///
 	/// Returns an error if the worker has generated an invalid Validation Result buffer
 	pub fn parse_prevalidation(&self, input: Vec<u8>) -> Result<PreValidationResult, ValidationError> {
 		use parity_scale_codec::Decode;

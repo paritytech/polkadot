@@ -495,7 +495,7 @@ trait ValidationBackend {
 		&mut self,
 		raw_validation_code: Vec<u8>,
 		params: PreValidationParams,
-	) -> Result<WasmPreValidationResult, ValidationError>;	
+	) -> Result<WasmPreValidationResult, ValidationError>;
 
 	async fn validate_candidate(
 		&mut self,
@@ -524,7 +524,7 @@ impl ValidationBackend for &'_ mut ValidationHost {
 		let validation_result_buf: Vec<u8> = rx
 			.await
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))??;
-		
+
 		self.parse_prevalidation(validation_result_buf)
 	}
 
@@ -546,7 +546,7 @@ impl ValidationBackend for &'_ mut ValidationHost {
 		let validation_result_buf: Vec<u8> = rx
 			.await
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))??;
-		
+
 		self.parse_validation(validation_result_buf)
 	}
 }
