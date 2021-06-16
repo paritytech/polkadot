@@ -408,7 +408,7 @@ impl SignedDisputeStatement {
 }
 
 /// A `DisputeMessage` where signatures of statements have not yet been checked.
-#[derive(Encode, Decode, Debug)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct UncheckedDisputeMessage {
 	/// The candidate being disputed.
 	pub candidate_hash: CandidateHash,
@@ -518,7 +518,7 @@ impl From<DisputeMessage> for UncheckedDisputeMessage {
 }
 
 /// Any invalid vote (currently only explicit).
-#[derive(Encode, Decode, Debug)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct InvalidDisputeVote {
 	/// The voting validator index.
 	pub validator_index: ValidatorIndex,
@@ -532,7 +532,7 @@ pub struct InvalidDisputeVote {
 }
 
 /// Any valid vote (backing, approval, explicit).
-#[derive(Encode, Decode, Debug)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct ValidDisputeVote {
 	/// The voting validator index.
 	pub validator_index: ValidatorIndex,

@@ -196,7 +196,7 @@ impl IsRequest for StatementFetchingRequest {
 /// A dispute request.
 ///
 /// Contains an invalid vote a valid one for a particular candidate in a given session.
-#[derive(Encode, Decode, Debug)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct DisputeRequest(pub UncheckedDisputeMessage);
 
 impl From<DisputeMessage> for DisputeRequest {
