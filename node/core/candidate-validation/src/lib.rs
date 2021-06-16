@@ -512,7 +512,7 @@ impl ValidationBackend for &'_ mut ValidationHost {
 		params: PreValidationParams,
 	) -> Result<WasmPreValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self.execute_pprevf(
+		if let Err(err) = self.verify_collator(
 			Pvf::from_code(raw_validation_code),
 			params.encode(),
 			polkadot_node_core_pvf::Priority::Normal,

@@ -35,10 +35,16 @@ use parity_scale_codec::{Encode, Decode};
 
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
-pub struct ReceiveMsg {
-	path: PathBuf,
+struct ReceiveMsg {
+	artifact_path: PathBuf,
 	params: Vec<u8>,
 	entry_point: String,
+}
+
+impl ReceiveMsg {
+	pub fn new(artifact_path: PathBuf, params: Vec<u8>, entry_point: String) -> Self {
+		Self { artifact_path, params, entry_point }
+	}
 }
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
@@ -162,7 +168,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<ReceiveMsg> {
 			"execute pvf recv_request: non utf-8 entry-point".to_string(),
 		)
 	})?;
-	Ok((artifact_path, params, entry_point))
+	Ok(ReceiveMsg::new(artifact_path, params, entry_point))
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
@@ -210,26 +216,24 @@ pub fn worker_entrypoint(socket_path: &str) {
 			)
 		})?;
 		loop {
-			let (artifact_path, params, entry_point) = recv_request(&mut stream).await?;
+			let recv_msg = recv_request(&mut stream).await?;
 			tracing::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: validating artifact {}",
-				artifact_path.display(),
+				recv_msg.artifact_path.display(),
 			);
-			let response = validate_using_artifact(&artifact_path, &params, &executor, entry_point).await;
+			let response = validate_using_artifact(recv_msg, &executor).await;
 			send_response(&mut stream, response).await?;
 		}
 	});
 }
 
 async fn validate_using_artifact(
-	artifact_path: &Path,
-	params: &[u8],
+	ReceiveMsg { artifact_path, params, entry_point }: ReceiveMsg,
 	spawner: &TaskExecutor,
-	entry_point: String,
 ) -> Response {
-	let artifact_bytes = match async_std::fs::read(artifact_path).await {
+	let artifact_bytes = match async_std::fs::read(&artifact_path).await {
 		Err(e) => {
 			return Response::InternalError(format!(
 				"failed to read the artifact at {}: {:?}",
@@ -265,7 +269,7 @@ async fn validate_using_artifact(
 			// SAFETY: this should be safe since the compiled artifact passed here comes from the
 			//         file created by the prepare workers. These files are obtained by calling
 			//         [`executor_intf::prepare`].
-			crate::executor_intf::execute(compiled_artifact, params, spawner.clone(), entry_point)
+			crate::executor_intf::execute(compiled_artifact, &params, spawner.clone(), entry_point)
 		 } {
 			Err(err) => {
 				return Response::format_invalid("execute", &err.to_string());

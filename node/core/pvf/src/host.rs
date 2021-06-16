@@ -73,7 +73,7 @@ impl ValidationHost {
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
-	pub async fn execute_pprevf(
+	pub async fn verify_collator(
 		&mut self,
 		pvf: Pvf,
 		params: Vec<u8>,
