@@ -611,8 +611,6 @@ impl MultiLocation {
 	/// ```
 	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
 		let mut prefix = prefix;
-
-		self.canonicalize();
 		prefix.canonicalize();
 
 		let self_leading_parents = self.leading_parent_count();
