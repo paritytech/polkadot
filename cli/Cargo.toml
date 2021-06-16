@@ -67,3 +67,5 @@ try-runtime = [ "service/try-runtime" ]
 kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
+
+malus = [ "full-node", "service/malus" ]

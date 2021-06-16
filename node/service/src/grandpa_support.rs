@@ -18,15 +18,13 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::v1::{BlockNumber, Hash};
-
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
 
 #[cfg(feature = "full-node")]
 use {
-	polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader},
+	polkadot_primitives::v1::{Hash, Block as PolkadotBlock, Header as PolkadotHeader},
 	polkadot_subsystem::messages::ApprovalVotingMessage,
 	prometheus_endpoint::{self, Registry},
 	polkadot_overseer::OverseerHandler,
@@ -71,9 +69,10 @@ impl ApprovalCheckingVotingRule {
 	}
 }
 
+#[cfg(feature = "full-node")]
 #[derive(Debug, PartialEq)]
+/// Vote explicitly on the given hash.
 enum ParachainVotingRuleTarget<H, N> {
-	/// Vote explicitly on the given hash.
 	Explicit((H, N)),
 	/// Vote on the current target.
 	Current,
@@ -81,6 +80,7 @@ enum ParachainVotingRuleTarget<H, N> {
 	Base,
 }
 
+#[cfg(feature = "full-node")]
 fn approval_checking_vote_to_grandpa_vote<H, N: PartialOrd>(
 	approval_checking_vote: Option<(H, N)>,
 	current_number: N,
@@ -99,7 +99,8 @@ fn approval_checking_vote_to_grandpa_vote<H, N: PartialOrd>(
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking lag.
 /// This is a safety net that should be removed at some point in the future.
-const MAX_APPROVAL_CHECKING_FINALITY_LAG: BlockNumber = 50;
+#[cfg(feature = "full-node")]
+const MAX_APPROVAL_CHECKING_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 50;
 
 #[cfg(feature = "full-node")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule

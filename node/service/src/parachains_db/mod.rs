@@ -24,6 +24,7 @@ use {
 
 mod upgrade;
 
+#[cfg(any(test,feature = "full-node"))]
 mod columns {
 	pub const NUM_COLUMNS: u32 = 3;
 
@@ -34,6 +35,7 @@ mod columns {
 }
 
 /// Columns used by different subsystems.
+#[cfg(any(test,feature = "full-node"))]
 #[derive(Debug, Clone)]
 pub struct ColumnsConfig {
 	/// The column used by the av-store for data.
@@ -45,6 +47,7 @@ pub struct ColumnsConfig {
 }
 
 /// The real columns used by the parachains DB.
+#[cfg(any(test,feature = "full-node"))]
 pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_availability_data: columns::COL_AVAILABILITY_DATA,
 	col_availability_meta: columns::COL_AVAILABILITY_META,

@@ -181,53 +181,64 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
+/// Launch a node, accepting arguments just like a regular node,
+/// accepts an alternative overseer generator, to adjust behavior
+/// for integration tests as needed.
+#[cfg(feature = "malus")]
+pub fn run_node(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
+	run_node_inner(cli, overseer_gen)
+}
+
+fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
+	let runner = cli.create_runner(&cli.run.base)
+		.map_err(Error::from)?;
+	let chain_spec = &runner.config().chain_spec;
+
+	set_default_ss58_version(chain_spec);
+
+	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
+		None
+	} else {
+		Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
+	};
+
+	if chain_spec.is_kusama() {
+		info!("----------------------------");
+		info!("This chain is not in any way");
+		info!("      endorsed by the       ");
+		info!("     KUSAMA FOUNDATION      ");
+		info!("----------------------------");
+	}
+
+	let jaeger_agent = cli.run.jaeger_agent;
+
+	runner.run_node_until_exit(move |config| async move {
+		let role = config.role.clone();
+
+		match role {
+			#[cfg(feature = "browser")]
+			Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager).map_err(Into::into),
+			#[cfg(not(feature = "browser"))]
+			Role::Light => Err(Error::Other("Light client not enabled".into())),
+			_ => service::build_full(
+				config,
+				service::IsCollator::No,
+				grandpa_pause,
+				cli.run.no_beefy,
+				jaeger_agent,
+				None,
+				overseer_gen,
+			).map(|full| full.task_manager).map_err(Into::into)
+		}
+	})
+}
+
 /// Parses polkadot specific CLI arguments and run the service.
 pub fn run() -> Result<()> {
 	let cli = Cli::from_args();
 
 	match &cli.subcommand {
-		None => {
-			let runner = cli.create_runner(&cli.run.base)
-				.map_err(Error::from)?;
-			let chain_spec = &runner.config().chain_spec;
-
-			set_default_ss58_version(chain_spec);
-
-			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
-				None
-			} else {
-				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
-			};
-
-			if chain_spec.is_kusama() {
-				info!("----------------------------");
-				info!("This chain is not in any way");
-				info!("      endorsed by the       ");
-				info!("     KUSAMA FOUNDATION      ");
-				info!("----------------------------");
-			}
-
-			let jaeger_agent = cli.run.jaeger_agent;
-
-			runner.run_node_until_exit(move |config| async move {
-				let role = config.role.clone();
-
-				match role {
-					#[cfg(feature = "browser")]
-					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager).map_err(Into::into),
-					#[cfg(not(feature = "browser"))]
-					Role::Light => Err(Error::Other("Light client not enabled".into())),
-					_ => service::build_full(
-						config,
-						service::IsCollator::No,
-						grandpa_pause,
-						cli.run.no_beefy,
-						jaeger_agent,
-						None,
-					).map(|full| full.task_manager).map_err(Into::into)
-				}
-			})
-		},
+		None => run_node_inner(cli, service::RealOverseerGen),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| {
