@@ -30,6 +30,7 @@ use polkadot_node_network_protocol::request_response::OutgoingResult;
 use polkadot_node_network_protocol::request_response::Recipient;
 use polkadot_node_network_protocol::request_response::Requests;
 use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
+use polkadot_primitives::v1::SessionIndex;
 use polkadot_primitives::v1::ValidatorIndex;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_subsystem::messages::AllMessages;
@@ -92,7 +93,7 @@ impl SendTask
 	pub async fn new<Context: SubsystemContext>(
 		ctx: &mut Context, 
 		runtime: &mut RuntimeInfo,
-		active_heads: &Vec<Hash>,
+		active_sessions: &HashMap<SessionIndex,Hash>,
 		tx: mpsc::Sender<FromSendingTask>,
 		request: DisputeRequest,
 	) -> Result<Self> {
@@ -105,7 +106,7 @@ impl SendTask
 		send_task.refresh_sends(
 			ctx,
 			runtime,
-			active_heads,
+			active_sessions,
 		).await?;
 		Ok(send_task)
 	}
@@ -118,9 +119,9 @@ impl SendTask
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		active_heads: &Vec<Hash>,
+		active_sessions: &HashMap<SessionIndex,Hash>,
 	) -> Result<()> {
-		let new_authorities = self.get_relevant_validators(ctx, runtime, active_heads).await?;
+		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
 		let add_authorities = new_authorities
 			.iter()
@@ -200,10 +201,10 @@ impl SendTask
 		&self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		active_heads: &Vec<Hash>,
+		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<HashSet<AuthorityDiscoveryId>> {
 		// We need some relay chain head for context for receiving session info information:
-		let ref_head = active_heads.get(0).ok_or(NonFatal::NoActiveHeads)?;
+		let ref_head = active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
 		// Parachain validators:
 		let info = runtime.get_session_info_by_index(ctx, *ref_head, self.request.0.session_index).await?;
 		let session_info = &info.session_info;
@@ -218,8 +219,8 @@ impl SendTask
 			.collect();
 
 		// Current authorities:
-		for head in active_heads {
-			let info = runtime.get_session_info(ctx, *head).await?;
+		for (session_index, head) in active_sessions.iter() {
+			let info = runtime.get_session_info_by_index(ctx, *head, *session_index).await?;
 			let session_info = &info.session_info;
 			let new_set = session_info
 				.discovery_keys

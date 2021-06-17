@@ -66,7 +66,7 @@ pub struct DisputeSender {
 	/// List of currently active sessions.
 	///
 	/// Value is the hash that was used for the query.
-	active_sessions: Vec<(SessionIndex, Hash)>,
+	active_sessions: HashMap<SessionIndex, Hash>,
 
 	/// All ongoing dispute sendings this subsystem is aware of.
 	sendings: HashMap<CandidateHash, SendTask>,
@@ -106,7 +106,7 @@ impl DisputeSender
 				let send_task = SendTask::new(
 					ctx,
 					runtime,
-					&self.active_heads,
+					&self.active_sessions,
 					self.tx.clone(),
 					req,
 				).await?;
@@ -138,7 +138,7 @@ impl DisputeSender
 
 		for send in self.sendings.values_mut() {
 			if have_new_sessions || send.has_failed_sends() {
-				send.refresh_sends(ctx, runtime, &self.active_heads).await?;
+				send.refresh_sends(ctx, runtime, &self.active_sessions).await?;
 			}
 		}
 		Ok(())
@@ -174,10 +174,8 @@ impl DisputeSender
 		runtime: &mut RuntimeInfo,
 	) -> Result<bool> {
 		let new_sessions = get_active_session_indeces(ctx, runtime, &self.active_heads).await?;
-		let new_sessions_raw: HashSet<_> =
-			new_sessions.iter().map(|(s,_)| s).collect();
-		let old_sessions_raw: HashSet<_> =
-			self.active_sessions.iter().map(|(s,_)| s).collect();
+		let new_sessions_raw: HashSet<_> = new_sessions.keys().collect();
+		let old_sessions_raw: HashSet<_> = self.active_sessions.keys().collect();
 		let updated = new_sessions_raw != old_sessions_raw;
 		// Update in any case, so we use current heads for queries:
 		self.active_sessions = new_sessions;
@@ -203,13 +201,13 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
-) -> Result<Vec<(SessionIndex, Hash)>> {
+) -> Result<HashMap<SessionIndex, Hash>> {
 	let mut indeces = HashMap::new();
 	for head in active_heads {
 		let session_index = runtime.get_session_index(ctx, *head).await?;
 		indeces.insert(session_index, *head);
 	}
-	Ok(indeces.into_iter().collect())
+	Ok(indeces)
 }
 
 /// Retrieve Set of active disputes from the dispute coordinator.
