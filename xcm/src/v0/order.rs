@@ -26,6 +26,7 @@ use super::{MultiAsset, MultiLocation, Xcm};
 #[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(skip_type_params(Call))]
 pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]

@@ -19,9 +19,10 @@ use parity_scale_codec::{Encode, Decode};
 
 /// Wrapper around the encoded and decoded versions of a value.
 /// Caches the decoded value once computed.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, scale_info::TypeInfo)]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(skip_type_params(T))]
 pub struct DoubleEncoded<T> {
 	encoded: Vec<u8>,
 	#[codec(skip)]

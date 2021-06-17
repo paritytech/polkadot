@@ -2259,22 +2259,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-diagnose"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdcef58a173af8148b182684c9f2d5250875adbcaff7b5794073894f9d8634a9"
-dependencies = [
- "futures 0.1.31",
- "futures 0.3.15",
- "lazy_static",
- "log",
- "parking_lot 0.9.0",
- "pin-project 0.4.28",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "futures-executor"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8700,7 +8684,6 @@ name = "sc-transaction-pool"
 version = "3.0.0"
 dependencies = [
  "futures 0.3.15",
- "futures-diagnose",
  "intervalier",
  "log",
  "parity-scale-codec",
@@ -8723,7 +8706,7 @@ dependencies = [
 [[package]]
 name = "scale-info"
 version = "0.6.0"
-source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#ff42886b35a3c5e960a8b2089bdef5fccd0ee245"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#20ff837fbc7bee9ae355d905c1a2c898b04203ed"
 dependencies = [
  "cfg-if 1.0.0",
  "derive_more",
@@ -8734,7 +8717,7 @@ dependencies = [
 [[package]]
 name = "scale-info-derive"
 version = "0.4.0"
-source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#ff42886b35a3c5e960a8b2089bdef5fccd0ee245"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#20ff837fbc7bee9ae355d905c1a2c898b04203ed"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -8765,7 +8748,6 @@ dependencies = [
  "merlin",
  "rand 0.7.3",
  "rand_core 0.5.1",
- "serde",
  "sha2 0.8.2",
  "subtle 2.4.0",
  "zeroize",
