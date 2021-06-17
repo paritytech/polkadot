@@ -226,3 +226,13 @@ pub(super) fn find_best_leaf_containing(
 	// If there are no viable leaves containing the ancestor
 	Ok(None)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// TODO [now]; test find best leaf containing with no leaves.
+	// TODO [now]: find best leaf containing when required is finalized
+	// TODO [now]: find best leaf containing when required is unfinalized.
+	// TODO [now]: find best leaf containing when required is ancestor of many leaves.
+}
