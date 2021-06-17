@@ -316,7 +316,11 @@ fn count_no_shows(
 	let no_shows = assignments.iter()
 		.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
 		.filter(|&(v_index, no_show_at)| {
-			let has_approved = approvals.get(v_index.0 as usize).map(|b| *b).unwrap_or(false);
+			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
+				*approved
+			} else {
+				return false;
+			};
 
 			let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
 
@@ -1191,20 +1195,20 @@ mod tests {
 	}
 
 	#[test]
-	fn count_no_shows_validator_index_out_of_approvals_range_is_no_show() {
+	fn count_no_shows_validator_index_out_of_approvals_range_is_ignored_as_no_show() {
 		test_count_no_shows(NoShowTest {
 			assignments: vec![(ValidatorIndex(1000), 20)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 1, // TODO(ladi): should this be counted or ignored?
+			exp_no_shows: 0,
 			exp_next_no_show: None,
 		})
 	}
 
 	#[test]
-   fn count_no_shows_validator_index_out_of_approvals_range_is_next_no_show() {
+   fn count_no_shows_validator_index_out_of_approvals_range_is_ignored_as_next_no_show() {
 	   test_count_no_shows(NoShowTest {
 		   assignments: vec![(ValidatorIndex(1000), 21)],
 		   approvals: vec![],
@@ -1212,7 +1216,7 @@ mod tests {
 		   no_show_duration: 10,
 		   drifted_tick_now: 20,
 		   exp_no_shows: 0,
-		   exp_next_no_show: Some(31), // TODO(ladi) should this be included or ignored?
+		   exp_next_no_show: None,
 	   })
    }
 }
