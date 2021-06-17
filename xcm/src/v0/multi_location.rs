@@ -549,7 +549,10 @@ impl MultiLocation {
 		// We build up the the new normalized path by taking items from the original multi-location.
 		// When the next item we would add is `Parent`, we instead remove the last item assuming
 		// it is non-parent.
-		const EXPECT_MESSAGE: &'static str = "normalized path must be less than or equal to the original path length";
+		const EXPECT_MESSAGE: &'static str =
+			"This loop pushes at most N junctions to a new multi-location where N is the number \
+			of junctions in the original multi-location. Since the original multi-location exists, \
+			we know that the normalized one can also be created. q.e.d.";
 		while let Some(j) = iter.next() {
 			if j == &Junction::Parent {
 				match normalized.last() {
