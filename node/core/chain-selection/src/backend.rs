@@ -21,7 +21,7 @@
 //! [`Backend`], maintaining consistency between queries and temporary writes,
 //! before any commit to the underlying storage is made.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
+use polkadot_primitives::v1::{BlockNumber, Hash, ConsensusLog};
 
 use std::collections::HashMap;
 

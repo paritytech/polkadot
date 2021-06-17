@@ -16,7 +16,7 @@
 
 //! Implements the Chain Selection Subsystem.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
@@ -342,10 +342,59 @@ async fn handle_active_leaf(
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
 		let weight = unimplemented!();
-		crate::tree::import_block(&mut overlay, hash, header, weight)?;
+		let reversion_logs = extract_reversion_logs(&header);
+		crate::tree::import_block(
+			&mut overlay,
+			hash,
+			header.number,
+			header.parent_hash,
+			reversion_logs,
+			weight,
+		)?;
 	}
 
 	Ok(overlay.into_write_ops().collect())
+}
+
+// Extract all reversion logs from a header in ascending order.
+//
+// Ignores logs with number >= the block header number.
+fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
+	let number = header.number;
+	let mut logs = header.digest.logs()
+		.iter()
+		.enumerate()
+		.filter_map(|(i, d)| match ConsensusLog::from_digest_item(d) {
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					index = i,
+					block_hash = ?header.hash(),
+					"Digest item failed to encode"
+				);
+
+				None
+			}
+			Ok(Some(ConsensusLog::Revert(b))) if b < number => Some(b),
+			Ok(Some(ConsensusLog::Revert(b))) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					revert_target = b,
+					block_number = number,
+					block_hash = ?header.hash(),
+					"Block issued invalid revert digest targeting itself or future"
+				);
+
+				None
+			}
+			Ok(_) => None,
+		})
+		.collect::<Vec<_>>();
+
+	logs.sort();
+
+	logs
 }
 
 // Handle a finalized block event.

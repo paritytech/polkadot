@@ -23,7 +23,7 @@
 //! Each direct descendant of the finalized block acts as its own sub-tree,
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
+use polkadot_primitives::v1::{BlockNumber, Hash, Header};
 
 use std::collections::HashMap;
 
@@ -245,61 +245,20 @@ fn propagate_viability_update(
 pub(crate) fn import_block(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
-	block_header: Header,
+	block_number: BlockNumber,
+	parent_hash: Hash,
+	reversion_logs: Vec<BlockNumber>,
 	weight: Weight,
 ) -> Result<(), Error> {
-	let logs = extract_reversion_logs(&block_header);
-
-	add_block(backend, block_hash, &block_header, weight)?;
+	add_block(backend, block_hash, block_number, parent_hash, weight)?;
 	apply_reversions(
 		backend,
 		block_hash,
-		block_header.number,
-		logs,
+		block_number,
+		reversion_logs,
 	)?;
 
 	Ok(())
-}
-
-// Extract all reversion logs from a header in ascending order.
-//
-// Ignores logs with number >= the block header number.
-fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
-	let number = header.number;
-	let mut logs = header.digest.logs()
-		.iter()
-		.enumerate()
-		.filter_map(|(i, d)| match ConsensusLog::from_digest_item(d) {
-			Err(e) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					err = ?e,
-					index = i,
-					block_hash = ?header.hash(),
-					"Digest item failed to encode"
-				);
-
-				None
-			}
-			Ok(Some(ConsensusLog::Revert(b))) if b < number => Some(b),
-			Ok(Some(ConsensusLog::Revert(b))) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					revert_target = b,
-					block_number = number,
-					block_hash = ?header.hash(),
-					"Block issued invalid revert digest targeting itself or future"
-				);
-
-				None
-			}
-			Ok(_) => None,
-		})
-		.collect::<Vec<_>>();
-
-	logs.sort();
-
-	logs
 }
 
 // Load the given ancestor's block entry, in descending order from the `block_hash`.
@@ -344,11 +303,10 @@ fn load_ancestor(
 fn add_block(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
-	block_header: &Header,
+	block_number: BlockNumber,
+	parent_hash: Hash,
 	weight: Weight,
 ) -> Result<(), Error> {
-	let parent_hash = block_header.parent_hash;
-
 	let mut leaves = backend.load_leaves()?;
 	let parent_entry = backend.load_block_entry(&parent_hash)?;
 
@@ -383,9 +341,9 @@ fn add_block(
 	}
 
 	// 4. Add to blocks-by-number.
-	let mut blocks_by_number = backend.load_blocks_by_number(block_header.number)?;
+	let mut blocks_by_number = backend.load_blocks_by_number(block_number)?;
 	blocks_by_number.push(block_hash);
-	backend.write_blocks_by_number(block_header.number, blocks_by_number);
+	backend.write_blocks_by_number(block_number, blocks_by_number);
 
 	// 5. Add stagnation timeout.
 	let stagnant_at = crate::stagnant_timeout_from_now();
