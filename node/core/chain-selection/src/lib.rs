@@ -119,6 +119,10 @@ impl LeafEntrySet {
 			}
 		}
 	}
+
+	fn into_hashes_descending(self) -> Vec<Hash> {
+		self.inner.into_iter().map(|e| e.block_hash).collect()
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -263,10 +267,11 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 			}
 			FromOverseer::Communication { msg } => match msg {
 				ChainSelectionMessage::Approved(hash) => {
-					unimplemented!()
+					handle_approved_block(backend, hash)?
 				}
 				ChainSelectionMessage::Leaves(tx) => {
-					unimplemented!()
+					let leaves = load_leaves(ctx, &*backend).await?;
+					let _ = tx.send(leaves);
 				}
 				ChainSelectionMessage::BestLeafContaining(required, tx) => {
 					unimplemented!()
@@ -276,9 +281,9 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 	}
 }
 
-async fn fetch_finalized_number(
+async fn fetch_finalized(
 	ctx: &mut impl SubsystemContext,
-) -> Result<BlockNumber, Error> {
+) -> Result<(Hash, BlockNumber), Error> {
 	unimplemented!()
 }
 
@@ -310,7 +315,7 @@ async fn handle_active_leaf(
 ) -> Result<Vec<BackendWriteOp>, Error> {
 	let lower_bound = match backend.load_first_block_number()? {
 		Some(l) => l,
-		None => fetch_finalized_number(ctx).await?,
+		None => fetch_finalized(ctx).await?.1,
 	};
 
 	let header = match fetch_header(ctx, hash).await? {
@@ -351,4 +356,38 @@ fn handle_finalized_block(
 	)?.into_write_ops();
 
 	backend.write(ops)
+}
+
+// Handle an approved block event.
+fn handle_approved_block(
+	backend: &mut impl Backend,
+	approved_block: Hash,
+) -> Result<(), Error> {
+	let ops = {
+		let mut overlay = OverlayedBackend::new(&*backend);
+
+		crate::tree::approve_block(
+			&mut overlay,
+			approved_block,
+		)?;
+
+		overlay.into_write_ops()
+	};
+
+	backend.write(ops)
+}
+
+// Load the leaves from the backend. If there are no leaves, then return
+// the finalized block.
+async fn load_leaves(
+	ctx: &mut impl SubsystemContext,
+	backend: &impl Backend,
+) -> Result<Vec<Hash>, Error> {
+	let leaves = backend.load_leaves()?.into_hashes_descending();
+	if leaves.is_empty() {
+		let finalized_hash = fetch_finalized(ctx).await?.0;
+		Ok(vec![finalized_hash])
+	} else {
+		Ok(leaves)
+	}
 }
