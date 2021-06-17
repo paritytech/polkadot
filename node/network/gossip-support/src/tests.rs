@@ -122,9 +122,9 @@ fn authorities() -> Vec<AuthorityDiscoveryId> {
 
 fn neighbors() -> Vec<AuthorityDiscoveryId> {
 	vec![
-		Sr25519Keyring::Bob.public().into(),
-		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::One.public().into(),
+		Sr25519Keyring::Alice.public().into(),
+		Sr25519Keyring::Eve.public().into(),
 	]
 }
 

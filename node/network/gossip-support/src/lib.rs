@@ -172,7 +172,7 @@ async fn connect_to_authorities(
 /// and form a matrix where each validator is connected to all validators in its row and column.
 /// This is similar to [web3] research proposed topology, except for the groups are not parachain
 /// groups (because not all validators are parachain validators and the group size is small),
-/// but formed randomly via BABE randomness from the previous epoch.
+/// but formed randomly via BABE randomness from two epochs ago.
 /// This limits the amount of gossip peers to 2 * sqrt(len) and ensures the diameter of 2.
 ///
 /// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
@@ -191,7 +191,11 @@ async fn update_gossip_topology(
 			RuntimeApiRequest::CurrentBabeEpoch(tx),
 		).into()).await;
 
-		rx.await??.randomness
+		let randomness = rx.await??.randomness;
+		let mut subject = [0u8; 40];
+		subject[..8].copy_from_slice(b"gossipsu");
+		subject[8..].copy_from_slice(&randomness);
+		sp_core::blake2_256(&subject)
 	};
 
 	// shuffle the indices
