@@ -39,20 +39,21 @@ use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::SubsystemContext;
 
 
+/// For each ongoing dispute we have a `SendTask` which takes care of it.
+///
+/// It is going to spawn real tasks as it sees fit for getting the votes of the particular dispute
+/// out.
 mod send_task;
 use send_task::SendTask;
 pub use send_task::FromSendingTask;
 
 /// Error and [`Result`] type for sender
 mod error;
-use error::Fatal;
-use error::Result;
+pub use error::{Result, Error, Fatal, NonFatal};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 use crate::LOG_TARGET;
-
-use self::error::NonFatal;
 
 /// Sending of disputes to all relevant validator nodes.
 pub struct DisputeSender {
@@ -80,7 +81,7 @@ impl DisputeSender
 	}
 
 	/// Initiates sending a dispute message to peers.
-	async fn start_send_dispute<Context: SubsystemContext>(
+	pub async fn start_sending<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context, 
 		runtime: &mut RuntimeInfo,
@@ -109,6 +110,27 @@ impl DisputeSender
 		}
 		Ok(())
 	}
+
+	/// Receive message from a sending task.
+	pub async fn on_task_message(&mut self, msg: FromSendingTask) {
+		match msg {
+			FromSendingTask::Finished(candidate_hash, authority, result) => {
+				let task = match self.sendings.get_mut(&candidate_hash) {
+					None => {
+						// Can happen when a dispute ends, with messages still in queue:
+						tracing::trace!(
+							target: LOG_TARGET,
+							?result,
+							"Received `FromSendingTask::Finished` for non existing dispute."
+						);
+						return
+					}
+					Some(task) => task,
+				};
+				task.on_finished_send(&authority, result);
+			}
+		}
+	}
 }
 
 /// Retrieve the currently active sessions.
@@ -116,10 +138,10 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
-) -> HashSet<SessionIndex> {
+) -> Result<HashSet<SessionIndex>> {
 	let mut indeces = HashSet::new();
 	for head in active_heads {
-		let session_index = runtime.get_session_index(ctx, head).await?;
+		let session_index = runtime.get_session_index(ctx, *head).await?;
 		indeces.insert(session_index);
 	}
 	Ok(indeces)

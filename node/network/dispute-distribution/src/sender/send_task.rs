@@ -49,6 +49,7 @@ pub struct SendTask {
 	/// The request we are supposed to get out to all parachain validators of the dispute's session
 	/// and to all current authorities.
 	request: DisputeRequest,
+
 	/// The set of authorities we need to send our messages to. This set will change at session
 	/// boundaries. It will always be at least the parachain validators of the session where the
 	/// dispute happened and the authorities of the current sessions as determined by active heads.
@@ -68,12 +69,18 @@ enum DeliveryStatus {
 
 /// Messages from tasks trying to get disputes delievered.
 pub enum FromSendingTask {
-	/// Delivery of statements for given candidate succeeded for this authority.
-	Succeeded(CandidateHash, AuthorityDiscoveryId),
-	/// Delivery of statements for given candidate failed for this authority.
+	/// Delivery of statements for given candidate finished for this authority.
+	Finished(CandidateHash, AuthorityDiscoveryId, TaskResult),
+}
+
+#[derive(Debug)]
+pub enum TaskResult {
+	/// Task succeeded in getting the request to its peer.
+	Succeeded,
+	/// Task was not able to get the request out to its peer.
 	///
-	/// We should retry.
-	Failed(CandidateHash, AuthorityDiscoveryId),
+	/// It should be retried in that case.
+	Failed,
 }
 
 impl SendTask
@@ -91,7 +98,7 @@ impl SendTask
 			deliveries: HashMap::new(),
 			tx,
 		};
-		send_task.session_update(
+		send_task.refresh_sends(
 			ctx,
 			runtime,
 			active_heads,
@@ -102,8 +109,8 @@ impl SendTask
 	/// Make sure we are sending to all relevant authorities.
 	///
 	/// This function is called at construction and should also be called whenever a session change
-	/// happens.
-	pub async fn session_update<Context: SubsystemContext>(
+	/// happens and on a regular basis to ensure we are retrying failed attempts.
+	pub async fn refresh_sends<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -130,6 +137,47 @@ impl SendTask
 
 		self.deliveries.extend(new_statuses.into_iter());
 		Ok(())
+	}
+
+	/// Handle a finished response waiting task.
+	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
+		match result {
+			TaskResult::Failed => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					candidate = ?self.request.0.candidate_hash,
+					?authority,
+					"Could not get our message out! If this keeps happening, then check chain whether the dispute made it there."
+				);
+				// Remove state, so we know what to try again:
+				self.deliveries.remove(authority);
+			}
+			TaskResult::Succeeded => {
+				let status = match self.deliveries.get_mut(&authority) {
+					None => {
+						// Can happen when a sending became irrelevant while the response was already
+						// queued.
+						tracing::debug!(
+							target: LOG_TARGET,
+							candidate = ?self.request.0.candidate_hash,
+							?authority,
+							?result,
+							"Received `FromSendingTask::Finished` for non existing task."
+						);
+						return
+					}
+					Some(status) => status,
+				};
+				tracing::trace!(
+					target: LOG_TARGET,
+					candidate = ?self.request.0.candidate_hash,
+					?authority,
+					"Successfully distributed dispute request."
+				);
+				// We are done here:
+				*status = DeliveryStatus::Succeeded;
+			}
+		}
 	}
 
 
@@ -233,7 +281,7 @@ async fn wait_response_task(
 				%err,
 				"Error sending dispute statements to node."
 			);
-			FromSendingTask::Failed(candidate_hash, receiver)
+			FromSendingTask::Finished(candidate_hash, receiver, TaskResult::Failed)
 		}
 		Ok(DisputeResponse::Confirmed) => {
 			tracing::trace!(
@@ -242,7 +290,7 @@ async fn wait_response_task(
 				%receiver,
 				"Sending dispute message succeeded"
 			);
-			FromSendingTask::Succeeded(candidate_hash, receiver)
+			FromSendingTask::Finished(candidate_hash, receiver, TaskResult::Succeeded)
 		}
 	};
 	if let Err(err) = tx.feed(msg).await {

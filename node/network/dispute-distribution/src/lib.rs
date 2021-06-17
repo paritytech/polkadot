@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
+
+/// Sending and receiving of `DisputeRequest`s.
+use futures::channel::mpsc;
+use futures::{future::Either, FutureExt, StreamExt, TryFutureExt, select};
 
 use sp_keystore::SyncCryptoStorePtr;
 
@@ -23,11 +26,16 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError,
 };
 
+/// `DisputeSender` manages the sending side of all initiated disputes.
+///
+/// See the implementers guide for more detail on the general protocol, but in general
+/// `DisputeSender` takes care of getting our vote out to all other relevant validators.
 mod sender;
+use self::sender::{DisputeSender, FromSendingTask};
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::Fatal;
+use error::{Fatal, FatalResult};
 use error::{Result, log_error};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
@@ -36,8 +44,8 @@ mod metrics;
 /// Prometheus `Metrics` for dispute distribution.
 pub use metrics::Metrics;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 const LOG_TARGET: &'static str = "parachain::dispute-distribution";
 
@@ -45,38 +53,15 @@ const LOG_TARGET: &'static str = "parachain::dispute-distribution";
 pub struct DisputeDistributionSubsystem {
 	/// Easy and efficient runtime access for this subsystem.
 	runtime: RuntimeInfo,
-	/// All ongoing dispute sendings this subsystem is aware of.
-	disputes_sending: HashMap<CandidateHash, DisputeInfo>,
 
-	/// Sender to be cloned for `SendTask`s.
-	tx: mpsc::Sender<FromSendingTask>,
+	/// Sender for our dispute requests.
+	disputes_sender: DisputeSender,
 
 	/// Receive messages from `SendTask`.
-	rx: mpsc::Receiver<FromSendingTask>,
+	sender_rx: mpsc::Receiver<FromSendingTask>,
 
 	/// Prometheus metrics.
 	metrics: Metrics,
-}
-
-/// Dispute state for a particular disputed candidate.
-struct DisputeInfo {
-	/// The request we are supposed to get out to all parachain validators of the dispute's session
-	/// and to all current authorities.
-	request: DisputeRequest,
-	/// The set of authorities we need to send our messages to. This set will change at session
-	/// boundaries. It will always be at least the parachain validators of the session where the
-	/// dispute happened and the authorities of the current sessions as determined by active heads.
-	deliveries: HashMap<AuthorityDiscoveryId, DeliveryStatus>,
-}
-
-/// Status of a particular vote/statement delivery to a particular validator.
-enum DeliveryStatus {
-	/// Request is still in flight.
-	Pending(RemoteHandle<()>),
-	/// Request failed - waiting for retry.
-	Failed,
-	/// Succeeded - no need to send request to this peer anymore.
-	Succeeded,
 }
 
 impl<Context> Subsystem<Context> for DisputeDistributionSubsystem
@@ -101,7 +86,9 @@ impl DisputeDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore));
-		Self { runtime,  metrics }
+		let (tx, sender_rx) = mpsc::channel(1);
+		let disputes_sender = DisputeSender::new(tx);
+		Self { runtime, disputes_sender, sender_rx, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -109,30 +96,90 @@ impl DisputeDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
 	{
-		for msg in ctx.recv().await {
-			match msg {
-				FromOverSeer::Communication(msg) =>
-					self.handle_subsystem_message(&mut self, &mut ctx, msg).await,
+		loop {
+			let message = Message::receive(&mut ctx, &mut self.sender_rx).await;
+			match message {
+				Message::Subsystem(result) => {
+					let result = match result? {
+						FromOverseer::Signal(signal) => {
+							match self.handle_signals(&mut ctx, signal).await {
+								SignalResult::Conclude => return Ok(()),
+								SignalResult::Result(result) => result,
+							}
+						}
+						FromOverseer::Communication { msg } =>
+							self.handle_subsystem_message(&mut ctx, msg).await,
+					};
+					log_error(result, "on FromOverseer")?;
+				}
+				Message::Sender(result) => {
+					self.disputes_sender.on_task_message(
+						result.ok_or(Fatal::SenderExhausted)?
+					).await;
+				}
 			}
 		}
+	}
 
+	/// Handle overseer signals.
+	async fn handle_signals<Context: SubsystemContext> (
+		&mut self,
+		ctx: &mut Context,
+		signal: OverseerSignal
+	) -> SignalResult
+	{
+		// let result = match signal {
+		//     OverseerSignal::Conclude => return SignalResult::Conclude,
+		//     OverseerSignal::ActiveLeaves(update) => {
+		//     }
+		// };
+		// SignalResult::Result(result)
+		panic!("WIP");
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
 	async fn handle_subsystem_message<Context: SubsystemContext> (
-		mut self,
+		&mut self,
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage
-	) -> std::result::Result<(), Fatal>
+	) -> Result<()>
 	{
 		match msg {
-			DistputeDistributionMessage::SendDispute(dispute_msg) =>
-				self.start_send_dispute(&mut ctx, dispute_msg).await,
+			DisputeDistributionMessage::SendDispute(dispute_msg) =>
+				self.disputes_sender.start_sending(ctx, &mut self.runtime, dispute_msg).await?,
+			_ => panic!("WIP!"),
 		}
+		Ok(())
 	}
+}
 
+/// Messages to be handled in this subsystem.
+enum Message {
+	/// Messages from other subsystems.
+	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
+	/// Messages from spawned sender background tasks.
+	Sender(Option<FromSendingTask>),
+}
 
-	/// Initiates sending a dispute message to peers.
-	async fn start_send_dispute<Context>(&mut self, ctx: &mut Context) {
+impl Message {
+	async fn receive(
+		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
+		from_sender: &mut mpsc::Receiver<FromSendingTask>,
+	) -> Message {
+		// We are only fusing here to make `select` happy, in reality we will quit if one of those
+		// streams end:
+		let from_overseer = ctx.recv().fuse();
+		let from_requester = from_sender.next().fuse();
+		futures::pin_mut!(from_overseer, from_sender);
+		futures::select!(
+			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_sender => Message::Sender(msg),
+		)
 	}
+}
+
+/// Result of handling signal from overseer.
+enum SignalResult {
+	Conclude,
+	Result(Result<()>),
 }
