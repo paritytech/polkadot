@@ -60,23 +60,23 @@ struct ViabilityCriteria {
 	explicitly_reverted: bool,
 	// `None` means approved. `Some` means unapproved.
 	approval: Approval,
-	earliest_non_viable_ancestor: Option<Hash>,
+	earliest_unviable_ancestor: Option<Hash>,
 }
 
 impl ViabilityCriteria {
 	fn is_viable(&self) -> bool {
-		self.is_parent_viable() && !self.is_unviable_source()
+		self.is_parent_viable() && self.is_partially_viable()
 	}
 
-	// Whether the current block is a source of unviability itself.
-	// That is, whether the current block is reverted or stagnant.
-	fn is_unviable_source(&self) -> bool {
-		self.explicitly_reverted || self.approval.is_stagnant()
+	// Whether the current block is partially viable.
+	// That is, whether the current block is neither reverted nor stagnant.
+	fn is_partially_viable(&self) -> bool {
+		!self.explicitly_reverted && !self.approval.is_stagnant()
 	}
 
 	// Whether the parent is viable.
 	fn is_parent_viable(&self) -> bool {
-		self.earliest_non_viable_ancestor.is_none()
+		self.earliest_unviable_ancestor.is_none()
 	}
 }
 
@@ -130,7 +130,7 @@ impl BlockEntry {
 		if self.viability.is_viable() {
 			None
 		} else {
-			self.viability.earliest_non_viable_ancestor.or(Some(self.block_hash))
+			self.viability.earliest_unviable_ancestor.or(Some(self.block_hash))
 		}
 	}
 }
@@ -477,7 +477,7 @@ fn import_block_ignoring_reversions(
 			parent_hash: parent_hash,
 			children: Vec::new(),
 			viability: ViabilityCriteria {
-				earliest_non_viable_ancestor: inherited_viability,
+				earliest_unviable_ancestor: inherited_viability,
 				explicitly_reverted: false,
 				approval: Approval::Unapproved,
 			},
@@ -586,6 +586,55 @@ fn load_ancestor(
 	Ok(current_entry)
 }
 
+// A viability update to be applied to a block.
+struct ViabilityUpdate(Option<Hash>);
+
+impl ViabilityUpdate {
+	// Apply the viability update to a single block, yielding the updated
+	// block entry along with a vector of children and the updates to apply
+	// to them.
+	fn apply(self, mut entry: BlockEntry) -> (
+		Option<BlockEntry>,
+		Vec<(Hash, ViabilityUpdate)>
+	) {
+		// 1. When an ancestor has changed from unviable to viable,
+		// we erase the `earliest_unviable_ancestor` of all descendants
+		// until encountering a partially unviable descendant D.
+		//
+		// We then update the `earliest_unviable_ancestor` for all
+		// descendants of D to be equal to D.
+		//
+		// 2. When an ancestor A has changed from viable to unviable,
+		// we update the `earliest_unviable_ancestor` for all blocks
+		// to A.
+		//
+		// The following algorithm covers both cases.
+
+		let maybe_earliest_unviable = self.0;
+		let next_earliest_unviable = {
+			if maybe_earliest_unviable.is_none() && !entry.viability.is_partially_viable() {
+				Some(entry.block_hash)
+			} else {
+				maybe_earliest_unviable
+			}
+		};
+
+		let recurse = entry.children.iter()
+			.cloned()
+			.map(move |c| (c, ViabilityUpdate(next_earliest_unviable)))
+			.collect();
+
+		let new_entry = if entry.viability.earliest_unviable_ancestor == maybe_earliest_unviable {
+			None
+		} else {
+			entry.viability.earliest_unviable_ancestor = maybe_earliest_unviable;
+			Some(entry)
+		};
+
+		(new_entry, recurse)
+	}
+}
+
 // Propagate viability update to descendants of the given block.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
@@ -593,11 +642,58 @@ fn load_ancestor(
 //
 // If the block entry provided is self-viable, then it's assumed that a
 // viability update needs to be propagated to descendants.
-fn propagate_viability_change(
+fn propagate_viability_update(
 	backend: &mut OverlayedBackend<impl Backend>,
-	entry: &BlockEntry,
+	base: BlockEntry,
 ) -> Result<(), Error> {
-	unimplemented!();
+	enum BlockEntryRef {
+		Explicit(BlockEntry),
+		Hash(Hash),
+	}
+
+	if !base.viability.is_parent_viable() {
+		// If the parent of the block is still unviable,
+		// then the `earliest_viable_ancestor` will not change
+		// regardless of the change in the block here.
+		return Ok(())
+	}
+
+	// If the base block is itself partially unviable,
+	// this will change to a `Some(base_hash)` after the first
+	// invocation.
+	let viability_update = ViabilityUpdate(None);
+
+	// Recursively apply update to tree
+	let mut frontier = vec![(BlockEntryRef::Explicit(base), viability_update)];
+	while let Some((entry_ref, update)) = frontier.pop() {
+		let entry = match entry_ref {
+			BlockEntryRef::Explicit(entry) => entry,
+			BlockEntryRef::Hash(hash) => match backend.load_block_entry(&hash)? {
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						block_hash = ?hash,
+						"Missing expected block entry"
+					);
+
+					continue;
+				}
+				Some(entry) => entry,
+			}
+		};
+
+		let (new_entry, children) = update.apply(entry);
+
+		if let Some(new_entry) = new_entry {
+			backend.write_block_entry(new_entry.block_hash, new_entry);
+		}
+
+		frontier.extend(
+			children.into_iter().map(|(h, update)| (BlockEntryRef::Hash(h), update))
+		);
+	}
+
+	Ok(())
 }
 
 // Assuming that a block is already imported, scans the header of the block
@@ -650,7 +746,12 @@ fn apply_imported_block_reversions(
 		ancestor_entry.viability.explicitly_reverted = true;
 		backend.write_block_entry(ancestor_entry.block_hash, ancestor_entry.clone());
 
-		propagate_viability_change(backend, &ancestor_entry)?;
+		propagate_viability_update(backend, ancestor_entry)?;
+
+		// TODO [now]: update leaves set. For this we need to know any visited
+		// blocks which were leaves, so we can remove them. We also add the
+		// parent of the earliest viable ancestor to the leaves-set, if it's
+		// present.
 	}
 
 	Ok(())
