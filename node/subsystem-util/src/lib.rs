@@ -54,6 +54,7 @@ use thiserror::Error;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
+pub use determine_new_blocks::determine_new_blocks;
 /// Error classification.
 pub use error_handling::{Fault, unwrap_non_fatal};
 
@@ -72,6 +73,7 @@ pub mod runtime;
 /// A rolling session window cache.
 pub mod rolling_session_window;
 
+mod determine_new_blocks;
 mod error_handling;
 
 #[cfg(test)]

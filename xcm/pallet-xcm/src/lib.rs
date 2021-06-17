@@ -262,18 +262,19 @@ pub mod pallet {
 			AccountIdConversion::<T::AccountId>::into_account(&ID)
 		}
 	}
-}
 
-/// Origin for the parachains module.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum Origin {
-	/// It comes from somewhere in the XCM space.
-	Xcm(MultiLocation),
-}
+	/// Origin for the parachains module.
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[pallet::origin]
+	pub enum Origin {
+		/// It comes from somewhere in the XCM space.
+		Xcm(MultiLocation),
+	}
 
-impl From<MultiLocation> for Origin {
-	fn from(location: MultiLocation) -> Origin {
-		Origin::Xcm(location)
+	impl From<MultiLocation> for Origin {
+		fn from(location: MultiLocation) -> Origin {
+			Origin::Xcm(location)
+		}
 	}
 }
 
