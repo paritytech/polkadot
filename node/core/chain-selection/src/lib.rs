@@ -28,6 +28,7 @@ use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
 
 use std::collections::HashMap;
+use std::time::{UNIX_EPOCH, SystemTime};
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 
@@ -157,6 +158,29 @@ impl Error {
 			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
+}
+
+fn timestamp_now() -> Timestamp {
+	match SystemTime::now().duration_since(UNIX_EPOCH) {
+		Ok(d) => d.as_secs(),
+		Err(e) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err = ?e,
+				"Current time is before unix epoch. Validation will not work correctly."
+			);
+
+			0
+		}
+	}
+}
+
+fn stagnant_timeout_from_now() -> Timestamp {
+	// If a block isn't approved in 120 seconds, nodes will abandon it
+	// and begin building on another chain.
+	const STAGNANT_TIMEOUT: Timestamp = 120;
+
+	timestamp_now() + STAGNANT_TIMEOUT
 }
 
 enum BackendWriteOp {
@@ -473,7 +497,11 @@ fn import_block_ignoring_reversions(
 	blocks_by_number.push(block_hash);
 	backend.write_blocks_by_number(block_header.number, blocks_by_number);
 
-	// 5. TODO [now]: Add stagnation timeout.
+	// 5. Add stagnation timeout.
+	let stagnant_at = stagnant_timeout_from_now();
+	let mut stagnant_at_list = backend.load_stagnant_at(stagnant_at)?;
+	stagnant_at_list.push(block_hash);
+	backend.write_stagnant_at(stagnant_at, stagnant_at_list);
 
 	Ok(())
 }
