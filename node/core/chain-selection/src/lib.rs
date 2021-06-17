@@ -173,6 +173,14 @@ impl Error {
 }
 
 fn timestamp_now() -> Timestamp {
+	// `SystemTime` is notoriously non-monotonic, so our timers might not work
+	// exactly as expected. Regardless, stagnation is detected on the order of minutes,
+	// and slippage of a few seconds in either direction won't cause any major harm.
+	//
+	// The exact time that a block becomes stagnant in the local node is always expected
+	// to differ from other nodes due to network asynchrony and delays in block propagation.
+	// Non-monotonicity exarcerbates that somewhat, but not meaningfully.
+
 	match SystemTime::now().duration_since(UNIX_EPOCH) {
 		Ok(d) => d.as_secs(),
 		Err(e) => {
