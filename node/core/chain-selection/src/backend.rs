@@ -55,7 +55,8 @@ pub(super) trait Backend {
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error>;
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
-	fn write(&mut self, ops: Vec<BackendWriteOp>) -> Result<(), Error>;
+	fn write<I>(&mut self, ops: I) -> Result<(), Error>
+		where I: IntoIterator<Item = BackendWriteOp>;
 }
 
 /// An in-memory overlay over the backend.

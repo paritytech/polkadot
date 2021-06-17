@@ -248,13 +248,29 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 				return Ok(())
 			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				unimplemented!()
+				for leaf in update.activated {
+					let write_ops = handle_active_leaf(
+						ctx,
+						&*backend,
+						leaf.hash,
+					).await?;
+
+					backend.write(write_ops)?;
+				}
 			}
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
-				unimplemented!()
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(h, n)) => {
+				handle_finalized_block(backend, h, n)?
 			}
-			FromOverseer::Communication { msg } => {
-				unimplemented!()
+			FromOverseer::Communication { msg } => match msg {
+				ChainSelectionMessage::Approved(hash) => {
+					unimplemented!()
+				}
+				ChainSelectionMessage::Leaves(tx) => {
+					unimplemented!()
+				}
+				ChainSelectionMessage::BestLeafContaining(required, tx) => {
+					unimplemented!()
+				}
 			}
 		};
 	}
@@ -320,4 +336,19 @@ async fn handle_active_leaf(
 	}
 
 	Ok(overlay.into_write_ops().collect())
+}
+
+// Handle a finalized block event.
+fn handle_finalized_block(
+	backend: &mut impl Backend,
+	finalized_hash: Hash,
+	finalized_number: BlockNumber,
+) -> Result<(), Error> {
+	let ops = crate::tree::finalize_block(
+		&*backend,
+		finalized_hash,
+		finalized_number,
+	)?.into_write_ops();
+
+	backend.write(ops)
 }
