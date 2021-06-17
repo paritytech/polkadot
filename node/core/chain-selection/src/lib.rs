@@ -521,41 +521,6 @@ impl ViabilityUpdate {
 // which are already known to be unviable.
 type LeafSearchFrontier = HashMap<Hash, Vec<Hash>>;
 
-fn search_for_viable_leaves(
-	backend: &mut OverlayedBackend<impl Backend>,
-	frontier: LeafSearchFrontier,
-	viable_leaves: &mut LeafEntrySet,
-) -> Result<(), Error> {
-	for (base, known_unviable_children) in frontier {
-		let base_entry = match backend.load_block_entry(&base)? {
-			None => {
-				// This means the block is finalized. We might reach this
-				// code path where a child of the finalized block becomes
-				// unviable. Each such child is the root of its own tree
-				// which, as an invariant, does not depend on the viability
-				// of the finalized block. So no siblings need to be inspected
-				// and we can ignore it safely.
-				continue
-			}
-			Some(e) => e,
-		};
-
-		let maybe_viable_children: Vec<_> = base_entry.children
-			.iter()
-			.filter(|c| !known_unviable_children.contains(c))
-			.collect();
-
-		if maybe_viable_children.is_empty() {
-			viable_leaves.insert(base_entry.leaf_entry());
-		}
-
-		// Recurse into children.
-		unimplemented!()
-	}
-
-	Ok(())
-}
-
 // Propagate viability update to descendants of the given block.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
@@ -584,7 +549,13 @@ fn propagate_viability_update(
 
 	let mut viable_leaves = backend.load_leaves()?;
 
-	let mut leaf_search_frontier = LeafSearchFrontier::new();
+	// A mapping of Block Hash -> number
+	// Where the hash is the hash of a viable block which has
+	// at least 1 unviable child.
+	//
+	// The number is the number of known unviable children which is known
+	// as the pivot count.
+	let mut viability_pivots = HashMap::new();
 
 	// If the base block is itself partially unviable,
 	// this will change to a `Some(base_hash)` after the first
@@ -631,14 +602,11 @@ fn propagate_viability_update(
 			// A block which is not viable is certainly not a viable leaf.
 			viable_leaves.remove(&new_entry.block_hash);
 
-			// But if its parent is viable, then the parent is the root
-			// of a tree which contains a viable leaf. Save it for later
-			// so we can recurse into the other children.
+			// When the parent is viable but the entry itself is not, that means
+			// that the parent is a viability pivot. As we visit the children
+			// of a viability pivot, we build up an exhaustive pivot count.
 			if new_entry.viability.is_parent_viable() {
-				leaf_search_frontier
-					.entry(new_entry.parent_hash)
-					.or_default()
-					.push(new_entry.block_hash);
+				*viability_pivots.entry(new_entry.parent_hash).or_insert(0) += 1;
 			}
 		}
 
@@ -649,7 +617,55 @@ fn propagate_viability_update(
 		);
 	}
 
-	search_for_viable_leaves(backend, leaf_search_frontier, &mut viable_leaves);
+	// Revisit the viability pivots now that we've traversed the entire subtree.
+	// After this point, the viable leaves set is fully updated. A proof follows.
+	//
+	// If the base has become unviable, then we've iterated into all descendants,
+	// made them unviable and removed them from the set. We know that the parent is
+	// viable as this function is a no-op otherwise, so we need to see if the parent
+	// has other children or not.
+	//
+	// If the base has become viable, then we've iterated into all descendants,
+	// and found all blocks which are viable and have no children. We've already added
+	// those blocks to the leaf set, but what we haven't detected
+	// is blocks which are viable and have children, but all of the children are
+	// unviable.
+	//
+	// The solution of viability pivots addresses both of these:
+	//
+	// When the base has become unviable, the parent's viability is unchanged and therefore
+	// any leaves descending from parent but not base are still in the viable leaves set.
+	// If the parent has only one child which is the base, the parent is now a viable leaf.
+	// We've already visited the base in recursive search so the set of pivots should
+	// contain only a single entry `(parent, 1)`. qed.
+	//
+	// When the base has become viable, we've already iterated into every descendant
+	// of the base and thus have collected a set of pivots whose corresponding pivot
+	// counts have already been exhaustively computed from their children. qed.
+	for (pivot, pivot_count) in viability_pivots {
+		match backend.load_block_entry(&pivot)? {
+			None => {
+				// This means the block is finalized. We might reach this
+				// code path when the base is a child of the finalized block
+				// and has become unviable.
+				//
+				// Each such child is the root of its own tree
+				// which, as an invariant, does not depend on the viability
+				// of the finalized block. So no siblings need to be inspected
+				// and we can ignore it safely.
+				//
+				// Furthermore, if the set of viable leaves is empty, the
+				// finalized block is implicitly the viable leaf.
+				continue
+			}
+			Some(entry) => {
+				if entry.children.len() == pivot_count {
+					viable_leaves.insert(entry.leaf_entry());
+				}
+			}
+		}
+	}
+
 	backend.write_leaves(viable_leaves);
 
 	Ok(())
