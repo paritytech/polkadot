@@ -325,6 +325,12 @@ fn count_no_shows(
 			let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
 
 			if !is_no_show && !has_approved {
+				// When doing the comparison above, no_show_at and drifted_tick_now are calculated
+				// with the clock_drift removed. The reason for adding back the clock_drift in
+				// computing next_no_show is so that the scheduler knows the deadline at which
+				// *this node* should observe whether or not the validator is a no show. Recall
+				// that when the when drifted_tick_now is computed during that subsequent wake up,
+				// the clock drift will be removed again to do the comparison above.
 				next_no_show = super::min_prefer_some(
 					next_no_show,
 					Some(no_show_at + clock_drift),
