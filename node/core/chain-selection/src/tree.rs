@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use super::{
 	LOG_TARGET,
 	Approval, BlockEntry, Error, LeafEntry, LeafEntrySet, ViabilityCriteria, Weight,
+	Timestamp,
 };
 use crate::backend::{Backend, OverlayedBackend};
 
@@ -88,7 +89,8 @@ impl ViabilityUpdate {
 }
 
 // Propagate viability update to descendants of the given block. This writes
-// the `base` entry as well as all descendants.
+// the `base` entry as well as all descendants. If the parent of the block
+// entry is not viable, this wlil not affect any descendants.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
 // unviability update needs to be propagated to descendants.
@@ -111,6 +113,7 @@ fn propagate_viability_update(
 		//
 		// Furthermore, in such cases, the set of viable leaves
 		// does not change at all.
+		backend.write_block_entry(base);
 		return Ok(())
 	}
 
@@ -476,6 +479,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 		backend.delete_blocks_by_number(number);
 
 		for block in blocks_at {
+			// TODO [now]: remove from viable leaves.
 			backend.delete_block_entry(&block);
 		}
 	}
@@ -495,6 +499,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 		while let Some((dead_hash, dead_number)) = frontier.pop() {
 			let entry = backend.load_block_entry(&dead_hash)?;
 			backend.delete_block_entry(&dead_hash);
+			// TODO [now]: remove from viable leaves.
 
 			// This does a few extra `clone`s but is unlikely to be
 			// a bottleneck. Code complexity is very low as a result.
@@ -514,6 +519,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 	let children_of_finalized = {
 		let finalized_entry = backend.load_block_entry(&finalized_hash)?;
 		backend.delete_block_entry(&finalized_hash);
+		// TODO [now]: remove from viable leaves.
 
 		finalized_entry.into_iter().flat_map(|e| e.children)
 	};
@@ -570,4 +576,41 @@ pub(super) fn approve_block(
 	}
 
 	Ok(())
+}
+
+/// Check whether any blocks up to the given timestamp are stagnant and update
+/// accordingly.
+///
+/// This accepts a fresh backend and returns an overlay on top of it representing
+/// all changes made.
+pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
+	backend: &'a B,
+	up_to: Timestamp,
+) -> Result<OverlayedBackend<'a, B>, Error> {
+	let stagnant_up_to = backend.load_stagnant_at_up_to(up_to)?;
+	let mut backend = OverlayedBackend::new(backend);
+
+	// As this is in ascending order, only the earliest stagnant
+	// blocks will involve heavy viability propagations.
+	for (timestamp, maybe_stagnant) in stagnant_up_to {
+		backend.delete_stagnant_at(timestamp);
+
+		for block_hash in maybe_stagnant {
+			if let Some(mut entry) = backend.load_block_entry(&block_hash)? {
+				let was_viable = entry.viability.is_viable();
+				if let Approval::Unapproved = entry.viability.approval {
+					entry.viability.approval = Approval::Stagnant;
+				}
+				let is_viable = entry.viability.is_viable();
+
+				if was_viable && !is_viable {
+					propagate_viability_update(&mut backend, entry)?;
+				} else {
+					backend.write_block_entry(entry);
+				}
+			}
+		}
+	}
+
+	Ok(backend)
 }
