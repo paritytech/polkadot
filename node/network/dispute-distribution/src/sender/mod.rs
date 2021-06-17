@@ -30,7 +30,10 @@ use polkadot_node_network_protocol::request_response::OutgoingResult;
 use polkadot_node_network_protocol::request_response::Recipient;
 use polkadot_node_network_protocol::request_response::Requests;
 use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
+use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_primitives::DisputeMessage;
+use polkadot_node_primitives::SignedDisputeStatement;
+use polkadot_primitives::v1::DisputeStatement;
 use polkadot_primitives::v1::{SessionIndex, AuthorityDiscoveryId};
 use polkadot_subsystem::ActiveLeavesUpdate;
 use polkadot_subsystem::messages::AllMessages;
@@ -40,6 +43,7 @@ use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_primitives::v1::CandidateHash;
 use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::SubsystemContext;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
@@ -54,9 +58,8 @@ pub use send_task::FromSendingTask;
 mod error;
 pub use error::{Result, Error, Fatal, NonFatal};
 
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-
 use crate::LOG_TARGET;
+use self::error::NonFatalResult;
 
 /// Sending of disputes to all relevant validator nodes.
 pub struct DisputeSender {
@@ -80,6 +83,7 @@ impl DisputeSender
 	pub fn new(tx: mpsc::Sender<FromSendingTask>) -> Self {
 		Self {
 			active_heads: Vec::new(),
+			active_sessions: HashMap::new(),
 			sendings: HashMap::new(),
 			tx,
 		}
@@ -95,10 +99,10 @@ impl DisputeSender
 		let req: DisputeRequest = msg.into();
 		match self.sendings.entry(req.0.candidate_hash) {
 			Entry::Occupied(_) => {
-				tracing::warn!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					candidate_hash = ?req.0.candidate_hash,
-					"Double dispute participation - not supposed to happen."
+					"Dispute sending already active."
 				);
 				return Ok(())
 			}
@@ -121,6 +125,7 @@ impl DisputeSender
 	/// - Initiate a retry of sends disputes are still active.
 	/// - Get new authorities to send messages to.
 	/// - Get rid of obsolete tasks and disputes.
+	/// - Get dispute sending started in case we missed one for some reason (e.g. on node startup)
 	pub async fn update_leaves<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
@@ -134,12 +139,29 @@ impl DisputeSender
 
 		let have_new_sessions = self.refresh_sessions(ctx, runtime).await?;
 
-		self.cleanup_dead_disputes(ctx).await?;
+		let active_disputes = get_active_disputes(ctx).await?;
+		let unknown_disputes = {
+			let mut disputes = active_disputes.clone();
+			disputes.retain(|(_, c)| !self.sendings.contains_key(c));
+			disputes
+		};
+
+		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c)| c).collect();
+
+		// Cleanup obsolete senders:
+		self.sendings.retain(
+			|candidate_hash, _| active_disputes.contains(candidate_hash)
+		);
 
 		for send in self.sendings.values_mut() {
 			if have_new_sessions || send.has_failed_sends() {
 				send.refresh_sends(ctx, runtime, &self.active_sessions).await?;
 			}
+		}
+
+		// This should only be non-empty on startup, but if not - we got you covered:
+		for dispute in unknown_disputes {
+			self.start_send_for_dispute(ctx, runtime, dispute).await?
 		}
 		Ok(())
 	}
@@ -165,6 +187,118 @@ impl DisputeSender
 		}
 	}
 
+	/// Call `start_sending` on all passed in disputes.
+	///
+	/// Recover necessary votes for building up `DisputeMessage` and start sending for all of them.
+	async fn start_send_for_dispute<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
+		dispute: (SessionIndex, CandidateHash),
+	) -> Result<()> {
+		let (session_index, candidate_hash) = dispute;
+		// We need some relay chain head for context for receiving session info information:
+		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
+		let info = runtime.get_session_info_by_index(ctx, *ref_head, session_index).await?;
+		let our_index = match info.validator_info.our_index {
+			None => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					"Not a validator in that session - not starting dispute sending."
+				);
+				return Ok(())
+			}
+			Some(index) => index,
+		};
+
+		let votes = match get_candidate_votes(ctx, session_index, candidate_hash).await? {
+			None => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					"No votes for active dispute?! - possible, due to race."
+				);
+				return Ok(())
+			}
+			Some(votes) => votes,
+		};
+
+		let our_valid_vote = votes
+			.valid
+			.iter()
+			.find(|(_, i, _)| *i == our_index);
+
+		let our_invalid_vote = votes
+			.invalid
+			.iter()
+			.find(|(_, i, _)| *i == our_index);
+
+		let (valid_vote, invalid_vote) =
+			if let Some(our_valid_vote) = our_valid_vote {
+				// Get some invalid vote as well:
+				let invalid_vote = votes
+					.invalid
+					.get(0)
+					.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+				(our_valid_vote, invalid_vote)
+			} else if let Some(our_invalid_vote) = our_invalid_vote {
+				// Get some valid vote as well:
+				let valid_vote = votes
+					.valid
+					.get(0)
+					.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+				(valid_vote, our_invalid_vote)
+			} else {
+				return Err(From::from(NonFatal::InvalidDisputeFromCoordinator))
+			}
+		;
+		let (kind, valid_index, signature) = valid_vote;
+		let valid_public = info
+			.session_info
+			.validators
+			.get(valid_index.0 as usize)
+			.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+		let valid_signed = SignedDisputeStatement::new_checked(
+			DisputeStatement::Valid(kind.clone()),
+			candidate_hash,
+			session_index,
+			valid_public.clone(),
+			signature.clone(),
+		).map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+
+		let (kind, invalid_index, signature) = invalid_vote;
+		let invalid_public = info
+			.session_info
+			.validators
+			.get(invalid_index.0 as usize)
+			.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+		let invalid_signed = SignedDisputeStatement::new_checked(
+			DisputeStatement::Invalid(kind.clone()),
+			candidate_hash,
+			session_index,
+			invalid_public.clone(),
+			signature.clone(),
+		).map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+
+		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
+		// but I don't want to enable a bypass for the below smart constructor and this code path
+		// is supposed to be only hit on startup basically.
+		//
+		// Revisit this decision when the `from_signed_statements` is unneded for the normal code
+		// path as well.
+		let message = DisputeMessage::from_signed_statements(
+			valid_signed,
+			*valid_index,
+			invalid_signed,
+			*invalid_index,
+			&info.session_info
+		).ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+
+		// Finally, get the party started:
+		self.start_sending(ctx, runtime, message).await
+	}
+
 	/// Make active sessions correspond to currently active heads.
 	///
 	/// Returns: true if sessions changed.
@@ -180,17 +314,6 @@ impl DisputeSender
 		// Update in any case, so we use current heads for queries:
 		self.active_sessions = new_sessions;
 		Ok(updated)
-	}
-
-	/// Query dispute coordinator for currently active disputes and get rid of all obsolete
-	/// senders.
-	async fn cleanup_dead_disputes<Context: SubsystemContext>(
-		&mut self,
-		ctx: &mut Context,
-	) -> Result<()> {
-		let active_disputes = get_active_disputes(ctx).await?;
-		self.sendings.retain(|candidate_hash, _|  active_disputes.contains(candidate_hash));
-		Ok(())
 	}
 }
 
@@ -212,11 +335,27 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 
 /// Retrieve Set of active disputes from the dispute coordinator.
 async fn get_active_disputes<Context: SubsystemContext>(ctx: &mut Context)
-	-> Result<HashSet<CandidateHash>> {
+	-> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::ActiveDisputes(tx)
 	)).await;
-	let disputes = rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)?;
-	Ok(disputes.into_iter().map(|(_, c)| c).collect())
+	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
+}
+
+/// Get all locally available dispute votes for a given dispute.
+async fn get_candidate_votes<Context: SubsystemContext>(
+	ctx: &mut Context,
+	session_index: SessionIndex,
+	candidate_hash: CandidateHash,
+) -> NonFatalResult<Option<CandidateVotes>> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::DisputeCoordinator(
+		DisputeCoordinatorMessage::QueryCandidateVotes(
+			session_index,
+			candidate_hash,
+			tx
+		)
+	)).await;
+	rx.await.map_err(|_| NonFatal::AskCandidateVotesCanceled)
 }

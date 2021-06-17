@@ -69,9 +69,20 @@ pub enum NonFatal {
 	#[error("Oneshot for asking dispute coordinator for active disputes got canceled.")]
 	AskActiveDisputesCanceled,
 
+	/// This error likely indicates a bug in the coordinator.
+	#[error("Oneshot for asking dispute coordinator for candidate votes got canceled.")]
+	AskCandidateVotesCanceled,
+
+	/// This error does indicate a bug in the coordinator.
+	///
+	/// We did not receive votes on both sides for `CandidateVotes` received from the coordinator.
+	#[error("Invalid dispute encountered.")]
+	InvalidDisputeFromCoordinator,
+
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] #[source] runtime::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;

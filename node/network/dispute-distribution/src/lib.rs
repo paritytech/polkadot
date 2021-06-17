@@ -15,10 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
+use std::collections::HashSet;
+
 /// Sending and receiving of `DisputeRequest`s.
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::{future::Either, FutureExt, StreamExt, TryFutureExt, select};
 
+use polkadot_primitives::v1::CandidateHash;
+use polkadot_subsystem::messages::{AllMessages, DisputeCoordinatorMessage};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
