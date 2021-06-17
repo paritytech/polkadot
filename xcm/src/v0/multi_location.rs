@@ -545,7 +545,7 @@ impl MultiLocation {
 	/// any internal `[Non-Parent, Parent]` combinations.
 	pub fn canonicalize(&mut self) {
 		let mut normalized = MultiLocation::Null;
-		let mut iter = self.iter().peekable();
+		let mut iter = self.iter();
 		// We build up the the new normalized path by taking items from the original multi-location.
 		// When the next item we would add is `Parent`, we instead remove the last item assuming
 		// it is non-parent.
