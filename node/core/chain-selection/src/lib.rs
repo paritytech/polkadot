@@ -47,7 +47,7 @@ enum Approval {
 
 impl Approval {
 	fn is_stagnant(&self) -> bool {
-		matches!(Approval::Stagnant)
+		matches!(*self, Approval::Stagnant)
 	}
 }
 
@@ -126,6 +126,13 @@ struct BlockEntry {
 }
 
 impl BlockEntry {
+	fn leaf_entry(&self) -> LeafEntry {
+		LeafEntry {
+			block_hash: self.block_hash,
+			weight: self.weight,
+		}
+	}
+
 	fn non_viable_ancestor_for_child(&self) -> Option<Hash> {
 		if self.viability.is_viable() {
 			None
@@ -593,7 +600,7 @@ impl ViabilityUpdate {
 	// block entry along with a vector of children and the updates to apply
 	// to them.
 	fn apply(self, mut entry: BlockEntry) -> (
-		Option<BlockEntry>,
+		BlockEntry,
 		Vec<(Hash, ViabilityUpdate)>
 	) {
 		// 1. When an ancestor has changed from unviable to viable,
@@ -608,6 +615,17 @@ impl ViabilityUpdate {
 		// to A.
 		//
 		// The following algorithm covers both cases.
+		//
+		// Furthermore, if there has been any change in viability,
+		// it is necessary to visit every single descendant of the root
+		// block.
+		//
+		// If a block B was unviable and is now viable, then every descendant
+		// has an `earliest_unviable_ancestor` which must be updated either
+		// to nothing or to the new earliest unviable ancestor.
+		//
+		// If a block B was viable and is now unviable, then every descendant
+		// has an `earliest_unviable_ancestor` which needs to be set to B.
 
 		let maybe_earliest_unviable = self.0;
 		let next_earliest_unviable = {
@@ -617,20 +635,14 @@ impl ViabilityUpdate {
 				maybe_earliest_unviable
 			}
 		};
+		entry.viability.earliest_unviable_ancestor = maybe_earliest_unviable;
 
 		let recurse = entry.children.iter()
 			.cloned()
 			.map(move |c| (c, ViabilityUpdate(next_earliest_unviable)))
 			.collect();
 
-		let new_entry = if entry.viability.earliest_unviable_ancestor == maybe_earliest_unviable {
-			None
-		} else {
-			entry.viability.earliest_unviable_ancestor = maybe_earliest_unviable;
-			Some(entry)
-		};
-
-		(new_entry, recurse)
+		(entry, recurse)
 	}
 }
 
@@ -660,21 +672,7 @@ fn propagate_viability_update(
 		return Ok(())
 	}
 
-	let mut viable_leaves = backend.load_leaves();
-
-	if base.viability.is_partially_viable() {
-		// At this point, we know that the parent is viable,
-		// and this block has just become viable. Therefore,
-		// if the parent was a viable leaf, it is no longer one.
-		viable_leaves.remove(&base.parent_hash);
-	} else {
-		// At this point, we know that the parent is viable,
-		// and this block has just become unviable. Therefore,
-		// this block is not a viable leaf and we must search for
-		// viable leaves starting from the parent.
-		viable_leaves.remove(&base.block_hash);
-		// TODO [now]: search for viable leaves from the parent.
-	}
+	let mut viable_leaves = backend.load_leaves()?;
 
 	// If the base block is itself partially unviable,
 	// this will change to a `Some(base_hash)` after the first
@@ -702,13 +700,7 @@ fn propagate_viability_update(
 
 		let (new_entry, children) = update.apply(entry);
 
-		if let Some(new_entry) = new_entry {
-			if !new_entry.viability.is_viable() {
-				viable_leaves.remove(&new_entry.block_hash);
-			}
-
-			backend.write_block_entry(new_entry);
-		}
+		backend.write_block_entry(new_entry);
 
 		// TODO [now]: figure out how to find new viable leaves.
 
