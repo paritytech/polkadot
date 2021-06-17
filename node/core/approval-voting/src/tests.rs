@@ -16,16 +16,18 @@
 
 use super::*;
 use std::{iter, time::Duration};
+use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
 	CoreIndex, GroupIndex, ValidatorSignature, Id as ParaId, CoreState, CollatorPair,
-	GroupRotationInfo, ScheduledCore, OccupiedCore,
+	GroupRotationInfo, ScheduledCore, OccupiedCore, Header, CandidateEvent,
 };
+use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, LeafStatus};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
+use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult};
 use polkadot_node_subsystem_util::TimeoutExt;
 use sp_core::testing::TaskExecutor;
 
@@ -49,6 +51,14 @@ pub mod test_constants {
 	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
 		col_data: DATA_COL,
 	};
+}
+
+struct MockSupportsParachains;
+
+impl HeadSupportsParachains for MockSupportsParachains {
+	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+		true
+	}
 }
 
 fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
@@ -1970,7 +1980,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let keystore = LocalKeystore::in_memory();
-	keystore.sr25519_generate_new(
+	let _ = keystore.sr25519_generate_new(
 		polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	);
@@ -2004,11 +2014,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 
 async fn overseer_send(
 	overseer: &mut VirtualOverseer,
-	msg: ApprovalVotingMessage,
+	msg: FromOverseer<ApprovalVotingMessage>,
 ) {
 	tracing::trace!("Sending message:\n{:?}", &msg);
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(msg)
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
@@ -2049,40 +2059,307 @@ async fn overseer_signal(
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
 }
 
-async fn respond_to_core_info_queries(
-	virtual_overseer: &mut VirtualOverseer,
-	test_state: &TestState,
+#[test]
+fn blank_subsystem_act_on_bad_block() {
+	test_harness(|test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+		} = test_harness;
+
+		let (tx, rx) = oneshot::channel();
+
+		let bad_block_hash: Hash = Default::default();
+
+		overseer_send(
+			&mut virtual_overseer,
+			FromOverseer::Communication {
+				msg: ApprovalVotingMessage::CheckAndImportAssignment(
+					IndirectAssignmentCert{
+						block_hash: bad_block_hash.clone(),
+						validator: 0u32.into(),
+						cert: garbage_assignment_cert(
+							AssignmentCertKind::RelayVRFModulo { sample: 0 }
+						),
+					},
+					0u32,
+					tx,
+				)
+			}
+		).await;
+
+		assert_matches!(
+			rx.await,
+			Ok(
+				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(hash))
+			) => {
+				assert_eq!(hash, bad_block_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+async fn import_block(
+	overseer: &mut VirtualOverseer,
+	hashes: &[(Hash, Header)],
+	head: Hash,
+	session: u32,
+	gap: bool,
 ) {
+	use super::import::tests::{BabeEpoch, BabeEpochConfiguration, AllowedSlots};
+	use rand::Rng;
+
+	let mut rng = rand::thread_rng();
+
+	let irrelevant = rng.gen::<u32>() % 64u32;
+	let session_info = SessionInfo {
+		validators: vec![Sr25519Keyring::Alice.public().into(); 6],
+		discovery_keys: Vec::new(),
+		assignment_keys: Vec::new(),
+		validator_groups: vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]],
+		n_cores: 6,
+		needed_approvals: 2,
+		zeroth_delay_tranche_width: irrelevant,
+		relay_vrf_modulo_samples: irrelevant,
+		n_delay_tranches: irrelevant,
+		no_show_slots: irrelevant,
+	};
+
+	overseer_send(
+		overseer,
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: head.clone(),
+			number: session,
+			status: LeafStatus::Stale,
+			span: Arc::new(jaeger::Span::Disabled),
+		})),
+	)).await;
+
 	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			_,
-			RuntimeApiRequest::Validators(tx),
-		)) => {
-			let _ = tx.send(Ok(test_state.validator_public.clone()));
+		overseer_recv(overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(head, h_tx)) => {
+			let (hash, header) = hashes[session.saturating_sub(1) as usize].clone();
+			assert_eq!(head, hash);
+			h_tx.send(Ok(Some(header))).unwrap();
 		}
 	);
 
 	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			_,
-			RuntimeApiRequest::ValidatorGroups(tx),
-		)) => {
-			let _ = tx.send(Ok((
-				test_state.validator_groups.clone(),
-				test_state.group_rotation_info.clone(),
-			)));
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				req_block_hash,
+				RuntimeApiRequest::SessionIndexForChild(s_tx)
+			)
+		) => {
+			let hash = &hashes[session.saturating_sub(2) as usize];
+			assert_eq!(req_block_hash, hash.0.clone());
+			s_tx.send(Ok(session.into())).unwrap();
 		}
 	);
 
 	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			_,
-			RuntimeApiRequest::AvailabilityCores(tx),
-		)) => {
-			let _ = tx.send(Ok(test_state.cores.clone()));
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				req_block_hash,
+				RuntimeApiRequest::SessionInfo(idx, si_tx),
+			)
+		) => {
+			assert_eq!(session, idx);
+			assert_eq!(req_block_hash, head);
+			si_tx.send(Ok(Some(session_info.clone()))).unwrap();
 		}
 	);
+
+	let mut _ancestry_step = 0;
+	if gap {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel,
+			}) => {
+				assert_eq!(hash, head);
+				let history: Vec<Hash> = hashes.iter().map(|v| v.0).take(k).collect();
+				let _ = response_channel.send(Ok(history));
+				_ancestry_step = k;
+			}
+		);
+
+		for i in 0.._ancestry_step {
+			match overseer_recv(overseer).await {
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(head, h_tx)) => {
+					let (hash, header) = hashes[i as usize].clone();
+					assert_eq!(head, hash);
+					h_tx.send(Ok(Some(header))).unwrap();
+				}
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash,
+					k,
+					response_channel,
+				}) => {
+					assert_eq!(hash, head);
+					assert_eq!(k as u32, session-1);
+					let history: Vec<Hash> = hashes.iter().map(|v| v.0).take(k).collect();
+					response_channel.send(Ok(history)).unwrap();
+				}
+				_ => unreachable!{},
+			}
+		}
+	}
+
+	if session > 1 {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(c_tx))
+			) => {
+				assert_eq!(hash, head);
+
+				let make_candidate = |para_id| {
+					let mut r = CandidateReceipt::default();
+					r.descriptor.para_id = para_id;
+					r.descriptor.relay_parent = hash;
+					r
+				};
+				let candidates = vec![
+					(make_candidate(1.into()), CoreIndex(0), GroupIndex(2)),
+					(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
+				];
+
+				let inclusion_events = candidates.into_iter()
+					.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+					.collect::<Vec<_>>();
+				c_tx.send(Ok(inclusion_events)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::SessionIndexForChild(s_tx)
+				)
+			) => {
+				let hash = &hashes[(session-2) as usize];
+				assert_eq!(req_block_hash, hash.0.clone());
+				s_tx.send(Ok(session.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::CurrentBabeEpoch(c_tx),
+				)
+			) => {
+				let hash = &hashes[(session-1) as usize];
+				assert_eq!(req_block_hash, hash.0.clone());
+				let _ = c_tx.send(Ok(BabeEpoch {
+					epoch_index: session as _,
+					start_slot: Slot::from(0),
+					duration: 200,
+					authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+					randomness: [0u8; 32],
+					config: BabeEpochConfiguration {
+						c: (1, 4),
+						allowed_slots: AllowedSlots::PrimarySlots,
+					},
+				}));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalDistribution(
+				ApprovalDistributionMessage::NewBlocks(mut approval_vec)
+			) => {
+				assert_eq!(approval_vec.len(), 1);
+				let metadata = approval_vec.pop().unwrap();
+				let hash = &hashes[(session - 1) as usize];
+				let parent_hash = &hashes[(session - 2) as usize];
+				assert_eq!(metadata.hash, hash.0.clone());
+				assert_eq!(metadata.parent_hash, parent_hash.0.clone());
+				assert_eq!(metadata.slot, Slot::from((session - 1) as u64));
+			}
+		);
+	}
+}
+
+#[test]
+fn import_linear_chain_of_blocks_and_act_on_leaf() {
+	use super::import::tests::{Digest, garbage_vrf, DigestItem, PreDigest, SecondaryVRFPreDigest};
+	use sp_consensus_babe::digests::CompatibleDigestItem;
+	use rand::Rng;
+
+	let mut rng = rand::thread_rng();
+	let session = rng.gen::<u32>() % 64u32;
+
+	let mut hashes = Vec::new();
+	let mut head: Hash = Default::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+		} = test_harness;
+
+		for i in 0..session {
+			let slot = Slot::from(i as u64);
+			let hash = Hash::repeat_byte(i as u8);
+			let header = Header {
+				digest: {
+					let mut d = Digest::default();
+					let (vrf_output, vrf_proof) = garbage_vrf();
+					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+						SecondaryVRFPreDigest {
+							authority_index: 0,
+							slot,
+							vrf_output,
+							vrf_proof,
+						}
+					)));
+
+					d
+				},
+				extrinsics_root: Default::default(),
+				number: i,
+				state_root: Default::default(),
+				parent_hash: head,
+			};
+			hashes.push((hash, header));
+			import_block(&mut virtual_overseer, hashes.as_ref(), head, i, false).await;
+			if session - i != 1 {
+				head = hash.clone();
+			}
+		}
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			FromOverseer::Communication {
+				msg: ApprovalVotingMessage::CheckAndImportAssignment(
+					IndirectAssignmentCert{
+						block_hash: head,
+						validator: 0u32.into(),
+						cert: garbage_assignment_cert(
+							AssignmentCertKind::RelayVRFModulo { sample: 0 }
+						),
+					},
+					0u32,
+					tx,
+				)
+			}
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		virtual_overseer
+	});
 }

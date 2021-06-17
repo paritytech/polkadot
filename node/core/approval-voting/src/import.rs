@@ -291,7 +291,6 @@ pub(crate) async fn handle_new_head(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
-
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
 	let header = {
@@ -554,11 +553,11 @@ pub(super) mod tests {
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
 	use polkadot_node_subsystem::messages::AllMessages;
 	use sp_core::testing::TaskExecutor;
-	use sp_runtime::{Digest, DigestItem};
-	use sp_consensus_babe::{
+	pub(crate) use sp_runtime::{Digest, DigestItem};
+	pub(crate) use sp_consensus_babe::{
 		Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
 	};
-	use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
+	pub(crate) use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
@@ -662,7 +661,7 @@ pub(super) mod tests {
 	}
 
 	// used for generating assignments where the validity of the VRF doesn't matter.
-	fn garbage_vrf() -> (VRFOutput, VRFProof) {
+	pub(crate) fn garbage_vrf() -> (VRFOutput, VRFProof) {
 		let key = Sr25519Keyring::Alice.pair();
 		let key: &schnorrkel::Keypair = key.as_ref();
 

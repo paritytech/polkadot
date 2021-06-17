@@ -176,7 +176,6 @@ impl RollingSessionWindow {
 				}),
 			}
 		};
-
 		match self.earliest_session {
 			None => {
 				// First block processed on start-up.

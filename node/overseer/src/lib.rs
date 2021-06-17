@@ -99,7 +99,7 @@ use polkadot_node_primitives::SpawnNamed;
 use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
