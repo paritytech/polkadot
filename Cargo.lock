@@ -5907,6 +5907,7 @@ dependencies = [
  "rand_chacha 0.3.0",
  "sc-keystore",
  "sp-application-crypto",
+ "sp-consensus-babe",
  "sp-core",
  "sp-keyring",
  "sp-keystore",

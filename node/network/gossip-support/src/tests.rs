@@ -26,6 +26,9 @@ use polkadot_node_subsystem_util::TimeoutExt as _;
 use sc_keystore::LocalKeystore;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::SyncCryptoStore;
+use sp_consensus_babe::{
+	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
+};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -117,6 +120,47 @@ fn authorities() -> Vec<AuthorityDiscoveryId> {
 	]
 }
 
+fn neighbors() -> Vec<AuthorityDiscoveryId> {
+	vec![
+		Sr25519Keyring::Bob.public().into(),
+		Sr25519Keyring::Charlie.public().into(),
+		Sr25519Keyring::One.public().into(),
+	]
+}
+
+async fn test_neighbors(overseer: &mut VirtualOverseer) {
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_,
+			RuntimeApiRequest::CurrentBabeEpoch(tx),
+		)) => {
+			let _ = tx.send(Ok(BabeEpoch {
+				epoch_index: 2 as _,
+				start_slot: 0.into(),
+				duration: 200,
+				authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+				randomness: [0u8; 32],
+				config: BabeEpochConfiguration {
+					c: (1, 4),
+					allowed_slots: AllowedSlots::PrimarySlots,
+				},
+			})).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::NetworkBridge(NetworkBridgeMessage::NewGossipTopology {
+			our_neighbors,
+		}) => {
+			let mut got: Vec<_> = our_neighbors.into_iter().collect();
+			got.sort();
+			assert_eq!(got, neighbors());
+		}
+	);
+}
+
 #[test]
 fn issues_a_connection_request_on_new_session() {
 	let hash = Hash::repeat_byte(0xAA);
@@ -156,6 +200,8 @@ fn issues_a_connection_request_on_new_session() {
 				failed.send(0).unwrap();
 			}
 		);
+
+		test_neighbors(overseer).await;
 
 		virtual_overseer
 	});
@@ -223,6 +269,8 @@ fn issues_a_connection_request_on_new_session() {
 			}
 		);
 
+		test_neighbors(overseer).await;
+
 		virtual_overseer
 	});
 	assert_eq!(state.last_session_index, Some(2));
@@ -268,6 +316,9 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				failed.send(2).unwrap();
 			}
 		);
+
+		test_neighbors(overseer).await;
+
 		virtual_overseer
 	});
 
@@ -312,6 +363,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				failed.send(1).unwrap();
 			}
 		);
+
 		virtual_overseer
 	});
 
