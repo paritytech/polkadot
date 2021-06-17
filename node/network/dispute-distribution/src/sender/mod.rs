@@ -21,6 +21,7 @@ use std::collections::hash_map::Entry;
 
 use futures::Future;
 use futures::channel::mpsc;
+use futures::channel::oneshot;
 use futures::future::RemoteHandle;
 
 use polkadot_node_network_protocol::IfDisconnected;
@@ -31,7 +32,9 @@ use polkadot_node_network_protocol::request_response::Requests;
 use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
 use polkadot_node_primitives::DisputeMessage;
 use polkadot_primitives::v1::{SessionIndex, AuthorityDiscoveryId};
+use polkadot_subsystem::ActiveLeavesUpdate;
 use polkadot_subsystem::messages::AllMessages;
+use polkadot_subsystem::messages::DisputeCoordinatorMessage;
 use polkadot_subsystem::messages::NetworkBridgeMessage;
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_primitives::v1::CandidateHash;
@@ -60,14 +63,16 @@ pub struct DisputeSender {
 	/// All heads we currently consider active.
 	active_heads: Vec<Hash>,
 
+	/// List of currently active sessions.
+	///
+	/// Value is the hash that was used for the query.
+	active_sessions: Vec<(SessionIndex, Hash)>,
+
 	/// All ongoing dispute sendings this subsystem is aware of.
 	sendings: HashMap<CandidateHash, SendTask>,
 
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<FromSendingTask>,
-
-	//// Receive messages from `SendTask`.
-	// rx: mpsc::Receiver<FromSendingTask>,
 }
 
 impl DisputeSender
@@ -111,6 +116,34 @@ impl DisputeSender
 		Ok(())
 	}
 
+	/// Take care of a change in active leaves.
+	///
+	/// - Initiate a retry of sends disputes are still active.
+	/// - Get new authorities to send messages to.
+	/// - Get rid of obsolete tasks and disputes.
+	pub async fn update_leaves<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
+		update: ActiveLeavesUpdate,
+	) -> Result<()> {
+		let ActiveLeavesUpdate { activated, deactivated } = update;
+		let deactivated: HashSet<_> = deactivated.into_iter().collect();
+		self.active_heads.retain(|h| !deactivated.contains(h));
+		self.active_heads.extend(activated.into_iter().map(|l| l.hash));
+
+		let have_new_sessions = self.refresh_sessions(ctx, runtime).await?;
+
+		self.cleanup_dead_disputes(ctx).await?;
+
+		for send in self.sendings.values_mut() {
+			if have_new_sessions || send.has_failed_sends() {
+				send.refresh_sends(ctx, runtime, &self.active_heads).await?;
+			}
+		}
+		Ok(())
+	}
+
 	/// Receive message from a sending task.
 	pub async fn on_task_message(&mut self, msg: FromSendingTask) {
 		match msg {
@@ -131,18 +164,61 @@ impl DisputeSender
 			}
 		}
 	}
+
+	/// Make active sessions correspond to currently active heads.
+	///
+	/// Returns: true if sessions changed.
+	async fn refresh_sessions<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
+	) -> Result<bool> {
+		let new_sessions = get_active_session_indeces(ctx, runtime, &self.active_heads).await?;
+		let new_sessions_raw: HashSet<_> =
+			new_sessions.iter().map(|(s,_)| s).collect();
+		let old_sessions_raw: HashSet<_> =
+			self.active_sessions.iter().map(|(s,_)| s).collect();
+		let updated = new_sessions_raw != old_sessions_raw;
+		// Update in any case, so we use current heads for queries:
+		self.active_sessions = new_sessions;
+		Ok(updated)
+	}
+
+	/// Query dispute coordinator for currently active disputes and get rid of all obsolete
+	/// senders.
+	async fn cleanup_dead_disputes<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+	) -> Result<()> {
+		let active_disputes = get_active_disputes(ctx).await?;
+		self.sendings.retain(|candidate_hash, _|  active_disputes.contains(candidate_hash));
+		Ok(())
+	}
 }
 
 /// Retrieve the currently active sessions.
+///
+/// List is all indeces of all active sessions together with the head that was used for the query.
 async fn get_active_session_indeces<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
-) -> Result<HashSet<SessionIndex>> {
-	let mut indeces = HashSet::new();
+) -> Result<Vec<(SessionIndex, Hash)>> {
+	let mut indeces = HashMap::new();
 	for head in active_heads {
 		let session_index = runtime.get_session_index(ctx, *head).await?;
-		indeces.insert(session_index);
+		indeces.insert(session_index, *head);
 	}
-	Ok(indeces)
+	Ok(indeces.into_iter().collect())
+}
+
+/// Retrieve Set of active disputes from the dispute coordinator.
+async fn get_active_disputes<Context: SubsystemContext>(ctx: &mut Context)
+	-> Result<HashSet<CandidateHash>> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::DisputeCoordinator(
+			DisputeCoordinatorMessage::ActiveDisputes(tx)
+	)).await;
+	let disputes = rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)?;
+	Ok(disputes.into_iter().map(|(_, c)| c).collect())
 }

@@ -128,13 +128,22 @@ impl DisputeDistributionSubsystem {
 		signal: OverseerSignal
 	) -> SignalResult
 	{
-		// let result = match signal {
-		//     OverseerSignal::Conclude => return SignalResult::Conclude,
-		//     OverseerSignal::ActiveLeaves(update) => {
-		//     }
-		// };
-		// SignalResult::Result(result)
-		panic!("WIP");
+		let result = match signal {
+			OverseerSignal::Conclude => return SignalResult::Conclude,
+			OverseerSignal::ActiveLeaves(update) => {
+				self.disputes_sender.update_leaves(
+					ctx,
+					&mut self.runtime,
+					update
+				)
+				.await
+				.map_err(From::from)
+			}
+			OverseerSignal::BlockFinalized(_,_) => {
+				Ok(())
+			}
+		};
+		SignalResult::Result(result)
 	}
 
 	/// Handle `DisputeDistributionMessage`s.

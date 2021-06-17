@@ -55,6 +55,9 @@ pub struct SendTask {
 	/// dispute happened and the authorities of the current sessions as determined by active heads.
 	deliveries: HashMap<AuthorityDiscoveryId, DeliveryStatus>,
 
+	/// Whether or not we have any tasks failed since the last refresh.
+	has_failed_sends: bool,
+
 	/// Sender to be cloned for tasks.
 	tx: mpsc::Sender<FromSendingTask>,
 }
@@ -96,6 +99,7 @@ impl SendTask
 		let mut send_task = Self {
 			request,
 			deliveries: HashMap::new(),
+			has_failed_sends: false,
 			tx,
 		};
 		send_task.refresh_sends(
@@ -136,7 +140,13 @@ impl SendTask
 		).await?;
 
 		self.deliveries.extend(new_statuses.into_iter());
+		self.has_failed_sends = false;
 		Ok(())
+	}
+
+	/// Whether or not any sends have failed since the last refreshed.
+	pub fn has_failed_sends(&self) -> bool {
+		self.has_failed_sends
 	}
 
 	/// Handle a finished response waiting task.
@@ -149,6 +159,7 @@ impl SendTask
 					?authority,
 					"Could not get our message out! If this keeps happening, then check chain whether the dispute made it there."
 				);
+				self.has_failed_sends = true;
 				// Remove state, so we know what to try again:
 				self.deliveries.remove(authority);
 			}

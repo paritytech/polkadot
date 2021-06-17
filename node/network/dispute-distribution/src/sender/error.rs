@@ -65,6 +65,10 @@ pub enum NonFatal {
 	#[error("No active heads available - needed for finding relevant authorities.")]
 	NoActiveHeads,
 
+	/// This error likely indicates a bug in the coordinator.
+	#[error("Oneshot for asking dispute coordinator for active disputes got canceled.")]
+	AskActiveDisputesCanceled,
+
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] #[source] runtime::NonFatal),
