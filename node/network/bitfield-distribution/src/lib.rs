@@ -608,12 +608,10 @@ where
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
 
 	let is_gossip_peer = state.gossip_peers.contains(&origin);
-	let lucky = if state.gossip_peers.len() < util::MIN_GOSSIP_PEERS {
-		is_gossip_peer ||
-			util::gen_ratio(util::MIN_GOSSIP_PEERS - state.gossip_peers.len(), util::MIN_GOSSIP_PEERS)
-	} else {
-		is_gossip_peer
-	};
+	let lucky = is_gossip_peer || util::gen_ratio(
+		util::MIN_GOSSIP_PEERS.saturating_sub(state.gossip_peers.len()),
+		util::MIN_GOSSIP_PEERS,
+	);
 
 	if !lucky {
 		tracing::trace!(

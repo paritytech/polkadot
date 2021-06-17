@@ -304,9 +304,11 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
-	/// TODO (ordian): docs
+	/// Inform the distribution subsystem about the new
+	/// gossip network topology formed.
 	NewGossipTopology {
-		/// TODO (ordian): docs
+		/// Ids of our neighbors in the new gossip topology.
+		/// We're not necessarily connected to all of them, but we should.
 		our_neighbors: HashSet<AuthorityDiscoveryId>,
 	}
 }

@@ -31,7 +31,8 @@ pub enum NetworkBridgeEvent<M> {
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
 
-	/// TODO (ordian): docs
+	/// Our neighbors in the new gossip topology.
+	/// We're not necessarily connected to all of them.
 	NewGossipTopology(HashSet<PeerId>),
 
 	/// Peer has sent a message.

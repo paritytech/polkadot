@@ -1476,12 +1476,10 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	}
 
 	let is_gossip_peer = gossip_peers.contains(&peer);
-	let lucky = if gossip_peers.len() < util::MIN_GOSSIP_PEERS {
-		is_gossip_peer ||
-			util::gen_ratio(util::MIN_GOSSIP_PEERS - gossip_peers.len(), util::MIN_GOSSIP_PEERS)
-	} else {
-		is_gossip_peer
-	};
+	let lucky = is_gossip_peer || util::gen_ratio(
+		util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+		util::MIN_GOSSIP_PEERS,
+	);
 
 	// Add entries for all relay-parents in the new view but not the old.
 	// Furthermore, send all statements we have for those relay parents.

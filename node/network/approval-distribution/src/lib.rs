@@ -453,7 +453,6 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
-		// TODO (ordian): make this logic reusable
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
@@ -1003,12 +1002,10 @@ impl State {
 		view: View,
 	) {
 		let is_gossip_peer = gossip_peers.contains(&peer_id);
-		let lucky = if gossip_peers.len() < util::MIN_GOSSIP_PEERS {
-			is_gossip_peer ||
-				util::gen_ratio(util::MIN_GOSSIP_PEERS - gossip_peers.len(), util::MIN_GOSSIP_PEERS)
-		} else {
-			is_gossip_peer
-		};
+		let lucky = is_gossip_peer || util::gen_ratio(
+			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+			util::MIN_GOSSIP_PEERS,
+		);
 
 		if !lucky {
 			tracing::trace!(
