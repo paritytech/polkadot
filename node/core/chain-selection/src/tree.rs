@@ -473,13 +473,15 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 		Some(e) => e,
 	};
 
+	let mut viable_leaves = backend.load_leaves()?;
+
 	// Walk all numbers up to the finalized number and remove those entries.
 	for number in earliest_stored_number..finalized_number {
 		let blocks_at = backend.load_blocks_by_number(number)?;
 		backend.delete_blocks_by_number(number);
 
 		for block in blocks_at {
-			// TODO [now]: remove from viable leaves.
+			viable_leaves.remove(&block);
 			backend.delete_block_entry(&block);
 		}
 	}
@@ -499,7 +501,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 		while let Some((dead_hash, dead_number)) = frontier.pop() {
 			let entry = backend.load_block_entry(&dead_hash)?;
 			backend.delete_block_entry(&dead_hash);
-			// TODO [now]: remove from viable leaves.
+			viable_leaves.remove(&dead_hash);
 
 			// This does a few extra `clone`s but is unlikely to be
 			// a bottleneck. Code complexity is very low as a result.
@@ -519,10 +521,12 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 	let children_of_finalized = {
 		let finalized_entry = backend.load_block_entry(&finalized_hash)?;
 		backend.delete_block_entry(&finalized_hash);
-		// TODO [now]: remove from viable leaves.
+		viable_leaves.remove(&finalized_hash);
 
 		finalized_entry.into_iter().flat_map(|e| e.children)
 	};
+
+	backend.write_leaves(viable_leaves);
 
 	// Update the viability of each child.
 	for child in children_of_finalized {
