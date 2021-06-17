@@ -68,12 +68,12 @@ struct ViabilityCriteria {
 
 impl ViabilityCriteria {
 	fn is_viable(&self) -> bool {
-		self.is_parent_viable() && self.is_partially_viable()
+		self.is_parent_viable() && self.is_explicitly_viable()
 	}
 
-	// Whether the current block is partially viable.
+	// Whether the current block is explicitly viable.
 	// That is, whether the current block is neither reverted nor stagnant.
-	fn is_partially_viable(&self) -> bool {
+	fn is_explicitly_viable(&self) -> bool {
 		!self.explicitly_reverted && !self.approval.is_stagnant()
 	}
 
@@ -475,7 +475,7 @@ impl ViabilityUpdate {
 	) {
 		// 1. When an ancestor has changed from unviable to viable,
 		// we erase the `earliest_unviable_ancestor` of all descendants
-		// until encountering a partially unviable descendant D.
+		// until encountering a explicitly unviable descendant D.
 		//
 		// We then update the `earliest_unviable_ancestor` for all
 		// descendants of D to be equal to D.
@@ -499,7 +499,7 @@ impl ViabilityUpdate {
 
 		let maybe_earliest_unviable = self.0;
 		let next_earliest_unviable = {
-			if maybe_earliest_unviable.is_none() && !entry.viability.is_partially_viable() {
+			if maybe_earliest_unviable.is_none() && !entry.viability.is_explicitly_viable() {
 				Some(entry.block_hash)
 			} else {
 				maybe_earliest_unviable
@@ -552,7 +552,7 @@ fn propagate_viability_update(
 	// as the pivot count.
 	let mut viability_pivots = HashMap::new();
 
-	// If the base block is itself partially unviable,
+	// If the base block is itself explicitly unviable,
 	// this will change to a `Some(base_hash)` after the first
 	// invocation.
 	let viability_update = ViabilityUpdate(None);
