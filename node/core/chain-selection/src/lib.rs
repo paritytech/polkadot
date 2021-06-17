@@ -27,6 +27,7 @@ use polkadot_subsystem::{
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
 
+use std::collections::HashMap;
 use std::time::{UNIX_EPOCH, SystemTime};
 
 use crate::backend::{Backend, OverlayedBackend, BackendWriteOp};
@@ -515,6 +516,46 @@ impl ViabilityUpdate {
 	}
 }
 
+// This is a set of block hashes which serve as the starting point in the
+// search for new active leaves. The hashes in the values are children
+// which are already known to be unviable.
+type LeafSearchFrontier = HashMap<Hash, Vec<Hash>>;
+
+fn search_for_viable_leaves(
+	backend: &mut OverlayedBackend<impl Backend>,
+	frontier: LeafSearchFrontier,
+	viable_leaves: &mut LeafEntrySet,
+) -> Result<(), Error> {
+	for (base, known_unviable_children) in frontier {
+		let base_entry = match backend.load_block_entry(&base)? {
+			None => {
+				// This means the block is finalized. We might reach this
+				// code path where a child of the finalized block becomes
+				// unviable. Each such child is the root of its own tree
+				// which, as an invariant, does not depend on the viability
+				// of the finalized block. So no siblings need to be inspected
+				// and we can ignore it safely.
+				continue
+			}
+			Some(e) => e,
+		};
+
+		let maybe_viable_children: Vec<_> = base_entry.children
+			.iter()
+			.filter(|c| !known_unviable_children.contains(c))
+			.collect();
+
+		if maybe_viable_children.is_empty() {
+			viable_leaves.insert(base_entry.leaf_entry());
+		}
+
+		// Recurse into children.
+		unimplemented!()
+	}
+
+	Ok(())
+}
+
 // Propagate viability update to descendants of the given block.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
@@ -543,14 +584,21 @@ fn propagate_viability_update(
 
 	let mut viable_leaves = backend.load_leaves()?;
 
+	let mut leaf_search_frontier = LeafSearchFrontier::new();
+
 	// If the base block is itself partially unviable,
 	// this will change to a `Some(base_hash)` after the first
 	// invocation.
 	let viability_update = ViabilityUpdate(None);
 
-	// Recursively apply update to tree
-	let mut frontier = vec![(BlockEntryRef::Explicit(base), viability_update)];
-	while let Some((entry_ref, update)) = frontier.pop() {
+	// Recursively apply update to tree.
+	//
+	// As we go, we remove any blocks from the leaves which are no longer viable
+	// leaves. We also add blocks to the leaves-set which are obviously viable leaves.
+	// And we build up a frontier of blocks which may either be viable leaves or
+	// the ancestors of one.
+	let mut tree_frontier = vec![(BlockEntryRef::Explicit(base), viability_update)];
+	while let Some((entry_ref, update)) = tree_frontier.pop() {
 		let entry = match entry_ref {
 			BlockEntryRef::Explicit(entry) => entry,
 			BlockEntryRef::Hash(hash) => match backend.load_block_entry(&hash)? {
@@ -569,15 +617,39 @@ fn propagate_viability_update(
 
 		let (new_entry, children) = update.apply(entry);
 
+		if new_entry.viability.is_viable() {
+			// A block which is viable has a parent which is obviously not
+			// in the viable leaves set.
+			viable_leaves.remove(&new_entry.parent_hash);
+
+			// Furthermore, if the block is viable and has no children,
+			// it is viable by definition.
+			if new_entry.children.is_empty() {
+				viable_leaves.insert(new_entry.leaf_entry());
+			}
+		} else {
+			// A block which is not viable is certainly not a viable leaf.
+			viable_leaves.remove(&new_entry.block_hash);
+
+			// But if its parent is viable, then the parent is the root
+			// of a tree which contains a viable leaf. Save it for later
+			// so we can recurse into the other children.
+			if new_entry.viability.is_parent_viable() {
+				leaf_search_frontier
+					.entry(new_entry.parent_hash)
+					.or_default()
+					.push(new_entry.block_hash);
+			}
+		}
+
 		backend.write_block_entry(new_entry);
 
-		// TODO [now]: figure out how to find new viable leaves.
-
-		frontier.extend(
+		tree_frontier.extend(
 			children.into_iter().map(|(h, update)| (BlockEntryRef::Hash(h), update))
 		);
 	}
 
+	search_for_viable_leaves(backend, leaf_search_frontier, &mut viable_leaves);
 	backend.write_leaves(viable_leaves);
 
 	Ok(())
