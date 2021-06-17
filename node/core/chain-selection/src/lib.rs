@@ -189,7 +189,7 @@ fn stagnant_timeout_from_now() -> Timestamp {
 }
 
 enum BackendWriteOp {
-	WriteBlockEntry(Hash, BlockEntry),
+	WriteBlockEntry(BlockEntry),
 	WriteBlocksByNumber(BlockNumber, Vec<Hash>),
 	WriteViableLeaves(LeafEntrySet),
 	WriteStagnantAt(Timestamp, Vec<Hash>),
@@ -276,8 +276,8 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_stagnant_at(timestamp)
 	}
 
-	fn write_block_entry(&mut self, hash: Hash, entry: BlockEntry) {
-		self.block_entries.insert(hash, Some(entry));
+	fn write_block_entry(&mut self, entry: BlockEntry) {
+		self.block_entries.insert(entry.block_hash, Some(entry));
 	}
 
 	fn delete_block_entry(&mut self, hash: &Hash) {
@@ -306,7 +306,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
 		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
-			Some(v) => BackendWriteOp::WriteBlockEntry(h, v),
+			Some(v) => BackendWriteOp::WriteBlockEntry(v),
 			None => BackendWriteOp::DeleteBlockEntry(h),
 		});
 
@@ -471,7 +471,6 @@ fn import_block_ignoring_reversions(
 
 	// 1. Add the block to the DB assuming it's not reverted.
 	backend.write_block_entry(
-		block_hash,
 		BlockEntry {
 			block_hash,
 			parent_hash: parent_hash,
@@ -494,7 +493,7 @@ fn import_block_ignoring_reversions(
 	// 3. Update and write the parent
 	if let Some(mut parent_entry) = parent_entry {
 		parent_entry.children.push(block_hash);
-		backend.write_block_entry(parent_hash, parent_entry);
+		backend.write_block_entry(parent_entry);
 	}
 
 	// 4. Add to blocks-by-number.
@@ -685,7 +684,7 @@ fn propagate_viability_update(
 		let (new_entry, children) = update.apply(entry);
 
 		if let Some(new_entry) = new_entry {
-			backend.write_block_entry(new_entry.block_hash, new_entry);
+			backend.write_block_entry(new_entry);
 		}
 
 		frontier.extend(
@@ -744,7 +743,7 @@ fn apply_imported_block_reversions(
 		};
 
 		ancestor_entry.viability.explicitly_reverted = true;
-		backend.write_block_entry(ancestor_entry.block_hash, ancestor_entry.clone());
+		backend.write_block_entry(ancestor_entry.clone());
 
 		propagate_viability_update(backend, ancestor_entry)?;
 
