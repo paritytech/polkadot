@@ -35,7 +35,24 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
 	ext.execute_with(|| {
 		log::info!(target: LOG_TARGET, "Metadata: {:?}", <EPM::Pallet<T>>::snapshot_metadata());
-		log::info!(target: LOG_TARGET, "Encoded Length: {:?}", <EPM::Pallet<T>>::snapshot().encode().len());
+		log::info!(
+			target: LOG_TARGET,
+			"Encoded Length: {:?}",
+			<EPM::Pallet<T>>::snapshot()
+				.expect("snapshot must exist before calling `measure_snapshot_size`")
+				.encode()
+				.len()
+		);
+	})
+}
+
+fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
+	ext.execute_with(|| {
+		let mut voters = <EPM::Pallet<T>>::snapshot()
+			.expect("snapshot must exist before calling `measure_snapshot_size`")
+			.voters;
+		voters.sort_by_key(|v| v.1);
+		dbg!(voters.into_iter().rev().take(count).last());
 	})
 }
 
@@ -51,6 +68,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 		measure_snapshot_size::<Runtime>(&mut ext);
+		find_threshold::<Runtime>(&mut ext, 20_000);
 		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
