@@ -480,7 +480,7 @@ fn import_block_ignoring_reversions(
 	backend.write_block_entry(
 		BlockEntry {
 			block_hash,
-			parent_hash: parent_hash,
+			parent_hash,
 			children: Vec::new(),
 			viability: ViabilityCriteria {
 				earliest_unviable_ancestor: inherited_viability,
@@ -537,9 +537,8 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 
 				None
 			}
-			Ok(Some(ConsensusLog::Revert(b))) => if b < number {
-				Some(b)
-			} else {
+			Ok(Some(ConsensusLog::Revert(b))) if b < number => Some(b),
+			Ok(Some(ConsensusLog::Revert(b))) => {
 				tracing::warn!(
 					target: LOG_TARGET,
 					revert_target = b,
