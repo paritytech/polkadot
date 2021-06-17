@@ -526,7 +526,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 
 			propagate_viability_update(&mut backend, child)?;
 		} else {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				?finalized_hash,
 				finalized_number,
@@ -539,4 +539,35 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 	}
 
 	Ok(backend)
+}
+
+/// Mark a block as approved and update the viability of itself and its
+/// descendants accordingly.
+pub(super) fn approve_block(
+	backend: &mut OverlayedBackend<impl Backend>,
+	approved_hash: Hash,
+) -> Result<(), Error> {
+	if let Some(mut entry) = backend.load_block_entry(&approved_hash)? {
+		let was_viable = entry.viability.is_viable();
+		entry.viability.approval = Approval::Approved;
+		let is_viable = entry.viability.is_viable();
+
+		// Approval can change the viability in only one direction.
+		// If the viability has changed, then we propagate that to children
+		// and recalculate the viable leaf set.
+		if !was_viable && is_viable {
+			propagate_viability_update(backend, entry)?;
+		} else {
+			backend.write_block_entry(entry);
+		}
+
+	} else {
+		tracing::debug!(
+			target: LOG_TARGET,
+			block_hash = ?approved_hash,
+			"Missing entry for freshly-approved block. Ignoring"
+		);
+	}
+
+	Ok(())
 }
