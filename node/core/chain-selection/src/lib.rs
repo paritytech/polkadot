@@ -120,8 +120,8 @@ impl LeafEntrySet {
 		}
 	}
 
-	fn into_hashes_descending(self) -> Vec<Hash> {
-		self.inner.into_iter().map(|e| e.block_hash).collect()
+	fn into_hashes_descending(self) -> impl IntoIterator<Item = Hash> {
+		self.inner.into_iter().map(|e| e.block_hash)
 	}
 }
 
@@ -274,7 +274,12 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 					let _ = tx.send(leaves);
 				}
 				ChainSelectionMessage::BestLeafContaining(required, tx) => {
-					unimplemented!()
+					let best_containing = crate::backend::find_best_leaf_containing(
+						&*backend,
+						required,
+					)?;
+
+					let _ = tx.send(best_containing);
 				}
 			}
 		};
@@ -383,7 +388,11 @@ async fn load_leaves(
 	ctx: &mut impl SubsystemContext,
 	backend: &impl Backend,
 ) -> Result<Vec<Hash>, Error> {
-	let leaves = backend.load_leaves()?.into_hashes_descending();
+	let leaves: Vec<_> = backend.load_leaves()?
+		.into_hashes_descending()
+		.into_iter()
+		.collect();
+
 	if leaves.is_empty() {
 		let finalized_hash = fetch_finalized(ctx).await?.0;
 		Ok(vec![finalized_hash])

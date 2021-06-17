@@ -178,3 +178,51 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			.chain(stagnant_at_ops)
 	}
 }
+
+/// Attempt to find the given ancestor in the chain with given head.
+///
+/// If the ancestor is the most recently finalized block, and the `head` is
+/// a known unfinalized block, this will return `true`.
+///
+/// If the ancestor is an unfinalized block and `head` is known, this will
+/// return true if `ancestor` is in `head`'s chain.
+///
+/// If the ancestor is an older finalized block, this will return `false`.
+fn contains_ancestor(
+	backend: &impl Backend,
+	head: Hash,
+	ancestor: Hash,
+) -> Result<bool, Error> {
+	let mut current_hash = head;
+	loop {
+		if current_hash == ancestor { return Ok(true) }
+		match backend.load_block_entry(&current_hash)? {
+			Some(e) => { current_hash = e.parent_hash }
+			None => break
+		}
+	}
+
+	Ok(false)
+}
+
+/// This returns the best unfinalized leaf containing the required block.
+///
+/// If the required block is finalized but not the most recent finalized block,
+/// this will return `None`.
+///
+/// If the required block is unfinalized but not an ancestor of any viable leaf,
+/// this will return `None`.
+pub(super) fn find_best_leaf_containing(
+	backend: &impl Backend,
+	required: Hash,
+) -> Result<Option<Hash>, Error> {
+	let leaves = backend.load_leaves()?;
+	for leaf in leaves.into_hashes_descending() {
+		if contains_ancestor(backend, leaf, required)? {
+			return Ok(Some(leaf))
+		}
+	}
+
+	// If there are no viable leaves containing the ancestor
+	Ok(None)
+}
