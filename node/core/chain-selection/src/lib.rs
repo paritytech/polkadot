@@ -654,7 +654,26 @@ fn propagate_viability_update(
 		// If the parent of the block is still unviable,
 		// then the `earliest_viable_ancestor` will not change
 		// regardless of the change in the block here.
+		//
+		// Furthermore, in such cases, the set of viable leaves
+		// does not change at all.
 		return Ok(())
+	}
+
+	let mut viable_leaves = backend.load_leaves();
+
+	if base.viability.is_partially_viable() {
+		// At this point, we know that the parent is viable,
+		// and this block has just become viable. Therefore,
+		// if the parent was a viable leaf, it is no longer one.
+		viable_leaves.remove(&base.parent_hash);
+	} else {
+		// At this point, we know that the parent is viable,
+		// and this block has just become unviable. Therefore,
+		// this block is not a viable leaf and we must search for
+		// viable leaves starting from the parent.
+		viable_leaves.remove(&base.block_hash);
+		// TODO [now]: search for viable leaves from the parent.
 	}
 
 	// If the base block is itself partially unviable,
@@ -684,13 +703,21 @@ fn propagate_viability_update(
 		let (new_entry, children) = update.apply(entry);
 
 		if let Some(new_entry) = new_entry {
+			if !new_entry.viability.is_viable() {
+				viable_leaves.remove(&new_entry.block_hash);
+			}
+
 			backend.write_block_entry(new_entry);
 		}
+
+		// TODO [now]: figure out how to find new viable leaves.
 
 		frontier.extend(
 			children.into_iter().map(|(h, update)| (BlockEntryRef::Hash(h), update))
 		);
 	}
+
+	backend.write_leaves(viable_leaves);
 
 	Ok(())
 }
@@ -746,11 +773,6 @@ fn apply_imported_block_reversions(
 		backend.write_block_entry(ancestor_entry.clone());
 
 		propagate_viability_update(backend, ancestor_entry)?;
-
-		// TODO [now]: update leaves set. For this we need to know any visited
-		// blocks which were leaves, so we can remove them. We also add the
-		// parent of the earliest viable ancestor to the leaves-set, if it's
-		// present.
 	}
 
 	Ok(())
