@@ -16,7 +16,7 @@
 
 //! Implements the Chain Selection Subsystem.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
@@ -65,11 +65,16 @@ struct ViabilityCriteria {
 
 impl ViabilityCriteria {
 	fn is_viable(&self) -> bool {
-		self.is_parent_viable()
-			&& !self.explicitly_reverted
-			&& !self.approval.is_stagnant()
+		self.is_parent_viable() && !self.is_unviable_source()
 	}
 
+	// Whether the current block is a source of unviability itself.
+	// That is, whether the current block is reverted or stagnant.
+	fn is_unviable_source(&self) -> bool {
+		self.explicitly_reverted || self.approval.is_stagnant()
+	}
+
+	// Whether the parent is viable.
 	fn is_parent_viable(&self) -> bool {
 		self.earliest_non_viable_ancestor.is_none()
 	}
@@ -194,6 +199,7 @@ enum BackendWriteOp {
 }
 
 // An abstraction over backend for the logic of this subsystem.
+// TODO [now]: extract to submodule
 trait Backend {
 	/// Load a block entry from the DB.
 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error>;
@@ -443,8 +449,8 @@ fn import_block(
 	block_header: Header,
 	weight: Weight,
 ) -> Result<(), Error> {
-	import_block_ignoring_reversions(backend, block_hash, block_header, weight)?;
-	apply_imported_block_reversions(backend, block_hash, block_header)?;
+	import_block_ignoring_reversions(backend, block_hash, &block_header, weight)?;
+	apply_imported_block_reversions(backend, block_hash, &block_header)?;
 
 	Ok(())
 }
@@ -452,7 +458,7 @@ fn import_block(
 fn import_block_ignoring_reversions(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
-	block_header: Header,
+	block_header: &Header,
 	weight: Weight,
 ) -> Result<(), Error> {
 	let parent_hash = block_header.parent_hash;
@@ -505,14 +511,147 @@ fn import_block_ignoring_reversions(
 	Ok(())
 }
 
+// Extract all reversion logs from a header in ascending order.
+//
+// Ignores logs with number >= the block header number.
+fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
+	let number = header.number;
+	let mut logs = header.digest.logs()
+		.iter()
+		.enumerate()
+		.filter_map(|(i, d)| match ConsensusLog::from_digest_item(d) {
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					index = i,
+					block_hash = ?header.hash(),
+					"Digest item failed to encode"
+				);
+
+				None
+			}
+			Ok(Some(ConsensusLog::Revert(b))) => if b < number {
+				Some(b)
+			} else {
+				tracing::warn!(
+					target: LOG_TARGET,
+					revert_target = b,
+					block_number = number,
+					block_hash = ?header.hash(),
+					"Block issued invalid revert digest targeting itself or future"
+				);
+
+				None
+			}
+			Ok(_) => None,
+		})
+		.collect::<Vec<_>>();
+
+	logs.sort();
+
+	logs
+}
+
+// Load the given ancestor's block entry, in descending order from the `block_hash`.
+// The ancestor_number must be at least one block less than the `block_number`.
+//
+// The returned entry will be `None` if the range is invalid or any block in the path had
+// no entry present. If any block entry was missing, it can safely be assumed to
+// be finalized.
+fn load_ancestor(
+	backend: &mut OverlayedBackend<impl Backend>,
+	block_hash: Hash,
+	block_number: BlockNumber,
+	ancestor_number: BlockNumber,
+) -> Result<Option<BlockEntry>, Error> {
+	if block_number <= ancestor_number { return Ok(None) }
+
+	let mut current_hash = block_hash;
+	let mut current_entry = None;
+
+	let segment_length = (block_number - ancestor_number) + 1;
+	for _ in std::iter::repeat(()).take(segment_length as usize) {
+		match backend.load_block_entry(&current_hash)? {
+			None => return Ok(None),
+			Some(entry) => {
+				let parent_hash = entry.parent_hash;
+				current_entry = Some(entry);
+				current_hash = parent_hash;
+			}
+		}
+	}
+
+	// Current entry should always be `Some` here.
+	Ok(current_entry)
+}
+
+// Propagate viability update to descendants of the given block.
+//
+// If the block entry provided is self-unviable, then it's assumed that an
+// unviability update needs to be propagated to descendants.
+//
+// If the block entry provided is self-viable, then it's assumed that a
+// viability update needs to be propagated to descendants.
+fn propagate_viability_change(
+	backend: &mut OverlayedBackend<impl Backend>,
+	entry: &BlockEntry,
+) -> Result<(), Error> {
+	unimplemented!();
+}
+
 // Assuming that a block is already imported, scans the header of the block
 // for revert signals and applies those to relevant ancestors, and recursively
 // updates the viability of those ancestors' descendants.
 fn apply_imported_block_reversions(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
-	block_header: Header,
+	block_header: &Header,
 ) -> Result<(), Error> {
-	// Scan for reversion digests.
-	unimplemented!()
+	let logs = extract_reversion_logs(&block_header);
+
+	// Note: since revert numbers are returned from `extract_reversion_logs`
+	// in ascending order, the expensive propagation of unviability is
+	// only heavy on the first log.
+	for revert_number in logs {
+		let mut ancestor_entry = match load_ancestor(
+			backend,
+			block_hash,
+			block_header.number,
+			revert_number,
+		)? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					?block_hash,
+					block_number = block_header.number,
+					revert_target = revert_number,
+					"The hammer has dropped. \
+					A block has indicated that its finalized ancestor be reverted. \
+					Please inform an adult.",
+				);
+
+				continue
+			}
+			Some(ancestor_entry) => {
+				tracing::info!(
+					target: LOG_TARGET,
+					?block_hash,
+					block_number = block_header.number,
+					revert_target = revert_number,
+					revert_hash = ?ancestor_entry.block_hash,
+					"A block has signaled that its ancestor be reverted due to a bad parachain block.",
+				);
+
+				ancestor_entry
+			}
+		};
+
+		ancestor_entry.viability.explicitly_reverted = true;
+		backend.write_block_entry(ancestor_entry.block_hash, ancestor_entry.clone());
+
+		propagate_viability_change(backend, &ancestor_entry)?;
+	}
+
+	Ok(())
 }
