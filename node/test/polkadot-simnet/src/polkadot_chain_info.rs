@@ -1,5 +1,5 @@
 use polkadot_cli::Cli;
-use sc_cli::{SubstrateCli, CliConfiguration};
+use sc_cli::{SubstrateCli, CliConfiguration, print_node_infos};
 use structopt::StructOpt;
 use polkadot_runtime_test::{PolkadotChainInfo, Block, Executor, SelectChain, BlockImport, dispatch_with_pallet_democracy};
 use test_runner::{Node, ChainInfo};
@@ -10,6 +10,8 @@ use sp_keystore::SyncCryptoStorePtr;
 use sp_inherents::CreateInherentDataProviders;
 use sc_consensus_manual_seal::ConsensusDataProvider;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sp_api::TransactionFor;
+use sp_consensus::import_queue::BasicQueue;
 
 pub struct PolkadotSimnetChainInfo;
 
@@ -35,11 +37,10 @@ impl ChainInfo for PolkadotSimnetChainInfo {
     fn config(task_executor: TaskExecutor) -> Configuration {
         let cmd = <Cli as StructOpt>::from_args();
         let config = cmd.create_configuration(&cmd.run.base, task_executor).unwrap();
-        // print_node_infos(&config);
-
         let filters = cmd.run.base.log_filters().unwrap();
         let logger = sc_tracing::logging::LoggerBuilder::new(filters);
         logger.init().unwrap();
+        print_node_infos::<Cli>(&config);
 
         config
     }
@@ -61,7 +62,7 @@ impl ChainInfo for PolkadotSimnetChainInfo {
                 Box<
                     dyn ConsensusDataProvider<
                         Self::Block,
-                        Transaction = sp_api::TransactionFor<
+                        Transaction = TransactionFor<
                             TFullClient<Self::Block, RuntimeApi, Self::Executor>,
                             Self::Block,
                         >,
@@ -70,6 +71,13 @@ impl ChainInfo for PolkadotSimnetChainInfo {
             >,
             Self::SelectChain,
             Self::BlockImport,
+            BasicQueue<
+                Self::Block,
+                TransactionFor<
+                    TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>,
+                    Self::Block,
+                >,
+            >
         ),
         sc_service::Error,
     > {

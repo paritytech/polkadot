@@ -21,27 +21,18 @@
 //! `engine_FinalizeBlock` rpc methods respectively.
 
 use std::error::Error;
-use log::LevelFilter;
 
 mod polkadot_chain_info;
 
 use polkadot_chain_info::PolkadotSimnetChainInfo;
-use test_runner::{NodeConfig, Node};
+use test_runner::{Node};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let config = NodeConfig {
-        log_targets: vec![
-            ("sync", LevelFilter::Info),
-            ("sc_network", LevelFilter::Info),
-            ("runtime", LevelFilter::Info),
-            ("babe", LevelFilter::Info)
-        ],
-    };
-    let node = Node::<PolkadotSimnetChainInfo>::new(config)?;
+    let mut node = Node::<PolkadotSimnetChainInfo>::new()?;
 
     // wait for ctrl_c signal, then drop node.
-    tokio::signal::ctrl_c().await?;
+    node.until_shutdown();
 
     drop(node);
 

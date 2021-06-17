@@ -34,9 +34,11 @@ use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, Techni
 use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
 use codec::Encode;
-use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sc_consensus_manual_seal::consensus::babe::{SlotTimestampProvider, BabeVerifier};
+use sp_consensus::import_queue::BasicQueue;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::app_crypto::sp_core::H256;
+use sp_api::TransactionFor;
 
 pub type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
 pub type Block = polkadot_primitives::v1::Block;
@@ -101,7 +103,7 @@ impl ChainInfo for PolkadotChainInfo {
                 Box<
                     dyn ConsensusDataProvider<
                         Self::Block,
-                        Transaction = sp_api::TransactionFor<
+                        Transaction = TransactionFor<
                             TFullClient<Self::Block, RuntimeApi, Self::Executor>,
                             Self::Block,
                         >,
@@ -110,6 +112,13 @@ impl ChainInfo for PolkadotChainInfo {
             >,
             Self::SelectChain,
             Self::BlockImport,
+            BasicQueue<
+                Self::Block,
+                TransactionFor<
+                    TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>,
+                    Self::Block,
+                >,
+            >
         ),
         sc_service::Error,
     > {
@@ -136,6 +145,14 @@ impl ChainInfo for PolkadotChainInfo {
         )
             .expect("failed to create ConsensusDataProvider");
 
+        let import_queue = BasicQueue::new(
+            BabeVerifier::new(babe_link.epoch_changes().clone(), client.clone()),
+            Box::new(block_import.clone()),
+            None,
+            &task_manager.spawn_essential_handle(),
+            None,
+        );
+
         Ok((
             client.clone(),
             backend,
@@ -152,6 +169,7 @@ impl ChainInfo for PolkadotChainInfo {
             Some(Box::new(consensus_data_provider)),
             select_chain,
             block_import,
+            import_queue,
         ))
     }
 

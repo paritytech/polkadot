@@ -31,6 +31,7 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-service = { path = "../../../node/service", version = "0.9" }
 polkadot-runtime = { path = "../../../runtime/polkadot", version = "0.9" }
