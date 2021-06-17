@@ -297,6 +297,52 @@ fn filled_tranche_iterator<'a>(
 	pre.chain(approval_entries_filled).chain(post)
 }
 
+/// Computes the number of no_show validators in a set of assignments given the relevant approvals
+/// and tick parameters. This method also returns the next tick at which a no_show will occur
+/// amongst the set of validators that have not submitted an approval.
+///
+/// If the returned `next_no_show` is not None, there are two possible cases for the value of
+/// based on the earliest assignment `tick` of a non-approving, yet-to-be-no-show validator:
+///  - if `tick` <= `clock_drift`: the value will always be `clock_drift` + `no_show_duration`.
+///  - if `tick` >  `clock_drift`: the value is equal to `tick` + `no_show_duration`.
+fn count_no_shows(
+	assignments: &[(ValidatorIndex, Tick)],
+	approvals: &BitSlice<BitOrderLsb0, u8>,
+	clock_drift: Tick,
+	no_show_duration: Tick,
+	drifted_tick_now: Tick,
+) -> (usize, Option<u64>) {
+	let mut next_no_show = None;
+	let no_shows = assignments.iter()
+		.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
+		.filter(|&(v_index, no_show_at)| {
+			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
+				*approved
+			} else {
+				return false;
+			};
+
+			let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
+
+			if !is_no_show && !has_approved {
+				// When doing the comparison above, no_show_at and drifted_tick_now are calculated
+				// with the clock_drift removed. The reason for adding back the clock_drift in
+				// computing next_no_show is so that the scheduler knows the deadline at which
+				// *this node* should observe whether or not the validator is a no show. Recall
+				// that when the when drifted_tick_now is computed during that subsequent wake up,
+				// the clock drift will be removed again to do the comparison above.
+				next_no_show = super::min_prefer_some(
+					next_no_show,
+					Some(no_show_at + clock_drift),
+				);
+			}
+
+			is_no_show
+		}).count();
+
+	(no_shows, next_no_show)
+}
+
 /// Determine the amount of tranches of assignments needed to determine approval of a candidate.
 pub fn tranches_to_approve(
 	approval_entry: &ApprovalEntry,
@@ -346,26 +392,13 @@ pub fn tranches_to_approve(
 			//
 			// While we count the no-shows, we also determine the next possible no-show we might
 			// see within this tranche.
-			let mut next_no_show = None;
-			let no_shows = {
-				let next_no_show = &mut next_no_show;
-				assignments.iter()
-					.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
-					.filter(|&(v_index, no_show_at)| {
-						let has_approved = approvals.get(v_index.0 as usize).map(|b| *b).unwrap_or(false);
-
-						let is_no_show = !has_approved && no_show_at <= drifted_tick_now;
-
-						if !is_no_show && !has_approved {
-							*next_no_show = super::min_prefer_some(
-								*next_no_show,
-								Some(no_show_at + clock_drift),
-							);
-						}
-
-						is_no_show
-					}).count()
-			};
+			let (no_shows, next_no_show) = count_no_shows(
+				assignments,
+				approvals,
+				clock_drift,
+				no_show_duration,
+				drifted_tick_now,
+			);
 
 			let s = s.advance(n_assignments, no_shows, next_no_show);
 			let output = s.output(tranche, needed_approvals, n_validators, no_show_duration);
@@ -993,6 +1026,205 @@ mod tests {
 			assert_eq!(tranches, exp_tranches, "for test tranches: {:?}", test_tranche);
 		}
 	}
+
+	#[derive(Debug)]
+	struct NoShowTest {
+		assignments: Vec<(ValidatorIndex, Tick)>,
+		approvals: Vec<usize>,
+		clock_drift: crate::time::Tick,
+		no_show_duration: crate::time::Tick,
+		drifted_tick_now: crate::time::Tick,
+		exp_no_shows: usize,
+		exp_next_no_show: Option<u64>,
+	}
+
+	fn test_count_no_shows(test: NoShowTest) {
+		let n_validators = 4;
+
+		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
+		for &v_index in &test.approvals {
+			approvals.set(v_index, true);
+		}
+
+		let (no_shows, next_no_show) = count_no_shows(
+			&test.assignments,
+			&approvals,
+			test.clock_drift,
+			test.no_show_duration,
+			test.drifted_tick_now,
+		);
+		assert_eq!(no_shows, test.exp_no_shows, "for test: {:?}", test);
+		assert_eq!(next_no_show, test.exp_next_no_show, "for test {:?}", test);
+	}
+
+	#[test]
+	fn count_no_shows_empty_assignments() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![],
+			approvals: vec![],
+			clock_drift: 0,
+			no_show_duration: 0,
+			drifted_tick_now: 0,
+			exp_no_shows: 0,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+	fn count_no_shows_single_validator_is_next_no_show() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 21)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(31),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_single_validator_approval_at_drifted_tick_now() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 20)],
+			approvals: vec![1],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+	fn count_no_shows_single_validator_approval_after_drifted_tick_now() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 21)],
+			approvals: vec![1],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+	fn count_no_shows_two_validators_next_no_show_ordered_first() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 21), (ValidatorIndex(2), 22)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(31),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_two_validators_next_no_show_ordered_last() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 22), (ValidatorIndex(2), 21)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(31),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_three_validators_one_almost_late_one_no_show_one_approving() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 21), (ValidatorIndex(2), 20), (ValidatorIndex(3), 20)],
+			approvals: vec![3],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 1,
+			exp_next_no_show: Some(31),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_three_no_show_validators() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 20), (ValidatorIndex(2), 20), (ValidatorIndex(3), 20)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 3,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+	fn count_no_shows_three_approving_validators() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 20), (ValidatorIndex(2), 20), (ValidatorIndex(3), 20)],
+			approvals: vec![1, 2, 3],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+	fn count_no_shows_earliest_possible_next_no_show_is_clock_drift_plus_no_show_duration() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 0)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 20,
+			drifted_tick_now: 0,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(30),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_assignment_tick_equal_to_clock_drift_yields_earliest_possible_next_no_show() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1), 10)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 20,
+			drifted_tick_now: 0,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(30),
+		})
+	}
+
+	#[test]
+	fn count_no_shows_validator_index_out_of_approvals_range_is_ignored_as_no_show() {
+		test_count_no_shows(NoShowTest {
+			assignments: vec![(ValidatorIndex(1000), 20)],
+			approvals: vec![],
+			clock_drift: 10,
+			no_show_duration: 10,
+			drifted_tick_now: 20,
+			exp_no_shows: 0,
+			exp_next_no_show: None,
+		})
+	}
+
+	#[test]
+   fn count_no_shows_validator_index_out_of_approvals_range_is_ignored_as_next_no_show() {
+	   test_count_no_shows(NoShowTest {
+		   assignments: vec![(ValidatorIndex(1000), 21)],
+		   approvals: vec![],
+		   clock_drift: 10,
+		   no_show_duration: 10,
+		   drifted_tick_now: 20,
+		   exp_no_shows: 0,
+		   exp_next_no_show: None,
+	   })
+   }
 }
 
 #[test]
