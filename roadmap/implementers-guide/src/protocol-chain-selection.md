@@ -34,7 +34,7 @@ A block is considered **finalizable** when all of the following hold:
 
 ### The leaf-selection rule
 
-We assume that every block has an implicit weight or score which can be used to compare to other blocks. In BABE, this is determined by the number of primary slots included in the chain. In PoW, this is the longest chain or GHOST weight.
+We assume that every block has an implicit weight or score which can be used to compare blocks. In BABE, this is determined by the number of primary slots included in the chain. In PoW, this is the chain with either the most work or GHOST weight.
 
 The leaf-selection rule based on our definitions above is simple: we take the maximum-scoring viable leaf we are aware of. In the case of a tie we select the one with a lower lexicographical block hash.
 
