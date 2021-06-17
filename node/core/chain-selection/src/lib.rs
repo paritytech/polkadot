@@ -444,8 +444,7 @@ fn import_block(
 	weight: Weight,
 ) -> Result<(), Error> {
 	import_block_ignoring_reversions(backend, block_hash, block_header, weight)?;
-
-	// TODO [now]: apply reversions.
+	apply_imported_block_reversions(backend, block_hash, block_header)?;
 
 	Ok(())
 }
@@ -504,4 +503,16 @@ fn import_block_ignoring_reversions(
 	backend.write_stagnant_at(stagnant_at, stagnant_at_list);
 
 	Ok(())
+}
+
+// Assuming that a block is already imported, scans the header of the block
+// for revert signals and applies those to relevant ancestors, and recursively
+// updates the viability of those ancestors' descendants.
+fn apply_imported_block_reversions(
+	backend: &mut OverlayedBackend<impl Backend>,
+	block_hash: Hash,
+	block_header: Header,
+) -> Result<(), Error> {
+	// Scan for reversion digests.
+	unimplemented!()
 }
