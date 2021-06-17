@@ -87,7 +87,8 @@ impl ViabilityUpdate {
 	}
 }
 
-// Propagate viability update to descendants of the given block.
+// Propagate viability update to descendants of the given block. This writes
+// the `base` entry as well as all descendants.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
 // unviability update needs to be propagated to descendants.
@@ -437,10 +438,105 @@ fn apply_reversions(
 		};
 
 		ancestor_entry.viability.explicitly_reverted = true;
-		backend.write_block_entry(ancestor_entry.clone());
-
 		propagate_viability_update(backend, ancestor_entry)?;
 	}
 
 	Ok(())
+}
+
+/// Finalize a block with the given number and hash.
+///
+/// This will prune all sub-trees not descending from the given block,
+/// all block entries at or before the given height,
+/// and will update the viability of all sub-trees descending from the given
+/// block if the finalized block was not viable.
+///
+/// This is assumed to start with a fresh backend, and will produce
+/// an overlay over the backend with all the changes applied.
+pub(super) fn finalize_block<'a, B: Backend + 'a>(
+	backend: &'a B,
+	finalized_hash: Hash,
+	finalized_number: BlockNumber,
+) -> Result<OverlayedBackend<'a, B>, Error> {
+	let earliest_stored_number = backend.load_first_block_number()?;
+	let mut backend = OverlayedBackend::new(backend);
+
+	let earliest_stored_number = match earliest_stored_number {
+		None => {
+			// This implies that there are no unfinalized blocks and hence nothing
+			// to update.
+			return Ok(backend);
+		}
+		Some(e) => e,
+	};
+
+	// Walk all numbers up to the finalized number and remove those entries.
+	for number in earliest_stored_number..finalized_number {
+		let blocks_at = backend.load_blocks_by_number(number)?;
+		backend.delete_blocks_by_number(number);
+
+		for block in blocks_at {
+			backend.delete_block_entry(&block);
+		}
+	}
+
+	// Remove all blocks at the finalized height, with the exception of the finalized block,
+	// and their descendants, recursively.
+	{
+		let blocks_at_finalized_height = backend.load_blocks_by_number(finalized_number)?;
+		backend.delete_blocks_by_number(finalized_number);
+
+		let mut frontier: Vec<_> = blocks_at_finalized_height
+			.into_iter()
+			.filter(|h| h != &finalized_hash)
+			.map(|h| (h, finalized_number))
+			.collect();
+
+		while let Some((dead_hash, dead_number)) = frontier.pop() {
+			let entry = backend.load_block_entry(&dead_hash)?;
+			backend.delete_block_entry(&dead_hash);
+
+			// This does a few extra `clone`s but is unlikely to be
+			// a bottleneck. Code complexity is very low as a result.
+			let mut blocks_at_height = backend.load_blocks_by_number(dead_number)?;
+			blocks_at_height.retain(|h| h != &dead_hash);
+			backend.write_blocks_by_number(dead_number, blocks_at_height);
+
+			// Add all children to the frontier.
+			let next_height = dead_number + 1;
+			frontier.extend(
+				entry.into_iter().flat_map(|e| e.children).map(|h| (h, next_height))
+			);
+		}
+	}
+
+	// Visit and remove the finalized block, fetching its children.
+	let children_of_finalized = {
+		let finalized_entry = backend.load_block_entry(&finalized_hash)?;
+		backend.delete_block_entry(&finalized_hash);
+
+		finalized_entry.into_iter().flat_map(|e| e.children)
+	};
+
+	// Update the viability of each child.
+	for child in children_of_finalized {
+		if let Some(mut child) = backend.load_block_entry(&child)? {
+			// Finalized blocks are always viable.
+			child.viability.earliest_unviable_ancestor = None;
+
+			propagate_viability_update(&mut backend, child)?;
+		} else {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?finalized_hash,
+				finalized_number,
+				child_hash = ?child,
+				"Missing child of finalized block",
+			);
+
+			// No need to do anything, but this is an inconsistent state.
+		}
+	}
+
+	Ok(backend)
 }
