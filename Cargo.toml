@@ -104,6 +104,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 parity-util-mem = { git = "https://github.com/paritytech/parity-common" }
 primitive-types = { git = "https://github.com/paritytech/parity-common" }
 scale-info = { git = "https://github.com/paritytech/scale-info", branch = "aj-substrate" }
+finality-grandpa = { git = "https://github.com/paritytech/finality-grandpa", branch = "aj-scale-info" }
 
 [patch."https://github.com/paritytech/substrate"]
 node-template ={path = "/home/andrew/code/paritytech/substrate/bin/node-template/node" }
