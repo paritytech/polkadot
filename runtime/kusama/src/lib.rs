@@ -28,8 +28,8 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use runtime_common::{
 	claims, paras_registrar, xcm_sender, slots, auctions, crowdloan,
@@ -120,7 +120,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9041,
+	spec_version: 9050,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -192,11 +192,19 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 }
+
+type ScheduleOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
+>;
 
 impl pallet_scheduler::Config for Runtime {
 	type Event = Event;
@@ -204,7 +212,7 @@ impl pallet_scheduler::Config for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type ScheduleOrigin = ScheduleOrigin;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 }
@@ -348,7 +356,7 @@ parameter_types! {
 
 	// fallback: run election on-chain.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
-		pallet_election_provider_multi_phase::FallbackStrategy::OnChain;
+		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
@@ -473,6 +481,10 @@ impl pallet_staking::Config for Runtime {
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
+	type GenesisElectionProvider =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
+			pallet_election_provider_multi_phase::OnChainConfig<Self>
+		>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
@@ -959,11 +971,9 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
 				Call::Staking(..) |
-				Call::Offences(..) |
 				Call::Session(..) |
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
-				Call::AuthorityDiscovery(..) |
 				Call::Democracy(..) |
 				Call::Council(..) |
 				Call::TechnicalCommittee(..) |
@@ -1395,12 +1405,12 @@ construct_runtime! {
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
-		Offences: pallet_offences::{Pallet, Call, Storage, Event} = 7,
+		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 34,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config} = 12,
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
 		// Governance stuff; uncallable initially.
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
@@ -1470,32 +1480,7 @@ construct_runtime! {
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
-	}
-}
-
-pub struct GrandpaStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::migrate::<Runtime, Grandpa, _>(name)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::pre_migration::<Runtime, Grandpa, _>(name);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_grandpa::migrations::v3_1::post_migration::<Grandpa>();
-		Ok(())
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
 	}
 }
 
@@ -1528,7 +1513,6 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	GrandpaStoragePrefixMigration,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1625,12 +1609,6 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn historical_validation_code(para_id: ParaId, context_height: BlockNumber)
-			-> Option<ValidationCode>
-		{
-			parachains_runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
-		}
-
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			parachains_runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
@@ -1660,7 +1638,7 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(hash: Hash) -> Option<ValidationCode> {
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}

@@ -18,7 +18,7 @@ use always_assert::always;
 use async_std::{
 	path::{Path, PathBuf},
 };
-use polkadot_core_primitives::Hash;
+use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
@@ -56,14 +56,14 @@ impl Artifact {
 /// multiple engine implementations the artifact ID should include the engine type as well.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
-	code_hash: Hash,
+	code_hash: ValidationCodeHash,
 }
 
 impl ArtifactId {
 	const PREFIX: &'static str = "wasmtime_";
 
 	/// Creates a new artifact ID with the given hash.
-	pub fn new(code_hash: Hash) -> Self {
+	pub fn new(code_hash: ValidationCodeHash) -> Self {
 		Self { code_hash }
 	}
 
@@ -71,9 +71,10 @@ impl ArtifactId {
 	#[cfg(test)]
 	pub fn from_file_name(file_name: &str) -> Option<Self> {
 		use std::str::FromStr as _;
+		use polkadot_core_primitives::Hash;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
-		let code_hash = Hash::from_str(file_name).ok()?;
+		let code_hash = Hash::from_str(file_name).ok()?.into();
 
 		Some(Self { code_hash })
 	}
@@ -212,7 +213,7 @@ mod tests {
 	#[test]
 	fn path() {
 		let path = Path::new("/test");
-		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
+		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap().into();
 
 		assert_eq!(
 			ArtifactId::new(hash).path(path).to_str(),

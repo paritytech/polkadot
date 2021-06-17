@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.4"
+version = "0.9.5"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -159,3 +159,4 @@ try-runtime = [
 	"westend-runtime/try-runtime",
 	"rococo-runtime/try-runtime",
 ]
+malus = ["full-node"]
