@@ -47,10 +47,7 @@ enum Approval {
 
 impl Approval {
 	fn is_stagnant(&self) -> bool {
-		match *self {
-			Approval::Stagnant => true,
-			_ => false,
-		}
+		matches!(Approval::Stagnant)
 	}
 }
 
@@ -58,8 +55,10 @@ impl Approval {
 struct ViabilityCriteria {
 	// Whether this block has been explicitly reverted by one of its descendants.
 	explicitly_reverted: bool,
-	// `None` means approved. `Some` means unapproved.
+	// The approval state of this block specifically.
 	approval: Approval,
+	// The earliest unviable ancestor - the hash of the earliest unfinalized
+	// block in the ancestry which is explicitly reverted or stagnant.
 	earliest_unviable_ancestor: Option<Hash>,
 }
 
@@ -74,7 +73,8 @@ impl ViabilityCriteria {
 		!self.explicitly_reverted && !self.approval.is_stagnant()
 	}
 
-	// Whether the parent is viable.
+	// Whether the parent is viable. This assumes that the parent
+	// descends from the finalized chain.
 	fn is_parent_viable(&self) -> bool {
 		self.earliest_unviable_ancestor.is_none()
 	}
