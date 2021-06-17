@@ -25,7 +25,7 @@ pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 #[derive(Encode, Decode, scale_info::TypeInfo)]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(skip_type_params(T))]
+#[scale_info(bounds(), skip_type_params(T))]
 pub struct DoubleEncoded<T> {
 	encoded: Vec<u8>,
 	#[codec(skip)]

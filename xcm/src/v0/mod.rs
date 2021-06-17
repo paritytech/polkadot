@@ -89,7 +89,7 @@ pub enum Response {
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(skip_type_params(Call))]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
