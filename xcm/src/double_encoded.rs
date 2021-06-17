@@ -18,7 +18,7 @@ use alloc::vec::Vec;
 use parity_scale_codec::{Encode, Decode, DecodeLimit};
 
 /// Maximum nesting level for XCM decoding.
-pub const MAX_XCM_DECODE_DEPTH: u32 = 256;
+pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
 /// Wrapper around the encoded and decoded versions of a value.
 /// Caches the decoded value once computed.
