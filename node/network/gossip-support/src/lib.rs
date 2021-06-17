@@ -21,8 +21,8 @@
 //! In addition to that, it creates a gossip overlay topology
 //! which limits the amount of messages sent and received
 //! to be an order of sqrt of the validators. Our neighbors
-//! in this graph will be forwarded to the network bridge with the
-//! `GossipSupportMessage::Neighbors` message.
+//! in this graph will be forwarded to the network bridge with
+//! the `NetworkBridgeMessage::NewGossipTopology` message.
 
 use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
@@ -264,12 +264,12 @@ impl State {
 				maybe_new_session
 			};
 
-			if let Some((new_session, relay_parent)) = maybe_issue_connection {
+			if let Some((session_index, relay_parent)) = maybe_issue_connection {
 				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
 					tracing::debug!(
 						target: LOG_TARGET,
-						%new_session,
+						%session_index,
 						"New session detected",
 					);
 				}
@@ -280,7 +280,7 @@ impl State {
 				self.issue_connection_request(ctx, authorities.clone()).await?;
 
 				if is_new_session {
-					self.last_session_index = Some(new_session);
+					self.last_session_index = Some(session_index);
 					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
 				}
 			}

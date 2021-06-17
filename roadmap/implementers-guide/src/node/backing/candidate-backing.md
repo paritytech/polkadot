@@ -117,7 +117,7 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 ### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a [`AvailabilityDistributionMessage`][PDM]`::FetchPoV{ validator_index, pov_hash, candidate_hash, tx, } and listen on the passed receiver for a response. Availability distribution will send the request to the validator specified by `validator_index`, which might not be serving it for whatever reasons, therefore we need to retry with other backing validators in that case.
+Dispatch a [`AvailabilityDistributionMessage`][ADM]`::FetchPoV{ validator_index, pov_hash, candidate_hash, tx, } and listen on the passed receiver for a response. Availability distribution will send the request to the validator specified by `validator_index`, which might not be serving it for whatever reasons, therefore we need to retry with other backing validators in that case.
 
 
 ### Validate PoV Block
@@ -127,7 +127,7 @@ Dispatch a `CandidateValidationMessage::Validate(validation function, candidate,
 
 ### Distribute Signed Statement
 
-Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFullStatement)`.
+Dispatch a [`StatementDistributionMessage`][SDM]`::Share(relay_parent, SignedFullStatement)`.
 
 [OverseerSignal]: ../../types/overseer-protocol.md#overseer-signal
 [Statement]: ../../types/backing.md#statement-type

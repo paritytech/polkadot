@@ -147,6 +147,9 @@ enum NetworkBridgeEvent<M> {
 	PeerConnected(PeerId, ObservedRole),
 	/// A peer with given ID is now disconnected.
 	PeerDisconnected(PeerId),
+	/// Our neighbors in the new gossip topology.
+	/// We're not necessarily connected to all of them.
+	NewGossipTopology(HashSet<PeerId>),
 	/// We received a message from the given peer.
 	PeerMessage(PeerId, M),
 	/// The given peer has updated its description of its view.
