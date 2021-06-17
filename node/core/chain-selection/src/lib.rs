@@ -516,11 +516,6 @@ impl ViabilityUpdate {
 	}
 }
 
-// This is a set of block hashes which serve as the starting point in the
-// search for new active leaves. The hashes in the values are children
-// which are already known to be unviable.
-type LeafSearchFrontier = HashMap<Hash, Vec<Hash>>;
-
 // Propagate viability update to descendants of the given block.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
