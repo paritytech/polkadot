@@ -314,6 +314,12 @@ sp-runtime-interface-test ={path = "/home/andrew/code/paritytech/substrate/primi
 sp-runtime-interface-test-wasm-deprecated ={path = "/home/andrew/code/paritytech/substrate/primitives/runtime-interface/test-wasm-deprecated" }
 substrate-test-utils-test-crate ={path = "/home/andrew/code/paritytech/substrate/test-utils/test-crate" }
 substrate-frame-rpc-support ={path = "/home/andrew/code/paritytech/substrate/utils/frame/rpc/support" }
+frame-metadata ={path = "/home/andrew/code/paritytech/substrate/frame/metadata" }
+max-encoded-len ={path = "/home/andrew/code/paritytech/substrate/max-encoded-len" }
+max-encoded-len-derive ={path = "/home/andrew/code/paritytech/substrate/max-encoded-len/derive" }
+sp-transaction-storage-proof ={path = "/home/andrew/code/paritytech/substrate/primitives/transaction-storage-proof" }
+pallet-transaction-storage ={path = "/home/andrew/code/paritytech/substrate/frame/transaction-storage" }
+pallet-uniques ={path = "/home/andrew/code/paritytech/substrate/frame/uniques" }
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

@@ -472,7 +472,7 @@ name = "beefy-gadget"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "futures 0.3.15",
  "hex",
  "log",
@@ -501,7 +501,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
 dependencies = [
  "beefy-gadget",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "futures 0.3.15",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -523,19 +523,6 @@ source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-meta
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-api",
- "sp-application-crypto",
- "sp-core",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "beefy-primitives"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#5ca2bde4440d37d1cf0b5810521170dd44b9f7cd"
-dependencies = [
- "parity-scale-codec",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -2020,7 +2007,7 @@ dependencies = [
  "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "once_cell",
  "parity-scale-codec",
  "paste",
@@ -3241,7 +3228,7 @@ dependencies = [
 name = "kusama-runtime"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -3254,7 +3241,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
- "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "max-encoded-len",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -4038,18 +4025,7 @@ name = "max-encoded-len"
 version = "3.0.0"
 dependencies = [
  "impl-trait-for-tuples",
- "max-encoded-len-derive 3.0.0",
- "parity-scale-codec",
- "primitive-types",
-]
-
-[[package]]
-name = "max-encoded-len"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#f6b1197b2a773ed003fc46823cd47d82190c22b6"
-dependencies = [
- "impl-trait-for-tuples",
- "max-encoded-len-derive 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "max-encoded-len-derive",
  "parity-scale-codec",
  "primitive-types",
 ]
@@ -4057,17 +4033,6 @@ dependencies = [
 [[package]]
 name = "max-encoded-len-derive"
 version = "3.0.0"
-dependencies = [
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "max-encoded-len-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#f6b1197b2a773ed003fc46823cd47d82190c22b6"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -4673,7 +4638,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "parity-scale-codec",
  "sp-runtime",
  "sp-std",
@@ -4684,7 +4649,7 @@ name = "pallet-beefy"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "frame-support",
  "frame-system",
  "pallet-session",
@@ -5006,7 +4971,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -5829,7 +5794,7 @@ dependencies = [
 name = "polkadot-client"
 version = "0.9.3"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget)",
+ "beefy-primitives",
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "kusama-runtime",
@@ -6495,7 +6460,7 @@ dependencies = [
 name = "polkadot-runtime"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -6508,7 +6473,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
- "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "max-encoded-len",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -6578,7 +6543,7 @@ dependencies = [
 name = "polkadot-runtime-common"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-support",
@@ -6683,7 +6648,7 @@ name = "polkadot-service"
 version = "0.9.5"
 dependencies = [
  "beefy-gadget",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "env_logger 0.8.4",
  "frame-system-rpc-runtime-api",
  "futures 0.3.15",
@@ -6852,7 +6817,7 @@ dependencies = [
 name = "polkadot-test-runtime"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bitvec",
  "frame-election-provider-support",
  "frame-executive",
@@ -7620,7 +7585,7 @@ dependencies = [
 name = "rococo-runtime"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bp-rococo",
  "bp-wococo",
  "frame-executive",
@@ -7629,7 +7594,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",
- "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "max-encoded-len",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -9288,7 +9253,7 @@ dependencies = [
 name = "sp-application-crypto"
 version = "3.0.0"
 dependencies = [
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "parity-scale-codec",
  "serde",
  "sp-core",
@@ -9451,7 +9416,7 @@ dependencies = [
  "lazy_static",
  "libsecp256k1",
  "log",
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "merlin",
  "num-traits",
  "parity-scale-codec",
@@ -9648,7 +9613,7 @@ dependencies = [
  "hash256-std-hasher",
  "impl-trait-for-tuples",
  "log",
- "max-encoded-len 3.0.0",
+ "max-encoded-len",
  "parity-scale-codec",
  "parity-util-mem",
  "paste",
@@ -10935,7 +10900,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.7.3",
+ "rand 0.3.23",
  "static_assertions",
 ]
 
@@ -11571,7 +11536,7 @@ dependencies = [
 name = "westend-runtime"
 version = "0.9.5"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext)",
+ "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11584,7 +11549,7 @@ dependencies = [
  "hex-literal",
  "libsecp256k1",
  "log",
- "max-encoded-len 3.0.0 (git+https://github.com/paritytech/substrate)",
+ "max-encoded-len",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
@@ -11972,6 +11937,14 @@ version = "3.0.0"
 
 [[patch.unused]]
 name = "pallet-template"
+version = "3.0.0"
+
+[[patch.unused]]
+name = "pallet-transaction-storage"
+version = "3.0.0"
+
+[[patch.unused]]
+name = "pallet-uniques"
 version = "3.0.0"
 
 [[patch.unused]]
