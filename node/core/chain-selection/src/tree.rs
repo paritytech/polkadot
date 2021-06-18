@@ -24,12 +24,14 @@
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
 use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_node_primitives::BlockWeight;
+
 
 use std::collections::HashMap;
 
 use super::{
 	LOG_TARGET,
-	Approval, BlockEntry, Error, LeafEntry, LeafEntrySet, ViabilityCriteria, Weight,
+	Approval, BlockEntry, Error, LeafEntry, LeafEntrySet, ViabilityCriteria,
 	Timestamp,
 };
 use crate::backend::{Backend, OverlayedBackend};
@@ -248,7 +250,7 @@ pub(crate) fn import_block(
 	block_number: BlockNumber,
 	parent_hash: Hash,
 	reversion_logs: Vec<BlockNumber>,
-	weight: Weight,
+	weight: BlockWeight,
 ) -> Result<(), Error> {
 	add_block(backend, block_hash, block_number, parent_hash, weight)?;
 	apply_reversions(
@@ -305,7 +307,7 @@ fn add_block(
 	block_hash: Hash,
 	block_number: BlockNumber,
 	parent_hash: Hash,
-	weight: Weight,
+	weight: BlockWeight,
 ) -> Result<(), Error> {
 	let mut leaves = backend.load_leaves()?;
 	let parent_entry = backend.load_block_entry(&parent_hash)?;

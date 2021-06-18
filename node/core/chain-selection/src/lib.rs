@@ -17,6 +17,7 @@
 //! Implements the Chain Selection Subsystem.
 
 use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
+use polkadot_node_primitives::BlockWeight;
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
@@ -37,7 +38,6 @@ mod tree;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 
-type Weight = u64;
 type Timestamp = u64;
 
 #[derive(Debug, Clone)]
@@ -87,7 +87,8 @@ impl ViabilityCriteria {
 
 #[derive(Debug, Clone)]
 struct LeafEntry {
-	weight: Weight,
+	weight: BlockWeight,
+	// TODO [now]: block number as well for weight tie-breaking
 	block_hash: Hash,
 }
 
@@ -131,7 +132,7 @@ struct BlockEntry {
 	parent_hash: Hash,
 	children: Vec<Hash>,
 	viability: ViabilityCriteria,
-	weight: Weight,
+	weight: BlockWeight,
 }
 
 impl BlockEntry {
@@ -313,6 +314,16 @@ async fn fetch_header(
 	}
 }
 
+async fn fetch_block_weight(
+	ctx: &mut impl SubsystemContext,
+	hash: Hash,
+) -> Result<Option<BlockWeight>, Error> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx).into()).await;
+
+	rx.await?.map_err(Into::into)
+}
+
 // Handle a new active leaf.
 async fn handle_active_leaf(
 	ctx: &mut impl SubsystemContext,
@@ -342,8 +353,21 @@ async fn handle_active_leaf(
 	// determine_new_blocks gives blocks in descending order.
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
-		// TODO [now]: if none, skip and warn (grimace).
-		let weight = unimplemented!();
+		let weight = match fetch_block_weight(ctx, hash).await? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					?hash,
+					"Missing block weight for new head. Skipping chain.",
+				);
+
+				// If we don't know the weight, we can't import the block.
+				// And none of its descendents either.
+				break;
+			}
+			Some(w) => w,
+		};
+
 		let reversion_logs = extract_reversion_logs(&header);
 		crate::tree::import_block(
 			&mut overlay,
