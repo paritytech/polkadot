@@ -85,11 +85,24 @@ impl ViabilityCriteria {
 	}
 }
 
-#[derive(Debug, Clone)]
+// Light entries describing leaves of the chain.
+//
+// These are ordered first by weight and then by block number.
+#[derive(Debug, Clone, PartialEq)]
 struct LeafEntry {
 	weight: BlockWeight,
-	// TODO [now]: block number as well for weight tie-breaking
+	block_number: BlockNumber,
 	block_hash: Hash,
+}
+
+impl PartialOrd for LeafEntry {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+		if self.weight == other.weight {
+			self.block_number.partial_cmp(&other.block_number)
+		} else {
+			self.weight.partial_cmp(&other.weight)
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -113,7 +126,7 @@ impl LeafEntrySet {
 	}
 
 	fn insert(&mut self, new: LeafEntry) {
-		match self.inner.iter().position(|e| e.weight < new.weight) {
+		match self.inner.iter().position(|e| e < &new) {
 			None => self.inner.push(new),
 			Some(i) => if self.inner[i].block_hash != new.block_hash {
 				self.inner.insert(i, new);
@@ -129,6 +142,7 @@ impl LeafEntrySet {
 #[derive(Debug, Clone)]
 struct BlockEntry {
 	block_hash: Hash,
+	block_number: BlockNumber,
 	parent_hash: Hash,
 	children: Vec<Hash>,
 	viability: ViabilityCriteria,
@@ -139,6 +153,7 @@ impl BlockEntry {
 	fn leaf_entry(&self) -> LeafEntry {
 		LeafEntry {
 			block_hash: self.block_hash,
+			block_number: self.block_number,
 			weight: self.weight,
 		}
 	}

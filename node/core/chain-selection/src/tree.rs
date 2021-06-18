@@ -319,6 +319,7 @@ fn add_block(
 	backend.write_block_entry(
 		BlockEntry {
 			block_hash,
+			block_number,
 			parent_hash,
 			children: Vec::new(),
 			viability: ViabilityCriteria {
@@ -332,7 +333,7 @@ fn add_block(
 
 	// 2. Update leaves if parent was a viable leaf or the parent is unknown.
 	if leaves.remove(&parent_hash) || parent_entry.is_none() {
-		leaves.insert(LeafEntry { block_hash, weight });
+		leaves.insert(LeafEntry { block_hash, block_number, weight });
 		backend.write_leaves(leaves);
 	}
 
