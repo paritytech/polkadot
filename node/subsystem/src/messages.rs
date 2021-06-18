@@ -22,7 +22,7 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use std::{collections::btree_map::BTreeMap, sync::Arc};
+use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
@@ -304,6 +304,13 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+	/// Inform the distribution subsystems about the new
+	/// gossip network topology formed.
+	NewGossipTopology {
+		/// Ids of our neighbors in the new gossip topology.
+		/// We're not necessarily connected to all of them, but we should.
+		our_neighbors: HashSet<AuthorityDiscoveryId>,
+	}
 }
 
 impl NetworkBridgeMessage {
@@ -318,6 +325,7 @@ impl NetworkBridgeMessage {
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 			Self::SendRequests { .. } => None,
+			Self::NewGossipTopology { .. } => None,
 		}
 	}
 }
