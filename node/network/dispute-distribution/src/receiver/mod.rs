@@ -44,7 +44,10 @@ const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid");
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
 
 /// State for handling incoming `DisputeRequest` messages.
-struct Receiver<Sender> {
+///
+/// This is supposed to run as its own task in order to easily impose back pressure on the incoming
+/// request channel.
+pub struct DisputesReceiver<Sender> {
 	/// Access to session information:
 	runtime: RuntimeInfo,
 
@@ -65,7 +68,7 @@ struct Receiver<Sender> {
 	banned_peers: LruCache<PeerId, ()>,
 }
 
-impl<Sender: SubsystemSender> Receiver<Sender> {
+impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 	pub fn new(
 		sender: Sender,
 		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>

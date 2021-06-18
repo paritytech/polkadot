@@ -39,6 +39,7 @@ use self::sender::{DisputeSender, FromSendingTask};
 /// - Spam/Flood handling
 /// - Trigger import of statements
 mod receiver;
+use self::receiver::DisputesReceiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
@@ -103,6 +104,7 @@ impl DisputeDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
 	{
+
 		loop {
 			let message = Message::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
@@ -163,7 +165,15 @@ impl DisputeDistributionSubsystem {
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
 				self.disputes_sender.start_sending(ctx, &mut self.runtime, dispute_msg).await?,
-			_ => panic!("WIP!"),
+			// This message will only arrive once:
+			DisputeDistributionMessage::DisputeSendingReceiver(receiver) => {
+				let receiver = DisputesReceiver::new(ctx.sender().clone(), receiver);
+				ctx
+					.spawn("disputes-receiver", receiver.run().boxed(),)
+					.await
+					.map_err(Fatal::SpawnTask)?;
+			},
+
 		}
 		Ok(())
 	}
@@ -185,7 +195,7 @@ impl Message {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
-		let from_requester = from_sender.next().fuse();
+		let from_sender = from_sender.next().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
 			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
