@@ -190,7 +190,6 @@ impl DBReader for TestStore {
 }
 
 fn blank_state() -> State<TestStore> {
-	const APPROVALS_CACHE_SIZE: usize = 32;
 	State {
 		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: Arc::new(LocalKeystore::in_memory()),
@@ -198,7 +197,6 @@ fn blank_state() -> State<TestStore> {
 		db: TestStore::default(),
 		clock: Box::new(MockClock::default()),
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| { Ok(0) })),
-		approvals: Arc::new(std::sync::Mutex::new(lru::LruCache::new(APPROVALS_CACHE_SIZE))),
 	}
 }
 
@@ -1601,7 +1599,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 	};
 
 	let actions = process_wakeup(
-		&mut state,
+		&state,
 		block_hash,
 		candidate_hash,
 		1,
@@ -1624,7 +1622,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 		}.into());
 
 	let actions = process_wakeup(
-		&mut state,
+		&state,
 		block_hash,
 		candidate_hash,
 		1,
@@ -1702,7 +1700,7 @@ fn process_wakeup_schedules_wakeup() {
 		}.into());
 
 	let actions = process_wakeup(
-		&mut state,
+		&state,
 		block_hash,
 		candidate_hash,
 		1,
