@@ -289,9 +289,28 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 
 async fn fetch_finalized(
 	ctx: &mut impl SubsystemContext,
-) -> Result<(Hash, BlockNumber), Error> {
-	// TODO [now]
-	unimplemented!()
+) -> Result<Option<(Hash, BlockNumber)>, Error> {
+	let (number_tx, number_rx) = oneshot::channel();
+	let (hash_tx, hash_rx) = oneshot::channel();
+
+	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx).into()).await;
+
+	let number = number_rx.await??;
+
+	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx).into()).await;
+
+	match hash_rx.await?? {
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				number,
+				"Missing hash for finalized block number"
+			);
+
+			return Ok(None)
+		}
+		Some(h) => Ok(Some((h, number)))
+	}
 }
 
 async fn fetch_header(
@@ -301,17 +320,7 @@ async fn fetch_header(
 	let (h_tx, h_rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx).into()).await;
 
-	match h_rx.await?? {
-		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				?hash,
-				"Missing header for new head",
-			);
-			Ok(None)
-		}
-		Some(h) => Ok(Some(h)),
-	}
+	h_rx.await?.map_err(Into::into)
 }
 
 async fn fetch_block_weight(
@@ -332,11 +341,18 @@ async fn handle_active_leaf(
 ) -> Result<Vec<BackendWriteOp>, Error> {
 	let lower_bound = match backend.load_first_block_number()? {
 		Some(l) => l,
-		None => fetch_finalized(ctx).await?.1,
+		None => fetch_finalized(ctx).await?.map_or(1, |(_, n)| n),
 	};
 
 	let header = match fetch_header(ctx, hash).await? {
-		None => return Ok(Vec::new()),
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?hash,
+				"Missing header for new head",
+			);
+			return Ok(Vec::new())
+		}
 		Some(h) => h,
 	};
 
@@ -469,8 +485,7 @@ async fn load_leaves(
 		.collect();
 
 	if leaves.is_empty() {
-		let finalized_hash = fetch_finalized(ctx).await?.0;
-		Ok(vec![finalized_hash])
+		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))
 	} else {
 		Ok(leaves)
 	}
