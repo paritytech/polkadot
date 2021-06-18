@@ -19,31 +19,23 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map::Entry;
 
-use futures::Future;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
-use futures::future::RemoteHandle;
 
-use polkadot_node_network_protocol::IfDisconnected;
-use polkadot_node_network_protocol::request_response::OutgoingRequest;
-use polkadot_node_network_protocol::request_response::OutgoingResult;
-use polkadot_node_network_protocol::request_response::Recipient;
-use polkadot_node_network_protocol::request_response::Requests;
-use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_primitives::DisputeMessage;
 use polkadot_node_primitives::SignedDisputeStatement;
 use polkadot_primitives::v1::DisputeStatement;
-use polkadot_primitives::v1::{SessionIndex, AuthorityDiscoveryId};
+use polkadot_primitives::v1::SessionIndex;
 use polkadot_subsystem::ActiveLeavesUpdate;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
-use polkadot_subsystem::messages::NetworkBridgeMessage;
+
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v1::CandidateHash;
 use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::SubsystemContext;
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
@@ -97,11 +89,12 @@ impl DisputeSender
 		msg: DisputeMessage,
 	) -> Result<()> {
 		let req: DisputeRequest = msg.into();
-		match self.sendings.entry(req.0.candidate_hash) {
+		let candidate_hash = req.0.candidate_receipt.hash();
+		match self.sendings.entry(candidate_hash) {
 			Entry::Occupied(_) => {
 				tracing::trace!(
 					target: LOG_TARGET,
-					candidate_hash = ?req.0.candidate_hash,
+					?candidate_hash,
 					"Dispute sending already active."
 				);
 				return Ok(())
@@ -199,7 +192,7 @@ impl DisputeSender
 		let (session_index, candidate_hash) = dispute;
 		// We need some relay chain head for context for receiving session info information:
 		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
-		let info = runtime.get_session_info_by_index(ctx, *ref_head, session_index).await?;
+		let info = runtime.get_session_info_by_index(ctx.sender(), *ref_head, session_index).await?;
 		let our_index = match info.validator_info.our_index {
 			None => {
 				tracing::trace!(
@@ -292,6 +285,7 @@ impl DisputeSender
 			*valid_index,
 			invalid_signed,
 			*invalid_index,
+			votes.candidate_receipt,
 			&info.session_info
 		).ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
 

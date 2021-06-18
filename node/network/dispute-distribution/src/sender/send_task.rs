@@ -41,7 +41,7 @@ use polkadot_primitives::v1::Hash;
 use polkadot_subsystem::SubsystemContext;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
-use super::error::{Fatal, NonFatal, Result};
+use super::error::{Fatal, Result};
 
 use crate::LOG_TARGET;
 
@@ -156,7 +156,7 @@ impl SendTask
 			TaskResult::Failed => {
 				tracing::warn!(
 					target: LOG_TARGET,
-					candidate = ?self.request.0.candidate_hash,
+					candidate = ?self.request.0.candidate_receipt.hash(),
 					?authority,
 					"Could not get our message out! If this keeps happening, then check chain whether the dispute made it there."
 				);
@@ -171,7 +171,7 @@ impl SendTask
 						// queued.
 						tracing::debug!(
 							target: LOG_TARGET,
-							candidate = ?self.request.0.candidate_hash,
+							candidate = ?self.request.0.candidate_receipt.hash(),
 							?authority,
 							?result,
 							"Received `FromSendingTask::Finished` for non existing task."
@@ -180,12 +180,6 @@ impl SendTask
 					}
 					Some(status) => status,
 				};
-				tracing::trace!(
-					target: LOG_TARGET,
-					candidate = ?self.request.0.candidate_hash,
-					?authority,
-					"Successfully distributed dispute request."
-				);
 				// We are done here:
 				*status = DeliveryStatus::Succeeded;
 			}
@@ -203,10 +197,11 @@ impl SendTask
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<HashSet<AuthorityDiscoveryId>> {
-		// We need some relay chain head for context for receiving session info information:
-		let ref_head = active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
+		let ref_head = self.request.0.candidate_receipt.descriptor.relay_parent;
 		// Parachain validators:
-		let info = runtime.get_session_info_by_index(ctx, *ref_head, self.request.0.session_index).await?;
+		let info = runtime
+			.get_session_info_by_index(ctx.sender(), ref_head, self.request.0.session_index)
+			.await?;
 		let session_info = &info.session_info;
 		let validator_count = session_info.validators.len();
 		let mut authorities: HashSet<_> = session_info
@@ -220,7 +215,7 @@ impl SendTask
 
 		// Current authorities:
 		for (session_index, head) in active_sessions.iter() {
-			let info = runtime.get_session_info_by_index(ctx, *head, *session_index).await?;
+			let info = runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;
 			let session_info = &info.session_info;
 			let new_set = session_info
 				.discovery_keys
@@ -255,7 +250,7 @@ async fn send_requests<Context: SubsystemContext>(
 
 		let fut = wait_response_task(
 			pending_response,
-			req.0.candidate_hash,
+			req.0.candidate_receipt.hash(),
 			receiver.clone(),
 			tx.clone(),
 		);
