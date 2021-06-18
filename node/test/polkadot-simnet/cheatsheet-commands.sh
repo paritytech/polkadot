@@ -9,6 +9,11 @@
 
 # build docker image locally using cache from cargo-chef
 # add export DOCKER_BUILDKIT=1  to ~/.bashrc
+
+# normally we use chargo-chef because it's caching capacity; add the --no-cache arg only
+# once in a while when the build fails
+docker build -t seunlanlege/forrestgump:"$1" -f local-build-with-cargo-chef.Dockerfile --no-cache ../../../../
+
 docker build -t seunlanlege/forrestgump:"$1" -f local-build-with-cargo-chef.Dockerfile --no-cache ../../../../
 docker image tag seunlanlege/forrestgump:"$1" seunlanlege/forrestgump
 docker push seunlanlege/forrestgump:"$1"
