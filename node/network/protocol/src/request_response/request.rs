@@ -132,6 +132,16 @@ pub enum RequestError {
 	Canceled(#[source] oneshot::Canceled),
 }
 
+/// Things that can go wrong when decoding an incoming request.
+#[derive(Debug)]
+pub enum ReceiveError {
+	/// Decoding failed, we were able to change the peer's reputation accordingly.
+	DecodingError(DecodingError),
+
+	/// Decoding failed, but sending reputation change failed.
+	DecodingErrorNoReputationChange(DecodingError),
+}
+
 /// Responses received for an `OutgoingRequest`.
 pub type OutgoingResult<Res> = Result<Res, RequestError>;
 
@@ -227,7 +237,7 @@ pub struct OutgoingResponse<Response> {
 
 impl<Req> IncomingRequest<Req>
 where
-	Req: IsRequest,
+	Req: IsRequest + Decode,
 	Req::Response: Encode,
 {
 	/// Create new `IncomingRequest`.
@@ -241,6 +251,45 @@ where
 			payload,
 			pending_response,
 		}
+	}
+
+	/// Try building from raw substrate request.
+	///
+	/// This function will fail if the request cannot be decoded and will apply passed in
+	/// reputation changes in that case.
+	///
+	/// Params:
+	///		- The raw request to decode
+	///		- Reputation changes to apply for the peer in case decoding fails.
+	pub fn try_from_raw(
+		raw: sc_network::config::IncomingRequest,
+		reputation_changes: Vec<UnifiedReputationChange>
+	) -> Result<Self, ReceiveError> {
+		let sc_network::config::IncomingRequest {
+			payload,
+			peer,
+			pending_response,
+		} = raw;
+		let payload = match Req::decode(&mut payload.as_ref()) {
+			Ok(payload) => payload,
+			Err(err) => {
+				let reputation_changes = reputation_changes
+					.into_iter()
+					.map(|r| r.into_base_rep())
+					.collect();
+				let response = sc_network::config::OutgoingResponse {
+					result: Err(()),
+					reputation_changes,
+					sent_feedback: None,
+				};
+
+				if let Err(_) = pending_response.send(response) {
+					return Err(ReceiveError::DecodingErrorNoReputationChange(err))
+				}
+				return Err(ReceiveError::DecodingError(err))
+			}
+		};
+		Ok(Self::new(peer, payload, pending_response))
 	}
 
 	/// Send the response back.
