@@ -210,7 +210,7 @@ impl State {
 				})
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
-				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+				self.handle_peer_view_change(ctx, metrics, peer_id, view);
 			}
 			NetworkBridgeEvent::OurViewChange(view) => {
 				tracing::trace!(
@@ -340,7 +340,7 @@ impl State {
 				&mut self.blocks,
 				peer_id.clone(),
 				view_intersection,
-			).await;
+			);
 		}
 	}
 
@@ -432,7 +432,7 @@ impl State {
 		}
 	}
 
-	async fn handle_peer_view_change(
+	fn handle_peer_view_change(
 		&mut self,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
@@ -478,7 +478,7 @@ impl State {
 			&mut self.blocks,
 			peer_id.clone(),
 			view,
-		).await;
+		);
 	}
 
 	fn handle_block_finalized(
@@ -523,7 +523,7 @@ impl State {
 						?validator_index,
 						"Unexpected assignment",
 					);
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE);
 				}
 				return;
 			}
@@ -549,7 +549,7 @@ impl State {
 								?fingerprint,
 								"Duplicate assignment",
 							);
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE);
 						}
 						peer_knowledge.received.insert(fingerprint);
 						return;
@@ -562,13 +562,13 @@ impl State {
 						?fingerprint,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE);
 				}
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.known_messages.contains(&fingerprint) {
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE);
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					tracing::trace!(
 						target: LOG_TARGET,
@@ -611,7 +611,7 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST);
 					entry.knowledge.known_messages.insert(fingerprint.clone());
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint.clone());
@@ -637,7 +637,7 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
+					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE);
 					return;
 				}
 				AssignmentCheckResult::Bad(error) => {
@@ -647,7 +647,7 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE);
 					return;
 				}
 			}
@@ -724,12 +724,12 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_unbounded_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
 				),
-			).into()).await;
+			).into());
 		}
 	}
 
@@ -748,7 +748,7 @@ impl State {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
-					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE);
 				}
 				return;
 			}
@@ -775,7 +775,7 @@ impl State {
 					?fingerprint,
 					"Unknown approval assignment",
 				);
-				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE);
 				return;
 			}
 
@@ -792,7 +792,7 @@ impl State {
 								"Duplicate approval",
 							);
 
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE);
 						}
 						peer_knowledge.received.insert(fingerprint);
 						return;
@@ -805,7 +805,7 @@ impl State {
 						?fingerprint,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE);
 				}
 			}
 
@@ -817,7 +817,7 @@ impl State {
 					?fingerprint,
 					"Known approval",
 				);
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE);
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(fingerprint.clone());
 				}
@@ -853,7 +853,7 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST);
 
 					entry.knowledge.insert(fingerprint.clone());
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -861,7 +861,7 @@ impl State {
 					}
 				}
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE);
 					tracing::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -964,16 +964,16 @@ impl State {
 				"Sending an approval to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_unbounded_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
 				),
-			).into()).await;
+			).into());
 		}
 	}
 
-	async fn unify_with_peer(
+	fn unify_with_peer(
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
@@ -1019,10 +1019,10 @@ impl State {
 			ctx,
 			peer_id,
 			to_send
-		).await;
+		);
 	}
 
-	async fn send_gossip_messages_to_peer(
+	fn send_gossip_messages_to_peer(
 		entries: &HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		peer_id: PeerId,
@@ -1089,12 +1089,12 @@ impl State {
 				"Sending assignments to a peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_unbounded_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
 				),
-			).into()).await;
+			).into());
 		}
 
 		if !approvals.is_empty() {
@@ -1106,19 +1106,19 @@ impl State {
 				"Sending approvals to a peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_unbounded_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id],
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
 				),
-			).into()).await;
+			).into());
 		}
 	}
 }
 
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(
+fn modify_reputation(
 	ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 	peer_id: PeerId,
 	rep: Rep,
@@ -1130,9 +1130,9 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_unbounded_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer_id, rep),
-	)).await;
+	));
 }
 
 impl ApprovalDistribution {
