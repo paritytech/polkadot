@@ -19,10 +19,8 @@
 use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 
 use polkadot_subsystem::jaeger;
-use polkadot_node_network_protocol::{
-	request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
-	v1::{PoVFetchingRequest, PoVFetchingResponse}}
-};
+use polkadot_node_network_protocol::request_response::{OutgoingRequest, Recipient, request::{RequestError, Requests},
+	v1::{PoVFetchingRequest, PoVFetchingResponse}};
 use polkadot_primitives::v1::{
 	CandidateHash, Hash, ValidatorIndex,
 };
@@ -49,7 +47,7 @@ pub async fn fetch_pov<Context>(
 where
 	Context: SubsystemContext,
 {
-	let info = &runtime.get_session_info(ctx, parent).await?.session_info;
+	let info = &runtime.get_session_info(ctx.sender(), parent).await?.session_info;
 	let authority_id = info.discovery_keys.get(from_validator.0 as usize)
 		.ok_or(NonFatal::InvalidValidatorIndex)?
 		.clone();

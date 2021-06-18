@@ -1806,8 +1806,8 @@ impl StatementDistribution {
 						"New active leaf",
 					);
 
-					let session_index = runtime.get_session_index(ctx, relay_parent).await?;
-					let info = runtime.get_session_info_by_index(ctx, relay_parent, session_index).await?;
+					let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
+					let info = runtime.get_session_info_by_index(ctx.sender(), relay_parent, session_index).await?;
 					let session_info = &info.session_info;
 
 					active_heads.entry(relay_parent)
@@ -1849,7 +1849,7 @@ impl StatementDistribution {
 						}
 					}
 
-					let info = runtime.get_session_info(ctx, relay_parent).await?;
+					let info = runtime.get_session_info(ctx.sender(), relay_parent).await?;
 					let session_info = &info.session_info;
 					let validator_info = &info.validator_info;
 
