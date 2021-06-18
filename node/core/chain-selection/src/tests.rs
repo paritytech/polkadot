@@ -22,6 +22,9 @@
 
 use super::*;
 use std::collections::{HashMap, BTreeMap};
+use std::sync::Arc;
+
+use parking_lot::Mutex;
 
 #[derive(Default)]
 struct TestBackendInner {
@@ -32,35 +35,43 @@ struct TestBackendInner {
 }
 
 struct TestBackend {
-	inner: TestBackendInner,
+	inner: Arc<Mutex<TestBackendInner>>,
+}
+
+impl Default for TestBackend {
+	fn default() -> Self {
+		TestBackend {
+			inner: Default::default(),
+		}
+	}
 }
 
 impl Backend for TestBackend {
 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error> {
-		Ok(self.inner.block_entries.get(hash).map(|e| e.clone()))
+		Ok(self.inner.lock().block_entries.get(hash).map(|e| e.clone()))
 	}
 	fn load_leaves(&self) -> Result<LeafEntrySet, Error> {
-		Ok(self.inner.leaves.clone())
+		Ok(self.inner.lock().leaves.clone())
 	}
 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error> {
-		Ok(self.inner.stagnant_at.get(&timestamp).map_or(Vec::new(), |s| s.clone()))
+		Ok(self.inner.lock().stagnant_at.get(&timestamp).map_or(Vec::new(), |s| s.clone()))
 	}
 	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
 		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>
 	{
-		Ok(self.inner.stagnant_at.range(..=up_to).map(|(t, v)| (*t, v.clone())).collect())
+		Ok(self.inner.lock().stagnant_at.range(..=up_to).map(|(t, v)| (*t, v.clone())).collect())
 	}
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
-		Ok(self.inner.blocks_by_number.range(..).map(|(k, _)| *k).next())
+		Ok(self.inner.lock().blocks_by_number.range(..).map(|(k, _)| *k).next())
 	}
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
-		Ok(self.inner.blocks_by_number.get(&number).map_or(Vec::new(), |v| v.clone()))
+		Ok(self.inner.lock().blocks_by_number.get(&number).map_or(Vec::new(), |v| v.clone()))
 	}
 
 	fn write<I>(&mut self, ops: I) -> Result<(), Error>
 		where I: IntoIterator<Item = BackendWriteOp>
 	{
-		let inner = &mut self.inner;
+		let mut inner = self.inner.lock();
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteBlockEntry(entry) => {

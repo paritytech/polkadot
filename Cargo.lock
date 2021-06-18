@@ -6101,8 +6101,8 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.15",
  "kvdb",
- "kvdb-memorydb",
  "parity-scale-codec",
+ "parking_lot 0.11.1",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
