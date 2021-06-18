@@ -15,14 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
-use std::collections::HashSet;
-
 /// Sending and receiving of `DisputeRequest`s.
-use futures::channel::{mpsc, oneshot};
-use futures::{future::Either, FutureExt, StreamExt, TryFutureExt, select};
 
-use polkadot_primitives::v1::CandidateHash;
-use polkadot_subsystem::messages::{AllMessages, DisputeCoordinatorMessage};
+use futures::channel::mpsc;
+use futures::{FutureExt, StreamExt, TryFutureExt};
+
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
@@ -36,6 +33,12 @@ use polkadot_subsystem::{
 /// `DisputeSender` takes care of getting our vote out to all other relevant validators.
 mod sender;
 use self::sender::{DisputeSender, FromSendingTask};
+
+/// Handle receival of dispute requests.
+///
+/// - Spam/Flood handling
+/// - Trigger import of statements
+mod receiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
