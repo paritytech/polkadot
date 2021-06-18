@@ -30,6 +30,7 @@ use sp_core::testing::TaskExecutor;
 use assert_matches::assert_matches;
 
 use polkadot_primitives::v1::{BlakeTwo256, HashT};
+use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf, LeafStatus};
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
@@ -62,7 +63,7 @@ impl TestBackend {
 	// are pending to the backend. This requires knowing some details
 	// about the internals of the subsystem, so the abstraction leaks
 	// somewhat, but this is acceptable enough.
-	fn next_write(&self) -> (usize, oneshot::Receiver<()>) {
+	fn await_next_write(&self) -> (usize, oneshot::Receiver<()>) {
 		let (tx, rx) = oneshot::channel();
 
 		let mut inner = self.inner.lock();
@@ -70,6 +71,13 @@ impl TestBackend {
 		inner.write_wakers.insert(0, tx);
 
 		(pos, rx)
+	}
+
+	fn await_next_write_expecting(&self, expected_pos: usize) -> oneshot::Receiver<()> {
+		let (pos, rx) = self.await_next_write();
+		assert_eq!(pos, expected_pos);
+
+		rx
 	}
 }
 
@@ -165,8 +173,8 @@ fn test_harness<T: Future<Output=VirtualOverseer>>(
 // Answer requests from the subsystem about the finalized block.
 async fn answer_finalized_block_info(
 	overseer: &mut VirtualOverseer,
-	finalized_hash: Hash,
 	finalized_number: BlockNumber,
+	finalized_hash: Hash,
 ) {
 	assert_matches!(
 		overseer.recv().await,
@@ -184,13 +192,41 @@ async fn answer_finalized_block_info(
 	);
 }
 
-fn child_header(parent_hash: Hash, parent_number: BlockNumber) -> Header {
-	child_header_with_salt(parent_hash, parent_number, &[])
+async fn answer_header_request(
+	overseer: &mut VirtualOverseer,
+	maybe_header: impl Into<Option<Header>>,
+) {
+	assert_matches!(
+		overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(hash, tx)) => {
+			let maybe_header = maybe_header.into();
+			assert!(maybe_header.as_ref().map_or(true, |h| h.hash() == hash));
+			let _ = tx.send(Ok(maybe_header));
+		}
+	)
+}
+
+async fn answer_weight_request(
+	overseer: &mut VirtualOverseer,
+	hash: Hash,
+	weight: impl Into<Option<BlockWeight>>,
+) {
+	assert_matches!(
+		overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::BlockWeight(h, tx)) => {
+			assert_eq!(h, hash);
+			let _ = tx.send(Ok(weight.into()));
+		}
+	)
+}
+
+fn child_header(parent_number: BlockNumber, parent_hash: Hash) -> Header {
+	child_header_with_salt(parent_number, parent_hash, &[])
 }
 
 fn child_header_with_salt(
-	parent_hash: Hash,
 	parent_number: BlockNumber,
+	parent_hash: Hash,
 	salt: &[u8], // so siblings can have different hashes.
 ) -> Header {
 	Header {
@@ -210,7 +246,42 @@ fn no_op_subsystem_run() {
 #[test]
 fn import_direct_child_of_finalized_on_empty() {
 	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
 
+		let child = child_header(finalized_number, finalized_hash);
+		let child_hash = child.hash();
+		let child_weight = 1;
+		let child_number = child.number;
+
+		let write_rx = backend.await_next_write_expecting(0);
+		virtual_overseer.send(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			ActivatedLeaf {
+				hash: child_hash,
+				number: child_number,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			}
+		)).into()).await;
+
+		answer_finalized_block_info(
+			&mut virtual_overseer,
+			finalized_number,
+			finalized_hash,
+		).await;
+
+		answer_header_request(&mut virtual_overseer, child.clone()).await;
+		answer_weight_request(&mut virtual_overseer, child_hash, child_weight).await;
+
+		write_rx.await.unwrap();
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), child_number);
+		assert_eq!(backend.load_blocks_by_number(child_number).unwrap(), vec![child_hash]);
+		assert!(backend.load_block_entry(&child_hash).unwrap().is_some());
+		assert_eq!(
+			backend.load_leaves().unwrap().into_hashes_descending().into_iter().collect::<Vec<_>>(),
+			vec![child_hash],
+		);
 
 		virtual_overseer
 	})
