@@ -1,12 +1,13 @@
 FROM rust as planner
-WORKDIR polkadot-simnet
+WORKDIR /polkadot-simnet
 # We only pay the installation cost once, 
 # it will be cached from the second build onwards
 # To ensure a reproducible build consider pinning 
 # the cargo-chef version with `--version X.X.X`
 # https://github.com/LukeMathWalker/cargo-chef
-RUN cargo install cargo-chef 
-COPY . .
+RUN cargo install cargo-chef
+COPY substrate/ /polkadot-simnet
+COPY polkadot/ /polkadot-simnet
 
 RUN apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get install -y \
