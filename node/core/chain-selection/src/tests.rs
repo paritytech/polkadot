@@ -160,6 +160,11 @@ fn test_harness<T: Future<Output=VirtualOverseer>>(
 }
 
 #[test]
+fn no_op_subsystem_run() {
+	test_harness(|_, virtual_overseer| async move { virtual_overseer });
+}
+
+#[test]
 fn import_direct_child_of_finalized_on_empty() {
 }
 
