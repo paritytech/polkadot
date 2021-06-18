@@ -26,6 +26,9 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 use parking_lot::Mutex;
+use sp_core::testing::TaskExecutor;
+
+use polkadot_node_subsystem_test_helpers as test_helpers;
 
 #[derive(Default)]
 struct TestBackendInner {
@@ -37,6 +40,7 @@ struct TestBackendInner {
 	write_wakers: Vec<oneshot::Sender<()>>,
 }
 
+#[derive(Clone)]
 struct TestBackend {
 	inner: Arc<Mutex<TestBackendInner>>,
 }
@@ -131,6 +135,32 @@ impl Backend for TestBackend {
 		}
 		Ok(())
 	}
+}
+
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ChainSelectionMessage>;
+
+fn test_harness<T: Future<Output=VirtualOverseer>>(
+	test: impl FnOnce(TestBackend, VirtualOverseer) -> T
+) {
+	let pool = TaskExecutor::new();
+	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
+
+	let backend = TestBackend::default();
+	let subsystem = crate::run(context, backend.clone());
+
+	let test_fut = test(backend, virtual_overseer);
+	let test_and_conclude = async move {
+		let mut virtual_overseer = test_fut.await;
+		virtual_overseer.send(OverseerSignal::Conclude.into()).await;
+
+		// Ensure no messages are pending when the subsystem shuts down.
+		assert!(virtual_overseer.try_recv().await.is_none());
+	};
+	futures::executor::block_on(futures::future::join(subsystem, test_and_conclude));
+}
+
+#[test]
+fn import_direct_child_of_finalized_on_empty() {
 }
 
 // TODO [now]: importing a block without reversion
