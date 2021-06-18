@@ -24,6 +24,7 @@ use super::*;
 use std::collections::{HashMap, BTreeMap};
 use std::sync::Arc;
 
+use futures::channel::oneshot;
 use parking_lot::Mutex;
 
 #[derive(Default)]
@@ -32,10 +33,37 @@ struct TestBackendInner {
 	block_entries: HashMap<Hash, BlockEntry>,
 	blocks_by_number: BTreeMap<BlockNumber, Vec<Hash>>,
 	stagnant_at: BTreeMap<Timestamp, Vec<Hash>>,
+	// earlier wakers at the back.
+	write_wakers: Vec<oneshot::Sender<()>>,
 }
 
 struct TestBackend {
 	inner: Arc<Mutex<TestBackendInner>>,
+}
+
+impl TestBackend {
+	// Yields a receiver which will be woken up on some future write
+	// to the backend along with its position (starting at 0) in the
+	// queue.
+	//
+	// Our tests assume that there is only one task calling this function
+	// and the index is useful to get a waker that will trigger after
+	// some known amount of writes to the backend that happen internally
+	// inside the subsystem.
+	//
+	// It's important to call this function at points where no writes
+	// are pending to the backend. This requires knowing some details
+	// about the internals of the subsystem, so the abstraction leaks
+	// somewhat, but this is acceptable enough.
+	fn next_write(&self) -> (usize, oneshot::Receiver<()>) {
+		let (tx, rx) = oneshot::channel();
+
+		let mut inner = self.inner.lock();
+		let pos = inner.write_wakers.len();
+		inner.write_wakers.insert(0, tx);
+
+		(pos, rx)
+	}
 }
 
 impl Default for TestBackend {
@@ -98,6 +126,9 @@ impl Backend for TestBackend {
 			}
 		}
 
+		if let Some(waker) = inner.write_wakers.pop() {
+			let _ = waker.send(());
+		}
 		Ok(())
 	}
 }
