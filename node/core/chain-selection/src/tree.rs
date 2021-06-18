@@ -23,7 +23,7 @@
 //! Each direct descendant of the finalized block acts as its own sub-tree,
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_primitives::v1::{BlockNumber, Hash};
 use polkadot_node_primitives::BlockWeight;
 
 
@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 use super::{
 	LOG_TARGET,
-	Approval, BlockEntry, Error, LeafEntry, LeafEntrySet, ViabilityCriteria,
+	Approval, BlockEntry, Error, LeafEntry, ViabilityCriteria,
 	Timestamp,
 };
 use crate::backend::{Backend, OverlayedBackend};
@@ -548,6 +548,8 @@ pub(super) fn approve_block(
 ///
 /// This accepts a fresh backend and returns an overlay on top of it representing
 /// all changes made.
+// TODO https://github.com/paritytech/polkadot/issues/3293:: remove allow
+#[allow(unused)]
 pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	backend: &'a B,
 	up_to: Timestamp,

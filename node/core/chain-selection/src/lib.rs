@@ -19,7 +19,7 @@
 use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_node_primitives::BlockWeight;
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
 	messages::{ChainSelectionMessage, ChainApiMessage},
 	errors::ChainApiError,
@@ -27,8 +27,8 @@ use polkadot_subsystem::{
 
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
+use futures::prelude::*;
 
-use std::collections::HashMap;
 use std::time::{UNIX_EPOCH, SystemTime};
 
 use crate::backend::{Backend, OverlayedBackend, BackendWriteOp};
@@ -105,16 +105,12 @@ impl PartialOrd for LeafEntry {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 struct LeafEntrySet {
 	inner: Vec<LeafEntry>
 }
 
 impl LeafEntrySet {
-	fn contains(&self, hash: &Hash) -> bool {
-		self.inner.iter().position(|e| &e.block_hash == hash).is_some()
-	}
-
 	fn remove(&mut self, hash: &Hash) -> bool {
 		match self.inner.iter().position(|e| &e.block_hash == hash) {
 			None => false,
@@ -228,6 +224,58 @@ fn stagnant_timeout_from_now() -> Timestamp {
 	timestamp_now() + STAGNANT_TIMEOUT
 }
 
+// TODO https://github.com/paritytech/polkadot/issues/3293:
+//
+// This is used just so we can have a public function that calls
+// `run` and eliminates all the unused errors.
+//
+// Should be removed when the real implementation is done.
+struct VoidBackend;
+
+impl Backend for VoidBackend {
+	fn load_block_entry(&self, _: &Hash) -> Result<Option<BlockEntry>, Error> {
+		Ok(None)
+	}
+	fn load_leaves(&self) -> Result<LeafEntrySet, Error> {
+		Ok(LeafEntrySet::default())
+	}
+	fn load_stagnant_at(&self, _: Timestamp) -> Result<Vec<Hash>, Error> {
+		Ok(Vec::new())
+	}
+	fn load_stagnant_at_up_to(&self, _: Timestamp)
+		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>
+	{
+		Ok(Vec::new())
+	}
+	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
+		Ok(None)
+	}
+	fn load_blocks_by_number(&self, _: BlockNumber) -> Result<Vec<Hash>, Error> {
+		Ok(Vec::new())
+	}
+
+	fn write<I>(&mut self, _: I) -> Result<(), Error>
+		where I: IntoIterator<Item = BackendWriteOp>
+	{
+		Ok(())
+	}
+}
+
+/// The chain selection subsystem.
+pub struct ChainSelectionSubsystem;
+
+impl<Context> Subsystem<Context> for ChainSelectionSubsystem
+	where Context: SubsystemContext<Message = ChainSelectionMessage>
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let backend = VoidBackend;
+		SpawnedSubsystem {
+			future: run(ctx, backend).map(|()| Ok(())).boxed(),
+			name: "chain-selection-subsystem",
+		}
+	}
+}
+
 async fn run<Context, B>(mut ctx: Context, mut backend: B)
 	where
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
@@ -262,6 +310,7 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
 		B: Backend,
 {
+	// TODO https://github.com/paritytech/polkadot/issues/3293: Add stagnant checking timer loop.
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => {
