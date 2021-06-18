@@ -23,6 +23,7 @@
 //! Supported requests:
 //! * Block hash to number
 //! * Block hash to header
+//! * Block weight (cumulative)
 //! * Finalized block number to hash
 //! * Last finalized block number
 //! * Ancestors
@@ -30,19 +31,18 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
-	messages::ChainApiMessage,
-};
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
-use polkadot_primitives::v1::{Block, BlockId};
-use sp_blockchain::HeaderBackend;
 use std::sync::Arc;
 
 use futures::prelude::*;
+use sc_client_api::AuxStore;
+use sp_blockchain::HeaderBackend;
+
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_primitives::v1::{Block, BlockId};
+use polkadot_subsystem::{
+	messages::ChainApiMessage, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
+};
 
 const LOG_TARGET: &str = "parachain::chain-api";
 
@@ -62,9 +62,10 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
-	Client: HeaderBackend<Block> + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>
+impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client>
+where
+	Client: HeaderBackend<Block> + AuxStore + 'static,
+	Context: SubsystemContext<Message = ChainApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx, self)
@@ -82,7 +83,7 @@ async fn run<Client>(
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: HeaderBackend<Block>,
+	Client: HeaderBackend<Block> + AuxStore,
 {
 	loop {
 		match ctx.recv().await? {
@@ -104,11 +105,12 @@ where
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
-				ChainApiMessage::BlockWeight(_, response_channel) => {
-					// TODO [now]
-
-					// choice to fork
-					let _ = response_channel.send(Ok(Some(69)));
+				ChainApiMessage::BlockWeight(hash, response_channel) => {
+					let _timer = subsystem.metrics.time_block_weight();
+					let result = sc_consensus_babe::block_weight(&*subsystem.client, hash)
+						.map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
+					let _ = response_channel.send(result);
 				}
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					let _timer = subsystem.metrics.time_finalized_block_hash();
@@ -166,6 +168,7 @@ struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
 	block_number: prometheus::Histogram,
 	block_header: prometheus::Histogram,
+	block_weight: prometheus::Histogram,
 	finalized_block_hash: prometheus::Histogram,
 	finalized_block_number: prometheus::Histogram,
 	ancestors: prometheus::Histogram,
@@ -194,6 +197,11 @@ impl Metrics {
 	/// Provide a timer for `block_header` which observes on drop.
 	fn time_block_header(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.block_header.start_timer())
+	}
+
+	/// Provide a timer for `block_weight` which observes on drop.
+	fn time_block_weight(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.block_weight.start_timer())
 	}
 
 	/// Provide a timer for `finalized_block_hash` which observes on drop.
@@ -239,6 +247,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"parachain_chain_api_block_headers",
 						"Time spent within `chain_api::block_headers`",
+					)
+				)?,
+				registry,
+			)?,
+			block_weight: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_chain_api_block_weight",
+						"Time spent within `chain_api::block_weight`",
 					)
 				)?,
 				registry,
