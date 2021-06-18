@@ -562,7 +562,7 @@ mod tests {
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
-	use std::{pin::Pin, sync::Arc};
+	use std::{pin::Pin, sync::{Arc, Mutex}};
 
 	use crate::{APPROVAL_SESSIONS, criteria, BlockEntry};
 
@@ -619,6 +619,7 @@ mod tests {
 	}
 
 	fn blank_state() -> State<TestDB> {
+		const APPROVALS_CACHE_SIZE: usize = 32;
 		State {
 			session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 			keystore: Arc::new(LocalKeystore::in_memory()),
@@ -626,6 +627,7 @@ mod tests {
 			db: TestDB::default(),
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
+			approvals: Arc::new(Mutex::new(lru::LruCache::new(APPROVALS_CACHE_SIZE))),
 		}
 	}
 

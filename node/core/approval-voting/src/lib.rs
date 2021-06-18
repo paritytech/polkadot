@@ -60,7 +60,7 @@ use futures::channel::{mpsc, oneshot};
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
@@ -80,6 +80,7 @@ use crate::approval_db::v1::Config as DatabaseConfig;
 mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
+const APPROVALS_CACHE_SIZE: usize = 1_024;
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
@@ -106,6 +107,28 @@ enum Mode {
 	Syncing(Box<dyn SyncOracle + Send>),
 }
 
+enum TaskStatus {
+	InProgress,
+	Executed(ValidationResult),
+}
+
+struct ApprovalState {
+	block_hash: Hash,
+	status: TaskStatus,
+}
+
+impl ApprovalState {
+	fn new(block_hash: Hash) -> Self {
+		Self { block_hash, status: TaskStatus::InProgress }
+	}
+
+	fn verified(block_hash: Hash, validation_result: ValidationResult) -> Self {
+		Self { block_hash, status: TaskStatus::Executed(validation_result) }
+	}
+}
+
+type ApprovalsCache = Arc<Mutex<lru::LruCache<CandidateHash, ApprovalState>>>;
+
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
 	/// LocalKeystore is needed for assignment keys, but not necessarily approval keys.
@@ -117,6 +140,7 @@ pub struct ApprovalVotingSubsystem {
 	db: Arc<dyn KeyValueDB>,
 	mode: Mode,
 	metrics: Metrics,
+	approvals: ApprovalsCache,
 }
 
 #[derive(Clone)]
@@ -317,6 +341,7 @@ impl ApprovalVotingSubsystem {
 			},
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
+			approvals: Arc::new(Mutex::new(lru::LruCache::new(APPROVALS_CACHE_SIZE))),
 		}
 	}
 }
@@ -546,6 +571,7 @@ struct State<T> {
 	db: T,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	approvals: ApprovalsCache,
 }
 
 impl<T> State<T> {
@@ -641,6 +667,7 @@ async fn run<C>(
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
 		clock,
 		assignment_criteria,
+		approvals: subsystem.approvals.clone(),
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -705,6 +732,7 @@ async fn run<C>(
 
 		if handle_actions(
 			&mut ctx,
+			subsystem.approvals.clone(),
 			&subsystem.metrics,
 			&mut wakeups,
 			db_writer,
@@ -724,6 +752,7 @@ async fn run<C>(
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
 	ctx: &mut impl SubsystemContext,
+	approvals: ApprovalsCache,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
@@ -775,6 +804,7 @@ async fn handle_actions(
 
 				let handle = launch_approval(
 					ctx,
+					approvals.clone(),
 					metrics.clone(),
 					background_tx.clone(),
 					session,
@@ -1880,16 +1910,58 @@ fn process_wakeup(
 				"Launching approval work.",
 			);
 
-			// sanity: should always be present.
-			actions.push(Action::LaunchApproval {
-				indirect_cert,
-				assignment_tranche: tranche,
-				relay_block_number: block_entry.block_number(),
-				candidate_index: i as _,
-				session: block_entry.session(),
-				candidate: candidate_entry.candidate_receipt().clone(),
-				backing_group,
-			});
+			let mut approvals = if let Ok(app) = state.approvals.lock() {
+				app
+			} else {
+				return Ok(Vec::new());
+			};
+
+			let new_action = match approvals.peek(&candidate_hash) {
+				None => {
+					// sanity: should always be present.
+					Action::LaunchApproval {
+						indirect_cert,
+						assignment_tranche: tranche,
+						relay_block_number: block_entry.block_number(),
+						candidate_index: i as _,
+						session: block_entry.session(),
+						candidate: candidate_entry.candidate_receipt().clone(),
+						backing_group,
+					}
+				},
+				Some(approval_state) => {
+					let fork_msg = if approval_state.block_hash == relay_block {
+						"Relay fork caused duplicate approval work launch request."
+					} else {
+						"Candidate Hash previously submitted for the same relay block."
+					};
+					if matches!(approval_state.status, TaskStatus::InProgress) {
+						tracing::trace!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+							block_hash = ?relay_block,
+							"Approval work for candidate already launched. {}",
+							fork_msg,
+						);
+					} else {
+						tracing::trace!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+							block_hash = ?relay_block,
+							"Approval work for candidate complete. {}",
+							fork_msg,
+						);
+					}
+
+					return Ok(Vec::new());
+				}
+			};
+
+			approvals.put(candidate_hash, ApprovalState::new(relay_block));
+
+			actions.push(new_action);
 		}
 	}
 
@@ -1924,6 +1996,7 @@ fn process_wakeup(
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
+	approvals: ApprovalsCache,
 	metrics: Metrics,
 	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
@@ -2053,9 +2126,9 @@ async fn launch_approval(
 			val_tx,
 		)).await;
 
-		match val_rx.await {
+		let approval_state = match val_rx.await {
 			Err(_) => return,
-			Ok(Ok(ValidationResult::Valid(_, _))) => {
+			Ok(Ok(ValidationResult::Valid(commitments, validation_data))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
@@ -2067,11 +2140,17 @@ async fn launch_approval(
 				);
 
 				let _ = metrics_guard.take();
+
 				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
 					validator_index,
 					block_hash,
 					candidate_index,
 				})).await;
+
+				ApprovalState::verified(
+					block_hash,
+					ValidationResult::Valid(commitments, validation_data),
+				)
 			}
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
@@ -2085,6 +2164,11 @@ async fn launch_approval(
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
 				metrics_guard.take().on_approval_invalid();
+
+				ApprovalState::verified(
+					block_hash,
+					ValidationResult::Invalid(reason),
+				)
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2093,9 +2177,18 @@ async fn launch_approval(
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();
+
 				return
 			}
-		}
+		};
+
+		let mut approvals = if let Ok(app) = approvals.lock() {
+			app
+		} else {
+			return;
+		};
+
+		let _ = approvals.put(candidate_hash, approval_state);
 	};
 
 	let (background, remote_handle) = background.remote_handle();
