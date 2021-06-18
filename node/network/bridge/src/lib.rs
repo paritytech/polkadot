@@ -580,10 +580,10 @@ where
 							}
 						}
 
-						dispatch_validation_event_to_all(
+						dispatch_validation_event_to_all_unbounded(
 							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
 							ctx.sender(),
-						).await;
+						);
 					}
 				}
 				Err(e) => return Err(e.into()),
