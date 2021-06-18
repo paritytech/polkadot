@@ -1513,9 +1513,30 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
+	SetStakingLimits,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct SetStakingLimits;
+impl frame_support::traits::OnRuntimeUpgrade for SetStakingLimits {
+	fn on_runtime_upgrade() -> Weight {
+		// This will be the threshold needed henceforth to become a nominator. All nominators will
+		// less than this amount bonded are at the risk of being chilled by another reporter.
+		let min_nominator_bond = UNITS / 10;
+		// The absolute maximum number of nominators. This number is set rather conservatively, and
+		// is expected to increase soon after this runtime upgrade via another governance proposal.
+		// The current Polkadot state has more than 30_000 nominators, therefore no other nominator
+		// can join.
+		let max_nominators = 20_000;
+		<pallet_staking::MinNominatorBond<Runtime>>::put(min_nominator_bond);
+		<pallet_staking::MaxNominatorsCount<Runtime>>::put(max_nominators);
+
+		// we set no limits on validators for now.
+
+		<Runtime as frame_system::Config>::DbWeight::get().writes(2)
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {

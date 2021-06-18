@@ -1046,6 +1046,16 @@ pub enum ConsensusLog {
 	/// number in the current chain, inclusive.
 	#[codec(index = 3)]
 	ForceApprove(BlockNumber),
+	/// A signal to revert the block number in the same chain as the
+	/// header this digest is part of and all of its descendents.
+	///
+	/// It is a no-op for a block to contain a revert digest targeting
+	/// its own number or a higher number.
+	///
+	/// In practice, these are issued when on-chain logic has detected an
+	/// invalid parachain block within its own chain, due to a dispute.
+	#[codec(index = 4)]
+	Revert(BlockNumber)
 }
 
 impl ConsensusLog {
