@@ -832,10 +832,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 			req_res_event = request_multiplexer.next().fuse() => match req_res_event {
 				None => return Err(UnexpectedAbort::RequestStreamConcluded),
 				Some(Err(err)) => {
-					sender.send_message(NetworkBridgeMessage::ReportPeer(
-						err.peer,
-						MALFORMED_MESSAGE_COST,
-					).into()).await;
+					network_service.report_peer(err.peer, MALFORMED_MESSAGE_COST);
 				}
 				Some(Ok(msg)) => {
 					sender.send_message(msg).await;
