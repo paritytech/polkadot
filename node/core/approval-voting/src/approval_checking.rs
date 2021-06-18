@@ -385,7 +385,10 @@ pub fn tranches_to_approve(
 				return None;
 			}
 
-			let n_assignments = assignments.len();
+			// Count the number of valid validator assignments.
+			let n_assignments = assignments.iter()
+				.filter(|(v_index, _)| v_index.0 < n_validators as u32)
+				.count();
 
 			// count no-shows. An assignment is a no-show if there is no corresponding approval vote
 			// after a fixed duration.
@@ -983,7 +986,7 @@ mod tests {
 	}
 
 	#[test]
-	fn validator_indexes_out_of_range_are_counted_in_assignments() {
+	fn validator_indexes_out_of_range_are_ignored_in_assignments() {
 		let block_tick = 20;
 		let no_show_duration = 10;
 		let needed_approvals = 3;
@@ -1026,7 +1029,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::All,
+			RequiredTranches::Pending {
+				considered: 10,
+				next_no_show: None,
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
 		);
 	}
 
