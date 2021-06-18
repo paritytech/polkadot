@@ -451,7 +451,7 @@ fn peer_view_update_sends_messages() {
 			&active_heads,
 			new_view.clone(),
 			&Default::default(),
-		).await;
+		);
 
 		assert_eq!(peer_data.view, new_view);
 		assert!(!peer_data.view_knowledge.contains_key(&hash_a));
@@ -575,7 +575,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			hash_b,
 			statement,
 			Vec::new(),
-		).await;
+		);
 
 		{
 			assert_eq!(needs_dependents.len(), 2);

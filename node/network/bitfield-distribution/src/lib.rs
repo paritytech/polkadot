@@ -240,7 +240,7 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(
+fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
 	rep: Rep,
@@ -250,10 +250,9 @@ where
 {
 	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_unbounded_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	))
-	.await
+	));
 }
 
 /// Distribute a given valid and signature checked bitfield message.
@@ -383,13 +382,12 @@ where
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(AllMessages::NetworkBridge(
+		ctx.send_unbounded_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(
 				interested_peers,
 				message.into_validation_protocol(),
 			),
-		))
-		.await;
+		));
 	}
 }
 
@@ -413,7 +411,7 @@ where
 	);
 	// we don't care about this, not part of our view.
 	if !state.view.contains(&relay_parent) {
-		modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(ctx, origin, COST_NOT_IN_VIEW);
 		return;
 	}
 
@@ -422,7 +420,7 @@ where
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(ctx, origin, COST_NOT_IN_VIEW);
 		return;
 	};
 
@@ -442,7 +440,7 @@ where
 			?origin,
 			"Validator set is empty",
 		);
-		modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
+		modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY);
 		return;
 	}
 
@@ -452,7 +450,7 @@ where
 	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
-		modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
+		modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID);
 		return;
 	};
 
@@ -473,7 +471,7 @@ where
 			?origin,
 			"Duplicate message",
 		);
-		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE);
 		return;
 	};
 
@@ -487,13 +485,13 @@ where
 			"already received a message for validator",
 		);
 		if old_message.signed_availability.as_unchecked() == &bitfield {
-			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE);
 		}
 		return;
 	}
 	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
-			modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
+			modify_reputation(ctx, origin, COST_SIGNATURE_INVALID);
 			return;
 		},
 		Ok(bitfield) => bitfield,
@@ -509,7 +507,7 @@ where
 
 	relay_message(ctx, job_data, &state.gossip_peers, &mut state.peer_views, validator, message).await;
 
-	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
+	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST)
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
@@ -550,7 +548,7 @@ where
 			state.gossip_peers = peers;
 			for peer in newly_added {
 				if let Some(view) = state.peer_views.remove(&peer) {
-					handle_peer_view_change(ctx, state, peer, view).await;
+					handle_peer_view_change(ctx, state, peer, view);
 				}
 			}
 		}
@@ -561,7 +559,7 @@ where
 				?view,
 				"Peer view change",
 			);
-			handle_peer_view_change(ctx, state, peerid, view).await;
+			handle_peer_view_change(ctx, state, peerid, view);
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			tracing::trace!(
@@ -599,7 +597,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 // Send the difference between two views which were not sent
 // to that particular peer.
-async fn handle_peer_view_change<Context>(
+fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	origin: PeerId,
@@ -652,12 +650,12 @@ where
 		.collect();
 
 	for (validator, message) in delta_set.into_iter() {
-		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await;
+		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message);
 	}
 }
 
 /// Send a gossip message and track it in the per relay parent data.
-async fn send_tracked_gossip_message<Context>(
+fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	dest: PeerId,
@@ -687,12 +685,12 @@ where
 		.or_default()
 		.insert(validator.clone());
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_unbounded_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendValidationMessage(
 			vec![dest],
 			message.into_validation_protocol(),
 		),
-	)).await;
+	));
 }
 
 impl<C> Subsystem<C> for BitfieldDistribution

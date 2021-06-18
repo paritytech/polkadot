@@ -876,7 +876,7 @@ async fn circulate_statement_and_dependents(
 						relay_parent,
 						stored,
 						priority_peers,
-					).await,
+					),
 				))
 			},
 			_ => None,
@@ -900,7 +900,7 @@ async fn circulate_statement_and_dependents(
 					candidate_hash,
 					&*active_head,
 					metrics,
-				).await;
+				);
 			}
 		}
 	}
@@ -950,7 +950,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
-async fn circulate_statement<'a>(
+fn circulate_statement<'a>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext,
@@ -1017,10 +1017,10 @@ async fn circulate_statement<'a>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_unbounded_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
-		))).await;
+		)));
 	}
 
 	peers_to_send.into_iter().filter_map(|(peer, needs_dependent)| if needs_dependent {
@@ -1031,7 +1031,7 @@ async fn circulate_statement<'a>(
 }
 
 /// Send all statements about a given candidate hash to a peer.
-async fn send_statements_about(
+fn send_statements_about(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	ctx: &mut impl SubsystemContext,
@@ -1059,16 +1059,16 @@ async fn send_statements_about(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridge(
+		ctx.send_unbounded_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-		)).await;
+		));
 
 		metrics.on_statement_distributed();
 	}
 }
 
 /// Send all statements at a given relay-parent to a peer.
-async fn send_statements(
+fn send_statements(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	ctx: &mut impl SubsystemContext,
@@ -1094,22 +1094,22 @@ async fn send_statements(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(AllMessages::NetworkBridge(
+		ctx.send_unbounded_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
-		)).await;
+		));
 
 		metrics.on_statement_distributed();
 	}
 }
 
-async fn report_peer(
+fn report_peer(
 	ctx: &mut impl SubsystemContext,
 	peer: PeerId,
 	rep: Rep,
 ) {
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_unbounded_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep)
-	)).await
+	));
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1300,7 +1300,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 			relay_parent,
 			statement,
 			Vec::new(),
-		).await;
+		);
 	}
 }
 
@@ -1328,7 +1328,7 @@ async fn handle_incoming_message<'a>(
 				%relay_parent,
 				"our view out-of-sync with active heads; head not found",
 			);
-			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT);
 			return None
 		}
 	};
@@ -1342,7 +1342,7 @@ async fn handle_incoming_message<'a>(
 				?rep,
 				"Unexpected large statement.",
 			);
-			report_peer(ctx, peer, rep).await;
+			report_peer(ctx, peer, rep);
 			return None;
 		}
 	}
@@ -1365,7 +1365,7 @@ async fn handle_incoming_message<'a>(
 			?rep,
 			"Error inserting received statement"
 		);
-		report_peer(ctx, peer, rep).await;
+		report_peer(ctx, peer, rep);
 		return None;
 	}
 
@@ -1384,7 +1384,7 @@ async fn handle_incoming_message<'a>(
 			return None;
 		}
 		Err(DeniedStatement::UsefulButKnown) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT);
 			return None;
 		}
 	}
@@ -1398,7 +1398,7 @@ async fn handle_incoming_message<'a>(
 				?statement,
 				"Invalid statement signature"
 			);
-			report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+			report_peer(ctx, peer, COST_INVALID_SIGNATURE);
 			return None
 		}
 		Ok(statement) => statement,
@@ -1429,7 +1429,7 @@ async fn handle_incoming_message<'a>(
 				candidate_hash,
 				&*active_head,
 				metrics,
-			).await;
+			);
 		}
 		Ok(false) => {}
 	}
@@ -1442,7 +1442,7 @@ async fn handle_incoming_message<'a>(
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		}
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST);
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
@@ -1459,7 +1459,7 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
-async fn update_peer_view_and_maybe_send_unlocked(
+fn update_peer_view_and_maybe_send_unlocked(
 	peer: PeerId,
 	gossip_peers: &HashSet<PeerId>,
 	peer_data: &mut PeerData,
@@ -1497,7 +1497,7 @@ async fn update_peer_view_and_maybe_send_unlocked(
 				new,
 				active_head,
 				metrics,
-			).await;
+			);
 		}
 	}
 }
@@ -1553,7 +1553,7 @@ async fn handle_network_update(
 						&*active_heads,
 						view,
 						metrics,
-					).await
+					);
 				}
 			}
 		}
@@ -1586,7 +1586,7 @@ async fn handle_network_update(
 						&*active_heads,
 						view,
 						metrics,
-					).await
+					)
 				}
 				None => (),
 			}
@@ -1726,9 +1726,9 @@ impl StatementDistribution {
 				bad_peers,
 			} => {
 				for bad in bad_peers {
-					report_peer(ctx, bad, COST_FETCH_FAIL).await;
+					report_peer(ctx, bad, COST_FETCH_FAIL);
 				}
-				report_peer(ctx, from_peer, BENEFIT_VALID_RESPONSE).await;
+				report_peer(ctx, from_peer, BENEFIT_VALID_RESPONSE);
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
@@ -1774,14 +1774,13 @@ impl StatementDistribution {
 				}
 			}
 			RequesterMessage::SendRequest(req) => {
-				ctx.send_message(
+				ctx.send_unbounded_message(
 					AllMessages::NetworkBridge(
 						NetworkBridgeMessage::SendRequests(
 							vec![req],
 							IfDisconnected::ImmediateError,
 						)
-					))
-					.await;
+					));
 			}
 			RequesterMessage::GetMorePeers {
 				relay_parent,
@@ -1824,7 +1823,7 @@ impl StatementDistribution {
 				}
 			}
 			RequesterMessage::ReportPeer(peer, rep) =>
-				report_peer(ctx, peer, rep).await,
+				report_peer(ctx, peer, rep),
 		}
 		Ok(())
 	}
