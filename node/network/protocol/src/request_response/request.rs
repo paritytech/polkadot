@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::marker::PhantomData;
+
 use futures::channel::oneshot;
 use futures::prelude::Future;
 
@@ -216,7 +218,62 @@ pub struct IncomingRequest<Req> {
 	pub peer: PeerId,
 	/// The sent request.
 	pub payload: Req,
+	/// Sender for sending response back.
+	pub pending_response: OutgoingResponseSender<Req>,
+}
+
+/// Sender for sendinb back responses on an `IncomingRequest`.
+#[derive(Debug)]
+pub struct OutgoingResponseSender<Req>{
 	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
+	phantom: PhantomData<Req>,
+}
+
+impl<Req> OutgoingResponseSender<Req> 
+where
+	Req: IsRequest + Decode,
+	Req::Response: Encode,
+{
+	/// Send the response back.
+	///
+	/// On success we return Ok(()), on error we return the not sent `Response`.
+	///
+	/// netconfig::OutgoingResponse exposes a way of modifying the peer's reputation. If needed we
+	/// can change this function to expose this feature as well.
+	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
+		self.pending_response
+			.send(netconfig::OutgoingResponse {
+				result: Ok(resp.encode()),
+				reputation_changes: Vec::new(),
+				sent_feedback: None,
+			})
+			.map_err(|_| resp)
+	}
+
+	/// Send response with additional options.
+	///
+	/// This variant allows for waiting for the response to be sent out, allows for changing peer's
+	/// reputation and allows for not sending a response at all (for only changing the peer's
+	/// reputation).
+	pub fn send_outgoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
+		-> Result<(), ()> {
+		let OutgoingResponse {
+			result,
+			reputation_changes,
+			sent_feedback,
+		} = resp;
+
+		let response = netconfig::OutgoingResponse {
+			result: result.map(|v| v.encode()),
+			reputation_changes: reputation_changes
+				.into_iter()
+				.map(|c| c.into_base_rep())
+				.collect(),
+			sent_feedback,
+		};
+
+		self.pending_response.send(response).map_err(|_| ())
+	}
 }
 
 /// Typed variant of [`netconfig::OutgoingResponse`].
@@ -249,7 +306,10 @@ where
 		Self {
 			peer,
 			payload,
-			pending_response,
+			pending_response: OutgoingResponseSender {
+				pending_response,
+				phantom: PhantomData {},
+			},
 		}
 	}
 
@@ -294,43 +354,17 @@ where
 
 	/// Send the response back.
 	///
-	/// On success we return Ok(()), on error we return the not sent `Response`.
-	///
-	/// netconfig::OutgoingResponse exposes a way of modifying the peer's reputation. If needed we
-	/// can change this function to expose this feature as well.
+	/// Calls [`OutgoingResponseSender::send_response`].
 	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
-		self.pending_response
-			.send(netconfig::OutgoingResponse {
-				result: Ok(resp.encode()),
-				reputation_changes: Vec::new(),
-				sent_feedback: None,
-			})
-			.map_err(|_| resp)
+		self.pending_response.send_response(resp)
 	}
 
 	/// Send response with additional options.
 	///
-	/// This variant allows for waiting for the response to be sent out, allows for changing peer's
-	/// reputation and allows for not sending a response at all (for only changing the peer's
-	/// reputation).
+	/// Calls [`OutgoingResponseSender::send_outgoing_response`].
 	pub fn send_outgoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
 		-> Result<(), ()> {
-		let OutgoingResponse {
-			result,
-			reputation_changes,
-			sent_feedback,
-		} = resp;
-
-		let response = netconfig::OutgoingResponse {
-			result: result.map(|v| v.encode()),
-			reputation_changes: reputation_changes
-				.into_iter()
-				.map(|c| c.into_base_rep())
-				.collect(),
-			sent_feedback,
-		};
-
-		self.pending_response.send(response).map_err(|_| ())
+		self.pending_response.send_outgoing_response(resp)
 	}
 }
 
