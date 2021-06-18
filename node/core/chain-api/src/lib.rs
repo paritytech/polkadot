@@ -104,6 +104,12 @@ where
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
+				ChainApiMessage::BlockWeight(hash, response_channel) => {
+					// TODO [now]
+
+					// choice to fork
+					let _ = response_channel.send(Some(69))
+				}
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					let _timer = subsystem.metrics.time_finalized_block_hash();
 					// Note: we don't verify it's finalized
