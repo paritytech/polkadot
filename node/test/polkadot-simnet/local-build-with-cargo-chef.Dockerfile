@@ -114,6 +114,8 @@ RUN groupadd --gid 10001 nonroot && \
              --groups nonroot \
              --uid 10000 nonroot
 WORKDIR /home/nonroot/polkadot-simnet
+COPY substrate/ .
+COPY polkadot/ .
 COPY --from=builder /polkadot-simnet/polkadot/target/release/polkadot-simnet /usr/local/bin
 RUN chown -R nonroot. /home/nonroot
 
