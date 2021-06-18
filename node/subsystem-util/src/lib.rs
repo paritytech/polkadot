@@ -226,12 +226,12 @@ pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorInde
 
 /// Choose a random subset of `min` elements.
 /// But always include `is_priority` elements.
-pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(mut is_priority: F, mut v: Vec<T>, min: usize) -> Vec<T> {
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, mut v: Vec<T>, min: usize) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
 
 	// partition the elements into priority first
 	// the returned index is when non_priority elements start
-	let i = itertools::partition(&mut v, |e| is_priority(e));
+	let i = itertools::partition(&mut v, is_priority);
 
 	if i >= min || v.len() <= i {
 		v.truncate(i);

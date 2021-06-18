@@ -33,6 +33,11 @@ pub enum NetworkBridgeEvent<M> {
 
 	/// Our neighbors in the new gossip topology.
 	/// We're not necessarily connected to all of them.
+	///
+	/// This message is issued only on the validation peer set.
+	///
+	/// Note, that the distribution subsystems need to handle the last
+	/// view update of the newly added gossip peers manually.
 	NewGossipTopology(HashSet<PeerId>),
 
 	/// Peer has sent a message.

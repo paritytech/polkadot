@@ -16,5 +16,4 @@ See https://github.com/paritytech/polkadot/issues/3239 for more details.
 The gossip topology is used by parachain distribution subsystems,
 such as Bitfield Distrubution, (small) Statement Distributuion and
 Approval Distibution to limit the amount of peers we send messages to
-and handle view updates. Note, that the distribution subsystems need
-to handle the last view update of the newly added gossip peers manually.
+and handle view updates.

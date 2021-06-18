@@ -358,7 +358,7 @@ enum ChainSelectionMessage {
     /// Request the best leaf containing the given block in its ancestry. Return `None` if
     /// there is no such leaf.
     BestLeafContaining(Hash, ResponseChannel<Option<Hash>>),
-    
+
 }
 ```
 
