@@ -289,6 +289,7 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 async fn fetch_finalized(
 	ctx: &mut impl SubsystemContext,
 ) -> Result<(Hash, BlockNumber), Error> {
+	// TODO [now]
 	unimplemented!()
 }
 
@@ -341,6 +342,7 @@ async fn handle_active_leaf(
 	// determine_new_blocks gives blocks in descending order.
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
+		// TODO [now]: if none, skip and warn (grimace).
 		let weight = unimplemented!();
 		let reversion_logs = extract_reversion_logs(&header);
 		crate::tree::import_block(
