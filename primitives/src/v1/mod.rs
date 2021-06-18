@@ -16,6 +16,7 @@
 
 //! V1 Primitives.
 
+use scale_info::TypeInfo;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
@@ -438,7 +439,7 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.

@@ -21,6 +21,7 @@
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
 use sp_runtime::{generic, MultiSignature, traits::{Verify, IdentifyAccount}};
+use scale_info::TypeInfo;
 use parity_scale_codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
@@ -60,7 +61,7 @@ pub type Hash = sp_core::H256;
 /// This type is produced by [`CandidateReceipt::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a candidate hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default, PartialOrd, Ord)]
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default, PartialOrd, Ord, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
@@ -135,7 +136,7 @@ pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 }
 
 /// An HRMP message seen from the perspective of a sender.
-#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash)]
+#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpMessage<Id> {
 	/// The para that will get this message in its downward message queue.

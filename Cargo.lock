@@ -470,7 +470,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
 dependencies = [
  "beefy-primitives",
  "futures 0.3.15",
@@ -498,7 +498,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -519,7 +519,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -702,6 +702,7 @@ dependencies = [
  "finality-grandpa",
  "frame-support",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-finality-grandpa",
@@ -730,6 +731,7 @@ dependencies = [
  "frame-system",
  "hex",
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-core",
  "sp-runtime",
@@ -1932,6 +1934,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "paste",
+ "scale-info",
  "sp-api",
  "sp-io",
  "sp-runtime",
@@ -1969,6 +1972,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-arithmetic",
  "sp-npos-elections",
  "sp-std",
@@ -1981,6 +1985,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -1990,12 +1995,13 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "13.0.0"
+version = "14.0.0"
+source = "git+https://github.com/paritytech/frame-metadata?branch=aj-substrate#f14f5258c40f6b887a9abfb324e1ba5849227293"
 dependencies = [
+ "cfg-if 1.0.0",
  "parity-scale-codec",
+ "scale-info",
  "serde",
- "sp-core",
- "sp-std",
 ]
 
 [[package]]
@@ -2011,6 +2017,7 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "paste",
+ "scale-info",
  "serde",
  "smallvec 1.6.1",
  "sp-arithmetic",
@@ -2059,13 +2066,14 @@ dependencies = [
 name = "frame-support-test"
 version = "3.0.0"
 dependencies = [
- "frame-metadata",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
  "pretty_assertions 0.6.1",
  "rustversion",
+ "scale-info",
  "serde",
+ "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -2082,6 +2090,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -2098,6 +2107,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -4589,6 +4599,7 @@ dependencies = [
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
+ "scale-info",
  "sp-application-crypto",
  "sp-authority-discovery",
  "sp-runtime",
@@ -4603,6 +4614,7 @@ dependencies = [
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
+ "scale-info",
  "sp-authorship",
  "sp-runtime",
  "sp-std",
@@ -4620,6 +4632,7 @@ dependencies = [
  "pallet-session",
  "pallet-timestamp",
  "parity-scale-codec",
+ "scale-info",
  "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
@@ -4640,6 +4653,7 @@ dependencies = [
  "log",
  "max-encoded-len",
  "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -4647,13 +4661,14 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#313037c7f3402460abcd7bb991ef1f3ec9bc7f5f"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
 dependencies = [
  "beefy-primitives",
  "frame-support",
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-runtime",
  "sp-std",
@@ -4668,6 +4683,7 @@ dependencies = [
  "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -4686,6 +4702,7 @@ dependencies = [
  "log",
  "num-traits",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-finality-grandpa",
  "sp-io",
@@ -4703,6 +4720,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4717,6 +4735,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-io",
  "sp-runtime",
@@ -4734,6 +4753,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.7.3",
+ "scale-info",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -4752,6 +4772,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-npos-elections",
@@ -4767,6 +4788,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-arithmetic",
  "sp-runtime",
  "sp-std",
@@ -4783,6 +4805,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
+ "scale-info",
  "sp-application-crypto",
  "sp-core",
  "sp-finality-grandpa",
@@ -4802,6 +4825,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4817,6 +4841,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "parity-scale-codec",
+ "scale-info",
  "sp-application-crypto",
  "sp-core",
  "sp-io",
@@ -4833,6 +4858,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-keyring",
@@ -4849,6 +4875,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4864,6 +4891,7 @@ dependencies = [
  "frame-system",
  "pallet-mmr-primitives",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4910,6 +4938,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4923,6 +4952,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4937,6 +4967,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-runtime",
  "sp-staking",
@@ -4959,6 +4990,7 @@ dependencies = [
  "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-staking",
  "sp-std",
@@ -4973,6 +5005,7 @@ dependencies = [
  "frame-system",
  "max-encoded-len",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4987,6 +5020,7 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "safe-mix",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -4999,6 +5033,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -5013,6 +5048,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -5028,6 +5064,7 @@ dependencies = [
  "log",
  "pallet-timestamp",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -5047,6 +5084,7 @@ dependencies = [
  "pallet-session",
  "pallet-staking",
  "rand 0.7.3",
+ "scale-info",
  "sp-runtime",
  "sp-session",
  "sp-std",
@@ -5060,6 +5098,7 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -5078,6 +5117,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "rand_chacha 0.2.2",
+ "scale-info",
  "serde",
  "sp-application-crypto",
  "sp-io",
@@ -5112,6 +5152,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -5127,6 +5168,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-inherents",
  "sp-io",
  "sp-runtime",
@@ -5143,6 +5185,7 @@ dependencies = [
  "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-runtime",
  "sp-std",
@@ -5155,6 +5198,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "smallvec 1.6.1",
  "sp-core",
@@ -5199,6 +5243,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-runtime",
  "sp-std",
@@ -5212,6 +5257,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -5227,6 +5273,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -5851,6 +5898,7 @@ version = "0.9.5"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
+ "scale-info",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -6624,6 +6672,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rustc-hex",
  "sc-keystore",
+ "scale-info",
  "serde",
  "serde_json",
  "sp-api",
@@ -7028,6 +7077,8 @@ dependencies = [
  "impl-codec",
  "impl-rlp",
  "impl-serde 0.3.1 (git+https://github.com/paritytech/parity-common)",
+ "parity-scale-codec",
+ "scale-info",
  "uint 0.9.0 (git+https://github.com/paritytech/parity-common)",
 ]
 
@@ -8735,6 +8786,7 @@ dependencies = [
  "derive_more",
  "parity-scale-codec",
  "scale-info-derive",
+ "serde",
 ]
 
 [[package]]
@@ -9255,6 +9307,7 @@ version = "3.0.0"
 dependencies = [
  "max-encoded-len",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -9268,6 +9321,7 @@ dependencies = [
  "integer-sqrt",
  "num-traits",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-debug-derive",
  "sp-std",
@@ -9279,6 +9333,7 @@ name = "sp-authority-discovery"
 version = "3.0.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-application-crypto",
  "sp-runtime",
@@ -9365,6 +9420,7 @@ dependencies = [
  "async-trait",
  "merlin",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-api",
  "sp-application-crypto",
@@ -9384,6 +9440,7 @@ name = "sp-consensus-slots"
 version = "0.9.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-arithmetic",
  "sp-runtime",
 ]
@@ -9425,6 +9482,7 @@ dependencies = [
  "primitive-types",
  "rand 0.7.3",
  "regex",
+ "scale-info",
  "schnorrkel",
  "secrecy",
  "serde",
@@ -9477,6 +9535,7 @@ dependencies = [
  "finality-grandpa",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-api",
  "sp-application-crypto",
@@ -9562,6 +9621,7 @@ name = "sp-npos-elections"
 version = "3.0.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-arithmetic",
  "sp-core",
@@ -9618,6 +9678,7 @@ dependencies = [
  "parity-util-mem",
  "paste",
  "rand 0.7.3",
+ "scale-info",
  "serde",
  "sp-application-crypto",
  "sp-arithmetic",
@@ -9666,6 +9727,7 @@ name = "sp-session"
 version = "3.0.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-core",
  "sp-runtime",
@@ -9678,6 +9740,7 @@ name = "sp-staking"
 version = "3.0.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -9787,6 +9850,7 @@ dependencies = [
  "async-trait",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-inherents",
  "sp-runtime",
@@ -9824,6 +9888,7 @@ version = "3.0.0"
 dependencies = [
  "impl-serde 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-runtime",
  "sp-std",
@@ -11826,6 +11891,10 @@ dependencies = [
 [[patch.unused]]
 name = "chain-spec-builder"
 version = "2.0.0"
+
+[[patch.unused]]
+name = "frame-metadata"
+version = "13.0.0"
 
 [[patch.unused]]
 name = "node-bench"
