@@ -3,7 +3,7 @@
 steps=50
 repeat=20
 
-output=./runtime/polkadot/src/weights
+output=./runtime/polkadot/src/weights/
 chain=polkadot-dev
 
 pallets=(
@@ -34,14 +34,14 @@ pallets=(
 
 for p in ${pallets[@]}
 do
-	./target/release/polkadot benchmark \
+	target/release/polkadot benchmark \
 		--chain=$chain \
-		--execution=wasm \
-		--wasm-execution=compiled \
-		--pallet=$p  \
-		--extrinsic='*' \
 		--steps=$steps  \
 		--repeat=$repeat \
+		--pallet=$p  \
+		--extrinsic='*' \
+		--execution=wasm \
+		--wasm-execution=compiled \
 		--heap-pages=4096 \
 		--header=./file_header.txt \
 		--output=$output
