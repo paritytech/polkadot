@@ -9,5 +9,5 @@
 
 # build docker image locally using cache from cargo-chef
 # add export DOCKER_BUILDKIT=1  to ~/.bashrc
-docker build -t paritypr/forrestgump:"$1" -f local-build-with-cargo-chef.Dockerfile ../../..
-docker push paritypr/forrestgump:"$1"
+docker build -t seunlanlege/forrestgump:"$1" -f local-build-with-cargo-chef.Dockerfile --no-cache ../../..
+docker push seunlanlege/forrestgump:"$1"
