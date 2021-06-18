@@ -159,3 +159,4 @@ try-runtime = [
 	"westend-runtime/try-runtime",
 	"rococo-runtime/try-runtime",
 ]
+malus = ["full-node"]
