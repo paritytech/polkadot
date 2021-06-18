@@ -581,18 +581,3 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 
 	Ok(backend)
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	// TODO [now]: importing a block without reversion
-	// TODO [now]: importing a block with reversion
-
-	// TODO [now]: finalize a viable block
-	// TODO [now]: finalize an unviable block with viable descendants
-	// TODO [now]: finalize an unviable block with unviable descendants down the line
-
-	// TODO [now]: mark blocks as stagnant.
-	// TODO [now]: approve stagnant block with unviable descendant.
-}

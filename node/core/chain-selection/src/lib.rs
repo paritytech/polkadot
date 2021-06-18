@@ -36,6 +36,9 @@ use crate::backend::{Backend, OverlayedBackend, BackendWriteOp};
 mod backend;
 mod tree;
 
+#[cfg(test)]
+mod tests;
+
 const LOG_TARGET: &str = "parachain::chain-selection";
 
 type Timestamp = u64;
