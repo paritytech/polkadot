@@ -300,8 +300,7 @@ publish-adder-collator-image:
   after_script:
     - buildah logout "$IMAGE_NAME"
     # pass artifacts to the trigger-simnet job
-    - echo "COLLATOR_IMAGE=$IMAGE_NAME" > ./artifacts/collator.env
-    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
@@ -387,6 +386,6 @@ trigger-simnet:
     # simnet project ID
     DWNSTRM_ID:                    332
   script:
-    # API trigger for a simnet job
-    - ./scripts/gitlab/trigger_pipeline.sh
+    # API trigger for a simnet job, argument value is set in the project variables
+    - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
   allow_failure:                   true

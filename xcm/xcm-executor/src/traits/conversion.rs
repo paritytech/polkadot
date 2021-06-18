@@ -24,6 +24,9 @@ use xcm::v0::{MultiLocation, OriginKind};
 /// One of `convert`/`convert_ref` and `reverse`/`reverse_ref` MUST be implemented. If possible, implement
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
 /// the source value.
+///
+/// Can be amalgamated into tuples. If any of the tuple elements converts into `Ok(_)` it short circuits. Otherwise returns
+/// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
 	fn convert(value: A) -> Result<B, A> { Self::convert_ref(&value).map_err(|_| value) }
@@ -115,7 +118,49 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
 }
 
+/// A convertor trait for origin types.
+///
+/// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
+/// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`
+/// which is passed to the next convert item.
+///
+/// ```rust
+/// # use xcm::v0::{MultiLocation, Junction, OriginKind};
+/// # use xcm_executor::traits::ConvertOrigin;
+/// // A convertor that will bump the para id and pass it to the next one.
+/// struct BumpParaId;
+/// impl ConvertOrigin<u32> for BumpParaId {
+/// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
+/// 		match origin {
+/// 			MultiLocation::X1(Junction::Parachain(id)) => {
+/// 				Err(MultiLocation::X1(Junction::Parachain(id + 1)))
+/// 			}
+/// 			_ => unreachable!()
+/// 		}
+/// 	}
+/// }
+///
+/// struct AcceptPara7;
+/// impl ConvertOrigin<u32> for AcceptPara7 {
+/// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
+/// 		match origin {
+/// 			MultiLocation::X1(Junction::Parachain(id)) if id == 7 => {
+/// 				Ok(7)
+/// 			}
+/// 			_ => Err(origin)
+/// 		}
+/// 	}
+/// }
+/// # fn main() {
+/// let origin = MultiLocation::X1(Junction::Parachain(6));
+/// assert!(
+/// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
+/// 		.is_ok()
+/// );
+/// # }
+/// ```
 pub trait ConvertOrigin<Origin> {
+	/// Attempt to convert `origin` to the generic `Origin` whilst consuming it.
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation>;
 }
 
@@ -123,14 +168,17 @@ pub trait ConvertOrigin<Origin> {
 impl<O> ConvertOrigin<O> for Tuple {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
 		for_tuples!( #(
-			let origin = match Tuple::convert_origin(origin, kind) { Err(o) => o, r => return r };
+			let origin = match Tuple::convert_origin(origin, kind) {
+				Err(o) => o,
+				r => return r
+			};
 		)* );
 		Err(origin)
 	}
 }
 
-/// Means of inverting a location: given a location which describes a `target` interpreted from the `source`, this
-/// will provide the corresponding location which describes the `source`
+/// Means of inverting a location: given a location which describes a `target` interpreted from the
+/// `source`, this will provide the corresponding location which describes the `source`.
 pub trait InvertLocation {
 	fn invert_location(l: &MultiLocation) -> MultiLocation;
 }

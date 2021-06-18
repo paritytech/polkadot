@@ -29,7 +29,7 @@ use sp_wasm_interface::HostFunctions as _;
 
 const CONFIG: Config = Config {
 	// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-	heap_pages: 1024,
+	heap_pages: 2048,
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
@@ -56,7 +56,12 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 
 /// Executes the given PVF in the form of a compiled artifact and returns the result of execution
 /// upon success.
-pub fn execute(
+///
+/// # Safety
+///
+/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
+/// to arbitrary code execution.
+pub unsafe fn execute(
 	compiled_artifact: &[u8],
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
@@ -69,8 +74,8 @@ pub fn execute(
 	let mut ext = ValidationExternalities(extensions);
 
 	sc_executor::with_externalities_safe(&mut ext, || {
-		let runtime = sc_executor_wasmtime::create_runtime(
-			sc_executor_wasmtime::CodeSupplyMode::Artifact { compiled_artifact },
+		let runtime = sc_executor_wasmtime::create_runtime_from_artifact(
+			compiled_artifact,
 			CONFIG,
 			HostFunctions::host_functions(),
 		)?;
@@ -113,11 +118,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8]) {
+	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8]) {
+	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 

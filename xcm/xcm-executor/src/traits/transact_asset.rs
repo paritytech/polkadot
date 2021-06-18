@@ -20,9 +20,11 @@ use crate::Assets;
 
 /// Facility for asset transacting.
 ///
-/// This should work with as many asset/location combinations as possible. Locations to support may include non-
-/// account locations such as a `MultiLocation::X1(Junction::Parachain)`. Different chains may handle them in
-/// different ways.
+/// This should work with as many asset/location combinations as possible. Locations to support may include non-account
+/// locations such as a `MultiLocation::X1(Junction::Parachain)`. Different chains may handle them in different ways.
+///
+/// Can be amalgamated as a tuple of items that implement this trait. In such executions, if any of the transactors
+/// returns `Ok(())`, then it will short circuit. Else, execution is passed to the next transactor.
 pub trait TransactAsset {
 	/// Ensure that `check_in` will result in `Ok`.
 	///

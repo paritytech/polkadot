@@ -62,7 +62,3 @@ Validators are rewarded for providing statements to the chain as well as for par
 Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also conclude after a timeout, without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
 
 Late votes, after the dispute already reached a ⅔ supermajority, must be rewarded (albeit a smaller amount) as well.
-
-## Chain Selection / Grandpa
-
-The [Approval Checking](protocol-approval.md) protocol prevents finalization of chains that contain parablocks that are not yet approved. With disputes, we take it one step further and do not vote to finalize any chains which contain parablocks that are being disputed or have lost a dispute anywhere.

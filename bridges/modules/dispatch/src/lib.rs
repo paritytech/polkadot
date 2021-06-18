@@ -510,7 +510,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageVersionSpecMismatch(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageVersionSpecMismatch(
 						bridge,
 						id,
 						TEST_SPEC_VERSION,
@@ -538,7 +538,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageWeightMismatch(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageWeightMismatch(
 						bridge, id, 1345000, 0,
 					)),
 					topics: vec![],
@@ -566,7 +566,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageSignatureMismatch(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageSignatureMismatch(
 						bridge, id
 					)),
 					topics: vec![],
@@ -588,7 +588,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected(bridge, id)),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected(bridge, id)),
 					topics: vec![],
 				}],
 			);
@@ -612,7 +612,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageCallDecodeFailed(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageCallDecodeFailed(
 						bridge, id
 					)),
 					topics: vec![],
@@ -639,7 +639,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageCallRejected(bridge, id)),
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageCallRejected(bridge, id)),
 					topics: vec![],
 				}],
 			);
@@ -660,7 +660,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
 						bridge,
 						id,
 						Ok(())
@@ -687,7 +687,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
 						bridge,
 						id,
 						Ok(())
@@ -714,7 +714,7 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::call_dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
 						bridge,
 						id,
 						Ok(())
