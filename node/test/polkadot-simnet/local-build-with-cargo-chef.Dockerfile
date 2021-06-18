@@ -50,6 +50,9 @@ RUN export PATH="$PATH:$HOME/.cargo/bin" && \
    	rustup target add wasm32-unknown-unknown --toolchain nightly && \
    	rustup default stable 
 
+WORKDIR /polkadot-simnet
+COPY substrate/ /polkadot-simnet
+COPY polkadot/ /polkadot-simnet
 WORKDIR /polkadot-simnet/polkadot
 RUN cargo install cargo-chef
 COPY --from=planner /polkadot-simnet/polkadot/recipe.json recipe.json
