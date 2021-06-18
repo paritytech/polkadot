@@ -983,6 +983,54 @@ mod tests {
 	}
 
 	#[test]
+	fn validator_indexes_out_of_range_are_counted_in_assignments() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 3;
+
+		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: bitvec![BitOrderLsb0, u8; 0; 3],
+		}.into();
+
+		for i in 0..3 {
+			candidate.mark_approval(ValidatorIndex(i));
+		}
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: vec![
+				// Assignments with invalid validator indexes.
+				approval_db::v1::TrancheEntry {
+					tranche: 1,
+					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
+				},
+			],
+			assignments: bitvec![BitOrderLsb0, u8; 1; 3],
+			our_assignment: None,
+			our_approval_sig: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		let approvals = bitvec![BitOrderLsb0, u8; 0; 3];
+
+		let tranche_now = 10;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::All,
+		);
+	}
+
+	#[test]
 	fn filled_tranche_iterator_yields_sequential_tranches() {
 		const PREFIX: u32 = 10;
 
