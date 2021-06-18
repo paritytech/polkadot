@@ -27,7 +27,10 @@ use std::sync::Arc;
 use futures::channel::oneshot;
 use parking_lot::Mutex;
 use sp_core::testing::TaskExecutor;
+use assert_matches::assert_matches;
 
+use polkadot_primitives::v1::{BlakeTwo256, HashT};
+use polkadot_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
 #[derive(Default)]
@@ -159,6 +162,46 @@ fn test_harness<T: Future<Output=VirtualOverseer>>(
 	futures::executor::block_on(futures::future::join(subsystem, test_and_conclude));
 }
 
+// Answer requests from the subsystem about the finalized block.
+async fn answer_finalized_block_info(
+	overseer: &mut VirtualOverseer,
+	finalized_hash: Hash,
+	finalized_number: BlockNumber,
+) {
+	assert_matches!(
+		overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(tx)) => {
+			let _ = tx.send(Ok(finalized_number));
+		}
+	);
+
+	assert_matches!(
+		overseer.recv().await,
+		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(n, tx)) => {
+			assert_eq!(n, finalized_number);
+			let _ = tx.send(Ok(Some(finalized_hash)));
+		}
+	);
+}
+
+fn child_header(parent_hash: Hash, parent_number: BlockNumber) -> Header {
+	child_header_with_salt(parent_hash, parent_number, &[])
+}
+
+fn child_header_with_salt(
+	parent_hash: Hash,
+	parent_number: BlockNumber,
+	salt: &[u8], // so siblings can have different hashes.
+) -> Header {
+	Header {
+		parent_hash,
+		number: parent_number + 1,
+		state_root: BlakeTwo256::hash(salt),
+		extrinsics_root: Default::default(),
+		digest: Default::default()
+	}
+}
+
 #[test]
 fn no_op_subsystem_run() {
 	test_harness(|_, virtual_overseer| async move { virtual_overseer });
@@ -166,6 +209,11 @@ fn no_op_subsystem_run() {
 
 #[test]
 fn import_direct_child_of_finalized_on_empty() {
+	test_harness(|backend, mut virtual_overseer| async move {
+
+
+		virtual_overseer
+	})
 }
 
 // TODO [now]: importing a block without reversion
@@ -182,6 +230,8 @@ fn import_direct_child_of_finalized_on_empty() {
 // TODO [now]: find best leaf containing when required is finalized
 // TODO [now]: find best leaf containing when required is unfinalized.
 // TODO [now]: find best leaf containing when required is ancestor of many leaves.
+
+// TODO [now]: leaf tiebreakers are based on height.
 
 // TODO [now]: test assumption that each active leaf update gives 1 DB write.
 // TODO [now]: test assumption that each approved block gives 1 DB write.
