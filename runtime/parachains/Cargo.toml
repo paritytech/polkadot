@@ -11,7 +11,7 @@ log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { git = "https://github.com/paritytech/scale-info", branch = "aj-substrate", default-features = false, features = ["derive"] }
 serde = { version = "1.0.123", features = [ "derive" ], optional = true }
-derive_more = "0.99.11"
+derive_more = "0.99.14"
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
