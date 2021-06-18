@@ -18,7 +18,7 @@
 
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
