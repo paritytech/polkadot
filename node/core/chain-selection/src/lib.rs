@@ -125,11 +125,18 @@ impl LeafEntrySet {
 	}
 
 	fn insert(&mut self, new: LeafEntry) {
-		match self.inner.iter().position(|e| e < &new) {
-			None => self.inner.push(new),
-			Some(i) => if self.inner[i].block_hash != new.block_hash {
-				self.inner.insert(i, new);
+		let mut pos = None;
+		for (i, e) in self.inner.iter().enumerate() {
+			if e == &new { return }
+			if e < &new {
+				pos = Some(i);
+				break
 			}
+		}
+
+		match pos {
+			None => self.inner.push(new),
+			Some(i) => self.inner.insert(i, new),
 		}
 	}
 
@@ -407,7 +414,12 @@ async fn handle_active_leaf(
 	hash: Hash,
 ) -> Result<Vec<BackendWriteOp>, Error> {
 	let lower_bound = match backend.load_first_block_number()? {
-		Some(l) => l,
+		Some(l) => {
+			// We want to iterate back to finalized, and first block number
+			// is assumed to be 1 above finalized - the implicit root of the
+			// tree.
+			l.saturating_sub(1)
+		},
 		None => fetch_finalized(ctx).await?.map_or(1, |(_, n)| n),
 	};
 
