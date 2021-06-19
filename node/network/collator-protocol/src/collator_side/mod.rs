@@ -795,6 +795,9 @@ async fn handle_network_msg(
 		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		}
+		NewGossipTopology(..) => {
+			// impossibru!
+		}
 	}
 
 	Ok(())

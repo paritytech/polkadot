@@ -21,11 +21,10 @@ Input: [`NetworkBridgeMessage`][NBM]
 
 
 Output:
-	- [`AvailabilityDistributionMessage`][AvD]`::NetworkBridgeUpdateV1`
+	- [`ApprovalDistributionMessage`][AppD]`::NetworkBridgeUpdateV1`
 	- [`BitfieldDistributionMessage`][BitD]`::NetworkBridgeUpdateV1`
-	- [`PoVDistributionMessage`][PoVD]`::NetworkBridgeUpdateV1`
-	- [`StatementDistributionMessage`][StmtD]`::NetworkBridgeUpdateV1`
 	- [`CollatorProtocolMessage`][CollP]`::NetworkBridgeUpdateV1`
+	- [`StatementDistributionMessage`][StmtD]`::NetworkBridgeUpdateV1`
 
 ## Functionality
 
@@ -59,7 +58,7 @@ Each network event is associated with a particular peer-set.
 
 The `activated` and `deactivated` lists determine the evolution of our local view over time. A `ProtocolMessage::ViewUpdate` is issued to each connected peer on each peer-set, and a `NetworkBridgeEvent::OurViewChange` is issued to each event handler for each protocol.
 
-We only send view updates if the node has indicated that it has finished major blockchain synchronization. 
+We only send view updates if the node has indicated that it has finished major blockchain synchronization.
 
 If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
 
@@ -107,25 +106,28 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 - Send all `(ValidatorId, PeerId)` pairs on the response channel.
 - Feed all Peer IDs to peer set manager the underlying network provides.
 
+### NewGossipTopology
+
+- Map all `AuthorityDiscoveryId`s to `PeerId`s and issue a corresponding `NetworkBridgeUpdateV1`
+  to all validation subsystems.
+
 ## Event Handlers
 
 Network bridge event handlers are the intended recipients of particular network protocol messages. These are each a variant of a message to be sent via the overseer.
 
 ### Validation V1
 
-* `StatementDistributionV1Message -> StatementDistributionMessage::NetworkBridgeUpdateV1`
-* `PoVDistributionV1Message -> PoVDistributionMessage::NetworkBridgeUpdateV1`
-* `AvailabilityDistributionV1Message -> AvailabilityDistributionMessage::NetworkBridgeUpdateV1`
+* `ApprovalDistributionV1Message -> ApprovalDistributionMessage::NetworkBridgeUpdateV1`
 * `BitfieldDistributionV1Message -> BitfieldDistributionMessage::NetworkBridgeUpdateV1`
+* `StatementDistributionV1Message -> StatementDistributionMessage::NetworkBridgeUpdateV1`
 
 ### Collation V1
 
 * `CollatorProtocolV1Message -> CollatorProtocolMessage::NetworkBridgeUpdateV1`
 
 [NBM]: ../../types/overseer-protocol.md#network-bridge-message
-[AvD]: ../../types/overseer-protocol.md#availability-distribution-message
+[AppD]: ../../types/overseer-protocol.md#approval-distribution-message
 [BitD]: ../../types/overseer-protocol.md#bitfield-distribution-message
-[PoVD]: ../../types/overseer-protocol.md#pov-distribution-message
 [StmtD]: ../../types/overseer-protocol.md#statement-distribution-message
 [CollP]: ../../types/overseer-protocol.md#collator-protocol-message
 

@@ -21,7 +21,6 @@ use futures::channel::oneshot;
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -46,14 +45,25 @@ use sp_keyring::Sr25519Keyring;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_node_network_protocol::{ObservedRole, request_response::request::Requests};
 
-use crate::network::{Network, NetworkAction};
+use crate::network::Network;
 use crate::validator_discovery::AuthorityDiscovery;
+use crate::Rep;
+
+#[derive(Debug, PartialEq)]
+pub enum NetworkAction {
+	/// Note a change in reputation for a peer.
+	ReputationChange(PeerId, Rep),
+	/// Disconnect a peer from the given peer-set.
+	DisconnectPeer(PeerId, PeerSet),
+	/// Write a notification to a given peer on the given peer-set.
+	WriteNotification(PeerId, PeerSet, Vec<u8>),
+}
 
 // The subsystem's view of the network - only supports a single call to `event_stream`.
 #[derive(Clone)]
 struct TestNetwork {
 	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
-	action_tx: metered::UnboundedMeteredSender<NetworkAction>,
+	action_tx:  Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 	_req_configs: Vec<RequestResponseConfig>,
 }
 
@@ -78,7 +88,7 @@ fn new_test_network(req_configs: Vec<RequestResponseConfig>) -> (
 	(
 		TestNetwork {
 			net_events: Arc::new(Mutex::new(Some(net_rx))),
-			action_tx,
+			action_tx: Arc::new(Mutex::new(action_tx)),
 			_req_configs: req_configs,
 		},
 		TestNetworkHandle {
@@ -106,13 +116,30 @@ impl Network for TestNetwork {
 		Ok(())
 	}
 
-	fn action_sink<'a>(&'a mut self)
-		-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
-	{
-		Box::pin((&mut self.action_tx).sink_map_err(Into::into))
+	async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
 	}
 
-	async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
+	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
+		self.action_tx.lock().unbounded_send(
+			NetworkAction::ReputationChange(who, cost_benefit)
+		).unwrap();
+	}
+
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
+		self.action_tx.lock().unbounded_send(
+			NetworkAction::DisconnectPeer(who, peer_set)
+		).unwrap();
+	}
+
+	fn write_notification(
+		&self,
+		who: PeerId,
+		peer_set: PeerSet,
+		message: Vec<u8>,
+	) {
+		self.action_tx.lock().unbounded_send(
+			NetworkAction::WriteNotification(who, peer_set, message)
+		).unwrap();
 	}
 }
 

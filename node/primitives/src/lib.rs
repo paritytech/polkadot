@@ -58,7 +58,7 @@ pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
 pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
 
 /// The cumulative weight of a block in a fork-choice rule.
-pub type BlockWeight = u64;
+pub type BlockWeight = u32;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///

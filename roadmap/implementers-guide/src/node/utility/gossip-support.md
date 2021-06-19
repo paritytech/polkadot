@@ -1,15 +1,19 @@
 # Gossip Support
 
 The Gossip Support Subsystem is responsible for keeping track of session changes
-and issuing a connection request to all validators in the next, current and a few past sessions
-if we are a validator in these sessions.
-The request will add all validators to a reserved PeerSet, meaning we will not reject a connection request
-from any validator in that set.
+and issuing a connection request to all validators in the next, current and
+a few past sessions if we are a validator in these sessions.
+The request will add all validators to a reserved PeerSet, meaning we will not
+reject a connection request from any validator in that set.
 
-Gossiping subsystems will be notified when a new peer connects or disconnects by network bridge.
-It is their responsibility to limit the amount of outgoing gossip messages.
-At the moment we enforce a cap of `max(sqrt(peers.len()), 25)` message recipients at a time in each gossiping subsystem.
+In addition to that, it creates a gossip overlay topology per session which
+limits the amount of messages sent and received to be an order of sqrt of the
+validators. Our neighbors in this graph will be forwarded to the network bridge
+with the `NetworkBridgeMessage::NewGossipTopology` message.
 
-We also flip a coin with the same probability when handling peer view updates in the distribution subsystems.
-Over time the probability of not handling a peer view update converges to zero, so it shouldn't be cause much trouble.
-This should be considered as a temporary measure until we implement a more robust solution for gossiping.
+See https://github.com/paritytech/polkadot/issues/3239 for more details.
+
+The gossip topology is used by parachain distribution subsystems,
+such as Bitfield Distrubution, (small) Statement Distributuion and
+Approval Distibution to limit the amount of peers we send messages to
+and handle view updates.
