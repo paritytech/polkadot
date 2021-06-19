@@ -125,7 +125,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	pub(super) fn delete_block_entry(&mut self, hash: &Hash) {
-		self.block_entries.remove(hash);
+		self.block_entries.insert(*hash, None);
 	}
 
 	pub(super) fn write_blocks_by_number(&mut self, number: BlockNumber, blocks: Vec<Hash>) {

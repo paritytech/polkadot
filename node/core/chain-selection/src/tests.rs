@@ -1096,6 +1096,52 @@ fn finalize_viable_prunes_subtrees() {
 	});
 }
 
+#[test]
+fn finalization_does_not_clobber_unviability() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		// A3 reverts A2.
+		// Finalize A1.
+
+		let (_a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 10],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 3 {
+					add_reversions(h, Some(2));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		let a2_onwards = chain_a[1..].to_vec();
+		assert_leaves(&backend, vec![]);
+		assert_backend_contains_chains(&backend, vec![a2_onwards]);
+
+		virtual_overseer
+	});
+}
+
 // TODO [now]: finalize an unviable block with viable descendants
 // TODO [now]: finalize an unviable block with unviable descendants down the line
 
