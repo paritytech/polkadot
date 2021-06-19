@@ -594,15 +594,16 @@ where
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
-	mut network_stream: BoxStream<'static, NetworkEvent>,
+	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
 	mut request_multiplexer: RequestMultiplexer,
 	metrics: Metrics,
 	shared: Shared,
 ) -> Result<(), UnexpectedAbort> {
+	let mut network_stream = network_stream.fuse();
 	loop {
 		futures::select! {
-			network_event = network_stream.next().fuse() => match network_event {
+			network_event = network_stream.next() => match network_event {
 				None => return Err(UnexpectedAbort::EventStreamConcluded),
 				Some(NetworkEvent::Dht(_))
 				| Some(NetworkEvent::SyncConnected { .. })
@@ -870,7 +871,7 @@ where
 		authority_discovery_service,
 		metrics,
 		sync_oracle,
-	 } = bridge;
+	} = bridge;
 
 	let statement_receiver = request_multiplexer
 		.get_statement_fetching()
