@@ -319,6 +319,24 @@ async fn import_blocks_into(
 	}
 }
 
+async fn import_chains_into_empty(
+	virtual_overseer: &mut VirtualOverseer,
+	backend: &TestBackend,
+	finalized_number: BlockNumber,
+	finalized_hash: Hash,
+	chains: Vec<Vec<(Header, BlockWeight)>>,
+) {
+	for (i, chain)in chains.into_iter().enumerate() {
+		let finalized_base = Some((finalized_number, finalized_hash)).filter(|_| i == 0);
+		import_blocks_into(
+			virtual_overseer,
+			backend,
+			finalized_base,
+			chain,
+		).await;
+	}
+}
+
 // Import blocks all at once. This assumes that the ancestor is known/finalized
 // but none of the other blocks.
 // import blocks 1-by-1. If `finalized_base` is supplied,
@@ -438,6 +456,21 @@ async fn import_all_blocks_into(
 	write_rx.await.unwrap();
 }
 
+async fn finalize_block(
+	virtual_overseer: &mut VirtualOverseer,
+	backend: &TestBackend,
+	block_number: BlockNumber,
+	block_hash: Hash,
+) {
+	let (_, write_tx) = backend.await_next_write();
+
+	virtual_overseer.send(
+		OverseerSignal::BlockFinalized(block_hash, block_number).into()
+	).await;
+
+	write_tx.await.unwrap();
+}
+
 fn extract_info_from_chain(i: usize, chain: &[(Header, BlockWeight)])
 	-> (BlockNumber, Hash, BlockWeight)
 {
@@ -463,6 +496,18 @@ fn assert_backend_contains<'a>(
 			"no entry found for {}",
 			hash,
 		);
+	}
+}
+
+fn assert_backend_contains_chains(
+	backend: &TestBackend,
+	chains: Vec<Vec<(Header, BlockWeight)>>,
+) {
+	for chain in chains {
+		assert_backend_contains(
+			backend,
+			chain.iter().map(|&(ref hdr, _)| hdr)
+		)
 	}
 }
 
@@ -656,25 +701,12 @@ fn leaves_ordered_by_weight_and_then_number() {
 			|h| salt_header(h, b"c"),
 		);
 
-		import_blocks_into(
+		import_chains_into_empty(
 			&mut virtual_overseer,
 			&backend,
-			Some((finalized_number, finalized_hash)),
-			chain_a.clone(),
-		).await;
-
-		import_blocks_into(
-			&mut virtual_overseer,
-			&backend,
-			None,
-			chain_b.clone(),
-		).await;
-
-		import_blocks_into(
-			&mut virtual_overseer,
-			&backend,
-			None,
-			chain_c.clone(),
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone(), chain_c.clone()],
 		).await;
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
@@ -987,20 +1019,115 @@ fn reversion_affects_viability_of_all_subtrees() {
 	});
 }
 
-// TODO [now]: finalize a viable block
+#[test]
+fn finalize_viable_prunes_subtrees() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		//            A2 <- X3
+		// F <- A1 <- A2 <- A3.
+		//      A1 <- B2
+		// F <- C1 <- C2 <- C3
+		//            C2 <- D3
+		//
+		// Finalize A2. Only A2, A3, and X3 should remain.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 10],
+			finalized_number,
+			finalized_hash,
+			|h| salt_header(h, b"a"),
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (x3_hash, chain_x) = construct_chain_on_base(
+			vec![3],
+			2,
+			a2_hash,
+			|h| salt_header(h, b"x"),
+		);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![6],
+			1,
+			a1_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		let (c3_hash, chain_c) = construct_chain_on_base(
+			vec![1, 2, 8],
+			finalized_number,
+			finalized_hash,
+			|h| salt_header(h, b"c"),
+		);
+		let (_, c2_hash, _) = extract_info_from_chain(1, &chain_c);
+
+		let (d3_hash, chain_d) = construct_chain_on_base(
+			vec![7],
+			2,
+			c2_hash,
+			|h| salt_header(h, b"d"),
+		);
+
+		let all_chains = vec![
+			chain_a.clone(),
+			chain_x.clone(),
+			chain_b.clone(),
+			chain_c.clone(),
+			chain_d.clone(),
+		];
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			all_chains.clone(),
+		).await;
+
+		assert_backend_contains_chains(
+			&backend,
+			all_chains.clone(),
+		);
+		assert_leaves(&backend, vec![a3_hash, c3_hash, d3_hash, b2_hash, x3_hash]);
+
+		// Finalize block A2. Now lots of blocks should go missing.
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			2,
+			a2_hash,
+		).await;
+
+
+		// A2 <- A3
+		// A2 <- X3
+
+		assert_leaves(&backend, vec![a3_hash, x3_hash]);
+		assert_eq!(
+			backend.load_first_block_number().unwrap().unwrap(),
+			3,
+		);
+
+		assert_eq!(
+			backend.load_blocks_by_number(3).unwrap(),
+			vec![a3_hash, x3_hash],
+		);
+
+		virtual_overseer
+	});
+}
+
 // TODO [now]: finalize an unviable block with viable descendants
 // TODO [now]: finalize an unviable block with unviable descendants down the line
-
-// TODO [now]: mark blocks as stagnant.
-// TODO [now]: approve stagnant block with unviable descendant.
 
 // TODO [now]; test find best leaf containing with no leaves.
 // TODO [now]: find best leaf containing when required is finalized
 // TODO [now]: find best leaf containing when required is unfinalized.
 // TODO [now]: find best leaf containing when required is ancestor of many leaves.
 
-// TODO [now]: leaf tiebreakers are based on height.
-
-// TODO [now]: test assumption that each active leaf update gives 1 DB write.
 // TODO [now]: test assumption that each approved block gives 1 DB write.
 // TODO [now]: test assumption that each finalized block gives 1 DB write.
