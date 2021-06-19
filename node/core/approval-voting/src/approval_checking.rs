@@ -385,7 +385,10 @@ pub fn tranches_to_approve(
 				return None;
 			}
 
-			let n_assignments = assignments.len();
+			// Count the number of valid validator assignments.
+			let n_assignments = assignments.iter()
+				.filter(|(v_index, _)| v_index.0 < n_validators as u32)
+				.count();
 
 			// count no-shows. An assignment is a no-show if there is no corresponding approval vote
 			// after a fixed duration.
@@ -978,6 +981,59 @@ mod tests {
 				needed: 3,
 				tolerated_missing: 2,
 				next_no_show: None,
+			},
+		);
+	}
+
+	#[test]
+	fn validator_indexes_out_of_range_are_ignored_in_assignments() {
+		let block_tick = 20;
+		let no_show_duration = 10;
+		let needed_approvals = 3;
+
+		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
+			candidate: Default::default(),
+			session: 0,
+			block_assignments: Default::default(),
+			approvals: bitvec![BitOrderLsb0, u8; 0; 3],
+		}.into();
+
+		for i in 0..3 {
+			candidate.mark_approval(ValidatorIndex(i));
+		}
+
+		let approval_entry = approval_db::v1::ApprovalEntry {
+			tranches: vec![
+				// Assignments with invalid validator indexes.
+				approval_db::v1::TrancheEntry {
+					tranche: 1,
+					assignments: (2..5).map(|i| (ValidatorIndex(i), 1.into())).collect(),
+				},
+			],
+			assignments: bitvec![BitOrderLsb0, u8; 1; 3],
+			our_assignment: None,
+			our_approval_sig: None,
+			backing_group: GroupIndex(0),
+			approved: false,
+		}.into();
+
+		let approvals = bitvec![BitOrderLsb0, u8; 0; 3];
+
+		let tranche_now = 10;
+		assert_eq!(
+			tranches_to_approve(
+				&approval_entry,
+				&approvals,
+				tranche_now,
+				block_tick,
+				no_show_duration,
+				needed_approvals,
+			),
+			RequiredTranches::Pending {
+				considered: 10,
+				next_no_show: None,
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
 			},
 		);
 	}
