@@ -17,6 +17,8 @@
 
 use std::collections::HashSet;
 
+use futures::Future;
+use futures::select;
 use lru::LruCache;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -28,7 +30,10 @@ use polkadot_node_network_protocol::PeerId;
 use polkadot_node_network_protocol::request_response::IncomingRequest;
 use polkadot_node_network_protocol::request_response::request::OutgoingResponse;
 use polkadot_node_network_protocol::UnifiedReputationChange as Rep;
+use polkadot_node_network_protocol::request_response::request::OutgoingResponseSender;
+use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
 use polkadot_node_subsystem_util::Fault;
+use polkadot_primitives::v1::CandidateHash;
 use polkadot_subsystem::SubsystemSender;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
@@ -46,7 +51,7 @@ pub const MAX_PARALLEL_IMPORTS: usize = 10;
 /// State for handling incoming `DisputeRequest` messages.
 ///
 /// This is supposed to run as its own task in order to easily impose back pressure on the incoming
-/// request channel.
+/// request channel and at the same time to drop flood messages as fast as possible.
 pub struct DisputesReceiver<Sender> {
 	/// Access to session information:
 	runtime: RuntimeInfo,
@@ -66,6 +71,35 @@ pub struct DisputesReceiver<Sender> {
 	/// in the incoming channel - we should not waste time recovering availability for those, as we
 	/// already know the peer is malicious.
 	banned_peers: LruCache<PeerId, ()>,
+}
+
+/// Messages as handled by this receiver internally.
+enum Message {
+	/// An import got confirmed by the coordinator.
+	///
+	/// We don't need to do anything on this message, we just need to await that futures regularily
+	/// to make sure we are sending out request responses in a timely manner.
+	ConfirmedImport,
+
+	/// A new request has arrived and should be handled.
+	NewRequest(Option<sc_network::config::IncomingRequest>),
+
+	//// A candidate we received a dispute request for was deemed unavailable. We should change the
+	//// peer's reputation accordingly.
+	//ReportCandidateUnavailable(CandidateHash),	
+}
+
+impl Message {
+	async fn receive<Fut: Future>(
+		pending_out: &mut FuturesUnordered<Fut>,
+		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
+	) -> Message {
+		select!(
+			_ = pending_out.next() => Message::ConfirmedImport,
+			msg = pending_requests.next() => Message::NewRequest(msg),
+		)
+	}
+
 }
 
 impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
@@ -89,7 +123,16 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 
 		let mut pending_out = FuturesUnordered::new();
 
-		while let Some(raw) = self.receiver.next().await {
+		loop {
+			let msg = Message::receive(&mut pending_out, &mut self.receiver).await;
+
+			let raw = match msg {
+				// We need to clean up futures, to make sure responses are sent:
+				Message::ConfirmedImport => continue,
+				Message::NewRequest(Some(req)) => req,
+				Message::NewRequest(None) => break,
+			};
+
 			let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
 				raw,
 				vec![COST_INVALID_REQUEST]
@@ -186,11 +229,31 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 					}
 				)
 			).await;
-			pending_out.push(confirmation_rx);
+			pending_out.push(respond_to_request(confirmation_rx, pending_response));
 		}
 		tracing::debug!(
 			target: LOG_TARGET,
 			"Incoming request stream exhausted - shutting down?"
 		);
+	}
+}
+
+async fn respond_to_request(handled: oneshot::Receiver<()>, pending_response: OutgoingResponseSender<DisputeRequest>) {
+	match handled.await {
+		Err(oneshot::Canceled) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Import confirmation oneshot got canceled - should not happen."
+			);
+		}
+		Ok(()) => {
+			if let Err(err) = pending_response.send_response(DisputeResponse::Confirmed) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?err,
+					"Sending response failed."
+				);
+			}
+		}
 	}
 }

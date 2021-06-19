@@ -192,14 +192,13 @@ impl Message {
 		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
 		from_sender: &mut mpsc::Receiver<FromSendingTask>,
 	) -> Message {
-		// We are only fusing here to make `select` happy, in reality we will quit if one of those
-		// streams end:
+		// We are only fusing here to make `select` happy, in reality we will quit if the stream
+		// ends.
 		let from_overseer = ctx.recv().fuse();
-		let from_sender = from_sender.next().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
 			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
-			msg = from_sender => Message::Sender(msg),
+			msg = from_sender.next() => Message::Sender(msg),
 		)
 	}
 }
