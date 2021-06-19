@@ -309,6 +309,126 @@ async fn import_blocks_into(
 	}
 }
 
+// Import blocks all at once. This assumes that the ancestor is known/finalized
+// but none of the other blocks.
+// import blocks 1-by-1. If `finalized_base` is supplied,
+// it will be answered before the first block.
+//
+// some pre-blocks may need to be supplied to answer ancestry requests
+// that gather batches beyond the beginning of the new chain.
+// pre-blocks are those already known by the subsystem, however,
+// the subsystem has no way of knowin that until requesting ancestry.
+async fn import_all_blocks_into(
+	virtual_overseer: &mut VirtualOverseer,
+	backend: &TestBackend,
+	finalized_base: Option<(BlockNumber, Hash)>,
+	pre_blocks: Vec<Header>,
+	blocks: Vec<(Header, BlockWeight)>,
+) {
+	assert!(blocks.len() > 1, "gap only makes sense if importing multiple blocks");
+
+	let head = blocks.last().unwrap().0.clone();
+	let head_hash = head.hash();
+	let head_parent_hash = head.parent_hash;
+
+	let (_, write_rx) = backend.await_next_write();
+	virtual_overseer.send(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		ActivatedLeaf {
+			hash: head_hash,
+			number: head.number,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		}
+	)).into()).await;
+
+	if let Some((f_n, f_h)) = finalized_base {
+		answer_finalized_block_info(virtual_overseer, f_n, f_h).await;
+	}
+
+	// Head is always fetched first.
+	answer_header_request(virtual_overseer, head).await;
+
+	// Answer header and ancestry requests until the parent of head
+	// is imported.
+	{
+		let find_block_header = |expected_hash| {
+			pre_blocks.iter().cloned()
+				.chain(blocks.iter().map(|(h, _)| h.clone()))
+				.find(|hdr| hdr.hash() == expected_hash)
+				.unwrap()
+		};
+
+		let mut behind_head = 0;
+		loop {
+			let nth_ancestor_of_head = |n: usize| {
+				// blocks: [d, e, f, head]
+				// pre: [a, b, c]
+				//
+				// [a, b, c, d, e, f, head]
+				// [6, 5, 4, 3, 2, 1, 0]
+
+				let new_ancestry_end = blocks.len() - 1;
+				if n > new_ancestry_end {
+					// [6, 5, 4] -> [2, 1, 0]
+					let n_in_pre = n - blocks.len();
+					let pre_blocks_end = pre_blocks.len() - 1;
+					pre_blocks[pre_blocks_end - n_in_pre].clone()
+				} else {
+					let blocks_end = blocks.len() - 1;
+					blocks[blocks_end - n].0.clone()
+				}
+			};
+
+			match virtual_overseer.recv().await {
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: h,
+					k,
+					response_channel: tx,
+				}) => {
+					let prev_response = nth_ancestor_of_head(behind_head);
+					assert_eq!(h, prev_response.hash());
+
+					let _ = tx.send(Ok(
+						(0..k as usize).map(|n| n + behind_head + 1)
+							.map(nth_ancestor_of_head)
+							.map(|h| h.hash())
+							.collect()
+					));
+
+					for _ in 0..k {
+						assert_matches!(
+							virtual_overseer.recv().await,
+							AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+								let header = find_block_header(h);
+								let _ = tx.send(Ok(Some(header)));
+							}
+						)
+					}
+
+					behind_head = behind_head + k as usize;
+				}
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					let header = find_block_header(h);
+					let _ = tx.send(Ok(Some(header)));
+
+					// Assuming that `determine_new_blocks` uses these
+					// instead of ancestry: 1.
+					behind_head += 1;
+				}
+				AllMessages::ChainApi(ChainApiMessage::BlockWeight(h, tx)) => {
+					let (_, weight) = blocks.iter().find(|(hdr, _)| hdr.hash() == h).unwrap();
+					let _ = tx.send(Ok(Some(*weight)));
+
+					// Last weight has been returned. Time to go.
+					if h == head_hash { break }
+				}
+				_ => panic!("unexpected message"),
+			}
+		}
+	}
+	write_rx.await.unwrap();
+}
+
 fn extract_info_from_chain(i: usize, chain: &[(Header, BlockWeight)])
 	-> (BlockNumber, Hash, BlockWeight)
 {
@@ -554,6 +674,56 @@ fn leaves_ordered_by_weight_and_then_number() {
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_c.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![c2_hash, a3_hash, b2_hash]);
+		virtual_overseer
+	});
+}
+
+#[test]
+fn subtrees_imported_even_with_gaps() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//            A2 <- B3 <- B4 <- B5
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (b5_hash, chain_b) = construct_chain_on_base(
+			vec![4, 4, 5],
+			2,
+			a2_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		import_all_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			Vec::new(),
+			chain_a.clone(),
+		).await;
+
+		import_all_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			vec![chain_a[0].0.clone(), chain_a[1].0.clone()],
+			chain_b.clone(),
+		).await;
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![b5_hash, a3_hash]);
+
 		virtual_overseer
 	});
 }
