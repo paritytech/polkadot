@@ -123,14 +123,7 @@ pub trait Network: Clone + Send + 'static {
 #[async_trait]
 impl Network for Arc<NetworkService<Block, Hash>> {
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
-		NetworkService::event_stream(self, "polkadot-network-bridge").filter_map(|e| async move {
-			match e {
-				NetworkEvent::NotificationStreamOpened { .. }
-				| NetworkEvent::NotificationStreamClosed { .. }
-				| NetworkEvent::NotificationsReceived { .. } => Some(e),
-				_ => None,
-			}
-		}).boxed()
+		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
 	async fn add_to_peers_set(
