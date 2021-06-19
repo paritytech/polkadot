@@ -26,6 +26,7 @@ use sp_application_crypto::AppKey;
 use sp_keystore::testing::KeyStore;
 use std::sync::Arc;
 use std::time::Duration;
+use std::iter::FromIterator as _;
 use assert_matches::assert_matches;
 use polkadot_node_network_protocol::{view, ObservedRole, our_view};
 use polkadot_subsystem::jaeger;
@@ -64,9 +65,11 @@ fn prewarmed_state(
 				},
 		},
 		peer_views: peers
-			.into_iter()
+			.iter()
+			.cloned()
 			.map(|peer| (peer, view!(relay_parent)))
 			.collect(),
+		gossip_peers: peers.into_iter().collect(),
 		view: our_view!(relay_parent),
 	}
 }
@@ -425,9 +428,13 @@ fn do_not_relay_message_twice() {
 		make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 	executor::block_on(async move {
+		let gossip_peers = HashSet::from_iter(vec![
+			peer_a.clone(), peer_b.clone(),
+		].into_iter());
 		relay_message(
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
+			&gossip_peers,
 			&mut state.peer_views,
 			validator.clone(),
 			msg.clone(),
@@ -460,6 +467,7 @@ fn do_not_relay_message_twice() {
 		relay_message(
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
+			&gossip_peers,
 			&mut state.peer_views,
 			validator.clone(),
 			msg.clone(),

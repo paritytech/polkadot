@@ -35,7 +35,7 @@ use polkadot_node_network_protocol::{
 	request_response::{OutgoingRequest, Requests, Recipient},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::{Block, Hash};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
 use crate::validator_discovery::AuthorityDiscovery;
@@ -302,4 +302,18 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			if_disconnected,
 		);
 	}
+}
+
+/// We assume one peer_id per authority_id.
+pub async fn get_peer_id_by_authority_id<AD: AuthorityDiscovery>(
+	authority_discovery: &mut AD,
+	authority: AuthorityDiscoveryId,
+) -> Option<PeerId> {
+	// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
+	// to be very quick.
+	authority_discovery
+		.get_addresses_by_authority_id(authority).await
+		.into_iter()
+		.flat_map(|list| list.into_iter())
+		.find_map(|addr| parse_addr(addr).ok().map(|(p, _)| p))
 }
