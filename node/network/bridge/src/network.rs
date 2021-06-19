@@ -16,11 +16,9 @@
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::prelude::*;
 use futures::stream::BoxStream;
 
@@ -36,7 +34,6 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
-use polkadot_subsystem::{SubsystemError, SubsystemResult};
 
 use crate::validator_discovery::AuthorityDiscovery;
 
@@ -47,62 +44,32 @@ use super::LOG_TARGET;
 /// This function is only used internally by the network-bridge, which is responsible to only send
 /// messages that are compatible with the passed peer set, as that is currently not enforced by
 /// this function. These are messages of type `WireMessage` parameterized on the matching type.
-pub(crate) async fn send_message<M, I>(
+pub(crate) fn send_message<M>(
 	net: &mut impl Network,
-	peers: I,
+	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
 	message: M,
 	metrics: &super::Metrics,
-) -> SubsystemResult<()>
+)
 where
 	M: Encode + Clone,
-	I: IntoIterator<Item = PeerId>,
-	I::IntoIter: ExactSizeIterator,
 {
-	let mut message_producer = stream::iter({
-		let peers = peers.into_iter();
-		let n_peers = peers.len();
-		let mut message = {
-			let encoded = message.encode();
-			metrics.on_notification_sent(peer_set, encoded.len(), n_peers);
+	let message = {
+		let encoded = message.encode();
+		metrics.on_notification_sent(peer_set, encoded.len(), peers.len());
+		encoded
+	};
 
-			Some(encoded)
-		};
-
-		peers.enumerate().map(move |(i, peer)| {
-			// optimization: avoid cloning the message for the last peer in the
-			// list. The message payload can be quite large. If the underlying
-			// network used `Bytes` this would not be necessary.
-			let message = if i == n_peers - 1 {
-				message
-					.take()
-					.expect("Only taken in last iteration of loop, never afterwards; qed")
-			} else {
-				message
-					.as_ref()
-					.expect("Only taken in last iteration of loop, we are not there yet; qed")
-					.clone()
-			};
-
-			Ok(NetworkAction::WriteNotification(peer, peer_set, message))
-		})
+	// optimization: avoid cloning the message for the last peer in the
+	// list. The message payload can be quite large. If the underlying
+	// network used `Bytes` this would not be necessary.
+	let last_peer = peers.pop();
+	peers.into_iter().for_each(|peer| {
+		net.write_notification(peer, peer_set, message.clone());
 	});
-
-	net.action_sink().send_all(&mut message_producer).await
-}
-
-/// An action to be carried out by the network.
-///
-/// This type is used for implementing `Sink` in order to communicate asynchronously with the
-/// underlying network implementation in the `Network` trait.
-#[derive(Debug, PartialEq)]
-pub enum NetworkAction {
-	/// Note a change in reputation for a peer.
-	ReputationChange(PeerId, Rep),
-	/// Disconnect a peer from the given peer-set.
-	DisconnectPeer(PeerId, PeerSet),
-	/// Write a notification to a given peer on the given peer-set.
-	WriteNotification(PeerId, PeerSet, Vec<u8>),
+	if let Some(peer) = last_peer {
+		net.write_notification(peer, peer_set, message);
+	}
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
@@ -117,14 +84,18 @@ pub trait Network: Clone + Send + 'static {
 	/// Ask the network to keep a substream open with these nodes and not disconnect from them
 	/// until removed from the protocol's peer set.
 	/// Note that `out_peers` setting has no effect on this.
-	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	/// Cancels the effects of `add_to_peers_set`.
-	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	async fn add_to_peers_set(
+		&mut self,
+		protocol: Cow<'static, str>,
+		multiaddresses: HashSet<Multiaddr>,
+	) -> Result<(), String>;
 
-	/// Get access to an underlying sink for all network actions.
-	fn action_sink<'a>(
-		&'a mut self,
-	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>;
+	/// Cancels the effects of `add_to_peers_set`.
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: Cow<'static, str>,
+		multiaddresses: HashSet<Multiaddr>,
+	) -> Result<(), String>;
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -135,47 +106,18 @@ pub trait Network: Clone + Send + 'static {
 	);
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
-	fn report_peer(
-		&mut self,
-		who: PeerId,
-		cost_benefit: Rep,
-	) -> BoxFuture<SubsystemResult<()>> {
-		async move {
-			self.action_sink()
-				.send(NetworkAction::ReputationChange(who, cost_benefit))
-				.await
-		}
-		.boxed()
-	}
+	fn report_peer(&self, who: PeerId, cost_benefit: Rep);
 
 	/// Disconnect a given peer from the peer set specified without harming reputation.
-	fn disconnect_peer(
-		&mut self,
-		who: PeerId,
-		peer_set: PeerSet,
-	) -> BoxFuture<SubsystemResult<()>> {
-		async move {
-			self.action_sink()
-				.send(NetworkAction::DisconnectPeer(who, peer_set))
-				.await
-		}
-		.boxed()
-	}
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet);
 
 	/// Write a notification to a peer on the given peer-set's protocol.
 	fn write_notification(
-		&mut self,
+		&self,
 		who: PeerId,
 		peer_set: PeerSet,
 		message: Vec<u8>,
-	) -> BoxFuture<SubsystemResult<()>> {
-		async move {
-			self.action_sink()
-				.send(NetworkAction::WriteNotification(who, peer_set, message))
-				.await
-		}
-		.boxed()
-	}
+	);
 }
 
 #[async_trait]
@@ -184,56 +126,42 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
-	async fn add_to_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+	async fn add_to_peers_set(
+		&mut self,
+		protocol: Cow<'static, str>,
+		multiaddresses: HashSet<Multiaddr>,
+	) -> Result<(), String> {
 		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol.clone(), multiaddresses.clone())?;
+	async fn remove_from_peers_set(
+		&mut self,
+		protocol: Cow<'static, str>,
+		multiaddresses: HashSet<Multiaddr>,
+	) -> Result<(), String> {
+		sc_network::NetworkService::remove_peers_from_reserved_set(
+			&**self,
+			protocol.clone(),
+			multiaddresses.clone(),
+		)?;
 		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
 	}
 
-	fn action_sink<'a>(
-		&'a mut self,
-	) -> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>> {
-		use futures::task::{Context, Poll};
+	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
+		sc_network::NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
+	}
 
-		// wrapper around a NetworkService to make it act like a sink.
-		struct ActionSink<'b>(&'b NetworkService<Block, Hash>);
+	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
+		sc_network::NetworkService::disconnect_peer(&**self, who, peer_set.into_protocol_name());
+	}
 
-		impl<'b> Sink<NetworkAction> for ActionSink<'b> {
-			type Error = SubsystemError;
-
-			fn poll_ready(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
-				Poll::Ready(Ok(()))
-			}
-
-			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
-				match action {
-					NetworkAction::ReputationChange(peer, cost_benefit) => {
-						self.0.report_peer(peer, cost_benefit.into_base_rep())
-					}
-					NetworkAction::DisconnectPeer(peer, peer_set) => self
-						.0
-						.disconnect_peer(peer, peer_set.into_protocol_name()),
-					NetworkAction::WriteNotification(peer, peer_set, message) => self
-						.0
-						.write_notification(peer, peer_set.into_protocol_name(), message),
-				}
-
-				Ok(())
-			}
-
-			fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
-				Poll::Ready(Ok(()))
-			}
-
-			fn poll_close(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
-				Poll::Ready(Ok(()))
-			}
-		}
-
-		Box::pin(ActionSink(&**self))
+	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
+		sc_network::NetworkService::write_notification(
+			&**self,
+			who,
+			peer_set.into_protocol_name(),
+			message,
+		);
 	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
