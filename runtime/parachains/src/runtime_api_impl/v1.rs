@@ -17,18 +17,21 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
 use sp_runtime::traits::One;
-use primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
-};
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
+use sp_std::collections::btree_map::BTreeMap;
+use sp_std::prelude::*;
 
+use primitives::v1::{
+	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreIndex,
+	CoreOccupied, CoreState, DisputeState, GroupIndex, GroupRotationInfo, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
+	PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
+};
+
+use crate::{
+	configuration, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info, shared,
+};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
@@ -328,4 +331,11 @@ pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
 	<paras::Module<T>>::code_by_hash(hash)
+}
+
+/// Implementation for the `active_disputes` function of the runtime API.
+pub fn active_disputes<T: initializer::Config>(
+	_index: SessionIndex,
+) -> Vec<(CandidateHash, DisputeState<T::BlockNumber>)> {
+	Vec::new()
 }

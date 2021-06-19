@@ -39,10 +39,11 @@ use polkadot_runtime_parachains::scheduler as parachains_scheduler;
 use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash as HashT,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, SessionInfo as SessionInfoData, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
@@ -701,6 +702,10 @@ sp_api::impl_runtime_apis! {
 
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_impl::validation_code_by_hash::<Runtime>(hash)
+		}
+
+		fn active_disputes(index: SessionIndex) -> Vec<(CandidateHash, DisputeState<BlockNumber>)> {
+			runtime_impl::active_disputes::<Runtime>(index)
 		}
 	}
 

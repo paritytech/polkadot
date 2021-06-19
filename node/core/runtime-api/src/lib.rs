@@ -136,6 +136,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
+			ActiveDisputes(relay_parent, session_index, active_disputes) =>
+				self.requests_cache.cache_active_disputes((relay_parent, session_index), active_disputes),
 		}
 	}
 
@@ -204,6 +206,9 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			Request::CurrentBabeEpoch(sender) =>
 				query!(current_babe_epoch(), sender)
 					.map(|sender| Request::CurrentBabeEpoch(sender)),
+			Request::ActiveDisputes(session_index, sender) =>
+				query!(active_disputes(session_index), sender)
+					.map(|sender| Request::ActiveDisputes(session_index, sender)),
 		}
 	}
 
@@ -353,6 +358,7 @@ where
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), sender),
 		Request::InboundHrmpChannelsContents(id, sender) => query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
+		Request::ActiveDisputes(session_index, sender) => query!(ActiveDisputes, active_disputes(session_index), sender),
 	}
 }
 

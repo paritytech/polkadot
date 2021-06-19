@@ -36,17 +36,17 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, ValidationResult, BlockWeight,
+	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, ErasureChunk,
+	PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+	OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_procmacro_subsystem_dispatch_gen::subsystem_dispatch_gen;
 use polkadot_statement_table::v1::Misbehavior;
@@ -567,6 +567,8 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
+	/// Get all active disputes for the given session.
+	ActiveDisputes(SessionIndex, RuntimeApiSender<Vec<(CandidateHash, DisputeState<BlockNumber>)>>),
 }
 
 /// A message to the Runtime API subsystem.

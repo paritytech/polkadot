@@ -17,10 +17,10 @@
 use super::*;
 
 use polkadot_primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
-	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
-	CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
-	InboundHrmpMessage, SessionInfo, AuthorityDiscoveryId, ValidationCodeHash,
+	AuthorityDiscoveryId, BlockNumber, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreState, DisputeState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_core::testing::TaskExecutor;
@@ -147,6 +147,10 @@ sp_api::mock_impl_runtime_apis! {
 			hash: ValidationCodeHash,
 		) -> Option<ValidationCode> {
 			self.validation_code_by_hash.get(&hash).map(|c| c.clone())
+		}
+
+		fn active_disputes(_index: SessionIndex) -> Vec<(CandidateHash, DisputeState<BlockNumber>)> {
+			Vec::new()
 		}
 	}
 

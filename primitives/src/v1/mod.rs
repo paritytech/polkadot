@@ -948,6 +948,10 @@ sp_api::decl_runtime_apis! {
 		/// Get the validation code from its hash.
 		#[skip_initialize_block]
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
+
+		/// Get all active disputes for the given session.
+		#[skip_initialize_block]
+		fn active_disputes(index: SessionIndex) -> Vec<(CandidateHash, DisputeState<N>)>;
 	}
 }
 
@@ -1204,7 +1208,7 @@ pub struct DisputeStatementSet {
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// The entire state of a dispute.
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug)]
 pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
 	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.
@@ -1214,6 +1218,17 @@ pub struct DisputeState<N = BlockNumber> {
 	pub start: N,
 	/// The block number at which the dispute concluded on-chain.
 	pub concluded_at: Option<N>,
+}
+
+// FIXME
+#[cfg(feature = "std")]
+impl<N> MallocSizeOf for DisputeState<N> {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
 }
 
 /// Parachains inherent-data passed into the runtime by a block author

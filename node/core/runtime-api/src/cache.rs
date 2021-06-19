@@ -21,8 +21,8 @@ use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
+	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
 	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
@@ -41,6 +41,7 @@ const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
 const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
 const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
+const ACTIVE_DISPUTES_CACHE_SIZE: usize = 64 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -84,6 +85,7 @@ pub(crate) struct RequestResultCache {
 	dmq_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	inbound_hrmp_channels_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
+	active_disputes: MemoryLruCache<(Hash, SessionIndex), ResidentSizeOf<Vec<(CandidateHash, DisputeState<BlockNumber>)>>>,
 }
 
 impl Default for RequestResultCache {
@@ -104,6 +106,7 @@ impl Default for RequestResultCache {
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
+			active_disputes: MemoryLruCache::new(ACTIVE_DISPUTES_CACHE_SIZE),
 		}
 	}
 }
@@ -228,6 +231,14 @@ impl RequestResultCache {
 	pub(crate) fn cache_current_babe_epoch(&mut self, relay_parent: Hash, epoch: Epoch) {
 		self.current_babe_epoch.insert(relay_parent, DoesNotAllocate(epoch));
 	}
+
+	pub(crate) fn active_disputes(&mut self, key: (Hash, SessionIndex)) -> Option<&Vec<(CandidateHash, DisputeState<BlockNumber>)>> {
+		self.active_disputes.get(&key).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_active_disputes(&mut self, key: (Hash, SessionIndex), disputes: Vec<(CandidateHash, DisputeState<BlockNumber>)>) {
+		self.active_disputes.insert(key, ResidentSizeOf(disputes));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -246,4 +257,5 @@ pub(crate) enum RequestResult {
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(Hash, ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>),
 	CurrentBabeEpoch(Hash, Epoch),
+	ActiveDisputes(Hash, SessionIndex, Vec<(CandidateHash, DisputeState<BlockNumber>)>),
 }
