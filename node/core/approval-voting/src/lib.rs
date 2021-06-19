@@ -546,6 +546,7 @@ struct State<T> {
 	db: T,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	approvals_cache: lru::LruCache<Hash, ApprovalState>,
 }
 
 unsafe impl<T> Send for State<T> {}
@@ -647,6 +648,7 @@ async fn run<C>(
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
 		clock,
 		assignment_criteria,
+		approvals_cache: lru::LruCache::new(128usize),
 	};
 
 	let mut wakeups = Wakeups::default();

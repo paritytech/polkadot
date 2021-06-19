@@ -197,6 +197,7 @@ fn blank_state() -> State<TestStore> {
 		db: TestStore::default(),
 		clock: Box::new(MockClock::default()),
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| { Ok(0) })),
+		approvals_cache: lru::LruCache::new(128usize),
 	}
 }
 

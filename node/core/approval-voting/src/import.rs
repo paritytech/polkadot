@@ -626,6 +626,7 @@ mod tests {
 			db: TestDB::default(),
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
+			approvals_cache: lru::LruCache::new(128usize),
 		}
 	}
 
