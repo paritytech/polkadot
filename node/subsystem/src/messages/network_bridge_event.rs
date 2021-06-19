@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::convert::TryFrom;
+use std::collections::HashSet;
 
 pub use sc_network::{ReputationChange, PeerId};
 
@@ -29,6 +30,15 @@ pub enum NetworkBridgeEvent<M> {
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
+
+	/// Our neighbors in the new gossip topology.
+	/// We're not necessarily connected to all of them.
+	///
+	/// This message is issued only on the validation peer set.
+	///
+	/// Note, that the distribution subsystems need to handle the last
+	/// view update of the newly added gossip peers manually.
+	NewGossipTopology(HashSet<PeerId>),
 
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),
@@ -64,6 +74,8 @@ impl<M> NetworkBridgeEvent<M> {
 				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer)
 				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+			NetworkBridgeEvent::NewGossipTopology(ref peers)
+				=> NetworkBridgeEvent::NewGossipTopology(peers.clone()),
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
 				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)

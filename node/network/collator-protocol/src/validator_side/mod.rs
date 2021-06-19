@@ -899,6 +899,9 @@ where
 			state.peer_data.remove(&peer_id);
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
+		NewGossipTopology(..) => {
+			// impossibru!
+		}
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(state, peer_id, view).await?;
 		},
