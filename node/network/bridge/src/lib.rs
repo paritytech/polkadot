@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 /// To be added to [`NetworkConfiguration::extra_sets`].
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
-use std::collections::{HashMap, hash_map};
+use std::collections::{HashMap, hash_map, HashSet};
 use std::iter::ExactSizeIterator;
 use std::sync::Arc;
 
@@ -58,7 +58,7 @@ mod validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 mod network;
-use network::{Network, send_message};
+use network::{Network, send_message, get_peer_id_by_authority_id};
 
 /// Request multiplexer for combining the multiple request sources into a single `Stream` of `AllMessages`.
 mod multiplexer;
@@ -556,6 +556,34 @@ where
 
 						network_service = ns;
 						authority_discovery_service = ads;
+					}
+					NetworkBridgeMessage::NewGossipTopology {
+						our_neighbors,
+					} => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							action = "NewGossipTopology",
+							neighbors = our_neighbors.len(),
+							"Gossip topology has changed",
+						);
+
+						let ads = &mut authority_discovery_service;
+						let mut gossip_peers = HashSet::with_capacity(our_neighbors.len());
+						for authority in our_neighbors {
+							let addr = get_peer_id_by_authority_id(
+								ads,
+								authority.clone(),
+							).await;
+
+							if let Some(peer_id) = addr {
+								gossip_peers.insert(peer_id);
+							}
+						}
+
+						dispatch_validation_event_to_all_unbounded(
+							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
+							ctx.sender(),
+						);
 					}
 				}
 				Err(e) => return Err(e.into()),
