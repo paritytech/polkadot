@@ -281,7 +281,7 @@ fn load_ancestor(
 	let mut current_entry = None;
 
 	let segment_length = (block_number - ancestor_number) + 1;
-	for _ in std::iter::repeat(()).take(segment_length as usize) {
+	for _ in 0..segment_length {
 		match backend.load_block_entry(&current_hash)? {
 			None => return Ok(None),
 			Some(entry) => {
