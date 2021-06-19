@@ -331,8 +331,9 @@ fn add_block(
 		}
 	);
 
-	// 2. Update leaves if parent was a viable leaf or the parent is unknown.
-	if leaves.remove(&parent_hash) || parent_entry.is_none() {
+	// 2. Update leaves if inherited viability is fine.
+	if inherited_viability.is_none() {
+		leaves.remove(&parent_hash);
 		leaves.insert(LeafEntry { block_hash, block_number, weight });
 		backend.write_leaves(leaves);
 	}

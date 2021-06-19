@@ -100,11 +100,10 @@ struct LeafEntry {
 
 impl PartialOrd for LeafEntry {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-		if self.weight == other.weight {
-			self.block_number.partial_cmp(&other.block_number)
-		} else {
-			self.weight.partial_cmp(&other.weight)
-		}
+		let ord = self.weight.cmp(&other.weight)
+				.then(self.block_number.cmp(&other.block_number));
+
+		if ord.is_ne() { Some(ord) } else { None }
 	}
 }
 

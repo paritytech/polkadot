@@ -309,6 +309,14 @@ async fn import_blocks_into(
 	}
 }
 
+fn extract_info_from_chain(i: usize, chain: &[(Header, BlockWeight)])
+	-> (BlockNumber, Hash, BlockWeight)
+{
+	let &(ref header, weight) = &chain[i];
+
+	(header.number, header.hash(), weight)
+}
+
 fn assert_backend_contains<'a>(
 	backend: &TestBackend,
 	headers: impl IntoIterator<Item = &'a Header>,
@@ -415,7 +423,7 @@ fn import_two_subtrees_on_finalized() {
 			vec![2],
 			finalized_number,
 			finalized_hash,
-			|h| salt_header(h, b"a"),
+			|h| salt_header(h, b"b"),
 		);
 
 		import_blocks_into(
@@ -439,6 +447,115 @@ fn import_two_subtrees_on_finalized() {
 
 		virtual_overseer
 	})
+}
+
+#[test]
+fn import_two_subtrees_on_nonzero_finalized() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 100;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (a_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let (b_hash, chain_b) = construct_chain_on_base(
+			vec![2],
+			finalized_number,
+			finalized_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_b.clone(),
+		).await;
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 101);
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![b_hash, a_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn leaves_ordered_by_weight_and_then_number() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//      A1 <- B2
+		// F <- C1 <- C2
+		//
+		// expected_leaves: [(C2, 3), (A3, 2), (B2, 2)]
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 1, 2],
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![2],
+			1,
+			a1_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		let (c2_hash, chain_c) = construct_chain_on_base(
+			vec![1, 3],
+			finalized_number,
+			finalized_hash,
+			|h| salt_header(h, b"c"),
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_b.clone(),
+		).await;
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_c.clone(),
+		).await;
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_c.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![c2_hash, a3_hash, b2_hash]);
+		virtual_overseer
+	});
 }
 
 // TODO [now]: importing a block with reversion
