@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
-	FromOverseer, OverseerSignal,
+	FromOverseer, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -42,7 +42,7 @@ use polkadot_primitives::v1::{
 	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex, ApprovalVote,
 };
-use polkadot_node_primitives::{ValidationResult, PoV};
+use polkadot_node_primitives::{ValidationResult, PoV, InvalidCandidate};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
@@ -56,7 +56,7 @@ use kvdb::KeyValueDB;
 
 use futures::prelude::*;
 use futures::future::RemoteHandle;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
@@ -548,6 +548,8 @@ struct State<T> {
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
+unsafe impl<T> Send for State<T> {}
+
 impl<T> State<T> {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
 		self.session_window.session_info(i)
@@ -623,7 +625,12 @@ enum Action {
 	Conclude,
 }
 
-type BackgroundTaskMap = BTreeMap<BlockNumber, Vec<RemoteHandle<()>>>;
+enum ApprovalState {
+	Approved,
+	Failed(InvalidCandidate),
+}
+
+type BackgroundTaskMap = BTreeMap<BlockNumber, Vec<RemoteHandle<ApprovalState>>>;
 
 async fn run<C>(
 	mut ctx: C,
@@ -633,7 +640,6 @@ async fn run<C>(
 ) -> SubsystemResult<()>
 	where C: SubsystemContext<Message = ApprovalVotingMessage>
 {
-	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
 		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
@@ -649,7 +655,6 @@ async fn run<C>(
 	let mut background_tasks = BTreeMap::new();
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
-	let mut background_rx = background_rx.fuse();
 
 	let db_writer = &*subsystem.db;
 
@@ -689,27 +694,15 @@ async fn run<C>(
 
 				actions
 			}
-			background_request = background_rx.next().fuse() => {
-				if let Some(req) = background_request {
-					handle_background_request(
-						&mut ctx,
-						&mut state,
-						&subsystem.metrics,
-						req,
-					).await?
-				} else {
-					Vec::new()
-				}
-			}
 		};
 
 		if handle_actions(
 			&mut ctx,
+			&mut state,
 			&subsystem.metrics,
 			&mut wakeups,
 			db_writer,
 			subsystem.db_config,
-			&background_tx,
 			&mut background_tasks,
 			&mut subsystem.mode,
 			actions,
@@ -724,11 +717,11 @@ async fn run<C>(
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
 	ctx: &mut impl SubsystemContext,
+	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	db: &dyn KeyValueDB,
 	db_config: DatabaseConfig,
-	background_tx: &mpsc::Sender<BackgroundRequest>,
 	background_tasks: &mut BackgroundTaskMap,
 	mode: &mut Mode,
 	actions: impl IntoIterator<Item = Action>,
@@ -772,22 +765,6 @@ async fn handle_actions(
 					indirect_cert,
 					candidate_index,
 				).into());
-
-				let handle = launch_approval(
-					ctx,
-					metrics.clone(),
-					background_tx.clone(),
-					session,
-					&candidate,
-					validator_index,
-					block_hash,
-					candidate_index as _,
-					backing_group,
-				).await?;
-
-				if let Some(handle) = handle {
-					background_tasks.entry(relay_block_number).or_default().push(handle);
-				}
 			}
 			Action::BecomeActive => {
 				*mode = Mode::Active;
@@ -1035,36 +1012,6 @@ async fn handle_from_overseer(
 	};
 
 	Ok(actions)
-}
-
-async fn handle_background_request(
-	ctx: &mut impl SubsystemContext,
-	state: &State<impl DBReader>,
-	metrics: &Metrics,
-	request: BackgroundRequest,
-) -> SubsystemResult<Vec<Action>> {
-	match request {
-		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, metrics, vote_request)
-		}
-		BackgroundRequest::CandidateValidation(
-			validation_data,
-			validation_code,
-			descriptor,
-			pov,
-			tx,
-		) => {
-			ctx.send_message(CandidateValidationMessage::ValidateFromExhaustive(
-				validation_data,
-				validation_code,
-				descriptor,
-				pov,
-				tx,
-			).into()).await;
-
-			Ok(Vec::new())
-		}
-	}
 }
 
 async fn handle_approved_ancestor(
@@ -1925,14 +1872,13 @@ fn process_wakeup(
 async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
 	metrics: Metrics,
-	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
 	candidate: &CandidateReceipt,
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	candidate_index: usize,
 	backing_group: GroupIndex,
-) -> SubsystemResult<Option<RemoteHandle<()>>> {
+) -> SubsystemResult<Option<RemoteHandle<ApprovalState>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -1988,6 +1934,7 @@ async fn launch_approval(
 
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
+	let mut sender = ctx.sender().clone();
 	let background = async move {
 		// Force the move of the timer into the background task.
 		let _timer = timer;
@@ -1997,35 +1944,38 @@ async fn launch_approval(
 			.with_stage(jaeger::Stage::ApprovalChecking);
 
 		let available_data = match a_rx.await {
-			Err(_) => return,
+			Err(e) => return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string())),
 			Ok(Ok(a)) => a,
-			Ok(Err(RecoveryError::Unavailable)) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Data unavailable for candidate {:?}",
-					(candidate_hash, candidate.descriptor.para_id),
-				);
-				// do nothing. we'll just be a no-show and that'll cause others to rise up.
-				metrics_guard.take().on_approval_unavailable();
-				return;
-			}
-			Ok(Err(RecoveryError::Invalid)) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Data recovery invalid for candidate {:?}",
-					(candidate_hash, candidate.descriptor.para_id),
-				);
+			Ok(Err(e)) => {
+				match &e {
+					&RecoveryError::Unavailable => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Data unavailable for candidate {:?}",
+							(candidate_hash, candidate.descriptor.para_id),
+						);
+						// do nothing. we'll just be a no-show and that'll cause others to rise up.
+						metrics_guard.take().on_approval_unavailable();
+					}
+					&RecoveryError::Invalid => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Data recovery invalid for candidate {:?}",
+							(candidate_hash, candidate.descriptor.para_id),
+						);
 
-				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
-				// https://github.com/paritytech/polkadot/issues/2176
-				metrics_guard.take().on_approval_invalid();
-				return;
+						// TODO: dispute. Either the merkle trie is bad or the erasure root is.
+						// https://github.com/paritytech/polkadot/issues/2176
+						metrics_guard.take().on_approval_invalid();
+					}
+				}
+				return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string()));
 			}
 		};
 
 		let validation_code = match code_rx.await {
-			Err(_) => return,
-			Ok(Err(_)) => return,
+			Err(e) => return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string())),
+			Ok(Err(e)) => return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string())),
 			Ok(Ok(Some(code))) => code,
 			Ok(Ok(None)) => {
 				tracing::warn!(
@@ -2038,24 +1988,25 @@ async fn launch_approval(
 				// No dispute necessary, as this indicates that the chain is not behaving
 				// according to expectations.
 				metrics_guard.take().on_approval_unavailable();
-				return;
+				return ApprovalState::Failed(InvalidCandidate::InvalidOutputs);
 			}
 		};
 
 		let (val_tx, val_rx) = oneshot::channel();
 
 		let para_id = candidate.descriptor.para_id;
-		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
+
+		sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
 			candidate.descriptor,
 			available_data.pov,
 			val_tx,
-		)).await;
+		).into()).await;
 
 		match val_rx.await {
-			Err(_) => return,
-			Ok(Ok(ValidationResult::Valid(_, _))) => {
+			Err(e) => return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string())),
+			Ok(Ok(ValidationResult::Valid(commitments, validation_data))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
@@ -2066,12 +2017,9 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
-				let _ = metrics_guard.take();
-				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
-					validator_index,
-					block_hash,
-					candidate_index,
-				})).await;
+				let metrics = metrics_guard.take();
+
+				return ApprovalState::Approved;
 			}
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
@@ -2085,6 +2033,8 @@ async fn launch_approval(
 				// TODO: issue dispute, but not for timeouts.
 				// https://github.com/paritytech/polkadot/issues/2176
 				metrics_guard.take().on_approval_invalid();
+
+				return ApprovalState::Failed(reason);
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2093,7 +2043,7 @@ async fn launch_approval(
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();
-				return
+				return ApprovalState::Failed(InvalidCandidate::ExecutionError(e.to_string()));
 			}
 		}
 	};
@@ -2107,7 +2057,7 @@ async fn launch_approval(
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
 fn issue_approval(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl SubsystemSender,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
 	request: ApprovalVoteRequest,
