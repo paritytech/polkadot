@@ -73,31 +73,6 @@ impl TestBackend {
 
 		(pos, rx)
 	}
-
-	// return a receiver, expecting its position to be the given one.
-	fn await_next_write_expecting(&self, expected_pos: usize) -> oneshot::Receiver<()> {
-		let (pos, rx) = self.await_next_write();
-		assert_eq!(pos, expected_pos);
-
-		rx
-	}
-
-	// return a receiver that will wake up after n other receivers,
-	// inserting receivers as necessary.
-	//
-	// panics if there are already more than n receivers.
-	fn await_nth_write(&self, n: usize) -> oneshot::Receiver<()> {
-		assert_ne!(n, 0, "invalid parameter 0");
-		let expected_pos = n - 1;
-
-		loop {
-			let (pos, rx) = self.await_next_write();
-			assert!(pos <= expected_pos, "pending awaits {} > {}", pos, expected_pos);
-			if pos == expected_pos {
-				break rx;
-			}
-		}
-	}
 }
 
 impl Default for TestBackend {
@@ -778,7 +753,7 @@ fn reversion_removes_viability_of_chain() {
 		//
 		// A3 reverts A1
 
-		let (a3_hash, chain_a) = construct_chain_on_base(
+		let (_a3_hash, chain_a) = construct_chain_on_base(
 			vec![1, 2, 3],
 			finalized_number,
 			finalized_hash,
@@ -809,7 +784,7 @@ fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
 		//
 		// A3 reverts A2
 
-		let (a3_hash, chain_a) = construct_chain_on_base(
+		let (_a3_hash, chain_a) = construct_chain_on_base(
 			vec![1, 2, 3],
 			finalized_number,
 			finalized_hash,
@@ -852,7 +827,7 @@ fn ancestor_of_unviable_is_not_leaf_if_has_children() {
 
 		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
 
-		let (a3_hash, chain_a_ext) = construct_chain_on_base(
+		let (_a3_hash, chain_a_ext) = construct_chain_on_base(
 			vec![3],
 			2,
 			a2_hash,
@@ -983,7 +958,7 @@ fn reversion_affects_viability_of_all_subtrees() {
 		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
 		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
 
-		let (b4_hash, chain_b) = construct_chain_on_base(
+		let (_b4_hash, chain_b) = construct_chain_on_base(
 			vec![3, 4],
 			2,
 			a2_hash,
