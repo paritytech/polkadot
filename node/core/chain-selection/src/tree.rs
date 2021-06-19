@@ -315,6 +315,8 @@ fn add_block(
 	let inherited_viability = parent_entry.as_ref()
 		.and_then(|parent| parent.non_viable_ancestor_for_child());
 
+	println!("writing block #{},{} parent={}", block_number, block_hash, parent_hash);
+
 	// 1. Add the block to the DB assuming it's not reverted.
 	backend.write_block_entry(
 		BlockEntry {

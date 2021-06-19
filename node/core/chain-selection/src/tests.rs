@@ -73,11 +73,29 @@ impl TestBackend {
 		(pos, rx)
 	}
 
+	// return a receiver, expecting its position to be the given one.
 	fn await_next_write_expecting(&self, expected_pos: usize) -> oneshot::Receiver<()> {
 		let (pos, rx) = self.await_next_write();
 		assert_eq!(pos, expected_pos);
 
 		rx
+	}
+
+	// return a receiver that will wake up after n other receivers,
+	// inserting receivers as necessary.
+	//
+	// panics if there are already more than n receivers.
+	fn await_nth_write(&self, n: usize) -> oneshot::Receiver<()> {
+		assert_ne!(n, 0, "invalid parameter 0");
+		let expected_pos = n - 1;
+
+		loop {
+			let (pos, rx) = self.await_next_write();
+			assert!(pos <= expected_pos, "pending awaits {} > {}", pos, expected_pos);
+			if pos == expected_pos {
+				break rx;
+			}
+		}
 	}
 }
 
@@ -221,21 +239,99 @@ async fn answer_weight_request(
 }
 
 fn child_header(parent_number: BlockNumber, parent_hash: Hash) -> Header {
-	child_header_with_salt(parent_number, parent_hash, &[])
-}
-
-fn child_header_with_salt(
-	parent_number: BlockNumber,
-	parent_hash: Hash,
-	salt: &[u8], // so siblings can have different hashes.
-) -> Header {
 	Header {
 		parent_hash,
 		number: parent_number + 1,
-		state_root: BlakeTwo256::hash(salt),
+		state_root: Default::default(),
 		extrinsics_root: Default::default(),
 		digest: Default::default()
 	}
+}
+
+fn salt_header(header: &mut Header, salt: &[u8]) {
+	header.state_root = BlakeTwo256::hash(salt)
+}
+
+// Builds a chain on top of the given base. Returns the chain (ascending)
+// along with the head hash.
+fn construct_chain_on_base(
+	len: usize,
+	base_number: BlockNumber,
+	base_hash: Hash,
+	mut mutate: impl FnMut(&mut Header),
+) -> (Hash, Vec<Header>) {
+	let mut parent_number = base_number;
+	let mut parent_hash = base_hash;
+
+	let mut chain = Vec::new();
+	for _ in 0..len {
+		let mut header = child_header(parent_number, parent_hash);
+		mutate(&mut header);
+
+		parent_number = header.number;
+		parent_hash = header.hash();
+		chain.push(header);
+	}
+
+	(parent_hash, chain)
+}
+
+fn zip_chain_and_weights(headers: &[Header], weights: &[BlockWeight])
+	-> Vec<(Header, BlockWeight)>
+{
+	headers.iter().cloned().zip(weights.iter().cloned()).collect()
+}
+
+async fn answer_ancestry_requests(
+	virtual_overseer: &mut VirtualOverseer,
+	finalized_answer: Option<(BlockNumber, Hash)>,
+	answers: Vec<(Header, BlockWeight)>,
+) {
+	if let Some((f_n, f_h)) = finalized_answer {
+		answer_finalized_block_info(virtual_overseer, f_n, f_h).await;
+	}
+
+	// headers in reverse order,
+	// TODO [now]: answer ancestor requests.
+	for &(ref header, _) in answers.iter().rev() {
+		answer_header_request(virtual_overseer, header.clone()).await;
+	}
+
+	// Then weights going up.
+	for &(ref header, weight) in answers.iter() {
+		let hash = header.hash();
+		answer_weight_request(virtual_overseer, hash, weight).await;
+	}
+}
+
+fn assert_backend_contains<'a>(
+	backend: &TestBackend,
+	headers: impl IntoIterator<Item = &'a Header>,
+) {
+	for header in headers {
+		let hash = header.hash();
+		assert!(
+			backend.load_blocks_by_number(header.number).unwrap().contains(&hash),
+			"blocks at {} does not contain {}",
+			header.number,
+			hash,
+		);
+		assert!(
+			backend.load_block_entry(&hash).unwrap().is_some(),
+			"no entry found for {}",
+			hash,
+		);
+	}
+}
+
+fn assert_leaves(
+	backend: &TestBackend,
+	leaves: Vec<Hash>,
+) {
+	assert_eq!(
+		backend.load_leaves().unwrap().into_hashes_descending().into_iter().collect::<Vec<_>>(),
+		leaves,
+	)
 }
 
 #[test]
@@ -264,30 +360,112 @@ fn import_direct_child_of_finalized_on_empty() {
 			}
 		)).into()).await;
 
-		answer_finalized_block_info(
+		answer_ancestry_requests(
 			&mut virtual_overseer,
-			finalized_number,
-			finalized_hash,
+			Some((finalized_number, finalized_hash)),
+			vec![(child.clone(), child_weight)],
 		).await;
-
-		answer_header_request(&mut virtual_overseer, child.clone()).await;
-		answer_weight_request(&mut virtual_overseer, child_hash, child_weight).await;
 
 		write_rx.await.unwrap();
 
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), child_number);
-		assert_eq!(backend.load_blocks_by_number(child_number).unwrap(), vec![child_hash]);
-		assert!(backend.load_block_entry(&child_hash).unwrap().is_some());
-		assert_eq!(
-			backend.load_leaves().unwrap().into_hashes_descending().into_iter().collect::<Vec<_>>(),
-			vec![child_hash],
-		);
+		assert_backend_contains(&backend, &[child]);
+		assert_leaves(&backend, vec![child_hash]);
 
 		virtual_overseer
 	})
 }
 
-// TODO [now]: importing a block without reversion
+#[test]
+fn import_chain_on_finalized_incrementally() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (head_hash, chain) = construct_chain_on_base(
+			5,
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let chain = zip_chain_and_weights(
+			&chain,
+			&[1, 2, 3, 4, 5],
+		);
+
+		let write_rx = backend.await_nth_write(5);
+		for &(ref header, weight) in &chain {
+			virtual_overseer.send(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+				ActivatedLeaf {
+					hash: header.hash(),
+					number: header.number,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}
+			)).into()).await;
+
+			answer_ancestry_requests(
+				&mut virtual_overseer,
+				Some((finalized_number, finalized_hash)).filter(|_| header.number == 1),
+				vec![(header.clone(), weight)]
+			).await;
+		}
+
+		write_rx.await.unwrap();
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
+		assert_backend_contains(&backend, chain.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![head_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn import_chain_on_finalized_at_once() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (head_hash, chain) = construct_chain_on_base(
+			5,
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let chain = zip_chain_and_weights(
+			&chain,
+			&[1, 2, 3, 4, 5],
+		);
+
+		let write_rx = backend.await_next_write_expecting(0);
+		virtual_overseer.send(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			ActivatedLeaf {
+				hash: head_hash,
+				number: 5,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			}
+		)).into()).await;
+
+		answer_ancestry_requests(
+			&mut virtual_overseer,
+			Some((finalized_number, finalized_hash)),
+			chain.clone(),
+		).await;
+
+		write_rx.await.unwrap();
+
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
+		assert_backend_contains(&backend, chain.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![head_hash]);
+
+		virtual_overseer
+	})
+}
+
 // TODO [now]: importing a block with reversion
 
 // TODO [now]: finalize a viable block

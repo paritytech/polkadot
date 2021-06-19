@@ -133,7 +133,7 @@ impl LeafEntrySet {
 		}
 	}
 
-	fn into_hashes_descending(self) -> impl IntoIterator<Item = Hash> {
+	fn into_hashes_descending(self) -> impl Iterator<Item = Hash> {
 		self.inner.into_iter().map(|e| e.block_hash)
 	}
 }
@@ -548,7 +548,6 @@ async fn load_leaves(
 ) -> Result<Vec<Hash>, Error> {
 	let leaves: Vec<_> = backend.load_leaves()?
 		.into_hashes_descending()
-		.into_iter()
 		.collect();
 
 	if leaves.is_empty() {
