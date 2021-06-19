@@ -21,7 +21,7 @@
 //! test code the ability to wait for write operations to occur.
 
 use super::*;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{HashMap, HashSet, BTreeMap};
 use std::sync::Arc;
 
 use futures::channel::oneshot;
@@ -72,6 +72,36 @@ impl TestBackend {
 		inner.write_wakers.insert(0, tx);
 
 		(pos, rx)
+	}
+
+	// Assert the backend contains only the given blocks and no others.
+	// This does not check the stagnant_at mapping because that is
+	// pruned lazily by the subsystem as opposed to eagerly.
+	fn assert_contains_only(
+		&self,
+		blocks: Vec<(BlockNumber, Hash)>,
+	) {
+		let hashes: Vec<_> = blocks.iter().map(|(_, h)| *h).collect();
+		let mut by_number: HashMap<_, HashSet<_>> = HashMap::new();
+
+		for (number, hash) in blocks {
+			by_number.entry(number).or_default().insert(hash);
+		}
+
+		let inner = self.inner.lock();
+		assert_eq!(inner.block_entries.len(), hashes.len());
+		assert_eq!(inner.blocks_by_number.len(), by_number.len());
+
+		for leaf in inner.leaves.clone().into_hashes_descending() {
+			assert!(hashes.contains(&leaf));
+		}
+
+		for (number, hashes_at_number) in by_number {
+			let at = inner.blocks_by_number.get(&number).unwrap();
+			for hash in at {
+				assert!(hashes_at_number.contains(&hash));
+			}
+		}
 	}
 }
 
@@ -1077,9 +1107,13 @@ fn finalize_viable_prunes_subtrees() {
 			a2_hash,
 		).await;
 
-
 		// A2 <- A3
 		// A2 <- X3
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(3, x3_hash),
+		]);
 
 		assert_leaves(&backend, vec![a3_hash, x3_hash]);
 		assert_eq!(
@@ -1106,7 +1140,7 @@ fn finalization_does_not_clobber_unviability() {
 		// A3 reverts A2.
 		// Finalize A1.
 
-		let (_a3_hash, chain_a) = construct_chain_on_base(
+		let (a3_hash, chain_a) = construct_chain_on_base(
 			vec![1, 2, 10],
 			finalized_number,
 			finalized_hash,
@@ -1119,6 +1153,7 @@ fn finalization_does_not_clobber_unviability() {
 		);
 
 		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
 
 		import_blocks_into(
 			&mut virtual_overseer,
@@ -1134,9 +1169,12 @@ fn finalization_does_not_clobber_unviability() {
 			a1_hash,
 		).await;
 
-		let a2_onwards = chain_a[1..].to_vec();
 		assert_leaves(&backend, vec![]);
-		assert_backend_contains_chains(&backend, vec![a2_onwards]);
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(2, a2_hash),
+		]);
 
 		virtual_overseer
 	});
