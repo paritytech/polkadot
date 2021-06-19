@@ -86,16 +86,21 @@ pub async fn determine_new_blocks<E>(
 			ANCESTRY_STEP,
 			(last_header.number - min_block_needed) as usize,
 		);
-		ctx.send_message(ChainApiMessage::Ancestors {
-			hash: *last_hash,
-			k: ancestry_step,
-			response_channel: tx,
-		}.into()).await;
 
-		// Continue past these errors.
-		let batch_hashes = match rx.await {
-			Err(_) | Ok(Err(_)) => break 'outer,
-			Ok(Ok(ancestors)) => ancestors,
+		let batch_hashes = if ancestry_step == 1 {
+			vec![last_header.parent_hash]
+		} else {
+			ctx.send_message(ChainApiMessage::Ancestors {
+				hash: *last_hash,
+				k: ancestry_step,
+				response_channel: tx,
+			}.into()).await;
+
+			// Continue past these errors.
+			match rx.await {
+				Err(_) | Ok(Err(_)) => break 'outer,
+				Ok(Ok(ancestors)) => ancestors,
+			}
 		};
 
 		let batch_headers = {
@@ -313,20 +318,8 @@ mod tests {
 
 			assert_matches!(
 				handle.recv().await,
-				AllMessages::ChainApi(ChainApiMessage::Ancestors {
-					hash: h,
-					k,
-					response_channel: tx,
-				}) => {
-					assert_eq!(h, chain.hash_by_number(14).unwrap());
-					assert_eq!(k, 1);
-					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
-				}
-			);
-
-			assert_matches!(
-				handle.recv().await,
 				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					assert_eq!(h, chain.hash_by_number(13).unwrap());
 					let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
 				}
 			);
@@ -563,23 +556,67 @@ mod tests {
 		let aux_fut = Box::pin(async move {
 			assert_matches!(
 				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					assert_eq!(h, chain.hash_by_number(1).unwrap());
+					let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn determine_new_blocks_does_not_request_genesis_even_in_multi_ancestry() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let chain = TestChain::new(1, 3);
+
+		let head = chain.header_by_number(3).unwrap().clone();
+		let head_hash = head.hash();
+		let known = TestKnownBlocks::default();
+
+		let expected_ancestry = (1..=3)
+			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
+			.rev()
+			.collect::<Vec<_>>();
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				0,
+			).await.unwrap();
+
+			assert_eq!(ancestry, expected_ancestry);
+		});
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
 				AllMessages::ChainApi(ChainApiMessage::Ancestors {
 					hash: h,
 					k,
 					response_channel: tx,
 				}) => {
 					assert_eq!(h, head_hash);
-					assert_eq!(k, 1);
+					assert_eq!(k, 2);
+
 					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
 				}
 			);
 
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
-					let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
-				}
-			);
+			for _ in 0..2 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+					}
+				);
+			}
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
