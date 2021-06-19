@@ -107,7 +107,7 @@ polkadot-node-core-approval-voting = { path = "../core/approval-voting", optiona
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
-env_logger = "0.8.2"
+env_logger = "0.8.4"
 
 [features]
 default = ["db", "full-node"]
