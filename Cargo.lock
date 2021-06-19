@@ -1666,9 +1666,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.2"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26ecb66b4bdca6c1409b40fb255eefc2bd4f6d135dab3c3124f80ffa2a9661e"
+checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
 dependencies = [
  "atty",
  "humantime 2.0.1",
@@ -3361,9 +3361,9 @@ dependencies = [
 
 [[package]]
 name = "kvdb-rocksdb"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34446c373ccc494c2124439281c198c7636ccdc2752c06722bbffd56d459c1e4"
+checksum = "94b27cdb788bf1c8ade782289f9dbee626940be2961fd75c7cde993fa2f1ded1"
 dependencies = [
  "fs-swap",
  "kvdb",
@@ -5705,7 +5705,7 @@ name = "polkadot-approval-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "log",
  "polkadot-node-network-protocol",
@@ -5726,7 +5726,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "log",
  "maplit",
@@ -5777,7 +5777,7 @@ name = "polkadot-availability-recovery"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "log",
@@ -5859,7 +5859,7 @@ version = "0.1.0"
 dependencies = [
  "always-assert",
  "assert_matches",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "log",
@@ -6009,7 +6009,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "kvdb",
@@ -6345,7 +6345,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "itertools 0.10.0",
@@ -6687,7 +6687,7 @@ version = "0.9.5"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "frame-system-rpc-runtime-api",
  "futures 0.3.15",
  "hex-literal",
@@ -7559,7 +7559,7 @@ name = "remote-externalities"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#8b4df6ad44c169e727278a9ad012d065ecca0661"
 dependencies = [
- "env_logger 0.8.2",
+ "env_logger 0.8.4",
  "hex",
  "jsonrpsee-proc-macros",
  "jsonrpsee-ws-client",
@@ -7624,9 +7624,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23d83c02c429044d58474eaf5ae31e062d0de894e21125b47437ec0edc1397e6"
+checksum = "c749134fda8bfc90d0de643d59bfc841dcb3ac8a1062e12b6754bd60235c48b3"
 dependencies = [
  "libc",
  "librocksdb-sys",
