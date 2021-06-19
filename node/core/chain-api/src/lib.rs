@@ -292,15 +292,16 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	use std::collections::BTreeMap;
 	use futures::{future::BoxFuture, channel::oneshot};
+	use parity_scale_codec::Encode;
 
 	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
+	use polkadot_node_primitives::BlockWeight;
 	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_blockchain::Info as BlockInfo;
 	use sp_core::testing::TaskExecutor;
@@ -308,6 +309,7 @@ mod tests {
 	#[derive(Clone)]
 	struct TestClient {
 		blocks: BTreeMap<Hash, BlockNumber>,
+		block_weights: BTreeMap<Hash, BlockWeight>,
 		finalized_blocks: BTreeMap<BlockNumber, Hash>,
 		headers: BTreeMap<Hash, Header>,
 	}
@@ -337,6 +339,12 @@ mod tests {
 					THREE => 3,
 					FOUR => 4,
 				},
+				block_weights: maplit::btreemap! {
+					ONE => 0,
+					TWO => 1,
+					THREE => 1,
+					FOUR => 2,
+				},
 				finalized_blocks: maplit::btreemap! {
 					1 => ONE,
 					3 => THREE,
@@ -360,7 +368,7 @@ mod tests {
 					ERROR_PATH => Header {
 						..default_header()
 					}
-				}
+				},
 			}
 		}
 	}
@@ -425,6 +433,30 @@ mod tests {
 		futures::executor::block_on(future::join(chain_api_task, test_task));
 	}
 
+	impl AuxStore for TestClient {
+		fn insert_aux<
+			'a,
+			'b: 'a,
+			'c: 'a,
+			I: IntoIterator<Item = &'a (&'c [u8], &'c [u8])>,
+			D: IntoIterator<Item = &'a &'b [u8]>,
+		>(
+			&self,
+			_insert: I,
+			_delete: D,
+		) -> sp_blockchain::Result<()> {
+			unimplemented!()
+		}
+
+		fn get_aux(&self, key: &[u8]) -> sp_blockchain::Result<Option<Vec<u8>>> {
+			Ok(self
+				.block_weights
+				.iter()
+				.find(|(hash, _)| sc_consensus_babe::aux_schema::block_weight_key(hash) == key)
+				.map(|(_, weight)| weight.encode()))
+		}
+	}
+
 	#[test]
 	fn request_block_number() {
 		test_harness(|client, mut sender| {
@@ -463,6 +495,31 @@ mod tests {
 
 					sender.send(FromOverseer::Communication {
 						msg: ChainApiMessage::BlockHeader(*hash, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_block_weight() {
+		test_harness(|client, mut sender| {
+			async move {
+				const NOT_HERE: Hash = Hash::repeat_byte(0x5);
+				let test_cases = [
+					(TWO, sc_consensus_babe::block_weight(&*client, TWO).unwrap()),
+					(FOUR, sc_consensus_babe::block_weight(&*client, FOUR).unwrap()),
+					(NOT_HERE, sc_consensus_babe::block_weight(&*client, NOT_HERE).unwrap()),
+				];
+				for (hash, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiMessage::BlockWeight(*hash, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap().unwrap(), *expected);
