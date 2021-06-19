@@ -30,7 +30,7 @@ use parking_lot::Mutex;
 use sp_core::testing::TaskExecutor;
 use assert_matches::assert_matches;
 
-use polkadot_primitives::v1::{BlakeTwo256, HashT};
+use polkadot_primitives::v1::{BlakeTwo256, HashT, ConsensusLog};
 use polkadot_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf, LeafStatus};
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -134,6 +134,7 @@ impl Backend for TestBackend {
 		where I: IntoIterator<Item = BackendWriteOp>
 	{
 		let mut inner = self.inner.lock();
+
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteBlockEntry(entry) => {
@@ -253,6 +254,15 @@ fn salt_header(header: &mut Header, salt: impl Encode) {
 	header.state_root = BlakeTwo256::hash_of(&salt)
 }
 
+fn add_reversions(
+	header: &mut Header,
+	reversions: impl IntoIterator<Item=BlockNumber>,
+) {
+	for log in reversions.into_iter().map(ConsensusLog::Revert) {
+		header.digest.logs.push(log.into())
+	}
+}
+
 // Builds a chain on top of the given base, with one block for each
 // provided weight.
 fn construct_chain_on_base(
@@ -329,7 +339,6 @@ async fn import_all_blocks_into(
 
 	let head = blocks.last().unwrap().0.clone();
 	let head_hash = head.hash();
-	let head_parent_hash = head.parent_hash;
 
 	let (_, write_rx) = backend.await_next_write();
 	virtual_overseer.send(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
@@ -654,7 +663,6 @@ fn leaves_ordered_by_weight_and_then_number() {
 			chain_a.clone(),
 		).await;
 
-
 		import_blocks_into(
 			&mut virtual_overseer,
 			&backend,
@@ -728,7 +736,256 @@ fn subtrees_imported_even_with_gaps() {
 	});
 }
 
-// TODO [now]: importing a block with reversion
+#[test]
+fn reversion_removes_viability_of_chain() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//
+		// A3 reverts A1
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| if h.number == 3 { add_reversions(h, Some(1)) }
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//
+		// A3 reverts A2
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| if h.number == 3 { add_reversions(h, Some(2)) }
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![a1_hash]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ancestor_of_unviable_is_not_leaf_if_has_children() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//      A1 <- B2
+		//
+		// A3 reverts A2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (a3_hash, chain_a_ext) = construct_chain_on_base(
+			vec![3],
+			2,
+			a2_hash,
+			|h| add_reversions(h, Some(2)),
+		);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| salt_header(h, b"b")
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_b.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![a2_hash, b2_hash]);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_a_ext.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![b2_hash]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn self_and_future_reversions_are_ignored() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//
+		// A3 reverts itself and future blocks. ignored.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| if h.number == 3 { add_reversions(h, vec![3, 4, 100]) }
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![a3_hash]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn revert_finalized_is_ignored() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 10;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//
+		// A3 reverts itself and future blocks. ignored.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| if h.number == 13 { add_reversions(h, vec![10, 9, 8, 0, 1]) }
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![a3_hash]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn reversion_affects_viability_of_all_subtrees() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3.
+		//            A2 <- B3 <- B4
+		//
+		// B4 reverts A2.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|_| {}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (b4_hash, chain_b) = construct_chain_on_base(
+			vec![3, 4],
+			2,
+			a2_hash,
+			|h| {
+				salt_header(h, b"b");
+				if h.number == 4 {
+					add_reversions(h, Some(2));
+				}
+			}
+		);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			chain_a.clone(),
+		).await;
+
+		assert_leaves(&backend, vec![a3_hash]);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_b.clone(),
+		).await;
+
+		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
+		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![a1_hash]);
+
+		virtual_overseer
+	});
+}
 
 // TODO [now]: finalize a viable block
 // TODO [now]: finalize an unviable block with viable descendants
