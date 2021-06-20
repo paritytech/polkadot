@@ -5817,7 +5817,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-client"
-version = "0.9.3"
+version = "0.9.6"
 dependencies = [
  "beefy-primitives",
  "frame-benchmarking",
