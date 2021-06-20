@@ -424,7 +424,7 @@ pub(crate) async fn handle_new_head(
 
 	match state.session_window.cache_session_info_for_head(ctx, head, &header).await {
 		Err(e) => {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				?head,
 				?e,
