@@ -103,7 +103,7 @@ impl PartialOrd for LeafEntry {
 		let ord = self.weight.cmp(&other.weight)
 				.then(self.block_number.cmp(&other.block_number));
 
-		if ord.is_ne() { Some(ord) } else { None }
+		if !matches!(ord, std::cmp::Ordering::Equal) { Some(ord) } else { None }
 	}
 }
 
