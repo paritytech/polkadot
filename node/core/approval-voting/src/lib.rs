@@ -25,7 +25,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
-		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
+		ApprovalDistributionMessage, CandidateValidationMessage,
 		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
@@ -39,11 +39,11 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
-	CandidateReceipt, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
+	CandidateReceipt, BlockNumber,
+	ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex, ApprovalVote,
 };
-use polkadot_node_primitives::{ValidationResult, PoV, InvalidCandidate};
+use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
@@ -56,8 +56,9 @@ use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
 use futures::prelude::*;
-use futures::future::RemoteHandle;
+use futures::future::{join_all, RemoteHandle};
 use futures::channel::oneshot;
+use futures::stream::FuturesUnordered;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
@@ -344,17 +345,6 @@ impl<C> Subsystem<C> for ApprovalVotingSubsystem
 	}
 }
 
-enum BackgroundRequest {
-	ApprovalVote(ApprovalVoteRequest),
-	CandidateValidation(
-		PersistedValidationData,
-		ValidationCode,
-		CandidateDescriptor,
-		Arc<PoV>,
-		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-	),
-}
-
 struct ApprovalVoteRequest {
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
@@ -548,31 +538,42 @@ enum ApprovalOutcome {
 }
 
 struct ApprovalState {
+	block_hash: Hash,
+	validator_index: ValidatorIndex,
 	candidate_hash: CandidateHash,
+	candidate_index: CandidateIndex,
 	status: ApprovalOutcome,
 }
 
 impl ApprovalState {
-	fn approved(candidate_hash: CandidateHash) -> Self {
-		Self{ candidate_hash, status: ApprovalOutcome::Approved }
+	fn approved(
+		block_hash: Hash,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		candidate_index: CandidateIndex
+	) -> Self {
+		Self {
+			block_hash,
+			validator_index,
+			candidate_hash,
+			candidate_index,
+			status: ApprovalOutcome::Approved
+		}
 	}
-	fn failed(candidate_hash: CandidateHash, reason: InvalidCandidate) -> Self {
-		Self { candidate_hash, status: ApprovalOutcome::Failed(reason) }
-	}
-}
-
-struct CheckState {
-	remote_handle: Timeout<RemoteHandle<ApprovalState>>,
-	relay_block_hashes: Vec<Hash>,
-}
-
-impl CheckState {
-	fn new(remote_handle: Timeout<RemoteHandle<ApprovalState>>) -> Self {
-		Self { remote_handle, relay_block_hashes: vec![] }
-	}
-
-	fn insert_relay_block_hash(&mut self, relay_block_hash: Hash) {
-		self.relay_block_hashes.push(relay_block_hash);
+	fn failed(
+		block_hash: Hash,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		candidate_index: CandidateIndex,
+		reason: InvalidCandidate
+	) -> Self {
+		Self {
+			block_hash,
+			validator_index,
+			candidate_hash,
+			candidate_index,
+			status: ApprovalOutcome::Failed(reason)
+		}
 	}
 }
 
@@ -584,8 +585,8 @@ struct State<T> {
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	approvals_cache: lru::LruCache<CandidateHash, ApprovalOutcome>,
-	candidate_hash_map: HashMap<CandidateHash, usize>,
-	currently_checking: BTreeMap<BlockNumber, Vec<CheckState>>,
+	candidate_hash_map: HashMap<CandidateHash, Vec<(Hash, BlockNumber)>>,
+	currently_checking: BTreeMap<BlockNumber, FuturesUnordered<Timeout<RemoteHandle<ApprovalState>>>>,
 }
 
 unsafe impl<T> Send for State<T> {}
@@ -639,6 +640,22 @@ impl<T> State<T> {
 		} else {
 			None
 		}
+	}
+
+	fn insert_relay_block_hash(
+		&mut self,
+		candidate_hash: &CandidateHash,
+		relay_block: (Hash, BlockNumber),
+	) -> bool {
+		self.candidate_hash_map
+			.get_mut(&candidate_hash)
+			.map(|v| {
+				v.binary_search_by_key(&relay_block, |v| *v)
+				 .map_err(|k| v.insert(k, relay_block))
+				 .map(|_| false)
+				 .unwrap_or(true)
+			})
+			.unwrap_or_default()
 	}
 }
 
@@ -729,6 +746,36 @@ async fn run<C>(
 
 				actions
 			}
+			approvals = join_all(state.currently_checking.values_mut().map(|v| v.next())).fuse() => {
+				let sender = ctx.sender();
+				for approval_state in approvals.into_iter().map(|v| v.flatten()) {
+					if let Some(
+						ApprovalState {
+							block_hash,
+							validator_index,
+							candidate_hash,
+							candidate_index,
+							status
+						}
+					) = approval_state {
+						if matches!(status, ApprovalOutcome::Approved) {
+							let _ = issue_approval(
+								&mut sender.clone(),
+								&mut state,
+								&subsystem.metrics,
+								ApprovalVoteRequest {
+									validator_index,
+									block_hash,
+									candidate_index,
+								}
+							);
+						}
+						state.approvals_cache.put(candidate_hash, status);
+						let _ = state.candidate_hash_map.remove(&candidate_hash);
+					}
+				}
+				Vec::new()
+			}
 		};
 
 		if handle_actions(
@@ -809,22 +856,19 @@ async fn handle_actions(
 								candidate_index,
 							}
 						)?;
+
+						let _ = state.insert_relay_block_hash(
+							&candidate_hash,
+							(relay_block_hash, relay_block_number),
+						);
 					},
 					Some(ApprovalOutcome::Failed(_)) => {},
 					None => {
-						let mut seen = false;
-
-						if let Some(idx) = state.candidate_hash_map.get(&candidate_hash) {
-							if let Some(check) = state.currently_checking.get_mut(&relay_block_number) {
-								if let Some(state) = check.get_mut(*idx) {
-									state.insert_relay_block_hash(relay_block_hash);
-									seen = true;
-								}
-							}
-						}
-
-						if !seen {
-							let handle = launch_approval(
+						if !state.insert_relay_block_hash(
+							&candidate_hash,
+							(relay_block_hash, relay_block_number),
+						) {
+							if let Some(handle) = launch_approval(
 								ctx,
 								metrics.clone(),
 								session,
@@ -833,19 +877,13 @@ async fn handle_actions(
 								block_hash,
 								candidate_index as _,
 								backing_group,
-							).await?;
-
-							if let Some(handle) = handle {
+							).await? {
 								let value = state
 									.currently_checking
 									.entry(relay_block_number)
-									.or_insert({
-										let mut check_state = CheckState::new(handle);
-										vec![check_state]
-									});
-								let index = value.len() - 1;
-								let _ = state.candidate_hash_map.insert(candidate_hash, value.len());
-								value[index].insert_relay_block_hash(block_hash);
+									.or_default();
+
+								value.push(handle);
 							}
 						}
 
@@ -2037,7 +2075,10 @@ async fn launch_approval(
 
 		let available_data = match a_rx.await {
 			Err(e) => return ApprovalState::failed(
+				block_hash,
+				validator_index,
 				candidate_hash,
+				candidate_index as _,
 				InvalidCandidate::ExecutionError(e.to_string())
 			),
 			Ok(Ok(a)) => a,
@@ -2065,7 +2106,10 @@ async fn launch_approval(
 					}
 				}
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::ExecutionError(e.to_string())
 				);
 			}
@@ -2074,12 +2118,18 @@ async fn launch_approval(
 		let validation_code = match code_rx.await {
 			Err(e) =>
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::ExecutionError(e.to_string())
 				),
 			Ok(Err(e)) =>
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::ExecutionError(e.to_string())
 				),
 			Ok(Ok(Some(code))) => code,
@@ -2095,7 +2145,10 @@ async fn launch_approval(
 				// according to expectations.
 				metrics_guard.take().on_approval_unavailable();
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::InvalidOutputs,
 				);
 			}
@@ -2114,12 +2167,15 @@ async fn launch_approval(
 		).into()).await;
 
 		match val_rx.await {
-			Err(e) =>
+			Err(_) =>
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::InvalidOutputs,
 				),
-			Ok(Ok(ValidationResult::Valid(commitments, validation_data))) => {
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
@@ -2130,9 +2186,12 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
-				let metrics = metrics_guard.take();
-
-				return ApprovalState::approved(candidate_hash);
+				return ApprovalState::approved(
+					block_hash,
+					validator_index,
+					candidate_hash,
+					candidate_index as _,
+				);
 			}
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
@@ -2148,7 +2207,10 @@ async fn launch_approval(
 				metrics_guard.take().on_approval_invalid();
 
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					reason,
 				);
 			}
@@ -2160,7 +2222,10 @@ async fn launch_approval(
 				);
 				metrics_guard.take().on_approval_error();
 				return ApprovalState::failed(
+					block_hash,
+					validator_index,
 					candidate_hash,
+					candidate_index as _,
 					InvalidCandidate::ExecutionError(e.to_string()),
 				);
 			}
