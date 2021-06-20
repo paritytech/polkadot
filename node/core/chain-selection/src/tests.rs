@@ -527,6 +527,35 @@ fn assert_leaves(
 	);
 }
 
+async fn assert_leaves_query(
+	virtual_overseer: &mut VirtualOverseer,
+	leaves: Vec<Hash>,
+) {
+	assert!(!leaves.is_empty(), "empty leaves impossible. answer finalized query");
+
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer.send(FromOverseer::Communication {
+		msg: ChainSelectionMessage::Leaves(tx)
+	}).await;
+
+	assert_eq!(rx.await.unwrap(), leaves);
+}
+
+async fn assert_finalized_leaves_query(
+	virtual_overseer: &mut VirtualOverseer,
+	finalized_number: BlockNumber,
+	finalized_hash: Hash,
+) {
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer.send(FromOverseer::Communication {
+		msg: ChainSelectionMessage::Leaves(tx)
+	}).await;
+
+	answer_finalized_block_info(virtual_overseer, finalized_number, finalized_hash).await;
+
+	assert_eq!(rx.await.unwrap(), vec![finalized_hash]);
+}
+
 async fn best_leaf_containing(
 	virtual_overseer: &mut VirtualOverseer,
 	required: Hash,
@@ -578,6 +607,7 @@ fn import_direct_child_of_finalized_on_empty() {
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), child_number);
 		assert_backend_contains(&backend, &[child]);
 		assert_leaves(&backend, vec![child_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![child_hash]).await;
 
 		virtual_overseer
 	})
@@ -606,6 +636,7 @@ fn import_chain_on_finalized_incrementally() {
 		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 1);
 		assert_backend_contains(&backend, chain.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![head_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
 
 		virtual_overseer
 	})
@@ -649,6 +680,7 @@ fn import_two_subtrees_on_finalized() {
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![b_hash, a_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![b_hash, a_hash]).await;
 
 		virtual_overseer
 	})
@@ -692,6 +724,7 @@ fn import_two_subtrees_on_nonzero_finalized() {
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![b_hash, a_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![b_hash, a_hash]).await;
 
 		virtual_overseer
 	})
@@ -745,6 +778,7 @@ fn leaves_ordered_by_weight_and_then_number() {
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_c.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![c2_hash, a3_hash, b2_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![c2_hash, a3_hash, b2_hash]).await;
 		virtual_overseer
 	});
 }
@@ -794,6 +828,7 @@ fn subtrees_imported_even_with_gaps() {
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![b5_hash, a3_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![b5_hash, a3_hash]).await;
 
 		virtual_overseer
 	});
@@ -825,6 +860,11 @@ fn reversion_removes_viability_of_chain() {
 
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![]);
+		assert_finalized_leaves_query(
+			&mut virtual_overseer,
+			finalized_number,
+			finalized_hash,
+		).await;
 
 		virtual_overseer
 	});
@@ -858,6 +898,7 @@ fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
 
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![a1_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a1_hash]).await;
 
 		virtual_overseer
 	});
@@ -926,6 +967,7 @@ fn ancestor_of_unviable_is_not_leaf_if_has_children() {
 		assert_backend_contains(&backend, chain_a_ext.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![b2_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![b2_hash]).await;
 
 		virtual_overseer
 	});
@@ -957,6 +999,7 @@ fn self_and_future_reversions_are_ignored() {
 
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![a3_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a3_hash]).await;
 
 		virtual_overseer
 	});
@@ -988,6 +1031,7 @@ fn revert_finalized_is_ignored() {
 
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![a3_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a3_hash]).await;
 
 		virtual_overseer
 	});
@@ -1045,6 +1089,7 @@ fn reversion_affects_viability_of_all_subtrees() {
 		assert_backend_contains(&backend, chain_a.iter().map(|&(ref h, _)| h));
 		assert_backend_contains(&backend, chain_b.iter().map(|&(ref h, _)| h));
 		assert_leaves(&backend, vec![a1_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a1_hash]).await;
 
 		virtual_overseer
 	});
@@ -1142,6 +1187,8 @@ fn finalize_viable_prunes_subtrees() {
 		]);
 
 		assert_leaves(&backend, vec![a3_hash, x3_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a3_hash, x3_hash]).await;
+
 		assert_eq!(
 			backend.load_first_block_number().unwrap().unwrap(),
 			3,
@@ -1196,7 +1243,11 @@ fn finalization_does_not_clobber_unviability() {
 		).await;
 
 		assert_leaves(&backend, vec![]);
-
+		assert_finalized_leaves_query(
+			&mut virtual_overseer,
+			1,
+			a1_hash,
+		).await;
 		backend.assert_contains_only(vec![
 			(3, a3_hash),
 			(2, a2_hash),
@@ -1258,6 +1309,7 @@ fn finalization_erases_unviable() {
 		).await;
 
 		assert_leaves(&backend, vec![a3_hash, b2_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![a3_hash, b2_hash]).await;
 
 		backend.assert_contains_only(vec![
 			(3, a3_hash),
@@ -1325,6 +1377,7 @@ fn finalize_erases_unviable_but_keeps_later_unviability() {
 		).await;
 
 		assert_leaves(&backend, vec![b2_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![b2_hash]).await;
 
 		backend.assert_contains_only(vec![
 			(3, a3_hash),
@@ -1381,6 +1434,11 @@ fn finalize_erases_unviable_from_one_but_not_all_reverts() {
 		).await;
 
 		assert_leaves(&backend, vec![]);
+		assert_finalized_leaves_query(
+			&mut virtual_overseer,
+			1,
+			a1_hash,
+		).await;
 
 		backend.assert_contains_only(vec![
 			(3, a3_hash),
@@ -1450,6 +1508,7 @@ fn finalize_triggers_viability_search() {
 		).await;
 
 		assert_leaves(&backend, vec![c3_hash, b3_hash, a3_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![c3_hash, b3_hash, a3_hash]).await;
 
 		backend.assert_contains_only(vec![
 			(3, a3_hash),
