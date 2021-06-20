@@ -212,6 +212,13 @@ fn contains_ancestor(
 ///
 /// If the required block is unfinalized but not an ancestor of any viable leaf,
 /// this will return `None`.
+//
+// Note: this is O(N^2) in the depth of `required` and the number of leaves.
+// We expect the number of unfinalized blocks to be small, as in, to not exceed
+// single digits in practice, and exceedingly unlikely to surpass 1000.
+//
+// However, if we need to, we could implement some type of skip-list for
+// fast ancestry checks.
 pub(super) fn find_best_leaf_containing(
 	backend: &impl Backend,
 	required: Hash,
