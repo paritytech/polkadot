@@ -180,6 +180,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
     * If any of the runtime API calls fail, we just warn and skip the block.
   * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks.
   * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate obtained from `CandidateIncluded` events after making a `RuntimeApiRequest::CandidateEvents` request.
+  * For each candidate, if the amount of needed approvals is more than the validators remaining after the backing group of the candidate is subtracted, then the candidate is insta-approved as approval would be impossible otherwise. If all candidates in the block are insta-approved, or there are no candidates in the block, then the block is insta-approved. If the block is insta-approved, a [`ChainSelectionMessage::Approvedl][CSM] should be sent for the block.
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
@@ -240,6 +241,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Checks the `ApprovalEntry` for the block.
     * [determine the tranches to inspect](#determine-required-tranches) of the candidate,
     * [the candidate is approved under the block](#check-approval), set the corresponding bit in the `block_entry.approved_bitfield`.
+    * If the block is now fully approved and was not before, send a [`ChainSelectionMessage::Approved`][CSM].
     * Otherwise, [schedule a wakeup of the candidate](#schedule-wakeup)
   * If the approval vote originates locally, set the `our_approval_sig` in the candidate entry.
 
@@ -370,3 +372,5 @@ Likewise, when considering how many tranches to take, the no-show depth should b
 #### Current Tranche
   * Given the slot number of a block, and the current time, this informs about the current tranche.
   * Convert `time.saturating_sub(slot_number.to_time())` to a delay tranches value
+
+[CSM]: ../../types/overseer-protocol.md#chainselectionmessage

@@ -45,7 +45,6 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
 };
 
@@ -248,7 +247,7 @@ fn new_partial<RuntimeApi, Executor>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
 				babe::BabeLink<Block>,
-				beefy_gadget::notification::BeefySignedCommitmentSender<Block, BeefySignature>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -824,6 +823,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			babe_link,
 			can_author_with,
 			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
+			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
@@ -851,7 +851,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			prometheus_registry: prometheus_registry.clone(),
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _>(
+		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(
 			beefy_params
 		);
 
