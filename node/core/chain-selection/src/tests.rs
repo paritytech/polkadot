@@ -1907,3 +1907,8 @@ fn approve_nonexistent_has_no_effect() {
 		virtual_overseer
 	})
 }
+
+// TODO [now]: blocks are detected as stagnant.
+// TODO [now]: finalized stagnant blocks unlock subtrees.
+// TODO [now]: approval undoes stagnant unlocking subtrees
+// TODO [now]: stagnant triggers leaf search from parent if viable

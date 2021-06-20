@@ -549,7 +549,7 @@ pub(super) fn approve_block(
 ///
 /// This accepts a fresh backend and returns an overlay on top of it representing
 /// all changes made.
-// TODO https://github.com/paritytech/polkadot/issues/3293:: remove allow
+// TODO [now]
 #[allow(unused)]
 pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	backend: &'a B,
