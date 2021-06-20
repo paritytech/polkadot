@@ -766,6 +766,7 @@ async fn run<C>(
 				actions
 			}
 			approval_state = currently_checking_set.next().fuse() => {
+				let mut actions = Vec::new();
 				let sender = ctx.sender();
 				if let Some((
 					relay_block_hashes,
@@ -778,7 +779,7 @@ async fn run<C>(
 				)) = approval_state {
 					if matches!(status, ApprovalOutcome::Approved) {
 						for block_hash in relay_block_hashes.into_iter() {
-							let _ = issue_approval(
+							if let Ok(mut _actions) = issue_approval(
 								&mut sender.clone(),
 								&mut state,
 								&subsystem.metrics,
@@ -787,13 +788,15 @@ async fn run<C>(
 									block_hash,
 									candidate_index,
 								}
-							);
+							) {
+								actions.append(&mut _actions);
+							}
 						}
 					}
 					currently_checking_set.approvals_cache.put(candidate_hash, status);
 					let _ = currently_checking_set.candidate_hash_map.remove(&candidate_hash);
 				}
-				Vec::new()
+				actions
 			}
 		};
 
