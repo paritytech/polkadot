@@ -56,7 +56,7 @@ use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
 use futures::prelude::*;
-use futures::future::{join_all, RemoteHandle};
+use futures::future::RemoteHandle;
 use futures::channel::oneshot;
 use futures::stream::FuturesUnordered;
 
@@ -84,6 +84,7 @@ mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: u64 = 2;
+const APPROVAL_CACHE_SIZE: usize = 128;
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
@@ -538,7 +539,6 @@ enum ApprovalOutcome {
 }
 
 struct ApprovalState {
-	block_hash: Hash,
 	validator_index: ValidatorIndex,
 	candidate_hash: CandidateHash,
 	candidate_index: CandidateIndex,
@@ -547,13 +547,11 @@ struct ApprovalState {
 
 impl ApprovalState {
 	fn approved(
-		block_hash: Hash,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		candidate_index: CandidateIndex
 	) -> Self {
 		Self {
-			block_hash,
 			validator_index,
 			candidate_hash,
 			candidate_index,
@@ -561,19 +559,66 @@ impl ApprovalState {
 		}
 	}
 	fn failed(
-		block_hash: Hash,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		candidate_index: CandidateIndex,
 		reason: InvalidCandidate
 	) -> Self {
 		Self {
-			block_hash,
 			validator_index,
 			candidate_hash,
 			candidate_index,
 			status: ApprovalOutcome::Failed(reason)
 		}
+	}
+}
+
+type BoundedBackgroundApprovalTask = Timeout<RemoteHandle<ApprovalState>>;
+
+struct CurrentlyCheckingSet {
+	approvals_cache: lru::LruCache<CandidateHash, ApprovalOutcome>,
+	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
+	currently_checking: FuturesUnordered<BoundedBackgroundApprovalTask>,
+}
+
+impl Default for CurrentlyCheckingSet {
+	fn default() -> Self {
+		Self {
+			approvals_cache: lru::LruCache::new(APPROVAL_CACHE_SIZE),
+			candidate_hash_map: HashMap::new(),
+			currently_checking: FuturesUnordered::new(),
+		}
+	}
+}
+
+impl CurrentlyCheckingSet {
+	fn insert_relay_block_hash(
+		&mut self,
+		candidate_hash: &CandidateHash,
+		relay_block: Hash,
+	) -> bool {
+		self.candidate_hash_map
+			.get_mut(&candidate_hash)
+			.map(|v| {
+				v.binary_search_by_key(&relay_block, |v| *v)
+				 .map_err(|k| v.insert(k, relay_block))
+				 .map(|_| false)
+				 .unwrap_or(true)
+			})
+			.unwrap_or_default()
+	}
+
+	async fn next(&mut self) -> Option<(Vec<Hash>, ApprovalState)> {
+		self.currently_checking
+			.next()
+			.await
+			.flatten()
+			.map(|approval_state| {
+				(
+					self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or(Vec::new()),
+					approval_state,
+				)
+			})
 	}
 }
 
@@ -584,9 +629,6 @@ struct State<T> {
 	db: T,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
-	approvals_cache: lru::LruCache<CandidateHash, ApprovalOutcome>,
-	candidate_hash_map: HashMap<CandidateHash, Vec<(Hash, BlockNumber)>>,
-	currently_checking: BTreeMap<BlockNumber, FuturesUnordered<Timeout<RemoteHandle<ApprovalState>>>>,
 }
 
 unsafe impl<T> Send for State<T> {}
@@ -641,22 +683,6 @@ impl<T> State<T> {
 			None
 		}
 	}
-
-	fn insert_relay_block_hash(
-		&mut self,
-		candidate_hash: &CandidateHash,
-		relay_block: (Hash, BlockNumber),
-	) -> bool {
-		self.candidate_hash_map
-			.get_mut(&candidate_hash)
-			.map(|v| {
-				v.binary_search_by_key(&relay_block, |v| *v)
-				 .map_err(|k| v.insert(k, relay_block))
-				 .map(|_| false)
-				 .unwrap_or(true)
-			})
-			.unwrap_or_default()
-	}
 }
 
 #[derive(Debug)]
@@ -674,7 +700,6 @@ enum Action {
 		indirect_cert: IndirectAssignmentCert,
 		assignment_tranche: DelayTranche,
 		relay_block_hash: Hash,
-		relay_block_number: BlockNumber,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
@@ -699,12 +724,10 @@ async fn run<C>(
 		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
 		clock,
 		assignment_criteria,
-		approvals_cache: lru::LruCache::new(128usize),
-		candidate_hash_map: HashMap::new(),
-		currently_checking: BTreeMap::new(),
 	};
 
 	let mut wakeups = Wakeups::default();
+	let mut currently_checking_set = CurrentlyCheckingSet::default();
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
@@ -733,10 +756,6 @@ async fn run<C>(
 					&mut wakeups,
 				).await?;
 
-				if let Some(finalized_height) = last_finalized_height {
-					cleanup_background_tasks(finalized_height, &mut state);
-				}
-
 				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
 					if !oracle.is_major_syncing() {
 						// note that we're active before processing other actions.
@@ -746,19 +765,19 @@ async fn run<C>(
 
 				actions
 			}
-			approvals = join_all(state.currently_checking.values_mut().map(|v| v.next())).fuse() => {
+			approval_state = currently_checking_set.next().fuse() => {
 				let sender = ctx.sender();
-				for approval_state in approvals.into_iter().map(|v| v.flatten()) {
-					if let Some(
-						ApprovalState {
-							block_hash,
-							validator_index,
-							candidate_hash,
-							candidate_index,
-							status
-						}
-					) = approval_state {
-						if matches!(status, ApprovalOutcome::Approved) {
+				if let Some((
+					relay_block_hashes,
+					ApprovalState {
+						validator_index,
+						candidate_hash,
+						candidate_index,
+						status
+					}
+				)) = approval_state {
+					if matches!(status, ApprovalOutcome::Approved) {
+						for block_hash in relay_block_hashes.into_iter() {
 							let _ = issue_approval(
 								&mut sender.clone(),
 								&mut state,
@@ -770,9 +789,9 @@ async fn run<C>(
 								}
 							);
 						}
-						state.approvals_cache.put(candidate_hash, status);
-						let _ = state.candidate_hash_map.remove(&candidate_hash);
 					}
+					currently_checking_set.approvals_cache.put(candidate_hash, status);
+					let _ = currently_checking_set.candidate_hash_map.remove(&candidate_hash);
 				}
 				Vec::new()
 			}
@@ -783,6 +802,7 @@ async fn run<C>(
 			&mut state,
 			&subsystem.metrics,
 			&mut wakeups,
+			&mut currently_checking_set,
 			db_writer,
 			subsystem.db_config,
 			&mut subsystem.mode,
@@ -801,6 +821,7 @@ async fn handle_actions(
 	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
+	currently_checking_set: &mut CurrentlyCheckingSet,
 	db: &dyn KeyValueDB,
 	db_config: DatabaseConfig,
 	mode: &mut Mode,
@@ -830,7 +851,6 @@ async fn handle_actions(
 				indirect_cert,
 				assignment_tranche,
 				relay_block_hash,
-				relay_block_number,
 				candidate_index,
 				session,
 				candidate,
@@ -843,7 +863,7 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
-				match state.approvals_cache.get(&candidate_hash) {
+				match currently_checking_set.approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
 						let mut sender = ctx.sender().clone();
 						let _ = issue_approval(
@@ -857,16 +877,16 @@ async fn handle_actions(
 							}
 						)?;
 
-						let _ = state.insert_relay_block_hash(
+						let _ = currently_checking_set.insert_relay_block_hash(
 							&candidate_hash,
-							(relay_block_hash, relay_block_number),
+							relay_block_hash,
 						);
 					},
 					Some(ApprovalOutcome::Failed(_)) => {},
 					None => {
-						if !state.insert_relay_block_hash(
+						if !currently_checking_set.insert_relay_block_hash(
 							&candidate_hash,
-							(relay_block_hash, relay_block_number),
+							relay_block_hash,
 						) {
 							if let Some(handle) = launch_approval(
 								ctx,
@@ -878,12 +898,7 @@ async fn handle_actions(
 								candidate_index as _,
 								backing_group,
 							).await? {
-								let value = state
-									.currently_checking
-									.entry(relay_block_number)
-									.or_default();
-
-								value.push(handle);
+								currently_checking_set.currently_checking.push(handle);
 							}
 						}
 
@@ -915,19 +930,6 @@ async fn handle_actions(
 	}
 
 	Ok(conclude)
-}
-
-// Clean up all background tasks which are no longer needed as they correspond to a
-// finalized block.
-fn cleanup_background_tasks(
-	current_finalized_block: BlockNumber,
-	state: &mut State<impl DBReader>,
-) {
-	let after = state.currently_checking.split_off(&(current_finalized_block + 1));
-	state.currently_checking = after;
-
-	// tasks up to the finalized block are dropped, and `RemoteHandle` cancels
-	// the task on drop.
 }
 
 fn distribution_messages_for_activation<'a>(
@@ -1961,7 +1963,6 @@ fn process_wakeup(
 				indirect_cert,
 				assignment_tranche: tranche,
 				relay_block_hash: relay_block,
-				relay_block_number: block_entry.block_number(),
 				candidate_index: i as _,
 				session: block_entry.session(),
 				candidate: candidate_entry.candidate_receipt().clone(),
@@ -2075,7 +2076,6 @@ async fn launch_approval(
 
 		let available_data = match a_rx.await {
 			Err(e) => return ApprovalState::failed(
-				block_hash,
 				validator_index,
 				candidate_hash,
 				candidate_index as _,
@@ -2106,7 +2106,6 @@ async fn launch_approval(
 					}
 				}
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2118,7 +2117,6 @@ async fn launch_approval(
 		let validation_code = match code_rx.await {
 			Err(e) =>
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2126,7 +2124,6 @@ async fn launch_approval(
 				),
 			Ok(Err(e)) =>
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2145,7 +2142,6 @@ async fn launch_approval(
 				// according to expectations.
 				metrics_guard.take().on_approval_unavailable();
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2169,7 +2165,6 @@ async fn launch_approval(
 		match val_rx.await {
 			Err(_) =>
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2187,7 +2182,6 @@ async fn launch_approval(
 				);
 
 				return ApprovalState::approved(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2207,7 +2201,6 @@ async fn launch_approval(
 				metrics_guard.take().on_approval_invalid();
 
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
@@ -2222,7 +2215,6 @@ async fn launch_approval(
 				);
 				metrics_guard.take().on_approval_error();
 				return ApprovalState::failed(
-					block_hash,
 					validator_index,
 					candidate_hash,
 					candidate_index as _,

@@ -562,7 +562,6 @@ mod tests {
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
-	use std::collections::BTreeMap;
 	use std::{pin::Pin, sync::Arc};
 
 	use crate::{APPROVAL_SESSIONS, criteria, BlockEntry};
@@ -627,9 +626,6 @@ mod tests {
 			db: TestDB::default(),
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
-			approvals_cache: lru::LruCache::new(128usize),
-			candidate_hash_map: HashMap::new(),
-			currently_checking: BTreeMap::new(),
 		}
 	}
 
