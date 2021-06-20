@@ -516,6 +516,7 @@ fn assert_backend_contains_chains(
 	}
 }
 
+// TODO [now]: check `ChainApiMessage::Leaves`.
 fn assert_leaves(
 	backend: &TestBackend,
 	leaves: Vec<Hash>,
@@ -523,7 +524,19 @@ fn assert_leaves(
 	assert_eq!(
 		backend.load_leaves().unwrap().into_hashes_descending().into_iter().collect::<Vec<_>>(),
 		leaves,
-	)
+	);
+}
+
+async fn best_leaf_containing(
+	virtual_overseer: &mut VirtualOverseer,
+	required: Hash,
+) -> Option<Hash> {
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer.send(FromOverseer::Communication {
+		msg: ChainSelectionMessage::BestLeafContaining(required, tx)
+	}).await;
+
+	rx.await.unwrap()
 }
 
 #[test]
@@ -1436,9 +1449,296 @@ fn finalize_triggers_viability_search() {
 	});
 }
 
-// TODO [now]; test find best leaf containing with no leaves.
-// TODO [now]: find best leaf containing when required is finalized
-// TODO [now]: find best leaf containing when required is unfinalized.
-// TODO [now]: find best leaf containing when required is ancestor of many leaves.
+#[test]
+fn best_leaf_none_with_empty_db() {
+	test_harness(|_backend, mut virtual_overseer| async move {
+		let required = Hash::repeat_byte(1);
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, required).await;
+		assert!(best_leaf.is_none());
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_none_with_no_viable_leaves() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		//
+		// A2 reverts A1.
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 2 {
+					add_reversions(h, Some(1));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a2_hash).await;
+		assert!(best_leaf.is_none());
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a1_hash).await;
+		assert!(best_leaf.is_none());
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_none_with_unknown_required() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (_a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let unknown_hash = Hash::repeat_byte(0x69);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, unknown_hash).await;
+		assert!(best_leaf.is_none());
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_none_with_unviable_required() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		// F <- B1 <- B2
+		//
+		// A2 reverts A1.
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 2 {
+					add_reversions(h, Some(1));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (_b2_hash, chain_b) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a2_hash).await;
+		assert!(best_leaf.is_none());
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a1_hash).await;
+		assert!(best_leaf.is_none());
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_with_finalized_required() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		// F <- B1 <- B2
+		//
+		// B2 > A2
+
+		let (_a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, finalized_hash).await;
+		assert_eq!(best_leaf, Some(b2_hash));
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_with_unfinalized_required() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		// F <- B1 <- B2
+		//
+		// B2 > A2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (_b2_hash, chain_b) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a1_hash).await;
+		assert_eq!(best_leaf, Some(a2_hash));
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn best_leaf_ancestor_of_all_leaves() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//      A1 <- B2 <- B3
+		//            B2 <- C3
+		//
+		// C3 > B3 > A3
+
+		let (_a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (_b3_hash, chain_b) = construct_chain_on_base(
+			vec![2, 3],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		let (_, b2_hash, _) = extract_info_from_chain(0, &chain_b);
+
+		let (c3_hash, chain_c) = construct_chain_on_base(
+			vec![4],
+			2,
+			b2_hash,
+			|h| {
+				salt_header(h, b"c");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone(), chain_c.clone()],
+		).await;
+
+		let best_leaf = best_leaf_containing(&mut virtual_overseer, a1_hash).await;
+		assert_eq!(best_leaf, Some(c3_hash));
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn approve_message_approves_block_entry() {
+
+}
 
 // TODO [now]: test assumption that each approved block gives 1 DB write.

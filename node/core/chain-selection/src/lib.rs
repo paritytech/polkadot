@@ -353,6 +353,11 @@ async fn run_iteration<Context, B>(ctx: &mut Context, backend: &mut B)
 						required,
 					)?;
 
+					// note - this may be none if the finalized block is
+					// a leaf. this is fine according to the expected usage of the
+					// function. `None` responses should just `unwrap_or(required)`,
+					// so if the required block is the finalized block, then voilá.
+
 					let _ = tx.send(best_containing);
 				}
 			}
