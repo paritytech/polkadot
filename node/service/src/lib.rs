@@ -478,7 +478,7 @@ impl IsCollator {
 
 /// Returns the active leaves the overseer should start with.
 #[cfg(feature = "full-node")]
-fn active_leaves<RuntimeApi, Executor>(
+async fn active_leaves<RuntimeApi, Executor>(
 	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
 	client: &FullClient<RuntimeApi, Executor>,
 ) -> Result<Vec<BlockInfo>, Error>
@@ -488,10 +488,11 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	let best_block = select_chain.best_chain()?;
+	let best_block = select_chain.best_chain().await?;
 
 	let mut leaves = select_chain
 		.leaves()
+		.await
 		.unwrap_or_default()
 		.into_iter()
 		.filter_map(|hash| {
@@ -673,7 +674,9 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let active_leaves = active_leaves(&select_chain, &*client)?;
+	let active_leaves = futures::executor::block_on(
+		active_leaves(&select_chain, &*client)
+	)?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
