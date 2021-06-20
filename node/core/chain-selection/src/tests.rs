@@ -516,7 +516,6 @@ fn assert_backend_contains_chains(
 	}
 }
 
-// TODO [now]: check `ChainApiMessage::Leaves`.
 fn assert_leaves(
 	backend: &TestBackend,
 	leaves: Vec<Hash>,
