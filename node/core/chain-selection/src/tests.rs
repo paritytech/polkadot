@@ -539,6 +539,19 @@ async fn best_leaf_containing(
 	rx.await.unwrap()
 }
 
+async fn approve_block(
+	virtual_overseer: &mut VirtualOverseer,
+	backend: &TestBackend,
+	approved: Hash,
+) {
+	let (_, write_rx) = backend.await_next_write();
+	virtual_overseer.send(FromOverseer::Communication {
+		msg: ChainSelectionMessage::Approved(approved)
+	}).await;
+
+	write_rx.await.unwrap()
+}
+
 #[test]
 fn no_op_subsystem_run() {
 	test_harness(|_, virtual_overseer| async move { virtual_overseer });
@@ -1738,7 +1751,101 @@ fn best_leaf_ancestor_of_all_leaves() {
 
 #[test]
 fn approve_message_approves_block_entry() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
 
+		// F <- A1 <- A2 <- A3
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		approve_block(&mut virtual_overseer, &backend, a3_hash).await;
+
+		// a3 is approved, but not a1 or a2.
+		assert_matches!(
+			backend.load_block_entry(&a3_hash).unwrap().unwrap().viability.approval,
+			Approval::Approved
+		);
+
+		assert_matches!(
+			backend.load_block_entry(&a2_hash).unwrap().unwrap().viability.approval,
+			Approval::Unapproved
+		);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Unapproved
+		);
+
+		virtual_overseer
+	})
 }
 
-// TODO [now]: test assumption that each approved block gives 1 DB write.
+#[test]
+fn approve_nonexistent_has_no_effect() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		let nonexistent = Hash::repeat_byte(1);
+		approve_block(&mut virtual_overseer, &backend, nonexistent).await;
+
+		// a3 is approved, but not a1 or a2.
+		assert_matches!(
+			backend.load_block_entry(&a3_hash).unwrap().unwrap().viability.approval,
+			Approval::Unapproved
+		);
+
+		assert_matches!(
+			backend.load_block_entry(&a2_hash).unwrap().unwrap().viability.approval,
+			Approval::Unapproved
+		);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Unapproved
+		);
+
+		virtual_overseer
+	})
+}
