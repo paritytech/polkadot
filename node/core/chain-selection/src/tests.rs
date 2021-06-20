@@ -1180,8 +1180,261 @@ fn finalization_does_not_clobber_unviability() {
 	});
 }
 
-// TODO [now]: finalize an unviable block with viable descendants
-// TODO [now]: finalize an unviable block with unviable descendants down the line
+#[test]
+fn finalization_erases_unviable() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//      A1 <- B2
+		//
+		// A2 reverts A1.
+		// Finalize A1.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 2 {
+					add_reversions(h, Some(1));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![a3_hash, b2_hash]);
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(2, a2_hash),
+			(2, b2_hash),
+		]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn finalize_erases_unviable_but_keeps_later_unviability() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//      A1 <- B2
+		//
+		// A2 reverts A1.
+		// A3 reverts A2.
+		// Finalize A1. A2 is stil unviable, but B2 is viable.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 2 {
+					add_reversions(h, Some(1));
+				}
+				if h.number == 3 {
+					add_reversions(h, Some(2));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![b2_hash]);
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(2, a2_hash),
+			(2, b2_hash),
+		]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn finalize_erases_unviable_from_one_but_not_all_reverts() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//
+		// A3 reverts A2 and A1.
+		// Finalize A1. A2 is stil unviable.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 3 {
+					add_reversions(h, Some(1));
+					add_reversions(h, Some(2));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![]);
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(2, a2_hash),
+		]);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn finalize_triggers_viability_search() {
+	test_harness(|backend, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2 <- A3
+		//            A2 <- B3
+		//            A2 <- C3
+		// A3 reverts A1.
+		// Finalize A1. A3, B3, and C3 are all viable now.
+
+		let (a3_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2, 3],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+				if h.number == 3 {
+					add_reversions(h, Some(1));
+				}
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+		let (_, a2_hash, _) = extract_info_from_chain(1, &chain_a);
+
+		let (b3_hash, chain_b) = construct_chain_on_base(
+			vec![4],
+			2,
+			a2_hash,
+			|h| salt_header(h, b"b"),
+		);
+
+		let (c3_hash, chain_c) = construct_chain_on_base(
+			vec![5],
+			2,
+			a2_hash,
+			|h| salt_header(h, b"c"),
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone(), chain_c.clone()],
+		).await;
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![c3_hash, b3_hash, a3_hash]);
+
+		backend.assert_contains_only(vec![
+			(3, a3_hash),
+			(3, b3_hash),
+			(3, c3_hash),
+			(2, a2_hash),
+		]);
+
+		virtual_overseer
+	});
+}
 
 // TODO [now]; test find best leaf containing with no leaves.
 // TODO [now]: find best leaf containing when required is finalized
@@ -1189,4 +1442,3 @@ fn finalization_does_not_clobber_unviability() {
 // TODO [now]: find best leaf containing when required is ancestor of many leaves.
 
 // TODO [now]: test assumption that each approved block gives 1 DB write.
-// TODO [now]: test assumption that each finalized block gives 1 DB write.
