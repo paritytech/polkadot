@@ -112,4 +112,28 @@ mod tests {
 		let key = stagnant_at_key(5);
 		assert_eq!(decode_stagnant_at_key(&key), Some(5));
 	}
+
+	#[test]
+	fn lower_block_height_key_lesser() {
+		for i in 0..256 {
+			for j in 1..=256 {
+				let key_a = block_height_key(i);
+				let key_b = block_height_key(i + j);
+
+				assert!(key_a < key_b);
+			}
+		}
+	}
+
+	#[test]
+	fn lower_stagnant_at_key_lesser() {
+		for i in 0..256 {
+			for j in 1..=256 {
+				let key_a = stagnant_at_key(i);
+				let key_b = stagnant_at_key(i + j);
+
+				assert!(key_a < key_b);
+			}
+		}
+	}
 }
