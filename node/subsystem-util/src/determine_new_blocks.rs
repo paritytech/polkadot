@@ -46,11 +46,13 @@ pub async fn determine_new_blocks<E>(
 {
 	const ANCESTRY_STEP: usize = 4;
 
+	let min_block_needed = lower_bound_number + 1;
+
 	// Early exit if the block is in the DB or too early.
 	{
 		let already_known = is_known(&head)?;
 
-		let before_relevant = header.number <= lower_bound_number;
+		let before_relevant = header.number < min_block_needed;
 
 		if already_known || before_relevant {
 			return Ok(Vec::new());
@@ -59,8 +61,9 @@ pub async fn determine_new_blocks<E>(
 
 	let mut ancestry = vec![(head, header.clone())];
 
-	// Early exit if the parent hash is in the DB.
-	if is_known(&header.parent_hash)? {
+	// Early exit if the parent hash is in the DB or no further blocks
+	// are needed.
+	if is_known(&header.parent_hash)? || header.number == min_block_needed {
 		return Ok(ancestry);
 	}
 
@@ -68,22 +71,36 @@ pub async fn determine_new_blocks<E>(
 		let &(ref last_hash, ref last_header) = ancestry.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 
-		// If we iterated back to genesis, which can happen at the beginning of chains.
-		if last_header.number <= 1 {
-			break 'outer
-		}
+		assert!(
+			last_header.number > min_block_needed,
+			"Loop invariant: the last block in ancestry is checked to be \
+			above the minimum before the loop, and at the end of each iteration; \
+			qed"
+		);
 
 		let (tx, rx) = oneshot::channel();
-		ctx.send_message(ChainApiMessage::Ancestors {
-			hash: *last_hash,
-			k: ANCESTRY_STEP,
-			response_channel: tx,
-		}.into()).await;
 
-		// Continue past these errors.
-		let batch_hashes = match rx.await {
-			Err(_) | Ok(Err(_)) => break 'outer,
-			Ok(Ok(ancestors)) => ancestors,
+		// This is always non-zero as determined by the loop invariant
+		// above.
+		let ancestry_step = std::cmp::min(
+			ANCESTRY_STEP,
+			(last_header.number - min_block_needed) as usize,
+		);
+
+		let batch_hashes = if ancestry_step == 1 {
+			vec![last_header.parent_hash]
+		} else {
+			ctx.send_message(ChainApiMessage::Ancestors {
+				hash: *last_hash,
+				k: ancestry_step,
+				response_channel: tx,
+			}.into()).await;
+
+			// Continue past these errors.
+			match rx.await {
+				Err(_) | Ok(Err(_)) => break 'outer,
+				Ok(Ok(ancestors)) => ancestors,
+			}
 		};
 
 		let batch_headers = {
@@ -119,13 +136,18 @@ pub async fn determine_new_blocks<E>(
 		for (hash, header) in batch_hashes.into_iter().zip(batch_headers) {
 			let is_known = is_known(&hash)?;
 
-			let is_relevant = header.number > lower_bound_number;
+			let is_relevant = header.number >= min_block_needed;
+			let is_terminating = header.number == min_block_needed;
 
 			if is_known || !is_relevant {
 				break 'outer
 			}
 
 			ancestry.push((hash, header));
+
+			if is_terminating {
+				break 'outer
+			}
 		}
 	}
 
@@ -296,26 +318,11 @@ mod tests {
 
 			assert_matches!(
 				handle.recv().await,
-				AllMessages::ChainApi(ChainApiMessage::Ancestors {
-					hash: h,
-					k,
-					response_channel: tx,
-				}) => {
-					assert_eq!(h, chain.hash_by_number(14).unwrap());
-					assert_eq!(k, 4);
-					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					assert_eq!(h, chain.hash_by_number(13).unwrap());
+					let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
 				}
 			);
-
-			for _ in 0..4 {
-				assert_matches!(
-					handle.recv().await,
-					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
-						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
-					}
-				);
-			}
-
 		});
 
 		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
@@ -516,5 +523,102 @@ mod tests {
 		});
 
 		futures::executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn determine_new_blocks_does_not_request_genesis() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let chain = TestChain::new(1, 2);
+
+		let head = chain.header_by_number(2).unwrap().clone();
+		let head_hash = head.hash();
+		let known = TestKnownBlocks::default();
+
+		let expected_ancestry = (1..=2)
+			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
+			.rev()
+			.collect::<Vec<_>>();
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				0,
+			).await.unwrap();
+
+			assert_eq!(ancestry, expected_ancestry);
+		});
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+					assert_eq!(h, chain.hash_by_number(1).unwrap());
+					let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn determine_new_blocks_does_not_request_genesis_even_in_multi_ancestry() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let chain = TestChain::new(1, 3);
+
+		let head = chain.header_by_number(3).unwrap().clone();
+		let head_hash = head.hash();
+		let known = TestKnownBlocks::default();
+
+		let expected_ancestry = (1..=3)
+			.map(|n| chain.header_by_number(n).map(|h| (h.hash(), h.clone())).unwrap())
+			.rev()
+			.collect::<Vec<_>>();
+
+		let test_fut = Box::pin(async move {
+			let ancestry = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				0,
+			).await.unwrap();
+
+			assert_eq!(ancestry, expected_ancestry);
+		});
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: h,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(h, head_hash);
+					assert_eq!(k, 2);
+
+					let _ = tx.send(Ok(chain.ancestry(&h, k as _)));
+				}
+			);
+
+			for _ in 0..2 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
+						let _ = tx.send(Ok(chain.header_by_hash(&h).map(|h| h.clone())));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
 	}
 }

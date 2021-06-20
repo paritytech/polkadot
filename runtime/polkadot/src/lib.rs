@@ -67,7 +67,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use pallet_mmr_primitives as mmr;
 
 #[cfg(feature = "std")]
@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9050,
+	spec_version: 9051,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1241,7 +1241,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			// dummy implementation due to lack of BEEFY pallet.
 			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }

@@ -75,15 +75,15 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Dependencies for BEEFY
-pub struct BeefyDeps<BeefySignature> {
+pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block, BeefySignature>,
+	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
 
 /// Full client dependencies
-pub struct FullDeps<C, P, SC, B, BS> {
+pub struct FullDeps<C, P, SC, B> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -99,11 +99,11 @@ pub struct FullDeps<C, P, SC, B, BS> {
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
 	/// BEEFY specific dependencies.
-	pub beefy: BeefyDeps<BS>,
+	pub beefy: BeefyDeps,
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, SC, B, BS>(deps: FullDeps<C, P, SC, B, BS>) -> RpcExtension where
+pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore +
 		HeaderMetadata<Block, Error=BlockChainError> + Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
@@ -115,7 +115,6 @@ pub fn create_full<C, P, SC, B, BS>(deps: FullDeps<C, P, SC, B, BS>) -> RpcExten
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	BS: Clone + Send + parity_scale_codec::Encode + 'static,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_mmr_rpc::{MmrApi, Mmr};

@@ -395,8 +395,11 @@ async fn determine_our_validators(
 	cores: usize,
 	relay_parent: Hash,
 ) -> Result<(GroupValidators, GroupValidators)> {
-	let info = &runtime.get_session_info(ctx, relay_parent).await?.session_info;
-	tracing::debug!(target: LOG_TARGET, ?info, "Received info");
+	let session_index = runtime.get_session_index(ctx, relay_parent).await?;
+	let info = &runtime.get_session_info_by_index(ctx, relay_parent, session_index)
+		.await?
+		.session_info;
+	tracing::debug!(target: LOG_TARGET, ?session_index, "Received session info");
 	let groups = &info.validator_groups;
 	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
 
@@ -794,6 +797,9 @@ async fn handle_network_msg(
 		}
 		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
+		}
+		NewGossipTopology(..) => {
+			// impossibru!
 		}
 	}
 

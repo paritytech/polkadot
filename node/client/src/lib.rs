@@ -20,7 +20,6 @@
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
 use std::sync::Arc;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -82,7 +81,7 @@ pub trait RuntimeApiCollection:
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-	+ beefy_primitives::BeefyApi<Block, BeefyId>
+	+ beefy_primitives::BeefyApi<Block>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
@@ -102,7 +101,7 @@ where
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-		+ beefy_primitives::BeefyApi<Block, BeefyId>,
+		+ beefy_primitives::BeefyApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
