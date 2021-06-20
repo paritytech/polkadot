@@ -37,12 +37,13 @@ use crate::{BlockEntry, Error, Timestamp};
 use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use kvdb::{DBTransaction, KeyValueDB};
+use parity_scale_codec::{Encode, Decode};
 
 use std::sync::Arc;
 
 const BLOCK_ENTRY_PREFIX: &[u8; 14] = b"CS_block_entry";
 const BLOCK_HEIGHT_PREFIX: &[u8; 15] = b"CS_block_height";
-const BLOCK_STAGNANT_AT: &[u8; 14] = b"CS_stagnant_at";
+const STAGNANT_AT_PREFIX: &[u8; 14] = b"CS_stagnant_at";
 
 /// Configuration for the database backend.
 #[derive(Debug, Clone, Copy)]
@@ -53,6 +54,62 @@ pub struct Config {
 
 /// The database backend.
 pub struct DbBackend {
-	inner: Arc<KeyValueDB>,
+	inner: Arc<dyn KeyValueDB>,
 	config: Config,
+}
+
+fn block_entry_key(hash: &Hash) -> [u8; 14 + 32] {
+	let mut key = [0; 14 + 32];
+	key[..14].copy_from_slice(BLOCK_ENTRY_PREFIX);
+	hash.using_encoded(|s| key[14..].copy_from_slice(s));
+	key
+}
+
+fn block_height_key(number: BlockNumber) -> [u8; 15 + 4] {
+	let mut key = [0; 15 + 4];
+	key[..15].copy_from_slice(BLOCK_HEIGHT_PREFIX);
+	key[15..].copy_from_slice(&number.to_be_bytes());
+	key
+}
+
+fn stagnant_at_key(timestamp: Timestamp) -> [u8; 14 + 8] {
+	let mut key = [0; 14 + 8];
+	key[..14].copy_from_slice(STAGNANT_AT_PREFIX);
+	key[14..].copy_from_slice(&timestamp.to_be_bytes());
+	key
+}
+
+fn decode_block_height_key(key: &[u8]) -> Option<BlockNumber> {
+	if key.len() != 15 + 4 { return None }
+	if !key.starts_with(BLOCK_HEIGHT_PREFIX) { return None }
+
+	let mut bytes = [0; 4];
+	bytes.copy_from_slice(&key[15..]);
+	Some(BlockNumber::from_be_bytes(bytes))
+}
+
+fn decode_stagnant_at_key(key: &[u8]) -> Option<Timestamp> {
+	if key.len() != 14 + 8 { return None }
+	if !key.starts_with(STAGNANT_AT_PREFIX) { return None }
+
+	let mut bytes = [0; 8];
+	bytes.copy_from_slice(&key[14..]);
+	Some(Timestamp::from_be_bytes(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn block_height_key_decodes() {
+		let key = block_height_key(5);
+		assert_eq!(decode_block_height_key(&key), Some(5));
+	}
+
+	#[test]
+	fn stagnant_at_key_decodes() {
+		let key = stagnant_at_key(5);
+		assert_eq!(decode_stagnant_at_key(&key), Some(5));
+	}
 }
