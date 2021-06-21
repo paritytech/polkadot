@@ -8051,6 +8051,7 @@ dependencies = [
 name = "sc-consensus"
 version = "0.9.0"
 dependencies = [
+ "async-trait",
  "parking_lot 0.11.1",
  "sc-client-api",
  "sp-blockchain",
@@ -8788,7 +8789,7 @@ dependencies = [
 [[package]]
 name = "scale-info"
 version = "0.6.0"
-source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#e93190aea018d97ed1d5350b54484d88d695b356"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#8301a87aeec738e153bea32fc8f9c58f703b256a"
 dependencies = [
  "bitvec",
  "cfg-if 1.0.0",
@@ -8801,7 +8802,7 @@ dependencies = [
 [[package]]
 name = "scale-info-derive"
 version = "0.4.0"
-source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#e93190aea018d97ed1d5350b54484d88d695b356"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#8301a87aeec738e153bea32fc8f9c58f703b256a"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
