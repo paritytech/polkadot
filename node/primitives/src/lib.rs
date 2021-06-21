@@ -52,7 +52,7 @@ pub mod approval;
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = MAX_CODE_SIZE * 8 as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
+pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE * 4 as usize;
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
