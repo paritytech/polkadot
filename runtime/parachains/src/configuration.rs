@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE};
+use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	ensure,
