@@ -22,6 +22,7 @@
 //! ("CS_block_entry", Hash) -> BlockEntry;
 //! ("CS_block_height", BigEndianBlockNumber) -> Vec<Hash>;
 //! ("CS_stagnant_at", BigEndianTimestamp) -> Vec<Hash>;
+//! ("CS_leaves") -> LeafEntrySet;
 //! ```
 //!
 //! The big-endian encoding is used for creating iterators over the key-value DB which are
@@ -32,9 +33,10 @@
 //! semantic difference between `None` and an empty `Vec`.
 
 use crate::backend::{Backend, BackendWriteOp};
-use crate::{BlockEntry, Error, Timestamp};
+use crate::Error;
 
 use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_node_primitives::BlockWeight;
 
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Encode, Decode};
@@ -44,6 +46,150 @@ use std::sync::Arc;
 const BLOCK_ENTRY_PREFIX: &[u8; 14] = b"CS_block_entry";
 const BLOCK_HEIGHT_PREFIX: &[u8; 15] = b"CS_block_height";
 const STAGNANT_AT_PREFIX: &[u8; 14] = b"CS_stagnant_at";
+const LEAVES_KEY: &[u8; 9] = b"CS_leaves";
+
+type Timestamp = u64;
+
+#[derive(Encode, Decode)]
+enum Approval {
+	#[codec(index = 0)]
+	Approved,
+	#[codec(index = 1)]
+	Unapproved,
+	#[codec(index = 2)]
+	Stagnant,
+}
+
+impl From<crate::Approval> for Approval {
+	fn from(x: crate::Approval) -> Self {
+		match x {
+			crate::Approval::Approved => Approval::Approved,
+			crate::Approval::Unapproved => Approval::Unapproved,
+			crate::Approval::Stagnant => Approval::Stagnant,
+		}
+	}
+}
+
+impl From<Approval> for crate::Approval {
+	fn from(x: Approval) -> crate::Approval {
+		match x {
+			Approval::Approved => crate::Approval::Approved,
+			Approval::Unapproved => crate::Approval::Unapproved,
+			Approval::Stagnant => crate::Approval::Stagnant,
+		}
+	}
+}
+
+#[derive(Encode, Decode)]
+struct ViabilityCriteria {
+	explicitly_reverted: bool,
+	approval: Approval,
+	earliest_unviable_ancestor: Option<Hash>,
+}
+
+impl From<crate::ViabilityCriteria> for ViabilityCriteria {
+	fn from(x: crate::ViabilityCriteria) -> Self {
+		ViabilityCriteria {
+			explicitly_reverted: x.explicitly_reverted,
+			approval: x.approval.into(),
+			earliest_unviable_ancestor: x.earliest_unviable_ancestor,
+		}
+	}
+}
+
+impl From<ViabilityCriteria> for crate::ViabilityCriteria {
+	fn from(x: ViabilityCriteria) -> crate::ViabilityCriteria {
+		crate::ViabilityCriteria {
+			explicitly_reverted: x.explicitly_reverted,
+			approval: x.approval.into(),
+			earliest_unviable_ancestor: x.earliest_unviable_ancestor,
+		}
+	}
+}
+
+#[derive(Encode, Decode)]
+struct LeafEntry {
+	weight: BlockWeight,
+	block_number: BlockNumber,
+	block_hash: Hash,
+}
+
+impl From<crate::LeafEntry> for LeafEntry {
+	fn from(x: crate::LeafEntry) -> Self {
+		LeafEntry {
+			weight: x.weight,
+			block_number: x.block_number,
+			block_hash: x.block_hash,
+		}
+	}
+}
+
+impl From<LeafEntry> for crate::LeafEntry {
+	fn from(x: LeafEntry) -> crate::LeafEntry {
+		crate::LeafEntry {
+			weight: x.weight,
+			block_number: x.block_number,
+			block_hash: x.block_hash,
+		}
+	}
+}
+
+#[derive(Encode, Decode)]
+struct LeafEntrySet {
+	inner: Vec<LeafEntry>,
+}
+
+impl From<crate::LeafEntrySet> for LeafEntrySet {
+	fn from(x: crate::LeafEntrySet) -> Self {
+		LeafEntrySet {
+			inner: x.inner.into_iter().map(Into::into).collect(),
+		}
+	}
+}
+
+impl From<LeafEntrySet> for crate::LeafEntrySet {
+	fn from(x: LeafEntrySet) -> crate::LeafEntrySet {
+		crate::LeafEntrySet {
+			inner: x.inner.into_iter().map(Into::into).collect(),
+		}
+	}
+}
+
+#[derive(Encode, Decode)]
+struct BlockEntry {
+	block_hash: Hash,
+	block_number: BlockNumber,
+	parent_hash: Hash,
+	children: Vec<Hash>,
+	viability: ViabilityCriteria,
+	weight: BlockWeight,
+}
+
+impl From<crate::BlockEntry> for BlockEntry {
+	fn from(x: crate::BlockEntry) -> Self {
+		BlockEntry {
+			block_hash: x.block_hash,
+			block_number: x.block_number,
+			parent_hash: x.parent_hash,
+			children: x.children,
+			viability: x.viability.into(),
+			weight: x.weight,
+		}
+	}
+}
+
+impl From<BlockEntry> for crate::BlockEntry {
+	fn from(x: BlockEntry) -> crate::BlockEntry {
+		crate::BlockEntry {
+			block_hash: x.block_hash,
+			block_number: x.block_number,
+			parent_hash: x.parent_hash,
+			children: x.children,
+			viability: x.viability.into(),
+			weight: x.weight,
+		}
+	}
+}
 
 /// Configuration for the database backend.
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +202,44 @@ pub struct Config {
 pub struct DbBackend {
 	inner: Arc<dyn KeyValueDB>,
 	config: Config,
+}
+
+impl DbBackend {
+	/// Create a new [`DbBackend`] with the supplied key-value store and
+	/// config.
+	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
+		DbBackend {
+			inner: db,
+			config,
+		}
+	}
+}
+
+// impl Backend for DbBackend {
+// 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error>;
+// 	fn load_leaves(&self) -> Result<LeafEntrySet, Error>;
+// 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
+// 	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
+// 		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
+// 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error>;
+// 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error>;
+
+// 	/// Atomically write the list of operations, with later operations taking precedence over prior.
+// 	fn write<I>(&mut self, ops: I) -> Result<(), Error>
+// 		where I: IntoIterator<Item = BackendWriteOp>;
+// }
+
+fn load_decode<D: Decode>(
+	db: &dyn KeyValueDB,
+	col_data: u32,
+	key: &[u8],
+) -> Result<Option<D>, Error> {
+	match db.get(col_data, key)? {
+		None => Ok(None),
+		Some(raw) => D::decode(&mut &raw[..])
+			.map(Some)
+			.map_err(Into::into),
+	}
 }
 
 fn block_entry_key(hash: &Hash) -> [u8; 14 + 32] {
