@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, ValidationResult,
+	SignedDisputeStatement, SignedFullStatement, ValidationResult, BlockWeight,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -470,6 +470,14 @@ pub enum ChainApiMessage {
 	/// Request the block header by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockHeader(Hash, ChainApiResponseChannel<Option<BlockHeader>>),
+	/// Get the cumulative weight of the given block, by hash.
+	/// If the block or weight is unknown, this returns `None`.
+	///
+	/// Note: this the weight within the low-level fork-choice rule,
+	/// not the high-level one implemented in the chain-selection subsystem.
+	///
+	/// Weight is used for comparing blocks in a fork-choice rule.
+	BlockWeight(Hash, ChainApiResponseChannel<Option<BlockWeight>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.

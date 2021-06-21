@@ -45,7 +45,6 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-	beefy_primitives::ecdsa::AuthoritySignature as BeefySignature,
 	sp_runtime::traits::Header as HeaderT,
 };
 
@@ -248,7 +247,7 @@ fn new_partial<RuntimeApi, Executor>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
 				babe::BabeLink<Block>,
-				beefy_gadget::notification::BeefySignedCommitmentSender<Block, BeefySignature>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -479,7 +478,7 @@ impl IsCollator {
 
 /// Returns the active leaves the overseer should start with.
 #[cfg(feature = "full-node")]
-fn active_leaves<RuntimeApi, Executor>(
+async fn active_leaves<RuntimeApi, Executor>(
 	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
 	client: &FullClient<RuntimeApi, Executor>,
 ) -> Result<Vec<BlockInfo>, Error>
@@ -489,10 +488,11 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	let best_block = select_chain.best_chain()?;
+	let best_block = select_chain.best_chain().await?;
 
 	let mut leaves = select_chain
 		.leaves()
+		.await
 		.unwrap_or_default()
 		.into_iter()
 		.filter_map(|hash| {
@@ -674,7 +674,9 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let active_leaves = active_leaves(&select_chain, &*client)?;
+	let active_leaves = futures::executor::block_on(
+		active_leaves(&select_chain, &*client)
+	)?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
@@ -821,6 +823,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			babe_link,
 			can_author_with,
 			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
+			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
@@ -848,7 +851,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			prometheus_registry: prometheus_registry.clone(),
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, beefy_primitives::ecdsa::AuthorityPair, _, _, _>(
+		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(
 			beefy_params
 		);
 
@@ -885,12 +888,22 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		// after the given pause block is finalized and restarting after the
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
+		// we should enable approval checking voting rule before we deploy parachains on polkadot
+		let enable_approval_checking_voting_rule = chain_spec.is_kusama()
+			|| chain_spec.is_westend()
+			|| chain_spec.is_rococo()
+			|| chain_spec.is_wococo()
+			|| chain_spec.is_dev();
 
 		let builder = if let Some(ref overseer) = overseer_handler {
-			builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
-				overseer.clone(),
-				prometheus_registry.as_ref(),
-			)?)
+			if enable_approval_checking_voting_rule {
+				builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
+					overseer.clone(),
+					prometheus_registry.as_ref(),
+				)?)
+			} else {
+				builder
+			}
 		} else {
 			builder
 		};
