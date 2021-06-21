@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+scale-info = { git = "https://github.com/paritytech/scale-info", branch = "aj-substrate", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", default-features = false }

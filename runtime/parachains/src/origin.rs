@@ -20,9 +20,10 @@ use sp_std::result;
 use sp_runtime::traits::BadOrigin;
 use primitives::v1::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Origin for the parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug, TypeInfo)]
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),

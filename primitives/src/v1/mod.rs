@@ -310,7 +310,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 }
 
 /// A candidate-receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
