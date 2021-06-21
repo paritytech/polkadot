@@ -57,31 +57,53 @@ const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 50;
 pub struct SelectRelayChain<B> {
 	backend: Arc<B>,
 	overseer: OverseerHandler,
+	// A fallback to use in case the overseer is disconnected.
+	//
+	// This is used on relay chains which have not yet enabled
+	// parachains as well as situations where the node is offline.
+	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
 }
 
-impl<B> SelectRelayChain<B> {
+impl<B> SelectRelayChain<B>
+	where B: sc_client_api::backend::Backend<PolkadotBlock> + 'static
+{
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	pub fn new(backend: Arc<B>, overseer: OverseerHandler) -> Self {
 		SelectRelayChain {
+			fallback: sc_consensus::LongestChain::new(backend.clone()),
 			backend,
 			overseer,
 		}
 	}
 }
 
-impl<B> Clone for SelectRelayChain<B> {
+impl<B> SelectRelayChain<B> {
+	/// Given an overseer handler, this connects the [`SelectRelayChain`]'s
+	/// internal handler to the same overseer.
+	pub fn connect_overseer_handler(
+		&mut self,
+		other_handler: &OverseerHandler,
+	) {
+		other_handler.connect_other(&mut self.overseer);
+	}
+}
+
+impl<B> Clone for SelectRelayChain<B>
+	where B: sc_client_api::backend::Backend<PolkadotBlock> + 'static
+{
 	fn clone(&self) -> SelectRelayChain<B> {
 		SelectRelayChain {
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
+			fallback: self.fallback.clone(),
 		}
 	}
 }
 
 #[async_trait::async_trait]
 impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
-	where B: sp_blockchain::HeaderBackend<PolkadotBlock> + 'static
+	where B: sc_client_api::backend::Backend<PolkadotBlock> + 'static
 {
 	/// Get all leaves of the chain, i.e. block hashes that are suitable to
 	/// build upon and have no suitable children.
