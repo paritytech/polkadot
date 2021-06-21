@@ -64,7 +64,7 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use pallet_mmr_primitives as mmr;
 use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
@@ -200,12 +200,12 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage},
-		Offences: pallet_offences::{Pallet, Call, Storage, Event},
+		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
 
 		// Parachains modules.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin},
@@ -253,7 +253,7 @@ construct_runtime! {
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
 	}
 }
 
@@ -812,7 +812,7 @@ impl paras_registrar::Config for Runtime {
 pub struct ParentHashRandomness;
 
 impl pallet_beefy::Config for Runtime {
-	type AuthorityId = BeefyId;
+	type BeefyId = BeefyId;
 }
 
 impl pallet_mmr::Config for Runtime {
@@ -1244,7 +1244,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			Beefy::validator_set()
 		}

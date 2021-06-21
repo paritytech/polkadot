@@ -45,7 +45,35 @@ struct ActiveLeavesUpdate {
 }
 ```
 
-## Approval Voting
+## All Messages
+
+A message type tying together all message types that are used across Subsystems.
+
+```rust
+enum AllMessages {
+    CandidateValidation(CandidateValidationMessage),
+    CandidateBacking(CandidateBackingMessage),
+    ChainApi(ChainApiMessage),
+    CollatorProtocol(CollatorProtocolMessage),
+    StatementDistribution(StatementDistributionMessage),
+    AvailabilityDistribution(AvailabilityDistributionMessage),
+    AvailabilityRecovery(AvailabilityRecoveryMessage),
+    BitfieldDistribution(BitfieldDistributionMessage),
+    BitfieldSigning(BitfieldSigningMessage),
+    Provisioner(ProvisionerMessage),
+    RuntimeApi(RuntimeApiMessage),
+    AvailabilityStore(AvailabilityStoreMessage),
+    NetworkBridge(NetworkBridgeMessage),
+    CollationGeneration(CollationGenerationMessage),
+    ApprovalVoting(ApprovalVotingMessage),
+    ApprovalDistribution(ApprovalDistributionMessage),
+    GossipSupport(GossipSupportMessage),
+    DisputeCoordinator(DisputeCoordinatorMessage),
+    DisputeParticipation(DisputeParticipationMessage),
+}
+```
+
+## Approval Voting Message
 
 Messages received by the approval voting subsystem.
 
@@ -127,9 +155,9 @@ enum ApprovalVotingMessage {
 }
 ```
 
-## Approval Distribution
+## Approval Distribution Message
 
-Messages received by the approval Distribution subsystem.
+Messages received by the approval distribution subsystem.
 
 ```rust
 /// Metadata about a block which is now live in the approval protocol.
@@ -165,10 +193,6 @@ enum ApprovalDistributionMessage {
     NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
-
-## All Messages
-
-> TODO (now)
 
 ## Availability Distribution Message
 
@@ -287,21 +311,6 @@ enum CandidateBackingMessage {
 }
 ```
 
-## Candidate Selection Message
-
-These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.md) as a means of providing feedback on its outputs.
-
-```rust
-enum CandidateSelectionMessage {
-    /// A candidate collation can be fetched from a collator and should be considered for seconding.
-    Collation(RelayParent, ParaId, CollatorId),
-    /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-    Invalid(RelayParent, CandidateReceipt),
-    /// The candidate we recommended to be seconded was validated successfully.
-    Seconded(RelayParent, SignedFullStatement),
-}
-```
-
 ## Chain API Message
 
 The Chain API subsystem is responsible for providing an interface to chain data.
@@ -314,6 +323,11 @@ enum ChainApiMessage {
     /// Request the block header by hash.
     /// Returns `None` if a block with the given hash is not present in the db.
     BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
+    /// Get the cumulative weight of the given block, by hash.
+    /// If the block or weight is unknown, this returns `None`.
+    /// 
+    /// Weight is used for comparing blocks in a fork-choice rule.
+    BlockWeight(Hash, ResponseChannel<Result<Option<Weight>, Error>>),
     /// Get the finalized block hash by number.
     /// Returns `None` if a block with the given number is not present in the db.
     /// Note: the caller must ensure the block is finalized.
@@ -333,6 +347,23 @@ enum ChainApiMessage {
         /// The response channel.
         response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
     }
+}
+```
+
+## Chain Selection Message
+
+Messages received by the [Chain Selection subsystem](../node/utility/chain-selection.md)
+
+```rust
+enum ChainSelectionMessage {
+    /// Signal to the chain selection subsystem that a specific block has been approved.
+    Approved(Hash),
+    /// Request the leaves in descending order by score.
+    Leaves(ResponseChannel<Vec<Hash>>),
+    /// Request the best leaf containing the given block in its ancestry. Return `None` if
+    /// there is no such leaf.
+    BestLeafContaining(Hash, ResponseChannel<Option<Hash>>),
+
 }
 ```
 
@@ -438,8 +469,8 @@ enum DisputeParticipationMessage {
         candidate_receipt: CandidateReceipt,
         /// The session the candidate appears in.
         session: SessionIndex,
-        /// The indices of validators who have already voted on this candidate.
-        voted_indices: Vec<ValidatorIndex>,
+        /// The number of validators in the session.
+        n_validators: u32,
     }
 }
 ```
@@ -493,6 +524,13 @@ enum NetworkBridgeMessage {
         /// authority discovery has failed to resolve.
         failed: oneshot::Sender<usize>,
     },
+    /// Inform the distribution subsystems about the new
+    /// gossip network topology formed.
+    NewGossipTopology {
+        /// Ids of our neighbors in the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should.
+        our_neighbors: HashSet<AuthorityDiscoveryId>,
+    }
 }
 ```
 

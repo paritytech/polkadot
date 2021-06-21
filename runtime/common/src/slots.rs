@@ -451,7 +451,7 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
-	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
+	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		}
 	);
 

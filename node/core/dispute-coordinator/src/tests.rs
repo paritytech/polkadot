@@ -279,12 +279,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				candidate_hash: c_hash,
 				candidate_receipt: c_receipt,
 				session: s,
-				voted_indices,
+				n_validators,
 			}) => {
 				assert_eq!(c_hash, candidate_hash);
 				assert_eq!(c_receipt, candidate_receipt);
 				assert_eq!(s, session);
-				assert_eq!(voted_indices, vec![ValidatorIndex(0), ValidatorIndex(1)]);
+				assert_eq!(n_validators, test_state.validators.len() as u32);
 			}
 		);
 

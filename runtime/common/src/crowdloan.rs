@@ -677,7 +677,7 @@ impl<T: Config> Pallet<T> {
 		who.using_encoded(|b| child::kill(&Self::id_from_index(index), b));
 	}
 
-	pub fn crowdloan_kill(index: TrieIndex) -> child::KillChildStorageResult {
+	pub fn crowdloan_kill(index: TrieIndex) -> child::KillStorageResult {
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 

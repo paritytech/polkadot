@@ -23,6 +23,7 @@
 //! Supported requests:
 //! * Block hash to number
 //! * Block hash to header
+//! * Block weight (cumulative)
 //! * Finalized block number to hash
 //! * Last finalized block number
 //! * Ancestors
@@ -30,19 +31,18 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
-	messages::ChainApiMessage,
-};
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
-use polkadot_primitives::v1::{Block, BlockId};
-use sp_blockchain::HeaderBackend;
 use std::sync::Arc;
 
 use futures::prelude::*;
+use sc_client_api::AuxStore;
+use sp_blockchain::HeaderBackend;
+
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_primitives::v1::{Block, BlockId};
+use polkadot_subsystem::{
+	messages::ChainApiMessage, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
+};
 
 const LOG_TARGET: &str = "parachain::chain-api";
 
@@ -62,9 +62,10 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
-	Client: HeaderBackend<Block> + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>
+impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client>
+where
+	Client: HeaderBackend<Block> + AuxStore + 'static,
+	Context: SubsystemContext<Message = ChainApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx, self)
@@ -82,7 +83,7 @@ async fn run<Client>(
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: HeaderBackend<Block>,
+	Client: HeaderBackend<Block> + AuxStore,
 {
 	loop {
 		match ctx.recv().await? {
@@ -104,6 +105,13 @@ where
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
+				ChainApiMessage::BlockWeight(hash, response_channel) => {
+					let _timer = subsystem.metrics.time_block_weight();
+					let result = sc_consensus_babe::block_weight(&*subsystem.client, hash)
+						.map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
+					let _ = response_channel.send(result);
+				}
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					let _timer = subsystem.metrics.time_finalized_block_hash();
 					// Note: we don't verify it's finalized
@@ -160,6 +168,7 @@ struct MetricsInner {
 	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
 	block_number: prometheus::Histogram,
 	block_header: prometheus::Histogram,
+	block_weight: prometheus::Histogram,
 	finalized_block_hash: prometheus::Histogram,
 	finalized_block_number: prometheus::Histogram,
 	ancestors: prometheus::Histogram,
@@ -188,6 +197,11 @@ impl Metrics {
 	/// Provide a timer for `block_header` which observes on drop.
 	fn time_block_header(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.block_header.start_timer())
+	}
+
+	/// Provide a timer for `block_weight` which observes on drop.
+	fn time_block_weight(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.block_weight.start_timer())
 	}
 
 	/// Provide a timer for `finalized_block_hash` which observes on drop.
@@ -237,6 +251,15 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			block_weight: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_chain_api_block_weight",
+						"Time spent within `chain_api::block_weight`",
+					)
+				)?,
+				registry,
+			)?,
 			finalized_block_hash: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
@@ -269,15 +292,16 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	use std::collections::BTreeMap;
 	use futures::{future::BoxFuture, channel::oneshot};
+	use parity_scale_codec::Encode;
 
 	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
+	use polkadot_node_primitives::BlockWeight;
 	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_blockchain::Info as BlockInfo;
 	use sp_core::testing::TaskExecutor;
@@ -285,6 +309,7 @@ mod tests {
 	#[derive(Clone)]
 	struct TestClient {
 		blocks: BTreeMap<Hash, BlockNumber>,
+		block_weights: BTreeMap<Hash, BlockWeight>,
 		finalized_blocks: BTreeMap<BlockNumber, Hash>,
 		headers: BTreeMap<Hash, Header>,
 	}
@@ -314,6 +339,12 @@ mod tests {
 					THREE => 3,
 					FOUR => 4,
 				},
+				block_weights: maplit::btreemap! {
+					ONE => 0,
+					TWO => 1,
+					THREE => 1,
+					FOUR => 2,
+				},
 				finalized_blocks: maplit::btreemap! {
 					1 => ONE,
 					3 => THREE,
@@ -337,7 +368,7 @@ mod tests {
 					ERROR_PATH => Header {
 						..default_header()
 					}
-				}
+				},
 			}
 		}
 	}
@@ -402,6 +433,30 @@ mod tests {
 		futures::executor::block_on(future::join(chain_api_task, test_task));
 	}
 
+	impl AuxStore for TestClient {
+		fn insert_aux<
+			'a,
+			'b: 'a,
+			'c: 'a,
+			I: IntoIterator<Item = &'a (&'c [u8], &'c [u8])>,
+			D: IntoIterator<Item = &'a &'b [u8]>,
+		>(
+			&self,
+			_insert: I,
+			_delete: D,
+		) -> sp_blockchain::Result<()> {
+			unimplemented!()
+		}
+
+		fn get_aux(&self, key: &[u8]) -> sp_blockchain::Result<Option<Vec<u8>>> {
+			Ok(self
+				.block_weights
+				.iter()
+				.find(|(hash, _)| sc_consensus_babe::aux_schema::block_weight_key(hash) == key)
+				.map(|(_, weight)| weight.encode()))
+		}
+	}
+
 	#[test]
 	fn request_block_number() {
 		test_harness(|client, mut sender| {
@@ -440,6 +495,31 @@ mod tests {
 
 					sender.send(FromOverseer::Communication {
 						msg: ChainApiMessage::BlockHeader(*hash, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_block_weight() {
+		test_harness(|client, mut sender| {
+			async move {
+				const NOT_HERE: Hash = Hash::repeat_byte(0x5);
+				let test_cases = [
+					(TWO, sc_consensus_babe::block_weight(&*client, TWO).unwrap()),
+					(FOUR, sc_consensus_babe::block_weight(&*client, FOUR).unwrap()),
+					(NOT_HERE, sc_consensus_babe::block_weight(&*client, NOT_HERE).unwrap()),
+				];
+				for (hash, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiMessage::BlockWeight(*hash, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap().unwrap(), *expected);

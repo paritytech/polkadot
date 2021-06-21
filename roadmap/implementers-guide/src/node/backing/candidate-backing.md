@@ -16,16 +16,16 @@ Output:
 
 - [`CandidateValidationMessage`][CVM]
 - [`RuntimeApiMessage`][RAM]
-- [`CandidateSelectionMessage`][CSM]
+- [`CollatorProtocolMessage`][CPM]
 - [`ProvisionerMessage`][PM]
 - [`AvailabilityDistributionMessage`][ADM]
 - [`StatementDistributionMessage`][SDM]
 
 ## Functionality
 
-The [Candidate Selection][CS] subsystem is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingMessage`s][CBM] and passes them to this subsystem.
+The [Collator Protocol][CP] subsystem is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingMessage`s][CBM] and passes them to this subsystem.
 
-This subsystem requests validation from the [Candidate Validation][CV] and generates an appropriate [`Statement`][Statement]. All `Statement`s are then passed on to the [Statement Distribution][SD] subsystem to be gossiped to peers. When [Candidate Validation][CV] decides that a candidate is invalid, and it was recommended to us to second by our own [Candidate Selection][CS] subsystem, a message is sent to the [Candidate Selection][CS] subsystem with the candidate's hash so that the collator which recommended it can be penalized.
+This subsystem requests validation from the [Candidate Validation][CV] and generates an appropriate [`Statement`][Statement]. All `Statement`s are then passed on to the [Statement Distribution][SD] subsystem to be gossiped to peers. When [Candidate Validation][CV] decides that a candidate is invalid, and it was recommended to us to second by our own [Collator Protocol][CP] subsystem, a message is sent to the [Collator Protocol][CP] subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
 The subsystem should maintain a set of handles to Candidate Backing Jobs that are currently live, as well as the relay-parent to which they correspond.
 
@@ -117,7 +117,7 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 ### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a [`AvailabilityDistributionMessage`][PDM]`::FetchPoV{ validator_index, pov_hash, candidate_hash, tx, } and listen on the passed receiver for a response. Availability distribution will send the request to the validator specified by `validator_index`, which might not be serving it for whatever reasons, therefore we need to retry with other backing validators in that case.
+Dispatch a [`AvailabilityDistributionMessage`][ADM]`::FetchPoV{ validator_index, pov_hash, candidate_hash, tx, } and listen on the passed receiver for a response. Availability distribution will send the request to the validator specified by `validator_index`, which might not be serving it for whatever reasons, therefore we need to retry with other backing validators in that case.
 
 
 ### Validate PoV Block
@@ -127,12 +127,12 @@ Dispatch a `CandidateValidationMessage::Validate(validation function, candidate,
 
 ### Distribute Signed Statement
 
-Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFullStatement)`.
+Dispatch a [`StatementDistributionMessage`][SDM]`::Share(relay_parent, SignedFullStatement)`.
 
 [OverseerSignal]: ../../types/overseer-protocol.md#overseer-signal
 [Statement]: ../../types/backing.md#statement-type
 [STMT]: ../../types/backing.md#statement-type
-[CSM]: ../../types/overseer-protocol.md#candidate-selection-message
+[CPM]: ../../types/overseer-protocol.md#collator-protocol-message
 [RAM]: ../../types/overseer-protocol.md#runtime-api-message
 [CVM]: ../../types/overseer-protocol.md#validation-request-type
 [PM]: ../../types/overseer-protocol.md#provisioner-message
@@ -141,7 +141,7 @@ Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFul
 [SDM]: ../../types/overseer-protocol.md#statement-distribution-message
 [DCM]: ../../types/overseer-protocol.md#dispute-coordinator-message
 
-[CS]: candidate-selection.md
+[CP]: ../collators/collator-protocol.md
 [CV]: ../utility/candidate-validation.md
 [SD]: statement-distribution.md
 [RA]: ../utility/runtime-api.md

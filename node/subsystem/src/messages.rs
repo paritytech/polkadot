@@ -22,15 +22,19 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use std::{collections::btree_map::BTreeMap, sync::Arc};
+use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, authority_discovery::AuthorityDiscovery, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
-use polkadot_node_primitives::{AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet,
+	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	v1 as protocol_v1, PeerId, UnifiedReputationChange,
+};
+use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
@@ -256,9 +260,9 @@ pub enum DisputeParticipationMessage {
 		candidate_receipt: CandidateReceipt,
 		/// The session the candidate appears in.
 		session: SessionIndex,
-		/// The indices of validators who have already voted on this candidate.
-		voted_indices: Vec<ValidatorIndex>,
-	}
+		/// The number of validators in the session.
+		n_validators: u32,
+	},
 }
 
 /// Messages going to the dispute distribution subsystem.
@@ -331,6 +335,13 @@ pub enum NetworkBridgeMessage {
 	/// This can be used to discovery `PeerId`s belonging to `AuthorityId`s and the other way
 	/// round.
 	GetAuthorityDiscoveryService(oneshot::Sender<Box<dyn AuthorityDiscovery>>),
+	/// Inform the distribution subsystems about the new
+	/// gossip network topology formed.
+	NewGossipTopology {
+		/// Ids of our neighbors in the new gossip topology.
+		/// We're not necessarily connected to all of them, but we should.
+		our_neighbors: HashSet<AuthorityDiscoveryId>,
+	}
 }
 
 impl NetworkBridgeMessage {
@@ -346,6 +357,7 @@ impl NetworkBridgeMessage {
 			Self::ConnectToValidators { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::GetAuthorityDiscoveryService(_) => None,
+			Self::NewGossipTopology { .. } => None,
 		}
 	}
 }
@@ -490,6 +502,14 @@ pub enum ChainApiMessage {
 	/// Request the block header by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockHeader(Hash, ChainApiResponseChannel<Option<BlockHeader>>),
+	/// Get the cumulative weight of the given block, by hash.
+	/// If the block or weight is unknown, this returns `None`.
+	///
+	/// Note: this the weight within the low-level fork-choice rule,
+	/// not the high-level one implemented in the chain-selection subsystem.
+	///
+	/// Weight is used for comparing blocks in a fork-choice rule.
+	BlockWeight(Hash, ChainApiResponseChannel<Option<BlockWeight>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.

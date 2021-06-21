@@ -843,6 +843,7 @@ fn check_statement_signature(
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
 async fn circulate_statement_and_dependents(
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -868,7 +869,14 @@ async fn circulate_statement_and_dependents(
 			{
 				Some((
 					*stored.compact().candidate_hash(),
-					circulate_statement(peers, ctx, relay_parent, stored, priority_peers).await,
+					circulate_statement(
+						gossip_peers,
+						peers,
+						ctx,
+						relay_parent,
+						stored,
+						priority_peers,
+					).await,
 				))
 			},
 			_ => None,
@@ -943,6 +951,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> bool {
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
 async fn circulate_statement<'a>(
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext,
 	relay_parent: Hash,
@@ -968,7 +977,11 @@ async fn circulate_statement<'a>(
 	peers_to_send.retain(|p| !priority_set.contains(p));
 
 	let mut peers_to_send =
-		util::choose_random_sqrt_subset(peers_to_send, MIN_GOSSIP_PEERS);
+		util::choose_random_subset(
+			|e| gossip_peers.contains(e),
+			peers_to_send,
+			MIN_GOSSIP_PEERS,
+		);
 	// We don't want to use less peers, than we would without any priority peers:
 	let min_size = std::cmp::max(peers_to_send.len(), MIN_GOSSIP_PEERS);
 	// Make set full:
@@ -1248,6 +1261,7 @@ async fn launch_request(
 ///
 async fn handle_incoming_message_and_circulate<'a>(
 	peer: PeerId,
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -1280,6 +1294,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
 		let _ = circulate_statement(
+			gossip_peers,
 			peers,
 			ctx,
 			relay_parent,
@@ -1444,8 +1459,9 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
-async fn update_peer_view_and_send_unlocked(
+async fn update_peer_view_and_maybe_send_unlocked(
 	peer: PeerId,
+	gossip_peers: &HashSet<PeerId>,
 	peer_data: &mut PeerData,
 	ctx: &mut impl SubsystemContext,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
@@ -1459,12 +1475,20 @@ async fn update_peer_view_and_send_unlocked(
 		let _ = peer_data.view_knowledge.remove(removed);
 	}
 
+	let is_gossip_peer = gossip_peers.contains(&peer);
+	let lucky = is_gossip_peer || util::gen_ratio(
+		util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+		util::MIN_GOSSIP_PEERS,
+	);
+
 	// Add entries for all relay-parents in the new view but not the old.
 	// Furthermore, send all statements we have for those relay parents.
 	let new_view = peer_data.view.difference(&old_view).copied().collect::<Vec<_>>();
 	for new in new_view.iter().copied() {
 		peer_data.view_knowledge.insert(new, Default::default());
-
+		if !lucky {
+			continue;
+		}
 		if let Some(active_head) = active_heads.get(&new) {
 			send_statements(
 				peer.clone(),
@@ -1480,6 +1504,7 @@ async fn update_peer_view_and_send_unlocked(
 
 async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
+	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext,
@@ -1514,9 +1539,28 @@ async fn handle_network_update(
 				authorities.remove(&auth_id);
 			}
 		}
+		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
+			*gossip_peers = new_peers;
+			for peer in newly_added {
+				if let Some(data) = peers.get_mut(&peer) {
+					let view = std::mem::take(&mut data.view);
+					update_peer_view_and_maybe_send_unlocked(
+						peer,
+						gossip_peers,
+						data,
+						ctx,
+						&*active_heads,
+						view,
+						metrics,
+					).await
+				}
+			}
+		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			handle_incoming_message_and_circulate(
 				peer,
+				gossip_peers,
 				peers,
 				active_heads,
 				ctx,
@@ -1534,8 +1578,9 @@ async fn handle_network_update(
 			);
 			match peers.get_mut(&peer) {
 				Some(data) => {
-					update_peer_view_and_send_unlocked(
+					update_peer_view_and_maybe_send_unlocked(
 						peer,
+						gossip_peers,
 						data,
 						ctx,
 						&*active_heads,
@@ -1558,6 +1603,7 @@ impl StatementDistribution {
 		mut ctx: impl SubsystemContext<Message = StatementDistributionMessage>,
 	) -> std::result::Result<(), Fatal> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
+		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 
@@ -1576,6 +1622,7 @@ impl StatementDistribution {
 						&mut ctx,
 						&mut runtime,
 						&mut peers,
+						&mut gossip_peers,
 						&mut authorities,
 						&mut active_heads,
 						&req_sender,
@@ -1594,6 +1641,7 @@ impl StatementDistribution {
 				Message::Requester(result) => {
 					let result = self.handle_requester_message(
 						&mut ctx,
+						&gossip_peers,
 						&mut peers,
 						&mut active_heads,
 						&req_sender,
@@ -1663,6 +1711,7 @@ impl StatementDistribution {
 	async fn handle_requester_message(
 		&self,
 		ctx: &mut impl SubsystemContext,
+		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1712,6 +1761,7 @@ impl StatementDistribution {
 					for message in messages {
 						handle_incoming_message_and_circulate(
 							peer,
+							gossip_peers,
 							peers,
 							active_heads,
 							ctx,
@@ -1785,6 +1835,7 @@ impl StatementDistribution {
 		ctx: &mut impl SubsystemContext,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
+		gossip_peers: &mut HashSet<PeerId>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
@@ -1873,6 +1924,7 @@ impl StatementDistribution {
 						}
 					};
 					circulate_statement_and_dependents(
+						gossip_peers,
 						peers,
 						active_heads,
 						ctx,
@@ -1887,6 +1939,7 @@ impl StatementDistribution {
 
 					handle_network_update(
 						peers,
+						gossip_peers,
 						authorities,
 						active_heads,
 						ctx,

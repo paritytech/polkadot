@@ -54,6 +54,7 @@ use thiserror::Error;
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
+pub use determine_new_blocks::determine_new_blocks;
 /// Error classification.
 pub use error_handling::{Fault, unwrap_non_fatal};
 
@@ -72,6 +73,7 @@ pub mod runtime;
 /// A rolling session window cache.
 pub mod rolling_session_window;
 
+mod determine_new_blocks;
 mod error_handling;
 
 #[cfg(test)]
@@ -222,30 +224,32 @@ pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorInde
 	})
 }
 
-/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
-pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+/// Choose a random subset of `min` elements.
+/// But always include `is_priority` elements.
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, mut v: Vec<T>, min: usize) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
 
-	let len = max_of_min_and_sqrt_len(v.len(), min);
-	v.truncate(len);
+	// partition the elements into priority first
+	// the returned index is when non_priority elements start
+	let i = itertools::partition(&mut v, is_priority);
+
+	if i >= min || v.len() <= i {
+		v.truncate(i);
+		return v;
+	}
+
+	let mut rng = rand::thread_rng();
+	v[i..].shuffle(&mut rng);
+
+	v.truncate(min);
 	v
 }
 
-/// Returns bool with a probability of `max(len.sqrt(), min) / len`
-/// being true.
-pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
+/// Returns a bool with a probability of `a / b` of being true.
+pub fn gen_ratio(a: usize, b: usize) -> bool {
 	use rand::Rng as _;
 	let mut rng = rand::thread_rng();
-	let threshold = max_of_min_and_sqrt_len(len, min);
-	let n = rng.gen_range(0..len);
-	n < threshold
-}
-
-fn max_of_min_and_sqrt_len(len: usize, min: usize) -> usize {
-	let len_sqrt = (len as f64).sqrt() as usize;
-	std::cmp::max(min, len_sqrt)
+	rng.gen_ratio(a as u32, b as u32)
 }
 
 /// Local validator information
