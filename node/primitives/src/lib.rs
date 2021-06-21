@@ -57,6 +57,9 @@ pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
 
+/// The cumulative weight of a block in a fork-choice rule.
+pub type BlockWeight = u32;
+
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
