@@ -631,6 +631,7 @@ impl ChannelsOut {
 			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -735,6 +736,7 @@ impl ChannelsOut {
 			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -2068,6 +2070,7 @@ where
 			},
 			AllMessages::DisputeCoordinator(_) => {}
 			AllMessages::DisputeParticipation(_) => {}
+			AllMessages::ChainSelection(_) => {}
 		}
 
 		Ok(())

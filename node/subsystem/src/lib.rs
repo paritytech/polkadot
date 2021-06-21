@@ -175,6 +175,11 @@ pub enum FromOverseer<M> {
 	},
 }
 
+impl<M> From<OverseerSignal> for FromOverseer<M> {
+	fn from(signal: OverseerSignal) -> Self {
+		FromOverseer::Signal(signal)
+	}
+}
 
 /// An error type that describes faults that may happen
 ///

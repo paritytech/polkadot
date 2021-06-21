@@ -70,6 +70,7 @@ enum AllMessages {
     GossipSupport(GossipSupportMessage),
     DisputeCoordinator(DisputeCoordinatorMessage),
     DisputeParticipation(DisputeParticipationMessage),
+    ChainSelection(ChainSelectionMessage),
 }
 ```
 

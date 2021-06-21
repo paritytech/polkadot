@@ -6110,6 +6110,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-chain-selection"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.15",
+ "kvdb",
+ "parity-scale-codec",
+ "parking_lot 0.11.1",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sp-core",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-dispute-coordinator"
 version = "0.1.0"
 dependencies = [

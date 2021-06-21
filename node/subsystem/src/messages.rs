@@ -506,6 +506,32 @@ impl ChainApiMessage {
 	}
 }
 
+/// Chain selection subsystem messages
+#[derive(Debug)]
+pub enum ChainSelectionMessage {
+	/// Signal to the chain selection subsystem that a specific block has been approved.
+	Approved(Hash),
+	/// Request the leaves in descending order by score.
+	Leaves(oneshot::Sender<Vec<Hash>>),
+	/// Request the best leaf containing the given block in its ancestry. Return `None` if
+	/// there is no such leaf.
+	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
+}
+
+impl ChainSelectionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		// None of the messages, even the ones containing specific
+		// block hashes, can be considered to have those blocks as
+		// a relay parent.
+		match *self {
+			ChainSelectionMessage::Approved(_) => None,
+			ChainSelectionMessage::Leaves(_) => None,
+			ChainSelectionMessage::BestLeafContaining(..) => None,
+		}
+	}
+}
+
 /// A sender for the result of a runtime API request.
 pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeApiError>>;
 
@@ -832,6 +858,9 @@ pub enum AllMessages {
 	/// Message for the dispute participation subsystem.
 	#[skip]
 	DisputeParticipation(DisputeParticipationMessage),
+	/// Message for the chain selection subsystem.
+	#[skip]
+	ChainSelection(ChainSelectionMessage),
 }
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
