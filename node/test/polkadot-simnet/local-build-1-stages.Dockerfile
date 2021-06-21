@@ -26,3 +26,4 @@ RUN cp /usr/src/polkadot-simnet/polkadot/target/release/polkadot-simnet /usr/loc
 # check if executable works in this container
 RUN /usr/local/bin/polkadot-simnet --version
 CMD ["polkadot-simnet"]
+
