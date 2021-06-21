@@ -155,7 +155,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
 		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(T::AccountId, EthereumAddress, BalanceOf<T>),

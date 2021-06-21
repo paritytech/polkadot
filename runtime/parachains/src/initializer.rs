@@ -27,6 +27,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
 };
 use parity_scale_codec::{Encode, Decode};
+use scale_info::TypeInfo;
 use crate::{
 	configuration::{self, HostConfiguration},
 	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
@@ -62,7 +63,7 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 	}
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,
