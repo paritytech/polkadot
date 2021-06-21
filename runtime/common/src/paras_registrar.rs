@@ -655,6 +655,14 @@ mod tests {
 	pub fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
+		configuration::GenesisConfig::<Test> {
+			config: configuration::HostConfiguration {
+				max_code_size: 2 * 1024 * 1024, // 2 MB
+				max_head_data_size: 1 * 1024 * 1024, // 1 MB
+				..Default::default()
+			},
+		}.assimilate_storage(&mut t).unwrap();
+
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10_000_000), (2, 10_000_000)],
 		}.assimilate_storage(&mut t).unwrap();
