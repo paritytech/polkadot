@@ -83,7 +83,7 @@ use crate::approval_db::v1::Config as DatabaseConfig;
 mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
-const APPROVAL_CHECKING_TIMEOUT: u64 = 2;
+const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const LOG_TARGET: &str = "parachain::approval-voting";
 
@@ -602,7 +602,7 @@ impl CurrentlyCheckingSet {
 			let work = launch_work.await?;
 			self.currently_checking.push(
 				Box::pin(async move {
-					match work.timeout(Duration::new(APPROVAL_CHECKING_TIMEOUT, 0)).await {
+					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
 						None => ApprovalState {
 							candidate_hash,
 							validator_index,
