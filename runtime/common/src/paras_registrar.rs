@@ -39,10 +39,11 @@ use runtime_parachains::{
 
 use crate::traits::{Registrar, OnSwap};
 use parity_scale_codec::{Encode, Decode};
+use scale_info::TypeInfo;
 use sp_runtime::{RuntimeDebug, traits::{Saturating, CheckedSub}};
 pub use pallet::*;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug, TypeInfo)]
 pub struct ParaInfo<Account, Balance> {
 	/// The account that has placed a deposit for registering this para.
 	pub(crate) manager: Account,

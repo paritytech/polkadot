@@ -470,7 +470,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#c7303a3ec3c7bae9835603037e21abfa2bdcc7b2"
 dependencies = [
  "beefy-primitives",
  "futures 0.3.15",
@@ -498,7 +498,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#c7303a3ec3c7bae9835603037e21abfa2bdcc7b2"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -519,7 +519,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#c7303a3ec3c7bae9835603037e21abfa2bdcc7b2"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -4661,7 +4661,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#b1009277783857e94e9ed2e4c53a60ff0d06c7a4"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#c7303a3ec3c7bae9835603037e21abfa2bdcc7b2"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -6627,6 +6627,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",
+ "scale-info",
  "serde",
  "serde_derive",
  "serde_json",
