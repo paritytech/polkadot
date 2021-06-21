@@ -50,7 +50,7 @@ const LEAVES_KEY: &[u8; 9] = b"CS_leaves";
 
 type Timestamp = u64;
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone, PartialEq)]
 enum Approval {
 	#[codec(index = 0)]
 	Approved,
@@ -80,7 +80,7 @@ impl From<Approval> for crate::Approval {
 	}
 }
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone, PartialEq)]
 struct ViabilityCriteria {
 	explicitly_reverted: bool,
 	approval: Approval,
@@ -155,7 +155,7 @@ impl From<LeafEntrySet> for crate::LeafEntrySet {
 	}
 }
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone, PartialEq)]
 struct BlockEntry {
 	block_hash: Hash,
 	block_number: BlockNumber,
@@ -457,5 +457,212 @@ mod tests {
 				assert!(key_a < key_b);
 			}
 		}
+	}
+
+	#[test]
+	fn write_read_block_entry() {
+		let db = Arc::new(kvdb_memorydb::create(1));
+		let config = Config { col_data: 0 };
+
+		let mut backend = DbBackend::new(db, config);
+
+		let block_entry = BlockEntry {
+			block_hash: Hash::repeat_byte(1),
+			block_number: 1,
+			parent_hash: Hash::repeat_byte(0),
+			children: vec![],
+			viability: ViabilityCriteria {
+				earliest_unviable_ancestor: None,
+				explicitly_reverted: false,
+				approval: Approval::Unapproved,
+			},
+			weight: 100,
+		};
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlockEntry(block_entry.clone().into())
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_block_entry(&block_entry.block_hash).unwrap().map(BlockEntry::from),
+			Some(block_entry),
+		);
+	}
+
+	#[test]
+	fn delete_block_entry() {
+		let db = Arc::new(kvdb_memorydb::create(1));
+		let config = Config { col_data: 0 };
+
+		let mut backend = DbBackend::new(db, config);
+
+		let block_entry = BlockEntry {
+			block_hash: Hash::repeat_byte(1),
+			block_number: 1,
+			parent_hash: Hash::repeat_byte(0),
+			children: vec![],
+			viability: ViabilityCriteria {
+				earliest_unviable_ancestor: None,
+				explicitly_reverted: false,
+				approval: Approval::Unapproved,
+			},
+			weight: 100,
+		};
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlockEntry(block_entry.clone().into())
+		]).unwrap();
+
+		backend.write(vec![
+			BackendWriteOp::DeleteBlockEntry(block_entry.block_hash),
+		]).unwrap();
+
+		assert!(
+			backend.load_block_entry(&block_entry.block_hash).unwrap().is_none(),
+		);
+	}
+
+	#[test]
+	fn earliest_block_number() {
+		let db = Arc::new(kvdb_memorydb::create(1));
+		let config = Config { col_data: 0 };
+
+		let mut backend = DbBackend::new(db, config);
+
+		assert!(
+			backend.load_first_block_number().unwrap().is_none(),
+		);
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(0)]),
+			BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(0)]),
+			BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(0)]),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_first_block_number().unwrap(),
+			Some(2),
+		);
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlocksByNumber(2, vec![]),
+			BackendWriteOp::DeleteBlocksByNumber(5),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_first_block_number().unwrap(),
+			Some(10),
+		);
+	}
+
+	#[test]
+	fn stagnant_at_up_to() {
+		let db = Arc::new(kvdb_memorydb::create(1));
+		let config = Config { col_data: 0 };
+
+		let mut backend = DbBackend::new(db, config);
+
+		// Prove that it's cheap
+		assert!(
+			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty(),
+		);
+
+		backend.write(vec![
+			BackendWriteOp::WriteStagnantAt(2, vec![Hash::repeat_byte(1)]),
+			BackendWriteOp::WriteStagnantAt(5, vec![Hash::repeat_byte(2)]),
+			BackendWriteOp::WriteStagnantAt(10, vec![Hash::repeat_byte(3)]),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap(),
+			vec![
+				(2, vec![Hash::repeat_byte(1)]),
+				(5, vec![Hash::repeat_byte(2)]),
+				(10, vec![Hash::repeat_byte(3)]),
+			]
+		);
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(10).unwrap(),
+			vec![
+				(2, vec![Hash::repeat_byte(1)]),
+				(5, vec![Hash::repeat_byte(2)]),
+				(10, vec![Hash::repeat_byte(3)]),
+			]
+		);
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(9).unwrap(),
+			vec![
+				(2, vec![Hash::repeat_byte(1)]),
+				(5, vec![Hash::repeat_byte(2)]),
+			]
+		);
+
+		backend.write(vec![
+			BackendWriteOp::DeleteStagnantAt(2),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(5).unwrap(),
+			vec![
+				(5, vec![Hash::repeat_byte(2)]),
+			]
+		);
+
+		backend.write(vec![
+			BackendWriteOp::WriteStagnantAt(5, vec![]),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(10).unwrap(),
+			vec![
+				(10, vec![Hash::repeat_byte(3)]),
+			]
+		);
+	}
+
+	#[test]
+	fn write_read_blocks_at_height() {
+		let db = Arc::new(kvdb_memorydb::create(1));
+		let config = Config { col_data: 0 };
+
+		let mut backend = DbBackend::new(db, config);
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(1)]),
+			BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(2)]),
+			BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(3)]),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_blocks_by_number(2).unwrap(),
+			vec![Hash::repeat_byte(1)],
+		);
+
+		assert_eq!(
+			backend.load_blocks_by_number(3).unwrap(),
+			vec![],
+		);
+
+		backend.write(vec![
+			BackendWriteOp::WriteBlocksByNumber(2, vec![]),
+			BackendWriteOp::DeleteBlocksByNumber(5),
+		]).unwrap();
+
+		assert_eq!(
+			backend.load_blocks_by_number(2).unwrap(),
+			vec![],
+		);
+
+		assert_eq!(
+			backend.load_blocks_by_number(5).unwrap(),
+			vec![],
+		);
+
+		assert_eq!(
+			backend.load_blocks_by_number(10).unwrap(),
+			vec![Hash::repeat_byte(3)],
+		);
 	}
 }
