@@ -103,6 +103,21 @@ impl TestBackend {
 			}
 		}
 	}
+
+	fn assert_stagnant_at_state(
+		&self,
+		stagnant_at: Vec<(Timestamp, Vec<Hash>)>,
+	) {
+		let inner = self.inner.lock();
+		assert_eq!(inner.stagnant_at.len(), stagnant_at.len());
+		for (at, hashes) in stagnant_at {
+			let stored_hashes = inner.stagnant_at.get(&at).unwrap();
+			assert_eq!(hashes.len(), stored_hashes.len());
+			for hash in hashes {
+				assert!(stored_hashes.contains(&hash));
+			}
+		}
+	}
 }
 
 impl Default for TestBackend {
@@ -1935,7 +1950,341 @@ fn approve_nonexistent_has_no_effect() {
 	})
 }
 
-// TODO [now]: blocks are detected as stagnant.
-// TODO [now]: finalized stagnant blocks unlock subtrees.
-// TODO [now]: approval undoes stagnant unlocking subtrees
-// TODO [now]: stagnant triggers leaf search from parent if viable
+#[test]
+fn block_has_correct_stagnant_at() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		backend.assert_stagnant_at_state(vec![
+			(STAGNANT_TIMEOUT, vec![a1_hash]),
+			(STAGNANT_TIMEOUT + 1, vec![a2_hash]),
+		]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn detects_stagnant() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Stagnant
+		);
+
+		assert_leaves(&backend, vec![]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn finalize_stagnant_unlocks_subtree() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT - 1);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![(STAGNANT_TIMEOUT + 1, vec![a2_hash])]);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Stagnant
+		);
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn approval_undoes_stagnant_unlocking_subtree() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT - 1);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![(STAGNANT_TIMEOUT + 1, vec![a2_hash])]);
+
+		approve_block(
+			&mut virtual_overseer,
+			&backend,
+			a1_hash,
+		).await;
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Approved
+		);
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn stagnant_preserves_parents_children() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		//      A1 <- B2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		approve_block(&mut virtual_overseer, &backend, a1_hash).await;
+		approve_block(&mut virtual_overseer, &backend, b2_hash).await;
+
+		assert_leaves(&backend, vec![a2_hash, b2_hash]);
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+		assert_leaves(&backend, vec![b2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn stagnant_makes_childless_parent_leaf() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		approve_block(&mut virtual_overseer, &backend, a1_hash).await;
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+		assert_leaves(&backend, vec![a1_hash]);
+
+		virtual_overseer
+	})
+}
