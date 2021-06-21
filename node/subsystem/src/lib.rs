@@ -192,8 +192,8 @@ pub enum SubsystemError {
 	#[error(transparent)]
 	QueueError(#[from] mpsc::SendError),
 
-	#[error(transparent)]
-	TaskSpawn(#[from] futures::task::SpawnError),
+	#[error("Failed to spawn a task: {0}")]
+	TaskSpawn(&'static str),
 
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),

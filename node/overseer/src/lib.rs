@@ -930,7 +930,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.to_overseer.unbounded_send(ToOverseer::SpawnJob {
 			name,
 			s,
-		}).map_err(|_| futures::task::SpawnError::shutdown().into())
+		}).map_err(|_| SubsystemError::TaskSpawn(name))
 	}
 
 	fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
@@ -939,7 +939,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.to_overseer.unbounded_send(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
-		}).map_err(|_| futures::task::SpawnError::shutdown().into())
+		}).map_err(|_| SubsystemError::TaskSpawn(name))
 	}
 
 	fn sender(&mut self) -> &mut OverseerSubsystemSender {
