@@ -6564,7 +6564,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.9.6"
+version = "0.9.5"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -6617,7 +6617,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-parachains"
-version = "0.9.6"
+version = "0.9.5"
 dependencies = [
  "bitvec",
  "derive_more",
@@ -11818,7 +11818,7 @@ dependencies = [
 
 [[package]]
 name = "xcm"
-version = "0.9.6"
+version = "0.9.5"
 dependencies = [
  "derivative",
  "impl-trait-for-tuples",
