@@ -108,11 +108,19 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 	/// Get all leaves of the chain, i.e. block hashes that are suitable to
 	/// build upon and have no suitable children.
 	async fn leaves(&self) -> Result<Vec<Hash>, ConsensusError> {
+		if self.overseer.is_disconnected() {
+			return self.fallback.leaves().await
+		}
+
 		unimplemented!()
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
 	async fn best_chain(&self) -> Result<PolkadotHeader, ConsensusError> {
+		if self.overseer.is_disconnected() {
+			return self.fallback.best_chain().await
+		}
+
 		unimplemented!()
 	}
 
@@ -130,6 +138,10 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
+		if self.overseer.is_disconnected() {
+			return self.fallback.finality_target(target_hash, maybe_max_number).await
+		}
+
 		unimplemented!()
 	}
 }
