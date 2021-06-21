@@ -25,11 +25,13 @@ use polkadot_subsystem::{
 	errors::ChainApiError,
 };
 
+use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
 use futures::prelude::*;
 
 use std::time::{UNIX_EPOCH, SystemTime};
+use std::sync::Arc;
 
 use crate::backend::{Backend, OverlayedBackend, BackendWriteOp};
 
@@ -234,51 +236,38 @@ fn stagnant_timeout_from_now() -> Timestamp {
 	timestamp_now() + STAGNANT_TIMEOUT
 }
 
-// TODO [now]
-//
-// This is used just so we can have a public function that calls
-// `run` and eliminates all the unused errors.
-//
-// Should be removed when the real implementation is done.
-struct VoidBackend;
-
-impl Backend for VoidBackend {
-	fn load_block_entry(&self, _: &Hash) -> Result<Option<BlockEntry>, Error> {
-		Ok(None)
-	}
-	fn load_leaves(&self) -> Result<LeafEntrySet, Error> {
-		Ok(LeafEntrySet::default())
-	}
-	fn load_stagnant_at(&self, _: Timestamp) -> Result<Vec<Hash>, Error> {
-		Ok(Vec::new())
-	}
-	fn load_stagnant_at_up_to(&self, _: Timestamp)
-		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>
-	{
-		Ok(Vec::new())
-	}
-	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
-		Ok(None)
-	}
-	fn load_blocks_by_number(&self, _: BlockNumber) -> Result<Vec<Hash>, Error> {
-		Ok(Vec::new())
-	}
-
-	fn write<I>(&mut self, _: I) -> Result<(), Error>
-		where I: IntoIterator<Item = BackendWriteOp>
-	{
-		Ok(())
-	}
+/// Configuration for the chain selection subsystem.
+pub struct Config {
+	/// The column in the database that the storage should use.
+	pub col_data: u32,
 }
 
 /// The chain selection subsystem.
-pub struct ChainSelectionSubsystem;
+pub struct ChainSelectionSubsystem {
+	config: Config,
+	db: Arc<dyn KeyValueDB>,
+}
+
+impl ChainSelectionSubsystem {
+	/// Create a new instance of the subsystem with the given config
+	/// and key-value store.
+	pub fn new(config: Config, db: Arc<dyn KeyValueDB>) -> Self {
+		ChainSelectionSubsystem {
+			config,
+			db,
+		}
+	}
+}
 
 impl<Context> Subsystem<Context> for ChainSelectionSubsystem
 	where Context: SubsystemContext<Message = ChainSelectionMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let backend = VoidBackend;
+		let backend = crate::db_backend::v1::DbBackend::new(
+			self.db,
+			crate::db_backend::v1::Config { col_data: self.config.col_data },
+		);
+
 		SpawnedSubsystem {
 			future: run(ctx, backend).map(|()| Ok(())).boxed(),
 			name: "chain-selection-subsystem",
