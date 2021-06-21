@@ -24,12 +24,15 @@ use parity_scale_codec::{Encode, Decode};
 use parking_lot::Mutex;
 use futures::prelude::*;
 use futures::stream::BoxStream;
+use polkadot_subsystem::ActiveLeavesUpdate;
+use polkadot_subsystem::FromOverseer;
+use polkadot_subsystem::OverseerSignal;
 use polkadot_subsystem::messages::DisputeDistributionMessage;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
 use polkadot_subsystem::{
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	ActivatedLeaf, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender,
 	messages::StatementDistributionMessage
 };
@@ -49,7 +52,8 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 /// To be added to [`NetworkConfiguration::extra_sets`].
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
-use std::collections::{HashMap, hash_map, HashSet};
+use std::collections::HashSet;
+use std::collections::{HashMap, hash_map};
 use std::sync::Arc;
 
 mod validator_discovery;
@@ -58,11 +62,13 @@ mod validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 mod network;
-use network::{Network, send_message, get_peer_id_by_authority_id};
+use network::{Network, send_message};
 
 /// Request multiplexer for combining the multiple request sources into a single `Stream` of `AllMessages`.
 mod multiplexer;
 pub use multiplexer::RequestMultiplexer;
+
+use crate::network::get_peer_id_by_authority_id;
 
 #[cfg(test)]
 mod tests;
@@ -296,7 +302,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
 		Net: Network + Sync,
-		AD: validator_discovery::AuthorityDiscovery,
+		AD: validator_discovery::AuthorityDiscovery + Clone,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
@@ -365,7 +371,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 where
 	Context: SubsystemContext<Message = NetworkBridgeMessage>,
 	N: Network,
-	AD: validator_discovery::AuthorityDiscovery,
+	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	// This is kept sorted, descending, by block number.
 	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
@@ -558,7 +564,7 @@ where
 						authority_discovery_service = ads;
 					}
 					NetworkBridgeMessage::GetAuthorityDiscoveryService(tx) => {
-						if let Err(err) match tx.send(authority_discovery_service.clone()) {
+						if let Err(err) = tx.send(Box::new(authority_discovery_service.clone())) {
 							tracing::debug!(
 								target: LOG_TARGET,
 								?err,
@@ -871,7 +877,7 @@ async fn run_network<N, AD>(
 ) -> SubsystemResult<()>
 where
 	N: Network,
-	AD: validator_discovery::AuthorityDiscovery,
+	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	let shared = Shared::default();
 
@@ -903,11 +909,11 @@ where
 
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
 
-	ctx.send_message(AllMessages::StatementDistribution(
-		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
-	)).await;
 	ctx.send_message(AllMessages::DisputeDistribution(
 		DisputeDistributionMessage::DisputeSendingReceiver(dispute_receiver)
+	)).await;
+	ctx.send_message(AllMessages::StatementDistribution(
+		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
 	)).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(

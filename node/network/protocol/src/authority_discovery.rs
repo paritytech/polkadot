@@ -16,6 +16,8 @@
 
 //! All peersets and protocols used for parachains.
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
@@ -27,7 +29,7 @@ use sc_network::{Multiaddr, PeerId};
 ///
 /// Needed for mocking in tests mostly.
 #[async_trait]
-pub trait AuthorityDiscovery: Send + 'static {
+pub trait AuthorityDiscovery: Send + Debug + 'static {
 	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.

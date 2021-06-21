@@ -29,11 +29,7 @@ use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{
-	peer_set::PeerSet,
-	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange,
-};
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, authority_discovery::AuthorityDiscovery, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
 use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -282,6 +278,7 @@ pub enum DisputeDistributionMessage {
 }
 
 /// Messages received by the network bridge subsystem.
+#[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, UnifiedReputationChange),

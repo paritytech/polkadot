@@ -21,12 +21,10 @@ use crate::Network;
 use core::marker::PhantomData;
 use std::collections::HashSet;
 
-use async_trait::async_trait;
 use futures::channel::oneshot;
 
 use sc_network::multiaddr::Multiaddr;
-use sc_authority_discovery::Service as AuthorityDiscoveryService;
-use polkadot_node_network_protocol::PeerId;
+
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
@@ -128,9 +126,10 @@ mod tests {
 
 	use std::{borrow::Cow, collections::HashMap};
 	use futures::stream::BoxStream;
+	use async_trait::async_trait;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_node_network_protocol::request_response::request::Requests;
+	use polkadot_node_network_protocol::{PeerId, request_response::request::Requests};
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
 		Service::new()
@@ -145,7 +144,7 @@ mod tests {
 		peers_set: HashSet<Multiaddr>,
 	}
 
-	#[derive(Default, Clone)]
+	#[derive(Default, Clone, Debug)]
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
