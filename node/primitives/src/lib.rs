@@ -49,10 +49,10 @@ pub use polkadot_parachain::primitives::BlockData;
 pub mod approval;
 
 /// The bomb limit for decompressing code blobs. (8x growth)
-pub const VALIDATION_CODE_BOMB_LIMIT: usize = MAX_CODE_SIZE * 8 as usize;
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 8u32) as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE * 4 as usize;
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
