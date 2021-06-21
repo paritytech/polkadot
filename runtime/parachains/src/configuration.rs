@@ -247,6 +247,10 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 		if self.max_code_size > MAX_CODE_SIZE {
 			panic!("`max_code_size` is bigger than allowed by the client")
 		}
+
+		if self.max_pov_size > MAX_POV_SIZE {
+			panic!("`max_pov_size` is bigger than allowed by the client")
+		}
 	}
 }
 
@@ -323,6 +327,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_max_pov_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= MAX_POV_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_pov_size, new) != new
 			});
