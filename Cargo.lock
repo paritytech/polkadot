@@ -6385,7 +6385,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
- "streamunordered",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -10050,18 +10049,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09f8ed9974042b8c3672ff3030a69fcc03b74c47c3d1ecb7755e8a3626011e88"
 dependencies = [
  "generic-array 0.14.4",
-]
-
-[[package]]
-name = "streamunordered"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9394ee1338fee8370bee649f8a7170b3a56917903a0956467ad192dcf8699ca"
-dependencies = [
- "futures-core",
- "futures-sink",
- "futures-util",
- "slab",
 ]
 
 [[package]]
