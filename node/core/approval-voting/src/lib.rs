@@ -84,7 +84,7 @@ mod tests;
 
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: u64 = 2;
-const APPROVAL_CACHE_SIZE: usize = 128;
+const APPROVAL_CACHE_SIZE: usize = 1024;
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
@@ -899,6 +899,11 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
+				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
+					indirect_cert,
+					candidate_index,
+				).into());
+
 				match approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
 						let new_actions: Vec<Action> = [Action::IssueApproval(ApprovalVoteRequest {
@@ -909,31 +914,25 @@ async fn handle_actions(
 						actions_iter = new_actions.into_iter();
 					},
 					None => {
-						{
-							let ctx = &mut *ctx;
-							currently_checking_set.insert_relay_block_hash(
-								candidate_hash,
-								candidate_index,
-								validator_index,
-								relay_block_hash,
-								async move {
-									launch_approval(
-										ctx,
-										metrics.clone(),
-										session,
-										candidate,
-										validator_index,
-										block_hash,
-										candidate_index as _,
-										backing_group,
-									).await
-								}
-							).await?;
-						}
-						ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
-							indirect_cert,
+						let ctx = &mut *ctx;
+						currently_checking_set.insert_relay_block_hash(
+							candidate_hash,
 							candidate_index,
-						).into());
+							validator_index,
+							relay_block_hash,
+							async move {
+								launch_approval(
+									ctx,
+									metrics.clone(),
+									session,
+									candidate,
+									validator_index,
+									block_hash,
+									candidate_index as _,
+									backing_group,
+								).await
+							}
+						).await?;
 					}
 					Some(_) => {},
 				}
@@ -2204,6 +2203,7 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
+				let _ = metrics_guard.take();
 				return ApprovalState::approved(
 					validator_index,
 					candidate_hash,
