@@ -245,7 +245,11 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 		}
 
 		if self.max_code_size > MAX_CODE_SIZE {
-			panic!("`max_code_size` is bigger than allowed by the client")
+			panic!(
+				"`max_code_size` ({}) is bigger than allowed by the client ({})",
+				self.max_code_size,
+				MAX_CODE_SIZE,
+			)
 		}
 
 		if self.max_pov_size > MAX_POV_SIZE {
