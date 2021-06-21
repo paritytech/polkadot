@@ -19,11 +19,11 @@
 
 use thiserror::Error;
 
+use polkadot_node_network_protocol::PeerId;
+use polkadot_node_network_protocol::request_response::request::ReceiveError;
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
-use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
-use crate::sender;
 
 #[derive(Debug, Error)]
 #[error(transparent)]
@@ -41,65 +41,70 @@ impl From<Fatal> for Error {
 	}
 }
 
-impl From<sender::Error> for Error {
-	fn from(e: sender::Error) -> Self {
-		match e.0 {
-			Fault::Fatal(f) => Self(Fault::Fatal(Fatal::Sender(f))),
-			Fault::Err(nf) => Self(Fault::Err(NonFatal::Sender(nf))),
-		}
+impl From<runtime::Error> for Error {
+	fn from(o: runtime::Error) -> Self {
+		Self(Fault::from_other(o))
 	}
 }
 
 /// Fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Fatal {
-
-	/// Receiving subsystem message from overseer failed.
-	#[error("Receiving message from overseer failed")]
-	SubsystemReceive(#[source] SubsystemError),
-
-	/// Spawning a running task failed.
-	#[error("Spawning subsystem task failed")]
-	SpawnTask(#[source] SubsystemError),
-
-	/// DisputeSender mpsc receiver exhausted.
-	#[error("Erasure chunk requester stream exhausted")]
-	SenderExhausted,
+	/// Request channel returned `None`. Likely a system shutdown.
+	#[error("Request channel stream finished.")]
+	RequestChannelFinished,
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] #[source] runtime::Fatal),
-
-	/// Errors coming from DisputeSender
-	#[error("Error while accessing runtime information")]
-	Sender(#[from] #[source] sender::Fatal),
-
-	/// A oneshot that's not supposed to get cancelled got cancelled.
-	#[error("Oneshot got killed unexpectedly: {0}")]
-	CanceledOneshot(&'static str),
 }
 
 /// Non-fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum NonFatal {
-	/// Errors coming from DisputeSender
+	/// Answering request failed.
+	#[error("Sending back response to peer {0} failed.")]
+	SendResponse(PeerId),
+
+	/// Getting request from raw request failed.
+	#[error("Decoding request failed.")]
+	FromRawRequest(#[source] ReceiveError),
+
+	/// Setting reputation for peer failed.
+	#[error("Changing peer's ({0}) reputation failed.")]
+	SetPeerReputation(PeerId),
+
+	/// Peer sent us request with invalid signature.
+	#[error("Dispute request with invalid signatures, from peer {0}.")]
+	InvalidSignature(PeerId),
+
+	/// Import oneshot got canceled.
+	#[error("Import of dispute got canceled for peer {0} - not supposed to happen.")]
+	ImportCanceled(PeerId),
+
+	/// Non validator tried to participate in dispute.
+	#[error("Peer {0} is not a validator.")]
+	NotAValidator(PeerId),
+
+	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Sender(#[from] #[source] sender::NonFatal),
+	Runtime(#[from] #[source] runtime::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub type FatalResult<T> = std::result::Result<T, Fatal>;
+pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>, ctx: &'static str)
+pub fn log_error(result: Result<()>)
 	-> std::result::Result<(), Fatal>
 {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+		tracing::warn!(target: LOG_TARGET, error = ?error);
 	}
 	Ok(())
 }

@@ -16,32 +16,39 @@
 
 
 use std::collections::HashSet;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use futures::Future;
+use futures::FutureExt;
+use futures::Stream;
+use futures::future::BoxFuture;
 use futures::select;
+use futures::stream::FusedStream;
 use lru::LruCache;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
-use futures::stream::StreamExt;
-use futures::stream::FuturesUnordered;
+use futures::{channel::mpsc, channel::oneshot, stream::StreamExt, stream::FuturesUnordered};
 
-use polkadot_node_network_protocol::PeerId;
-use polkadot_node_network_protocol::UnifiedReputationChange as Rep;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
-use polkadot_node_network_protocol::request_response::request::OutgoingResponse;
-use polkadot_node_network_protocol::request_response::request::OutgoingResponseSender;
-use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
-use polkadot_node_subsystem_util::Fault;
+use polkadot_node_network_protocol::{
+	PeerId,
+	UnifiedReputationChange as Rep,
+	authority_discovery::AuthorityDiscovery,
+	request_response::{
+		IncomingRequest,
+		request::OutgoingResponse,
+		request::OutgoingResponseSender,
+		v1::DisputeRequest,
+		v1::DisputeResponse,
+	},
+};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::AuthorityDiscoveryId;
-use polkadot_primitives::v1::CandidateHash;
 use polkadot_subsystem::SubsystemSender;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
 use polkadot_subsystem::messages::ImportStatementsResult;
 
 use crate::LOG_TARGET;
+
+mod error;
+use self::error::{log_error, FatalResult, NonFatalResult, NonFatal, Fatal, Result};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid");
@@ -56,7 +63,7 @@ pub const MAX_PARALLEL_IMPORTS: usize = 10;
 /// This is supposed to run as its own task in order to easily impose back pressure on the incoming
 /// request channel and at the same time to drop flood messages as fast as possible.
 pub struct DisputesReceiver<Sender> {
-	/// Access to session information:
+	/// Access to session information.
 	runtime: RuntimeInfo,
 
 	/// Subsystem sender for communication with other subsystems.
@@ -65,8 +72,11 @@ pub struct DisputesReceiver<Sender> {
 	/// Channel to retrieve incoming requests from.
 	receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 
-	/// Senders whose requests are currently being processed.
-	processing_senders: HashSet<PeerId>,
+	/// Authority discovery service:
+	authority_discovery: Box<dyn AuthorityDiscovery>,
+
+	/// Imports currently being processed.
+	pending_imports: PendingImports,
 
 	/// We keep record of the last banned peers.
 	///
@@ -76,216 +86,307 @@ pub struct DisputesReceiver<Sender> {
 	banned_peers: LruCache<PeerId, ()>,
 }
 
-/// Messages from the subsystem to the dispute receiver.
-enum ToDisputeReceiver {
-	/// Peer connected.
-	PeerConnected(PeerId, AuthorityDiscoveryId),
-	/// Peer disconnected.
-	PeerDisconnected(PeerId),
-}
-
 /// Messages as handled by this receiver internally.
 enum Message {
 	/// An import got confirmed by the coordinator.
 	///
-	/// We don't need to do anything on this message, we just need to await that futures regularily
-	/// to make sure we are sending out request responses in a timely manner.
-	ConfirmedImport,
+	/// We need to handle those for two reasons:
+	///
+	/// - We need to make sure responses are actually sent (therefore we need to await futures
+	/// promptly).
+	/// - We need to update banned_peers accordingly to the result.
+	ConfirmedImport(Option<NonFatalResult<(PeerId, ImportStatementsResult)>>),
 
 	/// A new request has arrived and should be handled.
-	NewRequest(Option<sc_network::config::IncomingRequest>),
-
-	/// Message from the subsystem.
-	FromSubsystem(Option<ToDisputeReceiver>),
+	NewRequest(sc_network::config::IncomingRequest),
 }
 
 impl Message {
-	async fn receive<Fut: Future>(
-		pending_out: &mut FuturesUnordered<Fut>,
+	async fn receive(
+		pending_imports: &mut PendingImports,
 		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
-		from_subsystem: &mut mpsc::Receiver<ToDisputeReceiver>,
-	) -> Message {
+	) -> FatalResult<Message> {
 		select!(
-			_ = pending_out.next() => Message::ConfirmedImport,
-			msg = pending_requests.next() => Message::NewRequest(msg),
-			msg = from_subsystem.next() => Message::FromSubsystem(msg),
+			m_bad = pending_imports.next() => Ok(Message::ConfirmedImport(m_bad)),
+			result = pending_requests.next() => match result {
+				None => Err(Fatal::RequestChannelFinished),
+				Some(msg) => Ok(Message::NewRequest(msg)),
+			}
 		)
 	}
-
 }
 
 impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
+	/// Create a new receiver which can be `run`.
 	pub fn new(
 		sender: Sender,
-		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>
+		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
+		authority_discovery: Box<dyn AuthorityDiscovery>,
 	) -> Self {
 		let runtime = RuntimeInfo::new(None);
 		Self {
 			runtime,
 			sender,
 			receiver,
-			processing_senders: HashSet::new(),
+			authority_discovery,
+			pending_imports: PendingImports::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
 			banned_peers: LruCache::new(MAX_PARALLEL_IMPORTS),
 		}
 	}
 
+	/// Get that receiver started.
+	///
+	/// This is an endless loop and should be spawned into its own task.
 	pub async fn run(mut self) {
-
-		let mut pending_out = FuturesUnordered::new();
-
 		loop {
-			let msg = Message::receive(&mut pending_out, &mut self.receiver).await;
-
-			let raw = match msg {
-				Message::FromSubsystem(Some(FromSubsystem::ReportCandidateUnavailable(candidate))) => {
-				},
-				Message::FromSubsystem(None) => break,
-				// We need to clean up futures, to make sure responses are sent:
-				Message::ConfirmedImport => continue,
-				Message::NewRequest(None) => break,
-				Message::NewRequest(Some(req)) => req,
-			};
-
-			let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
-				raw,
-				vec![COST_INVALID_REQUEST]
-			);
-			let incoming = match incoming {
-				Err(err) => {
+			match log_error(self.run_inner().await) {
+				Ok(()) => {}
+				Err(Fatal::RequestChannelFinished) => {
 					tracing::debug!(
 						target: LOG_TARGET,
-						?err,
-						"Decoding incoming request failed."
-					);
-					continue
-				}
-				Ok(incoming) => incoming,
-			};
-			let IncomingRequest {
-				peer, payload, pending_response,
-			} = incoming;
-
-			// Immediately drop requests from peers that already have requests in flight or have
-			// been banned recently (flood protection):
-			if self.processing_senders.contains(&peer) || self.banned_peers.contains(&peer) {
-				continue
-			}
-
-			// Wait for a free slot:
-			if pending_out.len() >= MAX_PARALLEL_IMPORTS as usize {
-				// Wait for one to finish:
-				pending_out.next().await;
-			}
-
-			let info_result = self.runtime.get_session_info_by_index(
-				&mut self.sender,
-				payload.0.candidate_receipt.descriptor.relay_parent,
-				payload.0.session_index
-			).await;
-			let info = match info_result {
-				Ok(info) => info,
-				Err(Fault::Err(err)) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						?err,
-						"Querying session info failed."
-					);
-					continue
-				}
-				Err(Fault::Fatal(fatal)) => {
-					tracing::info!(
-						target: LOG_TARGET,
-						?fatal,
-						"Querying session info went terribly wrong."
+						"Incoming request stream exhausted - shutting down?"
 					);
 					return
 				}
-			};
-
-			let votes_result = payload.0.try_into_signed_votes(&info.session_info);
-			let (candidate_receipt, valid_vote, invalid_vote) = match votes_result {
-				Err(()) => {
-					let result = pending_response.send_outgoing_response(
-						OutgoingResponse {
-							result: Err(()),
-							reputation_changes: vec![COST_INVALID_SIGNATURE],
-							sent_feedback: None,
-						}
-					);
-					if let Err(()) = result {
-						tracing::debug!(
-							target: LOG_TARGET,
-							?peer,
-							"Changing peer reputation failed."
-						);
-					}
-					tracing::info!(
+				Err(err) => {	
+					tracing::warn!(
 						target: LOG_TARGET,
-						?peer,
-						"Peer sent us dispute request with invalid signatures!",
+						?err,
+						"Dispute receiver died."
 					);
-					continue
+					return
 				}
-				Ok(votes) => votes,
-			};
-
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
-			let candidate_hash = candidate_receipt.hash();
-			self.sender.send_message(
-				AllMessages::DisputeCoordinator(
-					DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
-						candidate_receipt,
-						session: valid_vote.0.session_index(),
-						statements: vec![valid_vote, invalid_vote],
-						pending_confirmation,
-					}
-				)
-			).await;
-			pending_out.push(respond_to_request(confirmation_rx, pending_response));
+			}
 		}
-		tracing::debug!(
-			target: LOG_TARGET,
-			"Incoming request stream exhausted - shutting down?"
-		);
+	}
+
+	/// Actual work happening here.
+	async fn run_inner(&mut self) -> Result<()> {
+
+		let msg = Message::receive(
+			&mut self.pending_imports,
+			&mut self.receiver
+		).await?;
+
+		let raw = match msg {
+			// We need to clean up futures, to make sure responses are sent:
+			Message::ConfirmedImport(m_bad) => {
+				self.ban_bad_peer(m_bad)?;
+				return Ok(())
+			}
+			Message::NewRequest(req) => req,
+		};
+
+		let peer = raw.peer;
+
+		// Only accept messages from validators:
+		if self.authority_discovery.get_authority_id_by_peer_id(raw.peer).await.is_none() {
+			raw.pending_response.send(
+				sc_network::config::OutgoingResponse {
+					result: Err(()),
+					reputation_changes: vec![COST_NOT_A_VALIDATOR.into_base_rep()],
+					sent_feedback: None,
+				}
+			).map_err(|_| NonFatal::SendResponse(peer))?;				
+
+			return Err(NonFatal::NotAValidator(peer).into())
+		}
+
+		let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
+			raw,
+			vec![COST_INVALID_REQUEST]
+		).map_err(NonFatal::FromRawRequest)?;
+
+		// Immediately drop requests from peers that already have requests in flight or have
+		// been banned recently (flood protection):
+		if self.pending_imports.peer_is_pending(&peer) || self.banned_peers.contains(&peer) {
+			return Ok(())
+		}
+
+		// Wait for a free slot:
+		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
+			// Wait for one to finish:
+			let r = self.pending_imports.next().await;
+			self.ban_bad_peer(r)?;
+		}
+
+		// All good - initiate import.
+		self.start_import(incoming).await
+	}
+
+	/// Start importing votes for the given request.
+	async fn start_import(
+		&mut self,
+		incoming: IncomingRequest<DisputeRequest>,
+	) -> Result<()> {
+
+		let IncomingRequest {
+			peer, payload, pending_response,
+		} = incoming;
+
+		let info = self.runtime.get_session_info_by_index(
+			&mut self.sender,
+			payload.0.candidate_receipt.descriptor.relay_parent,
+			payload.0.session_index
+		).await?;
+
+		let votes_result = payload.0.try_into_signed_votes(&info.session_info);
+
+		let (candidate_receipt, valid_vote, invalid_vote) = match votes_result {
+			Err(()) => { // Signature invalid:
+				pending_response.send_outgoing_response(
+					OutgoingResponse {
+						result: Err(()),
+						reputation_changes: vec![COST_INVALID_SIGNATURE],
+						sent_feedback: None,
+					}
+				).map_err(|_| NonFatal::SetPeerReputation(peer))?;
+
+				return Err(From::from(NonFatal::InvalidSignature(peer)))
+			}
+			Ok(votes) => votes,
+		};
+
+		let (pending_confirmation, confirmation_rx) = oneshot::channel();
+		let candidate_hash = candidate_receipt.hash();
+		self.sender.send_message(
+			AllMessages::DisputeCoordinator(
+				DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt,
+					session: valid_vote.0.session_index(),
+					statements: vec![valid_vote, invalid_vote],
+					pending_confirmation,
+				}
+			)
+		).await;
+
+		self.pending_imports.push(peer, confirmation_rx, pending_response);
+		Ok(())
+	}
+
+	/// Await an import and ban any misbehaving peers.
+	fn ban_bad_peer(
+		&mut self,
+		result: Option<NonFatalResult<(PeerId, ImportStatementsResult)>>
+	) -> NonFatalResult<()> {
+		match result {
+			None => tracing::debug!(
+				target: LOG_TARGET,
+				"Pending imports was empty."
+			),
+			Some(result) => match result? {
+				(_, ImportStatementsResult::ValidImport) => {}
+				(bad_peer, ImportStatementsResult::InvalidImport) => {
+					self.banned_peers.put(bad_peer, ());
+				}
+			},
+		}
+		Ok(())
 	}
 }
 
+/// Manage pending imports in a way that preserves invariants.
+struct PendingImports {
+	/// Futures in flight.
+	futures: FuturesUnordered<BoxFuture<'static, (PeerId, NonFatalResult<ImportStatementsResult>)>>,
+	/// Peers whose requests are currently in flight.
+	peers: HashSet<PeerId>,
+}
+
+impl PendingImports {
+	pub fn new() -> Self {
+		Self {
+			futures: FuturesUnordered::new(),
+			peers: HashSet::new(),
+		}
+	}
+
+	pub fn push(
+		&mut self,
+		peer: PeerId,
+		handled: oneshot::Receiver<ImportStatementsResult>,
+		pending_response: OutgoingResponseSender<DisputeRequest>
+	) {
+		self.peers.insert(peer);
+		self.futures.push(
+			async move {
+				let r = respond_to_request(peer, handled, pending_response).await;
+				(peer, r)
+			}.boxed()
+		)
+	}
+
+	/// Returns the number of contained futures.
+	pub fn len(&self) -> usize {
+		self.futures.len()
+	}
+
+	/// Check whether a peer has a pending import.
+	pub fn peer_is_pending(&self, peer: &PeerId) -> bool {
+		self.peers.contains(peer)
+	}
+}
+
+impl Stream for PendingImports {
+	type Item = NonFatalResult<(PeerId, ImportStatementsResult)>;
+	fn poll_next(
+		mut self: Pin<&mut Self>,
+		ctx: &mut Context<'_>
+	) -> Poll<Option<Self::Item>> {
+		match Pin::new(&mut self.futures).poll_next(ctx) {
+			Poll::Pending => Poll::Pending,
+			Poll::Ready(None) => Poll::Ready(None),
+			Poll::Ready(Some((peer, result))) => {
+				self.peers.remove(&peer);
+				Poll::Ready(Some(result.map(|r| (peer,r))))
+			}
+		}
+	}
+
+}
+impl FusedStream for PendingImports {
+	fn is_terminated(&self) -> bool { 
+		self.futures.is_terminated()
+	}
+}
+
+// Future for `PendingImports`
+//
+// - Wait for import
+// - Punish peer
+// - Deliver result
 async fn respond_to_request(
+	peer: PeerId,
 	handled: oneshot::Receiver<ImportStatementsResult>,
 	pending_response: OutgoingResponseSender<DisputeRequest>
-) {
-	let response = match handled.await {
-		Err(oneshot::Canceled) => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Import confirmation oneshot got canceled - should not happen."
-			);
-			return
-		}
-		Ok(ImportStatementsResult::ValidImport) => {
+) -> NonFatalResult<ImportStatementsResult> {
+
+	let result = handled
+		.await
+		.map_err(|_| NonFatal::ImportCanceled(peer))?
+	;
+
+	let response = match result {
+		ImportStatementsResult::ValidImport =>
 			OutgoingResponse {
 				result: Ok(DisputeResponse::Confirmed),
 				reputation_changes: Vec::new(),
 				sent_feedback: None,
-			}
-		}
-		Ok(ImportStatementsResult::InvalidImport) => {
+			},
+		ImportStatementsResult::InvalidImport =>
 			OutgoingResponse {
 				result: Err(()),
 				reputation_changes: vec![COST_INVALID_CANDIDATE],
 				sent_feedback: None,
-			}
-		}
+			},
 	};
 
-	if let Err(err) = pending_response.send_outgoing_response(response) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			?err,
-			"Sending response failed."
-		);
-	}
+	pending_response
+		.send_outgoing_response(response)
+		.map_err(|_| NonFatal::SendResponse(peer))?;
+
+	Ok(result)
 }

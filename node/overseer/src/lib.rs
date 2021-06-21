@@ -87,7 +87,7 @@ use polkadot_subsystem::messages::{
 	ProvisionerMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage,
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
-	ApprovalVotingMessage, GossipSupportMessage,
+	ApprovalVotingMessage, GossipSupportMessage, DisputeDistributionMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,

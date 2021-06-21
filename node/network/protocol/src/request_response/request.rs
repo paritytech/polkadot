@@ -135,13 +135,15 @@ pub enum RequestError {
 }
 
 /// Things that can go wrong when decoding an incoming request.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ReceiveError {
 	/// Decoding failed, we were able to change the peer's reputation accordingly.
-	DecodingError(DecodingError),
+	#[error("Decoding request failed for peer {0}.")]
+	DecodingError(PeerId, #[source] DecodingError),
 
 	/// Decoding failed, but sending reputation change failed.
-	DecodingErrorNoReputationChange(DecodingError),
+	#[error("Decoding request failed for peer {0}, and changing reputation failed.")]
+	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
 }
 
 /// Responses received for an `OutgoingRequest`.
@@ -344,9 +346,9 @@ where
 				};
 
 				if let Err(_) = pending_response.send(response) {
-					return Err(ReceiveError::DecodingErrorNoReputationChange(err))
+					return Err(ReceiveError::DecodingErrorNoReputationChange(peer, err))
 				}
-				return Err(ReceiveError::DecodingError(err))
+				return Err(ReceiveError::DecodingError(peer, err))
 			}
 		};
 		Ok(Self::new(peer, payload, pending_response))

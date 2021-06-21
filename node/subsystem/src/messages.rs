@@ -269,10 +269,6 @@ pub enum DisputeDistributionMessage {
   /// validators.
   SendDispute(DisputeMessage),
 
-  /// Tell the subsystem that a candidate is not available. Dispute distribution
-  /// can punish peers distributing votes on unavailable hashes.
-  ReportCandidateUnavailable(CandidateHash),
-
   /// Get receiver for receiving incoming network requests for dispute sending.
   DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }

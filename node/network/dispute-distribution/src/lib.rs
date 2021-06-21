@@ -17,9 +17,10 @@
 
 /// Sending and receiving of `DisputeRequest`s.
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 
+use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
@@ -167,7 +168,17 @@ impl DisputeDistributionSubsystem {
 				self.disputes_sender.start_sending(ctx, &mut self.runtime, dispute_msg).await?,
 			// This message will only arrive once:
 			DisputeDistributionMessage::DisputeSendingReceiver(receiver) => {
-				let receiver = DisputesReceiver::new(ctx.sender().clone(), receiver);
+				let (tx, rx) = oneshot::channel();
+				ctx.send_message(
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::GetAuthorityDiscoveryService(tx)
+					)
+				).await;
+				let service = rx
+					.await
+					.map_err(|_| Fatal::CanceledOneshot("get_authority_discovery_service"))?;
+
+				let receiver = DisputesReceiver::new(ctx.sender().clone(), receiver, service);
 				ctx
 					.spawn("disputes-receiver", receiver.run().boxed(),)
 					.await
