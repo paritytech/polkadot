@@ -51,6 +51,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
+
 mod error;
 
 #[cfg(test)]
@@ -608,11 +609,9 @@ async fn handle_signal(
 }
 
 /// Machinery around launching interactions into the background.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn launch_interaction(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
-	session_index: SessionIndex,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
 	backing_group: Option<GroupIndex>,
@@ -663,7 +662,6 @@ async fn launch_interaction(
 }
 
 /// Handles an availability recovery request.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
 async fn handle_recover(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
@@ -706,7 +704,6 @@ async fn handle_recover(
 			launch_interaction(
 				state,
 				ctx,
-				session_index,
 				session_info,
 				receipt,
 				backing_group,
@@ -727,7 +724,6 @@ async fn handle_recover(
 }
 
 /// Queries a chunk from av-store.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_full_data(
 	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	candidate_hash: CandidateHash,

@@ -69,7 +69,7 @@ struct HostConfiguration {
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
-	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	pub ump_service_total_weight: Weight,
 	/// The maximum size of an upward message that can be sent by a candidate.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.

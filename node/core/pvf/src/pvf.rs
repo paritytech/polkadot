@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::artifacts::ArtifactId;
-use polkadot_core_primitives::Hash;
+use polkadot_parachain::primitives::ValidationCodeHash;
 use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 
@@ -25,7 +25,7 @@ use std::{fmt, sync::Arc};
 #[derive(Clone)]
 pub struct Pvf {
 	pub(crate) code: Arc<Vec<u8>>,
-	pub(crate) code_hash: Hash,
+	pub(crate) code_hash: ValidationCodeHash,
 }
 
 impl fmt::Debug for Pvf {
