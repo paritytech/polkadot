@@ -12,6 +12,6 @@
 
 # normally we use chargo-chef because it's caching capacity; add the --no-cache arg only
 # once in a while when the build fails
-docker build -t seunlanlege/forrestgump:"$1" -f local-build-1-stages.Dockerfile --no-cache ../../../../
+date ; docker build -t seunlanlege/forrestgump:"$1" -f local-build-1-stages.Dockerfile --no-cache ../../../../
 
-docker push seunlanlege/forrestgump:"$1"
+date ; docker push seunlanlege/forrestgump:"$1"
