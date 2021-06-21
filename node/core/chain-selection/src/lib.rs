@@ -243,6 +243,7 @@ impl Clock for SystemClock {
 }
 
 /// The interval, in seconds to check for stagnant blocks.
+#[derive(Debug, Clone)]
 pub struct StagnantCheckInterval(Duration);
 
 impl Default for StagnantCheckInterval {
@@ -280,6 +281,7 @@ impl StagnantCheckInterval {
 }
 
 /// Configuration for the chain selection subsystem.
+#[derive(Debug, Clone)]
 pub struct Config {
 	/// The column in the database that the storage should use.
 	pub col_data: u32,

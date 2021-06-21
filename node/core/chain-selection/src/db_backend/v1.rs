@@ -18,7 +18,7 @@
 //!
 //! This stores the following schema:
 //!
-//! ```
+//! ```ignore
 //! ("CS_block_entry", Hash) -> BlockEntry;
 //! ("CS_block_height", BigEndianBlockNumber) -> Vec<Hash>;
 //! ("CS_stagnant_at", BigEndianTimestamp) -> Vec<Hash>;

@@ -22,7 +22,7 @@
 
 use super::*;
 use std::collections::{HashMap, HashSet, BTreeMap};
-use std::sync::Arc;
+use std::sync::{atomic::{Ordering as AtomicOrdering, AtomicU64}, Arc};
 
 use futures::channel::oneshot;
 use parity_scale_codec::Encode;
@@ -173,18 +173,45 @@ impl Backend for TestBackend {
 	}
 }
 
+#[derive(Clone)]
+pub struct TestClock(Arc<AtomicU64>);
+
+impl TestClock {
+	fn new(initial: u64) -> Self {
+		TestClock(Arc::new(AtomicU64::new(initial)))
+	}
+
+	fn inc_by(&self, duration: u64) {
+		self.0.fetch_add(duration, AtomicOrdering::Relaxed);
+	}
+}
+
+impl Clock for TestClock {
+	fn timestamp_now(&self) -> Timestamp {
+		self.0.load(AtomicOrdering::Relaxed)
+	}
+}
+
+const TEST_STAGNANT_INTERVAL: Duration = Duration::from_millis(20);
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ChainSelectionMessage>;
 
 fn test_harness<T: Future<Output=VirtualOverseer>>(
-	test: impl FnOnce(TestBackend, VirtualOverseer) -> T
+	test: impl FnOnce(TestBackend, TestClock, VirtualOverseer) -> T
 ) {
 	let pool = TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 	let backend = TestBackend::default();
-	let subsystem = crate::run(context, backend.clone());
+	let clock = TestClock::new(0);
+	let subsystem = crate::run(
+		context,
+		backend.clone(),
+		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
+		Box::new(clock.clone()),
+	);
 
-	let test_fut = test(backend, virtual_overseer);
+	let test_fut = test(backend, clock, virtual_overseer);
 	let test_and_conclude = async move {
 		let mut virtual_overseer = test_fut.await;
 		virtual_overseer.send(OverseerSignal::Conclude.into()).await;
@@ -582,12 +609,12 @@ async fn approve_block(
 
 #[test]
 fn no_op_subsystem_run() {
-	test_harness(|_, virtual_overseer| async move { virtual_overseer });
+	test_harness(|_, _, virtual_overseer| async move { virtual_overseer });
 }
 
 #[test]
 fn import_direct_child_of_finalized_on_empty() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -614,7 +641,7 @@ fn import_direct_child_of_finalized_on_empty() {
 
 #[test]
 fn import_chain_on_finalized_incrementally() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -643,7 +670,7 @@ fn import_chain_on_finalized_incrementally() {
 
 #[test]
 fn import_two_subtrees_on_finalized() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -687,7 +714,7 @@ fn import_two_subtrees_on_finalized() {
 
 #[test]
 fn import_two_subtrees_on_nonzero_finalized() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 100;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -731,7 +758,7 @@ fn import_two_subtrees_on_nonzero_finalized() {
 
 #[test]
 fn leaves_ordered_by_weight_and_then_number() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -784,7 +811,7 @@ fn leaves_ordered_by_weight_and_then_number() {
 
 #[test]
 fn subtrees_imported_even_with_gaps() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -835,7 +862,7 @@ fn subtrees_imported_even_with_gaps() {
 
 #[test]
 fn reversion_removes_viability_of_chain() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -871,7 +898,7 @@ fn reversion_removes_viability_of_chain() {
 
 #[test]
 fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -905,7 +932,7 @@ fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
 
 #[test]
 fn ancestor_of_unviable_is_not_leaf_if_has_children() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -974,7 +1001,7 @@ fn ancestor_of_unviable_is_not_leaf_if_has_children() {
 
 #[test]
 fn self_and_future_reversions_are_ignored() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1006,7 +1033,7 @@ fn self_and_future_reversions_are_ignored() {
 
 #[test]
 fn revert_finalized_is_ignored() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 10;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1038,7 +1065,7 @@ fn revert_finalized_is_ignored() {
 
 #[test]
 fn reversion_affects_viability_of_all_subtrees() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1096,7 +1123,7 @@ fn reversion_affects_viability_of_all_subtrees() {
 
 #[test]
 fn finalize_viable_prunes_subtrees() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1204,7 +1231,7 @@ fn finalize_viable_prunes_subtrees() {
 
 #[test]
 fn finalization_does_not_clobber_unviability() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1258,7 +1285,7 @@ fn finalization_does_not_clobber_unviability() {
 
 #[test]
 fn finalization_erases_unviable() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1322,7 +1349,7 @@ fn finalization_erases_unviable() {
 
 #[test]
 fn finalize_erases_unviable_but_keeps_later_unviability() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1390,7 +1417,7 @@ fn finalize_erases_unviable_but_keeps_later_unviability() {
 
 #[test]
 fn finalize_erases_unviable_from_one_but_not_all_reverts() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1450,7 +1477,7 @@ fn finalize_erases_unviable_from_one_but_not_all_reverts() {
 
 #[test]
 fn finalize_triggers_viability_search() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1522,7 +1549,7 @@ fn finalize_triggers_viability_search() {
 
 #[test]
 fn best_leaf_none_with_empty_db() {
-	test_harness(|_backend, mut virtual_overseer| async move {
+	test_harness(|_backend, _,  mut virtual_overseer| async move {
 		let required = Hash::repeat_byte(1);
 		let best_leaf = best_leaf_containing(&mut virtual_overseer, required).await;
 		assert!(best_leaf.is_none());
@@ -1533,7 +1560,7 @@ fn best_leaf_none_with_empty_db() {
 
 #[test]
 fn best_leaf_none_with_no_viable_leaves() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1575,7 +1602,7 @@ fn best_leaf_none_with_no_viable_leaves() {
 
 #[test]
 fn best_leaf_none_with_unknown_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1609,7 +1636,7 @@ fn best_leaf_none_with_unknown_required() {
 
 #[test]
 fn best_leaf_none_with_unviable_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1661,7 +1688,7 @@ fn best_leaf_none_with_unviable_required() {
 
 #[test]
 fn best_leaf_with_finalized_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1705,7 +1732,7 @@ fn best_leaf_with_finalized_required() {
 
 #[test]
 fn best_leaf_with_unfinalized_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1751,7 +1778,7 @@ fn best_leaf_with_unfinalized_required() {
 
 #[test]
 fn best_leaf_ancestor_of_all_leaves() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1809,7 +1836,7 @@ fn best_leaf_ancestor_of_all_leaves() {
 
 #[test]
 fn approve_message_approves_block_entry() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1859,7 +1886,7 @@ fn approve_message_approves_block_entry() {
 
 #[test]
 fn approve_nonexistent_has_no_effect() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
