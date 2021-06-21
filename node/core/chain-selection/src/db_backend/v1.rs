@@ -215,19 +215,157 @@ impl DbBackend {
 	}
 }
 
-// impl Backend for DbBackend {
-// 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<BlockEntry>, Error>;
-// 	fn load_leaves(&self) -> Result<LeafEntrySet, Error>;
-// 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
-// 	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
-// 		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
-// 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error>;
-// 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error>;
+impl Backend for DbBackend {
+	fn load_block_entry(&self, hash: &Hash) -> Result<Option<crate::BlockEntry>, Error> {
+		load_decode::<BlockEntry>(
+			&*self.inner,
+			self.config.col_data,
+			&block_entry_key(hash),
+		).map(|o| o.map(Into::into))
+	}
 
-// 	/// Atomically write the list of operations, with later operations taking precedence over prior.
-// 	fn write<I>(&mut self, ops: I) -> Result<(), Error>
-// 		where I: IntoIterator<Item = BackendWriteOp>;
-// }
+	fn load_leaves(&self) -> Result<crate::LeafEntrySet, Error> {
+		load_decode::<LeafEntrySet>(
+			&*self.inner,
+			self.config.col_data,
+			LEAVES_KEY,
+		).map(|o| o.map(Into::into).unwrap_or_default())
+	}
+
+	fn load_stagnant_at(&self, timestamp: crate::Timestamp) -> Result<Vec<Hash>, Error> {
+		load_decode::<Vec<Hash>>(
+			&*self.inner,
+			self.config.col_data,
+			&stagnant_at_key(timestamp.into()),
+		).map(|o| o.unwrap_or_default())
+	}
+
+	fn load_stagnant_at_up_to(&self, up_to: crate::Timestamp)
+		-> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error>
+	{
+		let stagnant_at_iter = self.inner.iter_with_prefix(
+			self.config.col_data,
+			&STAGNANT_AT_PREFIX[..],
+		);
+
+		let val = stagnant_at_iter
+			.filter_map(|(k, v)| {
+				match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok()) {
+					(Some(at), Some(stagnant_at)) => Some((at, stagnant_at)),
+					_ => None,
+				}
+			})
+			.take_while(|(at, _)| *at <= up_to.into())
+			.collect::<Vec<_>>();
+
+		Ok(val)
+	}
+
+	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
+		let blocks_at_height_iter = self.inner.iter_with_prefix(
+			self.config.col_data,
+			&BLOCK_HEIGHT_PREFIX[..],
+		);
+
+		let val = blocks_at_height_iter
+			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
+			.next();
+
+		Ok(val)
+	}
+
+	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
+		load_decode::<Vec<Hash>>(
+			&*self.inner,
+			self.config.col_data,
+			&block_height_key(number),
+		).map(|o| o.unwrap_or_default())
+	}
+
+	/// Atomically write the list of operations, with later operations taking precedence over prior.
+	fn write<I>(&mut self, ops: I) -> Result<(), Error>
+		where I: IntoIterator<Item = BackendWriteOp>
+	{
+		let mut tx = DBTransaction::new();
+		for op in ops {
+			match op {
+				BackendWriteOp::WriteBlockEntry(block_entry) => {
+					let block_entry: BlockEntry = block_entry.into();
+					tx.put_vec(
+						self.config.col_data,
+						&block_entry_key(&block_entry.block_hash),
+						block_entry.encode(),
+					);
+				}
+				BackendWriteOp::WriteBlocksByNumber(block_number, v) => {
+					if v.is_empty() {
+						tx.delete(
+							self.config.col_data,
+							&block_height_key(block_number),
+						);
+					} else {
+						tx.put_vec(
+							self.config.col_data,
+							&block_height_key(block_number),
+							v.encode(),
+						);
+					}
+				}
+				BackendWriteOp::WriteViableLeaves(leaves) => {
+					let leaves: LeafEntrySet = leaves.into();
+					if leaves.inner.is_empty() {
+						tx.delete(
+							self.config.col_data,
+							&LEAVES_KEY[..],
+						);
+					} else {
+						tx.put_vec(
+							self.config.col_data,
+							&LEAVES_KEY[..],
+							leaves.encode(),
+						);
+					}
+				}
+				BackendWriteOp::WriteStagnantAt(timestamp, stagnant_at) => {
+					let timestamp: Timestamp = timestamp.into();
+					if stagnant_at.is_empty() {
+						tx.delete(
+							self.config.col_data,
+							&stagnant_at_key(timestamp),
+						);
+					} else {
+						tx.put_vec(
+							self.config.col_data,
+							&stagnant_at_key(timestamp),
+							stagnant_at.encode(),
+						);
+					}
+				}
+				BackendWriteOp::DeleteBlocksByNumber(block_number) => {
+					tx.delete(
+						self.config.col_data,
+						&block_height_key(block_number),
+					);
+				}
+				BackendWriteOp::DeleteBlockEntry(hash) => {
+					tx.delete(
+						self.config.col_data,
+						&block_entry_key(&hash),
+					);
+				}
+				BackendWriteOp::DeleteStagnantAt(timestamp) => {
+					let timestamp: Timestamp = timestamp.into();
+					tx.delete(
+						self.config.col_data,
+						&stagnant_at_key(timestamp),
+					);
+				}
+			}
+		}
+
+		self.inner.write(tx).map_err(Into::into)
+	}
+}
 
 fn load_decode<D: Decode>(
 	db: &dyn KeyValueDB,
