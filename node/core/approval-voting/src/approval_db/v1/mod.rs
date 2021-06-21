@@ -423,16 +423,20 @@ pub(crate) fn add_block_entry(
 
 /// Forcibly approve all candidates included at up to the given relay-chain height in the indicated
 /// chain.
+///
+/// Returns a list of block hashes that were not approved and are now.
 pub fn force_approve(
 	store: &dyn KeyValueDB,
 	db_config: Config,
 	chain_head: Hash,
 	up_to: BlockNumber,
-) -> Result<()> {
+) -> Result<Vec<Hash>> {
 	enum State {
 		WalkTo,
 		Approving,
 	}
+
+	let mut approved_hashes = Vec::new();
 
 	let mut cur_hash = chain_head;
 	let mut state = State::WalkTo;
@@ -452,13 +456,20 @@ pub fn force_approve(
 		match state {
 			State::WalkTo => {},
 			State::Approving => {
-				entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
-				tx.put_block_entry(entry);
+				let is_approved = entry.approved_bitfield.count_ones()
+					== entry.approved_bitfield.len();
+
+				if !is_approved {
+					entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
+					approved_hashes.push(entry.block_hash);
+					tx.put_block_entry(entry);
+				}
 			}
 		}
 	}
 
-	tx.write(store)
+	tx.write(store)?;
+	Ok(approved_hashes)
 }
 
 /// Return all blocks which have entries in the DB, ascending, by height.
