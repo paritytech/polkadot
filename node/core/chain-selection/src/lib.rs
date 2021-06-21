@@ -40,7 +40,7 @@ mod tree;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
-
+/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 type Timestamp = u64;
 
 #[derive(Debug, Clone)]
