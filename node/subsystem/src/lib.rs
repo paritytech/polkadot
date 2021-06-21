@@ -288,10 +288,10 @@ pub trait SubsystemContext: Send + Sized + 'static {
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+	fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
 
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
-	async fn spawn_blocking(
+	fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
