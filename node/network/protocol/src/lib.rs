@@ -38,6 +38,9 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
+/// Accessing authority discovery service
+pub mod authority_discovery;
+
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.

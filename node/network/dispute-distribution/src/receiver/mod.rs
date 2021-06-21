@@ -25,25 +25,28 @@ use futures::channel::oneshot;
 use futures::stream::StreamExt;
 use futures::stream::FuturesUnordered;
 
-
 use polkadot_node_network_protocol::PeerId;
+use polkadot_node_network_protocol::UnifiedReputationChange as Rep;
 use polkadot_node_network_protocol::request_response::IncomingRequest;
 use polkadot_node_network_protocol::request_response::request::OutgoingResponse;
-use polkadot_node_network_protocol::UnifiedReputationChange as Rep;
 use polkadot_node_network_protocol::request_response::request::OutgoingResponseSender;
+use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
 use polkadot_node_subsystem_util::Fault;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_primitives::v1::CandidateHash;
 use polkadot_subsystem::SubsystemSender;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
-use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_subsystem::messages::ImportStatementsResult;
 
 use crate::LOG_TARGET;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid");
+const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not available.");
+const COST_NOT_A_VALIDATOR: Rep = Rep::Malicious("Reporting peer was not a validator.");
 
 /// How many statement imports we want to issue in parallel:
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
@@ -73,6 +76,14 @@ pub struct DisputesReceiver<Sender> {
 	banned_peers: LruCache<PeerId, ()>,
 }
 
+/// Messages from the subsystem to the dispute receiver.
+enum ToDisputeReceiver {
+	/// Peer connected.
+	PeerConnected(PeerId, AuthorityDiscoveryId),
+	/// Peer disconnected.
+	PeerDisconnected(PeerId),
+}
+
 /// Messages as handled by this receiver internally.
 enum Message {
 	/// An import got confirmed by the coordinator.
@@ -84,19 +95,20 @@ enum Message {
 	/// A new request has arrived and should be handled.
 	NewRequest(Option<sc_network::config::IncomingRequest>),
 
-	//// A candidate we received a dispute request for was deemed unavailable. We should change the
-	//// peer's reputation accordingly.
-	//ReportCandidateUnavailable(CandidateHash),	
+	/// Message from the subsystem.
+	FromSubsystem(Option<ToDisputeReceiver>),
 }
 
 impl Message {
 	async fn receive<Fut: Future>(
 		pending_out: &mut FuturesUnordered<Fut>,
 		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
+		from_subsystem: &mut mpsc::Receiver<ToDisputeReceiver>,
 	) -> Message {
 		select!(
 			_ = pending_out.next() => Message::ConfirmedImport,
 			msg = pending_requests.next() => Message::NewRequest(msg),
+			msg = from_subsystem.next() => Message::FromSubsystem(msg),
 		)
 	}
 
@@ -127,10 +139,13 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 			let msg = Message::receive(&mut pending_out, &mut self.receiver).await;
 
 			let raw = match msg {
+				Message::FromSubsystem(Some(FromSubsystem::ReportCandidateUnavailable(candidate))) => {
+				},
+				Message::FromSubsystem(None) => break,
 				// We need to clean up futures, to make sure responses are sent:
 				Message::ConfirmedImport => continue,
-				Message::NewRequest(Some(req)) => req,
 				Message::NewRequest(None) => break,
+				Message::NewRequest(Some(req)) => req,
 			};
 
 			let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
@@ -238,22 +253,39 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 	}
 }
 
-async fn respond_to_request(handled: oneshot::Receiver<()>, pending_response: OutgoingResponseSender<DisputeRequest>) {
-	match handled.await {
+async fn respond_to_request(
+	handled: oneshot::Receiver<ImportStatementsResult>,
+	pending_response: OutgoingResponseSender<DisputeRequest>
+) {
+	let response = match handled.await {
 		Err(oneshot::Canceled) => {
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Import confirmation oneshot got canceled - should not happen."
 			);
+			return
 		}
-		Ok(()) => {
-			if let Err(err) = pending_response.send_response(DisputeResponse::Confirmed) {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?err,
-					"Sending response failed."
-				);
+		Ok(ImportStatementsResult::ValidImport) => {
+			OutgoingResponse {
+				result: Ok(DisputeResponse::Confirmed),
+				reputation_changes: Vec::new(),
+				sent_feedback: None,
 			}
 		}
+		Ok(ImportStatementsResult::InvalidImport) => {
+			OutgoingResponse {
+				result: Err(()),
+				reputation_changes: vec![COST_INVALID_CANDIDATE],
+				sent_feedback: None,
+			}
+		}
+	};
+
+	if let Err(err) = pending_response.send_outgoing_response(response) {
+		tracing::debug!(
+			target: LOG_TARGET,
+			?err,
+			"Sending response failed."
+		);
 	}
 }

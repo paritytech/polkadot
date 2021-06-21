@@ -558,6 +558,15 @@ where
 						network_service = ns;
 						authority_discovery_service = ads;
 					}
+					NetworkBridgeMessage::GetAuthorityDiscoveryService(tx) => {
+						if let Err(err) match tx.send(authority_discovery_service.clone()) {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?err,
+								"Answering `GetAuthorityDiscoveryService` request failed."
+							);
+						}
+					}
 				}
 				Err(e) => return Err(e.into()),
 			},

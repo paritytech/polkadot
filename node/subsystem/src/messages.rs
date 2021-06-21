@@ -29,11 +29,7 @@ use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{
-	peer_set::PeerSet,
-	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange,
-};
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, authority_discovery::AuthorityDiscovery, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
 use polkadot_node_primitives::{AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -138,7 +134,6 @@ impl CandidateValidationMessage {
 	}
 }
 
-
 /// Messages received by the Collator Protocol subsystem.
 #[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
@@ -216,7 +211,7 @@ pub enum DisputeCoordinatorMessage {
         /// This is, we either discarded the votes, just record them because we
         /// casted our vote already or recovered availability for the candidate
         /// successfully.
-        pending_confirmation: oneshot::Sender<()>,
+        pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
@@ -239,6 +234,15 @@ pub enum DisputeCoordinatorMessage {
 		/// A response channel - `None` to vote on base, `Some` to vote higher.
 		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
 	}
+}
+
+/// The result of `DisputeCoordinatorMessage::ImportStatements`.
+#[derive(Debug)]
+pub enum ImportStatementsResult {
+	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
+	InvalidImport,
+	/// Import was valid and can be confirmed to peer.
+	ValidImport
 }
 
 /// Messages received by the dispute participation subsystem.
@@ -268,13 +272,12 @@ pub enum DisputeDistributionMessage {
   /// Tell the subsystem that a candidate is not available. Dispute distribution
   /// can punish peers distributing votes on unavailable hashes.
   ReportCandidateUnavailable(CandidateHash),
-  
+
   /// Get receiver for receiving incoming network requests for dispute sending.
   DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
-#[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, UnifiedReputationChange),
@@ -322,6 +325,12 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+
+	/// Get an instance of the authority discovery service.
+	///
+	/// This can be used to discovery `PeerId`s belonging to `AuthorityId`s and the other way
+	/// round.
+	GetAuthorityDiscoveryService(oneshot::Sender<Box<dyn AuthorityDiscovery>>),
 }
 
 impl NetworkBridgeMessage {
@@ -336,6 +345,7 @@ impl NetworkBridgeMessage {
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 			Self::SendRequests { .. } => None,
+			Self::GetAuthorityDiscoveryService(_) => None,
 		}
 	}
 }
