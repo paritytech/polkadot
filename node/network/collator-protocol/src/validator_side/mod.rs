@@ -479,11 +479,28 @@ type PendingCollationFetch = (
 	std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>,
 );
 
+/// The status of the collations in [`CollationsPerRelayParent`].
+#[derive(Debug)]
+enum CollationStatus {
+	/// We are waiting for a collation to be advertised to us.
+	Waiting,
+	/// We are currently fetching a collation.
+	Fetching,
+	/// We have seconded a collation.
+	Seconded,
+}
+
+impl Default for CollationStatus {
+	fn default() -> Self {
+		Self::Waiting
+	}
+}
+
 /// Information about collations per relay parent.
 #[derive(Default)]
 struct CollationsPerRelayParent {
-	/// Are we currently fetching a collation?
-	fetching_collation: bool,
+	/// What is the current status in regards to a collation for this relay parent?
+	status: CollationStatus,
 	/// Collation that were advertised to us, but we did not yet fetch.
 	unfetched_collations: Vec<(PendingCollation, CollatorId)>,
 }
@@ -794,10 +811,10 @@ where
 
 					let collations = state.collations_per_relay_parent.entry(relay_parent).or_default();
 
-					if collations.fetching_collation {
+					if matches!(collations.status, CollationStatus::Fetching) {
 						collations.unfetched_collations.push((pending_collation, id));
-					} else {
-						collations.fetching_collation = true;
+					} else if matches!(collations.status, CollationStatus::Waiting) {
+						collations.status = CollationStatus::Fetching;
 						drop(collations);
 
 						fetch_collation(ctx, state, pending_collation.clone(), id).await;
@@ -991,6 +1008,10 @@ where
 				let PendingCollation { relay_parent, peer_id, .. } = pending_collation;
 				note_good_collation(ctx, &state.peer_data, collator_id).await;
 				notify_collation_seconded(ctx, peer_id, relay_parent, stmt).await;
+
+				if let Some(collations) = state.collations_per_relay_parent.get_mut(&parent) {
+					collations.status = CollationStatus::Seconded;
+				}
 			} else {
 				tracing::debug!(
 					target: LOG_TARGET,
@@ -1116,8 +1137,15 @@ async fn handle_collation_fetched(
 			let (next_try, id) = if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
 				if let Some(next_try) = collations.unfetched_collations.pop() {
 					next_try
+				} else if matches!(collations.status, CollationStatus::Fetching) {
+					collations.status = CollationStatus::Waiting;
+					return
 				} else {
-					collations.fetching_collation = false;
+					tracing::error!(
+						target: LOG_TARGET,
+						status = ?collations.status,
+						"Expected status `CollationStatus::Fetching` but got unexpected status."
+					);
 					return
 				}
 			} else {
