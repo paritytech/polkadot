@@ -190,7 +190,20 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// Maximum compressed code size we support right now.
 /// At the moment we have runtime upgrade on chain, which restricts scalability severely. If we want
 /// to have bigger values, we should fix that first.
+///
+/// Used for:
+/// * initial genesis for the Parachains configuration
+/// * checking updates to this stored runtime configuration do not exceed this limit
+/// * when detecting a code decompression bomb in the client
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
+
+/// Maximum PoV size we support right now.
+///
+/// Used for:
+/// * initial genesis for the Parachains configuration
+/// * checking updates to this stored runtime configuration do not exceed this limit
+/// * when detecting a PoV decompression bomb in the client
+pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
