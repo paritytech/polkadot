@@ -432,7 +432,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub const QueueSize: usize = 2;
+	// pub const QueueSize: usize = 2; // TODO: [AJ] this is apparently unused, can we remove?
 	pub const MaxRetries: u32 = 3;
 }
 
