@@ -593,36 +593,51 @@ impl CurrentlyCheckingSet {
 	// The return value of this function will indicate whether we have seen this
 	// candidate_hash for this relay_block before. If we have never seen this candidate_hash
 	// xor never seen this relay_block (for this candidate_hash), the function will return false
-	fn insert_relay_block_hash(
+	pub async fn insert_relay_block_hash(
 		&mut self,
 		candidate_hash: CandidateHash,
+		candidate_index: CandidateIndex,
+		validator_index: ValidatorIndex,
 		relay_block: Hash,
-	) -> bool {
+		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
+	) -> SubsystemResult<()> {
 		let val = self.candidate_hash_map
 			.entry(candidate_hash)
 			.or_insert(Default::default());
 
-		val.binary_search_by_key(&relay_block, |v| *v)
-			.map_err(|k| val.insert(k, relay_block))
-			.map(|_| true)
-			.unwrap_or_default()
+		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
+			let _ = val.insert(k, relay_block);
+			let work = launch_work.await?;
+			self.currently_checking.push(
+				Box::pin(async move {
+					match work.timeout(Duration::new(APPROVAL_CHECKING_TIMEOUT, 0)).await {
+						None => ApprovalState {
+							candidate_hash,
+							validator_index,
+							candidate_index,
+							approval_outcome: ApprovalOutcome::TimedOut,
+						},
+						Some(approval_state) => approval_state,
+					}
+				})
+			);
+		}
+
+		Ok(())
 	}
 
-	async fn next(
+	pub async fn next(
 		&mut self,
 		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	) -> (Vec<Hash>, ApprovalState) {
 		if !self.currently_checking.is_empty() {
-			if let Some(res) = self.currently_checking
+			if let Some(approval_state) = self.currently_checking
 				.next()
 				.await
-				.map(|approval_state| {
-					let out = self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or_default();
-					approvals_cache.put(approval_state.candidate_hash.clone(), approval_state.approval_outcome.clone());
-					(out, approval_state)
-				})
 			{
-				return res;
+				let out = self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or_default();
+				approvals_cache.put(approval_state.candidate_hash.clone(), approval_state.approval_outcome.clone());
+				return (out, approval_state);
 			}
 		}
 
@@ -894,36 +909,27 @@ async fn handle_actions(
 						actions_iter = new_actions.into_iter();
 					},
 					None => {
-						if !currently_checking_set.insert_relay_block_hash(
-							candidate_hash,
-							relay_block_hash,
-						) {
-							if let Some(handle) = launch_approval(
-								ctx,
-								metrics.clone(),
-								session,
-								&candidate,
+						{
+							let ctx = &mut *ctx;
+							currently_checking_set.insert_relay_block_hash(
+								candidate_hash,
+								candidate_index,
 								validator_index,
-								block_hash,
-								candidate_index as _,
-								backing_group,
-							).await? {
-								currently_checking_set.currently_checking.push(
-									Box::pin(async move {
-										match handle.timeout(Duration::new(APPROVAL_CHECKING_TIMEOUT, 0)).await {
-											None => ApprovalState {
-												candidate_hash,
-												validator_index,
-												candidate_index,
-												approval_outcome: ApprovalOutcome::TimedOut
-											},
-											Some(approval_state) => approval_state,
-										}
-									})
-								)
-							}
+								relay_block_hash,
+								async move {
+									launch_approval(
+										ctx,
+										metrics.clone(),
+										session,
+										candidate,
+										validator_index,
+										block_hash,
+										candidate_index as _,
+										backing_group,
+									).await
+								}
+							).await?;
 						}
-
 						ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 							indirect_cert,
 							candidate_index,
@@ -2027,12 +2033,12 @@ async fn launch_approval(
 	ctx: &mut impl SubsystemContext,
 	metrics: Metrics,
 	session_index: SessionIndex,
-	candidate: &CandidateReceipt,
+	candidate: CandidateReceipt,
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	candidate_index: usize,
 	backing_group: GroupIndex,
-) -> SubsystemResult<Option<RemoteHandle<ApprovalState>>> {
+) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2242,7 +2248,7 @@ async fn launch_approval(
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background))
 		.await
-		.map(move |()| Some(remote_handle))
+		.map(move |()| remote_handle)
 }
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
