@@ -114,7 +114,7 @@ pub type DownwardMessage = sp_std::vec::Vec<u8>;
 
 /// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
 /// the message was sent.
-#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
+#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which this messages was put into the downward message queue.
@@ -124,7 +124,7 @@ pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 }
 
 /// An HRMP message seen from the perspective of a recipient.
-#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
+#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 	/// The block number at which this message was sent.
