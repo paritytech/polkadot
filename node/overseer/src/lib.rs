@@ -430,6 +430,16 @@ impl OverseerHandler {
 		}
 	}
 
+	/// Whether the overseer handler is connected to an overseer.
+	pub fn is_connected(&self) -> bool {
+		self.events_tx.is_some()
+	}
+
+	/// Whether the handler is disconnected.
+	pub fn is_disconnected(&self) -> bool {
+		self.events_tx.is_none()
+	}
+
 	/// Using this handler, connect another handler to the same
 	/// overseer, if any.
 	pub fn connect_other(&self, other: &mut OverseerHandler) {
