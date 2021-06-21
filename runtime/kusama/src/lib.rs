@@ -103,7 +103,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*, paras::*};
+use constants::{time::*, currency::*, fee::*};
 
 // Weights used in the runtime.
 mod weights;

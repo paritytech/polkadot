@@ -94,7 +94,7 @@ use xcm_builder::{
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
 	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
-use constants::{time::*, currency::*, fee::*, size::*};
+use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
