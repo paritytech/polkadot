@@ -811,13 +811,16 @@ where
 
 					let collations = state.collations_per_relay_parent.entry(relay_parent).or_default();
 
-					if matches!(collations.status, CollationStatus::Fetching) {
-						collations.unfetched_collations.push((pending_collation, id));
-					} else if matches!(collations.status, CollationStatus::Waiting) {
-						collations.status = CollationStatus::Fetching;
-						drop(collations);
+					match collations.status {
+						CollationStatus::Fetching =>
+							collations.unfetched_collations.push((pending_collation, id)),
+						CollationStatus::Waiting => {
+							collations.status = CollationStatus::Fetching;
+							drop(collations);
 
-						fetch_collation(ctx, state, pending_collation.clone(), id).await;
+							fetch_collation(ctx, state, pending_collation.clone(), id).await;
+						},
+						CollationStatus::Seconded => {},
 					}
 				}
 				Err(error) => {
@@ -1022,7 +1025,8 @@ where
 		}
 		Invalid(parent, candidate_receipt) => {
 			if state.pending_candidates
-				.get(&parent).map(|e| e.1.commitments_hash == Some(candidate_receipt.commitments_hash))
+				.get(&parent)
+				.map(|e| e.1.commitments_hash == Some(candidate_receipt.commitments_hash))
 				.unwrap_or_default()
 			{
 				if let Some((id, _)) = state.pending_candidates.remove(&parent) {
@@ -1091,7 +1095,7 @@ pub(crate) async fn run<Context>(
 			}
 			res = state.collation_fetches.next() => {
 				if let Some(res) = res {
-					handle_collation_fetched(&mut ctx, &mut state, res).await;
+					handle_collation_fetched_result(&mut ctx, &mut state, res).await;
 				}
 			}
 		}
@@ -1111,8 +1115,8 @@ pub(crate) async fn run<Context>(
 	Ok(())
 }
 
-/// Handle a fetched collation.
-async fn handle_collation_fetched(
+/// Handle a fetched collation result.
+async fn handle_collation_fetched_result(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	(mut collation_event, res): PendingCollationFetch,
@@ -1124,14 +1128,15 @@ async fn handle_collation_fetched(
 
 	let (candidate_receipt, pov) = match res {
 		Ok(res) => res,
-		Err(_) => {
+		Err(e) => {
 			tracing::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?collation_event.1.relay_parent,
 				para_id = ?collation_event.1.para_id,
 				peer_id = ?collation_event.1.peer_id,
 				collator_id = ?collation_event.0,
-				"Collation fetching has timed out.",
+				error = ?e,
+				"Failed to fetch collation.",
 			);
 
 			let (next_try, id) = if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
