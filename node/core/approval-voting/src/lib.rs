@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	Timeout, TimeoutExt,
+	TimeoutExt,
 	metrics::{self, prometheus},
 	rolling_session_window::RollingSessionWindow,
 };
@@ -43,7 +43,7 @@ use polkadot_primitives::v1::{
 	ValidatorPair, ValidatorSignature, ValidatorId,
 	CandidateIndex, GroupIndex, ApprovalVote,
 };
-use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
@@ -56,7 +56,7 @@ use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
 use futures::prelude::*;
-use futures::future::RemoteHandle;
+use futures::future::{BoxFuture, RemoteHandle};
 use futures::channel::oneshot;
 use futures::stream::FuturesUnordered;
 
@@ -346,6 +346,7 @@ impl<C> Subsystem<C> for ApprovalVotingSubsystem
 	}
 }
 
+#[derive(Debug, Clone)]
 struct ApprovalVoteRequest {
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
@@ -533,58 +534,55 @@ struct ApprovalStatus {
 	block_tick: Tick,
 }
 
+#[derive(Copy, Clone)]
 enum ApprovalOutcome {
 	Approved,
-	Failed(InvalidCandidate),
+	Failed,
+	TimedOut,
 }
 
 struct ApprovalState {
 	validator_index: ValidatorIndex,
 	candidate_hash: CandidateHash,
 	candidate_index: CandidateIndex,
-	status: ApprovalOutcome,
+	approval_outcome: ApprovalOutcome,
 }
 
 impl ApprovalState {
 	fn approved(
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
-		candidate_index: CandidateIndex
+		candidate_index: CandidateIndex,
 	) -> Self {
 		Self {
 			validator_index,
 			candidate_hash,
 			candidate_index,
-			status: ApprovalOutcome::Approved
+			approval_outcome: ApprovalOutcome::Approved,
 		}
 	}
 	fn failed(
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		candidate_index: CandidateIndex,
-		reason: InvalidCandidate
 	) -> Self {
 		Self {
 			validator_index,
 			candidate_hash,
 			candidate_index,
-			status: ApprovalOutcome::Failed(reason)
+			approval_outcome: ApprovalOutcome::Failed,
 		}
 	}
 }
 
-type BoundedBackgroundApprovalTask = Timeout<RemoteHandle<ApprovalState>>;
-
 struct CurrentlyCheckingSet {
-	approvals_cache: lru::LruCache<CandidateHash, ApprovalOutcome>,
 	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
-	currently_checking: FuturesUnordered<BoundedBackgroundApprovalTask>,
+	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
 
 impl Default for CurrentlyCheckingSet {
 	fn default() -> Self {
 		Self {
-			approvals_cache: lru::LruCache::new(APPROVAL_CACHE_SIZE),
 			candidate_hash_map: HashMap::new(),
 			currently_checking: FuturesUnordered::new(),
 		}
@@ -592,33 +590,43 @@ impl Default for CurrentlyCheckingSet {
 }
 
 impl CurrentlyCheckingSet {
+	// The return value of this function will indicate whether we have seen this
+	// candidate_hash for this relay_block before. If we have never seen this candidate_hash
+	// xor never seen this relay_block (for this candidate_hash), the function will return false
 	fn insert_relay_block_hash(
 		&mut self,
-		candidate_hash: &CandidateHash,
+		candidate_hash: CandidateHash,
 		relay_block: Hash,
 	) -> bool {
-		self.candidate_hash_map
-			.get_mut(&candidate_hash)
-			.map(|v| {
-				v.binary_search_by_key(&relay_block, |v| *v)
-				 .map_err(|k| v.insert(k, relay_block))
-				 .map(|_| false)
-				 .unwrap_or(true)
-			})
+		let val = self.candidate_hash_map
+			.entry(candidate_hash)
+			.or_insert(Default::default());
+
+		val.binary_search_by_key(&relay_block, |v| *v)
+			.map_err(|k| val.insert(k, relay_block))
+			.map(|_| true)
 			.unwrap_or_default()
 	}
 
-	async fn next(&mut self) -> Option<(Vec<Hash>, ApprovalState)> {
-		self.currently_checking
-			.next()
-			.await
-			.flatten()
-			.map(|approval_state| {
-				(
-					self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or(Vec::new()),
-					approval_state,
-				)
-			})
+	async fn next(
+		&mut self,
+		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
+	) -> (Vec<Hash>, ApprovalState) {
+		if !self.currently_checking.is_empty() {
+			if let Some(res) = self.currently_checking
+				.next()
+				.await
+				.map(|approval_state| {
+					let out = self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or_default();
+					approvals_cache.put(approval_state.candidate_hash.clone(), approval_state.approval_outcome.clone());
+					(out, approval_state)
+				})
+			{
+				return res;
+			}
+		}
+
+		future::pending().await
 	}
 }
 
@@ -630,8 +638,6 @@ struct State<T> {
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
-
-unsafe impl<T> Send for State<T> {}
 
 impl<T> State<T> {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
@@ -685,7 +691,7 @@ impl<T> State<T> {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Action {
 	ScheduleWakeup {
 		block_hash: Hash,
@@ -705,6 +711,7 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
+	IssueApproval(ApprovalVoteRequest),
 	BecomeActive,
 	Conclude,
 }
@@ -728,6 +735,7 @@ async fn run<C>(
 
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
+	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
@@ -765,37 +773,34 @@ async fn run<C>(
 
 				actions
 			}
-			approval_state = currently_checking_set.next().fuse() => {
+			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
 				let mut actions = Vec::new();
-				let sender = ctx.sender();
-				if let Some((
+				let (
 					relay_block_hashes,
 					ApprovalState {
 						validator_index,
-						candidate_hash,
+						candidate_hash: _,
 						candidate_index,
-						status
+						approval_outcome,
 					}
-				)) = approval_state {
-					if matches!(status, ApprovalOutcome::Approved) {
-						for block_hash in relay_block_hashes.into_iter() {
-							if let Ok(mut _actions) = issue_approval(
-								&mut sender.clone(),
-								&mut state,
-								&subsystem.metrics,
+				) = approval_state;
+
+				if matches!(approval_outcome, ApprovalOutcome::Approved) {
+					let mut approvals: Vec<Action> = relay_block_hashes
+						.into_iter()
+						.map(|block_hash|
+							Action::IssueApproval(
 								ApprovalVoteRequest {
 									validator_index,
 									block_hash,
 									candidate_index,
 								}
-							) {
-								actions.append(&mut _actions);
-							}
-						}
-					}
-					currently_checking_set.approvals_cache.put(candidate_hash, status);
-					let _ = currently_checking_set.candidate_hash_map.remove(&candidate_hash);
+							)
+						)
+						.collect();
+					actions.append(&mut approvals);
 				}
+
 				actions
 			}
 		};
@@ -806,6 +811,7 @@ async fn run<C>(
 			&subsystem.metrics,
 			&mut wakeups,
 			&mut currently_checking_set,
+			&mut approvals_cache,
 			db_writer,
 			subsystem.db_config,
 			&mut subsystem.mode,
@@ -825,15 +831,17 @@ async fn handle_actions(
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
+	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	db: &dyn KeyValueDB,
 	db_config: DatabaseConfig,
 	mode: &mut Mode,
-	actions: impl IntoIterator<Item = Action>,
+	actions: Vec<Action>,
 ) -> SubsystemResult<bool> {
 	let mut transaction = approval_db::v1::Transaction::new(db_config);
 	let mut conclude = false;
 
-	for action in actions {
+	let mut actions_iter = actions.into_iter();
+	while let Some(action) = actions_iter.next() {
 		match action {
 			Action::ScheduleWakeup {
 				block_hash,
@@ -848,6 +856,16 @@ async fn handle_actions(
 			}
 			Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
 				transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
+			}
+			Action::IssueApproval(approval_request) => {
+					let mut sender = ctx.sender().clone();
+					let next_actions: Vec<Action> = issue_approval(
+						&mut sender,
+						state,
+						metrics,
+						approval_request,
+					)?.into_iter().map(|v| v.clone()).chain(actions_iter).collect();
+					actions_iter = next_actions.into_iter();
 			}
 			Action::LaunchApproval {
 				candidate_hash,
@@ -866,29 +884,18 @@ async fn handle_actions(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
-				match currently_checking_set.approvals_cache.get(&candidate_hash) {
+				match approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
-						let mut sender = ctx.sender().clone();
-						let _ = issue_approval(
-							&mut sender,
-							state,
-							metrics,
-							ApprovalVoteRequest {
-								validator_index,
-								block_hash,
-								candidate_index,
-							}
-						)?;
-
-						let _ = currently_checking_set.insert_relay_block_hash(
-							&candidate_hash,
-							relay_block_hash,
-						);
+						let new_actions: Vec<Action> = [Action::IssueApproval(ApprovalVoteRequest {
+							validator_index,
+							block_hash,
+							candidate_index,
+						})].iter().map(|v| v.clone()).chain(actions_iter).collect();
+						actions_iter = new_actions.into_iter();
 					},
-					Some(ApprovalOutcome::Failed(_)) => {},
 					None => {
 						if !currently_checking_set.insert_relay_block_hash(
-							&candidate_hash,
+							candidate_hash,
 							relay_block_hash,
 						) {
 							if let Some(handle) = launch_approval(
@@ -901,7 +908,19 @@ async fn handle_actions(
 								candidate_index as _,
 								backing_group,
 							).await? {
-								currently_checking_set.currently_checking.push(handle);
+								currently_checking_set.currently_checking.push(
+									Box::pin(async move {
+										match handle.timeout(Duration::new(APPROVAL_CHECKING_TIMEOUT, 0)).await {
+											None => ApprovalState {
+												candidate_hash,
+												validator_index,
+												candidate_index,
+												approval_outcome: ApprovalOutcome::TimedOut
+											},
+											Some(approval_state) => approval_state,
+										}
+									})
+								)
 							}
 						}
 
@@ -910,6 +929,7 @@ async fn handle_actions(
 							candidate_index,
 						).into());
 					}
+					Some(_) => {},
 				}
 			}
 			Action::BecomeActive => {
@@ -2012,7 +2032,7 @@ async fn launch_approval(
 	block_hash: Hash,
 	candidate_index: usize,
 	backing_group: GroupIndex,
-) -> SubsystemResult<Option<Timeout<RemoteHandle<ApprovalState>>>> {
+) -> SubsystemResult<Option<RemoteHandle<ApprovalState>>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2078,11 +2098,10 @@ async fn launch_approval(
 			.with_stage(jaeger::Stage::ApprovalChecking);
 
 		let available_data = match a_rx.await {
-			Err(e) => return ApprovalState::failed(
+			Err(_) => return ApprovalState::failed(
 				validator_index,
 				candidate_hash,
 				candidate_index as _,
-				InvalidCandidate::ExecutionError(e.to_string())
 			),
 			Ok(Ok(a)) => a,
 			Ok(Err(e)) => {
@@ -2112,25 +2131,22 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::ExecutionError(e.to_string())
 				);
 			}
 		};
 
 		let validation_code = match code_rx.await {
-			Err(e) =>
+			Err(_) =>
 				return ApprovalState::failed(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::ExecutionError(e.to_string())
 				),
-			Ok(Err(e)) =>
+			Ok(Err(_)) =>
 				return ApprovalState::failed(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::ExecutionError(e.to_string())
 				),
 			Ok(Ok(Some(code))) => code,
 			Ok(Ok(None)) => {
@@ -2148,7 +2164,6 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::InvalidOutputs,
 				);
 			}
 		};
@@ -2171,7 +2186,6 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::InvalidOutputs,
 				),
 			Ok(Ok(ValidationResult::Valid(_, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
@@ -2207,7 +2221,6 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					reason,
 				);
 			}
 			Ok(Err(e)) => {
@@ -2221,7 +2234,6 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 					candidate_index as _,
-					InvalidCandidate::ExecutionError(e.to_string()),
 				);
 			}
 		}
@@ -2230,7 +2242,7 @@ async fn launch_approval(
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background))
 		.await
-		.map(move |()| Some(remote_handle.timeout(Duration::new(APPROVAL_CHECKING_TIMEOUT, 0))))
+		.map(move |()| Some(remote_handle))
 }
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
