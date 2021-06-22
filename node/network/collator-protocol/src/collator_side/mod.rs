@@ -395,8 +395,8 @@ async fn determine_our_validators(
 	cores: usize,
 	relay_parent: Hash,
 ) -> Result<(GroupValidators, GroupValidators)> {
-	let session_index = runtime.get_session_index(ctx, relay_parent).await?;
-	let info = &runtime.get_session_info_by_index(ctx, relay_parent, session_index)
+	let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
+	let info = &runtime.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 		.await?
 		.session_info;
 	tracing::debug!(target: LOG_TARGET, ?session_index, "Received session info");
@@ -697,7 +697,7 @@ async fn handle_incoming_peer_message(
 					"Collation seconded message received with none-seconded statement.",
 				);
 			} else {
-				let statement = runtime.check_signature(ctx, relay_parent, statement)
+				let statement = runtime.check_signature(ctx.sender(), relay_parent, statement)
 					.await?
 					.map_err(NonFatal::InvalidStatementSignature)?;
 
