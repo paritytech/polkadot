@@ -16,6 +16,8 @@
 
 //! Convenient interface to runtime information.
 
+use std::cmp::max;
+
 use lru::LruCache;
 
 use parity_scale_codec::Encode;
@@ -37,6 +39,17 @@ mod error;
 
 use error::{recv_runtime, Result};
 pub use error::{Error, NonFatal, Fatal};
+
+/// Configuration for construction a `RuntimeInfo`.
+pub struct Config {
+	/// Needed for retrieval of `ValidatorInfo`
+	///
+	/// Pass `None` if you are not interested.
+	keystore: Option<SyncCryptoStorePtr>,
+
+	/// How many sessions should we keep in the cache?
+	session_cache_lru_size: usize,
+}
 
 /// Caching of session info.
 ///
@@ -73,15 +86,30 @@ pub struct ValidatorInfo {
 	pub our_group: Option<GroupIndex>,
 }
 
+impl Default for Config {
+	fn default() -> Self {
+		Self {
+			keystore: None,
+			session_cache_lru_size: 2,
+		}
+	}
+}
+
 impl RuntimeInfo {
 	/// Create a new `RuntimeInfo` for convenient runtime fetches.
 	pub fn new(keystore: Option<SyncCryptoStorePtr>) -> Self {
-		Self {
-			// Adjust, depending on how many forks we want to support.
-			session_index_cache: LruCache::new(10),
-			// We need to cache the current and the last session the most:
-			session_info_cache: LruCache::new(2),
+		Self::new_with_config(Config {
 			keystore,
+			..Default::default()
+		})
+	}
+
+	/// Create with more elaborate configuration options.
+	pub fn new_with_config(cfg: Config) -> Self {
+		Self {
+			session_index_cache: LruCache::new(max(10, cfg.session_cache_lru_size)),
+			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
+			keystore: cfg.keystore,
 		}
 	}
 
