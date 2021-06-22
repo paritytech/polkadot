@@ -210,8 +210,37 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		};
 
 		// 1. Constrain the leaf according to `maybe_max_number`.
-		// TODO [now]
-		let subchain_head = subchain_head;
+		let subchain_head = match maybe_max_number {
+			None => subchain_head,
+			Some(max) => {
+				// find the current number.
+				let res = self.backend.blockchain().header(BlockId::Hash(subchain_head));
+				let subchain_header = match res {
+					Ok(Some(header)) => header,
+					Ok(None) => return Err(ConsensusError::ChainLookup(format!(
+						"No header for leaf hash {:?}",
+						subchain_head,
+					))),
+					Err(e) => return Err(ConsensusError::ChainLookup(format!(
+						"Header lookup failed for leaf hash {:?}: {:?}",
+						subchain_head,
+						e,
+					))),
+				};
+
+				if subchain_header.number <= max {
+					subchain_head
+				} else {
+					let (ancestor_hash, _) = crate::grandpa_support::walk_backwards_to_target_block(
+						self.backend.blockchain(),
+						max,
+						&subchain_header,
+					).map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
+
+					ancestor_hash
+				}
+			}
+		};
 
 		// 2. Constrain according to `ApprovedAncestor`.
 		let subchain_head = {
