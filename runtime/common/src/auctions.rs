@@ -241,19 +241,7 @@ pub mod pallet {
 			#[pallet::compact] lease_period_index: LeasePeriodOf<T>,
 		) -> DispatchResult {
 			T::InitiateOrigin::ensure_origin(origin)?;
-
-			ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
-			ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
-
-			// Bump the counter.
-			let n = AuctionCounter::<T>::mutate(|n| { *n += 1; *n });
-
-			// Set the information.
-			let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
-			AuctionInfo::<T>::put((lease_period_index, ending));
-
-			Self::deposit_event(Event::<T>::AuctionStarted(n, lease_period_index, ending));
-			Ok(())
+			Self::do_new_auction(duration, lease_period_index)
 		}
 
 		/// Make a new bid from an account (including a parachain account) for deploying a new
@@ -318,7 +306,6 @@ impl<T: Config> Auctioneer for Pallet<T> {
 
 	// Returns the status of the auction given the current block number.
 	fn auction_status(now: Self::BlockNumber) -> AuctionStatus<Self::BlockNumber> {
-
 		let early_end = match AuctionInfo::<T>::get() {
 			Some((_, early_end)) => early_end,
 			None => return AuctionStatus::NotStarted,
@@ -368,12 +355,6 @@ impl<T: Config> Pallet<T> {
 	// A trick to allow me to initialize large arrays with nothing in them.
 	const EMPTY: Option<(<T as frame_system::Config>::AccountId, ParaId, BalanceOf<T>)> = None;
 
-	/// True if an auction is in progress.
-	pub fn is_in_progress() -> bool {
-		let now = frame_system::Pallet::<T>::block_number();
-		Self::auction_status(now).is_in_progress()
-	}
-
 	/// Create a new auction.
 	///
 	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
@@ -383,7 +364,8 @@ impl<T: Config> Pallet<T> {
 		duration: T::BlockNumber,
 		lease_period_index: LeasePeriodOf<T>,
 	) -> DispatchResult {
-		ensure!(!Self::is_in_progress(), Error::<T>::AuctionInProgress);
+		let maybe_auction = AuctionInfo::<T>::get();
+		ensure!(maybe_auction.is_none(), Error::<T>::AuctionInProgress);
 		ensure!(lease_period_index >= T::Leaser::lease_period_index(), Error::<T>::LeasePeriodInPast);
 
 		// Bump the counter.
@@ -848,14 +830,12 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(AuctionCounter::<Test>::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
-			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::NotStarted);
 
 			run_to_block(10);
 
 			assert_eq!(AuctionCounter::<Test>::get(), 0);
 			assert_eq!(TestLeaser::deposit_held(0u32.into(), &1), 0);
-			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::NotStarted);
 		});
 	}
@@ -869,7 +849,6 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			assert_eq!(AuctionCounter::<Test>::get(), 1);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 		});
 	}
@@ -931,39 +910,30 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			assert_eq!(AuctionCounter::<Test>::get(), 1);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 
 			run_to_block(2);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 
 			run_to_block(3);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 
 			run_to_block(4);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 
 			run_to_block(5);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 
 			run_to_block(6);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(0, 0));
 
 			run_to_block(7);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(1, 0));
 
 			run_to_block(8);
-			assert_eq!(Auctions::is_in_progress(), true);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(2, 0));
 
 			run_to_block(9);
-			assert_eq!(Auctions::is_in_progress(), false);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::NotStarted);
 		});
 	}
@@ -996,19 +966,19 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
 			run_to_block(8);
 			// Auction has not yet ended.
 			assert_eq!(leases(), vec![]);
-			assert!(Auctions::is_in_progress());
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(2, 0));
 			// This will prevent the auction's winner from being decided in the next block, since the random
 			// seed was known before the final bids were made.
 			set_last_random(H256::zero(), 8);
 			// Auction definitely ended now, but we don't know exactly when in the last 3 blocks yet since
 			// no randomness available yet.
 			run_to_block(9);
-			// Auction has now ended...
-			assert!(!Auctions::is_in_progress());
-			// ...But auction winner still not yet decided, so no leases yet.
+			// Auction has now ended... But auction winner still not yet decided, so no leases yet.
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::VrfDelay(0));
 			assert_eq!(leases(), vec![]);
 
 			// Random seed now updated to a value known at block 9, when the auction ended. This means
@@ -1016,7 +986,7 @@ mod tests {
 			set_last_random(H256::zero(), 9);
 			run_to_block(10);
 			// Auction ended and winner selected
-			assert!(!Auctions::is_in_progress());
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::NotStarted);
 			assert_eq!(leases(), vec![
 				((0.into(), 1), LeaseData { leaser: 1, amount: 1 }),
 				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
@@ -1389,7 +1359,7 @@ mod tests {
 			set_last_random(H256::from([254; 32]), 40);
 			run_to_block(40);
 			// Auction ended and winner selected
-			assert!(!Auctions::is_in_progress());
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::NotStarted);
 			assert_eq!(leases(), vec![
 				((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
 				((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),

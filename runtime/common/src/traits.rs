@@ -156,17 +156,17 @@ pub enum AuctionStatus<BlockNumber> {
 }
 
 impl<BlockNumber> AuctionStatus<BlockNumber> {
+	/// Return true if the auction is in the opening period.
 	pub fn is_opening(&self) -> bool {
 		matches!(self, Self::OpeningPeriod)
 	}
+	/// Returns `Some(sample, sub_sample)` if the auction is in the `EndingPeriod`,
+	/// otherwise returns `None`.
 	pub fn is_ending(self) -> Option<(BlockNumber, BlockNumber)> {
 		match self {
 			Self::EndingPeriod(sample, sub_sample) => Some((sample, sub_sample)),
 			_ => None,
 		}
-	}
-	pub fn is_in_progress(&self) -> bool {
-		matches!(self, Self::OpeningPeriod | Self::EndingPeriod(_, _))
 	}
 }
 
