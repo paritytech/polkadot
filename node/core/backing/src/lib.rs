@@ -30,9 +30,10 @@ use polkadot_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	SessionIndex,
 };
 use polkadot_node_primitives::{
-	Statement, SignedFullStatement, ValidationResult, PoV, AvailableData,
+	Statement, SignedFullStatement, ValidationResult, PoV, AvailableData, SignedDisputeStatement,
 };
 use polkadot_subsystem::{
 	PerLeafSpan, Stage, SubsystemSender,
@@ -41,7 +42,7 @@ use polkadot_subsystem::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage, ValidationFailed
+		StatementDistributionMessage, ValidationFailed, DisputeCoordinatorMessage,
 	}
 };
 use polkadot_node_subsystem_util::{
@@ -150,6 +151,8 @@ impl ValidatedCandidateCommand {
 pub struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
+	/// The session index this corresponds to.
+	session_index: SessionIndex,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
@@ -768,11 +771,66 @@ impl CandidateBackingJob {
 			"Importing statement",
 		);
 
+		let candidate_hash = statement.payload().candidate_hash();
 		let import_statement_span = {
 			// create a span only for candidates we're already aware of.
-			let candidate_hash = statement.payload().candidate_hash();
 			self.get_unbacked_statement_child(root_span, candidate_hash, statement.validator_index())
 		};
+
+		// Dispatch the statement to the dispute coordinator.
+		{
+			let validator_index = statement.validator_index();
+			let signing_context = SigningContext {
+				parent_hash: self.parent,
+				session_index: self.session_index,
+			};
+
+			let validator_public = match self.table_context
+				.validators
+				.get(validator_index.0 as usize)
+			{
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						session_index = ?self.session_index,
+						relay_parent = ?self.parent,
+						?validator_index,
+						"Supposedly 'Signed' statement has validator index out of bounds."
+					);
+
+					return Ok(None);
+				}
+				Some(v) => v,
+			};
+
+			let maybe_candidate_receipt = match statement.payload() {
+				Statement::Seconded(receipt) => Some(receipt.to_plain()),
+				Statement::Valid(candidate_hash) => {
+					// Valid statements are only supposed to be imported
+					// once we've seen at least one `Seconded` statement.
+					self.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
+				}
+			};
+
+			let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
+				statement.as_unchecked(),
+				signing_context,
+				validator_public.clone(),
+			).ok();
+
+			if let (Some(candidate_receipt), Some(dispute_statement))
+				= (maybe_candidate_receipt, maybe_signed_dispute_statement)
+			{
+				sender.send_message(
+					DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt,
+						session: self.session_index,
+						statements: vec![(dispute_statement, validator_index)],
+					}.into()
+				).await;
+			}
+		}
 
 		let stmt = primitive_statement_to_table(statement);
 
@@ -1199,6 +1257,7 @@ impl util::JobTrait for CandidateBackingJob {
 			let (background_tx, background_rx) = mpsc::channel(16);
 			let job = CandidateBackingJob {
 				parent,
+				session_index,
 				assignment,
 				required_collator,
 				issued_statements: HashSet::new(),
