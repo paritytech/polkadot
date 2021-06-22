@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
-		AvailabilityRecoveryMessage,
+		AvailabilityRecoveryMessage, DisputeCoordinatorMessage,
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -41,9 +41,10 @@ use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
 	CandidateReceipt, BlockNumber,
 	ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex, GroupIndex, ApprovalVote,
+	CandidateIndex, GroupIndex, ApprovalVote, DisputeStatement,
+	ValidDisputeStatementKind,
 };
-use polkadot_node_primitives::ValidationResult;
+use polkadot_node_primitives::{SignedDisputeStatement, ValidationResult};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
@@ -899,7 +900,12 @@ async fn handle_actions(
 						metrics,
 						candidate_hash,
 						approval_request,
-					)?.into_iter().map(|v| v.clone()).chain(actions_iter).collect();
+					).await?
+						.into_iter()
+						.map(|v| v.clone())
+						.chain(actions_iter)
+						.collect();
+
 					actions_iter = next_actions.into_iter();
 			}
 			Action::LaunchApproval {
@@ -2267,7 +2273,7 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-fn issue_approval(
+async fn issue_approval(
 	ctx: &mut impl SubsystemSender,
 	state: &State<impl DBReader>,
 	metrics: &Metrics,
@@ -2362,25 +2368,36 @@ fn issue_approval(
 		}
 	};
 
+	let session = block_entry.session();
 	let sig = match sign_approval(
 		&state.keystore,
 		&validator_pubkey,
 		candidate_hash,
-		block_entry.session(),
+		session,
 	) {
 		Some(sig) => sig,
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
-				"Could not issue approval signature with validator index {} in session {}. Assignment key present but not validator key?",
-				validator_index.0,
-				block_entry.session(),
+				validator_index = ?validator_index,
+				session,
+				"Could not issue approval signature. Assignment key present but not validator key?",
 			);
 
 			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
+
+	// Record our statement in the dispute coordinator for later
+	// participation in disputes on the same candidate.
+	let signed_dispute_statement = SignedDisputeStatement::new_checked(
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+		candidate_hash,
+		session,
+		validator_pubkey.clone(),
+		sig.clone(),
+	).expect("Statement just signed; should pass checks; qed");
 
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -2390,6 +2407,7 @@ fn issue_approval(
 		"Issuing approval vote",
 	);
 
+	let candidate_receipt = candidate_entry.candidate_receipt().clone();
 	let actions = import_checked_approval(
 		state,
 		metrics,
@@ -2410,6 +2428,14 @@ fn issue_approval(
 			signature: sig,
 		}
 	).into());
+
+	// dispatch to dispute coordintaor.
+	ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+		candidate_hash,
+		candidate_receipt,
+		session,
+		statements: vec![(signed_dispute_statement, validator_index)],
+	}.into()).await;
 
 	Ok(actions)
 }
