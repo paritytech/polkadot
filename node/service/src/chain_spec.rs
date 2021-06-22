@@ -149,8 +149,7 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 fn default_parachains_host_configuration() ->
 	polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::v1::BlockNumber>
 {
-	use polkadot_node_primitives::MAX_POV_SIZE;
-	use polkadot_primitives::v1::MAX_CODE_SIZE;
+	use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
 
 	polkadot_runtime_parachains::configuration::HostConfiguration {
 		validation_upgrade_frequency: 1u32,

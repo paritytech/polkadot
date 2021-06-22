@@ -33,6 +33,7 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
+	configuration,
 	ensure_parachain,
 	Origin, ParaLifecycle,
 };
@@ -84,7 +85,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: paras::Config {
+	pub trait Config: configuration::Config + paras::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -109,14 +110,6 @@ pub mod pallet {
 		/// The deposit to be paid per byte stored on chain.
 		#[pallet::constant]
 		type DataDepositPerByte: Get<BalanceOf<Self>>;
-
-		/// The maximum size for the validation code.
-		#[pallet::constant]
-		type MaxCodeSize: Get<u32>;
-
-		/// The maximum size for the head data.
-		#[pallet::constant]
-		type MaxHeadSize: Get<u32>;
 
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
@@ -388,15 +381,15 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_head_data() -> HeadData {
-		// TODO: Figure a way to allow bigger head data in benchmarks?
-		let max_head_size = (T::MaxHeadSize::get()).min(1 * 1024 * 1024);
+		let max_head_size = configuration::Pallet::<T>::config().max_head_data_size;
+		assert!(max_head_size > 0, "max_head_data can't be zero for generating worst head data.");
 		vec![0u8; max_head_size as usize].into()
 	}
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_validation_code() -> ValidationCode {
-		// TODO: Figure a way to allow bigger wasm in benchmarks?
-		let max_code_size = (T::MaxCodeSize::get()).min(4 * 1024 * 1024);
+		let max_code_size = configuration::Pallet::<T>::config().max_code_size;
+		assert!(max_code_size > 0, "max_code_size can't be zero for generating worst code data.");
 		let validation_code = vec![0u8; max_code_size as usize];
 		validation_code.into()
 	}
@@ -525,8 +518,9 @@ impl<T: Config> Pallet<T> {
 		validation_code: ValidationCode,
 		parachain: bool,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
-		ensure!(validation_code.0.len() <= T::MaxCodeSize::get() as usize, Error::<T>::CodeTooLarge);
-		ensure!(genesis_head.0.len() <= T::MaxHeadSize::get() as usize, Error::<T>::HeadDataTooLarge);
+		let config = configuration::Pallet::<T>::config();
+		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
+		ensure!(genesis_head.0.len() <= config.max_head_data_size as usize, Error::<T>::HeadDataTooLarge);
 
 		let per_byte_fee = T::DataDepositPerByte::get();
 		let deposit = T::ParaDeposit::get()
@@ -577,6 +571,7 @@ mod tests {
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			ParachainsConfiguration: configuration::{Pallet, Call, Storage, Config<T>},
 			Parachains: paras::{Pallet, Origin, Call, Storage, Config<T>, Event},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 		}
@@ -647,8 +642,6 @@ mod tests {
 		pub const DataDepositPerByte: Balance = 1;
 		pub const QueueSize: usize = 2;
 		pub const MaxRetries: u32 = 3;
-		pub const MaxCodeSize: u32 = 100;
-		pub const MaxHeadSize: u32 = 100;
 	}
 
 	impl Config for Test {
@@ -658,13 +651,19 @@ mod tests {
 		type OnSwap = ();
 		type ParaDeposit = ParaDeposit;
 		type DataDepositPerByte = DataDepositPerByte;
-		type MaxCodeSize = MaxCodeSize;
-		type MaxHeadSize = MaxHeadSize;
 		type WeightInfo = TestWeightInfo;
 	}
 
 	pub fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+		configuration::GenesisConfig::<Test> {
+			config: configuration::HostConfiguration {
+				max_code_size: 2 * 1024 * 1024, // 2 MB
+				max_head_data_size: 1 * 1024 * 1024, // 1 MB
+				..Default::default()
+			},
+		}.assimilate_storage(&mut t).unwrap();
 
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10_000_000), (2, 10_000_000)],
@@ -713,6 +712,14 @@ mod tests {
 
 	fn para_origin(id: ParaId) -> Origin {
 		runtime_parachains::Origin::Parachain(id).into()
+	}
+
+	fn max_code_size() -> u32 {
+		ParachainsConfiguration::config().max_code_size
+	}
+
+	fn max_head_size() -> u32 {
+		ParachainsConfiguration::config().max_head_data_size
 	}
 
 	#[test]
@@ -796,8 +803,8 @@ mod tests {
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
 				para_id,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			), Error::<Test>::NotReserved);
 
 			// Successfully register para
@@ -806,15 +813,15 @@ mod tests {
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
 				para_id,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			), Error::<Test>::NotOwner);
 
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_id,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			));
 
 			run_to_session(2);
@@ -825,8 +832,8 @@ mod tests {
 			assert_noop!(Registrar::register(
 				Origin::signed(1),
 				para_id,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			), Error::<Test>::NotReserved);
 
 			// Head Size Check
@@ -834,16 +841,16 @@ mod tests {
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
 				para_id + 1,
-				test_genesis_head((<Test as super::Config>::MaxHeadSize::get() + 1) as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head((max_head_size() + 1) as usize),
+				test_validation_code(max_code_size() as usize),
 			), Error::<Test>::HeadDataTooLarge);
 
 			// Code Size Check
 			assert_noop!(Registrar::register(
 				Origin::signed(2),
 				para_id + 1,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code((<Test as super::Config>::MaxCodeSize::get() + 1) as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code((max_code_size() + 1) as usize),
 			), Error::<Test>::CodeTooLarge);
 
 			// Needs enough funds for deposit
@@ -916,15 +923,15 @@ mod tests {
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
 				para_1,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			));
 			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_ok!(Registrar::register(
 				Origin::signed(2),
 				para_2,
-				test_genesis_head(<Test as super::Config>::MaxHeadSize::get() as usize),
-				test_validation_code(<Test as super::Config>::MaxCodeSize::get() as usize),
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
 			));
 			run_to_session(2);
 
