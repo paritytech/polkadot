@@ -2156,8 +2156,12 @@ async fn launch_approval(
 							(candidate_hash, candidate.descriptor.para_id),
 						);
 
-						// TODO: dispute. Either the merkle trie is bad or the erasure root is.
-						// https://github.com/paritytech/polkadot/issues/2176
+						sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+							session_index,
+							candidate_hash,
+							candidate.clone(),
+							false,
+						).into()).await;
 						metrics_guard.take().on_approval_invalid();
 					}
 				}
@@ -2205,7 +2209,7 @@ async fn launch_approval(
 		sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
-			candidate.descriptor,
+			candidate.descriptor.clone(),
 			available_data.pov,
 			val_tx,
 		).into()).await;
@@ -2216,7 +2220,7 @@ async fn launch_approval(
 					validator_index,
 					candidate_hash,
 				),
-			Ok(Ok(ValidationResult::Valid(_, _))) => {
+			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
@@ -2227,11 +2231,28 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
-				let _ = metrics_guard.take();
-				return ApprovalState::approved(
-					validator_index,
-					candidate_hash,
-				);
+				let expected_commitments_hash = candidate.commitments_hash;
+				if commitments.hash() == expected_commitments_hash {
+					let _ = metrics_guard.take();
+					return ApprovalState::approved(
+						validator_index,
+						candidate_hash,
+					);
+				} else {
+					// Commitments mismatch - issue a dispute.
+					sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+						false,
+					).into()).await;
+
+					metrics_guard.take().on_approval_invalid();
+					return ApprovalState::failed(
+						validator_index,
+						candidate_hash,
+					);
+				}
 			}
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
@@ -2242,10 +2263,16 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				// TODO: issue dispute, but not for timeouts.
-				// https://github.com/paritytech/polkadot/issues/2176
-				metrics_guard.take().on_approval_invalid();
+				// REVIEW: should timeouts and internal execution errors lead to dispute?
+				// only some execution errors?
+				sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+					session_index,
+					candidate_hash,
+					candidate.clone(),
+					false,
+				).into()).await;
 
+				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(
 					validator_index,
 					candidate_hash,
