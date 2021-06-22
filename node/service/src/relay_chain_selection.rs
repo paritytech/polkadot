@@ -272,14 +272,6 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 			match best {
 				// No viable leaves containing the block.
-				//
-				// REVIEW: should we return `Some(target_hash)` here
-				// or `None`? Docs are unclear. it seems from GRANDPA
-				// usage that `None` is treated as an error variant?
-				// Should probably be removed from the API.
-				//
-				// I think `target_hash` is fine as long as it's a
-				// round-estimate in practice.
 				None => return Ok(Some(target_hash)),
 				Some(best) => best,
 			}
