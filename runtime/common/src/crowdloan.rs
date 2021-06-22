@@ -289,7 +289,9 @@ pub mod pallet {
 		/// The provided memo is too large.
 		MemoTooLarge,
 		/// The fund is already in NewRaise
-		AlreadyInNewRaise
+		AlreadyInNewRaise,
+		/// No contributions allowed during the VRF delay
+		VrfDelayInProgress,
 	}
 
 	#[pallet::hooks]
@@ -416,7 +418,7 @@ pub mod pallet {
 
 			// We disallow any crowdloan contributions during the VRF Period, so that people do not sneak their
 			// contributions into the auction when it would not impact the outcome.
-			ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::ContributionPeriodOver);
+			ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
 
 			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
 
@@ -1257,7 +1259,7 @@ mod tests {
 			run_to_block(10);
 			// Can't contribute when auction is in the VRF delay period.
 			assert!(TestAuctioneer::auction_status(System::block_number()).is_vrf());
-			assert_noop!(Crowdloan::contribute(Origin::signed(2), para, 250, None), Error::<Test>::ContributionPeriodOver);
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), para, 250, None), Error::<Test>::VrfDelayInProgress);
 
 			run_to_block(15);
 			// Its fine to contribute when no auction is running.
