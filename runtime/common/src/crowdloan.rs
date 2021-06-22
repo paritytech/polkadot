@@ -295,7 +295,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some((sample, sub_sample)) = T::Auctioneer::is_ending(num) {
+			if let Some((sample, sub_sample)) = T::Auctioneer::auction_status(num).is_ending() {
 				// This is the very first block in the ending period
 				if sample.is_zero() && sub_sample.is_zero() {
 					// first block of ending period.
@@ -428,7 +428,7 @@ pub mod pallet {
 			let balance = old_balance.saturating_add(value);
 			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
 
-			if T::Auctioneer::is_ending(now).is_some() {
+			if T::Auctioneer::auction_status(now).is_ending().is_some() {
 				match fund.last_contribution {
 					// In ending period; must ensure that we are in NewRaise.
 					LastContribution::Ending(n) if n == now => {
@@ -759,7 +759,7 @@ mod tests {
 	};
 	use crate::{
 		mock::TestRegistrar,
-		traits::OnSwap,
+		traits::{OnSwap, AuctionStatus},
 		crowdloan,
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
@@ -885,16 +885,22 @@ mod tests {
 			Ok(())
 		}
 
-		fn is_ending(now: u64) -> Option<(u64, u64)> {
-			if let Some((_, early_end)) = auction() {
-				if let Some(after_early_end) = now.checked_sub(early_end) {
-					if after_early_end < ending_period() {
-						// This test auctioneer as no sub-sampling
-						return Some((after_early_end, 0))
-					}
-				}
+		fn auction_status(now: u64) -> AuctionStatus<u64> {
+			let early_end = match auction() {
+				Some((_, early_end)) => early_end,
+				None => return AuctionStatus::NotStarted,
+			};
+			let after_early_end = match now.checked_sub(early_end) {
+				Some(after_early_end) => after_early_end,
+				None => return AuctionStatus::OpeningPeriod,
+			};
+
+			if after_early_end < ending_period() {
+				return AuctionStatus::EndingPeriod(after_early_end, 0)
+			} else {
+				// No VRF delay in this test, so we just end the auction
+				return AuctionStatus::NotStarted
 			}
-			None
 		}
 
 		fn place_bid(
@@ -999,10 +1005,10 @@ mod tests {
 			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
 			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_period: 0, last_period: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
-			assert_eq!(TestAuctioneer::is_ending(4), None);
-			assert_eq!(TestAuctioneer::is_ending(5), Some((0, 0)));
-			assert_eq!(TestAuctioneer::is_ending(9), Some((4, 0)));
-			assert_eq!(TestAuctioneer::is_ending(11), None);
+			assert_eq!(TestAuctioneer::auction_status(4), AuctionStatus::<u64>::OpeningPeriod);
+			assert_eq!(TestAuctioneer::auction_status(5), AuctionStatus::<u64>::EndingPeriod(0, 0));
+			assert_eq!(TestAuctioneer::auction_status(9), AuctionStatus::<u64>::EndingPeriod(4, 0));
+			assert_eq!(TestAuctioneer::auction_status(11), AuctionStatus::<u64>::NotStarted);
 		});
 	}
 

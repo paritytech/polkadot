@@ -137,6 +137,39 @@ pub trait Leaser {
 	fn lease_period_index() -> Self::LeasePeriod;
 }
 
+/// An enum which tracks the status of the auction system, and which phase it is in.
+#[derive(PartialEq, Debug)]
+pub enum AuctionStatus<BlockNumber> {
+	/// An auction has not started yet.
+	NotStarted,
+	/// We are in the opening period of the auction, collecting initial bids.
+	OpeningPeriod,
+	/// We are in the ending period of the auction, where we are taking snapshots of the winning
+	/// bids. This state supports "sampling", where we may only take a snapshot every N blocks.
+	/// In this case, the first number is the current sample number, and the second number
+	/// is the sub-sample. i.e. for sampling every 20 blocks, the 25th block in the ending period
+	/// will be `EndingPeriod(1, 5)`.
+	EndingPeriod(BlockNumber, BlockNumber),
+	/// We have completed the bidding process and are waiting for the VRF to return some acceptable
+	/// randomness to select the winner. The number represents how many blocks we have been waiting.
+	VrfDelay(BlockNumber),
+}
+
+impl<BlockNumber> AuctionStatus<BlockNumber> {
+	pub fn is_opening(&self) -> bool {
+		matches!(self, Self::OpeningPeriod)
+	}
+	pub fn is_ending(self) -> Option<(BlockNumber, BlockNumber)> {
+		match self {
+			Self::EndingPeriod(sample, sub_sample) => Some((sample, sub_sample)),
+			_ => None,
+		}
+	}
+	pub fn is_in_progress(&self) -> bool {
+		matches!(self, Self::OpeningPeriod | Self::EndingPeriod(_, _))
+	}
+}
+
 pub trait Auctioneer {
 	/// An account identifier for a leaser.
 	type AccountId;
@@ -157,14 +190,8 @@ pub trait Auctioneer {
 	/// are to be auctioned.
 	fn new_auction(duration: Self::BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
 
-	/// Returns `Some((n, sub_n))` if the `now` block is part of the ending period of an auction, where `n`
-	/// represents the ending period sample number, and `sub_n` represents how far into a sample we are.
-	///
-	/// For example, if we have a sample size of 20, block 19 of the first ending period will return
-	/// `(0, 19)`. `(0, 0)` will represent the first block of the entire ending period.
-	///
-	/// Otherwise, returns `None`.
-	fn is_ending(now: Self::BlockNumber) -> Option<(Self::BlockNumber, Self::BlockNumber)>;
+	/// Given the current block number, return the current auction status.
+	fn auction_status(now: Self::BlockNumber) -> AuctionStatus<Self::BlockNumber>;
 
 	/// Place a bid in the current auction.
 	///
