@@ -432,6 +432,13 @@ enum DisputeCoordinatorMessage {
         /// - The validator index (within the session of the candidate) of the validator casting the vote.
         /// - The signature of the validator casting the vote.
         statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+
+        /// Inform the requester once we finished importing.
+        ///
+        /// This is, we either discarded the votes, just record them because we
+        /// casted our vote already or recovered availability for the candidate
+        /// successfully.
+        pending_confirmation: oneshot::Sender<()>,
     },
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
@@ -473,6 +480,36 @@ enum DisputeParticipationMessage {
         /// The number of validators in the session.
         n_validators: u32,
     }
+}
+```
+
+## Dispute Distribution Message
+
+Messages received by the [Dispute Distribution
+subsystem](../node/disputes/dispute-distribution.md). This subsystem is
+responsible of distributing explicit dispute statements.
+
+```rust
+enum DisputeDistributionMessage {
+
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  /// validators.
+  SendDispute((ValidVote, InvalidVote)),
+
+  /// Ask DisputeDistribution to get votes we don't know about.
+  /// Fetched votes will be reported via `DisputeCoordinatorMessage::ImportStatements`
+  FetchMissingVotes {
+    candidate_hash: CandidateHash,
+    session: SessionIndex,
+    known_valid_votes: Bitfield,
+    known_invalid_votes: Bitfield,
+    /// Optional validator to query from. `ValidatorIndex` as in the above
+    /// referenced session.
+    from_validator: Option<ValidatorIndex>,
+  }
+  /// Tell the subsystem that a candidate is not available. Dispute distribution
+  /// can punish peers distributing votes on unavailable hashes.
+  ReportCandidateUnavailable(CandidateHash),
 }
 ```
 
