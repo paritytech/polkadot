@@ -184,6 +184,70 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			return self.fallback.finality_target(target_hash, maybe_max_number).await
 		}
 
-		unimplemented!()
+		let mut overseer = self.overseer.clone();
+
+		let subchain_head = {
+			let (tx, rx) = oneshot::channel();
+			overseer.send_msg(ChainSelectionMessage::BestLeafContaining(target_hash, tx)).await;
+
+			let best = rx.await
+				.map_err(Error::OverseerDisconnected)
+				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
+
+			match best {
+				// No viable leaves containing the block.
+				//
+				// REVIEW: should we return `Some(target_hash)` here
+				// or `None`? Docs are unclear. it seems from GRANDPA
+				// usage that `None` is treated as an error variant?
+				// Should probably be removed from the API.
+				//
+				// I think `target_hash` is fine as long as it's a
+				// round-estimate in practice.
+				None => return Ok(Some(target_hash)),
+				Some(best) => best,
+			}
+		};
+
+		// 1. Constrain the leaf according to `maybe_max_number`.
+		// TODO [now]
+		let subchain_head = subchain_head;
+
+		// 2. Constrain according to `ApprovedAncestor`.
+		let subchain_head = {
+			let target_number = match self.backend.blockchain().number(target_hash) {
+				Ok(Some(number)) => number,
+				Ok(None) => return Err(ConsensusError::ChainLookup(format!(
+					"No number for target hash {:?}",
+					target_hash,
+				))),
+				Err(e) => return Err(ConsensusError::ChainLookup(format!(
+					"Number lookup failed for target hash {:?}: {:?}",
+					target_hash,
+					e,
+				))),
+			};
+
+			let (tx, rx) = oneshot::channel();
+			overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
+				subchain_head,
+				target_number,
+				tx,
+			)).await;
+
+			match rx.await
+				.map_err(Error::OverseerDisconnected)
+				.map_err(|e| ConsensusError::Other(Box::new(e)))?
+			{
+				// No approved ancestors means target hash is maximal vote.
+				None => return Ok(Some(target_hash)),
+				Some((subchain_head, _)) => subchain_head,
+			}
+		};
+
+		// 3. Constrain according to disputes:
+		// TODO: https://github.com/paritytech/polkadot/issues/3164
+
+		Ok(Some(subchain_head))
 	}
 }
