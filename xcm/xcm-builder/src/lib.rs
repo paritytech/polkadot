@@ -48,10 +48,13 @@ mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::FungiblesAdapter;
+pub use fungibles_adapter::{
+	AsPrefixedGeneralIndex, ConvertedAbstractAssetId, ConvertedConcreteAssetId, FungiblesAdapter,
+	FungiblesMutateAdapter, FungiblesTransferAdapter
+};
 
 mod weight;
-pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds, UsingComponents};
+pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds, UsingComponents, TakeRevenue};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};
