@@ -53,6 +53,8 @@ use {
 /// This is a safety net that should be removed at some point in the future.
 const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 50;
 
+// TODO [now]: metrics.
+
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B> {
 	backend: Arc<B>,
@@ -112,7 +114,13 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			return self.fallback.leaves().await
 		}
 
-		unimplemented!()
+		let (tx, rx) = oneshot::channel();
+
+		self.overseer
+			.clone()
+			.send_msg(ChainSelectionMessage::Leaves(tx)).await;
+
+		rx.await.map_err(|e| ConsensusError::Other(Box::new(e)))
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
