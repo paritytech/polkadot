@@ -50,10 +50,10 @@ use crate::LOG_TARGET;
 mod error;
 use self::error::{log_error, FatalResult, NonFatalResult, NonFatal, Fatal, Result};
 
-const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded");
-const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid");
+const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded.");
+const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
 const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not available.");
-const COST_NOT_A_VALIDATOR: Rep = Rep::Malicious("Reporting peer was not a validator.");
+const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a validator.");
 
 /// How many statement imports we want to issue in parallel:
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
