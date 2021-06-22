@@ -1869,7 +1869,7 @@ mod benchmarking {
 				.ok_or("duration of auction less than zero")?;
 			T::Auctioneer::new_auction(duration, lease_period_index)?;
 
-			assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(T::Auctioneer::auction_status(end_block).is_ending(), Some((0u32.into(), 0u32.into())));
 			assert_eq!(NewRaise::<T>::get().len(), n as usize);
 			let old_endings_count = EndingsCount::<T>::get();
 		}: {
