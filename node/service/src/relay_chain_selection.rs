@@ -44,6 +44,8 @@ use {
 	polkadot_overseer::OverseerHandler,
 	futures::channel::oneshot,
 	consensus_common::{Error as ConsensusError, SelectChain},
+	sp_blockchain::HeaderBackend,
+	sp_runtime::generic::BlockId,
 	std::sync::Arc,
 };
 
@@ -103,6 +105,16 @@ impl<B> Clone for SelectRelayChain<B>
 	}
 }
 
+#[derive(thiserror::Error, Debug)]
+enum Error {
+	// A request to the subsystem was canceled.
+	#[error("Overseer is disconnected from Chain Selection")]
+	OverseerDisconnected(oneshot::Canceled),
+	/// Chain selection returned empty leaves.
+	#[error("ChainSelection returned no leaves")]
+	EmptyLeaves,
+}
+
 #[async_trait::async_trait]
 impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 	where B: sc_client_api::backend::Backend<PolkadotBlock> + 'static
@@ -120,7 +132,9 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			.clone()
 			.send_msg(ChainSelectionMessage::Leaves(tx)).await;
 
-		rx.await.map_err(|e| ConsensusError::Other(Box::new(e)))
+		rx.await
+			.map_err(Error::OverseerDisconnected)
+			.map_err(|e| ConsensusError::Other(Box::new(e)))
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
@@ -129,7 +143,27 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			return self.fallback.best_chain().await
 		}
 
-		unimplemented!()
+		// The Chain Selection subsystem is supposed to treat the finalized
+		// block as the best leaf in the case that there are no viable
+		// leaves, so this should not happen in practice.
+		let best_leaf = self.leaves()
+			.await?
+			.first()
+			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
+			.clone();
+
+		match self.backend.blockchain().header(BlockId::Hash(best_leaf)) {
+			Ok(Some(header)) => Ok(header),
+			Ok(None) => Err(ConsensusError::ChainLookup(format!(
+				"Missing leaf with hash {:?}",
+				best_leaf,
+			))),
+			Err(e) => Err(ConsensusError::ChainLookup(format!(
+				"Lookup failed for leaf with hash {:?}: {:?}",
+				best_leaf,
+				e,
+			))),
+		}
 	}
 
 	/// Get the best descendent of `target_hash` that we should attempt to
