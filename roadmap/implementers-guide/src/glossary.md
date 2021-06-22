@@ -42,4 +42,4 @@ exactly one downward message queue.
 
 Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary).
 
-[0]: https://wiki.polkadot.network/docs/en/learn-consensus
+[0]: https://wiki.polkadot.network/docs/learn-consensus
