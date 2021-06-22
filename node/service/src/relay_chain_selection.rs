@@ -40,7 +40,7 @@ use {
 		Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
 	},
 	polkadot_subsystem::messages::{ApprovalVotingMessage, ChainSelectionMessage},
-	prometheus_endpoint::{self, Registry},
+	polkadot_node_subsystem_util::metrics::{self, prometheus},
 	polkadot_overseer::OverseerHandler,
 	futures::channel::oneshot,
 	consensus_common::{Error as ConsensusError, SelectChain},
@@ -55,7 +55,58 @@ use {
 /// This is a safety net that should be removed at some point in the future.
 const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 50;
 
-// TODO [now]: metrics.
+const LOG_TARGET: &str = "parachain::chain-selection";
+
+/// Prometheus metrics for chain-selection.
+#[derive(Debug, Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+#[derive(Debug, Clone)]
+struct MetricsInner {
+	approval_checking_finality_lag: prometheus::Gauge<prometheus::U64>,
+	disputes_finality_lag: prometheus::Gauge<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			approval_checking_finality_lag: prometheus::register(
+				prometheus::Gauge::with_opts(
+					prometheus::Opts::new(
+						"parachain_approval_checking_finality_lag",
+						"How far behind the head of the chain the Approval Checking protocol wants to vote",
+					)
+				)?,
+				registry,
+			)?,
+			disputes_finality_lag: prometheus::register(
+				prometheus::Gauge::with_opts(
+					prometheus::Opts::new(
+						"parachain_disputes_finality_lag",
+						"How far behind the head of the chain the Disputes protocol wants to vote",
+					)
+				)?,
+				registry,
+			)?,
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
+impl Metrics {
+	fn note_approval_checking_finality_lag(&self, lag: BlockNumber) {
+		if let Some(ref metrics) = self.0 {
+			metrics.approval_checking_finality_lag.set(lag as _);
+		}
+	}
+
+	fn note_disputes_finality_lag(&self, lag: BlockNumber) {
+		if let Some(ref metrics) = self.0 {
+			metrics.disputes_finality_lag.set(lag as _);
+		}
+	}
+}
 
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B> {
@@ -66,6 +117,7 @@ pub struct SelectRelayChain<B> {
 	// This is used on relay chains which have not yet enabled
 	// parachains as well as situations where the node is offline.
 	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
+	metrics: Metrics,
 }
 
 impl<B> SelectRelayChain<B>
@@ -73,11 +125,43 @@ impl<B> SelectRelayChain<B>
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: OverseerHandler) -> Self {
+	#[allow(unused)]
+	pub fn new(backend: Arc<B>, overseer: OverseerHandler, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			fallback: sc_consensus::LongestChain::new(backend.clone()),
 			backend,
 			overseer,
+			metrics,
+		}
+	}
+
+	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
+		match self.backend.blockchain().header(BlockId::Hash(hash)) {
+			Ok(Some(header)) => Ok(header),
+			Ok(None) => Err(ConsensusError::ChainLookup(format!(
+				"Missing header with hash {:?}",
+				hash,
+			))),
+			Err(e) => Err(ConsensusError::ChainLookup(format!(
+				"Lookup failed for header with hash {:?}: {:?}",
+				hash,
+				e,
+			))),
+		}
+	}
+
+	fn block_number(&self, hash: Hash) -> Result<BlockNumber, ConsensusError> {
+		match self.backend.blockchain().number(hash) {
+			Ok(Some(number)) => Ok(number),
+			Ok(None) => Err(ConsensusError::ChainLookup(format!(
+				"Missing number with hash {:?}",
+				hash,
+			))),
+			Err(e) => Err(ConsensusError::ChainLookup(format!(
+				"Lookup failed for number with hash {:?}: {:?}",
+				hash,
+				e,
+			))),
 		}
 	}
 }
@@ -85,6 +169,7 @@ impl<B> SelectRelayChain<B>
 impl<B> SelectRelayChain<B> {
 	/// Given an overseer handler, this connects the [`SelectRelayChain`]'s
 	/// internal handler to the same overseer.
+	#[allow(unused)]
 	pub fn connect_overseer_handler(
 		&mut self,
 		other_handler: &OverseerHandler,
@@ -101,6 +186,7 @@ impl<B> Clone for SelectRelayChain<B>
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
 			fallback: self.fallback.clone(),
+			metrics: self.metrics.clone(),
 		}
 	}
 }
@@ -152,18 +238,8 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
 			.clone();
 
-		match self.backend.blockchain().header(BlockId::Hash(best_leaf)) {
-			Ok(Some(header)) => Ok(header),
-			Ok(None) => Err(ConsensusError::ChainLookup(format!(
-				"Missing leaf with hash {:?}",
-				best_leaf,
-			))),
-			Err(e) => Err(ConsensusError::ChainLookup(format!(
-				"Lookup failed for leaf with hash {:?}: {:?}",
-				best_leaf,
-				e,
-			))),
-		}
+
+		self.block_header(best_leaf)
 	}
 
 	/// Get the best descendent of `target_hash` that we should attempt to
@@ -209,24 +285,25 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			}
 		};
 
+		let target_number = self.block_number(target_hash)?;
+
 		// 1. Constrain the leaf according to `maybe_max_number`.
 		let subchain_head = match maybe_max_number {
 			None => subchain_head,
 			Some(max) => {
+				if max <= target_number {
+					if max < target_number {
+						tracing::warn!(
+							LOG_TARGET,
+							max_number = max,
+							target_number,
+							"`finality_target` max number is less than target number",
+						);
+					}
+					return Ok(Some(target_hash));
+				}
 				// find the current number.
-				let res = self.backend.blockchain().header(BlockId::Hash(subchain_head));
-				let subchain_header = match res {
-					Ok(Some(header)) => header,
-					Ok(None) => return Err(ConsensusError::ChainLookup(format!(
-						"No header for leaf hash {:?}",
-						subchain_head,
-					))),
-					Err(e) => return Err(ConsensusError::ChainLookup(format!(
-						"Header lookup failed for leaf hash {:?}: {:?}",
-						subchain_head,
-						e,
-					))),
-				};
+				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
 					subchain_head
@@ -242,20 +319,11 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			}
 		};
 
+		let initial_leaf = subchain_head;
+		let initial_leaf_number = self.block_number(initial_leaf)?;
+
 		// 2. Constrain according to `ApprovedAncestor`.
-		let subchain_head = {
-			let target_number = match self.backend.blockchain().number(target_hash) {
-				Ok(Some(number)) => number,
-				Ok(None) => return Err(ConsensusError::ChainLookup(format!(
-					"No number for target hash {:?}",
-					target_hash,
-				))),
-				Err(e) => return Err(ConsensusError::ChainLookup(format!(
-					"Number lookup failed for target hash {:?}: {:?}",
-					target_hash,
-					e,
-				))),
-			};
+		let (subchain_head, subchain_number) = {
 
 			let (tx, rx) = oneshot::channel();
 			overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
@@ -269,14 +337,40 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
-				None => return Ok(Some(target_hash)),
-				Some((subchain_head, _)) => subchain_head,
+				None => (target_hash, target_number),
+				Some((s_h, s_n)) => (s_h, s_n),
 			}
 		};
 
+		let lag = initial_leaf_number.saturating_sub(subchain_number);
+		self.metrics.note_approval_checking_finality_lag(lag);
+
 		// 3. Constrain according to disputes:
 		// TODO: https://github.com/paritytech/polkadot/issues/3164
+		self.metrics.note_disputes_finality_lag(0);
 
-		Ok(Some(subchain_head))
+		// 4. Apply the maximum safeguard to the finality lag.
+		if lag > MAX_FINALITY_LAG {
+			// We need to constrain our vote as a safety net to
+			// ensure the network continues to finalize.
+			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
+
+			if safe_target <= target_number {
+				// Minimal vote needs to be on the target number.
+				Ok(Some(target_hash))
+			} else {
+				// Otherwise we're looking for a descendant.
+				let initial_leaf_header = self.block_header(initial_leaf)?;
+				let (forced_target, _) = crate::grandpa_support::walk_backwards_to_target_block(
+					self.backend.blockchain(),
+					safe_target,
+					&initial_leaf_header,
+				).map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
+
+				Ok(Some(forced_target))
+			}
+		} else {
+			Ok(Some(subchain_head))
+		}
 	}
 }
