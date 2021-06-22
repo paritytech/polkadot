@@ -95,7 +95,7 @@ use xcm_builder::{
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
 	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
-use constants::{time::*, currency::*, fee::*, size::*};
+use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
@@ -791,8 +791,6 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
-	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
 impl paras_registrar::Config for Runtime {
@@ -802,8 +800,6 @@ impl paras_registrar::Config for Runtime {
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 

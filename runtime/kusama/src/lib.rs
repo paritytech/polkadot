@@ -103,7 +103,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*, paras::*};
+use constants::{time::*, currency::*, fee::*};
 
 // Weights used in the runtime.
 mod weights;
@@ -1108,9 +1108,7 @@ impl parachains_initializer::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = deposit(10, MAX_CODE_SIZE + MAX_HEAD_SIZE);
-	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
-	pub const MaxHeadSize: u32 = MAX_HEAD_SIZE;
+	pub const ParaDeposit: Balance = 40 * UNITS;
 }
 
 impl paras_registrar::Config for Runtime {
@@ -1120,8 +1118,6 @@ impl paras_registrar::Config for Runtime {
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 

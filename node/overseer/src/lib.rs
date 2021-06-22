@@ -631,6 +631,7 @@ impl ChannelsOut {
 			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -735,6 +736,7 @@ impl ChannelsOut {
 			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
 		if res.is_err() {
@@ -924,22 +926,22 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		}
 	}
 
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.to_overseer.send(ToOverseer::SpawnJob {
+		self.to_overseer.unbounded_send(ToOverseer::SpawnJob {
 			name,
 			s,
-		}).await.map_err(Into::into)
+		}).map_err(|_| SubsystemError::TaskSpawn(name))
 	}
 
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
-		self.to_overseer.send(ToOverseer::SpawnBlockingJob {
+		self.to_overseer.unbounded_send(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
-		}).await.map_err(Into::into)
+		}).map_err(|_| SubsystemError::TaskSpawn(name))
 	}
 
 	fn sender(&mut self) -> &mut OverseerSubsystemSender {
@@ -2068,6 +2070,7 @@ where
 			},
 			AllMessages::DisputeCoordinator(_) => {}
 			AllMessages::DisputeParticipation(_) => {}
+			AllMessages::ChainSelection(_) => {}
 		}
 
 		Ok(())

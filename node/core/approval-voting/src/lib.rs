@@ -2100,7 +2100,6 @@ async fn launch_approval(
 
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background))
-		.await
 		.map(move |()| Some(remote_handle))
 }
 
