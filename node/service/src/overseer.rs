@@ -54,6 +54,7 @@ pub use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 pub use polkadot_approval_distribution::ApprovalDistribution as ApprovalDistributionSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
+pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
 pub struct OverseerGenArgs<'a, Spawner, RuntimeClient> where
@@ -129,6 +130,7 @@ pub fn create_default_subsystems<'a, Spawner, RuntimeClient>
 	ApprovalDistributionSubsystem,
 	ApprovalVotingSubsystem,
 	GossipSupportSubsystem,
+	DisputeDistributionSubsystem,
 >,
 	Error
 >
@@ -224,6 +226,9 @@ where
 			Metrics::register(registry)?,
 		),
 		gossip_support: GossipSupportSubsystem::new(
+			keystore.clone(),
+		),
+		dispute_distribution: DisputeDistributionSubsystem::new(
 			keystore.clone(),
 		),
 	};

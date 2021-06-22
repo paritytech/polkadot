@@ -207,11 +207,11 @@ pub enum DisputeCoordinatorMessage {
 		/// of the validator in the set.
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		/// Inform the requester once we finished importing.
-        ///
-        /// This is, we either discarded the votes, just record them because we
-        /// casted our vote already or recovered availability for the candidate
-        /// successfully.
-        pending_confirmation: oneshot::Sender<ImportStatementsResult>
+		///
+		/// This is, we either discarded the votes, just record them because we
+		/// casted our vote already or recovered availability for the candidate
+		/// successfully.
+		pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
@@ -265,12 +265,12 @@ pub enum DisputeParticipationMessage {
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {
 
-  /// Tell dispute distribution to distribute an explicit dispute statement to
-  /// validators.
-  SendDispute(DisputeMessage),
+	/// Tell dispute distribution to distribute an explicit dispute statement to
+	/// validators.
+	SendDispute(DisputeMessage),
 
-  /// Get receiver for receiving incoming network requests for dispute sending.
-  DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
+	/// Get receiver for receiving incoming network requests for dispute sending.
+	DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
