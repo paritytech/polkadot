@@ -402,12 +402,12 @@ impl<T: Config> Pallet<T> {
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, _) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
 
-		// We need to check that the auction isn't in the period where it has definitely ended, but yeah we keep the
-		// info around because we haven't yet decided *exactly* when in the `EndingPeriod` that it ended.
+		// Get the auction status and the current sample block. For the opening period, the sample
+		// block is zero.
 		let auction_status = Self::auction_status(frame_system::Pallet::<T>::block_number());
 		let offset = match auction_status {
 			AuctionStatus::NotStarted => return Err(Error::<T>::AuctionEnded.into()),
-			AuctionStatus::OpeningPeriod => Default::default(),
+			AuctionStatus::OpeningPeriod => Zero::zero(),
 			AuctionStatus::EndingPeriod(o, _) => o,
 			AuctionStatus::VrfDelay(_) => return Err(Error::<T>::AuctionEnded.into()),
 		};
@@ -492,8 +492,6 @@ impl<T: Config> Pallet<T> {
 				// auction definitely ended.
 				// check to see if we can determine the actual ending point.
 				let (raw_offset, known_since) = T::Randomness::random(&b"para_auction"[..]);
-
-				println!("known since {:?} {:?}", known_since, late_end);
 
 				if late_end <= known_since {
 					// Our random seed was known only after the auction ended. Good to use.
