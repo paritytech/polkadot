@@ -6142,6 +6142,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-chain-selection"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.15",
+ "kvdb",
+ "parity-scale-codec",
+ "parking_lot 0.11.1",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sp-core",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-dispute-coordinator"
 version = "0.1.0"
 dependencies = [
@@ -6398,7 +6417,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
- "streamunordered",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -10082,18 +10100,6 @@ checksum = "c80e15f898d8d8f25db24c253ea615cc14acf418ff307822995814e7d42cfa89"
 dependencies = [
  "block-cipher",
  "generic-array 0.14.4",
-]
-
-[[package]]
-name = "streamunordered"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e68576e37c8a37f5372796df15202190349dd80e7ed6a79544c0232213e90e35"
-dependencies = [
- "futures-core",
- "futures-sink",
- "futures-util",
- "slab",
 ]
 
 [[package]]
