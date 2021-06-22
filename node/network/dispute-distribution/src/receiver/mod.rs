@@ -111,7 +111,7 @@ impl Message {
 		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
 	) -> FatalResult<Message> {
 		select!(
-			m_bad = pending_imports.next() => Ok(Message::ConfirmedImport(m_bad)),
+			import_result = pending_imports.next() => Ok(Message::ConfirmedImport(import_result)),
 			result = pending_requests.next() => match result {
 				None => Err(Fatal::RequestChannelFinished),
 				Some(msg) => Ok(Message::NewRequest(msg)),
