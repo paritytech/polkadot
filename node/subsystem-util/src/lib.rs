@@ -726,9 +726,9 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 				}
 				outgoing = jobs.next() => {
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
 						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+							=> ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {
