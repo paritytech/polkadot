@@ -157,9 +157,14 @@ pub trait Auctioneer {
 	/// are to be auctioned.
 	fn new_auction(duration: Self::BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
 
-	/// Returns `Some(n)` if the `now` block is part of the ending period of an auction, where `n`
-	/// represents how far into the ending period this block is. Otherwise, returns `None`.
-	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber>;
+	/// Returns `Some((n, sub_n))` if the `now` block is part of the ending period of an auction, where `n`
+	/// represents the ending period sample number, and `sub_n` represents how far into a sample we are.
+	///
+	/// For example, if we have a sample size of 20, block 19 of the first ending period will return
+	/// `(0, 19)`. `(0, 0)` will represent the first block of the entire ending period.
+	///
+	/// Otherwise, returns `None`.
+	fn is_ending(now: Self::BlockNumber) -> Option<(Self::BlockNumber, Self::BlockNumber)>;
 
 	/// Place a bid in the current auction.
 	///

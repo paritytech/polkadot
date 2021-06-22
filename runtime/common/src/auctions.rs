@@ -201,7 +201,7 @@ pub mod pallet {
 			// If the current auction was in its ending period last block, then ensure that the (sub-)range
 			// winner information is duplicated from the previous block in case no bids happened in the
 			// last block.
-			if let Some(offset) = Self::is_ending(n) {
+			if let Some((offset, _sub_sample)) = Self::is_ending(n) {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				if !Winning::<T>::contains_key(&offset) {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
@@ -316,12 +316,19 @@ impl<T: Config> Auctioneer for Pallet<T> {
 		Self::do_new_auction(duration, lease_period_index)
 	}
 
-	// Returns whether the auction is ending, and which sample number we are on.
-	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber> {
+	// Returns whether the auction is ending, and which sample and sub-sample number we are on.
+	//
+	// For example, if we collect samples every 20 blocks, and we are in the 19th block right
+	// at the start of the ending period, we will return `(0, 19)`. `(0, 0)` represents the first
+	// block of the entire ending period.
+	fn is_ending(now: Self::BlockNumber) -> Option<(Self::BlockNumber, Self::BlockNumber)> {
 		if let Some((_, early_end)) = AuctionInfo::<T>::get() {
 			if let Some(after_early_end) = now.checked_sub(&early_end) {
 				if after_early_end < T::EndingPeriod::get() {
-					return Some(after_early_end / T::SampleLength::get())
+					let sample_length = T::SampleLength::get();
+					let sample = after_early_end / sample_length;
+					let sub_sample = after_early_end % sample_length;
+					return Some((sample, sub_sample))
 				}
 			}
 		}
@@ -424,7 +431,7 @@ impl<T: Config> Pallet<T> {
 		let range_index = range as u8 as usize;
 		let is_ending = Self::is_ending(frame_system::Pallet::<T>::block_number());
 		// The offset into the ending samples of the auction.
-		let offset = is_ending.unwrap_or_default();
+		let (offset, _sub_sample) = is_ending.unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(Winning::<T>::get))
@@ -939,15 +946,15 @@ mod tests {
 
 			run_to_block(6);
 			assert_eq!(Auctions::is_in_progress(), true);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 0)));
 
 			run_to_block(7);
 			assert_eq!(Auctions::is_in_progress(), true);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((1, 0)));
 
 			run_to_block(8);
 			assert_eq!(Auctions::is_in_progress(), true);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((2, 0)));
 
 			run_to_block(9);
 			assert_eq!(Auctions::is_in_progress(), false);
@@ -1299,16 +1306,16 @@ mod tests {
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 0)));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(11);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((1, 0)));
 			assert_eq!(Auctions::winning(1), Some(winning));
 			assert_ok!(Auctions::bid(Origin::signed(3), para_3, 1, 3, 4, 30));
 
 			run_to_block(12);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((2, 0)));
 			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
 			assert_eq!(Auctions::winning(2), Some(winning));
 		});
@@ -1352,7 +1359,7 @@ mod tests {
 			assert_eq!(Auctions::is_ending(System::block_number()), None);
 
 			run_to_block(10);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(0));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 0)));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			// New bids update the current winning
@@ -1361,7 +1368,7 @@ mod tests {
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(20);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(1));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((1, 0)));
 			assert_eq!(Auctions::winning(1), Some(winning));
 			run_to_block(25);
 			// Overbid mid sample
@@ -1370,7 +1377,7 @@ mod tests {
 			assert_eq!(Auctions::winning(1), Some(winning));
 
 			run_to_block(30);
-			assert_eq!(Auctions::is_ending(System::block_number()), Some(2));
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((2, 0)));
 			assert_eq!(Auctions::winning(2), Some(winning));
 
 			set_last_random(H256::from([254; 32]), 40);
@@ -1381,6 +1388,44 @@ mod tests {
 				((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
 				((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),
 			]);
+		});
+	}
+
+	#[test]
+	fn is_ending_handles_sampling() {
+		new_test_ext().execute_with(|| {
+			EndingPeriod::set(30);
+			SampleLength::set(10);
+
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
+
+			run_to_block(9);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
+
+			run_to_block(10);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 0)));
+
+			run_to_block(11);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 1)));
+
+			run_to_block(19);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((0, 9)));
+
+			run_to_block(20);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((1, 0)));
+
+			run_to_block(25);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((1, 5)));
+
+			run_to_block(30);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((2, 0)));
+
+			run_to_block(39);
+			assert_eq!(Auctions::is_ending(System::block_number()), Some((2, 9)));
+
+			run_to_block(40);
+			assert_eq!(Auctions::is_ending(System::block_number()), None);
 		});
 	}
 

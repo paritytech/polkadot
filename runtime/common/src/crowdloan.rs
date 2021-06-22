@@ -294,9 +294,10 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some(n) = T::Auctioneer::is_ending(n) {
-				if n.is_zero() {
+		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
+			if let Some((sample, sub_sample)) = T::Auctioneer::is_ending(num) {
+				// This is the very first block in the ending period
+				if sample.is_zero() && sub_sample.is_zero() {
 					// first block of ending period.
 					EndingsCount::<T>::mutate(|c| *c += 1);
 				}
@@ -884,11 +885,12 @@ mod tests {
 			Ok(())
 		}
 
-		fn is_ending(now: u64) -> Option<u64> {
+		fn is_ending(now: u64) -> Option<(u64, u64)> {
 			if let Some((_, early_end)) = auction() {
 				if let Some(after_early_end) = now.checked_sub(early_end) {
 					if after_early_end < ending_period() {
-						return Some(after_early_end)
+						// This test auctioneer as no sub-sampling
+						return Some((after_early_end, 0))
 					}
 				}
 			}
@@ -998,8 +1000,8 @@ mod tests {
 			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_period: 0, last_period: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
 			assert_eq!(TestAuctioneer::is_ending(4), None);
-			assert_eq!(TestAuctioneer::is_ending(5), Some(0));
-			assert_eq!(TestAuctioneer::is_ending(9), Some(4));
+			assert_eq!(TestAuctioneer::is_ending(5), Some((0, 0)));
+			assert_eq!(TestAuctioneer::is_ending(9), Some((4, 0)));
 			assert_eq!(TestAuctioneer::is_ending(11), None);
 		});
 	}
