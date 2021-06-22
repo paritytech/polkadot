@@ -419,10 +419,33 @@ enum ExternalRequest {
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
 pub struct OverseerHandler {
-	events_tx: metered::MeteredSender<Event>,
+	events_tx: Option<metered::MeteredSender<Event>>,
 }
 
 impl OverseerHandler {
+	/// Create a disconnected overseer handler.
+	pub fn disconnected() -> Self {
+		OverseerHandler {
+			events_tx: None,
+		}
+	}
+
+	/// Whether the overseer handler is connected to an overseer.
+	pub fn is_connected(&self) -> bool {
+		self.events_tx.is_some()
+	}
+
+	/// Whether the handler is disconnected.
+	pub fn is_disconnected(&self) -> bool {
+		self.events_tx.is_none()
+	}
+
+	/// Using this handler, connect another handler to the same
+	/// overseer, if any.
+	pub fn connect_other(&self, other: &mut OverseerHandler) {
+		other.events_tx = self.events_tx.clone();
+	}
+
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockImported(block)).await
@@ -457,8 +480,10 @@ impl OverseerHandler {
 	}
 
 	async fn send_and_log_error(&mut self, event: Event) {
-		if self.events_tx.send(event).await.is_err() {
-			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+		if let Some(ref mut events_tx) = self.events_tx {
+			if events_tx.send(event).await.is_err() {
+				tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+			}
 		}
 	}
 }
@@ -1274,7 +1299,13 @@ where
 	S: SpawnNamed,
 	SupportsParachains: HeadSupportsParachains,
 {
-	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
+	/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
+	///
+	/// This returns the overseer along with an [`OverseerHandler`] which can
+	/// be used to send messages from external parts of the codebase.
+	///
+	/// The [`OverseerHandler`] returned from this function is connected to
+	/// the returned [`Overseer`].
 	///
 	/// ```text
 	///                  +------------------------------------+
@@ -1393,7 +1424,7 @@ where
 		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY);
 
 		let handler = OverseerHandler {
-			events_tx: events_tx.clone(),
+			events_tx: Some(events_tx.clone()),
 		};
 
 		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
