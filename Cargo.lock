@@ -1923,7 +1923,7 @@ dependencies = [
  "linregress",
  "log",
  "parity-scale-codec",
- "paste 1.0.4",
+ "paste 1.0.5",
  "sp-api",
  "sp-io",
  "sp-runtime",
@@ -2007,7 +2007,7 @@ dependencies = [
  "max-encoded-len",
  "once_cell",
  "parity-scale-codec",
- "paste 1.0.4",
+ "paste 1.0.5",
  "serde",
  "smallvec 1.6.1",
  "sp-arithmetic",
@@ -5087,7 +5087,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
- "paste 1.0.4",
+ "paste 1.0.5",
  "rand_chacha 0.2.2",
  "serde",
  "sp-application-crypto",
@@ -5509,9 +5509,9 @@ dependencies = [
 
 [[package]]
 name = "paste"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5d65c4d95931acda4498f675e332fcbdc9a06705cd07086c510e9b6009cd1c1"
+checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 
 [[package]]
 name = "paste-impl"
@@ -9203,7 +9203,7 @@ version = "0.9.5"
 dependencies = [
  "enumn",
  "parity-scale-codec",
- "paste 1.0.4",
+ "paste 1.0.5",
  "sp-runtime",
  "sp-std",
 ]
@@ -9738,7 +9738,7 @@ dependencies = [
  "max-encoded-len",
  "parity-scale-codec",
  "parity-util-mem",
- "paste 1.0.4",
+ "paste 1.0.5",
  "rand 0.7.3",
  "serde",
  "sp-application-crypto",
@@ -11415,7 +11415,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "paste 1.0.4",
+ "paste 1.0.5",
  "psm",
  "region",
  "rustc-demangle",
