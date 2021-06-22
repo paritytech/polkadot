@@ -54,7 +54,6 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -139,7 +138,6 @@ std = [
 	"pallet-treasury/std",
 	"pallet-tips/std",
 	"pallet-babe/std",
-	"pallet-randomness-collective-flip/std",
 	"pallet-vesting/std",
 	"pallet-utility/std",
 	"sp-runtime/std",
@@ -222,7 +220,6 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-randomness-collective-flip/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-utility/try-runtime",
 	"runtime-common/try-runtime",
