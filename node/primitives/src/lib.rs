@@ -58,6 +58,12 @@ pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
 
+/// It would be nice to draw this from the chain state, but we have no tools for it right now.
+/// On Polkadot this is 1 day, and on Kusama it's 6 hours.
+///
+/// Number of sessions we want to consider in disputes.
+pub const DISPUTE_WINDOW: SessionIndex = 6;
+
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
 

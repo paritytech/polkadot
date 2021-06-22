@@ -20,12 +20,17 @@
 use futures::channel::{mpsc, oneshot};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 
-use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use sp_keystore::SyncCryptoStorePtr;
 
+use polkadot_node_primitives::DISPUTE_WINDOW;
+use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use polkadot_subsystem::{
 	messages::DisputeDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError,
+};
+use polkadot_node_subsystem_util::{
+	runtime,
+	runtime::RuntimeInfo,
 };
 
 /// `DisputeSender` manages the sending side of all initiated disputes.
@@ -46,8 +51,6 @@ use self::receiver::DisputesReceiver;
 mod error;
 use error::{Fatal, FatalResult};
 use error::{Result, log_error};
-
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 mod metrics;
 /// Prometheus `Metrics` for dispute distribution.
@@ -94,7 +97,10 @@ impl DisputeDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = RuntimeInfo::new(Some(keystore));
+		let runtime = RuntimeInfo::new_with_config(runtime::Config {
+			keystore: Some(keystore),
+			session_cache_lru_size: DISPUTE_WINDOW as usize,
+		});
 		let (tx, sender_rx) = mpsc::channel(1);
 		let disputes_sender = DisputeSender::new(tx);
 		Self { runtime, disputes_sender, sender_rx, metrics }

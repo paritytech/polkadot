@@ -45,10 +45,10 @@ pub struct Config {
 	/// Needed for retrieval of `ValidatorInfo`
 	///
 	/// Pass `None` if you are not interested.
-	keystore: Option<SyncCryptoStorePtr>,
+	pub keystore: Option<SyncCryptoStorePtr>,
 
 	/// How many sessions should we keep in the cache?
-	session_cache_lru_size: usize,
+	pub session_cache_lru_size: usize,
 }
 
 /// Caching of session info.

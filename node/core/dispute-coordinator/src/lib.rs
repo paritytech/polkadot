@@ -28,7 +28,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, SignedDisputeStatement};
 use polkadot_node_subsystem::{
 	messages::{
 		DisputeCoordinatorMessage, ChainApiMessage, DisputeParticipationMessage,
@@ -59,10 +59,6 @@ mod db;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
-
-// It would be nice to draw this from the chain state, but we have no tools for it right now.
-// On Polkadot this is 1 day, and on Kusama it's 6 hours.
-const DISPUTE_WINDOW: SessionIndex = 6;
 
 struct State {
 	keystore: Arc<LocalKeystore>,

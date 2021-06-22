@@ -39,7 +39,11 @@ use polkadot_node_network_protocol::{
 		v1::DisputeResponse,
 	},
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_primitives::DISPUTE_WINDOW;
+use polkadot_node_subsystem_util::{
+	runtime,
+	runtime::RuntimeInfo,
+};
 use polkadot_subsystem::SubsystemSender;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
@@ -123,7 +127,10 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 		authority_discovery: Box<dyn AuthorityDiscovery>,
 	) -> Self {
-		let runtime = RuntimeInfo::new(None);
+		let runtime = RuntimeInfo::new_with_config(runtime::Config {
+			keystore: None,
+			session_cache_lru_size: DISPUTE_WINDOW as usize,
+		});
 		Self {
 			runtime,
 			sender,
