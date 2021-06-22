@@ -183,8 +183,6 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
-impl pallet_randomness_collective_flip::Config for Runtime {}
-
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
@@ -999,7 +997,6 @@ construct_runtime! {
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 25,
 
 		// Must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
@@ -1101,20 +1098,18 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	SetStakingLimits,
+	RemoveCollectiveFlip,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-pub struct SetStakingLimits;
-impl frame_support::traits::OnRuntimeUpgrade for SetStakingLimits {
+pub struct RemoveCollectiveFlip;
+impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
 	fn on_runtime_upgrade() -> Weight {
-		<pallet_staking::MinNominatorBond<Runtime>>::put(1 * UNITS);
-		<pallet_staking::MaxNominatorsCount<Runtime>>::put(1000);
-		<pallet_staking::MinValidatorBond<Runtime>>::put(10 * UNITS);
-		<pallet_staking::MaxValidatorsCount<Runtime>>::put(10);
-
-		<Runtime as frame_system::Config>::DbWeight::get().writes(4)
+		use frame_support::storage::migration;
+		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
+		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
+		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
 	}
 }
 

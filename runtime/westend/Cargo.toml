@@ -55,7 +55,6 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -152,7 +151,6 @@ std = [
 	"pallet-vesting/std",
 	"pallet-xcm/std",
 	"pallet-babe/std",
-	"pallet-randomness-collective-flip/std",
 	"frame-executive/std",
 	"sp-runtime/std",
 	"sp-staking/std",
@@ -239,7 +237,6 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-randomness-collective-flip/try-runtime",
 	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime api will not be build.

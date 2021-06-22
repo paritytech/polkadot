@@ -3277,7 +3277,6 @@ dependencies = [
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-proxy",
- "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
  "pallet-session",
@@ -4984,19 +4983,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-randomness-collective-flip"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#97338fc60fdfcf647ba62e108d373e96acafb9c2"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "safe-mix",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-recovery"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#97338fc60fdfcf647ba62e108d373e96acafb9c2"
@@ -6551,7 +6537,6 @@ dependencies = [
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-proxy",
- "pallet-randomness-collective-flip",
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
@@ -6616,7 +6601,6 @@ dependencies = [
  "pallet-beefy",
  "pallet-mmr",
  "pallet-offences",
- "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
@@ -6668,7 +6652,6 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-offences",
- "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
@@ -6893,7 +6876,6 @@ dependencies = [
  "pallet-mmr-primitives",
  "pallet-nicks",
  "pallet-offences",
- "pallet-randomness-collective-flip",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
@@ -7848,15 +7830,6 @@ name = "ryu"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
-
-[[package]]
-name = "safe-mix"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d3d055a2582e6b00ed7a31c1524040aa391092bf636328350813f3a0605215c"
-dependencies = [
- "rustc_version",
-]
 
 [[package]]
 name = "salsa20"
@@ -11700,7 +11673,6 @@ dependencies = [
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-proxy",
- "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
  "pallet-session",
