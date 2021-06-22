@@ -156,6 +156,10 @@ pub enum AuctionStatus<BlockNumber> {
 }
 
 impl<BlockNumber> AuctionStatus<BlockNumber> {
+	/// Returns true if the auction is in any state other than `NotStarted`.
+	pub fn is_in_progress(&self) -> bool {
+		!matches!(self, Self::NotStarted)
+	}
 	/// Return true if the auction is in the opening period.
 	pub fn is_opening(&self) -> bool {
 		matches!(self, Self::OpeningPeriod)
@@ -167,6 +171,10 @@ impl<BlockNumber> AuctionStatus<BlockNumber> {
 			Self::EndingPeriod(sample, sub_sample) => Some((sample, sub_sample)),
 			_ => None,
 		}
+	}
+	/// Returns true if the auction is in the `VrfDelay` period.
+	pub fn is_vrf(&self) -> bool {
+		matches!(self, Self::VrfDelay(_))
 	}
 }
 
