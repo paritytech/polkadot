@@ -447,7 +447,7 @@ pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	config: Config,
 	db: Arc<dyn KeyValueDB>,
-	known_blocks: KnownBlocks,
+	known_blocks: KnownUnfinalizedBlocks,
 	finalized_number: Option<BlockNumber>,
 	metrics: Metrics,
 	clock: Box<dyn Clock>,
@@ -483,28 +483,33 @@ impl AvailabilityStoreSubsystem {
 			db,
 			metrics,
 			clock,
-			known_blocks: KnownBlocks::default(),
+			known_blocks: KnownUnfinalizedBlocks::default(),
 			finalized_number: None,
 		}
 	}
 }
 
+/// We keep the hashes and numbers of all unfinalized
+/// processed blocks in memory.
 #[derive(Default, Debug)]
-struct KnownBlocks {
+struct KnownUnfinalizedBlocks {
 	by_hash: HashSet<Hash>,
 	by_number: BTreeSet<(BlockNumber, Hash)>,
 }
 
-impl KnownBlocks {
+impl KnownUnfinalizedBlocks {
+	/// Check whether the block has been already processed.
 	fn is_known(&self, hash: &Hash) -> bool {
 		self.by_hash.contains(hash)
 	}
 
+	/// Insert a new block into the known set.
 	fn insert(&mut self, hash: Hash, number: BlockNumber) {
 		self.by_hash.insert(hash);
 		self.by_number.insert((number, hash));
 	}
 
+	/// Prune all finalized blocks.
 	fn prune_finalized(&mut self, finalized: BlockNumber) {
 		// split_off returns everything after the given key, including the key
 		let split_point = finalized.saturating_add(1);
