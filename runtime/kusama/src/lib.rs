@@ -358,7 +358,7 @@ parameter_types! {
 	// A typical solution occupies 20kb. This formula is currently adjusted such that a typical
 	// solution will spend approximately equal amounts on the base and per-byte deposits.
 	pub const SignedDepositByte: Balance = deposit(1, 0) / (20 * 1024 * 1024);
-	pub const SignedRewardBase: Balance = deposit(1, 0) / 4;
+	pub const SignedRewardBase: Balance = 1 * CENTS;
 
 	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
