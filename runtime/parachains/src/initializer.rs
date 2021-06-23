@@ -29,7 +29,8 @@ use frame_support::{
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	shared, paras, scheduler, inclusion, session_info, disputes, dmp, ump, hrmp,
+	disputes::DisputesHandler,
+	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
 /// Information about a session change that has just occurred.
@@ -77,7 +78,6 @@ pub trait Config:
 	+ scheduler::Config
 	+ inclusion::Config
 	+ session_info::Config
-	+ disputes::Config
 	+ dmp::Config
 	+ ump::Config
 	+ hrmp::Config
@@ -136,7 +136,7 @@ decl_module! {
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
 				session_info::Module::<T>::initializer_initialize(now) +
-				disputes::Pallet::<T>::initializer_initialize(now) +
+				T::DisputesHandler::initializer_initialize(now) +
 				dmp::Module::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
 				hrmp::Module::<T>::initializer_initialize(now);
@@ -151,7 +151,7 @@ decl_module! {
 			hrmp::Module::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
-			disputes::Pallet::<T>::initializer_finalize();
+			T::DisputesHandler::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
@@ -231,7 +231,7 @@ impl<T: Config> Module<T> {
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
-		disputes::Pallet::<T>::initializer_on_new_session(&notification);
+		T::DisputesHandler::initializer_on_new_session(&notification);
 		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);

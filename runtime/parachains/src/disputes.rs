@@ -119,6 +119,15 @@ pub trait DisputesHandler<BlockNumber> {
 	/// Whether the given candidate could be invalid, i.e. there is an ongoing
 	/// or concluded dispute with supermajority-against.
 	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
+
+	/// Called by the initializer to initialize the configuration module.
+	fn initializer_initialize(now: BlockNumber) -> Weight;
+
+	/// Called by the initializer to finalize the configuration module.
+	fn initializer_finalize();
+
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
 }
 
 impl<BlockNumber> DisputesHandler<BlockNumber> for () {
@@ -147,6 +156,18 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	fn could_be_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
 		false
 	}
+
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		0
+	}
+
+	fn initializer_finalize() {
+
+	}
+
+	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {
+
+	}
 }
 
 impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
@@ -174,6 +195,18 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 
 	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
 		pallet::Pallet::<T>::could_be_invalid(session, candidate_hash)
+	}
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		pallet::Pallet::<T>::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		pallet::Pallet::<T>::initializer_finalize()
+	}
+
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		pallet::Pallet::<T>::initializer_on_new_session(notification)
 	}
 }
 

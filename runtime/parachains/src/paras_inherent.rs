@@ -35,7 +35,7 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
-	disputes::{self, DisputesHandler},
+	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
 	shared,
@@ -49,9 +49,7 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: inclusion::Config + scheduler::Config {
-	type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
-}
+pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {

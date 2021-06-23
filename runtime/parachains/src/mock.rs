@@ -192,12 +192,11 @@ impl crate::scheduler::Config for Test { }
 
 impl crate::inclusion::Config for Test {
 	type Event = Event;
+	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::paras_inherent::Config for Test {
-	type DisputesHandler = Disputes;
-}
+impl crate::paras_inherent::Config for Test { }
 
 impl crate::session_info::Config for Test { }
 
