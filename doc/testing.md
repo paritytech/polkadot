@@ -6,7 +6,7 @@ Automated testing is an essential tool to assure correctness.
 
 The testing strategy for polkadot is 4-fold:
 
-### Unit testing
+### Unit testing (1)
 
 Boring, small scale correctness tests of individual functions.
 
@@ -14,7 +14,7 @@ Boring, small scale correctness tests of individual functions.
 
 There are two variants of integration tests:
 
-#### Subsystem tests
+#### Subsystem tests (2)
 
 One particular subsystem (subsystem under test) interacts with a
 mocked overseer that is made to assert incoming and outgoing messages
@@ -23,7 +23,7 @@ This is largely present today, but has some fragmentation in the evolved
 integration test implementation. A proc-macro/macro_rules would allow
 for more consistent implementation and structure.
 
-#### Behavior tests
+#### Behavior tests (3)
 
 Launching small scale networks, with multiple adversarial nodes without any further tooling required.
 This should include tests around the thresholds in order to evaluate the error handling once certain
@@ -33,7 +33,7 @@ For this purpose based on `AllSubsystems` and proc-macro `AllSubsystemsGen`.
 
 This assumes a simplistic test runtime.
 
-#### Testing at scale
+#### Testing at scale (4)
 
 Launching many nodes with configurable network speed and node features in a cluster of nodes.
 At this scale the [`simnet`][simnet] comes into play which launches a full cluster of nodes.
@@ -183,30 +183,57 @@ The implementation is yet to be completed, see the [implementation PR](https://g
 ##### Declare an overseer impl
 
 ```rust
-#[overseer(..)]
-struct Overseer {
-    #[subsystem(no_dispatch, blocking, AvailablityDistributionMessage)]
-    ad: AvailabilityDistribution,
+struct BehaveMaleficient;
 
-    // .. more subsystems
+impl OverseerGen for BehaveMaleficient {
+	fn generate<'a, Spawner, RuntimeClient>(
+		&self,
+		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+	where
+		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
+		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+		Spawner: 'static + SpawnNamed + Clone + Unpin,
+	{
+		let spawner = args.spawner.clone();
+		let leaves = args.leaves.clone();
+		let runtime_client = args.runtime_client.clone();
+		let registry = args.registry.clone();
+		let candidate_validation_config = args.candidate_validation_config.clone();
+		// modify the subsystem(s) as needed:
+		let all_subsystems = create_default_subsystems(args)?.
+        // or spawn an entirely new set
 
-    boring: Additive,
+        replace_candidate_validation(
+			// create the filtered subsystem
+			FilteredSubsystem::new(
+				CandidateValidationSubsystem::with_config(
+					candidate_validation_config,
+					Metrics::register(registry)?,
+				),
+                // an implementation of
+				Skippy::default(),
+			),
+		);
+
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+			.map_err(|e| e.into())
+
+        // A builder pattern will simplify this further
+        // WIP https://github.com/paritytech/polkadot/pull/2962
+	}
 }
 
-fn main() -> Result<(), dyn ::std::error::Error> {
-
-    let args = Args::default();
-
-    let overseer = Overseer::builder()
-        .ad(Misbehave::default())
-        .additive(..)
-        .build()?;
-
-    run_overseer(args, overseer)?;
-
-    Ok(())
+fn main() -> eyre::Result<()> {
+	color_eyre::install()?;
+	let cli = Cli::from_args();
+	assert_matches::assert_matches!(cli.subcommand, None);
+	polkadot_cli::run_node(cli, BehaveMaleficient)?;
+	Ok(())
 }
 ```
+
+[`variant-a`](../node/malus/src/variant-a.rs) is a fully working example.
 
 #### Simnet
 
