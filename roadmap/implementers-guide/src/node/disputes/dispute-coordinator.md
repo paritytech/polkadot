@@ -32,9 +32,18 @@ struct CandidateVotes {
     invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 }
 
+// The implication of a dispute for a block containing the candidate.
+enum BlockImplication {
+    // A dispute which is ongoing or has concluded against a candidate
+    // implies that any blocks containing it should be avoided.
+    Avoid,
+    // A dispute which has had supermajority approval is fine to accept.
+    Accept,
+}
+
 struct RecentDisputes {
     // sorted by session index and then by candidate hash.
-    disputed: Vec<(SessionIndex, CandidateHash, State)>,
+    disputed: Vec<(SessionIndex, CandidateHash, BlockImplication)>,
 }
 ```
 
@@ -88,9 +97,9 @@ Do nothing.
 * Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`.
 * Write the `CandidateVotes` to the underyling DB.
 * If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
-* If freshly disputed, load `"recent-disputes"` and add the candidate hash and session index. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
-* If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, there is no need to do anything explicitly. The dispute will be pruned after some time.
-* If the dispute now has supermajority votes in the "invalid" direction, there is no need to do anything explicitly. It will be pruned after some time and all chains containing the disputed block will be reverted by the runtime.
+* If freshly disputed, load `"recent-disputes"` and add the candidate hash and session index with an `Avoid` implication. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
+* If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, the `BlockImplication` should be set to 'Accept'. The dispute will be pruned after some time.
+* If the dispute now has supermajority votes in the "invalid" direction, the `BlockImplication` should be set to `Avoid`. It will be pruned after some time and all chains containing the disputed block will be reverted by the runtime.
 * Write `"recent-disputes"`
 
 ### On `DisputeCoordinatorMessage::RecentDisputes`
@@ -116,7 +125,7 @@ Do nothing.
 * Deconstruct into parts `{ base_number, block_descriptions, rx }`
 * Starting from the beginning of `block_descriptions`:
   1. Check the `RecentDisputes` for a dispute of each candidate in the block description.
-  1. If there is a dispute which does not have supermajority valid bits, exit the loop.
+  1. If there is a dispute which has an `Avoid` implication, exit the loop.
 * For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
 
 [DisputeTypes]: ../../types/disputes.md
