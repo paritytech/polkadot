@@ -121,7 +121,7 @@ impl TransactAsset for Tuple {
 	}
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		for_tuples!( #(
-			match Tuple::deposit_asset(origin, what) {
+			match Tuple::deposit_asset(what, who) {
 				Err(XcmError::AssetNotFound) => (),
 				r => return r,
 			}
@@ -130,7 +130,7 @@ impl TransactAsset for Tuple {
 	}
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::transfer_asset(origin, what) {
+			match Tuple::withdraw_asset(what, who) {
 				Err(XcmError::AssetNotFound) => (),
 				r => return r,
 			}
@@ -139,7 +139,7 @@ impl TransactAsset for Tuple {
 	}
 	fn transfer_asset(what: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::transfer_asset(origin, what) {
+			match Tuple::transfer_asset(what, from, to) {
 				Err(XcmError::AssetNotFound) => (),
 				r => return r,
 			}
