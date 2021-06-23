@@ -76,7 +76,6 @@ use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::paras_inherent as parachains_paras_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::session_info as parachains_session_info;
-use runtime_parachains::disputes as parachains_disputes;
 use runtime_parachains::paras as parachains_paras;
 use runtime_parachains::dmp as parachains_dmp;
 use runtime_parachains::ump as parachains_ump;
@@ -221,7 +220,6 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event, Config},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
-		Disputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -581,6 +579,7 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ();
 	type RewardValidators = RewardValidators;
 }
 
@@ -778,15 +777,7 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_disputes::Config for Runtime {
-	type Event = Event;
-	type RewardValidators = ();
-	type PunishValidators = ();
-}
-
-impl parachains_paras_inherent::Config for Runtime {
-	type DisputesHandler = ();
-}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_scheduler::Config for Runtime {}
 

@@ -456,6 +456,7 @@ impl parachains_shared::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
@@ -465,9 +466,7 @@ impl parachains_disputes::Config for Runtime {
 	type PunishValidators = ();
 }
 
-impl parachains_paras_inherent::Config for Runtime {
-	type DisputesHandler = ParasDisputes;
-}
+impl parachains_paras_inherent::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
