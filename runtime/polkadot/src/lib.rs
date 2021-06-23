@@ -328,8 +328,8 @@ impl pallet_session::historical::Config for Runtime {
 }
 
 parameter_types! {
-	// no signed phase for now, just unsigned.
-	pub const SignedPhase: u32 = 0;
+	// phase durations. 1/4 of the last session for each.
+	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// signed config
