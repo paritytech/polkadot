@@ -76,7 +76,6 @@ where
 		.with_validator_index(from_validator)
 		.with_relay_parent(parent);
 	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
-		.await
 		.map_err(|e| Fatal::SpawnTask(e))?;
 	Ok(())
 }

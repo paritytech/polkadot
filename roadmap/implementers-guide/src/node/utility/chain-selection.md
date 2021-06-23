@@ -2,7 +2,7 @@
 
 This subsystem implements the necessary metadata for the implementation of the [chain selection](../../protocol-chain-selection.md) portion of the protocol.
 
-The subsystem wraps a database component which maintains a view of the unfinalized chain and records the properties of each block: whether the block is **viable**, whether it is **stagnant**, and whether it is **reverted**. It should also maintain an updated set of active leaves in accordance with this view, which should be cheap to query.
+The subsystem wraps a database component which maintains a view of the unfinalized chain and records the properties of each block: whether the block is **viable**, whether it is **stagnant**, and whether it is **reverted**. It should also maintain an updated set of active leaves in accordance with this view, which should be cheap to query. Leaves are ordered descending first by weight and then by block number.
 
 This subsystem needs to update its information on the unfinalized chain:
   * On every leaf-activated signal
@@ -14,7 +14,7 @@ Simple implementations of these updates do O(n_unfinalized_blocks) disk operatio
 
 ### `OverseerSignal::ActiveLeavesUpdate`
 
-Determine all new blocks implicitly referenced by any new active leaves and add them to the view. Update the set of viable leaves accordingly
+Determine all new blocks implicitly referenced by any new active leaves and add them to the view. Update the set of viable leaves accordingly. The weights of imported blocks can be determined by the [`ChainApiMessage::BlockWeight`](../../types/overseer-protocol.md#chain-api-message).
 
 ### `OverseerSignal::BlockFinalized`
 

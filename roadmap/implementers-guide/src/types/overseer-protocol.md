@@ -45,7 +45,36 @@ struct ActiveLeavesUpdate {
 }
 ```
 
-## Approval Voting
+## All Messages
+
+A message type tying together all message types that are used across Subsystems.
+
+```rust
+enum AllMessages {
+    CandidateValidation(CandidateValidationMessage),
+    CandidateBacking(CandidateBackingMessage),
+    ChainApi(ChainApiMessage),
+    CollatorProtocol(CollatorProtocolMessage),
+    StatementDistribution(StatementDistributionMessage),
+    AvailabilityDistribution(AvailabilityDistributionMessage),
+    AvailabilityRecovery(AvailabilityRecoveryMessage),
+    BitfieldDistribution(BitfieldDistributionMessage),
+    BitfieldSigning(BitfieldSigningMessage),
+    Provisioner(ProvisionerMessage),
+    RuntimeApi(RuntimeApiMessage),
+    AvailabilityStore(AvailabilityStoreMessage),
+    NetworkBridge(NetworkBridgeMessage),
+    CollationGeneration(CollationGenerationMessage),
+    ApprovalVoting(ApprovalVotingMessage),
+    ApprovalDistribution(ApprovalDistributionMessage),
+    GossipSupport(GossipSupportMessage),
+    DisputeCoordinator(DisputeCoordinatorMessage),
+    DisputeParticipation(DisputeParticipationMessage),
+    ChainSelection(ChainSelectionMessage),
+}
+```
+
+## Approval Voting Message
 
 Messages received by the approval voting subsystem.
 
@@ -127,9 +156,9 @@ enum ApprovalVotingMessage {
 }
 ```
 
-## Approval Distribution
+## Approval Distribution Message
 
-Messages received by the approval Distribution subsystem.
+Messages received by the approval distribution subsystem.
 
 ```rust
 /// Metadata about a block which is now live in the approval protocol.
@@ -165,10 +194,6 @@ enum ApprovalDistributionMessage {
     NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
-
-## All Messages
-
-> TODO (now)
 
 ## Availability Distribution Message
 
@@ -299,6 +324,11 @@ enum ChainApiMessage {
     /// Request the block header by hash.
     /// Returns `None` if a block with the given hash is not present in the db.
     BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
+    /// Get the cumulative weight of the given block, by hash.
+    /// If the block or weight is unknown, this returns `None`.
+    /// 
+    /// Weight is used for comparing blocks in a fork-choice rule.
+    BlockWeight(Hash, ResponseChannel<Result<Option<Weight>, Error>>),
     /// Get the finalized block hash by number.
     /// Returns `None` if a block with the given number is not present in the db.
     /// Note: the caller must ensure the block is finalized.
@@ -334,7 +364,7 @@ enum ChainSelectionMessage {
     /// Request the best leaf containing the given block in its ancestry. Return `None` if
     /// there is no such leaf.
     BestLeafContaining(Hash, ResponseChannel<Option<Hash>>),
-    
+
 }
 ```
 
@@ -402,6 +432,13 @@ enum DisputeCoordinatorMessage {
         /// - The validator index (within the session of the candidate) of the validator casting the vote.
         /// - The signature of the validator casting the vote.
         statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+
+        /// Inform the requester once we finished importing.
+        ///
+        /// This is, we either discarded the votes, just record them because we
+        /// casted our vote already or recovered availability for the candidate
+        /// successfully.
+        pending_confirmation: oneshot::Sender<()>,
     },
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
@@ -443,6 +480,36 @@ enum DisputeParticipationMessage {
         /// The number of validators in the session.
         n_validators: u32,
     }
+}
+```
+
+## Dispute Distribution Message
+
+Messages received by the [Dispute Distribution
+subsystem](../node/disputes/dispute-distribution.md). This subsystem is
+responsible of distributing explicit dispute statements.
+
+```rust
+enum DisputeDistributionMessage {
+
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  /// validators.
+  SendDispute((ValidVote, InvalidVote)),
+
+  /// Ask DisputeDistribution to get votes we don't know about.
+  /// Fetched votes will be reported via `DisputeCoordinatorMessage::ImportStatements`
+  FetchMissingVotes {
+    candidate_hash: CandidateHash,
+    session: SessionIndex,
+    known_valid_votes: Bitfield,
+    known_invalid_votes: Bitfield,
+    /// Optional validator to query from. `ValidatorIndex` as in the above
+    /// referenced session.
+    from_validator: Option<ValidatorIndex>,
+  }
+  /// Tell the subsystem that a candidate is not available. Dispute distribution
+  /// can punish peers distributing votes on unavailable hashes.
+  ReportCandidateUnavailable(CandidateHash),
 }
 ```
 
@@ -495,6 +562,13 @@ enum NetworkBridgeMessage {
         /// authority discovery has failed to resolve.
         failed: oneshot::Sender<usize>,
     },
+    /// Inform the distribution subsystems about the new
+    /// gossip network topology formed.
+    NewGossipTopology {
+        /// Ids of our neighbors in the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should.
+        our_neighbors: HashSet<AuthorityDiscoveryId>,
+    }
 }
 ```
 

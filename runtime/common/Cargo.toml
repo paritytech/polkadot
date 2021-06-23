@@ -56,7 +56,6 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "test-runn
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
