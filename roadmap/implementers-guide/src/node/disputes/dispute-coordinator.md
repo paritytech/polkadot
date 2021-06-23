@@ -2,7 +2,7 @@
 
 This is the central subsystem of the node-side components which participate in disputes. This subsystem wraps a database which tracks all statements observed by all validators over some window of sessions. Votes older than this session window are pruned.
 
-This subsystem will be the point which produce dispute votes, eiuther positive or negative, based on locally-observed validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from another node, this will trigger the [dispute participation](dispute-participation.md) subsystem to recover and validate the block and call back to this subsystem.
+This subsystem will be the point which produce dispute votes, either positive or negative, based on locally-observed validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from another node, this will trigger the [dispute participation](dispute-participation.md) subsystem to recover and validate the block and call back to this subsystem.
 
 ## Database Schema
 
@@ -85,7 +85,7 @@ Do nothing.
 * Load from underlying DB by querying `("candidate-votes", session, candidate_hash). If that does not exist, create fresh with the given candidate receipt.
 * If candidate votes is empty and the statements only contain dispute-specific votes, return.
 * Otherwise, if there is already an entry from the validator in the respective `valid` or `invalid` field of the `CandidateVotes`, return.
-* Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`. 
+* Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`.
 * Write the `CandidateVotes` to the underyling DB.
 * If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
 * If freshly disputed, load `"active-disputes"` and add the candidate hash and session index. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
@@ -104,8 +104,11 @@ Do nothing.
 ### On `DisputeCoordinatorMessage::IssueLocalStatement`
 
 * Deconstruct into parts `{ session_index, candidate_hash, candidate_receipt, is_valid }`.
-* Construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine. 
+* Construct a [`DisputeStatement`][DisputeStatement] based on `Valid` or `Invalid`, depending on the parameterization of this routine.
 * Sign the statement with each key in the `SessionInfo`'s list of parachain validation keys which is present in the keystore, except those whose indices appear in `voted_indices`. This will typically just be one key, but this does provide some future-proofing for situations where the same node may run on behalf multiple validators. At the time of writing, this is not a use-case we support as other subsystems do not invariably provide this guarantee.
+* Write statement to DB.
+* Send a `DisputeDistributionMessage::SendDispute` message to get the vote
+  distributed to other validators.
 
 ### On `DisputeCoordinatorMessage::DetermineUndisputedChain`
 

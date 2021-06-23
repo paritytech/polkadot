@@ -196,7 +196,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
-fn walk_backwards_to_target_block<Block, B>(
+pub(super) fn walk_backwards_to_target_block<Block, B>(
 	backend: &B,
 	target_number: NumberFor<Block>,
 	current_header: &Block::Header,
