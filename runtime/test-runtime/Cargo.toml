@@ -43,7 +43,6 @@ pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -114,7 +113,6 @@ std = [
 	"pallet-babe/std",
 	"babe-primitives/std",
 	"sp-session/std",
-	"pallet-randomness-collective-flip/std",
 	"runtime-common/std",
 	"log/std",
 	"frame-election-provider-support/std",

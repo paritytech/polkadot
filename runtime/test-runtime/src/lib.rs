@@ -161,8 +161,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 	type Extrinsic = UncheckedExtrinsic;
 }
 
-impl pallet_randomness_collective_flip::Config for Runtime {}
-
 parameter_types! {
 	pub storage EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
 	pub storage ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
@@ -504,7 +502,6 @@ construct_runtime! {
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 
 		// Must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config},

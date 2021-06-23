@@ -21,6 +21,7 @@
 pub mod chain_spec;
 mod grandpa_support;
 mod parachains_db;
+mod relay_chain_selection;
 
 #[cfg(feature = "full-node")]
 mod overseer;

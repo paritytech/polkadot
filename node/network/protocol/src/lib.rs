@@ -302,7 +302,7 @@ pub mod v1 {
 		UncheckedSignedFullStatement,
 	};
 
-	
+
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
