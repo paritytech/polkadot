@@ -1519,6 +1519,26 @@ fn retry_works() {
 		);
 		virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate.hash(),
+			test_state.session(),
+			vec![ValidatorIndex(3)],
+		).await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityDistribution(
+				AvailabilityDistributionMessage::FetchPoV {
+					relay_parent,
+					tx,
+					..
+				}
+				) if relay_parent == test_state.relay_parent => {
+				std::mem::drop(tx);
+			}
+		);
+
 		let statement = CandidateBackingMessage::Statement(
 			test_state.relay_parent,
 			signed_c.clone(),
@@ -1529,7 +1549,7 @@ fn retry_works() {
 			&mut virtual_overseer,
 			candidate.hash(),
 			test_state.session(),
-			vec![ValidatorIndex(3), ValidatorIndex(5)],
+			vec![ValidatorIndex(5)],
 		).await;
 
 		// Not deterministic which message comes first:
@@ -1547,36 +1567,21 @@ fn retry_works() {
 					assert_eq!(descriptor, candidate.descriptor);
 				}
 				// Subsystem requests PoV and requests validation.
-				// We cancel once more:
+				// Now we pass.
 				AllMessages::AvailabilityDistribution(
 					AvailabilityDistributionMessage::FetchPoV {
 						relay_parent,
 						tx,
 						..
 					}
-					) if relay_parent == test_state.relay_parent => {
-					std::mem::drop(tx);
+				) if relay_parent == test_state.relay_parent => {
+					tx.send(pov.clone()).unwrap();
 				}
 				msg => {
 					assert!(false, "Unexpected message: {:?}", msg);
 				}
 			}
 		}
-
-		// Subsystem requests PoV and requests validation.
-		// Now we pass.
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::AvailabilityDistribution(
-				AvailabilityDistributionMessage::FetchPoV {
-					relay_parent,
-					tx,
-					..
-				}
-			) if relay_parent == test_state.relay_parent => {
-				tx.send(pov.clone()).unwrap();
-			}
-		);
 
 		assert_matches!(
 			virtual_overseer.recv().await,
