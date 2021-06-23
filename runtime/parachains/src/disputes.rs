@@ -103,7 +103,7 @@ pub mod pallet {
 		configuration::Config +
 		session_info::Config
 	{
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type RewardValidators: RewardValidators;
 		type PunishValidators: PunishValidators;
 	}
@@ -153,7 +153,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
-	pub enum Event {
+	pub enum Event<T: Config> {
 		/// A dispute has been initiated. \[candidate hash, dispute location\]
 		DisputeInitiated(CandidateHash, DisputeLocation),
 		/// A dispute has concluded for or against a candidate.
@@ -162,6 +162,11 @@ pub mod pallet {
 		/// A dispute has timed out due to insufficient participation.
 		/// \[para_id, candidate hash\]
 		DisputeTimedOut(CandidateHash),
+		/// A dispute has concluded with supermajority against a candidate.
+		/// Block authors should no longer build on top of this head and should
+		/// instead revert to the block at the given height which is the last
+		/// known valid block in this chain.
+		Revert(T::BlockNumber),
 	}
 
 	#[pallet::hooks]
@@ -716,6 +721,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
+			Self::deposit_event(Event::Revert(revert_to));
 		}
 	}
 }
