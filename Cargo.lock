@@ -5259,6 +5259,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "serde",
  "sp-runtime",
@@ -11862,6 +11863,7 @@ version = "0.9.5"
 dependencies = [
  "derivative",
  "impl-trait-for-tuples",
+ "log",
  "parity-scale-codec",
 ]
 
