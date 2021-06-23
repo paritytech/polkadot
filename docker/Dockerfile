@@ -1,4 +1,4 @@
-FROM paritytech/ci-linux:production as builder
+FROM docker.io/paritytech/ci-linux:production as builder
 LABEL description="This is the build stage for Polkadot. Here we create the binary."
 
 ARG PROFILE=release
@@ -10,7 +10,7 @@ RUN cargo build --$PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM debian:buster-slim
+FROM docker.io/library/ubuntu:20.04
 LABEL description="This is the 2nd stage: a very small image where we copy the Polkadot binary."
 ARG PROFILE=release
 COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
