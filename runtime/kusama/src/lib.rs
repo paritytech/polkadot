@@ -1092,7 +1092,9 @@ impl parachains_disputes::Config for Runtime {
 	type PunishValidators = ();
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type DisputesHandler = ();
+}
 
 impl parachains_scheduler::Config for Runtime {}
 
@@ -1469,7 +1471,7 @@ construct_runtime! {
 		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 61,
-		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event} = 62,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,

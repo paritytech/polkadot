@@ -221,7 +221,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event, Config},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
-		Disputes: parachains_disputes::{Pallet, Call, Storage, Event},
+		Disputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -784,7 +784,9 @@ impl parachains_disputes::Config for Runtime {
 	type PunishValidators = ();
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type DisputesHandler = ();
+}
 
 impl parachains_scheduler::Config for Runtime {}
 

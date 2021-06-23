@@ -463,7 +463,9 @@ impl parachains_disputes::Config for Runtime {
 	type PunishValidators = ();
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type DisputesHandler = ParasDisputes;
+}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -543,7 +545,7 @@ construct_runtime! {
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event},
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
