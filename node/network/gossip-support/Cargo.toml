@@ -22,7 +22,6 @@ tracing = "0.1.26"
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

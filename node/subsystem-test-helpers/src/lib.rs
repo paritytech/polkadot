@@ -37,6 +37,9 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
+/// Generally useful mock data providers for unit tests.
+pub mod mock;
+
 enum SinkState<T> {
 	Empty {
 		read_waker: Option<Waker>,

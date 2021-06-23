@@ -130,10 +130,11 @@ mod tests {
 	use polkadot_node_primitives::BlockData;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_subsystem::messages::{AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest};
+	use test_helpers::mock::make_ferdie_keystore;
 
 	use super::*;
 	use crate::LOG_TARGET;
-	use crate::tests::mock::{make_session_info, make_ferdie_keystore};
+	use crate::tests::mock::{make_session_info};
 
 	#[test]
 	fn rejects_invalid_pov() {
