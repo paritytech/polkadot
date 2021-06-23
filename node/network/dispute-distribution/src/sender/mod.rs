@@ -106,7 +106,8 @@ impl DisputeSender
 					&self.active_sessions,
 					self.tx.clone(),
 					req,
-				).await?;
+				)
+				.await?;
 				vacant.insert(send_task);
 			}
 		}
@@ -258,7 +259,8 @@ impl DisputeSender
 			session_index,
 			valid_public.clone(),
 			signature.clone(),
-		).map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+		)
+		.map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
 
 		let (kind, invalid_index, signature) = invalid_vote;
 		let invalid_public = info
@@ -272,7 +274,8 @@ impl DisputeSender
 			session_index,
 			invalid_public.clone(),
 			signature.clone(),
-		).map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+		)
+		.map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
 
 		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
 		// but I don't want to enable a bypass for the below smart constructor and this code path
@@ -287,7 +290,8 @@ impl DisputeSender
 			*invalid_index,
 			votes.candidate_receipt,
 			&info.session_info
-		).ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+		)
+		.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
 
 		// Finally, get the party started:
 		self.start_sending(ctx, runtime, message).await
@@ -333,7 +337,8 @@ async fn get_active_disputes<Context: SubsystemContext>(ctx: &mut Context)
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::ActiveDisputes(tx)
-	)).await;
+	))
+	.await;
 	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
 }
 
@@ -350,6 +355,7 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 			candidate_hash,
 			tx
 		)
-	)).await;
+	))
+	.await;
 	rx.await.map_err(|_| NonFatal::AskCandidateVotesCanceled)
 }

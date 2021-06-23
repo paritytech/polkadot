@@ -175,7 +175,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		let msg = Message::receive(
 			&mut self.pending_imports,
 			&mut self.receiver
-		).await?;
+		)
+		.await?;
 
 		let raw = match msg {
 			// We need to clean up futures, to make sure responses are sent:
@@ -196,7 +197,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 					reputation_changes: vec![COST_NOT_A_VALIDATOR.into_base_rep()],
 					sent_feedback: None,
 				}
-			).map_err(|_| NonFatal::SendResponse(peer))?;				
+			)
+			.map_err(|_| NonFatal::SendResponse(peer))?;				
 
 			return Err(NonFatal::NotAValidator(peer).into())
 		}
@@ -204,7 +206,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
 			raw,
 			vec![COST_INVALID_REQUEST]
-		).map_err(NonFatal::FromRawRequest)?;
+		)
+		.map_err(NonFatal::FromRawRequest)?;
 
 		// Immediately drop requests from peers that already have requests in flight or have
 		// been banned recently (flood protection):
@@ -237,7 +240,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 			&mut self.sender,
 			payload.0.candidate_receipt.descriptor.relay_parent,
 			payload.0.session_index
-		).await?;
+		)
+		.await?;
 
 		let votes_result = payload.0.try_into_signed_votes(&info.session_info);
 
@@ -249,7 +253,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 						reputation_changes: vec![COST_INVALID_SIGNATURE],
 						sent_feedback: None,
 					}
-				).map_err(|_| NonFatal::SetPeerReputation(peer))?;
+				)
+				.map_err(|_| NonFatal::SetPeerReputation(peer))?;
 
 				return Err(From::from(NonFatal::InvalidSignature(peer)))
 			}
@@ -268,7 +273,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 					pending_confirmation,
 				}
 			)
-		).await;
+		)
+		.await;
 
 		self.pending_imports.push(peer, confirmation_rx, pending_response);
 		Ok(())

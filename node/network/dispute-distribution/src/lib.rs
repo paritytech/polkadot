@@ -128,7 +128,8 @@ impl DisputeDistributionSubsystem {
 				Message::Sender(result) => {
 					self.disputes_sender.on_task_message(
 						result.ok_or(Fatal::SenderExhausted)?
-					).await;
+					)
+					.await;
 				}
 			}
 		}
