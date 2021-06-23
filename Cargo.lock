@@ -6223,6 +6223,7 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-io",
+ "sp-maybe-compressed-blob",
  "sp-wasm-interface",
  "tempfile",
  "test-parachain-adder",
