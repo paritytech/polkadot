@@ -175,6 +175,11 @@ pub enum FromOverseer<M> {
 	},
 }
 
+impl<M> From<OverseerSignal> for FromOverseer<M> {
+	fn from(signal: OverseerSignal) -> Self {
+		FromOverseer::Signal(signal)
+	}
+}
 
 /// An error type that describes faults that may happen
 ///
@@ -192,8 +197,8 @@ pub enum SubsystemError {
 	#[error(transparent)]
 	QueueError(#[from] mpsc::SendError),
 
-	#[error(transparent)]
-	TaskSpawn(#[from] futures::task::SpawnError),
+	#[error("Failed to spawn a task: {0}")]
+	TaskSpawn(&'static str),
 
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
@@ -288,10 +293,10 @@ pub trait SubsystemContext: Send + Sized + 'static {
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+	fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
 
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
-	async fn spawn_blocking(
+	fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,

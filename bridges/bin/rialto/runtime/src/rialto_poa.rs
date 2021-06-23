@@ -130,7 +130,7 @@ impl InclusionProofVerifier for RialtoBlockchain {
 
 	fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<Self::Transaction> {
 		let is_transaction_finalized =
-			crate::BridgeRialtoPoA::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
+			crate::BridgeRialtoPoa::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
 
 		if !is_transaction_finalized {
 			return None;

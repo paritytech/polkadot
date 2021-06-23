@@ -878,7 +878,7 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::pallet_bridge_messages(RawEvent::MessageAccepted(TEST_LANE_ID, 1)),
+				event: TestEvent::Messages(RawEvent::MessageAccepted(TEST_LANE_ID, 1)),
 				topics: vec![],
 			}],
 		);
@@ -907,7 +907,7 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::pallet_bridge_messages(RawEvent::MessagesDelivered(TEST_LANE_ID, 1, 1)),
+				event: TestEvent::Messages(RawEvent::MessagesDelivered(TEST_LANE_ID, 1, 1)),
 				topics: vec![],
 			}],
 		);
@@ -987,7 +987,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::pallet_bridge_messages(RawEvent::ParameterUpdated(parameter)),
+					event: TestEvent::Messages(RawEvent::ParameterUpdated(parameter)),
 					topics: vec![],
 				}],
 			);
@@ -1011,7 +1011,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::pallet_bridge_messages(RawEvent::ParameterUpdated(parameter)),
+					event: TestEvent::Messages(RawEvent::ParameterUpdated(parameter)),
 					topics: vec![],
 				}],
 			);

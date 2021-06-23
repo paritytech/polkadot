@@ -175,27 +175,27 @@ fn testnet_genesis(
 	_enable_println: bool,
 ) -> GenesisConfig {
 	GenesisConfig {
-		frame_system: SystemConfig {
+		system: SystemConfig {
 			code: WASM_BINARY.expect("Millau development WASM not available").to_vec(),
 			changes_trie_config: Default::default(),
 		},
-		pallet_balances: BalancesConfig {
+		balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 40)).collect(),
 		},
-		pallet_aura: AuraConfig {
+		aura: AuraConfig {
 			authorities: Vec::new(),
 		},
-		pallet_grandpa: GrandpaConfig {
+		grandpa: GrandpaConfig {
 			authorities: Vec::new(),
 		},
-		pallet_sudo: SudoConfig { key: root_key },
-		pallet_session: SessionConfig {
+		sudo: SudoConfig { key: root_key },
+		session: SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.1.clone(), x.2.clone())))
 				.collect::<Vec<_>>(),
 		},
-		pallet_bridge_grandpa_Instance1: BridgeWestendGrandpaConfig {
+		bridge_westend_grandpa: BridgeWestendGrandpaConfig {
 			// for our deployments to avoid multiple same-nonces transactions:
 			// //Alice is already used to initialize Rialto<->Millau bridge
 			// => let's use //George to initialize Westend->Millau bridge

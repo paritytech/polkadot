@@ -224,7 +224,7 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 			.ok_or_else(|| SubsystemError::Context("Receiving end closed".to_owned()))
 	}
 
-	async fn spawn(
+	fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
@@ -233,7 +233,7 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
 		self.spawn.spawn_blocking(name, s);
@@ -362,8 +362,8 @@ mod tests {
 	use super::*;
 	use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	use futures::executor::block_on;
-	use polkadot_node_subsystem::messages::CandidateSelectionMessage;
 	use polkadot_primitives::v1::Hash;
+	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 
 	struct AlwaysSupportsParachains;
 	impl HeadSupportsParachains for AlwaysSupportsParachains {
@@ -374,7 +374,7 @@ mod tests {
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-		let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_selection(ForwardSubsystem(tx));
+		let all_subsystems = AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
 		let (overseer, mut handler) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
@@ -385,7 +385,7 @@ mod tests {
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg(CandidateSelectionMessage::Invalid(Default::default(), Default::default())));
-		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CandidateSelectionMessage::Invalid(_, _)));
+		block_on(handler.send_msg(CollatorProtocolMessage::CollateOn(Default::default())));
+		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CollatorProtocolMessage::CollateOn(_)));
 	}
 }
