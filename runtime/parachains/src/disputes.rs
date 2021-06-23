@@ -18,15 +18,14 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	SessionIndex, CandidateHash,
-	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
-	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
-	byzantine_threshold, supermajority_threshold
+	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
+	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
-	DispatchError, RuntimeDebug,
+	DispatchError, RuntimeDebug, SaturatedConversion,
 };
 use frame_support::{ensure, traits::Get, weights::Weight};
 use parity_scale_codec::{Encode, Decode};
@@ -722,6 +721,9 @@ impl<T: Config> Pallet<T> {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
 			Self::deposit_event(Event::Revert(revert_to));
+			frame_system::Pallet::<T>::deposit_log(
+				ConsensusLog::Revert(revert_to.saturated_into()).into(),
+			);
 		}
 	}
 }

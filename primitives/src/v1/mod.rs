@@ -1055,6 +1055,11 @@ pub enum ConsensusLog {
 	/// number in the current chain, inclusive.
 	#[codec(index = 3)]
 	ForceApprove(BlockNumber),
+	/// A dispute has concluded with supermajority against a candidate. Block authors
+	/// should no longer build on top of this head and should instead revert to the
+	/// block at the given height which is the last known valid block in this chain.
+	#[codec(index = 4)]
+	Revert(BlockNumber),
 }
 
 impl ConsensusLog {
