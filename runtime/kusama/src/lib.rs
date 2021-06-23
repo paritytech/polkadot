@@ -355,7 +355,9 @@ parameter_types! {
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
 	pub const SignedDepositBase: Balance = deposit(1, 0);
-	pub const SignedDepositByte: Balance = deposit(0, 1);
+	// A typical solution occupies 20kb. This formula is currently adjusted such that a typical
+	// solution will spend approximately equal amounts on the base and per-byte deposits.
+	pub const SignedDepositByte: Balance = deposit(1, 0) / (20 * 1024 * 1024);
 	pub const SignedRewardBase: Balance = deposit(1, 0) / 4;
 
 	// fallback: emergency phase.
