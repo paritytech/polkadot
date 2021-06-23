@@ -88,11 +88,11 @@ fn main() -> Result<()> {
 							para_id,
 						};
 						overseer_handler
-							.send_msg(CollationGenerationMessage::Initialize(config))
+							.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 							.await;
 
 						overseer_handler
-							.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+							.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 							.await;
 
 						Ok(full_node.task_manager)
