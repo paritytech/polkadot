@@ -189,7 +189,6 @@ impl FetchTask {
 			let (handle, kill) = oneshot::channel();
 
 			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
-				.await
 				.map_err(|e| Fatal::SpawnTask(e))?;
 
 			Ok(FetchTask {

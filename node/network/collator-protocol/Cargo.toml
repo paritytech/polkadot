@@ -23,7 +23,7 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 
 [dev-dependencies]
 log = "0.4.13"
-env_logger = "0.8.2"
+env_logger = "0.8.4"
 assert_matches = "1.4.0"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }

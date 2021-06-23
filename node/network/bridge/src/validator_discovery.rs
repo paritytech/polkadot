@@ -143,10 +143,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::network::{Network, NetworkAction};
+	use crate::network::Network;
 
-	use std::{borrow::Cow, pin::Pin, collections::HashMap};
-	use futures::{sink::Sink, stream::BoxStream};
+	use std::{borrow::Cow, collections::HashMap};
+	use futures::stream::BoxStream;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_node_network_protocol::request_response::request::Requests;
@@ -203,13 +203,24 @@ mod tests {
 			Ok(())
 		}
 
-		fn action_sink<'a>(&'a mut self)
-			-> Pin<Box<dyn Sink<NetworkAction, Error = polkadot_subsystem::SubsystemError> + Send + 'a>>
-		{
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
+		}
+
+		fn report_peer(&self, _: PeerId, _: crate::Rep) {
 			panic!()
 		}
 
-		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
+		fn disconnect_peer(&self, _: PeerId, _: PeerSet) {
+			panic!()
+		}
+
+		fn write_notification(
+				&self,
+				_: PeerId,
+				_: PeerSet,
+				_: Vec<u8>,
+		) {
+			panic!()
 		}
 	}
 
