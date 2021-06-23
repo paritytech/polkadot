@@ -48,7 +48,6 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
-use kvdb::KeyValueDB;
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -57,12 +56,13 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use crate::approval_db::{self, v1::Config as DatabaseConfig};
+use crate::approval_db;
+use crate::backend::{Backend, OverlayedBackend};
 use crate::persisted_entries::CandidateEntry;
 use crate::criteria::{AssignmentCriteria, OurAssignment};
 use crate::time::{slot_number_to_tick, Tick};
 
-use super::{LOG_TARGET, State, DBReader};
+use super::{LOG_TARGET, State};
 
 struct ImportedBlockInfo {
 	included_candidates: Vec<(CandidateHash, CandidateReceipt, CoreIndex, GroupIndex)>,
@@ -283,11 +283,10 @@ pub struct BlockImportedCandidates {
 ///   * and return information about all candidates imported under each block.
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
-pub(crate) async fn handle_new_head(
+pub(crate) async fn handle_new_head<'a>(
 	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl DBReader>,
-	db_writer: &dyn KeyValueDB,
-	db_config: DatabaseConfig,
+	state: &mut State,
+	db: &mut OverlayedBackend<'a, impl Backend>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -344,7 +343,7 @@ pub(crate) async fn handle_new_head(
 
 	let new_blocks = determine_new_blocks(
 		ctx.sender(),
-		|h| state.db.load_block_entry(h).map(|e| e.is_some()),
+		|h| db.load_block_entry(h).map(|e| e.is_some()),
 		head,
 		&header,
 		lower_bound_number,
@@ -487,7 +486,7 @@ pub(crate) async fn handle_new_head(
 				"Enacting force-approve",
 			);
 
-			approval_db::v1::force_approve(db_writer, db_config, block_hash, up_to)
+			crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		}
 
@@ -498,14 +497,13 @@ pub(crate) async fn handle_new_head(
 			"Writing BlockEntry",
 		);
 
-		let candidate_entries = approval_db::v1::add_block_entry(
-			db_writer,
-			&db_config,
-			block_entry,
+		let candidate_entries = crate::ops::add_block_entry(
+			db,
+			block_entry.into(),
 			n_validators,
 			|candidate_hash| {
 				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
-					.map(|(_, receipt, core, backing_group)| approval_db::v1::NewCandidateInfo {
+					.map(|(_, receipt, core, backing_group)| super::ops::NewCandidateInfo {
 						candidate: receipt.clone(),
 						backing_group: *backing_group,
 						our_assignment: assignments.get(core).map(|a| a.clone().into()),
@@ -549,6 +547,8 @@ pub(crate) async fn handle_new_head(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::backend::BackendWriteOp;
+	use crate::ops::StoredBlockRange;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
@@ -564,7 +564,10 @@ mod tests {
 	use merlin::Transcript;
 	use std::{pin::Pin, sync::Arc};
 
-	use crate::{APPROVAL_SESSIONS, criteria, BlockEntry};
+	use crate::{
+		APPROVAL_SESSIONS, criteria, BlockEntry,
+		approval_db::v1::Config as DatabaseConfig,
+	};
 
 	const DATA_COL: u32 = 0;
 	const NUM_COLUMNS: u32 = 1;
@@ -575,11 +578,13 @@ mod tests {
 
 	#[derive(Default)]
 	struct TestDB {
+		stored_blocks: Option<StoredBlockRange>,
+		blocks_at_height: HashMap<BlockNumber, Vec<Hash>>,
 		block_entries: HashMap<Hash, BlockEntry>,
 		candidate_entries: HashMap<CandidateHash, CandidateEntry>,
 	}
 
-	impl DBReader for TestDB {
+	impl Backend for TestDB {
 		fn load_block_entry(
 			&self,
 			block_hash: &Hash,
@@ -601,6 +606,21 @@ mod tests {
 
 			Ok(hashes)
 		}
+
+		fn load_blocks_at_height(&self, block_height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
+			let v = self.blocks_at_height.get(block_height).map(|v| v.clone()).unwrap_or_default();
+			Ok(v)
+		}
+
+		fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
+			Ok(self.stored_blocks.clone())
+		}
+
+		fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+			where I: IntoIterator<Item = BackendWriteOp>
+		{
+			Ok(())
+		}
 	}
 
 	#[derive(Default)]
@@ -618,20 +638,17 @@ mod tests {
 		}
 	}
 
-	fn blank_state() -> State<TestDB> {
+	fn blank_state() -> State {
 		State {
 			session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
-			db: TestDB::default(),
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 		}
 	}
 
-	fn single_session_state(index: SessionIndex, info: SessionInfo)
-		-> State<TestDB>
-	{
+	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
 			session_window: RollingSessionWindow::with_session_info(
 				APPROVAL_SESSIONS,
@@ -1145,6 +1162,7 @@ mod tests {
 
 	#[test]
 	fn insta_approval_works() {
+		let mut db = TestDB::default();
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
 
@@ -1204,7 +1222,7 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let mut state = single_session_state(session, session_info);
-		state.db.block_entries.insert(
+		db.block_entries.insert(
 			parent_hash.clone(),
 			crate::approval_db::v1::BlockEntry {
 				block_hash: parent_hash.clone(),
@@ -1223,11 +1241,11 @@ mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
+				let mut overlay_db = OverlayedBackend::new(&db_writer);
 				let result = handle_new_head(
 					&mut ctx,
 					&mut state,
-					&db_writer,
-					TEST_CONFIG,
+					&mut overlay_db,
 					hash,
 					&Some(1),
 				).await.unwrap();
@@ -1239,7 +1257,7 @@ mod tests {
 				assert_eq!(candidates[1].1.approvals().len(), 6);
 				// the first candidate should be insta-approved
 				// the second should not
-				let entry: BlockEntry = crate::approval_db::v1::load_block_entry(
+				let entry: BlockEntry = crate::ops::load_block_entry(
 					&db_writer,
 					&TEST_CONFIG,
 					&hash,

@@ -76,13 +76,13 @@ impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
 /// particular block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ApprovalEntry {
-	tranches: Vec<TrancheEntry>,
-	backing_group: GroupIndex,
-	our_assignment: Option<OurAssignment>,
-	our_approval_sig: Option<ValidatorSignature>,
+	pub(super) tranches: Vec<TrancheEntry>,
+	pub(super) backing_group: GroupIndex,
+	pub(super) our_assignment: Option<OurAssignment>,
+	pub(super) our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	assignments: BitVec<BitOrderLsb0, u8>,
-	approved: bool,
+	pub(super) assignments: BitVec<BitOrderLsb0, u8>,
+	pub(super) approved: bool,
 }
 
 impl ApprovalEntry {
@@ -244,12 +244,12 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 /// Metadata regarding approval of a particular candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CandidateEntry {
-	candidate: CandidateReceipt,
-	session: SessionIndex,
+	pub(super) candidate: CandidateReceipt,
+	pub(super) session: SessionIndex,
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
-	block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	approvals: BitVec<BitOrderLsb0, u8>,
+	pub(super) block_assignments: BTreeMap<Hash, ApprovalEntry>,
+	pub(super) approvals: BitVec<BitOrderLsb0, u8>,
 }
 
 impl CandidateEntry {
@@ -328,8 +328,8 @@ pub struct BlockEntry {
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	approved_bitfield: BitVec<BitOrderLsb0, u8>,
-	children: Vec<Hash>,
+	pub(super) approved_bitfield: BitVec<BitOrderLsb0, u8>,
+	pub(super) children: Vec<Hash>,
 }
 
 impl BlockEntry {
