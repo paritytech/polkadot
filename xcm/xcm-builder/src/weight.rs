@@ -27,9 +27,9 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
 			Xcm::Transact { call, .. } => {
-				call.ensure_decoded()?.get_dispatch_info().weight + T::get()
+				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get())
 			}
-			Xcm::RelayedFrom { ref mut message, .. } => T::get() + Self::shallow(message.as_mut())?,
+			Xcm::RelayedFrom { ref mut message, .. } => T::get().saturating_add(Self::shallow(message.as_mut())?),
 			Xcm::WithdrawAsset { effects, .. }
 			| Xcm::ReserveAssetDeposit { effects, .. }
 			| Xcm::TeleportAsset { effects, .. }
@@ -46,7 +46,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 						},
 						_ => T::get(),
 					}).sum();
-				T::get() + inner
+				T::get().saturating_add(inner)
 			}
 			_ => T::get(),
 		})
@@ -63,7 +63,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 					match effect {
 						Order::BuyExecution { xcm, .. } => {
 							for message in xcm.iter_mut() {
-								extra += Self::shallow(message)? + Self::deep(message)?;
+								extra.saturating_accrue(Self::shallow(message)?.saturating_add(Self::deep(message)?));
 							}
 						},
 						_ => {}

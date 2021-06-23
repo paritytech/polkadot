@@ -93,7 +93,7 @@ impl ApprovalEntry {
 
 	// Note that our assignment is triggered. No-op if already triggered.
 	pub fn trigger_our_assignment(&mut self, tick_now: Tick)
-		-> Option<(AssignmentCert, ValidatorIndex)>
+		-> Option<(AssignmentCert, ValidatorIndex, DelayTranche)>
 	{
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() { return None }
@@ -105,7 +105,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.cert().clone(), a.validator_index())
+			(a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.4"
+version = "0.9.5"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -67,3 +67,5 @@ try-runtime = [ "service/try-runtime" ]
 kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
+
+malus = [ "full-node", "service/malus" ]

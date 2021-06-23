@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal,
 };
 use polkadot_node_jaeger as jaeger;
-use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
+use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::{Stream, SelectAll}};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
@@ -48,14 +48,12 @@ use std::{
 	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
 	time::Duration, fmt, sync::Arc,
 };
-use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
-mod error_handling;
-
+pub use determine_new_blocks::determine_new_blocks;
 /// Error classification.
 pub use error_handling::{Fault, unwrap_non_fatal};
 
@@ -71,6 +69,14 @@ pub mod reexports {
 
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+/// A rolling session window cache.
+pub mod rolling_session_window;
+
+mod determine_new_blocks;
+mod error_handling;
+
+#[cfg(test)]
+mod tests;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -217,30 +223,32 @@ pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorInde
 	})
 }
 
-/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
-pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+/// Choose a random subset of `min` elements.
+/// But always include `is_priority` elements.
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, mut v: Vec<T>, min: usize) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
 
-	let len = max_of_min_and_sqrt_len(v.len(), min);
-	v.truncate(len);
+	// partition the elements into priority first
+	// the returned index is when non_priority elements start
+	let i = itertools::partition(&mut v, is_priority);
+
+	if i >= min || v.len() <= i {
+		v.truncate(i);
+		return v;
+	}
+
+	let mut rng = rand::thread_rng();
+	v[i..].shuffle(&mut rng);
+
+	v.truncate(min);
 	v
 }
 
-/// Returns bool with a probability of `max(len.sqrt(), min) / len`
-/// being true.
-pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
+/// Returns a bool with a probability of `a / b` of being true.
+pub fn gen_ratio(a: usize, b: usize) -> bool {
 	use rand::Rng as _;
 	let mut rng = rand::thread_rng();
-	let threshold = max_of_min_and_sqrt_len(len, min);
-	let n = rng.gen_range(0..len);
-	n < threshold
-}
-
-fn max_of_min_and_sqrt_len(len: usize, min: usize) -> usize {
-	let len_sqrt = (len as f64).sqrt() as usize;
-	std::cmp::max(min, len_sqrt)
+	rng.gen_ratio(a as u32, b as u32)
 }
 
 /// Local validator information
@@ -514,7 +522,7 @@ pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<ToJob>>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
+	outgoing_msgs: SelectAll<mpsc::Receiver<FromJobCommand>>,
 }
 
 impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
@@ -523,7 +531,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 		Self {
 			spawner,
 			running: HashMap::new(),
-			outgoing_msgs: StreamUnordered::new(),
+			outgoing_msgs: SelectAll::new(),
 		}
 	}
 
@@ -599,17 +607,10 @@ where
 	type Item = FromJobCommand;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-		loop {
-			match Pin::new(&mut self.outgoing_msgs).poll_next(cx) {
-				Poll::Pending => return Poll::Pending,
-				Poll::Ready(r) => match r.map(|v| v.0) {
-					Some(StreamYield::Item(msg)) => return Poll::Ready(Some(msg)),
-					// If a job is finished, rerun the loop
-					Some(StreamYield::Finished(_)) => continue,
-					// Don't end if there are no jobs running
-					None => return Poll::Pending,
-				}
-			}
+		match futures::ready!(Pin::new(&mut self.outgoing_msgs).poll_next(cx)) {
+			Some(msg) => Poll::Ready(Some(msg)),
+			// Don't end if there are no jobs running
+			None => Poll::Pending,
 		}
 	}
 }
@@ -725,9 +726,9 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 				}
 				outgoing = jobs.next() => {
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
 						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+							=> ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {
@@ -857,252 +858,5 @@ impl futures::Stream for Metronome
 			}
 		}
 		Poll::Pending
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use executor::block_on;
-	use thiserror::Error;
-	use polkadot_node_jaeger as jaeger;
-	use polkadot_node_subsystem::{
-		messages::{AllMessages, CollatorProtocolMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-		SpawnedSubsystem, ActivatedLeaf, LeafStatus,
-	};
-	use assert_matches::assert_matches;
-	use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
-	use polkadot_primitives::v1::Hash;
-	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-	use std::{pin::Pin, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Duration};
-
-	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
-	// you can leave the subsystem itself to the job manager.
-
-	// for purposes of demonstration, we're going to whip up a fake subsystem.
-	// this will 'select' candidates which are pre-loaded in the job
-
-	// job structs are constructed within JobTrait::run
-	// most will want to retain the sender and receiver, as well as whatever other data they like
-	struct FakeCollatorProtocolJob {
-		receiver: mpsc::Receiver<CollatorProtocolMessage>,
-	}
-
-	// Error will mostly be a wrapper to make the try operator more convenient;
-	// deriving From implementations for most variants is recommended.
-	// It must implement Debug for logging.
-	#[derive(Debug, Error)]
-	enum Error {
-		#[error(transparent)]
-		Sending(#[from]mpsc::SendError),
-	}
-
-	impl JobTrait for FakeCollatorProtocolJob {
-		type ToJob = CollatorProtocolMessage;
-		type Error = Error;
-		type RunArgs = bool;
-		type Metrics = ();
-
-		const NAME: &'static str = "FakeCollatorProtocolJob";
-
-		/// Run a job for the parent block indicated
-		//
-		// this function is in charge of creating and executing the job's main loop
-		fn run<S: SubsystemSender>(
-			_: Hash,
-			_: Arc<jaeger::Span>,
-			run_args: Self::RunArgs,
-			_metrics: Self::Metrics,
-			receiver: mpsc::Receiver<CollatorProtocolMessage>,
-			mut sender: JobSender<S>,
-		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-			async move {
-				let job = FakeCollatorProtocolJob { receiver };
-
-				if run_args {
-					sender.send_message(CollatorProtocolMessage::Invalid(
-						Default::default(),
-						Default::default(),
-					).into()).await;
-				}
-
-				// it isn't necessary to break run_loop into its own function,
-				// but it's convenient to separate the concerns in this way
-				job.run_loop().await
-			}
-			.boxed()
-		}
-	}
-
-	impl FakeCollatorProtocolJob {
-		async fn run_loop(mut self) -> Result<(), Error> {
-			loop {
-				match self.receiver.next().await {
-					Some(_csm) => {
-						unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
-					}
-					None => break,
-				}
-			}
-
-			Ok(())
-		}
-	}
-
-	// with the job defined, it's straightforward to get a subsystem implementation.
-	type FakeCollatorProtocolSubsystem<Spawner> =
-		JobSubsystem<FakeCollatorProtocolJob, Spawner>;
-
-	// this type lets us pretend to be the overseer
-	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
-
-	fn test_harness<T: Future<Output = ()>>(
-		run_args: bool,
-		test: impl FnOnce(OverseerHandle) -> T,
-	) {
-		let _ = env_logger::builder()
-			.is_test(true)
-			.filter(
-				None,
-				log::LevelFilter::Trace,
-			)
-			.try_init();
-
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, overseer_handle) = make_subsystem_context(pool.clone());
-
-		let subsystem = FakeCollatorProtocolSubsystem::new(
-			pool,
-			run_args,
-			(),
-		).run(context);
-		let test_future = test(overseer_handle);
-
-		futures::pin_mut!(subsystem, test_future);
-
-		executor::block_on(async move {
-			future::join(subsystem, test_future)
-				.timeout(Duration::from_secs(2))
-				.await
-				.expect("test timed out instead of completing")
-		});
-	}
-
-	#[test]
-	fn starting_and_stopping_job_works() {
-		let relay_parent: Hash = [0; 32].into();
-
-		test_harness(true, |mut overseer_handle| async move {
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash: relay_parent,
-						number: 1,
-						status: LeafStatus::Fresh,
-						span: Arc::new(jaeger::Span::Disabled),
-					}),
-				)))
-				.await;
-			assert_matches!(
-				overseer_handle.recv().await,
-				AllMessages::CollatorProtocol(_)
-			);
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::stop_work(relay_parent),
-				)))
-				.await;
-
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-		});
-	}
-
-	#[test]
-	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
-		let relay_parent = Hash::repeat_byte(0x01);
-
-		test_harness(true, |mut overseer_handle| async move {
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash: relay_parent,
-						number: 1,
-						status: LeafStatus::Fresh,
-						span: Arc::new(jaeger::Span::Disabled),
-					}),
-				)))
-				.await;
-
-			// send to a non running job
-			overseer_handle
-				.send(FromOverseer::Communication {
-					msg: Default::default(),
-				})
-				.await;
-
-			// the subsystem is still alive
-			assert_matches!(
-				overseer_handle.recv().await,
-				AllMessages::CollatorProtocol(_)
-			);
-
-			overseer_handle
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
-		});
-	}
-
-	#[test]
-	fn test_subsystem_impl_and_name_derivation() {
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, _) = make_subsystem_context::<CollatorProtocolMessage, _>(pool.clone());
-
-		let SpawnedSubsystem { name, .. } =
-			FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
-		assert_eq!(name, "FakeCollatorProtocol");
-	}
-
-
-	#[test]
-	fn tick_tack_metronome() {
-		let n = Arc::new(AtomicUsize::default());
-
-		let (tick, mut block) = mpsc::unbounded();
-
-		let metronome = {
-			let n = n.clone();
-			let stream = Metronome::new(Duration::from_millis(137_u64));
-			stream.for_each(move |_res| {
-				let _ = n.fetch_add(1, Ordering::Relaxed);
-				let mut tick = tick.clone();
-				async move {
-					tick.send(()).await.expect("Test helper channel works. qed");
-				}
-			}).fuse()
-		};
-
-		let f2 = async move {
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 1_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 2_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 3_usize);
-			block.next().await;
-			assert_eq!(n.load(Ordering::Relaxed), 4_usize);
-		}.fuse();
-
-		futures::pin_mut!(f2);
-		futures::pin_mut!(metronome);
-
-		block_on(async move {
-			// futures::join!(metronome, f2)
-			futures::select!(
-				_ = metronome => unreachable!("Metronome never stops. qed"),
-				_ = f2 => (),
-			)
-		});
 	}
 }

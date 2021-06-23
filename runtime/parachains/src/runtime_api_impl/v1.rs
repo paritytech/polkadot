@@ -21,11 +21,11 @@ use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_runtime::traits::One;
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState,
-	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
-	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -274,14 +274,6 @@ pub fn validation_code<T: initializer::Config>(
 	)
 }
 
-/// Implementation for the `historical_validation_code` function of the runtime API.
-pub fn historical_validation_code<T: initializer::Config>(
-	para_id: ParaId,
-	context_height: T::BlockNumber,
-) -> Option<ValidationCode> {
-	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
-}
-
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
 pub fn candidate_pending_availability<T: initializer::Config>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
@@ -333,7 +325,7 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 
 /// Implementation for the `validation_code_by_hash` function of the runtime API.
 pub fn validation_code_by_hash<T: paras::Config>(
-	hash: Hash,
+	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
 	<paras::Module<T>>::code_by_hash(hash)
 }

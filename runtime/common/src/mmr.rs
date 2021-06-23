@@ -37,7 +37,7 @@ impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for Dep
 		let digest = sp_runtime::generic::DigestItem::Consensus(
 			beefy_primitives::BEEFY_ENGINE_ID,
 			parity_scale_codec::Encode::encode(
-				&beefy_primitives::ConsensusLog::<<T as pallet_beefy::Config>::AuthorityId>::MmrRoot(*root)
+				&beefy_primitives::ConsensusLog::<<T as pallet_beefy::Config>::BeefyId>::MmrRoot(*root)
 			),
 		);
 		<frame_system::Pallet<T>>::deposit_log(digest);
@@ -46,8 +46,8 @@ impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for Dep
 
 /// Convert BEEFY secp256k1 public keys into uncompressed form
 pub struct UncompressBeefyEcdsaKeys;
-impl Convert<beefy_primitives::ecdsa::AuthorityId, Vec<u8>> for UncompressBeefyEcdsaKeys {
-	fn convert(a: beefy_primitives::ecdsa::AuthorityId) -> Vec<u8> {
+impl Convert<beefy_primitives::crypto::AuthorityId, Vec<u8>> for UncompressBeefyEcdsaKeys {
+	fn convert(a: beefy_primitives::crypto::AuthorityId) -> Vec<u8> {
 		use sp_core::crypto::Public;
 		let compressed_key = a.as_slice();
 		// TODO [ToDr] Temporary workaround until we have a better way to get uncompressed keys.
@@ -122,7 +122,6 @@ impl<T: Config + paras::Config> ParachainHeadsProvider for paras::Pallet<T> {
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
 	use super::*;
 
 	#[pallet::pallet]
@@ -138,7 +137,7 @@ pub mod pallet {
 		/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
 		/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
 		/// is storing them compressed (33 bytes) for efficiency reasons.
-		type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::AuthorityId, Vec<u8>>;
+		type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::BeefyId, Vec<u8>>;
 
 		/// Retrieve a list of current parachain heads.
 		///
@@ -158,12 +157,6 @@ pub mod pallet {
 		BeefyNextAuthoritySet<MerkleRootOf<T>>,
 		ValueQuery,
 	>;
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
 }
 
 impl<T: Config> LeafDataProvider for Pallet<T> where
@@ -186,7 +179,7 @@ impl<T: Config> LeafDataProvider for Pallet<T> where
 
 impl<T: Config> Pallet<T> where
 	MerkleRootOf<T>: From<H256>,
-	<T as pallet_beefy::Config>::AuthorityId:
+	<T as pallet_beefy::Config>::BeefyId:
 {
 	/// Returns latest root hash of a merkle tree constructed from all registered parachain headers.
 	///
