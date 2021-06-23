@@ -52,6 +52,9 @@ mod error;
 use error::{Fatal, FatalResult};
 use error::{Result, log_error};
 
+#[cfg(test)]
+mod tests;
+
 // mod metrics;
 //// Prometheus `Metrics` for dispute distribution.
 // pub use metrics::Metrics;
@@ -108,7 +111,6 @@ impl DisputeDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
 	{
-
 		loop {
 			let message = Message::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
