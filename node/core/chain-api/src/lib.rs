@@ -394,6 +394,7 @@ mod tests {
 				finalized_hash,
 				finalized_number,
 				number_leaves: 0,
+				finalized_state: None,
 			}
 		}
 		fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {

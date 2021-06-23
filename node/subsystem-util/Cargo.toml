@@ -14,7 +14,6 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.7"
 rand = "0.8.3"
-streamunordered = "0.5.1"
 thiserror = "1.0.23"
 tracing = "0.1.26"
 lru = "0.6.5"

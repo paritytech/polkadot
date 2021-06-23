@@ -887,7 +887,7 @@ where
 		shared.clone(),
 	).remote_handle();
 
-	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
+	ctx.spawn("network-bridge-network-worker", Box::pin(remote))?;
 
 	ctx.send_message(AllMessages::StatementDistribution(
 		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
