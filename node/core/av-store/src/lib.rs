@@ -647,7 +647,8 @@ async fn process_block_activated(
 	).await?;
 
 	let mut tx = DBTransaction::new();
-	for (hash, header) in new_blocks {
+	// determine_new_blocks is descending in block height
+	for (hash, header) in new_blocks.into_iter().rev() {
 		process_new_head(
 			ctx,
 			&subsystem.db,
