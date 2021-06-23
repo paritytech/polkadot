@@ -333,7 +333,7 @@ parameter_types! {
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
 	// signed config
-	pub const SignedMaxSubmissions: u32 = 0;
+	pub const SignedMaxSubmissions: u32 = 5;
 	pub const SignedRewardBase: Balance = 1 * DOLLARS;
 	pub const SignedDepositBase: Balance = 1 * DOLLARS;
 	pub const SignedDepositByte: Balance = 1 * CENTS;
