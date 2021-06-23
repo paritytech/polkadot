@@ -1747,6 +1747,9 @@ mod tests {
 	#[test]
 	fn test_revert_and_freeze() {
 		new_test_ext(Default::default()).execute_with(|| {
+			// events are ignored for genesis block
+			System::set_block_number(1);
+
 			Frozen::<Test>::put(Some(0));
 			assert_noop!(
 				{
@@ -1758,7 +1761,10 @@ mod tests {
 
 			Frozen::<Test>::kill();
 			Pallet::<Test>::revert_and_freeze(0);
+
 			assert_eq!(Frozen::<Test>::get(), Some(0));
+			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(0).into());
+			System::assert_has_event(Event::Revert(0).into());
 		})
 	}
 
