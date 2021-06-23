@@ -142,6 +142,7 @@ impl<T: Config<I>, I: Instance> MessageDispatch<T::MessageId> for Pallet<T, I> {
 		let expected_version = <T as frame_system::Config>::Version::get().spec_version;
 		if message.spec_version != expected_version {
 			log::trace!(
+				target: "runtime::bridge-dispatch",
 				"Message {:?}/{:?}: spec_version mismatch. Expected {:?}, got {:?}",
 				bridge,
 				id,
