@@ -1,4 +1,4 @@
-# testing
+# Testing
 
 Automated testing is an essential tool to assure correctness.
 
