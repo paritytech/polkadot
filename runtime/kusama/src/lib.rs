@@ -354,9 +354,9 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
-	pub const SignedRewardBase: Balance = 100 * CENTS;
 	pub const SignedDepositBase: Balance = deposit(1, 0);
 	pub const SignedDepositByte: Balance = deposit(0, 1);
+	pub const SignedRewardBase: Balance = deposit(1, 0) / 4;
 
 	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
