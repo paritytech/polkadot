@@ -905,7 +905,7 @@ mod tests {
 			};
 			let after_early_end = match now.checked_sub(early_end) {
 				Some(after_early_end) => after_early_end,
-				None => return AuctionStatus::OpeningPeriod,
+				None => return AuctionStatus::StartingPeriod,
 			};
 
 			let ending_period = ending_period();
@@ -1025,7 +1025,7 @@ mod tests {
 			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
 			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_period: 0, last_period: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
-			assert_eq!(TestAuctioneer::auction_status(4), AuctionStatus::<u64>::OpeningPeriod);
+			assert_eq!(TestAuctioneer::auction_status(4), AuctionStatus::<u64>::StartingPeriod);
 			assert_eq!(TestAuctioneer::auction_status(5), AuctionStatus::<u64>::EndingPeriod(0, 0));
 			assert_eq!(TestAuctioneer::auction_status(9), AuctionStatus::<u64>::EndingPeriod(4, 0));
 			assert_eq!(TestAuctioneer::auction_status(11), AuctionStatus::<u64>::NotStarted);

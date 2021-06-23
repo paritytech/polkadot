@@ -142,8 +142,8 @@ pub trait Leaser {
 pub enum AuctionStatus<BlockNumber> {
 	/// An auction has not started yet.
 	NotStarted,
-	/// We are in the opening period of the auction, collecting initial bids.
-	OpeningPeriod,
+	/// We are in the starting period of the auction, collecting initial bids.
+	StartingPeriod,
 	/// We are in the ending period of the auction, where we are taking snapshots of the winning
 	/// bids. This state supports "sampling", where we may only take a snapshot every N blocks.
 	/// In this case, the first number is the current sample number, and the second number
@@ -160,9 +160,9 @@ impl<BlockNumber> AuctionStatus<BlockNumber> {
 	pub fn is_in_progress(&self) -> bool {
 		!matches!(self, Self::NotStarted)
 	}
-	/// Return true if the auction is in the opening period.
-	pub fn is_opening(&self) -> bool {
-		matches!(self, Self::OpeningPeriod)
+	/// Return true if the auction is in the starting period.
+	pub fn is_starting(&self) -> bool {
+		matches!(self, Self::StartingPeriod)
 	}
 	/// Returns `Some(sample, sub_sample)` if the auction is in the `EndingPeriod`,
 	/// otherwise returns `None`.

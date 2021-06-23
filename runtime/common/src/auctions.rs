@@ -313,7 +313,7 @@ impl<T: Config> Auctioneer for Pallet<T> {
 
 		let after_early_end = match now.checked_sub(&early_end) {
 			Some(after_early_end) => after_early_end,
-			None => return AuctionStatus::OpeningPeriod,
+			None => return AuctionStatus::StartingPeriod,
 		};
 
 		let ending_period = T::EndingPeriod::get();
@@ -402,12 +402,12 @@ impl<T: Config> Pallet<T> {
 		// Assume it's actually an auction (this should never fail because of above).
 		let (first_lease_period, _) = AuctionInfo::<T>::get().ok_or(Error::<T>::NotAuction)?;
 
-		// Get the auction status and the current sample block. For the opening period, the sample
+		// Get the auction status and the current sample block. For the starting period, the sample
 		// block is zero.
 		let auction_status = Self::auction_status(frame_system::Pallet::<T>::block_number());
 		let offset = match auction_status {
 			AuctionStatus::NotStarted => return Err(Error::<T>::AuctionEnded.into()),
-			AuctionStatus::OpeningPeriod => Zero::zero(),
+			AuctionStatus::StartingPeriod => Zero::zero(),
 			AuctionStatus::EndingPeriod(o, _) => o,
 			AuctionStatus::VrfDelay(_) => return Err(Error::<T>::AuctionEnded.into()),
 		};
@@ -456,7 +456,7 @@ impl<T: Config> Pallet<T> {
 			let mut outgoing_winner = Some((bidder.clone(), para, amount));
 			swap(&mut current_winning[range_index], &mut outgoing_winner);
 			if let Some((who, para, _amount)) = outgoing_winner {
-				if auction_status.is_opening() && current_winning.iter()
+				if auction_status.is_starting() && current_winning.iter()
 					.filter_map(Option::as_ref)
 					.all(|&(ref other, other_para, _)| other != &who || other_para != para)
 				{
@@ -847,7 +847,7 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			assert_eq!(AuctionCounter::<Test>::get(), 1);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 		});
 	}
 
@@ -908,19 +908,19 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
 
 			assert_eq!(AuctionCounter::<Test>::get(), 1);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(2);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(3);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(4);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(5);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(6);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(0, 0));
@@ -964,7 +964,7 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 			run_to_block(8);
 			// Auction has not yet ended.
 			assert_eq!(leases(), vec![]);
@@ -1270,14 +1270,14 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
 			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 3, 4, 20));
 
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
 			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
 			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(10);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(0, 0));
@@ -1323,14 +1323,14 @@ mod tests {
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 11, 14, 10));
 			assert_ok!(Auctions::bid(Origin::signed(2), para_2, 1, 13, 14, 20));
 
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
 			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
 			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(10);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(0, 0));
@@ -1378,7 +1378,7 @@ mod tests {
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
 
 			run_to_block(9);
-			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::OpeningPeriod);
+			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::StartingPeriod);
 
 			run_to_block(10);
 			assert_eq!(Auctions::auction_status(System::block_number()), AuctionStatus::<u32>::EndingPeriod(0, 0));
