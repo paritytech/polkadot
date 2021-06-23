@@ -49,7 +49,9 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: disputes::Config + inclusion::Config + scheduler::Config {}
+pub trait Config: inclusion::Config + scheduler::Config {
+	type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
+}
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
@@ -99,6 +101,8 @@ decl_module! {
 			origin,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
+			use disputes::DisputesHandler;
+
 			let ParachainsInherentData {
 				bitfields: signed_bitfields,
 				backed_candidates,
@@ -119,8 +123,8 @@ decl_module! {
 			// Handle disputes logic.
 			let current_session = <shared::Module<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = <disputes::Pallet<T>>::provide_multi_dispute_data(disputes)?;
-				if <disputes::Pallet<T>>::is_frozen() {
+				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::set(Some(()));
 					return Ok(Some(
@@ -158,7 +162,7 @@ decl_module! {
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
 			for (_, candidate_hash) in &freed_concluded {
-				<disputes::Pallet<T>>::note_included(current_session, *candidate_hash, now);
+				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
 			// Handle timeouts for any availability core work.
@@ -189,7 +193,7 @@ decl_module! {
 			// Refuse to back any candidates that are disputed or invalid.
 			for candidate in &backed_candidates {
 				ensure!(
-					!<disputes::Pallet<T>>::could_be_invalid(
+					!T::DisputesHandler::could_be_invalid(
 						current_session,
 						candidate.candidate.hash(),
 					),

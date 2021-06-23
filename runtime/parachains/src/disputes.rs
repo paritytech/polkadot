@@ -89,6 +89,81 @@ impl PunishValidators for () {
 	}
 }
 
+/// Hook into disputes handling.
+///
+/// Allows decoupling parachains handling from disputes so that it can
+/// potentially be disabled when instantiating a specific runtime.
+pub trait DisputesHandler<BlockNumber> {
+	/// Whether the chain is frozen, if the chain is frozen it will not accept
+	/// any new parachain blocks for backing or inclusion.
+	fn is_frozen() -> bool;
+
+	/// Handle sets of dispute statements corresponding to 0 or more candidates.
+	/// Returns a vector of freshly created disputes.
+	fn provide_multi_dispute_data(
+		statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
+
+	/// Note that the given candidate has been included.
+	fn note_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		included_in: BlockNumber,
+	);
+
+	/// Whether the given candidate could be invalid, i.e. there is an ongoing
+	/// or concluded dispute with supermajority-against.
+	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
+}
+
+impl<BlockNumber> DisputesHandler<BlockNumber> for () {
+	fn is_frozen() -> bool {
+		false
+	}
+
+	fn provide_multi_dispute_data(
+		_statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
+		Ok(Vec::new())
+	}
+
+	fn note_included(
+		_session: SessionIndex,
+		_candidate_hash: CandidateHash,
+		_included_in: BlockNumber,
+	) {
+
+	}
+
+	fn could_be_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
+		false
+	}
+}
+
+impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
+	fn is_frozen() -> bool {
+		pallet::Pallet::<T>::is_frozen()
+	}
+
+	fn provide_multi_dispute_data(
+		statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
+		pallet::Pallet::<T>::provide_multi_dispute_data(statement_sets)
+	}
+
+	fn note_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		included_in: T::BlockNumber,
+	) {
+		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
+	}
+
+	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+		pallet::Pallet::<T>::could_be_invalid(session, candidate_hash)
+	}
+}
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
