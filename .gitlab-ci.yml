@@ -15,8 +15,6 @@ stages:
   - publish
   - deploy
 
-image:                             paritytech/ci-linux:production
-
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
@@ -28,6 +26,7 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  CI_IMAGE:                        "paritytech/ci-linux:ubuntu"
 
 default:
   cache:                           {}
@@ -45,7 +44,17 @@ default:
     - kubernetes-parity-build
   interruptible:                   true
 
+.rust-info-script:                 &rust-info-script
+  - rustup show
+  - cargo --version
+  - rustup +nightly show
+  - cargo +nightly --version
+  - sccache -s
+
 .docker-env:                       &docker-env
+  image:                           "${CI_IMAGE}"
+  before_script:
+    - *rust-info-script
   retry:
     max: 2
     when:
@@ -55,12 +64,6 @@ default:
   interruptible:                   true
   tags:
     - linux-docker
-
-.compiler-info:                    &compiler-info
-  before_script:
-    - rustup show
-    - cargo --version
-    - sccache -s
 
 .rules-test:                       &rules-test
   # these jobs run always*
@@ -105,14 +108,12 @@ test-deterministic-wasm:
   stage:                           test
   <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler-info
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
 test-build-linux-stable:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *compiler-info
   <<:                              *collect-artifacts
   variables:
     RUST_TOOLCHAIN: stable
@@ -147,7 +148,6 @@ check-web-wasm:
   stage:                           test
   <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler-info
   script:
     # WASM support is in progress. As more and more crates support WASM, we should
     # add entries here. See https://github.com/paritytech/polkadot/issues/625
@@ -158,7 +158,6 @@ check-runtime-benchmarks:
   stage:                           test
   <<:                              *rules-test
   <<:                              *docker-env
-  <<:                              *compiler-info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
@@ -168,7 +167,6 @@ build-adder-collator:
   stage:                           test
   <<:                              *collect-artifacts
   <<:                              *docker-env
-  <<:                              *compiler-info
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
@@ -196,6 +194,7 @@ check-transaction-versions:
     - job:                         test-build-linux-stable
       artifacts:                   true
   before_script:
+    - *rust-info-script
     - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     - git fetch origin release
