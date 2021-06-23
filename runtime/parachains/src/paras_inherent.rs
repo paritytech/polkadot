@@ -35,7 +35,7 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
-	disputes,
+	disputes::{self, DisputesHandler},
 	inclusion,
 	scheduler::{self, FreedReason},
 	shared,
@@ -101,8 +101,6 @@ decl_module! {
 			origin,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
-			use disputes::DisputesHandler;
-
 			let ParachainsInherentData {
 				bitfields: signed_bitfields,
 				backed_candidates,
@@ -275,7 +273,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let inherent_data: ParachainsInherentData<T::Header>
+		let mut inherent_data: ParachainsInherentData<T::Header>
 			= match data.get_data(&Self::INHERENT_IDENTIFIER)
 		{
 			Ok(Some(d)) => d,
@@ -289,6 +287,9 @@ impl<T: Config> ProvideInherent for Module<T> {
 				return None;
 			}
 		};
+
+		// filter out any unneeded dispute statements
+		T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
 
 		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 		// See github.com/paritytech/polkadot/issues/1327

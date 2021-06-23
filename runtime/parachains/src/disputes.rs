@@ -98,6 +98,11 @@ pub trait DisputesHandler<BlockNumber> {
 	/// any new parachain blocks for backing or inclusion.
 	fn is_frozen() -> bool;
 
+	/// Handler for filtering any dispute statements before including them as part
+	/// of inherent data. This can be useful to filter out ancient and duplicate
+	/// dispute statements.
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet);
+
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	fn provide_multi_dispute_data(
@@ -119,6 +124,10 @@ pub trait DisputesHandler<BlockNumber> {
 impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	fn is_frozen() -> bool {
 		false
+	}
+
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		statement_sets.clear()
 	}
 
 	fn provide_multi_dispute_data(
@@ -143,6 +152,10 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 	fn is_frozen() -> bool {
 		pallet::Pallet::<T>::is_frozen()
+	}
+
+	fn filter_multi_dispute_data(_statement_sets: &mut MultiDisputeStatementSet) {
+		// TODO: filter duplicate and ancient dispute statements
 	}
 
 	fn provide_multi_dispute_data(
