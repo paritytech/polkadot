@@ -340,10 +340,10 @@ parameter_types! {
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
 	pub const SignedRewardBase: Balance = 100 * CENTS;
-	pub const SignedDepositBase: Balance = 100 * CENTS;
-	pub const SignedDepositByte: Balance = 1 * CENTS;
+	pub const SignedDepositBase: Balance = deposit(1, 0);
+	pub const SignedDepositByte: Balance = deposit(0, 1);
 
-	// fallback: run election on-chain.
+	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 
