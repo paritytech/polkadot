@@ -6599,6 +6599,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-beefy",
+ "pallet-election-provider-multi-phase",
  "pallet-mmr",
  "pallet-offences",
  "pallet-session",
