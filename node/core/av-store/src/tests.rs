@@ -266,6 +266,25 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 			}),
 		).await;
 
+		let header = Header {
+			parent_hash: Hash::zero(),
+			number: 1,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+
 		// runtime api call fails
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -1005,6 +1024,17 @@ async fn import_leaf(
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+			relay_parent,
+			tx,
+		)) => {
+			assert_eq!(relay_parent, new_leaf);
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 			relay_parent,
 			RuntimeApiRequest::CandidateEvents(tx),
@@ -1014,27 +1044,6 @@ async fn import_leaf(
 		}
 	);
 
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(block_number))).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(header))).unwrap();
-		}
-	);
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
