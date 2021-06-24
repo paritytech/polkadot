@@ -1146,7 +1146,7 @@ fn cant_bid_on_existing_lease_periods() {
 		// Appropriate Paras should have won slots
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// -- 1 --- 2 --- 3 --- 4 --- 5 ------------- 6 ------------------------ 7 -------------
+			// -- 1 --- 2 --- 3 ------------- 4 ------------------------ 5 -------------
 			vec![None, None, None, Some((crowdloan_account, 8855)), Some((crowdloan_account, 8855))],
 		);
 
