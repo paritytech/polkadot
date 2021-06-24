@@ -550,9 +550,11 @@ impl MultiLocation {
 		// When the next item we would add is `Parent`, we instead remove the last item assuming
 		// it is non-parent.
 		const EXPECT_MESSAGE: &'static str =
-			"This loop pushes at most N junctions to a new multi-location where N is the number \
-			of junctions in the original multi-location. Since the original multi-location exists, \
-			we know that the normalized one can also be created. q.e.d.";
+			"`self` is a well formed multi-location with N junctions; \
+			this loop iterates over the junctions of `self`; \
+			the loop can push to the new multi-location at most one time; \
+			thus the size of the new multi-location is at most N junctions; \
+			qed"
 		while let Some(j) = iter.next() {
 			if j == &Junction::Parent {
 				match normalized.last() {
