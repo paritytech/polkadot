@@ -75,8 +75,7 @@ frame_support::construct_runtime!(
 	}
 );
 
-use crate::crowdloan::Error as CrowdloanError;
-use crate::auctions::Error as AuctionsError;
+use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -1118,13 +1117,13 @@ fn cant_bid_on_existing_lease_periods() {
 		// 2 sessions later they are parathreads
 		run_to_session(2);
 
-		// Open a crowdloan for Para 1 for slots 0-3
+		// Open a crowdloan for Para 1 for slots 4-5
 		assert_ok!(Crowdloan::create(
 			Origin::signed(1),
 			ParaId::from(2000),
 			1_000_000, // Cap
-			lease_period_index_start + 0, // First Slot
-			lease_period_index_start + 1, // Last Slot
+			lease_period_index_start + 0, // First Slot, 4
+			lease_period_index_start + 1, // Last Slot, 5
 			400, // Long block end
 			None,
 		));
@@ -1241,5 +1240,116 @@ fn cant_bid_on_existing_lease_periods() {
 				100,
 			)
 		);
+	});
+}
+
+#[test]
+// This test builds on `cant_bid_on_existing_lease_periods`, by showing that if a parachain has won
+// lease periods, it cannot bid on those lease periods again even if the bid includes a period prior
+// to those won. Additionally, it explicitly shows that a poked crowdloan will fail in a follow up
+// auction if it already has the slots.
+fn cant_bid_on_existing_lease_periods_even_if_bid_includes_prior_period() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+		Balances::make_free_balance_be(&1, 1_000_000_000);
+		// First register 2 parathreads
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(2000),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Start a new auction in the future
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// 2 sessions later they are parathreads
+		run_to_session(2);
+
+		// Open a crowdloan for Para 1 for slots 4-5
+		assert_ok!(Crowdloan::create(
+			Origin::signed(1),
+			ParaId::from(2000),
+			1_000_000,                    // Cap
+			lease_period_index_start + 1, // First Slot, 5
+			lease_period_index_start + 2, // Last Slot, 6
+			400,                          // Long block end
+			None,
+		));
+		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+
+		// Bunch of contributions
+		let mut total = 0;
+		for i in 10 .. 20 {
+			Balances::make_free_balance_be(&i, 1_000_000_000);
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(2000), 900 - i, None));
+			total += 900 - i;
+		}
+		assert!(total > 0);
+		assert_eq!(Balances::free_balance(&crowdloan_account), total);
+
+		// Finish the auction.
+		run_to_block(starting_block + 110);
+
+		// Appropriate Paras should have won slots
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(2000)),
+			vec![
+				None,
+				None,
+				None,
+				None,
+				Some((crowdloan_account, 8855)), // 5
+				Some((crowdloan_account, 8855)), // 6
+			],
+		);
+
+		// Let's start another auction for the same range
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// Poke the crowdloan into `NewRaise`
+		assert_ok!(Crowdloan::poke(Origin::signed(1), ParaId::from(2000)));
+		assert_eq!(Crowdloan::new_raise(), vec![ParaId::from(2000)]);
+		// which should cause a failed bid in the next call of crowdloan's `on_initialize` due to
+		// bidding on the crowdloan slots again
+		Crowdloan::on_initialize(System::block_number() + 1);
+		let failed_handle_bid_event = crowdloan::Event::<Test>::HandleBidResult(
+			ParaId::from(2000),
+			Err(sp_runtime::DispatchError::from(AuctionsError::<Test>::AlreadyLeasedOut)),
+		);
+		assert_eq!(last_event(), failed_handle_bid_event.into());
+
+		// Beginning of ending block.
+		run_to_block(starting_block + 100);
+
+		// Bid is rejected if intersects and includes a prior, non-intersecting slot
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start,
+				lease_period_index_start + 1,
+				100,
+			),
+			AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		// Will work when not overlapping
+		assert_ok!(Auctions::bid(
+			Origin::signed(crowdloan_account),
+			ParaId::from(2000),
+			2,
+			lease_period_index_start,
+			lease_period_index_start,
+			100,
+		));
 	});
 }
