@@ -35,7 +35,7 @@ pub use polkadot_overseer_gen::{
 	SpawnedSubsystem,
 	Subsystem,
 	SubsystemContext,
-	SubsystemError,
+	OverseerError,
 	SubsystemSender,
 	TimeoutExt,
 	Timeout,
@@ -99,7 +99,7 @@ pub enum Error {
 	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
 	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
+	Subsystem(#[from] OverseerError),
 	/// An error in the Runtime API.
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
@@ -783,7 +783,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	}
 }
 
-impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
+impl<Context, Job, Spawner> Subsystem<Context, OverseerError> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext<Message=Job::ToJob,Signal=OverseerSignal>,

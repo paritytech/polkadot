@@ -129,14 +129,14 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			type Sender = #subsystem_sender_name;
 			type AllMessages = #wrapper_message;
 
-			async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, #signal>>, ()> {
+			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, #signal>>, ()> {
 				match ::polkadot_overseer_gen::poll!(self.recv()) {
 					::polkadot_overseer_gen::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
 					::polkadot_overseer_gen::Poll::Pending => Ok(None),
 				}
 			}
 
-			async fn recv(&mut self) -> ::polkadot_overseer_gen::SubsystemResult<FromOverseer<M, #signal>> {
+			async fn recv(&mut self) -> ::polkadot_overseer_gen::OverseerResult<FromOverseer<M, #signal>> {
 				loop {
 					// If we have a message pending an overseer signal, we only poll for signals
 					// in the meantime.
@@ -148,7 +148,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 
 							// wait for next signal.
 							let signal = self.signals.next().await
-								.ok_or(::polkadot_overseer_gen::SubsystemError::Context(
+								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -167,7 +167,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 					let from_overseer = ::polkadot_overseer_gen::futures::select_biased! {
 						signal = await_signal => {
 							let signal = signal
-								.ok_or(::polkadot_overseer_gen::SubsystemError::Context(
+								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -176,7 +176,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 						}
 						msg = await_message => {
 							let packet = msg
-								.ok_or(::polkadot_overseer_gen::SubsystemError::Context(
+								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
 									"Message channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -206,7 +206,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 
 			#[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn(ctx, name, fut)")]
 			async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::polkadot_overseer_gen::SubsystemResult<()>
+				-> ::polkadot_overseer_gen::OverseerResult<()>
 			{
 				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnJob {
 					name,
@@ -216,7 +216,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 
 			#[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn_blocking(ctx, name, fut)")]
 			async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::polkadot_overseer_gen::SubsystemResult<()>
+				-> ::polkadot_overseer_gen::OverseerResult<()>
 			{
 				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnBlockingJob {
 					name,

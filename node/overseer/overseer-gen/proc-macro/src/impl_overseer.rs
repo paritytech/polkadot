@@ -84,9 +84,9 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			///
 			/// The definition of a termination signal is up to the user and
 			/// implementation specific.
-			pub async fn wait_terminate(&mut self, signal: #signal_ty, timeout: ::std::time::Duration) -> ::polkadot_overseer_gen::SubsystemResult<()> {
+			pub async fn wait_terminate(&mut self, signal: #signal_ty, timeout: ::std::time::Duration) -> ::std::result::Result<(), #error_ty > {
 				#(
-					let _ = self. #subsystem_name .send_signal(signal.clone()).await;
+					::std::mem::drop(self. #subsystem_name .send_signal(signal.clone()).await);
 				)*
 				let _ = signal;
 
@@ -110,7 +110,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			}
 
 			/// Broadcast a signal to all subsystems.
-			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> ::polkadot_overseer_gen::SubsystemResult<()> {
+			pub async fn broadcast_signal(&mut self, signal: #signal_ty) -> ::std::result::Result<(), #error_ty > {
 				#(
 					let _ = self. #subsystem_name .send_signal(signal.clone()).await;
 				)*
@@ -120,7 +120,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			}
 
 			/// Route a particular message to a subsystem that consumes the message.
-			pub async fn route_message(&mut self, message: #message_wrapper) -> ::polkadot_overseer_gen::SubsystemResult<()> {
+			pub async fn route_message(&mut self, message: #message_wrapper) -> ::std::result::Result<(), #error_ty > {
 				match message {
 					#(
 						#message_wrapper :: #consumes ( inner ) => self. #subsystem_name .send_message( inner ).await?,
@@ -157,6 +157,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
+	let error_ty = &info.extern_error_ty;
 
 	let ts = quote::quote! {
 
@@ -178,7 +179,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 			/// Send a message to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_message(&mut self, message: M) -> ::polkadot_overseer_gen::SubsystemResult<()> {
+			pub async fn send_message(&mut self, message: M) -> ::std::result::Result<(), #error_ty > {
 				const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
@@ -188,7 +189,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							Err(::polkadot_overseer_gen::SubsystemError::SubsystemStalled(instance.name))
+							Err(::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name))
 						}
 						Some(res) => res.map_err(Into::into),
 					}
@@ -200,13 +201,13 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 			/// Send a signal to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_signal(&mut self, signal: #signal) -> ::polkadot_overseer_gen::SubsystemResult<()> {
+			pub async fn send_signal(&mut self, signal: #signal) -> ::std::result::Result<(), #error_ty > {
 				const SIGNAL_TIMEOUT: ::std::time::Duration = ::std::time::Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
 					match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 						None => {
-							Err(::polkadot_overseer_gen::SubsystemError::SubsystemStalled(instance.name))
+							Err(::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name))
 						}
 						Some(res) => {
 							let res = res.map_err(Into::into);

@@ -12,10 +12,10 @@ futures = "0.3.12"
 futures-timer = "3.0.2"
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
+polkadot-node-subsystem = { package = "polkadot-node-subsystem-types", path = "../subsystem-types" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { package = "polkadot-overseer-gen", path = "./overseer-gen" }
-polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 tracing = "0.1.26"
 lru = "0.6"
 

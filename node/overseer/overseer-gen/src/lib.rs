@@ -129,7 +129,7 @@ pub enum ToOverseer {
 
 use std::fmt;
 
-impl fmt::Debug for  ToOverseer {
+impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::SpawnJob{ name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
@@ -224,13 +224,13 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem<E=self::SubsystemError>
+pub struct SpawnedSubsystem<E=self::OverseerError>
 	where
 		E: std::error::Error
 			+ Send
 			+ Sync
 			+ 'static
-			+ From<self::SubsystemError>,
+			+ From<self::OverseerError>,
 {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
@@ -248,7 +248,7 @@ pub struct SpawnedSubsystem<E=self::SubsystemError>
 // FIXME XXX make generic over the source error of FromOrigin
 #[derive(thiserror::Error, Debug)]
 #[allow(missing_docs)]
-pub enum SubsystemError {
+pub enum OverseerError {
 	#[error(transparent)]
 	NotifyCancellation(#[from] oneshot::Canceled),
 
@@ -277,8 +277,8 @@ pub enum SubsystemError {
 	},
 }
 
-/// Alias for a result with error type `SubsystemError`.
-pub type SubsystemResult<T> = std::result::Result<T, self::SubsystemError>;
+/// Alias for a result with error type `OverseerError`.
+pub type OverseerResult<T> = std::result::Result<T, self::OverseerError>;
 
 /// Collection of meters related to a subsystem.
 #[derive(Clone)]
@@ -378,17 +378,17 @@ pub trait SubsystemContext: Send + 'static {
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
 
 	/// Receive a message.
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message, Self::Signal>>;
+	async fn recv(&mut self) -> OverseerResult<FromOverseer<Self::Message, Self::Signal>>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, name: &'static str, s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+	async fn spawn(&mut self, name: &'static str, s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>) -> OverseerResult<()>;
 
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
 	async fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>,
-	) -> SubsystemResult<()>;
+	) -> OverseerResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message<X>(&mut self, msg: X)
@@ -425,7 +425,7 @@ pub trait SubsystemContext: Send + 'static {
 pub trait Subsystem<Ctx, E>
 where
 	Ctx: SubsystemContext,
-	E: std::error::Error + Send + Sync + 'static + From<self::SubsystemError>,
+	E: std::error::Error + Send + Sync + 'static + From<self::OverseerError>,
 {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: Ctx) -> SpawnedSubsystem < E >;

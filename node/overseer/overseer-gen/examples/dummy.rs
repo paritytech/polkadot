@@ -53,8 +53,8 @@ impl std::fmt::Display for Yikes {
 
 impl std::error::Error for Yikes {}
 
-impl From<polkadot_overseer_gen::SubsystemError> for Yikes {
-	fn from(_: polkadot_overseer_gen::SubsystemError) -> Yikes {
+impl From<polkadot_overseer_gen::OverseerError> for Yikes {
+	fn from(_: polkadot_overseer_gen::OverseerError) -> Yikes {
 		Yikes
 	}
 }

@@ -2,7 +2,7 @@
 use ::polkadot_overseer_gen::{
 	MapSubsystem, SubsystemContext,
 	Subsystem,
-	SubsystemError,
+	OverseerError,
 	SpawnedSubsystem,
 	FromOverseer,
 };
@@ -14,7 +14,7 @@ use crate::OverseerSignal;
 #[derive(Clone, Copy, Debug)]
 pub struct DummySubsystem;
 
-impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
+impl<Context> Subsystem<Context, OverseerError> for DummySubsystem
 where
 	Context: SubsystemContext<Signal=OverseerSignal>,
 {

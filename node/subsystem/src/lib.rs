@@ -14,139 +14,47 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Subsystem trait definitions and message types.
+//! Subsystem accumulation.
 //!
-//! Node-side logic for Polkadot is mostly comprised of Subsystems, which are discrete components
-//! that communicate via message-passing. They are coordinated by an overseer, provided by a
-//! separate crate.
+//! Node-side types and generated overseer.
 
 #![warn(missing_docs)]
 
-use std::{sync::Arc, fmt};
-
-use polkadot_primitives::v1::{Hash, BlockNumber};
-use smallvec::SmallVec;
-
-pub mod errors;
-pub mod messages;
+use polkadot_node_subsystem_types::messages::AvailabilityStoreMessage;
+pub use polkadot_node_subsystem_types::{errors, messages};
 
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-/// How many slots are stack-reserved for active leaves updates
-///
-/// If there are fewer than this number of slots, then we've wasted some stack space.
-/// If there are greater than this number of slots, then we fall back to a heap vector.
-const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
+pub use polkadot_node_subsystem_types::{
+	LeafStatus,
+	ActivatedLeaf,
+	ActiveLeavesUpdate,
+	OverseerSignal,
+};
 
-/// The status of an activated leaf.
-#[derive(Debug, Clone)]
-pub enum LeafStatus {
-	/// A leaf is fresh when it's the first time the leaf has been encountered.
-	/// Most leaves should be fresh.
-	Fresh,
-	/// A leaf is stale when it's encountered for a subsequent time. This will happen
-	/// when the chain is reverted or the fork-choice rule abandons some chain.
-	Stale,
-}
+pub use polkadot_overseer::{
+	AllMessages,
+	Overseer,
+	gen::{
+		OverseerError,
+		OverseerResult,
+		SubsystemContext,
+		SubsystemMeters,
+		SubsystemMeterReadouts,
+		TimeoutExt,
+	},
+};
 
-impl LeafStatus {
-	/// Returns a bool indicating fresh status.
-	pub fn is_fresh(&self) -> bool {
-		match *self {
-			LeafStatus::Fresh => true,
-			LeafStatus::Stale => false,
-		}
-	}
+// Simplify usage without having to do large scale modifications of all
+// subsystems at once.
+pub type SubssystemSender = polkadot_overseer::gen::SubssystemSender<AllMessages>;
 
-	/// Returns a bool indicating stale status.
-	pub fn is_stale(&self) -> bool {
-		match *self {
-			LeafStatus::Fresh => false,
-			LeafStatus::Stale => true,
-		}
-	}
-}
+pub type FromOverseer<T> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
 
-/// Activated leaf.
-#[derive(Debug, Clone)]
-pub struct ActivatedLeaf {
-	/// The block hash.
-	pub hash: Hash,
-	/// The block number.
-	pub number: BlockNumber,
-	/// The status of the leaf.
-	pub status: LeafStatus,
-	/// An associated [`jaeger::Span`].
-	///
-	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
-	/// when the leaf is deactivated.
-	pub span: Arc<jaeger::Span>,
-}
+pub type Subsystem<Ctx> = polkadot_overseer::gen::Subsystem<Ctx, OverseerError>;
 
-/// Changes in the set of active leaves: the parachain heads which we care to work on.
-///
-/// Note that the activated and deactivated fields indicate deltas, not complete sets.
-#[derive(Clone, Default)]
-pub struct ActiveLeavesUpdate {
-	/// New relay chain blocks of interest.
-	pub activated: SmallVec<[ActivatedLeaf; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
-	/// Relay chain block hashes no longer of interest.
-	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
-}
+pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
 
-impl ActiveLeavesUpdate {
-	/// Create a ActiveLeavesUpdate with a single activated hash
-	pub fn start_work(activated: ActivatedLeaf) -> Self {
-		Self { activated: [activated][..].into(), ..Default::default() }
-	}
-
-	/// Create a ActiveLeavesUpdate with a single deactivated hash
-	pub fn stop_work(hash: Hash) -> Self {
-		Self { deactivated: [hash][..].into(), ..Default::default() }
-	}
-
-	/// Is this update empty and doesn't contain any information?
-	pub fn is_empty(&self) -> bool {
-		self.activated.is_empty() && self.deactivated.is_empty()
-	}
-}
-
-impl PartialEq for ActiveLeavesUpdate {
-	/// Equality for `ActiveLeavesUpdate` doesnt imply bitwise equality.
-	///
-	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
-	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
-			&& self.activated.iter().all(|a| other.activated.iter().any(|o| a.hash == o.hash))
-			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
-	}
-}
-
-impl fmt::Debug for ActiveLeavesUpdate {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		struct Activated<'a>(&'a [ActivatedLeaf]);
-		impl fmt::Debug for Activated<'_> {
-			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-				f.debug_list().entries(self.0.iter().map(|e| e.hash)).finish()
-			}
-		}
-
-		f.debug_struct("ActiveLeavesUpdate")
-			.field("activated", &Activated(&self.activated))
-			.field("deactivated", &self.deactivated)
-			.finish()
-	}
-}
-
-/// Signals sent by an overseer to a subsystem.
-#[derive(PartialEq, Clone, Debug)]
-pub enum OverseerSignal {
-	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
-	ActiveLeaves(ActiveLeavesUpdate),
-	/// `Subsystem` is informed of a finalized block by its block hash and number.
-	BlockFinalized(Hash, BlockNumber),
-	/// Conclude the work of the `Overseer` and all `Subsystem`s.
-	Conclude,
-}
+pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;

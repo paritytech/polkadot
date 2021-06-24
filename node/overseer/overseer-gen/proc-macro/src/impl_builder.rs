@@ -26,6 +26,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
 
+	let error_ty = &info.extern_error_ty;
+
 	let blocking = &info
 		.subsystems()
 		.iter()
@@ -56,7 +58,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 		<#( #builder_generic_ty, )* >
 	};
 
-	let error_ty = &info.extern_error_ty;
 	let consumes = &info.consumes();
 
 	let subsyste_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
@@ -99,7 +100,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			fn default() -> Self {
 				// explicitly assure the required traits are implemented
 				fn trait_from_must_be_implemented<E>()
-				where E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>
+				where E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::OverseerError>
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
@@ -140,7 +141,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			)*
 
 			/// Complete the construction and create the overseer type.
-			pub fn build(mut self) -> SubsystemResult<(#overseer_name #generics, #handler)>
+			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handler), #error_ty>
 			{
 				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
 					#event
@@ -180,7 +181,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 				let mut spawner = self.spawner.expect("Spawner is set. qed");
 
 				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<
-						BoxFuture<'static, SubsystemResult<()>>
+						BoxFuture<'static, ::std::result::Result<(), #error_ty > >
 					>::new();
 
 				#(
@@ -245,6 +246,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
+	let error_ty = &info.extern_error_ty;
 
 	let ts = quote! {
 
@@ -283,14 +285,14 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			channels_out: ChannelsOut,
 			ctx: Ctx,
 			s: SubSys,
-			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
-		) -> SubsystemResult<OverseenSubsystem<M>>
+			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
+		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty>
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
 			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
 			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
-			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::SubsystemError>,
+			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::OverseerError>,
 			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
 		{
 			let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = s.start(ctx);
