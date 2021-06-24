@@ -1100,7 +1100,7 @@ fn cant_bid_on_existing_lease_periods() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
 		Balances::make_free_balance_be(&1, 1_000_000_000);
-		// First register 2 parathreads
+		// First register a parathread
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
