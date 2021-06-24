@@ -436,7 +436,7 @@ pub struct UncheckedDisputeMessage {
 /// statements.
 ///
 /// And most likely has been constructed correctly.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
 impl DisputeMessage {
@@ -523,6 +523,26 @@ impl DisputeMessage {
 			valid_vote,
 			invalid_vote,
 		}))
+	}
+
+	/// Read only access to the candidate receipt.
+	pub fn candidate_receipt(&self) -> &CandidateReceipt {
+		&self.0.candidate_receipt
+	}
+
+	/// Read only access to the `SessionIndex`.
+	pub fn session_index(&self) -> SessionIndex {
+		self.0.session_index
+	}
+
+	/// Read only access to the invalid vote.
+	pub fn invalid_vote(&self) -> &InvalidDisputeVote {
+		&self.0.invalid_vote
+	}
+
+	/// Read only access to the valid vote.
+	pub fn valid_vote(&self) -> &ValidDisputeVote {
+		&self.0.valid_vote
 	}
 }
 
