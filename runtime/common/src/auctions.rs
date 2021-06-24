@@ -405,6 +405,7 @@ impl<T: Config> Pallet<T> {
 		// Get the auction status and the current sample block. For the starting period, the sample
 		// block is zero.
 		let auction_status = Self::auction_status(frame_system::Pallet::<T>::block_number());
+		// The offset into the ending samples of the auction.
 		let offset = match auction_status {
 			AuctionStatus::NotStarted => return Err(Error::<T>::AuctionEnded.into()),
 			AuctionStatus::StartingPeriod => Zero::zero(),
@@ -416,7 +417,6 @@ impl<T: Config> Pallet<T> {
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
 		// Range as an array index.
 		let range_index = range as u8 as usize;
-		// The offset into the ending samples of the auction.
 
 		// The current winning ranges.
 		let mut current_winning = Winning::<T>::get(offset)
