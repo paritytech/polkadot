@@ -57,7 +57,7 @@ impl TestHost {
 	) -> Result<ValidationResult, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
 
-		let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024).expect("Compression works");
+		let code = sp_maybe_compressed_blob::decompress(code, 16 * 1024 * 1024).expect("Compression works");
 
 		self.host
 			.lock()
