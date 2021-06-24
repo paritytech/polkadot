@@ -791,10 +791,10 @@ async fn run<B, C>(
 // 	https://github.com/paritytech/polkadot/issues/3311
 //
 // returns `true` if any of the actions was a `Conclude` command.
-async fn handle_actions<'a>(
+async fn handle_actions(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State,
-	overlayed_db: &mut OverlayedBackend<'a, impl Backend>,
+	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
@@ -812,9 +812,7 @@ async fn handle_actions<'a>(
 				block_number,
 				candidate_hash,
 				tick,
-			} => {
-				wakeups.schedule(block_hash, block_number, candidate_hash, tick)
-			},
+			} => wakeups.schedule(block_hash, block_number, candidate_hash, tick),
 			Action::IssueApproval(candidate_hash, approval_request) => {
 					let mut sender = ctx.sender().clone();
 					// Note that the IssueApproval action will create additional
@@ -901,7 +899,7 @@ async fn handle_actions<'a>(
 			Action::BecomeActive => {
 				*mode = Mode::Active;
 
-				let messages = distribution_messages_for_activation(overlayed_db.inner)?;
+				let messages = distribution_messages_for_activation(overlayed_db)?;
 
 				ctx.send_messages(messages.into_iter().map(Into::into)).await;
 			}
@@ -912,8 +910,8 @@ async fn handle_actions<'a>(
 	Ok(conclude)
 }
 
-fn distribution_messages_for_activation<'a>(
-	db: &(impl Backend + 'a),
+fn distribution_messages_for_activation(
+	db: &OverlayedBackend<'_, impl Backend>,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
 	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 

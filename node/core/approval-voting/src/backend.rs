@@ -157,7 +157,7 @@ pub(super) trait Backend {
 /// converted into a set of write operations which will, when written to
 /// the underlying backend, give the same view as the state of the overlay.
 pub(super) struct OverlayedBackend<'a, B: 'a> {
-	pub(super) inner: &'a B,
+	inner: &'a B,
 
 	// `None` means unchanged
 	stored_block_range: Option<StoredBlockRange>,
@@ -182,6 +182,16 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub(super) fn is_empty(&self) -> bool {
 		self.block_entries.is_empty() || self.candidate_entries.is_empty()
+	}
+
+	pub(super) fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+		let mut hashes = Vec::new();
+		if let Some(stored_blocks) = self.load_stored_blocks()? {
+			for height in stored_blocks.0..stored_blocks.1 {
+				hashes.extend(self.load_blocks_at_height(&height)?);
+			}
+		}
+		Ok(hashes)
 	}
 
 	pub(super) fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
