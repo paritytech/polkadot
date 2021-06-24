@@ -441,7 +441,7 @@ impl<T: Config> Leaser for Module<T> {
 		// This calculates how deep we should look in the vec for a potential lease.
 		let period_count = match last_period.saturating_sub(start_period).checked_into::<usize>() {
 			Some(period_count) => period_count,
-			None => return false,
+			None => return true,
 		};
 
 		// Get the leases, and check each item in the vec which is part of the range we ar checking.
