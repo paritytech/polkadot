@@ -435,7 +435,7 @@ impl<T: Config> Leaser for Module<T> {
 		// Subtraction is safe because of max above.
 		let offset = match (start_period - current_lease_period).checked_into::<usize>() {
 			Some(offset) => offset,
-			None => return false,
+			None => return true,
 		};
 
 		// This calculates how deep we should look in the vec for a potential lease.
