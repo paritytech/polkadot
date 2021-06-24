@@ -84,7 +84,7 @@ impl ChainInfo for PolkadotSimnetChainInfo {
         PolkadotChainInfo::create_client_parts(config)
     }
 
-    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
+    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &Node<Self>) {
         dispatch_with_pallet_democracy(call, node)
     }
 }

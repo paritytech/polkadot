@@ -173,13 +173,13 @@ impl ChainInfo for PolkadotChainInfo {
         ))
     }
 
-    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &mut Node<Self>) {
+    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &Node<Self>) {
         dispatch_with_pallet_democracy(call, node)
     }
 }
 
 /// Dispatch with pallet_democracy
-pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &mut Node<T>)
+pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &Node<T>)
     where
         T: ChainInfo<
             Block = Block,
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_runner() {
-        let mut node = Node::<PolkadotChainInfo>::new().unwrap();
+        let node = Node::<PolkadotChainInfo>::new().unwrap();
         // seals blocks
         node.seal_blocks(1);
         // submit extrinsics

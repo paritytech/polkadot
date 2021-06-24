@@ -29,7 +29,7 @@ use test_runner::{Node};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut node = Node::<PolkadotSimnetChainInfo>::new()?;
+    let node = Node::<PolkadotSimnetChainInfo>::new()?;
 
     // wait for ctrl_c signal, then drop node.
     node.until_shutdown();

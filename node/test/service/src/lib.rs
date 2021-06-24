@@ -185,6 +185,7 @@ pub fn node_config(
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
+		rpc_max_payload: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
