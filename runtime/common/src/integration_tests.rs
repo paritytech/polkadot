@@ -41,7 +41,7 @@ use crate::{
 	auctions, crowdloan, slots, paras_registrar,
 	slot_range::SlotRange,
 	traits::{
-		Registrar as RegistrarT, Auctioneer,
+		Registrar as RegistrarT, Auctioneer, AuctionStatus,
 	},
 };
 
@@ -868,7 +868,7 @@ fn crowdloan_ending_period_bid() {
 		// Go to beginning of ending period
 		run_to_block(100);
 
-		assert_eq!(Auctions::is_ending(100), Some(0));
+		assert_eq!(Auctions::auction_status(100), AuctionStatus::<u32>::EndingPeriod(0, 0));
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
 		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2001), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(2000), total));
