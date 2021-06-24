@@ -91,7 +91,7 @@ impl SendTask
 {
 	/// Initiates sending a dispute message to peers.
 	pub async fn new<Context: SubsystemContext>(
-		ctx: &mut Context, 
+		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex,Hash>,
 		tx: mpsc::Sender<FromSendingTask>,
@@ -119,7 +119,7 @@ impl SendTask
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		active_sessions: &HashMap<SessionIndex,Hash>,
+		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<()> {
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 

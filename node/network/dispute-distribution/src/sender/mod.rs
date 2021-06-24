@@ -84,7 +84,7 @@ impl DisputeSender
 	/// Initiates sending a dispute message to peers.
 	pub async fn start_sending<Context: SubsystemContext>(
 		&mut self,
-		ctx: &mut Context, 
+		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		msg: DisputeMessage,
 	) -> Result<()> {
