@@ -318,8 +318,8 @@ impl<T: Config> Auctioneer for Pallet<T> {
 
 		let ending_period = T::EndingPeriod::get();
 		if after_early_end < ending_period {
-			let sample_length = T::SampleLength::get();
-			let sample = after_early_end / sample_length.max(1);
+			let sample_length = T::SampleLength::get().max(One::one());
+			let sample = after_early_end / sample_length;
 			let sub_sample = after_early_end % sample_length;
 			return AuctionStatus::EndingPeriod(sample, sub_sample)
 		} else {
@@ -497,7 +497,7 @@ impl<T: Config> Pallet<T> {
 					// Our random seed was known only after the auction ended. Good to use.
 					let raw_offset_block_number = <T::BlockNumber>::decode(&mut raw_offset.as_ref())
 						.expect("secure hashes should always be bigger than the block number; qed");
-					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get();
+					let offset = (raw_offset_block_number % ending_period) / T::SampleLength::get().max(One::one());
 
 					let auction_counter = AuctionCounter::<T>::get();
 					Self::deposit_event(Event::<T>::WinningOffset(auction_counter, offset));
