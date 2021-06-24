@@ -30,8 +30,8 @@ use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
 pub(crate) const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
-//#[cfg(test)]
-//pub mod tests;
+#[cfg(test)]
+pub mod tests;
 
 // slot_duration * 2 + DelayTranche gives the number of delay tranches since the
 // unix epoch.

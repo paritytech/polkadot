@@ -13,6 +13,7 @@ use super::approval_db::v1::{
 use super::ops::StoredBlockRange;
 use super::persisted_entries::{BlockEntry, CandidateEntry};
 
+#[derive(Debug)]
 pub(super) enum BackendWriteOp {
 	WriteStoredBlockRange(StoredBlockRange),
 	WriteBlocksAtHeight(BlockNumber, Vec<Hash>),
