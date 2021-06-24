@@ -40,7 +40,7 @@ pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
 	R: pallet_balances::Config + pallet_treasury::Config + pallet_authorship::Config,
-	pallet_treasury::Module<R>: OnUnbalanced<NegativeImbalance<R>>,
+	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Config>::AccountId: From<primitives::v1::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v1::AccountId>,
 	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
@@ -53,7 +53,7 @@ where
 				// for tips, if any, 100% to author
 				tips.merge_into(&mut split.1);
 			}
-			use pallet_treasury::Module as Treasury;
+			use pallet_treasury::Pallet as Treasury;
 			<Treasury<R> as OnUnbalanced<_>>::on_unbalanced(split.0);
 			<ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(split.1);
 		}
