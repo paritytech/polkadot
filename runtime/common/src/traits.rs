@@ -137,6 +137,47 @@ pub trait Leaser {
 	fn lease_period_index() -> Self::LeasePeriod;
 }
 
+/// An enum which tracks the status of the auction system, and which phase it is in.
+#[derive(PartialEq, Debug)]
+pub enum AuctionStatus<BlockNumber> {
+	/// An auction has not started yet.
+	NotStarted,
+	/// We are in the starting period of the auction, collecting initial bids.
+	StartingPeriod,
+	/// We are in the ending period of the auction, where we are taking snapshots of the winning
+	/// bids. This state supports "sampling", where we may only take a snapshot every N blocks.
+	/// In this case, the first number is the current sample number, and the second number
+	/// is the sub-sample. i.e. for sampling every 20 blocks, the 25th block in the ending period
+	/// will be `EndingPeriod(1, 5)`.
+	EndingPeriod(BlockNumber, BlockNumber),
+	/// We have completed the bidding process and are waiting for the VRF to return some acceptable
+	/// randomness to select the winner. The number represents how many blocks we have been waiting.
+	VrfDelay(BlockNumber),
+}
+
+impl<BlockNumber> AuctionStatus<BlockNumber> {
+	/// Returns true if the auction is in any state other than `NotStarted`.
+	pub fn is_in_progress(&self) -> bool {
+		!matches!(self, Self::NotStarted)
+	}
+	/// Return true if the auction is in the starting period.
+	pub fn is_starting(&self) -> bool {
+		matches!(self, Self::StartingPeriod)
+	}
+	/// Returns `Some(sample, sub_sample)` if the auction is in the `EndingPeriod`,
+	/// otherwise returns `None`.
+	pub fn is_ending(self) -> Option<(BlockNumber, BlockNumber)> {
+		match self {
+			Self::EndingPeriod(sample, sub_sample) => Some((sample, sub_sample)),
+			_ => None,
+		}
+	}
+	/// Returns true if the auction is in the `VrfDelay` period.
+	pub fn is_vrf(&self) -> bool {
+		matches!(self, Self::VrfDelay(_))
+	}
+}
+
 pub trait Auctioneer {
 	/// An account identifier for a leaser.
 	type AccountId;
@@ -157,9 +198,8 @@ pub trait Auctioneer {
 	/// are to be auctioned.
 	fn new_auction(duration: Self::BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
 
-	/// Returns `Some(n)` if the `now` block is part of the ending period of an auction, where `n`
-	/// represents how far into the ending period this block is. Otherwise, returns `None`.
-	fn is_ending(now: Self::BlockNumber) -> Option<Self::BlockNumber>;
+	/// Given the current block number, return the current auction status.
+	fn auction_status(now: Self::BlockNumber) -> AuctionStatus<Self::BlockNumber>;
 
 	/// Place a bid in the current auction.
 	///
