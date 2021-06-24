@@ -16,12 +16,10 @@ use super::backend::{Backend, OverlayedBackend};
 use super::approval_db::{
 	self,
 	v1::{
-		Config, OurAssignment,
+		Config, OurAssignment, STORED_BLOCKS_KEY,
 		block_entry_key, blocks_at_height_key, candidate_entry_key, load_decode,
 	},
 };
-
-const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 /// A range from earliest..last block number stored within the DB.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]

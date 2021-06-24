@@ -28,6 +28,8 @@ use parity_scale_codec::{Encode, Decode};
 use std::collections::BTreeMap;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
+pub(crate) const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
+
 //#[cfg(test)]
 //pub mod tests;
 

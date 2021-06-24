@@ -684,11 +684,10 @@ async fn run<B, C>(
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
 	loop {
-                let mut overlayed_db = OverlayedBackend::new(&backend);
+				let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
-
 				process_wakeup(
 					&mut state,
 					&mut overlayed_db,
@@ -1785,7 +1784,7 @@ fn import_checked_approval<'a>(
 		//
 		// 1. The source is remote, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
-		//    approved flag with `mark_approved` above.
+		//	approved flag with `mark_approved` above.
 		// 3. The source had already approved the candidate, as we haven't altered the bitfield.
 		if !source.is_remote() || newly_approved || !already_approved_by {
 			// In all other cases, we need to write the candidate entry.

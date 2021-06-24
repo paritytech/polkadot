@@ -7,13 +7,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::approval_db;
-use super::approval_db::v1::{block_entry_key, candidate_entry_key, Config};
+use super::approval_db::v1::{
+	blocks_at_height_key, block_entry_key, candidate_entry_key, STORED_BLOCKS_KEY, Config,
+};
 use super::ops::StoredBlockRange;
 use super::persisted_entries::{BlockEntry, CandidateEntry};
 
 pub(super) enum BackendWriteOp {
+	WriteStoredBlockRange(StoredBlockRange),
+	WriteBlocksAtHeight(BlockNumber, Vec<Hash>),
 	WriteBlockEntry(BlockEntry),
 	WriteCandidateEntry(CandidateEntry),
+	DeleteBlocksAtHeight(BlockNumber),
 	DeleteBlockEntry(Hash),
 	DeleteCandidateEntry(CandidateHash),
 }
@@ -73,6 +78,26 @@ impl Backend for DbBackend {
 		let mut tx = DBTransaction::new();
 		for op in ops {
 			match op {
+				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
+					tx.put_vec(
+						self.config.col_data,
+						&STORED_BLOCKS_KEY,
+						stored_block_range.encode(),
+					);
+				}
+				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
+					tx.put_vec(
+						self.config.col_data,
+						&blocks_at_height_key(h),
+						blocks.encode(),
+					);
+				}
+				BackendWriteOp::DeleteBlocksAtHeight(h) => {
+					tx.delete(
+						self.config.col_data,
+						&blocks_at_height_key(h),
+					);
+				}
 				BackendWriteOp::WriteBlockEntry(block_entry) => {
 					let block_entry: approval_db::v1::BlockEntry = block_entry.into();
 					tx.put_vec(
@@ -191,6 +216,8 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_candidate_entry(candidate_hash)
 	}
 
+	// The assumption is that stored block range is only None on initialization.
+	// Therefore, there is no need to delete_stored_block_range.
 	pub(super) fn write_stored_block_range(&mut self, range: StoredBlockRange) {
 		self.stored_block_range = Some(range);
 	}
@@ -222,6 +249,11 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	/// Transform this backend into a set of write-ops to be written to the
 	/// inner backend.
 	pub(super) fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
+		let blocks_at_height_ops = self.blocks_at_height.into_iter().map(|(h, v)| match v {
+			Some(v) => BackendWriteOp::WriteBlocksAtHeight(h, v),
+			None => BackendWriteOp::DeleteBlocksAtHeight(h),
+		});
+
 		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
 			Some(v) => BackendWriteOp::WriteBlockEntry(v),
 			None => BackendWriteOp::DeleteBlockEntry(h),
@@ -232,6 +264,15 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			None => BackendWriteOp::DeleteCandidateEntry(h),
 		});
 
-		block_entry_ops.chain(candidate_entry_ops)
+		self.stored_block_range
+			.map(|v| BackendWriteOp::WriteStoredBlockRange(v))
+			.into_iter()
+			.chain(
+				blocks_at_height_ops.chain(
+					block_entry_ops.chain(
+						candidate_entry_ops
+					)
+				)
+			)
 	}
 }
