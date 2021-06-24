@@ -319,7 +319,7 @@ impl<T: Config> Auctioneer for Pallet<T> {
 		let ending_period = T::EndingPeriod::get();
 		if after_early_end < ending_period {
 			let sample_length = T::SampleLength::get();
-			let sample = after_early_end / sample_length;
+			let sample = after_early_end / sample_length.max(1);
 			let sub_sample = after_early_end % sample_length;
 			return AuctionStatus::EndingPeriod(sample, sub_sample)
 		} else {
