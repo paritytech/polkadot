@@ -94,10 +94,10 @@ Output:
 ## Functionality
 
 For each head in the `activated` list:
-  - Note any new candidates backed in the block. Update the `CandidateMeta` for each. If the `CandidateMeta` does not exist, create it as `Unavailable` with the current timestamp. Register a `"prune_by_time"` entry based on the current timestamp + 1 hour.
-  - Note any new candidate included in the block. Update the `CandidateMeta` for each, performing a transition from `Unavailable` to `Unfinalized` if necessary. That includes removing the `"prune_by_time"` entry. Add the block hash and number to the state, if unfinalized. Add an `"unfinalized"` entry for the block and candidate.
+  - Load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
+  - Note any new candidates backed in the head. Update the `CandidateMeta` for each. If the `CandidateMeta` does not exist, create it as `Unavailable` with the current timestamp. Register a `"prune_by_time"` entry based on the current timestamp + 1 hour.
+  - Note any new candidate included in the head. Update the `CandidateMeta` for each, performing a transition from `Unavailable` to `Unfinalized` if necessary. That includes removing the `"prune_by_time"` entry. Add the head hash and number to the state, if unfinalized. Add an `"unfinalized"` entry for the block and candidate.
   - The `CandidateEvent` runtime API can be used for this purpose.
-  - TODO: load all ancestors of the head back to the finalized block so we don't miss anything if import notifications are missed. If a `StoreChunk` message is received for a candidate which has no entry, then we will prematurely lose the data.
 
 On `OverseerSignal::BlockFinalized(finalized)` events:
   - for each key in `iter_with_prefix("unfinalized")`
@@ -110,7 +110,7 @@ On `OverseerSignal::BlockFinalized(finalized)` events:
       - For each candidate that we encounter under `f` which is not under the finalized block hash,
         - Remove all entries under `f` in the `Unfinalized` state.
         - If the `CandidateMeta` has state `Unfinalized` with an empty list of blocks, downgrade to `Unavailable` and re-schedule pruning under the timestamp + 1 hour. We do not prune here as the candidate still may be included in a descendent of the finalized chain.
-      - Remove all `"unfinalized"` keys under `f`.  
+      - Remove all `"unfinalized"` keys under `f`.
   - Update last_finalized = finalized.
 
   This is roughly `O(n * m)` where n is the number of blocks finalized since the last update, and `m` is the number of parachains.

@@ -19,7 +19,7 @@
 #![recursion_limit="256"]
 #![warn(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, BTreeSet};
 use std::io;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
@@ -31,7 +31,7 @@ use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
 	Hash, BlockNumber, CandidateEvent, ValidatorIndex, CandidateHash,
-	CandidateReceipt,
+	CandidateReceipt, Header,
 };
 use polkadot_node_primitives::{
 	ErasureChunk, AvailableData,
@@ -41,7 +41,10 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::{
+	self as util,
+	metrics::{self, prometheus},
+};
 use polkadot_subsystem::messages::{
 	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
@@ -444,6 +447,8 @@ pub struct AvailabilityStoreSubsystem {
 	pruning_config: PruningConfig,
 	config: Config,
 	db: Arc<dyn KeyValueDB>,
+	known_blocks: KnownUnfinalizedBlocks,
+	finalized_number: Option<BlockNumber>,
 	metrics: Metrics,
 	clock: Box<dyn Clock>,
 }
@@ -478,6 +483,41 @@ impl AvailabilityStoreSubsystem {
 			db,
 			metrics,
 			clock,
+			known_blocks: KnownUnfinalizedBlocks::default(),
+			finalized_number: None,
+		}
+	}
+}
+
+/// We keep the hashes and numbers of all unfinalized
+/// processed blocks in memory.
+#[derive(Default, Debug)]
+struct KnownUnfinalizedBlocks {
+	by_hash: HashSet<Hash>,
+	by_number: BTreeSet<(BlockNumber, Hash)>,
+}
+
+impl KnownUnfinalizedBlocks {
+	/// Check whether the block has been already processed.
+	fn is_known(&self, hash: &Hash) -> bool {
+		self.by_hash.contains(hash)
+	}
+
+	/// Insert a new block into the known set.
+	fn insert(&mut self, hash: Hash, number: BlockNumber) {
+		self.by_hash.insert(hash);
+		self.by_number.insert((number, hash));
+	}
+
+	/// Prune all finalized blocks.
+	fn prune_finalized(&mut self, finalized: BlockNumber) {
+		// split_off returns everything after the given key, including the key
+		let split_point = finalized.saturating_add(1);
+		let mut finalized = self.by_number.split_off(&(split_point, Hash::zero()));
+		// after split_off `finalized` actually contains unfinalized blocks, we need to swap
+		std::mem::swap(&mut self.by_number, &mut finalized);
+		for (_, block) in finalized {
+			self.by_hash.remove(&block);
 		}
 	}
 }
@@ -547,6 +587,8 @@ where
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
+					subsystem.finalized_number = Some(number);
+					subsystem.known_blocks.prune_finalized(number);
 					process_block_finalized(
 						ctx,
 						&subsystem,
@@ -580,27 +622,6 @@ async fn process_block_activated(
 ) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
-	let candidate_events = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(activated, RuntimeApiRequest::CandidateEvents(tx)).into()
-		).await;
-
-		rx.await??
-	};
-
-	let block_number = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			ChainApiMessage::BlockNumber(activated, tx).into()
-		).await;
-
-		match rx.await?? {
-			None => return Ok(()),
-			Some(n) => n,
-		}
-	};
-
 	let block_header = {
 		let (tx, rx) = oneshot::channel();
 
@@ -613,28 +634,77 @@ async fn process_block_activated(
 			Some(n) => n,
 		}
 	};
+	let block_number = block_header.number;
 
-	// We need to request the number of validators based on the parent state, as that is the number of validators
-	// used to create this block.
+	let new_blocks = util::determine_new_blocks(
+		ctx.sender(),
+		|hash| -> Result<bool, Error> {
+			Ok(subsystem.known_blocks.is_known(hash))
+		},
+		activated,
+		&block_header,
+		subsystem.finalized_number.unwrap_or(block_number.saturating_sub(1)),
+	).await?;
+
+	let mut tx = DBTransaction::new();
+	// determine_new_blocks is descending in block height
+	for (hash, header) in new_blocks.into_iter().rev() {
+		process_new_head(
+			ctx,
+			&subsystem.db,
+			&mut tx,
+			&subsystem.config,
+			&subsystem.pruning_config,
+			now,
+			hash,
+			header,
+		).await?;
+		subsystem.known_blocks.insert(hash, block_number);
+	}
+	subsystem.db.write(tx)?;
+
+	Ok(())
+}
+
+async fn process_new_head(
+	ctx: &mut impl SubsystemContext,
+	db: &Arc<dyn KeyValueDB>,
+	db_transaction: &mut DBTransaction,
+	config: &Config,
+	pruning_config: &PruningConfig,
+	now: Duration,
+	hash: Hash,
+	header: Header,
+) -> Result<(), Error> {
+
+	let candidate_events = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(
+			RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(tx)).into()
+		).await;
+
+		rx.await??
+	};
+
+	// We need to request the number of validators based on the parent state,
+	// as that is the number of validators used to create this block.
 	let n_validators = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(
-			RuntimeApiMessage::Request(block_header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
+			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
 		).await;
 
 		rx.await??.len()
 	};
 
-	let mut tx = DBTransaction::new();
-
 	for event in candidate_events {
 		match event {
 			CandidateEvent::CandidateBacked(receipt, _head, _core_index, _group_index) => {
 				note_block_backed(
-					&subsystem.db,
-					&mut tx,
-					&subsystem.config,
-					&subsystem.pruning_config,
+					db,
+					db_transaction,
+					config,
+					pruning_config,
 					now,
 					n_validators,
 					receipt,
@@ -642,19 +712,17 @@ async fn process_block_activated(
 			}
 			CandidateEvent::CandidateIncluded(receipt, _head, _core_index, _group_index) => {
 				note_block_included(
-					&subsystem.db,
-					&mut tx,
-					&subsystem.config,
-					&subsystem.pruning_config,
-					(block_number, activated),
+					db,
+					db_transaction,
+					config,
+					pruning_config,
+					(header.number, hash),
 					receipt,
 				)?;
 			}
 			_ => {}
 		}
 	}
-
-	subsystem.db.write(tx)?;
 
 	Ok(())
 }
@@ -732,9 +800,10 @@ fn note_block_included(
 				State::Unfinalized(at, mut within) => {
 					if let Err(i) = within.binary_search(&be_block) {
 						within.insert(i, be_block);
+						State::Unfinalized(at, within)
+					} else {
+						return Ok(());
 					}
-
-					State::Unfinalized(at, within)
 				}
 				State::Finalized(_at) => {
 					// This should never happen as a candidate would have to be included after
