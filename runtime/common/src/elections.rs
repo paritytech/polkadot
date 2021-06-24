@@ -46,16 +46,16 @@ parameter_types! {
 
 /// Compute the expected fee for submitting an election solution.
 ///
-/// This is `ratio` multiplied by the fee for the expected submission weight according to the
+/// This is `multiplier` multiplied by the fee for the expected submission weight according to the
 /// weight info.
 ///
 /// Assumes that the signed submission queue is full.
-pub fn fee_for_weight<T, WeightToFee, WeightInfo>(ratio: Perbill) -> WeightToFee::Balance
+pub fn fee_for_submit_call<T, WeightToFee, WeightInfo>(multiplier: Perbill) -> WeightToFee::Balance
 where
 	T: pallet_election_provider_multi_phase::Config,
 	WeightToFee: WeightToFeePolynomial,
 	WeightInfo: pallet_election_provider_multi_phase::WeightInfo,
 {
 	let expected_weight = WeightInfo::submit(T::SignedMaxSubmissions::get());
-	ratio * WeightToFee::calc(&expected_weight)
+	multiplier * WeightToFee::calc(&expected_weight)
 }

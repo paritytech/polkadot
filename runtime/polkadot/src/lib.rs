@@ -26,6 +26,7 @@ use runtime_common::{
 	impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
 	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
+	elections::fee_for_submit_call,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 
@@ -338,7 +339,11 @@ parameter_types! {
 	// A typical solution currently occupies 120kb. This formula is currently adjusted such that a
 	// typical solution will spend approximately equal amounts on the base and per-byte deposits.
 	pub const SignedDepositByte: Balance = deposit(1, 0) / (120 * 1024 * 1024);
-	pub const SignedRewardBase: Balance = 1 * CENTS;
+	pub SignedRewardBase: Balance = fee_for_submit_call::<
+		Runtime,
+		crate::constants::fee::WeightToFee,
+		crate::weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>,
+	>(Perbill::from_perthousand(1500));
 
 	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
