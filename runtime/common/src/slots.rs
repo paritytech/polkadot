@@ -451,7 +451,6 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
-	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		}
 	);
 
@@ -483,8 +482,6 @@ mod tests {
 		type SS58Prefix = ();
 		type OnSetCode = ();
 	}
-
-	impl pallet_randomness_collective_flip::Config for Test {}
 
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;

@@ -46,11 +46,6 @@ pub mod time {
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
-/// Size restrictions.
-pub mod size {
-	pub use primitives::v1::MAX_CODE_SIZE;
-}
-
 /// Fee-related.
 pub mod fee {
 	pub use sp_runtime::Perbill;
