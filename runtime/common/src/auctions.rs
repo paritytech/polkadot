@@ -753,6 +753,15 @@ mod tests {
 		fn lease_period_index() -> Self::LeasePeriod {
 			(System::block_number() / Self::lease_period()).into()
 		}
+
+		fn already_leased(
+			_para_id: ParaId,
+			_first_period: Self::LeasePeriod,
+			_last_period: Self::LeasePeriod
+		) -> bool {
+			// TODO
+			false
+		}
 	}
 
 	ord_parameter_types!{

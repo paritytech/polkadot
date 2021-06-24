@@ -135,6 +135,13 @@ pub trait Leaser {
 
 	/// Returns the current lease period.
 	fn lease_period_index() -> Self::LeasePeriod;
+
+	/// Returns true if the parachain already has a lease in any of `slot_range`.
+	fn already_leased(
+		para_id: ParaId,
+		first_period: Self::LeasePeriod,
+		last_period: Self::LeasePeriod
+	) -> bool;
 }
 
 pub trait Auctioneer {
