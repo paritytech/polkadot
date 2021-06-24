@@ -90,7 +90,7 @@ impl Requests {
 }
 
 /// Potential recipients of an outgoing request.
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub enum Recipient {
 	/// Recipient is a regular peer and we know its peer id.
 	Peer(PeerId),

@@ -46,6 +46,8 @@ use super::error::{Fatal, Result};
 use crate::LOG_TARGET;
 
 /// Delivery status for a particular dispute.
+///
+/// Keeps track of all the validators that have to be reached for a dispute.
 pub struct SendTask {
 	/// The request we are supposed to get out to all parachain validators of the dispute's session
 	/// and to all current authorities.

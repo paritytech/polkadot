@@ -17,7 +17,7 @@
 
 //! Mock data and utility functions for unit tests in this subsystem.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 
@@ -30,14 +30,23 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
 use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateHash, CandidateReceipt, Hash,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, AuthorityDiscoveryId,
 };
 
 
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;
-pub const MOCK_VALIDATORS: [Sr25519Keyring; 2] = [
+pub const MOCK_VALIDATORS: [Sr25519Keyring; 6] = [
 	Sr25519Keyring::Ferdie,
 	Sr25519Keyring::Alice,
+	Sr25519Keyring::Bob,
+	Sr25519Keyring::Charlie,
+	Sr25519Keyring::Dave,
+	Sr25519Keyring::Eve,
+];
+
+pub const MOCK_AUTHORITIES_NEXT_SESSION: [Sr25519Keyring;2] = [
+	Sr25519Keyring::One,
+	Sr25519Keyring::Two,
 ];
 
 pub const FERDIE_INDEX: ValidatorIndex = ValidatorIndex(0);
@@ -45,8 +54,20 @@ pub const ALICE_INDEX: ValidatorIndex = ValidatorIndex(1);
 
 pub fn make_session_info() -> SessionInfo {
 	SessionInfo {
-		validators: MOCK_VALIDATORS.iter().map(|k| k.public().into()).collect(),
+		validators: MOCK_VALIDATORS.iter().take(4).map(|k| k.public().into()).collect(),
 		discovery_keys: MOCK_VALIDATORS.iter().map(|k| k.public().into()).collect(),
+		..Default::default()
+	}
+}
+
+/// SessionInfo for the second session. (No more validators, but two more authorities.
+pub fn make_next_session_info() -> SessionInfo {
+	SessionInfo {
+		discovery_keys:
+			MOCK_AUTHORITIES_NEXT_SESSION
+				.iter()
+				.map(|k| k.public().into())
+				.collect(),
 		..Default::default()
 	}
 }
@@ -111,36 +132,41 @@ pub async fn make_dispute_message(
 /// Dummy `AuthorityDiscovery` service.
 #[derive(Debug, Clone)]
 pub struct MockAuthorityDiscovery {
-	peer_ids: Vec<PeerId>
+	peer_ids: HashMap<Sr25519Keyring, PeerId>
 }
 
 impl MockAuthorityDiscovery {
 	pub fn new() -> Self {
-		Self {
-			peer_ids: vec![
-				PeerId::random(),
-				PeerId::random(),
-			]
-		}
+		let mut peer_ids = HashMap::new();
+		peer_ids.insert(Sr25519Keyring::Alice, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Bob, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Ferdie, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Charlie, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Dave, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Eve, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::One, PeerId::random());
+		peer_ids.insert(Sr25519Keyring::Two, PeerId::random());
+
+		Self { peer_ids }
 	}
 
-	pub fn get_peer_id_by_index(&self, index: ValidatorIndex) -> PeerId {
-		self.peer_ids[index.0 as usize]
+	pub fn get_peer_id_by_authority(&self, authority: Sr25519Keyring) -> PeerId {
+		*self.peer_ids.get(&authority).expect("Tester only picks valid authorities")
 	}
 }
 
 #[async_trait]
 impl AuthorityDiscovery for MockAuthorityDiscovery {
-	async fn get_addresses_by_authority_id(&mut self, authority: polkadot_primitives::v1::AuthorityDiscoveryId)
+	async fn get_addresses_by_authority_id(&mut self, _authority: polkadot_primitives::v1::AuthorityDiscoveryId)
 		-> Option<Vec<sc_network::Multiaddr>> {
 			panic!("Not implemented");
 	}
 
 	async fn get_authority_id_by_peer_id(&mut self, peer_id: polkadot_node_network_protocol::PeerId)
 		-> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
-		for (i, p) in self.peer_ids.iter().enumerate() {
+		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
-				return Some(MOCK_VALIDATORS[i].public().into())
+				return Some(a.public().into())
 			}
 		}
 		None
