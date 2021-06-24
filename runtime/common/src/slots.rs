@@ -444,14 +444,12 @@ impl<T: Config> Leaser for Module<T> {
 			None => return true,
 		};
 
-		// Get the leases, and check each item in the vec which is part of the range we ar checking.
+		// Get the leases, and check each item in the vec which is part of the range we are checking.
 		let leases = Leases::<T>::get(para_id);
 		for slot in offset ..= offset + period_count {
-			if let Some(maybe_lease) = leases.get(slot) {
+			if let Some(Some(_)) = leases.get(slot) {
 				// If there exists any lease period, we exit early and return true.
-				if maybe_lease.is_some() {
-					return true
-				}
+				return true
 			}
 		}
 
