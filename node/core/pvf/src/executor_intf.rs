@@ -34,7 +34,8 @@ const CONFIG: Config = Config {
 	cache_path: None,
 	semantics: Semantics {
 		fast_instance_reuse: false,
-		stack_depth_metering: false,
+		stack_depth_metering: true,
+		canonicalize_nans: true,
 	},
 };
 
