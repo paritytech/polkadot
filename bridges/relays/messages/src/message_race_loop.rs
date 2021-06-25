@@ -143,6 +143,7 @@ pub trait TargetClient<P: MessageRace> {
 }
 
 /// Race strategy.
+#[async_trait]
 pub trait RaceStrategy<SourceHeaderId, TargetHeaderId, Proof>: Debug {
 	/// Type of nonces range expected from the source client.
 	type SourceNoncesRange: NoncesRange;
@@ -182,14 +183,14 @@ pub trait RaceStrategy<SourceHeaderId, TargetHeaderId, Proof>: Debug {
 	/// Should return `Some(nonces)` if we need to deliver proof of `nonces` (and associated
 	/// data) from source to target node.
 	/// Additionally, parameters required to generate proof are returned.
-	fn select_nonces_to_deliver(
+	async fn select_nonces_to_deliver(
 		&mut self,
-		race_state: &RaceState<SourceHeaderId, TargetHeaderId, Proof>,
+		race_state: RaceState<SourceHeaderId, TargetHeaderId, Proof>,
 	) -> Option<(RangeInclusive<MessageNonce>, Self::ProofParameters)>;
 }
 
 /// State of the race.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RaceState<SourceHeaderId, TargetHeaderId, Proof> {
 	/// Best finalized source header id at the source client.
 	pub best_finalized_source_header_id_at_source: Option<SourceHeaderId>,
@@ -438,7 +439,7 @@ pub async fn run<P: MessageRace, SC: SourceClient<P>, TC: TargetClient<P>>(
 		if source_client_is_online {
 			source_client_is_online = false;
 
-			let nonces_to_deliver = select_nonces_to_deliver(&race_state, &mut strategy);
+			let nonces_to_deliver = select_nonces_to_deliver(race_state.clone(), &mut strategy).await;
 			let best_at_source = strategy.best_at_source();
 
 			if let Some((at_block, nonces_range, proof_parameters)) = nonces_to_deliver {
@@ -554,27 +555,25 @@ where
 	now_time
 }
 
-fn select_nonces_to_deliver<SourceHeaderId, TargetHeaderId, Proof, Strategy>(
-	race_state: &RaceState<SourceHeaderId, TargetHeaderId, Proof>,
+async fn select_nonces_to_deliver<SourceHeaderId, TargetHeaderId, Proof, Strategy>(
+	race_state: RaceState<SourceHeaderId, TargetHeaderId, Proof>,
 	strategy: &mut Strategy,
 ) -> Option<(SourceHeaderId, RangeInclusive<MessageNonce>, Strategy::ProofParameters)>
 where
 	SourceHeaderId: Clone,
 	Strategy: RaceStrategy<SourceHeaderId, TargetHeaderId, Proof>,
 {
-	race_state
-		.best_finalized_source_header_id_at_best_target
-		.as_ref()
-		.and_then(|best_finalized_source_header_id_at_best_target| {
-			strategy
-				.select_nonces_to_deliver(&race_state)
-				.map(|(nonces_range, proof_parameters)| {
-					(
-						best_finalized_source_header_id_at_best_target.clone(),
-						nonces_range,
-						proof_parameters,
-					)
-				})
+	let best_finalized_source_header_id_at_best_target =
+		race_state.best_finalized_source_header_id_at_best_target.clone()?;
+	strategy
+		.select_nonces_to_deliver(race_state)
+		.await
+		.map(|(nonces_range, proof_parameters)| {
+			(
+				best_finalized_source_header_id_at_best_target,
+				nonces_range,
+				proof_parameters,
+			)
 		})
 }
 
@@ -584,8 +583,8 @@ mod tests {
 	use crate::message_race_strategy::BasicStrategy;
 	use relay_utils::HeaderId;
 
-	#[test]
-	fn proof_is_generated_at_best_block_known_to_target_node() {
+	#[async_std::test]
+	async fn proof_is_generated_at_best_block_known_to_target_node() {
 		const GENERATED_AT: u64 = 6;
 		const BEST_AT_SOURCE: u64 = 10;
 		const BEST_AT_TARGET: u64 = 8;
@@ -620,7 +619,7 @@ mod tests {
 
 		// the proof will be generated on source, but using BEST_AT_TARGET block
 		assert_eq!(
-			select_nonces_to_deliver(&race_state, &mut strategy),
+			select_nonces_to_deliver(race_state, &mut strategy).await,
 			Some((HeaderId(BEST_AT_TARGET, BEST_AT_TARGET), 6..=10, (),))
 		);
 	}

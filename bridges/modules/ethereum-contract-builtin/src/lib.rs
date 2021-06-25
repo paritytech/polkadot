@@ -151,7 +151,7 @@ pub fn verify_substrate_finality_proof(
 	let best_set = best_set?;
 
 	let verify_result = sc_finality_grandpa::GrandpaJustification::<Block>::decode_and_verify_finalizes(
-		&raw_finality_proof,
+		raw_finality_proof,
 		(finality_target_hash, finality_target_number),
 		best_set_id,
 		&best_set,
