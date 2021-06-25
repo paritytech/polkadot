@@ -32,8 +32,8 @@ use polkadot_overseer::{AllMessages, OverseerSignal};
 use polkadot_overseer::gen::{
 	FromOverseer,
 	SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError as OverseerError,
-	SubsystemResult as OverseerResult, SubsystemSender,
+	Subsystem, SubsystemContext, OverseerError,
+	OverseerResult as OverseerResult, SubsystemSender,
 };
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},

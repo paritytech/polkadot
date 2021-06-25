@@ -369,7 +369,8 @@ pub trait SubsystemContext: Send + 'static {
 	type AllMessages: From<Self::Message> + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
 	type Sender: SubsystemSender<Self::AllMessages> + SubsystemSender<Self::Message> + std::fmt::Debug + Send;
-
+	/// The error type.
+	type Error: ::std::error::Error + ::std::convert::From< OverseerError > + Sync + Send + 'static;
 
 	/// Try to asynchronously receive a message.
 	///
@@ -378,17 +379,21 @@ pub trait SubsystemContext: Send + 'static {
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
 
 	/// Receive a message.
-	async fn recv(&mut self) -> OverseerResult<FromOverseer<Self::Message, Self::Signal>>;
+	async fn recv(&mut self) -> Result<FromOverseer<Self::Message, Self::Signal>, Self::Error>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, name: &'static str, s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>) -> OverseerResult<()>;
+	async fn spawn(
+		&mut self,
+		name: &'static str,
+		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>
+	) -> Result<(), Self::Error>;
 
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
 	async fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>,
-	) -> OverseerResult<()>;
+	) -> Result<(), Self::Error>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message<X>(&mut self, msg: X)

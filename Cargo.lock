@@ -6254,6 +6254,38 @@ dependencies = [
 name = "polkadot-node-subsystem"
 version = "0.1.0"
 dependencies = [
+ "polkadot-node-jaeger",
+ "polkadot-node-subsystem-types",
+ "polkadot-overseer",
+ "polkadot-overseer-gen",
+]
+
+[[package]]
+name = "polkadot-node-subsystem-test-helpers"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures 0.3.14",
+ "futures-timer 3.0.2",
+ "parity-scale-codec",
+ "parking_lot 0.11.1",
+ "pin-project 1.0.4",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sc-network",
+ "smallvec 1.6.1",
+ "sp-core",
+ "tracing",
+]
+
+[[package]]
+name = "polkadot-node-subsystem-types"
+version = "0.1.0"
+dependencies = [
  "assert_matches",
  "async-std",
  "async-trait",
@@ -6282,28 +6314,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-subsystem-test-helpers"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures 0.3.14",
- "futures-timer 3.0.2",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "pin-project 1.0.4",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
- "polkadot-statement-table",
- "sc-network",
- "smallvec 1.6.1",
- "sp-core",
- "tracing",
-]
-
-[[package]]
 name = "polkadot-node-subsystem-util"
 version = "0.1.0"
 dependencies = [
@@ -6321,8 +6331,8 @@ dependencies = [
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
- "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-types",
  "polkadot-overseer-gen",
  "polkadot-primitives",
  "rand 0.8.3",
@@ -6349,13 +6359,14 @@ dependencies = [
  "lru",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
- "polkadot-node-subsystem",
+ "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
  "polkadot-overseer-gen",
  "polkadot-primitives",
  "sc-client-api",
  "sp-api",
  "sp-core",
+ "thiserror",
  "tracing",
 ]
 

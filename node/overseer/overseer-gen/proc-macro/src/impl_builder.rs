@@ -286,7 +286,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			ctx: Ctx,
 			s: SubSys,
 			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
-		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty>
+		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
 		where
 			S: ::polkadot_overseer_gen::SpawnNamed,
 			M: std::fmt::Debug + Send + 'static,
@@ -295,7 +295,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::OverseerError>,
 			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
 		{
-			let ::polkadot_overseer_gen::SpawnedSubsystem { future, name } = s.start(ctx);
+			let ::polkadot_overseer_gen::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
 
 			let (tx, rx) = ::polkadot_overseer_gen::oneshot::channel();
 

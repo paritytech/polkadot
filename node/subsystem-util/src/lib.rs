@@ -28,6 +28,10 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	ActiveLeavesUpdate, OverseerSignal,
+	errors::{
+		SubsystemError,
+		SubsystemResult,
+	},
 };
 
 pub use polkadot_overseer_gen::{
@@ -99,7 +103,7 @@ pub enum Error {
 	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
 	#[error(transparent)]
-	Subsystem(#[from] OverseerError),
+	Subsystem(#[from] SubsystemError),
 	/// An error in the Runtime API.
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
@@ -115,6 +119,12 @@ pub enum Error {
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
+}
+
+impl From<OverseerError> for Error {
+	fn from(e: OverseerError) -> Self {
+		Self::from(SubsystemError::from(e))
+	}
 }
 
 /// A type alias for Runtime API receivers.
@@ -783,7 +793,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	}
 }
 
-impl<Context, Job, Spawner> Subsystem<Context, OverseerError> for JobSubsystem<Job, Spawner>
+impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext<Message=Job::ToJob,Signal=OverseerSignal>,
@@ -792,7 +802,7 @@ where
 	Job::ToJob: Sync + From<RuntimeApiMessage>,
 	Job::Metrics: Sync,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			self.run(ctx).await;
 			Ok(())

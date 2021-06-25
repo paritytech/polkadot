@@ -74,6 +74,7 @@ use futures::{
 };
 use lru::LruCache;
 
+use polkadot_node_subsystem_util::OverseerError;
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};

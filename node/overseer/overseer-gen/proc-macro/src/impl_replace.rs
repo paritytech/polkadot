@@ -12,6 +12,8 @@ pub(crate) fn impl_replacable_subsystem(
 
 	let overseer_name = &info.overseer_name;
 
+	let error_ty = &info.error_ty;
+
 	let field_ty = &info.builder_generic_types();
 	let baggage_generic_ty = &info.baggage_generic_types();
 
@@ -23,7 +25,7 @@ pub(crate) fn impl_replacable_subsystem(
 
 	let where_clause = quote! {
 		where
-			Ctx: SubsystemContext,
+			Ctx: SubsystemContext<Error = #error_ty>,
 			S: ::polkadot_overseer_gen::SpawnNamed,
 			#( #field_ty : Subsystem<Ctx>, )*
 	};

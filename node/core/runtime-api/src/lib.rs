@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_overseer::gen::{
-	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+	Subsystem, SpawnedSubsystem, OverseerResult, OverseerError, SubsystemContext,
 	FromOverseer,
 };
 use polkadot_subsystem::{OverseerSignal, errors::RuntimeApiError, messages::{
@@ -265,7 +265,7 @@ impl<Client> RuntimeApiSubsystem<Client> where
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
-) -> SubsystemResult<()> where
+) -> OverseerResult<()> where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal>

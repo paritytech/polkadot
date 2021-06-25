@@ -42,7 +42,7 @@ use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 use polkadot_overseer::{
 	AllMessages,
 	gen::{
-		Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemError as OverseerError, SubsystemContext,
+		Subsystem, SpawnedSubsystem, OverseerResult, OverseerError, SubsystemContext,
 		FromOverseer,
 	},
 };

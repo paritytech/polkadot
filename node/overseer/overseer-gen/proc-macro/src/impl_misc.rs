@@ -12,6 +12,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 	let consumes = &info.consumes();
 	let signal = &info.extern_signal_ty;
 	let wrapper_message = &info.message_wrapper;
+	let error_ty = &info.extern_error_ty;
 
 	let ts = quote! {
 		/// Connector to send messages towards all subsystems,
@@ -128,6 +129,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			type Signal = #signal;
 			type Sender = #subsystem_sender_name;
 			type AllMessages = #wrapper_message;
+			type Error = #error_ty;
 
 			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, #signal>>, ()> {
 				match ::polkadot_overseer_gen::poll!(self.recv()) {
@@ -136,7 +138,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 				}
 			}
 
-			async fn recv(&mut self) -> ::polkadot_overseer_gen::OverseerResult<FromOverseer<M, #signal>> {
+			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<M, #signal>, #error_ty> {
 				loop {
 					// If we have a message pending an overseer signal, we only poll for signals
 					// in the meantime.
@@ -206,7 +208,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 
 			#[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn(ctx, name, fut)")]
 			async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::polkadot_overseer_gen::OverseerResult<()>
+				-> ::std::result::Result<(), #error_ty>
 			{
 				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnJob {
 					name,
@@ -216,7 +218,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 
 			#[deprecated(note="Avoid the message roundtrip and use `<_ as SubsystemContext>::spawn_blocking(ctx, name, fut)")]
 			async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::polkadot_overseer_gen::OverseerResult<()>
+				-> ::std::result::Result<(), #error_ty>
 			{
 				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnBlockingJob {
 					name,
