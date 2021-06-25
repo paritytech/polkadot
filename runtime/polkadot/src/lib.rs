@@ -1437,7 +1437,6 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use frame_support::weights::WeightToFeePolynomial;
-	use frame_support::storage::StorageValue;
 	use sp_runtime::FixedPointNumber;
 	use frame_support::weights::GetDispatchInfo;
 	use parity_scale_codec::Encode;
@@ -1488,12 +1487,12 @@ mod test_fees {
 		let mut ext = sp_io::TestExternalities::new_empty();
 		let mut test_with_multiplier = |m| {
 			ext.execute_with(|| {
-				pallet_transaction_payment::NextFeeMultiplier::put(m);
+				pallet_transaction_payment::NextFeeMultiplier::<Runtime>::put(m);
 				let fee = TransactionPayment::compute_fee(len, &info, 0);
 				println!(
 					"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
 					info.weight.separated_string(),
-					pallet_transaction_payment::NextFeeMultiplier::get(),
+					pallet_transaction_payment::NextFeeMultiplier::<Runtime>::get(),
 					fee.separated_string(),
 				);
 			});
