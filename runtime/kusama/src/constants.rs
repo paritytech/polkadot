@@ -85,16 +85,6 @@ pub mod fee {
 	}
 }
 
-/// Parachains-related.
-pub mod paras {
-	/// Maximum parachain code blob size.
-	pub const MAX_CODE_SIZE: u32 = 10 * 1024 * 1024;
-	/// Maximum parachain head size.
-	pub const MAX_HEAD_SIZE: u32 = 20 * 1024;
-	/// Maximum PoV size.
-	pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
-}
-
 #[cfg(test)]
 mod tests {
 	use frame_support::weights::WeightToFeePolynomial;

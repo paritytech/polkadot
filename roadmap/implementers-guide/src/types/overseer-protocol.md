@@ -29,13 +29,52 @@ Either way, there will be some top-level type encapsulating messages from the ov
 Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
 
 ```rust
+enum LeafStatus {
+    // A leaf is fresh when it's the first time the leaf has been encountered.
+    // Most leaves should be fresh.
+    Fresh,
+    // A leaf is stale when it's encountered for a subsequent time. This will
+    // happen when the chain is reverted or the fork-choice rule abandons some
+    // chain.
+    Stale,
+}
+
 struct ActiveLeavesUpdate {
-    activated: [(Hash, Number)], // in practice, these should probably be a SmallVec
+    activated: [(Hash, Number, LeafStatus)], // in practice, these should probably be a SmallVec
     deactivated: [Hash],
 }
 ```
 
-## Approval Voting
+## All Messages
+
+A message type tying together all message types that are used across Subsystems.
+
+```rust
+enum AllMessages {
+    CandidateValidation(CandidateValidationMessage),
+    CandidateBacking(CandidateBackingMessage),
+    ChainApi(ChainApiMessage),
+    CollatorProtocol(CollatorProtocolMessage),
+    StatementDistribution(StatementDistributionMessage),
+    AvailabilityDistribution(AvailabilityDistributionMessage),
+    AvailabilityRecovery(AvailabilityRecoveryMessage),
+    BitfieldDistribution(BitfieldDistributionMessage),
+    BitfieldSigning(BitfieldSigningMessage),
+    Provisioner(ProvisionerMessage),
+    RuntimeApi(RuntimeApiMessage),
+    AvailabilityStore(AvailabilityStoreMessage),
+    NetworkBridge(NetworkBridgeMessage),
+    CollationGeneration(CollationGenerationMessage),
+    ApprovalVoting(ApprovalVotingMessage),
+    ApprovalDistribution(ApprovalDistributionMessage),
+    GossipSupport(GossipSupportMessage),
+    DisputeCoordinator(DisputeCoordinatorMessage),
+    DisputeParticipation(DisputeParticipationMessage),
+    ChainSelection(ChainSelectionMessage),
+}
+```
+
+## Approval Voting Message
 
 Messages received by the approval voting subsystem.
 
@@ -48,14 +87,34 @@ enum AssignmentCheckResult {
     // The vote was valid but too far in the future to accept right now.
     TooFarInFuture,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad(AssignmentCheckError),
+}
+
+pub enum AssignmentCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidCert(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalCheckResult {
     // The vote was accepted and should be propagated onwards.
     Accepted,
     // The vote was bad and should be ignored, reporting the peer who propagated it.
-    Bad,
+    Bad(ApprovalCheckError),
+}
+
+pub enum ApprovalCheckError {
+    UnknownBlock(Hash),
+    UnknownSessionIndex(SessionIndex),
+    InvalidCandidateIndex(CandidateIndex),
+    InvalidValidatorIndex(ValidatorIndex),
+    InvalidCandidate(CandidateIndex, CandidateHash),
+    InvalidSignature(ValidatorIndex),
+    NoAssignment(ValidatorIndex),
+    Internal(Hash, CandidateHash),
 }
 
 enum ApprovalVotingMessage {
@@ -97,9 +156,9 @@ enum ApprovalVotingMessage {
 }
 ```
 
-## Approval Distribution
+## Approval Distribution Message
 
-Messages received by the approval Distribution subsystem.
+Messages received by the approval distribution subsystem.
 
 ```rust
 /// Metadata about a block which is now live in the approval protocol.
@@ -135,10 +194,6 @@ enum ApprovalDistributionMessage {
     NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
-
-## All Messages
-
-> TODO (now)
 
 ## Availability Distribution Message
 
@@ -257,21 +312,6 @@ enum CandidateBackingMessage {
 }
 ```
 
-## Candidate Selection Message
-
-These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.md) as a means of providing feedback on its outputs.
-
-```rust
-enum CandidateSelectionMessage {
-    /// A candidate collation can be fetched from a collator and should be considered for seconding.
-    Collation(RelayParent, ParaId, CollatorId),
-    /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-    Invalid(RelayParent, CandidateReceipt),
-    /// The candidate we recommended to be seconded was validated successfully.
-    Seconded(RelayParent, SignedFullStatement),
-}
-```
-
 ## Chain API Message
 
 The Chain API subsystem is responsible for providing an interface to chain data.
@@ -284,6 +324,11 @@ enum ChainApiMessage {
     /// Request the block header by hash.
     /// Returns `None` if a block with the given hash is not present in the db.
     BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
+    /// Get the cumulative weight of the given block, by hash.
+    /// If the block or weight is unknown, this returns `None`.
+    /// 
+    /// Weight is used for comparing blocks in a fork-choice rule.
+    BlockWeight(Hash, ResponseChannel<Result<Option<Weight>, Error>>),
     /// Get the finalized block hash by number.
     /// Returns `None` if a block with the given number is not present in the db.
     /// Note: the caller must ensure the block is finalized.
@@ -303,6 +348,23 @@ enum ChainApiMessage {
         /// The response channel.
         response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
     }
+}
+```
+
+## Chain Selection Message
+
+Messages received by the [Chain Selection subsystem](../node/utility/chain-selection.md)
+
+```rust
+enum ChainSelectionMessage {
+    /// Signal to the chain selection subsystem that a specific block has been approved.
+    Approved(Hash),
+    /// Request the leaves in descending order by score.
+    Leaves(ResponseChannel<Vec<Hash>>),
+    /// Request the best leaf containing the given block in its ancestry. Return `None` if
+    /// there is no such leaf.
+    BestLeafContaining(Hash, ResponseChannel<Option<Hash>>),
+
 }
 ```
 
@@ -370,6 +432,13 @@ enum DisputeCoordinatorMessage {
         /// - The validator index (within the session of the candidate) of the validator casting the vote.
         /// - The signature of the validator casting the vote.
         statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+
+        /// Inform the requester once we finished importing.
+        ///
+        /// This is, we either discarded the votes, just record them because we
+        /// casted our vote already or recovered availability for the candidate
+        /// successfully.
+        pending_confirmation: oneshot::Sender<()>,
     },
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
@@ -408,9 +477,39 @@ enum DisputeParticipationMessage {
         candidate_receipt: CandidateReceipt,
         /// The session the candidate appears in.
         session: SessionIndex,
-        /// The indices of validators who have already voted on this candidate.
-        voted_indices: Vec<ValidatorIndex>,
+        /// The number of validators in the session.
+        n_validators: u32,
     }
+}
+```
+
+## Dispute Distribution Message
+
+Messages received by the [Dispute Distribution
+subsystem](../node/disputes/dispute-distribution.md). This subsystem is
+responsible of distributing explicit dispute statements.
+
+```rust
+enum DisputeDistributionMessage {
+
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  /// validators.
+  SendDispute((ValidVote, InvalidVote)),
+
+  /// Ask DisputeDistribution to get votes we don't know about.
+  /// Fetched votes will be reported via `DisputeCoordinatorMessage::ImportStatements`
+  FetchMissingVotes {
+    candidate_hash: CandidateHash,
+    session: SessionIndex,
+    known_valid_votes: Bitfield,
+    known_invalid_votes: Bitfield,
+    /// Optional validator to query from. `ValidatorIndex` as in the above
+    /// referenced session.
+    from_validator: Option<ValidatorIndex>,
+  }
+  /// Tell the subsystem that a candidate is not available. Dispute distribution
+  /// can punish peers distributing votes on unavailable hashes.
+  ReportCandidateUnavailable(CandidateHash),
 }
 ```
 
@@ -463,6 +562,13 @@ enum NetworkBridgeMessage {
         /// authority discovery has failed to resolve.
         failed: oneshot::Sender<usize>,
     },
+    /// Inform the distribution subsystems about the new
+    /// gossip network topology formed.
+    NewGossipTopology {
+        /// Ids of our neighbors in the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should.
+        our_neighbors: HashSet<AuthorityDiscoveryId>,
+    }
 }
 ```
 
@@ -608,9 +714,9 @@ enum RuntimeApiRequest {
     SessionIndexForChild(ResponseChannel<SessionIndex>),
     /// Get the validation code for a specific para, using the given occupied core assumption.
     ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-    /// Fetch the historical validation code used by a para for candidates executed in
-    /// the context of a given block height in the current chain.
-    HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
+    /// Get validation code by its hash, either past, current or future code can be returned,
+    /// as long as state is still available.
+    ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
     /// Get a committed candidate receipt for all candidates pending availability.
     CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
     /// Get all events concerning candidates in the last block.

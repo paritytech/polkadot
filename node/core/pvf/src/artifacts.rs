@@ -18,7 +18,7 @@ use always_assert::always;
 use async_std::{
 	path::{Path, PathBuf},
 };
-use polkadot_core_primitives::Hash;
+use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
@@ -56,14 +56,14 @@ impl Artifact {
 /// multiple engine implementations the artifact ID should include the engine type as well.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
-	code_hash: Hash,
+	code_hash: ValidationCodeHash,
 }
 
 impl ArtifactId {
-	const PREFIX: &'static str = "wasmtime_1_";
+	const PREFIX: &'static str = "wasmtime_";
 
 	/// Creates a new artifact ID with the given hash.
-	pub fn new(code_hash: Hash) -> Self {
+	pub fn new(code_hash: ValidationCodeHash) -> Self {
 		Self { code_hash }
 	}
 
@@ -71,9 +71,10 @@ impl ArtifactId {
 	#[cfg(test)]
 	pub fn from_file_name(file_name: &str) -> Option<Self> {
 		use std::str::FromStr as _;
+		use polkadot_core_primitives::Hash;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
-		let code_hash = Hash::from_str(file_name).ok()?;
+		let code_hash = Hash::from_str(file_name).ok()?.into();
 
 		Some(Self { code_hash })
 	}
@@ -192,26 +193,13 @@ mod tests {
 	use std::str::FromStr;
 
 	#[test]
-	fn ensure_wasmtime_version() {
-		assert_eq!(
-			wasmtime_jit::VERSION,
-			"0.24.0",
-			"wasmtime version is updated. Check the prefix.",
-		);
-		// If the version bump is significant, change `ArtifactId::PREFIX`.
-		//
-		// If in doubt bump it. This will lead to removal of the existing artifacts in the on-disk cache
-		// and recompilation.
-	}
-
-	#[test]
 	fn from_file_name() {
 		assert!(ArtifactId::from_file_name("").is_none());
 		assert!(ArtifactId::from_file_name("junk").is_none());
 
 		assert_eq!(
 			ArtifactId::from_file_name(
-				"wasmtime_1_0x0022800000000000000000000000000000000000000000000000000000000000"
+				"wasmtime_0x0022800000000000000000000000000000000000000000000000000000000000"
 			),
 			Some(ArtifactId::new(
 				hex_literal::hex![
@@ -225,11 +213,11 @@ mod tests {
 	#[test]
 	fn path() {
 		let path = Path::new("/test");
-		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap();
+		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap().into();
 
 		assert_eq!(
 			ArtifactId::new(hash).path(path).to_str(),
-			Some("/test/wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234"),
+			Some("/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234"),
 		);
 	}
 
@@ -238,7 +226,7 @@ mod tests {
 		let fake_cache_path = async_std::task::block_on(async move { crate::worker_common::tmpfile("test-cache").await.unwrap() });
 		let fake_artifact_path = {
 			let mut p = fake_cache_path.clone();
-			p.push("wasmtime_1_0x1234567890123456789012345678901234567890123456789012345678901234");
+			p.push("wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234");
 			p
 		};
 

@@ -569,7 +569,7 @@ impl<T: Config> Module<T> {
 		{
 			Ok(i) => i,
 			Err(_) => 0, // can only happen if rotations occur only once every u32::max(),
-			             // so functionally no difference in behavior.
+						 // so functionally no difference in behavior.
 		};
 
 		let group_idx = (core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();

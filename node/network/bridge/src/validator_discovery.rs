@@ -89,6 +89,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// collect multiaddress of validators
 		let mut failed_to_resolve: usize = 0;
 		let mut newly_requested = HashSet::new();
+		let requested = validator_ids.len();
 		for authority in validator_ids.into_iter() {
 			let result = authority_discovery_service.get_addresses_by_authority_id(authority.clone()).await;
 			if let Some(addresses) = result {
@@ -101,15 +102,24 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		let state = &mut self.state[peer_set];
 		// clean up revoked requests
-		let multiaddr_to_remove = state.previously_requested
+		let multiaddr_to_remove: HashSet<_> = state.previously_requested
 			.difference(&newly_requested)
 			.cloned()
 			.collect();
-		let multiaddr_to_add = newly_requested.difference(&state.previously_requested)
+		let multiaddr_to_add: HashSet<_> = newly_requested.difference(&state.previously_requested)
 			.cloned()
 			.collect();
 		state.previously_requested = newly_requested;
 
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer_set,
+			?requested,
+			added = multiaddr_to_add.len(),
+			removed = multiaddr_to_remove.len(),
+			?failed_to_resolve,
+			"New ConnectToValidators request",
+		);
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service.add_to_peers_set(
@@ -133,10 +143,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::network::{Network, NetworkAction};
+	use crate::network::Network;
 
-	use std::{borrow::Cow, pin::Pin, collections::HashMap};
-	use futures::{sink::Sink, stream::BoxStream};
+	use std::{borrow::Cow, collections::HashMap};
+	use futures::stream::BoxStream;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_node_network_protocol::request_response::request::Requests;
@@ -193,13 +203,24 @@ mod tests {
 			Ok(())
 		}
 
-		fn action_sink<'a>(&'a mut self)
-			-> Pin<Box<dyn Sink<NetworkAction, Error = polkadot_subsystem::SubsystemError> + Send + 'a>>
-		{
+		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
+		}
+
+		fn report_peer(&self, _: PeerId, _: crate::Rep) {
 			panic!()
 		}
 
-		async fn start_request<AD: AuthorityDiscovery>(&self, _: &mut AD, _: Requests, _: IfDisconnected) {
+		fn disconnect_peer(&self, _: PeerId, _: PeerSet) {
+			panic!()
+		}
+
+		fn write_notification(
+				&self,
+				_: PeerId,
+				_: PeerSet,
+				_: Vec<u8>,
+		) {
+			panic!()
 		}
 	}
 
