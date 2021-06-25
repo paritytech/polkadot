@@ -149,6 +149,8 @@ pub mod pallet {
 		NotAuction,
 		/// Auction has already ended.
 		AuctionEnded,
+		/// The para is already leased out for part of this range.
+		AlreadyLeasedOut,
 	}
 
 	/// Number of auctions started so far.
@@ -412,6 +414,9 @@ impl<T: Config> Pallet<T> {
 			AuctionStatus::EndingPeriod(o, _) => o,
 			AuctionStatus::VrfDelay(_) => return Err(Error::<T>::AuctionEnded.into()),
 		};
+
+		// We also make sure that the bid is not for any existing leases the para already has.
+		ensure!(!T::Leaser::already_leased(para, first_slot, last_slot), Error::<T>::AlreadyLeasedOut);
 
 		// Our range.
 		let range = SlotRange::new_bounded(first_lease_period, first_slot, last_slot)?;
@@ -745,6 +750,18 @@ mod tests {
 
 		fn lease_period_index() -> Self::LeasePeriod {
 			(System::block_number() / Self::lease_period()).into()
+		}
+
+		fn already_leased(
+			para_id: ParaId,
+			first_period: Self::LeasePeriod,
+			last_period: Self::LeasePeriod
+		) -> bool {
+			leases().into_iter().any(|((para, period), _data)| {
+				para == para_id &&
+				first_period <= period &&
+				period <= last_period
+			})
 		}
 	}
 
@@ -1303,6 +1320,42 @@ mod tests {
 			assert_noop!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1), Error::<Test>::ParaNotRegistered);
 			assert_ok!(TestRegistrar::<Test>::register(1, 1337.into(), Default::default(), Default::default()));
 			assert_ok!(Auctions::bid(Origin::signed(1), 1337.into(), 1, 1, 4, 1));
+		});
+	}
+
+	#[test]
+	fn handle_bid_checks_existing_lease_periods() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 1, 2, 3, 1));
+			assert_eq!(Balances::reserved_balance(1), 1);
+			assert_eq!(Balances::free_balance(1), 9);
+			run_to_block(9);
+
+			assert_eq!(leases(), vec![
+				((0.into(), 2), LeaseData { leaser: 1, amount: 1 }),
+				((0.into(), 3), LeaseData { leaser: 1, amount: 1 }),
+			]);
+			assert_eq!(TestLeaser::deposit_held(0.into(), &1), 1);
+
+			// Para 1 just won an auction above and won some lease periods.
+			// No bids can work which overlap these periods.
+			assert_ok!(Auctions::new_auction(Origin::signed(6), 5, 1));
+			assert_noop!(
+				Auctions::bid(Origin::signed(1), 0.into(), 2, 1, 4, 1),
+				Error::<Test>::AlreadyLeasedOut,
+			);
+			assert_noop!(
+				Auctions::bid(Origin::signed(1), 0.into(), 2, 1, 2, 1),
+				Error::<Test>::AlreadyLeasedOut,
+			);
+			assert_noop!(
+				Auctions::bid(Origin::signed(1), 0.into(), 2, 3, 4, 1),
+				Error::<Test>::AlreadyLeasedOut,
+			);
+			// This is okay, not an overlapping bid.
+			assert_ok!(Auctions::bid(Origin::signed(1), 0.into(), 2, 1, 1, 1));
 		});
 	}
 
