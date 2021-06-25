@@ -18,7 +18,6 @@
 
 use crate::*;
 use frame_support::weights::WeightToFeePolynomial;
-use frame_support::storage::StorageValue;
 use sp_runtime::FixedPointNumber;
 use frame_support::weights::GetDispatchInfo;
 use parity_scale_codec::Encode;
