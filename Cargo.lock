@@ -3240,7 +3240,7 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -5676,7 +5676,7 @@ checksum = "989d43012e2ca1c4a02507c67282691a0a3207f9dc67cec596b43fe925b3d325"
 
 [[package]]
 name = "polkadot"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "assert_cmd",
  "color-eyre",
@@ -5788,7 +5788,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.15",
@@ -5865,7 +5865,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-core-primitives"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
@@ -5876,7 +5876,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "parity-scale-codec",
  "polkadot-node-primitives",
@@ -6402,7 +6402,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "derive_more",
  "parity-scale-codec",
@@ -6416,7 +6416,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -6469,7 +6469,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-gadget",
  "beefy-gadget-rpc",
@@ -6501,7 +6501,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -6583,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -6635,7 +6635,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-parachains"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "bitvec",
  "derive_more",
@@ -6685,7 +6685,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "async-trait",
  "beefy-gadget",
@@ -6806,7 +6806,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -6815,7 +6815,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-client"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "futures 0.3.15",
  "parity-scale-codec",
@@ -6856,7 +6856,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -6917,7 +6917,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-service"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "frame-benchmarking",
  "frame-system",
@@ -7636,7 +7636,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-runtime"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bp-rococo",
@@ -9174,7 +9174,7 @@ dependencies = [
 
 [[package]]
 name = "slot-range-helper"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "enumn",
  "parity-scale-codec",
@@ -10314,7 +10314,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -10327,7 +10327,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder-collator"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "futures 0.3.15",
  "futures-timer 3.0.2",
@@ -10354,14 +10354,14 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "substrate-wasm-builder",
 ]
 
 [[package]]
 name = "test-parachains"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
@@ -11640,7 +11640,7 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "beefy-primitives",
  "bitvec",
@@ -11833,7 +11833,7 @@ dependencies = [
 
 [[package]]
 name = "xcm"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "derivative",
  "impl-trait-for-tuples",
@@ -11842,7 +11842,7 @@ dependencies = [
 
 [[package]]
 name = "xcm-builder"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11860,7 +11860,7 @@ dependencies = [
 
 [[package]]
 name = "xcm-executor"
-version = "0.9.5"
+version = "0.9.7"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
