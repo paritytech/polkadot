@@ -21,8 +21,7 @@ use std::task::{Context, Poll};
 
 use futures::FutureExt;
 use futures::Stream;
-use futures::future::BoxFuture;
-use futures::select;
+use futures::future::{BoxFuture, poll_fn};
 use futures::stream::FusedStream;
 use lru::LruCache;
 use futures::{channel::mpsc, channel::oneshot, stream::StreamExt, stream::FuturesUnordered};
@@ -99,7 +98,7 @@ enum Message {
 	/// - We need to make sure responses are actually sent (therefore we need to await futures
 	/// promptly).
 	/// - We need to update banned_peers accordingly to the result.
-	ConfirmedImport(Option<NonFatalResult<(PeerId, ImportStatementsResult)>>),
+	ConfirmedImport(NonFatalResult<(PeerId, ImportStatementsResult)>),
 
 	/// A new request has arrived and should be handled.
 	NewRequest(sc_network::config::IncomingRequest),
@@ -110,13 +109,21 @@ impl Message {
 		pending_imports: &mut PendingImports,
 		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
 	) -> FatalResult<Message> {
-		select!(
-			import_result = pending_imports.next() => Ok(Message::ConfirmedImport(import_result)),
-			result = pending_requests.next() => match result {
-				None => Err(Fatal::RequestChannelFinished),
-				Some(msg) => Ok(Message::NewRequest(msg)),
+		poll_fn(|ctx| {
+			if let Poll::Ready(v) = pending_requests.poll_next_unpin(ctx) {
+				let r = match v {
+					None => Err(Fatal::RequestChannelFinished),
+					Some(msg) => Ok(Message::NewRequest(msg)),
+				};
+				return Poll::Ready(r)
 			}
-		)
+			// In case of Ready(None) return `Pending` below - we want to wait for the next request
+			// in that case ^^ (no busy looping).
+			if let Poll::Ready(Some(v)) = pending_imports.poll_next_unpin(ctx) {
+				return Poll::Ready(Ok(Message::ConfirmedImport(v)))
+			}
+			Poll::Pending
+		}).await
 	}
 }
 
@@ -219,7 +226,7 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
 			// Wait for one to finish:
 			let r = self.pending_imports.next().await;
-			self.ban_bad_peer(r)?;
+			self.ban_bad_peer(r.expect("pending_imports.len() is greater 0. qed."))?;
 		}
 
 		// All good - initiate import.
@@ -283,19 +290,13 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 	/// Await an import and ban any misbehaving peers.
 	fn ban_bad_peer(
 		&mut self,
-		result: Option<NonFatalResult<(PeerId, ImportStatementsResult)>>
+		result: NonFatalResult<(PeerId, ImportStatementsResult)>
 	) -> NonFatalResult<()> {
-		match result {
-			None => tracing::debug!(
-				target: LOG_TARGET,
-				"Pending imports was empty."
-			),
-			Some(result) => match result? {
-				(_, ImportStatementsResult::ValidImport) => {}
-				(bad_peer, ImportStatementsResult::InvalidImport) => {
-					self.banned_peers.put(bad_peer, ());
-				}
-			},
+		match result? {
+			(_, ImportStatementsResult::ValidImport) => {}
+			(bad_peer, ImportStatementsResult::InvalidImport) => {
+				self.banned_peers.put(bad_peer, ());
+			}
 		}
 		Ok(())
 	}
