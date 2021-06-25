@@ -174,6 +174,8 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn cache_validation_code(&mut self, key: (Hash, ParaId, OccupiedCoreAssumption), value: Option<ValidationCodeAndHash>) {
+		let validation_code_hash = value.as_ref().map(|code_and_hash| code_and_hash.hash().clone());
+		self.validation_code_hash.insert(key, ResidentSizeOf(validation_code_hash));
 		self.validation_code.insert(key, ResidentSizeOf(value));
 	}
 

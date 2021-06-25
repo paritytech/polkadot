@@ -562,9 +562,9 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
-	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
-	/// will inform on how the validation data should be computed if the para currently
-	/// occupies a core.
+	/// Get the validation code and its hash for a para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
 	ValidationCode(
 		ParaId,
 		OccupiedCoreAssumption,
