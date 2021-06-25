@@ -20,6 +20,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 
 [dev-dependencies]
+assert_matches = "1.5"
 bp-test-utils = { path = "../test-utils" }
 
 [features]

@@ -396,7 +396,7 @@ mod tests {
 	fn verify_with_config(config: &AuraConfiguration, header: &AuraHeader) -> Result<ImportContext<AccountId>, Error> {
 		run_test_with_genesis(genesis(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			verify_aura_header(&storage, &config, None, header, &ConstChainTime::default())
+			verify_aura_header(&storage, config, None, header, &ConstChainTime::default())
 		})
 	}
 
@@ -787,7 +787,7 @@ mod tests {
 	fn pool_verifies_future_block_number() {
 		// when header is too far from the future
 		assert_eq!(
-			default_accept_into_pool(|validators| (HeaderBuilder::with_number(100).sign_by_set(&validators), None),),
+			default_accept_into_pool(|validators| (HeaderBuilder::with_number(100).sign_by_set(validators), None),),
 			Err(Error::UnsignedTooFarInTheFuture),
 		);
 	}
@@ -800,7 +800,7 @@ mod tests {
 			default_accept_into_pool(|validators| (
 				HeaderBuilder::with_parent_number(3)
 					.step(GENESIS_STEP + 3)
-					.sign_by_set(&validators),
+					.sign_by_set(validators),
 				None,
 			),),
 			Err(Error::DoubleVote),

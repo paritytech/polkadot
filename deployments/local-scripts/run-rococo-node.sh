@@ -9,6 +9,6 @@
 ROCOCO_PORT="${ROCOCO_PORT:-9955}"
 
 RUST_LOG=runtime=trace,runtime::bridge=trace \
-./target/debug/polkadot --chain=rococo-local --alice --tmp \
+./target/debug/polkadot --chain=rococo-dev --alice --tmp \
     --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external \
     --port 33044 --rpc-port 9934 --ws-port $ROCOCO_PORT \

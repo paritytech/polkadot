@@ -245,7 +245,7 @@ impl AuraHeader {
 
 	/// Get step this header is generated for.
 	pub fn step(&self) -> Option<u64> {
-		self.seal.get(0).map(|x| Rlp::new(&x)).and_then(|x| x.as_val().ok())
+		self.seal.get(0).map(|x| Rlp::new(x)).and_then(|x| x.as_val().ok())
 	}
 
 	/// Get header author' signature.
@@ -496,7 +496,7 @@ pub fn transaction_decode_rlp(raw_tx: &[u8]) -> Result<Transaction, DecoderError
 	let message = unsigned.message(chain_id);
 
 	// recover tx sender
-	let sender_public = sp_io::crypto::secp256k1_ecdsa_recover(&signature, &message.as_fixed_bytes())
+	let sender_public = sp_io::crypto::secp256k1_ecdsa_recover(&signature, message.as_fixed_bytes())
 		.map_err(|_| rlp::DecoderError::Custom("Failed to recover transaction sender"))?;
 	let sender_address = public_to_address(&sender_public);
 
