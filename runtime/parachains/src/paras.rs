@@ -1689,8 +1689,8 @@ mod tests {
 
 		new_test_ext(genesis_config).execute_with(|| {
 			let para_id = ParaId::from(0);
-			let old_code = ValidationCode(vec![1, 2, 3]);
-			let new_code = ValidationCode(vec![4, 5, 6]);
+			let old_code: ValidationCode = vec![1, 2, 3].into();
+			let new_code: ValidationCode = vec![4, 5, 6].into();
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 10);
 
 			// no intermediate, falls back on current/past.
@@ -1741,8 +1741,8 @@ mod tests {
 
 		new_test_ext(genesis_config).execute_with(|| {
 			let para_id = ParaId::from(0);
-			let old_code = ValidationCode(vec![1, 2, 3]);
-			let new_code = ValidationCode(vec![4, 5, 6]);
+			let old_code: ValidationCode = vec![1, 2, 3].into();
+			let new_code: ValidationCode = vec![4, 5, 6].into();
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 2);
 
 			run_to_block(10, None);
