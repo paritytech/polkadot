@@ -356,9 +356,10 @@ parameter_types! {
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
 	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies 20kb. This formula is currently adjusted such that a typical
-	// solution will spend approximately equal amounts on the base and per-byte deposits.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (20 * 1024 * 1024);
+	// A typical solution occupies within an order of magnitude of 50kb.
+	// This formula is currently adjusted such that a typical solution will spend an amount equal
+	// to the base deposit for every 50 kb.
+	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
 	pub SignedRewardBase: Balance = fee_for_submit_call::<
 		Runtime,
 		crate::constants::fee::WeightToFee,
