@@ -29,6 +29,7 @@ use sp_std::result;
 use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, ValidationCodeHash, HeadData, SessionIndex, ConsensusLog,
+	UpgradeGoAhead, UpgradeRestriction,
 };
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use frame_system::ensure_root;
@@ -316,6 +317,35 @@ decl_storage! {
 		///
 		/// Corresponding code can be retrieved with [`CodeByHash`].
 		FutureCodeHash: map hasher(twox_64_concat) ParaId => Option<ValidationCodeHash>;
+		/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
+		///
+		/// This value is abscent when there are no upgrades scheduled or during the time the relay chain
+		/// performs the checks. It is set at the first relay-chain block when the corresponding parachain
+		/// can switch its upgrade function. As soon as the parachain's block is included, the value
+		/// gets reset to `None`.
+		///
+		/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+		/// the format will require migration of parachains.
+		UpgradeGoAheadSignal: map hasher(twox_64_concat) ParaId => Option<UpgradeGoAhead>;
+		/// This is used by the relay-chain to communicate that there are restrictions for performing
+		/// an upgrade for this parachain.
+		///
+		/// This may be a because the parachain waits for the upgrade cooldown to expire. Another
+		/// potential use case is when we want to perform some maintanance (such as storage migration)
+		/// we could restrict upgrades to make the process simpler.
+		///
+		/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+		/// the format will require migration of parachains.
+		UpgradeRestrictionSignal: map hasher(twox_64_concat) ParaId => Option<UpgradeRestriction>;
+		/// The list of parachains that are awaiting for their upgrade restriction to cooldown.
+		///
+		/// Ordered ascending by block number.
+		UpgradeCooldowns: Vec<(ParaId, T::BlockNumber)>;
+		/// The list of upcoming code upgrades. Each item is a pair of which para performs a code
+		/// upgrade and at which relay-chain block it is expected at.
+		///
+		/// Ordered ascending by block number.
+		UpcomingUpgrades: Vec<(ParaId, T::BlockNumber)>;
 		/// The actions to perform during the start of a specific session index.
 		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Upcoming paras instantiation arguments.
@@ -421,11 +451,17 @@ decl_module! {
 			Self::deposit_event(Event::CurrentHeadUpdated(para));
 		}
 
-		/// Schedule a code upgrade for block `expected_at`.
+		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
 		#[weight = 0]
-		fn force_schedule_code_upgrade(origin, para: ParaId, new_code: ValidationCode, expected_at: T::BlockNumber) {
+		fn force_schedule_code_upgrade(
+			origin,
+			para: ParaId,
+			new_code: ValidationCode,
+			relay_parent_number: T::BlockNumber,
+		) {
 			ensure_root(origin)?;
-			Self::schedule_code_upgrade(para, new_code, expected_at);
+			let config = configuration::Module::<T>::config();
+			Self::schedule_code_upgrade(para, new_code, relay_parent_number, &config);
 			Self::deposit_event(Event::CodeUpgradeScheduled(para));
 		}
 
@@ -458,7 +494,8 @@ decl_module! {
 impl<T: Config> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		Self::prune_old_code(now)
+		let weight = Self::prune_old_code(now);
+		weight + Self::process_scheduled_upgrade_changes(now)
 	}
 
 	/// Called by the initializer to finalize the configuration module.
@@ -545,6 +582,8 @@ impl<T: Config> Module<T> {
 
 					<Self as Store>::Heads::remove(&para);
 					<Self as Store>::FutureCodeUpgrades::remove(&para);
+					<Self as Store>::UpgradeGoAheadSignal::remove(&para);
+					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
 					ParaLifecycles::remove(&para);
 					let removed_future_code_hash = <Self as Store>::FutureCodeHash::take(&para);
 					if let Some(removed_future_code_hash) = removed_future_code_hash {
@@ -559,6 +598,22 @@ impl<T: Config> Module<T> {
 					outgoing.push(para);
 				},
 			}
+		}
+
+		if !outgoing.is_empty() {
+			// Filter offboarded parachains from the upcoming upgrades list.
+			//
+			// We do it after the offboarding to get away with only a single read/write.
+			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+				*upcoming_upgrades = sp_std::mem::take(upcoming_upgrades)
+					.into_iter()
+					.filter(|&(ref para, _)| {
+						// NOTE this iterates over upcoming upgrades and outgoing. We do not expect
+						//      either of these to be large. Thus should be fine.
+						!outgoing.contains(para)
+					})
+					.collect();
+			});
 		}
 
 		// Place the new parachains set in storage.
@@ -652,6 +707,42 @@ impl<T: Config> Module<T> {
 		// 1 read for the meta for each pruning task, 1 read for the config
 		// 2 writes: updating the meta and pruning the code
 		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
+	}
+
+	/// Process the timers related to upgrades. Specifically, the upgrade go ahead signals toggle
+	/// and the upgrade cooldown restrictions.
+	///
+	/// Takes the current block number and returns the weight consumed.
+	fn process_scheduled_upgrade_changes(now: T::BlockNumber) -> Weight {
+		let upgrades_signaled = <Self as Store>::UpcomingUpgrades::mutate(
+			|upcoming_upgrades: &mut Vec<(ParaId, T::BlockNumber)>| {
+				let num = upcoming_upgrades
+					.iter()
+					.take_while(|&(_, at)| at <= &now)
+					.count();
+				for (para, _) in upcoming_upgrades.drain(..num) {
+					<Self as Store>::UpgradeGoAheadSignal::insert(&para, UpgradeGoAhead::GoAhead);
+				}
+				num
+			},
+		);
+		let cooldowns_expired = <Self as Store>::UpgradeCooldowns::mutate(
+			|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
+				let num = upgrade_cooldowns
+					.iter()
+					.take_while(|&(_, at)| at <= &now)
+					.count();
+				for (para, _) in upgrade_cooldowns.drain(..num) {
+					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
+				}
+				num
+			},
+		);
+
+		T::DbWeight::get().reads_writes(
+			2,
+			upgrades_signaled as u64 + cooldowns_expired as u64
+		)
 	}
 
 	/// Verify that `schedule_para_initialize` can be called successfully.
@@ -759,13 +850,38 @@ impl<T: Config> Module<T> {
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
-		expected_at: T::BlockNumber,
+		relay_parent_number: T::BlockNumber,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		<Self as Store>::FutureCodeUpgrades::mutate(&id, |up| {
 			if up.is_some() {
 				T::DbWeight::get().reads_writes(1, 0)
 			} else {
+				let expected_at = relay_parent_number + cfg.validation_upgrade_delay;
+				let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
+
 				*up = Some(expected_at);
+
+				<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+					let insert_idx = upcoming_upgrades
+						.binary_search_by_key(&expected_at, |&(_, b)| b)
+						.unwrap_or_else(|idx| idx);
+					upcoming_upgrades.insert(insert_idx, (id, expected_at));
+				});
+
+				// From the moment of signalling of the upgrade until the cooldown expires, the
+				// parachain is disallowed to make further upgrades. Therefore set the upgrade
+				// permission signal to disallowed and activate the cooldown timer.
+				<Self as Store>::UpgradeRestrictionSignal::insert(
+					&id,
+					UpgradeRestriction::Present,
+				);
+				<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+					let insert_idx = upgrade_cooldowns
+						.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
+						.unwrap_or_else(|idx| idx);
+					upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
+				});
 
 				let new_code_hash = new_code.hash();
 				let expected_at_u32 = expected_at.saturated_into();
@@ -774,14 +890,14 @@ impl<T: Config> Module<T> {
 
 				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
 				FutureCodeHash::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(1 + reads, 2 + writes)
+				T::DbWeight::get().reads_writes(2 + reads, 3 + writes)
 			}
 		})
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
 	/// of a relay-chain block with given number. This will apply pending code upgrades based
-	/// on the block number provided.
+	/// on the relay-parent block number provided.
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
@@ -792,6 +908,7 @@ impl<T: Config> Module<T> {
 		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
+				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
 				let new_code_hash = FutureCodeHash::take(&id).unwrap_or_default();
@@ -959,7 +1076,7 @@ mod tests {
 		traits::{OnFinalize, OnInitialize}
 	};
 
-	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
+	use crate::mock::{new_test_ext, Configuration, Paras, Shared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -1249,6 +1366,7 @@ mod tests {
 	fn code_upgrade_applied_after_delay() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
+		let validation_upgrade_frequency = 10;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
@@ -1265,6 +1383,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					validation_upgrade_frequency,
 					..Default::default()
 				},
 				..Default::default()
@@ -1284,12 +1403,15 @@ mod tests {
 			let expected_at = {
 				// this parablock is in the context of block 1.
 				let expected_at = 1 + validation_upgrade_delay;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
+				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+				assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
+				assert_eq!(<Paras as Store>::UpgradeCooldowns::get(), vec![(para_id, next_possible_upgrade_at)]);
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1307,6 +1429,7 @@ mod tests {
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+				assert_eq!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1329,6 +1452,7 @@ mod tests {
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 				assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
+				assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
 				assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 				check_code_is_stored(&original_code);
 				check_code_is_stored(&new_code);
@@ -1340,6 +1464,7 @@ mod tests {
 	fn code_upgrade_applied_after_delay_even_when_late() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 5;
+		let validation_upgrade_frequency = 10;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
@@ -1356,6 +1481,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					validation_upgrade_frequency,
 					..Default::default()
 				},
 				..Default::default()
@@ -1373,12 +1499,16 @@ mod tests {
 			let expected_at = {
 				// this parablock is in the context of block 1.
 				let expected_at = 1 + validation_upgrade_delay;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
+				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+				assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
+				assert_eq!(<Paras as Store>::UpgradeCooldowns::get(), vec![(para_id, next_possible_upgrade_at)]);
+				assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
 				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 				expected_at
@@ -1389,6 +1519,12 @@ mod tests {
 			// the candidate is in the context of the first descendent of `expected_at`, and triggers
 			// the upgrade.
 			{
+				// The signal should be set to go-ahead until the new head is actually processed.
+				assert_eq!(
+					<Paras as Store>::UpgradeGoAheadSignal::get(&para_id),
+					Some(UpgradeGoAhead::GoAhead),
+				);
+
 				Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
 				assert_eq!(
@@ -1423,6 +1559,7 @@ mod tests {
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 				assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
+				assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
 				assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 			}
 		});
@@ -1431,6 +1568,7 @@ mod tests {
 	#[test]
 	fn submit_code_change_when_not_allowed_is_err() {
 		let code_retention_period = 10;
+		let validation_upgrade_delay = 7;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1445,6 +1583,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
 					code_retention_period,
+					validation_upgrade_delay,
 					..Default::default()
 				},
 				..Default::default()
@@ -1458,14 +1597,29 @@ mod tests {
 			let newer_code = ValidationCode(vec![4, 5, 6, 7]);
 
 			run_to_block(1, None);
-
-			Paras::schedule_code_upgrade(para_id, new_code.clone(), 8);
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
+			Paras::schedule_code_upgrade(
+				para_id,
+				new_code.clone(),
+				1,
+				&Configuration::config(),
+			);
+			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(1 + validation_upgrade_delay));
 			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
 			check_code_is_stored(&new_code);
 
-			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 10);
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
+			// We expect that if an upgrade is signalled while there is already one pending we just
+			// ignore it. Note that this is only true from perspective of this module.
+			run_to_block(2, None);
+			Paras::schedule_code_upgrade(
+				para_id,
+				newer_code.clone(),
+				2,
+				&Configuration::config(),
+			);
+			assert_eq!(
+				<Paras as Store>::FutureCodeUpgrades::get(&para_id),
+				Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
+			);
 			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
 			check_code_is_not_stored(&newer_code);
 		});
@@ -1474,6 +1628,7 @@ mod tests {
 	#[test]
 	fn full_parachain_cleanup_storage() {
 		let code_retention_period = 10;
+		let validation_upgrade_delay = 1 + 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
 		let paras = vec![
@@ -1489,6 +1644,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
 					code_retention_period,
+					validation_upgrade_delay,
 					..Default::default()
 				},
 				..Default::default()
@@ -1508,8 +1664,8 @@ mod tests {
 
 			let expected_at = {
 				// this parablock is in the context of block 1.
-				let expected_at = 1 + 5;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
+				let expected_at = 1 + validation_upgrade_delay;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
@@ -1652,6 +1808,7 @@ mod tests {
 	#[test]
 	fn code_hash_at_with_intermediate() {
 		let code_retention_period = 10;
+		let validation_upgrade_delay = 10;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1666,6 +1823,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
 					code_retention_period,
+					validation_upgrade_delay,
 					..Default::default()
 				},
 				..Default::default()
@@ -1677,7 +1835,11 @@ mod tests {
 			let para_id = ParaId::from(0);
 			let old_code: ValidationCode = vec![1, 2, 3].into();
 			let new_code: ValidationCode = vec![4, 5, 6].into();
-			Paras::schedule_code_upgrade(para_id, new_code.clone(), 10);
+
+
+			// expected_at = 10 = 0 + validation_upgrade_delay = 0 + 10
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
+			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(10));
 
 			// no intermediate, falls back on current/past.
 			assert_eq!(fetch_validation_code_at(para_id, 1, None), Some(old_code.clone()));
@@ -1704,6 +1866,7 @@ mod tests {
 	#[test]
 	fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let code_retention_period = 10;
+		let validation_upgrade_delay = 2;
 
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
@@ -1718,6 +1881,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: HostConfiguration {
 					code_retention_period,
+					validation_upgrade_delay,
 					..Default::default()
 				},
 				..Default::default()
@@ -1729,7 +1893,7 @@ mod tests {
 			let para_id = ParaId::from(0);
 			let old_code: ValidationCode = vec![1, 2, 3].into();
 			let new_code: ValidationCode = vec![4, 5, 6].into();
-			Paras::schedule_code_upgrade(para_id, new_code.clone(), 2);
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 
 			run_to_block(10, None);
 			Paras::note_new_head(para_id, Default::default(), 7);
@@ -1789,6 +1953,42 @@ mod tests {
 
 			assert!(!CodeByHash::contains_key(code.hash()));
 			assert!(!CodeByHashRefs::contains_key(code.hash()));
+		});
+	}
+
+	#[test]
+	fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
+		use primitives::v1::well_known_keys;
+
+		let a = ParaId::from(2020);
+
+		new_test_ext(Default::default()).execute_with(|| {
+			assert!(
+				sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).is_none()
+			);
+		 	<Paras as Store>::UpgradeGoAheadSignal::insert(&a, UpgradeGoAhead::GoAhead);
+			assert_eq!(
+				sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).unwrap(),
+				vec![1u8],
+			);
+		});
+	}
+
+	#[test]
+	fn verify_upgrade_restriction_signal_is_externally_accessible() {
+		use primitives::v1::well_known_keys;
+
+		let a = ParaId::from(2020);
+
+		new_test_ext(Default::default()).execute_with(|| {
+			assert!(
+				sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).is_none()
+			);
+		 	<Paras as Store>::UpgradeRestrictionSignal::insert(&a, UpgradeRestriction::Present);
+			assert_eq!(
+				sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).unwrap(),
+				vec![0],
+			);
 		});
 	}
 }
