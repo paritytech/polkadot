@@ -10,8 +10,8 @@ tokio = { version = "0.2", features = ["macros"] }
 log = "0.4.11"
 env_logger = "0.8.3"
 structopt = "0.3.0"
-jsonrpsee-ws-client = { version = "=0.2.0-alpha.6" }
-jsonrpsee-types = { version = "=0.2.0-alpha.6" }
+jsonrpsee-ws-client = { version = "0.2.0" }
+jsonrpsee-types = { version = "0.2.0" }
 jsonrpsee = "=0.2.0-alpha.6"
 serde_json = "1.0"
 serde = "1.0.0"

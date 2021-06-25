@@ -23,6 +23,7 @@
 //    wasm executor.
 
 mod dry_run;
+mod emergency_solution;
 mod monitor;
 mod prelude;
 
@@ -52,6 +53,7 @@ macro_rules! construct_runtime_prelude {
 					pub(crate) type NposCompactSolution = [<$runtime _runtime>]::$npos;
 					pub(crate) use crate::monitor::[<monitor_cmd_ $runtime>] as monitor_cmd;
 					pub(crate) use crate::dry_run::[<dry_run_cmd_ $runtime>] as dry_run_cmd;
+					pub(crate) use crate::emergency_solution::[<emergency_solution_cmd_ $runtime>] as emergency_solution_cmd;
 					pub(crate) use private::{[<create_uxt_ $runtime>] as create_uxt};
 
 					mod private {
@@ -96,6 +98,7 @@ macro_rules! construct_runtime_prelude {
 	};
 }
 
+// TODO: we might be able to use some code from the bridges repo here.
 fn signed_ext_builder_polkadot(
 	nonce: Index,
 	tip: Balance,
@@ -222,6 +225,7 @@ enum Error {
 	RemoteExternalities(&'static str),
 	PalletMiner(EPM::unsigned::MinerError),
 	PalletElection(EPM::ElectionError),
+	PalletFeasibility(EPM::FeasibilityError),
 	AccountDoesNotExists,
 	IncorrectPhase,
 	AlreadySubmitted,
@@ -242,6 +246,12 @@ impl From<EPM::unsigned::MinerError> for Error {
 impl From<EPM::ElectionError> for Error {
 	fn from(e: EPM::ElectionError) -> Error {
 		Error::PalletElection(e)
+	}
+}
+
+impl From<EPM::FeasibilityError> for Error {
+	fn from(e: EPM::FeasibilityError) -> Error {
+		Error::PalletFeasibility(e)
 	}
 }
 
@@ -268,6 +278,8 @@ enum Command {
 	Monitor(MonitorConfig),
 	/// Just compute a solution now, and don't submit it.
 	DryRun(DryRunConfig),
+	/// Provide a solution that can be submitted to the chian as an emergency response.
+	EmergencySolution,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -440,9 +452,10 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 /// words, the snapshot must exists on the given externalities.
 fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
+	iterations: usize,
 ) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
 	ext.execute_with(|| {
-		let (solution, _) = <EPM::Pallet<T>>::mine_solution(10)?;
+		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
 	})
@@ -450,14 +463,16 @@ fn mine_unchecked<T: EPM::Config>(
 
 fn mine_checked<T: EPM::Config>(
 	ext: &mut Ext,
+	iterations: usize,
 ) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
 	ext.execute_with(|| {
-		let (solution, _) = <EPM::Pallet<T>>::mine_and_check(10)?;
+		let (solution, _) = <EPM::Pallet<T>>::mine_and_check(iterations)?;
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
 	})
 }
 
+#[allow(unused)]
 fn mine_dpos<T: EPM::Config>(
 	ext: &mut Ext,
 ) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
@@ -588,7 +603,9 @@ async fn main() {
 			Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
 			// --------------------^^ comes from the macro prelude, needs no generic.
 			Command::DryRun(c) => dry_run_cmd(client, shared, c, signer).await,
-			// ----------------^^ likewise.
+			// ------------------^^ likewise.
+			Command::EmergencySolution => emergency_solution_cmd(client, shared).await,
+			// --------------------------^^ likewise.
 		}
 	};
 

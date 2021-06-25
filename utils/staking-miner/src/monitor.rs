@@ -105,7 +105,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// grab an externalities without staking, just the election snapshot.
 			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), Some(hash), false).await?;
-			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext)?;
+			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 50)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
