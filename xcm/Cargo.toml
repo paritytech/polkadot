@@ -1,6 +1,6 @@
 [package]
 name = "xcm"
-version = "0.9.5"
+version = "0.9.7"
 authors = ["Parity Technologies x<admin@parity.io>"]
 description = "The basic XCM datastructures."
 edition = "2018"

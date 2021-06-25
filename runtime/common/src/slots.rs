@@ -22,7 +22,7 @@
 //! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
 
 use sp_std::prelude::*;
-use sp_runtime::traits::{CheckedSub, Zero, CheckedConversion};
+use sp_runtime::traits::{CheckedSub, Zero, CheckedConversion, Saturating};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, Get}, weights::Weight,
@@ -420,6 +420,41 @@ impl<T: Config> Leaser for Module<T> {
 
 	fn lease_period_index() -> Self::LeasePeriod {
 		<frame_system::Pallet<T>>::block_number() / T::LeasePeriod::get()
+	}
+
+	fn already_leased(
+		para_id: ParaId,
+		first_period: Self::LeasePeriod,
+		last_period: Self::LeasePeriod,
+	) -> bool {
+		let current_lease_period = Self::lease_period_index();
+
+		// Can't look in the past, so we pick whichever is the biggest.
+		let start_period = first_period.max(current_lease_period);
+		// Find the offset to look into the lease period list.
+		// Subtraction is safe because of max above.
+		let offset = match (start_period - current_lease_period).checked_into::<usize>() {
+			Some(offset) => offset,
+			None => return true,
+		};
+
+		// This calculates how deep we should look in the vec for a potential lease.
+		let period_count = match last_period.saturating_sub(start_period).checked_into::<usize>() {
+			Some(period_count) => period_count,
+			None => return true,
+		};
+
+		// Get the leases, and check each item in the vec which is part of the range we are checking.
+		let leases = Leases::<T>::get(para_id);
+		for slot in offset ..= offset + period_count {
+			if let Some(Some(_)) = leases.get(slot) {
+				// If there exists any lease period, we exit early and return true.
+				return true
+			}
+		}
+
+		// If we got here, then we did not find any overlapping leases.
+		false
 	}
 }
 

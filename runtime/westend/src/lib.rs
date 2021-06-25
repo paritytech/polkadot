@@ -119,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9051,
+	spec_version: 9070,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1107,22 +1107,9 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	SetStakingLimits,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-pub struct SetStakingLimits;
-impl frame_support::traits::OnRuntimeUpgrade for SetStakingLimits {
-	fn on_runtime_upgrade() -> Weight {
-		<pallet_staking::MinNominatorBond<Runtime>>::put(1 * UNITS);
-		<pallet_staking::MaxNominatorsCount<Runtime>>::put(1000);
-		<pallet_staking::MinValidatorBond<Runtime>>::put(10 * UNITS);
-		<pallet_staking::MaxValidatorsCount<Runtime>>::put(10);
-
-		<Runtime as frame_system::Config>::DbWeight::get().writes(4)
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
