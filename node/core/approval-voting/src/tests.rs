@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use super::approval_db::v1::Config;
 use super::backend::{Backend, BackendWriteOp};
-use super::ops::StoredBlockRange;
 use polkadot_primitives::v1::{CandidateDescriptor, CoreIndex, GroupIndex, ValidatorSignature};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
@@ -34,6 +34,29 @@ use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use assert_matches::assert_matches;
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
+
+const DATA_COL: u32 = 0;
+const NUM_COLUMNS: u32 = 1;
+
+const TEST_CONFIG: Config = Config {
+	col_data: DATA_COL,
+};
+
+fn make_db() -> DbBackend {
+	let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+	DbBackend::new(db_writer.clone(), TEST_CONFIG)
+}
+
+fn overlay_txn<T, F>(db: &mut T, mut f: F)
+	where
+		T: Backend,
+		F: FnMut(&mut OverlayedBackend<'_, T>)
+{
+	let mut overlay_db = OverlayedBackend::new(db);
+	f(&mut overlay_db);
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
+}
 
 fn slot_to_tick(t: impl Into<Slot>) -> crate::time::Tick {
 	crate::time::slot_number_to_tick(SLOT_DURATION_MILLIS, t.into())
@@ -161,64 +184,6 @@ impl<F> MockAssignmentCriteria<
 	}
 }
 
-#[derive(Default)]
-struct TestStore {
-	block_entries: HashMap<Hash, BlockEntry>,
-	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
-}
-
-impl Backend for TestStore {
-	fn load_block_entry(
-		&self,
-		block_hash: &Hash,
-	) -> SubsystemResult<Option<BlockEntry>> {
-		Ok(self.block_entries.get(block_hash).cloned())
-	}
-
-	fn load_candidate_entry(
-		&self,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateEntry>> {
-		Ok(self.candidate_entries.get(candidate_hash).cloned())
-	}
-
-	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
-		let mut hashes: Vec<_> = self.block_entries.keys().cloned().collect();
-
-		hashes.sort_by_key(|k| self.block_entries.get(k).unwrap().block_number());
-
-		Ok(hashes)
-	}
-
-	fn load_blocks_at_height(&self, _height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
-		unreachable!()
-	}
-
-	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
-		unreachable!()
-	}
-
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-	where
-		I: IntoIterator<Item = BackendWriteOp>
-	{
-		for op in ops.into_iter() {
-			match op {
-				BackendWriteOp::WriteBlockEntry(entry) => {
-					let hash = entry.block_hash();
-					let _ = self.block_entries.insert(hash, entry);
-				}
-				BackendWriteOp::WriteCandidateEntry(entry) => {
-					let hash = entry.candidate.hash();
-					let _ = self.candidate_entries.insert(hash, entry);
-				}
-				_ => unreachable!(),
-			}
-		}
-		Ok(())
-	}
-}
-
 fn blank_state() -> State {
 	State {
 		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
@@ -290,7 +255,7 @@ impl Default for StateConfig {
 }
 
 // one block with one candidate. Alice and Bob are in the assignment keys.
-fn some_state(config: StateConfig, db: &mut TestStore) -> State {
+fn some_state(config: StateConfig, db: &mut DbBackend) -> State {
 	let StateConfig {
 		session_index,
 		slot,
@@ -346,29 +311,26 @@ fn some_state(config: StateConfig, db: &mut TestStore) -> State {
 }
 
 fn add_block(
-	db: &mut TestStore,
+	db: &mut DbBackend,
 	block_hash: Hash,
 	session: SessionIndex,
 	slot: Slot,
 ) {
-	db.block_entries.insert(
+	overlay_txn(db, |overlay_db| overlay_db.write_block_entry(approval_db::v1::BlockEntry {
 		block_hash,
-		approval_db::v1::BlockEntry {
-			block_hash,
-			parent_hash: Default::default(),
-			block_number: 0,
-			session,
-			slot,
-			candidates: Vec::new(),
-			relay_vrf_story: Default::default(),
-			approved_bitfield: Default::default(),
-			children: Default::default(),
-		}.into(),
-	);
+		parent_hash: Default::default(),
+		block_number: 0,
+		session,
+		slot,
+		candidates: Vec::new(),
+		relay_vrf_story: Default::default(),
+		approved_bitfield: Default::default(),
+		children: Default::default(),
+	}.into()));
 }
 
 fn add_candidate_to_block(
-	db: &mut TestStore,
+	db: &mut DbBackend,
 	block_hash: Hash,
 	candidate_hash: CandidateHash,
 	n_validators: usize,
@@ -376,11 +338,10 @@ fn add_candidate_to_block(
 	backing_group: GroupIndex,
 	candidate_receipt: Option<CandidateReceipt>,
 ) {
-	let mut block_entry = db.block_entries.get(&block_hash).unwrap().clone();
+	let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
 
-	let candidate_entry = db.candidate_entries
-		.entry(candidate_hash)
-		.or_insert_with(|| approval_db::v1::CandidateEntry {
+	let mut candidate_entry = db.load_candidate_entry(&candidate_hash).unwrap()
+		.unwrap_or_else(|| approval_db::v1::CandidateEntry {
 			session: block_entry.session(),
 			block_assignments: Default::default(),
 			candidate: candidate_receipt.unwrap_or_default(),
@@ -401,13 +362,61 @@ fn add_candidate_to_block(
 		}.into(),
 	);
 
-	db.block_entries.insert(block_hash, block_entry);
+	overlay_txn(db, |overlay_db| {
+		overlay_db.write_block_entry(block_entry.clone());
+		overlay_db.write_candidate_entry(candidate_entry.clone());
+	})
+}
+
+fn import_assignment<F>(
+	db: &mut DbBackend,
+	candidate_hash: &CandidateHash,
+	block_hash: &Hash,
+	validator_index: ValidatorIndex,
+	mut f: F,
+)
+	where F: FnMut(&mut CandidateEntry)
+{
+	let mut candidate_entry = db.load_candidate_entry(candidate_hash).unwrap().unwrap();
+	candidate_entry.approval_entry_mut(block_hash).unwrap()
+		.import_assignment(0, validator_index, 0);
+
+	f(&mut candidate_entry);
+
+	overlay_txn(db, |overlay_db| overlay_db.write_candidate_entry(candidate_entry.clone()));
+}
+
+fn set_our_assignment<F>(
+	db: &mut DbBackend,
+	candidate_hash: &CandidateHash,
+	block_hash: &Hash,
+	tranche: DelayTranche,
+	mut f: F,
+)
+	where F: FnMut(&mut CandidateEntry)
+{
+	let mut candidate_entry = db.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+	let approval_entry = candidate_entry.approval_entry_mut(&block_hash).unwrap();
+
+	approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
+		cert: garbage_assignment_cert(
+			AssignmentCertKind::RelayVRFModulo { sample: 0 }
+		),
+		tranche,
+		validator_index: ValidatorIndex(0),
+		triggered: false,
+	}.into());
+
+	f(&mut candidate_entry);
+
+	overlay_txn(db, |overlay_db| overlay_db.write_candidate_entry(candidate_entry.clone()));
 }
 
 #[test]
 fn rejects_bad_assignment() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let assignment_good = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
@@ -417,7 +426,10 @@ fn rejects_bad_assignment() {
 			},
 		),
 	};
-	let mut state = some_state(Default::default(), &mut db);
+	let mut state = some_state(StateConfig {
+		candidate_hash: Some(candidate_hash),
+		..Default::default()
+	}, &mut db);
 	let candidate_index = 0;
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -462,7 +474,10 @@ fn rejects_bad_assignment() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Err(criteria::InvalidAssignment)
 		})),
-		..some_state(Default::default(), &mut db)
+		..some_state(StateConfig {
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	// same assignment, but this time rejected
@@ -479,9 +494,10 @@ fn rejects_bad_assignment() {
 
 #[test]
 fn rejects_assignment_in_future() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_index = 0;
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let assignment = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
@@ -497,7 +513,11 @@ fn rejects_assignment_in_future() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
 			Ok((tick + 20) as _)
 		})),
-		..some_state(StateConfig { tick, ..Default::default() }, &mut db)
+		..some_state(StateConfig {
+			tick,
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -518,7 +538,11 @@ fn rejects_assignment_in_future() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
 			Ok((tick + 20 - 1) as _)
 		})),
-		..some_state(StateConfig { tick, ..Default::default() }, &mut db)
+		..some_state(StateConfig {
+			tick,
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -541,7 +565,7 @@ fn rejects_assignment_in_future() {
 
 #[test]
 fn rejects_assignment_with_unknown_candidate() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_index = 1;
 	let assignment = IndirectAssignmentCert {
@@ -569,7 +593,7 @@ fn rejects_assignment_with_unknown_candidate() {
 
 #[test]
 fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
@@ -632,15 +656,18 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 
 #[test]
 fn rejects_approval_before_assignment() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
 	let state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
-		..some_state(Default::default(), &mut db)
+		..some_state(StateConfig {
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -666,15 +693,18 @@ fn rejects_approval_before_assignment() {
 
 #[test]
 fn rejects_approval_if_no_candidate_entry() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
 	let state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
-		..some_state(Default::default(), &mut db)
+		..some_state(StateConfig {
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -684,7 +714,8 @@ fn rejects_approval_if_no_candidate_entry() {
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
-	db.candidate_entries.remove(&candidate_hash);
+
+	overlay_txn(&mut db, |overlay_db| overlay_db.delete_candidate_entry(&candidate_hash));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let (actions, res) = check_and_import_approval(
@@ -702,16 +733,19 @@ fn rejects_approval_if_no_candidate_entry() {
 
 #[test]
 fn rejects_approval_if_no_block_entry() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let validator_index = ValidatorIndex(0);
 
 	let state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Ok(0)
 		})),
-		..some_state(Default::default(), &mut db)
+		..some_state(StateConfig {
+			candidate_hash: Some(candidate_hash),
+			..Default::default()
+		}, &mut db)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -721,12 +755,9 @@ fn rejects_approval_if_no_block_entry() {
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index, 0);
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index, |_| {});
 
-	db.block_entries.remove(&block_hash);
+	overlay_txn(&mut db, |overlay_db| overlay_db.delete_block_entry(&block_hash));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let (actions, res) = check_and_import_approval(
@@ -744,7 +775,7 @@ fn rejects_approval_if_no_block_entry() {
 
 #[test]
 fn accepts_and_imports_approval_after_assignment() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let validator_index = ValidatorIndex(0);
@@ -770,10 +801,7 @@ fn accepts_and_imports_approval_after_assignment() {
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index, 0);
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let (actions, res) = check_and_import_approval(
@@ -801,9 +829,9 @@ fn accepts_and_imports_approval_after_assignment() {
 
 #[test]
 fn second_approval_import_only_schedules_wakeups() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let validator_index = ValidatorIndex(0);
 	let validator_index_b = ValidatorIndex(1);
 
@@ -816,6 +844,7 @@ fn second_approval_import_only_schedules_wakeups() {
 			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
 			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			needed_approvals: 2,
+			candidate_hash: Some(candidate_hash),
 			..Default::default()
 		}, &mut db)
 	};
@@ -827,13 +856,9 @@ fn second_approval_import_only_schedules_wakeups() {
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index, 0);
-
-	assert!(!db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.mark_approval(validator_index));
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index, |candidate_entry| {
+		assert!(!candidate_entry.mark_approval(validator_index));
+	});
 
 	// There is only one assignment, so nothing to schedule if we double-import.
 
@@ -852,10 +877,7 @@ fn second_approval_import_only_schedules_wakeups() {
 
 	// After adding a second assignment, there should be a schedule wakeup action.
 
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_b, 0);
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index_b, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let (actions, res) = check_and_import_approval(
@@ -878,7 +900,7 @@ fn second_approval_import_only_schedules_wakeups() {
 
 #[test]
 fn import_checked_approval_updates_entries_and_schedules() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let validator_index_a = ValidatorIndex(0);
@@ -897,15 +919,8 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		}, &mut db)
 	};
 
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_a, 0);
-
-	db.candidate_entries.get_mut(&candidate_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_b, 0);
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index_a, |_| {});
+	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index_b, |_| {});
 
 	{
 		let mut overlay_db = OverlayedBackend::new(&db);
@@ -913,9 +928,9 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			&state,
 			&mut overlay_db,
 			&Metrics(None),
-			db.block_entries.get(&block_hash).unwrap().clone(),
+			db.load_block_entry(&block_hash).unwrap().unwrap(),
 			candidate_hash,
-			db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 			ApprovalSource::Remote(validator_index_a),
 		);
 
@@ -951,9 +966,9 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			&state,
 			&mut overlay_db,
 			&Metrics(None),
-			db.block_entries.get(&block_hash).unwrap().clone(),
+			db.load_block_entry(&block_hash).unwrap().unwrap(),
 			candidate_hash,
-			db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 			ApprovalSource::Remote(validator_index_b),
 		);
 		assert_eq!(actions.len(), 0);
@@ -1418,7 +1433,7 @@ fn wakeup_earlier_supersedes_later() {
 
 #[test]
 fn import_checked_approval_sets_one_block_bit_at_a_time() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let candidate_receipt_2 = CandidateReceipt::<Hash> {
@@ -1453,19 +1468,12 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 		Some(candidate_receipt_2),
 	);
 
-	let setup_candidate = |db: &mut TestStore, c_hash| {
-		db.candidate_entries.get_mut(&c_hash).unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, validator_index_a, 0);
-
-		db.candidate_entries.get_mut(&c_hash).unwrap()
-			.approval_entry_mut(&block_hash)
-			.unwrap()
-			.import_assignment(0, validator_index_b, 0);
-
-		assert!(!db.candidate_entries.get_mut(&c_hash).unwrap()
-			.mark_approval(validator_index_a));
+	let setup_candidate = |db: &mut DbBackend, c_hash| {
+		import_assignment(db, &c_hash, &block_hash, validator_index_a, |candidate_entry| {
+			let approval_entry = candidate_entry.approval_entry_mut(&block_hash).unwrap();
+			approval_entry.import_assignment(0, validator_index_b, 0);
+			assert!(!candidate_entry.mark_approval(validator_index_a));
+		})
 	};
 
 	setup_candidate(&mut db, candidate_hash);
@@ -1476,9 +1484,9 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 		&state,
 		&mut overlay_db,
 		&Metrics(None),
-		db.block_entries.get(&block_hash).unwrap().clone(),
+		db.load_block_entry(&block_hash).unwrap().unwrap(),
 		candidate_hash,
-		db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+		db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 		ApprovalSource::Remote(validator_index_b),
 	);
 
@@ -1512,9 +1520,9 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 		&state,
 		&mut overlay_db,
 		&Metrics(None),
-		db.block_entries.get(&block_hash).unwrap().clone(),
+		db.load_block_entry(&block_hash).unwrap().unwrap(),
 		candidate_hash_2,
-		db.candidate_entries.get(&candidate_hash_2).unwrap().clone(),
+		db.load_candidate_entry(&candidate_hash_2).unwrap().unwrap(),
 		ApprovalSource::Remote(validator_index_b),
 	);
 
@@ -1544,7 +1552,7 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 
 #[test]
 fn approved_ancestor_all_approved() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
@@ -1556,7 +1564,7 @@ fn approved_ancestor_all_approved() {
 	let slot = Slot::from(1);
 	let session_index = 1;
 
-	let add_block = |db: &mut TestStore, block_hash, approved| {
+	let add_block = |db: &mut DbBackend, block_hash, approved| {
 		add_block(
 			db,
 			block_hash,
@@ -1564,11 +1572,13 @@ fn approved_ancestor_all_approved() {
 			slot,
 		);
 
-		let b = db.block_entries.get_mut(&block_hash).unwrap();
-		b.add_candidate(CoreIndex(0), candidate_hash);
+		let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
+		block_entry.add_candidate(CoreIndex(0), candidate_hash);
 		if approved {
-			b.mark_approved_by_hash(&candidate_hash);
+			block_entry.mark_approved_by_hash(&candidate_hash);
 		}
+
+		overlay_txn(db, |overlay_db| overlay_db.write_block_entry(block_entry.clone()));
 	};
 
 	add_block(&mut db, block_hash_1, true);
@@ -1616,7 +1626,7 @@ fn approved_ancestor_all_approved() {
 
 #[test]
 fn approved_ancestor_missing_approval() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 
 	let block_hash_1 = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
@@ -1628,7 +1638,7 @@ fn approved_ancestor_missing_approval() {
 	let slot = Slot::from(1);
 	let session_index = 1;
 
-	let add_block = |db: &mut TestStore, block_hash, approved| {
+	let add_block = |db: &mut DbBackend, block_hash, approved| {
 		add_block(
 			db,
 			block_hash,
@@ -1636,11 +1646,13 @@ fn approved_ancestor_missing_approval() {
 			slot,
 		);
 
-		let b = db.block_entries.get_mut(&block_hash).unwrap();
-		b.add_candidate(CoreIndex(0), candidate_hash);
+		let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
+		block_entry.add_candidate(CoreIndex(0), candidate_hash);
 		if approved {
-			b.mark_approved_by_hash(&candidate_hash);
+			block_entry.mark_approved_by_hash(&candidate_hash);
 		}
+
+		overlay_txn(db, |overlay_db| overlay_db.write_block_entry(block_entry.clone()));
 	};
 
 	add_block(&mut db, block_hash_1, true);
@@ -1688,7 +1700,7 @@ fn approved_ancestor_missing_approval() {
 
 #[test]
 fn process_wakeup_trigger_assignment_launch_approval() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
@@ -1722,19 +1734,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 	assert!(actions.is_empty());
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
 
-	db.candidate_entries
-		.get_mut(&candidate_hash)
-		.unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.set_our_assignment(approval_db::v1::OurAssignment {
-			cert: garbage_assignment_cert(
-				AssignmentCertKind::RelayVRFModulo { sample: 0 }
-			),
-			tranche: 0,
-			validator_index: ValidatorIndex(0),
-			triggered: false,
-		}.into());
+	set_our_assignment(&mut db, &candidate_hash, &block_hash, 0, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let actions = process_wakeup(
@@ -1787,10 +1787,10 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 
 #[test]
 fn process_wakeup_schedules_wakeup() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 
 	let block_hash = Hash::repeat_byte(0x01);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 	let slot = Slot::from(1);
 	let session_index = 1;
 
@@ -1804,23 +1804,12 @@ fn process_wakeup_schedules_wakeup() {
 			needed_approvals: 2,
 			session_index,
 			slot,
+			candidate_hash: Some(candidate_hash),
 			..Default::default()
 		}, &mut db)
 	};
 
-	db.candidate_entries
-		.get_mut(&candidate_hash)
-		.unwrap()
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.set_our_assignment(approval_db::v1::OurAssignment {
-			cert: garbage_assignment_cert(
-				AssignmentCertKind::RelayVRFModulo { sample: 0 }
-			),
-			tranche: 10,
-			validator_index: ValidatorIndex(0),
-			triggered: false,
-		}.into());
+	set_our_assignment(&mut db, &candidate_hash, &block_hash, 10, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	let actions = process_wakeup(
@@ -1855,7 +1844,7 @@ fn finalization_event_prunes() {
 
 #[test]
 fn local_approval_import_always_updates_approval_entry() {
-	let mut db = TestStore::default();
+	let mut db = make_db();
 	let block_hash = Hash::repeat_byte(0x01);
 	let block_hash_2 = Hash::repeat_byte(0x02);
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
@@ -1898,21 +1887,11 @@ fn local_approval_import_always_updates_approval_entry() {
 
 	{
 		let mut import_local_assignment = |block_hash: Hash| {
-			let approval_entry = db.candidate_entries.get_mut(&candidate_hash).unwrap()
-				.approval_entry_mut(&block_hash)
-				.unwrap();
-
-			approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
-				tranche: 0,
-				validator_index,
-				triggered: false,
-			}.into());
-
-			assert!(approval_entry.trigger_our_assignment(0).is_some());
-			assert!(approval_entry.local_statements().0.is_some());
+			set_our_assignment(&mut db, &candidate_hash, &block_hash, 0, |candidate_entry| {
+				let approval_entry = candidate_entry.approval_entry_mut(&block_hash).unwrap();
+				assert!(approval_entry.trigger_our_assignment(0).is_some());
+				assert!(approval_entry.local_statements().0.is_some());
+			});
 		};
 
 		import_local_assignment(block_hash);
@@ -1925,9 +1904,9 @@ fn local_approval_import_always_updates_approval_entry() {
 			&state,
 			&mut overlay_db,
 			&Metrics(None),
-			db.block_entries.get(&block_hash).unwrap().clone(),
+			db.load_block_entry(&block_hash).unwrap().unwrap(),
 			candidate_hash,
-			db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 			ApprovalSource::Local(validator_index, sig_a.clone()),
 		);
 
@@ -1957,9 +1936,9 @@ fn local_approval_import_always_updates_approval_entry() {
 			&state,
 			&mut overlay_db,
 			&Metrics(None),
-			db.block_entries.get(&block_hash_2).unwrap().clone(),
+			db.load_block_entry(&block_hash_2).unwrap().unwrap(),
 			candidate_hash,
-			db.candidate_entries.get(&candidate_hash).unwrap().clone(),
+			db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 			ApprovalSource::Local(validator_index, sig_b.clone()),
 		);
 
