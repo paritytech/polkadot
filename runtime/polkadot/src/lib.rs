@@ -1437,7 +1437,6 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use frame_support::weights::WeightToFeePolynomial;
-	use frame_support::storage::StorageValue;
 	use sp_runtime::FixedPointNumber;
 	use frame_support::weights::GetDispatchInfo;
 	use parity_scale_codec::Encode;
