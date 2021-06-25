@@ -19,7 +19,7 @@
 
 use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_subsystem::errors::SubsystemError;
-use polkadot_overseer::SubsystemError as OverseerError;
+use polkadot_overseer::OverseerError;
 use thiserror::Error;
 
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};

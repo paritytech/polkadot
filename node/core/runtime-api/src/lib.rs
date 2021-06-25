@@ -22,10 +22,10 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_overseer::gen::{
-	Subsystem, SpawnedSubsystem, OverseerResult, OverseerError, SubsystemContext,
+use polkadot_overseer::{SubsystemError, SubsystemResult, gen::{
+	Subsystem, SpawnedSubsystem, OverseerError, SubsystemContext,
 	FromOverseer,
-};
+}};
 use polkadot_subsystem::{OverseerSignal, errors::RuntimeApiError, messages::{
 		RuntimeApiMessage, RuntimeApiRequest as Request,
 	}};
@@ -81,12 +81,12 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context, OverseerError> for RuntimeApiSubsystem<Client> where
+impl<Client, Context> Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client> where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal>
+	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal, Error = SubsystemError>,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		SpawnedSubsystem {
 			future: run(ctx, self).boxed(),
 			name: "runtime-api-subsystem",
@@ -265,10 +265,10 @@ impl<Client> RuntimeApiSubsystem<Client> where
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
-) -> OverseerResult<()> where
+) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal>
+	Context: SubsystemContext<Message = RuntimeApiMessage, Signal = OverseerSignal, Error = SubsystemError>
 {
 	loop {
 		select! {

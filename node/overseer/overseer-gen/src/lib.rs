@@ -224,7 +224,7 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem<E=self::OverseerError>
+pub struct SpawnedSubsystem<E>
 	where
 		E: std::error::Error
 			+ Send

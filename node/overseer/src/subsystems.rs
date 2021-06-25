@@ -1,4 +1,5 @@
 
+use polkadot_node_subsystem::errors::SubsystemError;
 use ::polkadot_overseer_gen::{
 	MapSubsystem, SubsystemContext,
 	Subsystem,
@@ -14,11 +15,11 @@ use crate::OverseerSignal;
 #[derive(Clone, Copy, Debug)]
 pub struct DummySubsystem;
 
-impl<Context> Subsystem<Context, OverseerError> for DummySubsystem
+impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
-	Context: SubsystemContext<Signal=OverseerSignal>,
+	Context: SubsystemContext<Signal=OverseerSignal, Error=SubsystemError>,
 {
-	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
+	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {

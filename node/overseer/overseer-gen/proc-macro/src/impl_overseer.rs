@@ -189,7 +189,9 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							Err(::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name))
+							Err(#error_ty :: from(
+								::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name)
+							))
 						}
 						Some(res) => res.map_err(Into::into),
 					}
@@ -207,7 +209,9 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 				if let Some(ref mut instance) = self.instance {
 					match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 						None => {
-							Err(::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name))
+							Err(#error_ty :: from(
+								::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name)
+							))
 						}
 						Some(res) => {
 							let res = res.map_err(Into::into);

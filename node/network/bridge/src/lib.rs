@@ -33,7 +33,7 @@ use polkadot_overseer::gen::{
 	FromOverseer,
 	SpawnedSubsystem,
 	Subsystem, SubsystemContext, OverseerError,
-	OverseerResult as OverseerResult, SubsystemSender,
+	SubsystemSender,
 };
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},

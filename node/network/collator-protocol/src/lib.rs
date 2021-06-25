@@ -36,7 +36,7 @@ use polkadot_overseer::{
 	AllMessages,
 	OverseerSignal,
 	gen::{
-		Subsystem, SpawnedSubsystem, OverseerResult, OverseerError, SubsystemContext,
+		Subsystem, SpawnedSubsystem, OverseerError, SubsystemContext,
 		FromOverseer,
 	},
 };
@@ -126,9 +126,9 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context, OverseerError> for CollatorProtocolSubsystem
+impl<Context> Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal> + Sync + Send,
+	Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal, Error = SubsystemError> + Sync + Send,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

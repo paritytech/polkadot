@@ -37,9 +37,9 @@ pub use polkadot_node_subsystem_types::{
 pub use polkadot_overseer::{
 	AllMessages,
 	Overseer,
+	SubsystemError,
 	gen::{
 		OverseerError,
-		OverseerResult,
 		SubsystemContext,
 		SubsystemMeters,
 		SubsystemMeterReadouts,
@@ -49,12 +49,10 @@ pub use polkadot_overseer::{
 
 // Simplify usage without having to do large scale modifications of all
 // subsystems at once.
-pub type SubssystemSender = polkadot_overseer::gen::SubssystemSender<AllMessages>;
+pub type SubsystemSender = polkadot_overseer::gen::SubsystemSender<AllMessages>;
 
-pub type FromOverseer<T> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
+pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
 
-pub type Subsystem<Ctx> = polkadot_overseer::gen::Subsystem<Ctx, OverseerError>;
-
-pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
+pub type Subsystem<Ctx> = polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>;
 
 pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
