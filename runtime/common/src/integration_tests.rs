@@ -75,7 +75,8 @@ frame_support::construct_runtime!(
 	}
 );
 
-use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
+use crate::crowdloan::Error as CrowdloanError;
+use crate::auctions::Error as AuctionsError;
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
