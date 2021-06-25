@@ -74,6 +74,7 @@ enum DeliveryStatus {
 }
 
 /// Messages from tasks trying to get disputes delievered.
+#[derive(Debug)]
 pub enum FromSendingTask {
 	/// Delivery of statements for given candidate finished for this authority.
 	Finished(CandidateHash, AuthorityDiscoveryId, TaskResult),

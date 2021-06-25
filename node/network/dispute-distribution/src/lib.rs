@@ -197,6 +197,7 @@ impl DisputeDistributionSubsystem {
 }
 
 /// Messages to be handled in this subsystem.
+#[derive(Debug)]
 enum Message {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
