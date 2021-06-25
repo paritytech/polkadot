@@ -272,7 +272,7 @@ mod handle_new_activations {
 					}
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
-						RuntimeApiRequest::ValidationCode(
+						RuntimeApiRequest::ValidationCodeHash(
 							_para_id,
 							OccupiedCoreAssumption::Free,
 							tx,
@@ -280,7 +280,7 @@ mod handle_new_activations {
 					))) => {
 						tx.send(Ok(Some(ValidationCodeAndHash::compute_from_code(
 							vec![1, 2, 3].into()
-						)))).unwrap();
+						).into_parts().1))).unwrap();
 					}
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
