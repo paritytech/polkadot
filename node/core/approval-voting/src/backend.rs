@@ -130,7 +130,7 @@ impl Backend for DbBackend {
 			}
 		}
 
-		let _ = self.inner.write(tx);
+		let _ = self.inner.write(tx)?;
 		Ok(())
 	}
 }
@@ -182,7 +182,10 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	pub(super) fn is_empty(&self) -> bool {
-		self.block_entries.is_empty() || self.candidate_entries.is_empty()
+		self.block_entries.is_empty() &&
+			self.candidate_entries.is_empty() &&
+			self.blocks_at_height.is_empty() &&
+			self.stored_block_range.is_none()
 	}
 
 	pub(super) fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
@@ -192,20 +195,21 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 				hashes.extend(self.load_blocks_at_height(&height)?);
 			}
 		}
+
 		Ok(hashes)
 	}
 
 	pub(super) fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
 		if let Some(val) = self.stored_block_range.clone() {
-			Ok(Some(val))
-		} else {
-			self.inner.load_stored_blocks()
+			return Ok(Some(val))
 		}
+
+		self.inner.load_stored_blocks()
 	}
 
 	pub(super) fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		if let Some(val) = self.blocks_at_height.get(&height) {
-			return Ok(val.clone().unwrap_or_default());
+			return Ok(val.clone().unwrap_or_default())
 		}
 
 		self.inner.load_blocks_at_height(height)
@@ -213,7 +217,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub(super) fn load_block_entry(&self, hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
 		if let Some(val) = self.block_entries.get(&hash) {
-			return Ok(val.clone());
+			return Ok(val.clone())
 		}
 
 		self.inner.load_block_entry(hash)
@@ -221,7 +225,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub(super) fn load_candidate_entry(&self, candidate_hash: &CandidateHash) -> SubsystemResult<Option<CandidateEntry>> {
 		if let Some(val) = self.candidate_entries.get(&candidate_hash) {
-			return Ok(val.clone());
+			return Ok(val.clone())
 		}
 
 		self.inner.load_candidate_entry(candidate_hash)
@@ -278,12 +282,8 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.stored_block_range
 			.map(|v| BackendWriteOp::WriteStoredBlockRange(v))
 			.into_iter()
-			.chain(
-				blocks_at_height_ops.chain(
-					block_entry_ops.chain(
-						candidate_entry_ops
-					)
-				)
-			)
+			.chain(blocks_at_height_ops)
+			.chain(block_entry_ops)
+			.chain(candidate_entry_ops)
 	}
 }

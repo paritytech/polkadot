@@ -1008,10 +1008,10 @@ fn distribution_messages_for_activation(
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-async fn handle_from_overseer<'a>(
+async fn handle_from_overseer(
 	ctx: &mut impl SubsystemContext,
 	state: &mut State,
-	db: &mut OverlayedBackend<'a, impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
@@ -1024,7 +1024,6 @@ async fn handle_from_overseer<'a>(
 
 			for activated in update.activated {
 				let head = activated.hash;
-
 				match import::handle_new_head(
 					ctx,
 					state,
@@ -1101,9 +1100,7 @@ async fn handle_from_overseer<'a>(
 				actions
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-				let actions = check_and_import_approval(state, db, metrics, a, |r| { let _ = res.send(r); })?.0;
-
-				actions
+				check_and_import_approval(state, db, metrics, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
 				match handle_approved_ancestor(ctx, db, target, lower_bound, wakeups).await {
@@ -1413,9 +1410,9 @@ fn schedule_wakeup_action(
 	maybe_action
 }
 
-fn check_and_import_assignment<'a>(
+fn check_and_import_assignment(
 	state: &State,
-	db: &mut OverlayedBackend<'a, impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
@@ -1534,9 +1531,9 @@ fn check_and_import_assignment<'a>(
 	Ok((res, actions))
 }
 
-fn check_and_import_approval<'a, T>(
+fn check_and_import_approval<T>(
 	state: &State,
-	db: &mut OverlayedBackend<'a, impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
@@ -1663,9 +1660,9 @@ impl ApprovalSource {
 // Import an approval vote which is already checked to be valid and corresponding to an assigned
 // validator on the candidate and block. This updates the block entry and candidate entry as
 // necessary and schedules any further wakeups.
-fn import_checked_approval<'a>(
+fn import_checked_approval(
 	state: &State,
-	db: &mut OverlayedBackend<'a, impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	mut block_entry: BlockEntry,
 	candidate_hash: CandidateHash,
@@ -1829,9 +1826,9 @@ fn should_trigger_assignment(
 	}
 }
 
-fn process_wakeup<'a>(
+fn process_wakeup(
 	state: &State,
-	db: &mut OverlayedBackend<'a, impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
 	expected_tick: Tick,
@@ -2202,10 +2199,10 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-fn issue_approval<'a>(
+fn issue_approval(
 	ctx: &mut impl SubsystemSender,
 	state: &mut State,
-	db: &mut OverlayedBackend<impl Backend>,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	candidate_hash: CandidateHash,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,

@@ -39,32 +39,6 @@ fn make_db() -> (DbBackend, Arc<dyn KeyValueDB>) {
 	(DbBackend::new(db_writer.clone(), TEST_CONFIG), db_writer)
 }
 
-pub(crate) fn write_stored_blocks(db: &mut OverlayedBackend<'_, impl Backend>, range: StoredBlockRange) {
-	db.write_stored_block_range(range);
-}
-
-pub(crate) fn write_blocks_at_height(
-	db: &mut OverlayedBackend<'_, impl Backend>,
-	height: BlockNumber,
-	blocks: &[Hash])
-{
-	db.write_blocks_at_height(height, blocks.to_vec());
-}
-
-pub(crate) fn write_block_entry(
-	db: &mut OverlayedBackend<'_, impl Backend>,
-	entry: &BlockEntry)
-{
-	db.write_block_entry(entry.clone().into());
-}
-
-pub(crate) fn write_candidate_entry(
-	db: &mut OverlayedBackend<'_, impl Backend>,
-	entry: &CandidateEntry)
-{
-	db.write_candidate_entry(entry.clone().into());
-}
-
 fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
 	bitvec::bitvec![BitOrderLsb0, u8; 0; len]
 }
@@ -132,10 +106,10 @@ fn read_write() {
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	write_stored_blocks(&mut overlay_db, range.clone());
-	write_blocks_at_height(&mut overlay_db, 1, &at_height);
-	write_block_entry(&mut overlay_db, &block_entry);
-	write_candidate_entry(&mut overlay_db, &candidate_entry);
+	overlay_db.write_stored_block_range(range.clone());
+	overlay_db.write_blocks_at_height(1, at_height.clone());
+	overlay_db.write_block_entry(block_entry.clone().into());
+	overlay_db.write_candidate_entry(candidate_entry.clone().into());
 
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
@@ -305,7 +279,7 @@ fn canonicalize_works() {
 	let n_validators = 10;
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	write_stored_blocks(&mut overlay_db, StoredBlockRange(1, 5));
+	overlay_db.write_stored_block_range(StoredBlockRange(1, 5));
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
 
@@ -509,7 +483,7 @@ fn force_approve_works() {
 	let n_validators = 10;
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	write_stored_blocks(&mut overlay_db, StoredBlockRange(1, 4));
+	overlay_db.write_stored_block_range(StoredBlockRange(1, 4));
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
 

@@ -547,7 +547,7 @@ pub(crate) async fn handle_new_head<'a>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::backend::{DbBackend};
+	use crate::backend::DbBackend;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};

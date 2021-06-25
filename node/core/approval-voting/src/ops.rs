@@ -36,13 +36,12 @@ pub(super) struct NewCandidateInfo {
 
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.
-pub(super) fn canonicalize<'a, T>(
-	overlay_db: &mut OverlayedBackend<'a, T>,
+pub(super) fn canonicalize<T>(
+	overlay_db: &mut OverlayedBackend<'_, T>,
 	canon_number: BlockNumber,
 	canon_hash: Hash,
 ) -> SubsystemResult<()>
-	where
-		T: Backend,
+	where T: Backend
 {
 	let range = match overlay_db.load_stored_blocks()? {
 		None => return Ok(()),
@@ -192,7 +191,7 @@ pub(super) fn canonicalize<'a, T>(
 /// `None` for any of the candidates referenced by the block entry. In these cases,
 /// no information about new candidates will be referred to by this function.
 pub(super) fn add_block_entry(
-	store: &mut OverlayedBackend<impl Backend>,
+	store: &mut OverlayedBackend<'_, impl Backend>,
 	entry: BlockEntry,
 	n_validators: usize,
 	candidate_info: impl Fn(&CandidateHash) -> Option<NewCandidateInfo>,
@@ -281,7 +280,7 @@ pub(super) fn add_block_entry(
 /// Forcibly approve all candidates included at up to the given relay-chain height in the indicated
 /// chain.
 pub(super) fn force_approve(
-	store: &mut OverlayedBackend<impl Backend>,
+	store: &mut OverlayedBackend<'_, impl Backend>,
 	chain_head: Hash,
 	up_to: BlockNumber,
 ) -> SubsystemResult<()> {
