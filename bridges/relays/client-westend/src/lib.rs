@@ -47,11 +47,10 @@ impl Chain for Westend {
 	type Index = bp_westend::Nonce;
 	type SignedBlock = bp_westend::SignedBlock;
 	type Call = bp_westend::Call;
+	type Balance = bp_westend::Balance;
 }
 
 impl ChainWithBalances for Westend {
-	type NativeBalance = bp_westend::Balance;
-
 	fn account_info_storage_key(account_id: &Self::AccountId) -> StorageKey {
 		StorageKey(bp_westend::account_info_storage_key(account_id))
 	}
