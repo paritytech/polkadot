@@ -22,21 +22,21 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 
-sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "polkadot-v0.9.6" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.6" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] , branch = "polkadot-v0.9.7" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.7" }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
 rand_core = "0.5.1" # should match schnorrkel
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.6" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.6" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.6" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.6" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.7" }
 maplit = "1.0.2"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
