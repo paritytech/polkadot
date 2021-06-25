@@ -1526,6 +1526,14 @@ pub fn rococo_testnet_genesis(
 			owner: Some(root_key.clone()),
 			..Default::default()
 		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessages {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessages {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
 	}
 }
 
