@@ -37,7 +37,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: sp_version::create_runtime_str!("rococo"),
 	impl_name: sp_version::create_runtime_str!("parity-rococo-v1.5"),
 	authoring_version: 0,
-	spec_version: 231,
+	spec_version: 232,
 	impl_version: 0,
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
@@ -55,14 +55,14 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 /// See: https://github.com/paritytech/polkadot/blob/master/runtime/rococo/src/lib.rs
 #[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
 pub enum Call {
-	/// Westend bridge pallet.
-	#[codec(index = 40)]
-	BridgeGrandpaWestend(BridgeGrandpaWestendCall),
+	/// Wococo bridge pallet.
+	#[codec(index = 41)]
+	BridgeGrandpaWococo(BridgeGrandpaWococoCall),
 }
 
 #[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
 #[allow(non_camel_case_types)]
-pub enum BridgeGrandpaWestendCall {
+pub enum BridgeGrandpaWococoCall {
 	#[codec(index = 0)]
 	submit_finality_proof(
 		<PolkadotLike as Chain>::Header,
@@ -81,13 +81,6 @@ impl sp_runtime::traits::Dispatchable for Call {
 	fn dispatch(self, _origin: Self::Origin) -> sp_runtime::DispatchResultWithInfo<Self::PostInfo> {
 		unimplemented!("The Call is not expected to be dispatched.")
 	}
-}
-
-// We use this to get the account on Rococo (target) which is derived from Westend's (source)
-// account.
-pub fn derive_account_from_westend_id(id: bp_runtime::SourceAccount<AccountId>) -> AccountId {
-	let encoded_id = bp_runtime::derive_account_id(bp_runtime::WESTEND_BRIDGE_INSTANCE, id);
-	AccountIdConverter::convert(encoded_id)
 }
 
 /// Name of the `RococoFinalityApi::best_finalized` runtime method.
@@ -134,7 +127,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if message is too expensive to be sent to Rococo from this chain.
 		///
-		/// Please keep in mind that this method returns lowest message fee required for message
+		/// Please keep in mind that this method returns the lowest message fee required for message
 		/// to be accepted to the lane. It may be good idea to pay a bit over this price to account
 		/// future exchange rate changes and guarantee that relayer would deliver your message
 		/// to the target chain.
@@ -164,7 +157,7 @@ sp_api::decl_runtime_apis! {
 	pub trait FromRococoInboundLaneApi {
 		/// Returns nonce of the latest message, received by given lane.
 		fn latest_received_nonce(lane: LaneId) -> MessageNonce;
-		/// Nonce of latest message that has been confirmed to the bridged chain.
+		/// Nonce of the latest message that has been confirmed to the bridged chain.
 		fn latest_confirmed_nonce(lane: LaneId) -> MessageNonce;
 		/// State of the unrewarded relayers set at given lane.
 		fn unrewarded_relayers_state(lane: LaneId) -> UnrewardedRelayersState;

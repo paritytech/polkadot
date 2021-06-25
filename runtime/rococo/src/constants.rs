@@ -18,8 +18,8 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS;
+	pub const UNITS: Balance = 1_000_000_000_000;
+	pub const DOLLARS: Balance = UNITS;
 	pub const CENTS: Balance = DOLLARS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
@@ -44,11 +44,6 @@ pub mod time {
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
-}
-
-/// Size restrictions.
-pub mod size {
-	pub use primitives::v1::MAX_CODE_SIZE;
 }
 
 /// Fee-related.

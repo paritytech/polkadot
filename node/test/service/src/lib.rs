@@ -78,13 +78,15 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
 		config,
 		is_collator,
 		None,
+		true,
 		None,
 		None,
 		worker_program_path,
+		polkadot_service::RealOverseerGen,
 	)
 }
 
@@ -103,7 +105,7 @@ impl ClientHandle for TestClient {
 /// nodes if you want the future node to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -179,12 +181,14 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
+		rpc_http_threads: None,
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
+		rpc_max_payload: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		telemetry_external_transport: None,
@@ -209,7 +213,7 @@ pub fn node_config(
 /// want it to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 pub fn run_validator_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
@@ -241,11 +245,11 @@ pub fn run_validator_node(
 /// want it to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustements to the runtime genesis storage.
+/// and can be used to make adjustments to the runtime genesis storage.
 ///
 /// # Note
 ///
-/// The collator functionionality still needs to be registered at the node! This can be done using
+/// The collator functionality still needs to be registered at the node! This can be done using
 /// [`PolkadotTestNode::register_collator`].
 pub fn run_collator_node(
 	task_executor: TaskExecutor,

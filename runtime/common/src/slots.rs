@@ -22,7 +22,7 @@
 //! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
 
 use sp_std::prelude::*;
-use sp_runtime::traits::{CheckedSub, Zero, CheckedConversion};
+use sp_runtime::traits::{CheckedSub, Zero, CheckedConversion, Saturating};
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency, Get}, weights::Weight,
@@ -99,9 +99,10 @@ decl_event!(
 	{
 		/// A new [lease_period] is beginning.
 		NewLeasePeriod(LeasePeriod),
-		/// An existing parachain won the right to continue.
-		/// First balance is the extra amount reseved. Second is the total amount reserved.
-		/// \[parachain_id, leaser, period_begin, period_count, extra_reseved, total_amount\]
+		/// A para has won the right to a continuous set of lease periods as a parachain.
+		/// First balance is any extra amount reserved on top of the para's existing deposit.
+		/// Second balance is the total amount reserved.
+		/// \[parachain_id, leaser, period_begin, period_count, extra_reserved, total_amount\]
 		Leased(ParaId, AccountId, LeasePeriod, LeasePeriod, Balance, Balance),
 	}
 );
@@ -139,7 +140,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::force_lease()]
-		fn force_lease(origin,
+		pub fn force_lease(origin,
 			para: ParaId,
 			leaser: T::AccountId,
 			amount: BalanceOf<T>,
@@ -156,7 +157,7 @@ decl_module! {
 		///
 		/// Can only be called by the Root origin.
 		#[weight = T::WeightInfo::clear_all_leases()]
-		fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
+		pub fn clear_all_leases(origin, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let deposits = Self::all_deposits_held(para);
 
@@ -178,7 +179,7 @@ decl_module! {
 		///
 		/// Origin must be signed, but can be called by anyone.
 		#[weight = T::WeightInfo::trigger_onboard()]
-		fn trigger_onboard(origin, para: ParaId) -> DispatchResult {
+		pub fn trigger_onboard(origin, para: ParaId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let leases = Leases::<T>::get(para);
 			match leases.first() {
@@ -420,6 +421,41 @@ impl<T: Config> Leaser for Module<T> {
 	fn lease_period_index() -> Self::LeasePeriod {
 		<frame_system::Pallet<T>>::block_number() / T::LeasePeriod::get()
 	}
+
+	fn already_leased(
+		para_id: ParaId,
+		first_period: Self::LeasePeriod,
+		last_period: Self::LeasePeriod,
+	) -> bool {
+		let current_lease_period = Self::lease_period_index();
+
+		// Can't look in the past, so we pick whichever is the biggest.
+		let start_period = first_period.max(current_lease_period);
+		// Find the offset to look into the lease period list.
+		// Subtraction is safe because of max above.
+		let offset = match (start_period - current_lease_period).checked_into::<usize>() {
+			Some(offset) => offset,
+			None => return true,
+		};
+
+		// This calculates how deep we should look in the vec for a potential lease.
+		let period_count = match last_period.saturating_sub(start_period).checked_into::<usize>() {
+			Some(period_count) => period_count,
+			None => return true,
+		};
+
+		// Get the leases, and check each item in the vec which is part of the range we are checking.
+		let leases = Leases::<T>::get(para_id);
+		for slot in offset ..= offset + period_count {
+			if let Some(Some(_)) = leases.get(slot) {
+				// If there exists any lease period, we exit early and return true.
+				return true
+			}
+		}
+
+		// If we got here, then we did not find any overlapping leases.
+		false
+	}
 }
 
 
@@ -450,7 +486,6 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Slots: slots::{Pallet, Call, Storage, Event<T>},
-	 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
 		}
 	);
 
@@ -495,6 +530,8 @@ mod tests {
 		type AccountStore = System;
 		type WeightInfo = ();
 		type MaxLocks = ();
+		type MaxReserves = ();
+		type ReserveIdentifier = [u8; 8];
 	}
 
 	parameter_types! {

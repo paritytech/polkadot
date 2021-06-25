@@ -53,12 +53,57 @@ impl HeadData {
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
-pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl ValidationCode {
 	/// Get the blake2-256 hash of the validation code bytes.
-	pub fn hash(&self) -> Hash {
-		sp_runtime::traits::BlakeTwo256::hash(&self.0[..])
+	pub fn hash(&self) -> ValidationCodeHash {
+		ValidationCodeHash(sp_runtime::traits::BlakeTwo256::hash(&self.0[..]))
+	}
+}
+
+/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+///
+/// This type is produced by [`ValidationCode::hash`].
+///
+/// This type makes it easy to enforce that a hash is a validation code hash on the type level.
+#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, MallocSizeOf))]
+pub struct ValidationCodeHash(Hash);
+
+impl sp_std::fmt::Display for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
+impl sp_std::fmt::Debug for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		write!(f, "{:?}", self.0)
+	}
+}
+
+impl AsRef<[u8]> for ValidationCodeHash {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_ref()
+	}
+}
+
+impl From<Hash> for ValidationCodeHash {
+	fn from(hash: Hash) -> ValidationCodeHash {
+		ValidationCodeHash(hash)
+	}
+}
+
+impl From<[u8; 32]> for ValidationCodeHash {
+	fn from(hash: [u8; 32]) -> ValidationCodeHash {
+		ValidationCodeHash(hash.into())
+	}
+}
+
+impl sp_std::fmt::LowerHex for ValidationCodeHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		sp_std::fmt::LowerHex::fmt(&self.0, f)
 	}
 }
 
@@ -69,12 +114,12 @@ impl ValidationCode {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCodeAndHash {
 	code: ValidationCode,
-	hash: Hash,
+	hash: ValidationCodeHash,
 }
 
 impl ValidationCodeAndHash {
 	/// Create from the code and hash.
-	pub fn new(code: ValidationCode, hash: Hash) -> Self {
+	pub fn new(code: ValidationCode, hash: ValidationCodeHash) -> Self {
 		Self {
 			hash,
 			code,
@@ -97,12 +142,12 @@ impl ValidationCodeAndHash {
 	}
 
 	/// Get a reference to the validation code hash.
-	pub fn hash(&self) -> &Hash {
+	pub fn hash(&self) -> &ValidationCodeHash {
 		&self.hash
 	}
 
 	/// Convert into validation code and the hash
-	pub fn into_parts(self) -> (ValidationCode, Hash) {
+	pub fn into_parts(self) -> (ValidationCode, ValidationCodeHash) {
 		(self.code, self.hash)
 	}
 
@@ -129,7 +174,7 @@ impl Default for ValidationCodeAndHash {
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
-pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
 #[derive(
@@ -184,9 +229,13 @@ impl From<i32> for Id {
 }
 
 const USER_INDEX_START: u32 = 1000;
+const PUBLIC_INDEX_START: u32 = 2000;
 
 /// The ID of the first user (non-system) parachain.
 pub const LOWEST_USER_ID: Id = Id(USER_INDEX_START);
+
+/// The ID of the first publicly registerable parachain.
+pub const LOWEST_PUBLIC_ID: Id = Id(PUBLIC_INDEX_START);
 
 impl Id {
 	/// Create an `Id`.
@@ -195,7 +244,9 @@ impl Id {
 	}
 }
 
+/// Determine if a parachain is a system parachain or not.
 pub trait IsSystem {
+	/// Returns `true` if a parachain is a system parachain, `false` otherwise.
 	fn is_system(&self) -> bool;
 }
 
@@ -210,6 +261,14 @@ impl sp_std::ops::Add<u32> for Id {
 
 	fn add(self, other: u32) -> Self {
 		Self(self.0 + other)
+	}
+}
+
+impl sp_std::ops::Sub<u32> for Id {
+	type Output = Self;
+
+	fn sub(self, other: u32) -> Self {
+		Self(self.0 - other)
 	}
 }
 

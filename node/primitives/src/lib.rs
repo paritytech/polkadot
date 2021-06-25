@@ -22,36 +22,46 @@
 
 #![deny(missing_docs)]
 
+use std::convert::TryInto;
 use std::pin::Pin;
 
 use serde::{Serialize, Deserialize};
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
+use sp_application_crypto::AppKey;
 
 pub use sp_core::traits::SpawnNamed;
 pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
+	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
+	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind, InvalidDisputeStatementKind,
+	CandidateReceipt, ValidatorId, SessionIndex, DisputeStatement, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
 
 /// The bomb limit for decompressing code blobs.
-pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
-
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
+
+/// The cumulative weight of a block in a fork-choice rule.
+pub type BlockWeight = u32;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
 /// it gives access to the commitments to validators who have not executed the candidate. This
-/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// is necessary to allow a block-producing validator to include candidates from outside the para
 /// it is assigned to.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
@@ -113,6 +123,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
+
+/// Variant of `SignedFullStatement` where the signature has not yet been verified.
+pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
 
 /// Candidate invalidity details
 #[derive(Debug)]
@@ -199,7 +212,7 @@ pub struct CollationResult {
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
@@ -269,4 +282,126 @@ pub fn maybe_compress_pov(pov: PoV) -> PoV {
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov
+}
+
+/// Tracked votes on candidates, for the purposes of dispute resolution.
+#[derive(Debug, Clone)]
+pub struct CandidateVotes {
+	/// The receipt of the candidate itself.
+	pub candidate_receipt: CandidateReceipt,
+	/// Votes of validity, sorted by validator index.
+	pub valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+	/// Votes of invalidity, sorted by validator index.
+	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+}
+
+impl CandidateVotes {
+	/// Get the set of all validators who have votes in the set, ascending.
+	pub fn voted_indices(&self) -> Vec<ValidatorIndex> {
+		let mut v: Vec<_> = self.valid.iter().map(|x| x.1).chain(
+			self.invalid.iter().map(|x| x.1)
+		).collect();
+
+		v.sort();
+		v.dedup();
+
+		v
+	}
+}
+
+
+/// A checked dispute statement from an associated validator.
+#[derive(Debug, Clone)]
+pub struct SignedDisputeStatement {
+	dispute_statement: DisputeStatement,
+	candidate_hash: CandidateHash,
+	validator_public: ValidatorId,
+	validator_signature: ValidatorSignature,
+	session_index: SessionIndex,
+}
+
+impl SignedDisputeStatement {
+	/// Create a new `SignedDisputeStatement`, which is only possible by checking the signature.
+	pub fn new_checked(
+		dispute_statement: DisputeStatement,
+		candidate_hash: CandidateHash,
+		session_index: SessionIndex,
+		validator_public: ValidatorId,
+		validator_signature: ValidatorSignature,
+	) -> Result<Self, ()> {
+		dispute_statement.check_signature(
+			&validator_public,
+			candidate_hash,
+			session_index,
+			&validator_signature,
+		).map(|_| SignedDisputeStatement {
+			dispute_statement,
+			candidate_hash,
+			validator_public,
+			validator_signature,
+			session_index,
+		})
+	}
+
+	/// Sign this statement with the given keystore and key. Pass `valid = true` to
+	/// indicate validity of the candidate, and `valid = false` to indicate invalidity.
+	pub async fn sign_explicit(
+		keystore: &SyncCryptoStorePtr,
+		valid: bool,
+		candidate_hash: CandidateHash,
+		session_index: SessionIndex,
+		validator_public: ValidatorId,
+	) -> Result<Option<Self>, KeystoreError> {
+		let dispute_statement = if valid {
+			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
+		} else {
+			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+		};
+
+		let data = dispute_statement.payload_data(candidate_hash, session_index);
+		let signature = CryptoStore::sign_with(
+			&**keystore,
+			ValidatorId::ID,
+			&validator_public.clone().into(),
+			&data,
+		).await?;
+
+		let signature = match signature {
+			Some(sig) => sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
+			None => return Ok(None),
+		};
+
+		Ok(Some(Self {
+			dispute_statement,
+			candidate_hash,
+			validator_public,
+			validator_signature: signature,
+			session_index,
+		}))
+	}
+
+	/// Access the underlying dispute statement
+	pub fn statement(&self) -> &DisputeStatement {
+		&self.dispute_statement
+	}
+
+	/// Access the underlying candidate hash.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		&self.candidate_hash
+	}
+
+	/// Access the underlying validator public key.
+	pub fn validator_public(&self) -> &ValidatorId {
+		&self.validator_public
+	}
+
+	/// Access the underlying validator signature.
+	pub fn validator_signature(&self) -> &ValidatorSignature {
+		&self.validator_signature
+	}
+
+	/// Access the underlying session index.
+	pub fn session_index(&self) -> SessionIndex {
+		self.session_index
+	}
 }

@@ -61,7 +61,7 @@ use sp_version::RuntimeVersion;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Currency, ExistenceRequirement, Imbalance, KeyOwnerProofSystem, Randomness},
+	traits::{Currency, ExistenceRequirement, Imbalance, KeyOwnerProofSystem},
 	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, IdentityFee, RuntimeDbWeight, Weight},
 	StorageValue,
 };
@@ -211,6 +211,8 @@ impl frame_system::Config for Runtime {
 	/// The set code logic, just the default since we're not a parachain.
 	type OnSetCode = ();
 }
+
+impl pallet_randomness_collective_flip::Config for Runtime {}
 
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
@@ -409,19 +411,34 @@ impl pallet_session::Config for Runtime {
 }
 
 parameter_types! {
-	// This is a pretty unscientific cap.
-	//
-	// Note that once this is hit the pallet will essentially throttle incoming requests down to one
-	// call per block.
+	/// This is a pretty unscientific cap.
+	///
+	/// Note that once this is hit the pallet will essentially throttle incoming requests down to one
+	/// call per block.
 	pub const MaxRequests: u32 = 50;
+}
 
-	// Number of headers to keep.
-	//
-	// Assuming the worst case of every header being finalized, we will keep headers at least for a
-	// week.
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	/// Number of headers to keep in benchmarks.
+	///
+	/// In benchmarks we always populate with full number of `HeadersToKeep` to make sure that
+	/// pruning is taken into account.
+	///
+	/// Note: This is lower than regular value, to speed up benchmarking setup.
+	pub const HeadersToKeep: u32 = 1024;
+}
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+parameter_types! {
+	/// Number of headers to keep.
+	///
+	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
+	/// week.
 	pub const HeadersToKeep: u32 = 7 * bp_rialto::DAYS as u32;
 }
 
+pub type MillauGrandpaInstance = ();
 impl pallet_bridge_grandpa::Config for Runtime {
 	type BridgedChain = bp_millau::Millau;
 	type MaxRequests = MaxRequests;
@@ -482,7 +499,7 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		BridgeRialtoPoA: pallet_bridge_eth_poa::<Instance1>::{Pallet, Call, Config, Storage, ValidateUnsigned},
+		BridgeRialtoPoa: pallet_bridge_eth_poa::<Instance1>::{Pallet, Call, Config, Storage, ValidateUnsigned},
 		BridgeKovan: pallet_bridge_eth_poa::<Instance2>::{Pallet, Call, Config, Storage, ValidateUnsigned},
 		BridgeRialtoCurrencyExchange: pallet_bridge_currency_exchange::<Instance1>::{Pallet, Call},
 		BridgeKovanCurrencyExchange: pallet_bridge_currency_exchange::<Instance2>::{Pallet, Call},
@@ -490,7 +507,7 @@ construct_runtime!(
 		BridgeDispatch: pallet_bridge_dispatch::{Pallet, Event<T>},
 		BridgeMillauMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>},
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Aura: pallet_aura::{Pallet, Config<T>},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
@@ -572,10 +589,6 @@ impl_runtime_apis! {
 		) -> sp_inherents::CheckInherentsResult {
 			data.check_extrinsics(&block)
 		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed().0
-		}
 	}
 
 	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index> for Runtime {
@@ -586,21 +599,21 @@ impl_runtime_apis! {
 
 	impl bp_eth_poa::RialtoPoAHeaderApi<Block> for Runtime {
 		fn best_block() -> (u64, bp_eth_poa::H256) {
-			let best_block = BridgeRialtoPoA::best_block();
+			let best_block = BridgeRialtoPoa::best_block();
 			(best_block.number, best_block.hash)
 		}
 
 		fn finalized_block() -> (u64, bp_eth_poa::H256) {
-			let finalized_block = BridgeRialtoPoA::finalized_block();
+			let finalized_block = BridgeRialtoPoa::finalized_block();
 			(finalized_block.number, finalized_block.hash)
 		}
 
 		fn is_import_requires_receipts(header: bp_eth_poa::AuraHeader) -> bool {
-			BridgeRialtoPoA::is_import_requires_receipts(header)
+			BridgeRialtoPoa::is_import_requires_receipts(header)
 		}
 
 		fn is_known_block(hash: bp_eth_poa::H256) -> bool {
-			BridgeRialtoPoA::is_known_block(hash)
+			BridgeRialtoPoa::is_known_block(hash)
 		}
 	}
 
@@ -874,7 +887,7 @@ impl_runtime_apis! {
 					params: MessageParams<Self::AccountId>,
 				) -> (millau_messages::ToMillauMessagePayload, Balance) {
 					let message_payload = vec![0; params.size as usize];
-					let dispatch_origin = pallet_bridge_dispatch::CallOrigin::SourceAccount(
+					let dispatch_origin = bp_message_dispatch::CallOrigin::SourceAccount(
 						params.sender_account,
 					);
 
@@ -944,10 +957,10 @@ impl_runtime_apis! {
 						make_millau_outbound_lane_data_key,
 						make_millau_header,
 						call_weight,
-						pallet_bridge_dispatch::MessagePayload {
+						bp_message_dispatch::MessagePayload {
 							spec_version: VERSION.spec_version,
 							weight: call_weight,
-							origin: pallet_bridge_dispatch::CallOrigin::<
+							origin: bp_message_dispatch::CallOrigin::<
 								bp_millau::AccountId,
 								MultiSigner,
 								Signature,

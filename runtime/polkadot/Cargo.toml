@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.8.30"
+version = "0.9.7"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -54,7 +54,6 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -67,6 +66,7 @@ pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -77,6 +77,8 @@ hex-literal = { version = "0.3.1", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -136,7 +138,6 @@ std = [
 	"pallet-treasury/std",
 	"pallet-tips/std",
 	"pallet-babe/std",
-	"pallet-randomness-collective-flip/std",
 	"pallet-vesting/std",
 	"pallet-utility/std",
 	"sp-runtime/std",
@@ -154,6 +155,8 @@ std = [
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
+	"max-encoded-len/std",
+	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -186,6 +189,7 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
+	"frame-election-provider-support/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -216,7 +220,6 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-randomness-collective-flip/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-utility/try-runtime",
 	"runtime-common/try-runtime",

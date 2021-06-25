@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::{Balance, SessionIndex};
+use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	ensure,
@@ -90,7 +90,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
-	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	pub ump_service_total_weight: Weight,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
@@ -203,7 +203,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_upward_queue_count: Default::default(),
 			max_upward_queue_size: Default::default(),
 			max_downward_message_size: Default::default(),
-			preferred_dispatchable_upward_messages_step_weight: Default::default(),
+			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
 			hrmp_open_request_ttl: Default::default(),
@@ -227,7 +227,7 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 	/// # Panic
 	///
 	/// This function panics if any member is not set properly.
-	fn check_consistency(&self) {
+	pub fn check_consistency(&self) {
 		if self.group_rotation_frequency.is_zero() {
 			panic!("`group_rotation_frequency` must be non-zero!")
 		}
@@ -242,6 +242,18 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 
 		if self.no_show_slots.is_zero() {
 			panic!("`no_show_slots` must be at least 1!")
+		}
+
+		if self.max_code_size > MAX_CODE_SIZE {
+			panic!(
+				"`max_code_size` ({}) is bigger than allowed by the client ({})",
+				self.max_code_size,
+				MAX_CODE_SIZE,
+			)
+		}
+
+		if self.max_pov_size > MAX_POV_SIZE {
+			panic!("`max_pov_size` is bigger than allowed by the client")
 		}
 	}
 }
@@ -308,6 +320,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_max_code_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= MAX_CODE_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_code_size, new) != new
 			});
@@ -318,6 +331,7 @@ decl_module! {
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_max_pov_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= MAX_POV_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_pov_size, new) != new
 			});
@@ -555,10 +569,10 @@ decl_module! {
 
 		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn set_preferred_dispatchable_upward_messages_step_weight(origin, new: Weight) -> DispatchResult {
+		pub fn set_ump_service_total_weight(origin, new: Weight) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.preferred_dispatchable_upward_messages_step_weight, new) != new
+				sp_std::mem::replace(&mut config.ump_service_total_weight, new) != new
 			});
 			Ok(())
 		}
@@ -719,6 +733,13 @@ impl<T: Config> Module<T> {
 		shared::Module::<T>::scheduled_session()
 	}
 
+	/// Forcibly set the active config. This should be used with extreme care, and typically
+	/// only when enabling parachains runtime modules for the first time on a chain which has
+	/// been running without them.
+	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
+		<Self as Store>::ActiveConfig::set(config);
+	}
+
 	// NOTE: Explicitly tell rustc not to inline this because otherwise heuristics note the incoming
 	// closure making it's attractive to inline. However, in this case, we will end up with lots of
 	// duplicated code (making this function to show up in the top of heaviest functions) only for
@@ -799,7 +820,7 @@ mod tests {
 				max_upward_queue_count: 1337,
 				max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
-				preferred_dispatchable_upward_messages_step_weight: 20000,
+				ump_service_total_weight: 20000,
 				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
 				hrmp_open_request_ttl: 1312,
@@ -895,8 +916,8 @@ mod tests {
 			Configuration::set_max_downward_message_size(
 				Origin::root(), new_config.max_downward_message_size,
 			).unwrap();
-			Configuration::set_preferred_dispatchable_upward_messages_step_weight(
-				Origin::root(), new_config.preferred_dispatchable_upward_messages_step_weight,
+			Configuration::set_ump_service_total_weight(
+				Origin::root(), new_config.ump_service_total_weight,
 			).unwrap();
 			Configuration::set_max_upward_message_size(
 				Origin::root(), new_config.max_upward_message_size,

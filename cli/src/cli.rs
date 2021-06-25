@@ -57,9 +57,13 @@ pub enum Subcommand {
 	)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-	/// Testing subcommand for runtime testing and trying.
+	/// Try some command against runtime state.
 	#[cfg(feature = "try-runtime")]
 	TryRuntime(try_runtime_cli::TryRuntimeCmd),
+
+	/// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
+	#[cfg(not(feature = "try-runtime"))]
+	TryRuntime,
 
 	/// Key management cli utilities
 	Key(sc_cli::KeySubcommand),
@@ -99,6 +103,10 @@ pub struct RunCmd {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+
+	/// Disable BEEFY gadget.
+	#[structopt(long)]
+	pub no_beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///

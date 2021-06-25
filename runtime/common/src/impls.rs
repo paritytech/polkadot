@@ -30,8 +30,8 @@ where
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
-		let author = <pallet_authorship::Module<R>>::author();
-		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		let author = <pallet_authorship::Pallet<R>>::author();
+		<pallet_balances::Pallet<R>>::resolve_creating(&<pallet_authorship::Pallet<R>>::author(), amount);
 		<frame_system::Pallet<R>>::deposit_event(pallet_balances::Event::Deposit(author, numeric_amount));
 	}
 }
@@ -85,6 +85,7 @@ mod tests {
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
@@ -93,6 +94,7 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
+			.base_block(10)
 			.for_class(DispatchClass::all(), |weight| {
 				weight.base_extrinsic = 100;
 			})
@@ -137,11 +139,14 @@ mod tests {
 		type ExistentialDeposit = ();
 		type AccountStore = System;
 		type MaxLocks = ();
+		type MaxReserves = ();
+		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
 	}
 
 	parameter_types! {
 		pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+		pub const MaxApprovals: u32 = 100;
 	}
 
 	impl pallet_treasury::Config for Test {
@@ -157,6 +162,7 @@ mod tests {
 		type BurnDestination = ();
 		type PalletId = TreasuryPalletId;
 		type SpendFunds = ();
+		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
 	}
 
