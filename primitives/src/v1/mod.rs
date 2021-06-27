@@ -647,7 +647,7 @@ impl GroupRotationInfo {
 		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
 		if cores == 0 { return GroupIndex(0) }
 
-		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 
@@ -665,7 +665,7 @@ impl GroupRotationInfo {
 		if self.group_rotation_frequency == 0 { return CoreIndex(group_index.0) }
 		if cores == 0 { return CoreIndex(0) }
 
-		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 		let rotations = rotations % cores as u32;

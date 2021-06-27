@@ -191,7 +191,7 @@ fn contextless_checks<CT: ChainTime>(
 	if header.seal.len() != expected_seal_fields {
 		return Err(Error::InvalidSealArity);
 	}
-	if header.number >= u64::max_value() {
+	if header.number >= u64::MAX {
 		return Err(Error::RidiculousNumber);
 	}
 	if header.gas_used > header.gas_limit {
@@ -209,7 +209,7 @@ fn contextless_checks<CT: ChainTime>(
 
 	// we can't detect if block is from future in runtime
 	// => let's only do an overflow check
-	if header.timestamp > i32::max_value() as u64 {
+	if header.timestamp > i32::MAX as u64 {
 		return Err(Error::TimestampOverflow);
 	}
 
@@ -309,7 +309,7 @@ fn validator_checks(
 
 /// Returns expected number of seal fields in the header.
 fn expected_header_seal_fields(config: &AuraConfiguration, header: &AuraHeader) -> usize {
-	if header.number != u64::max_value() && header.number >= config.empty_steps_transition {
+	if header.number != u64::MAX && header.number >= config.empty_steps_transition {
 		3
 	} else {
 		2
@@ -323,9 +323,9 @@ fn verify_empty_step(parent_hash: &H256, step: &SealedEmptyStep, validators: &[A
 	verify_signature(&expected_validator, &step.signature, &message)
 }
 
-/// Chain scoring: total weight is sqrt(U256::max_value())*height - step
+/// Chain scoring: total weight is sqrt(U256::MAX)*height - step
 pub(crate) fn calculate_score(parent_step: u64, current_step: u64, current_empty_steps: usize) -> U256 {
-	U256::from(U128::max_value()) + U256::from(parent_step) - U256::from(current_step) + U256::from(current_empty_steps)
+	U256::from(U128::MAX) + U256::from(parent_step) - U256::from(current_step) + U256::from(current_empty_steps)
 }
 
 /// Verify that the signature over message has been produced by given validator.
@@ -491,12 +491,12 @@ mod tests {
 
 	#[test]
 	fn verifies_header_number() {
-		// when number is u64::max_value()
-		let header = HeaderBuilder::with_number(u64::max_value()).sign_by(&validator(0));
+		// when number is u64::MAX
+		let header = HeaderBuilder::with_number(u64::MAX).sign_by(&validator(0));
 		assert_eq!(default_verify(&header), Err(Error::RidiculousNumber));
 
-		// when header is < u64::max_value()
-		let header = HeaderBuilder::with_number(u64::max_value() - 1).sign_by(&validator(0));
+		// when header is < u64::MAX
+		let header = HeaderBuilder::with_number(u64::MAX - 1).sign_by(&validator(0));
 		assert_ne!(default_verify(&header), Err(Error::RidiculousNumber));
 	}
 
@@ -559,13 +559,13 @@ mod tests {
 	fn verifies_timestamp() {
 		// when timestamp overflows i32
 		let header = HeaderBuilder::with_number(1)
-			.timestamp(i32::max_value() as u64 + 1)
+			.timestamp(i32::MAX as u64 + 1)
 			.sign_by(&validator(0));
 		assert_eq!(default_verify(&header), Err(Error::TimestampOverflow));
 
 		// when timestamp doesn't overflow i32
 		let header = HeaderBuilder::with_number(1)
-			.timestamp(i32::max_value() as u64)
+			.timestamp(i32::MAX as u64)
 			.sign_by(&validator(0));
 		assert_ne!(default_verify(&header), Err(Error::TimestampOverflow));
 	}
@@ -597,19 +597,19 @@ mod tests {
 
 		// header is behind
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2 - 100)
+			.timestamp(i32::MAX as u64 / 2 - 100)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header).unwrap(), expect);
 
 		// header is ahead
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2 + 100)
+			.timestamp(i32::MAX as u64 / 2 + 100)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header), Err(Error::HeaderTimestampIsAhead));
 
 		// header has same timestamp as ConstChainTime
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2)
+			.timestamp(i32::MAX as u64 / 2)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header).unwrap(), expect);
 	}
