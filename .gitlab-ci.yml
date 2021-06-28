@@ -186,10 +186,12 @@ build-adder-collator:
 #### stage:                        build
 
 check-transaction-versions:
-  image:                           node:15
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
+  image:
+    name:                          node:15
+    entrypoint: [""]
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
@@ -205,7 +207,7 @@ generate-impl-guide:
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.7
+    name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   before_script:
     - mdbook --version
