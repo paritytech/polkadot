@@ -480,12 +480,14 @@ type PendingCollationFetch = (
 );
 
 /// The status of the collations in [`CollationsPerRelayParent`].
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum CollationStatus {
 	/// We are waiting for a collation to be advertised to us.
 	Waiting,
 	/// We are currently fetching a collation.
 	Fetching,
+	/// We are waiting that a collation is being validated.
+	WaitingOnValidation,
 	/// We have seconded a collation.
 	Seconded,
 }
@@ -496,6 +498,16 @@ impl Default for CollationStatus {
 	}
 }
 
+impl CollationStatus {
+	/// Downgrades to `Waiting`, but only if `self != Seconded`.
+	fn back_to_waiting(&mut self) {
+		match self {
+			Self::Seconded => {},
+			_ => *self = Self::Waiting,
+		}
+	}
+}
+
 /// Information about collations per relay parent.
 #[derive(Default)]
 struct CollationsPerRelayParent {
@@ -503,6 +515,25 @@ struct CollationsPerRelayParent {
 	status: CollationStatus,
 	/// Collation that were advertised to us, but we did not yet fetch.
 	unfetched_collations: Vec<(PendingCollation, CollatorId)>,
+}
+
+impl CollationsPerRelayParent {
+	/// Returns the next collation to fetch from the `unfetched_collations`.
+	///
+	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
+	///
+	/// Returns `Some(_)` if there is any collation to fetch and the `status` is not `Seconded`.
+	pub fn get_next_collation_to_fetch(&mut self) -> Option<(PendingCollation, CollatorId)> {
+		self.status.back_to_waiting();
+
+		match self.status {
+			// We don't need to fetch any other collation when we already have seconded one.
+			CollationStatus::Seconded => None,
+			CollationStatus::Waiting => self.unfetched_collations.pop(),
+			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
+				unreachable!("We have reset the status above!"),
+		}
+	}
 }
 
 /// All state relevant for the validator side of the protocol lives here.
@@ -812,7 +843,7 @@ where
 					let collations = state.collations_per_relay_parent.entry(relay_parent).or_default();
 
 					match collations.status {
-						CollationStatus::Fetching =>
+						CollationStatus::Fetching | CollationStatus::WaitingOnValidation =>
 							collations.unfetched_collations.push((pending_collation, id)),
 						CollationStatus::Waiting => {
 							collations.status = CollationStatus::Fetching;
@@ -1024,14 +1055,28 @@ where
 			}
 		}
 		Invalid(parent, candidate_receipt) => {
-			if state.pending_candidates
-				.get(&parent)
-				.map(|e| e.1.commitments_hash == Some(candidate_receipt.commitments_hash))
-				.unwrap_or_default()
-			{
-				if let Some((id, _)) = state.pending_candidates.remove(&parent) {
-					report_collator(ctx, &state.peer_data, id).await;
+			let id = match state.pending_candidates.entry(parent) {
+				Entry::Occupied(entry)
+					if entry.get().1.commitments_hash == Some(candidate_receipt.commitments_hash) => entry.remove().0,
+				Entry::Occupied(_) => {
+					tracing::error!(
+						target: LOG_TARGET,
+						relay_parent = ?parent,
+						candidate = ?candidate_receipt.hash(),
+						"Reported invalid candidate for unknown `pending_candidate`!",
+					);
+					return
 				}
+				Entry::Vacant(_) => return,
+			};
+
+			report_collator(ctx, &state.peer_data, id).await;
+
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
+				fetch_collation(ctx, state, next, id).await;
 			}
 		}
 	}
@@ -1139,29 +1184,20 @@ async fn handle_collation_fetched_result(
 				"Failed to fetch collation.",
 			);
 
-			let (next_try, id) = if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
-				if let Some(next_try) = collations.unfetched_collations.pop() {
-					next_try
-				} else if matches!(collations.status, CollationStatus::Fetching) {
-					collations.status = CollationStatus::Waiting;
-					return
-				} else {
-					tracing::error!(
-						target: LOG_TARGET,
-						status = ?collations.status,
-						"Expected status `CollationStatus::Fetching` but got unexpected status."
-					);
-					return
-				}
-			} else {
-				return
-			};
-
-			fetch_collation(ctx, state, next_try, id).await;
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&relay_parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
+				fetch_collation(ctx, state, next, id).await;
+			}
 
 			return
 		},
 	};
+
+	if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
+		collations.status = CollationStatus::WaitingOnValidation;
+	}
 
 	if let Entry::Vacant(entry) = state.pending_candidates.entry(relay_parent) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
@@ -1174,6 +1210,13 @@ async fn handle_collation_fetched_result(
 		).await;
 
 		entry.insert(collation_event);
+	} else {
+		tracing::error!(
+			target: LOG_TARGET,
+			?relay_parent,
+			candidate = ?candidate_receipt.hash(),
+			"Trying to insert a pending candidate failed, because there is already one!",
+		)
 	}
 }
 
