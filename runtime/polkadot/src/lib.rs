@@ -36,8 +36,8 @@ use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
+	PersistedValidationData, Signature, ValidationCode, ValidationCodeAndHash, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult,
@@ -1201,6 +1201,15 @@ sp_api::impl_runtime_apis! {
 		fn validation_code_by_hash(_hash: ValidationCodeHash) -> Option<ValidationCode> {
 			None
 		}
+
+		fn validation_code_hash(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCodeHash> {
+			None
+		}
+
+		fn validation_code_and_hash(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCodeAndHash> {
+			None
+		}
+
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {

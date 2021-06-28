@@ -24,8 +24,8 @@ use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeAndHash,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -267,6 +267,26 @@ pub fn validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
+	validation_code_and_hash::<T>(para_id, assumption).map(ValidationCodeAndHash::into_code)
+}
+
+/// Implementation for the `validation_code_hash` function of the runtime API.
+pub fn validation_code_hash<T: initializer::Config>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<ValidationCodeHash> {
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| <paras::Module<T>>::current_code_hash(&para_id),
+	)
+}
+
+/// Implementation for the `validation_code_and_hash` function of the runtime API.
+pub fn validation_code_and_hash<T: initializer::Config>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<ValidationCodeAndHash> {
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,

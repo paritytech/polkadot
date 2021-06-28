@@ -38,7 +38,8 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode, ValidationCodeHash,
+	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode,
+	ValidationCodeAndHash, ValidationCodeHash,
 };
 
 // Export some basic parachain primitives from v0.
@@ -934,9 +935,37 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
+		///
+		/// To fetch the hash of the code use [`Self::validation_code_hash`] or
+		/// [`Self::validation_code_and_hash`].
 		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>;
+
+		/// Fetch the hash of the validation code used by a para, making the given
+		/// `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		///
+		/// This is similar to [`Self::validation_code_and_hash`] except it fetches the hash of
+		/// the code.
+		#[skip_initialize_block]
+		fn validation_code_hash(
+			para_id: Id,
+			assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeHash>;
+
+		/// Fetch the validation code and its hash, for a para, making the given
+		/// `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		///
+		/// To fetch the hash of the code use [`Self::validation_code_hash`].
+		#[skip_initialize_block]
+		fn validation_code_and_hash(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeAndHash>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.

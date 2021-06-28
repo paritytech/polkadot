@@ -29,7 +29,7 @@ use primitives::v1::{
 	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
 	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
-	SessionInfo as SessionInfoData,
+	SessionInfo as SessionInfoData, ValidationCodeAndHash,
 };
 use runtime_common::{
 	mmr as mmr_common,
@@ -1101,6 +1101,16 @@ sp_api::impl_runtime_apis! {
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode> {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn validation_code_hash(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash> {
+			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn validation_code_and_hash(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeAndHash> {
+			runtime_api_impl::validation_code_and_hash::<Runtime>(para_id, assumption)
 		}
 
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {

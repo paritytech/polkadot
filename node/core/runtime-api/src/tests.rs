@@ -21,6 +21,7 @@ use polkadot_primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
 	InboundHrmpMessage, SessionInfo, AuthorityDiscoveryId, ValidationCodeHash,
+	ValidationCodeAndHash,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_core::testing::TaskExecutor;
@@ -40,7 +41,7 @@ struct MockRuntimeApi {
 	validation_data: HashMap<ParaId, PersistedValidationData>,
 	session_index_for_child: SessionIndex,
 	session_info: HashMap<SessionIndex, SessionInfo>,
-	validation_code: HashMap<ParaId, ValidationCode>,
+	validation_code: HashMap<ParaId, ValidationCodeAndHash>,
 	validation_code_by_hash: HashMap<ValidationCodeHash, ValidationCode>,
 	validation_outputs_results: HashMap<ParaId, bool>,
 	candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
@@ -114,7 +115,23 @@ sp_api::mock_impl_runtime_apis! {
 			para: ParaId,
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<ValidationCode> {
-			self.validation_code.get(&para).map(|c| c.clone())
+			self.validation_code.get(&para).map(|c| c.code().clone())
+		}
+
+		fn validation_code_hash(
+			&self,
+			para: ParaId,
+			_assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeHash> {
+			self.validation_code.get(&para).map(|c| c.hash().clone())
+		}
+
+		fn validation_code_and_hash(
+			&self,
+			para: ParaId,
+			_assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeAndHash> {
+			self.validation_code.get(&para).cloned()
 		}
 
 		fn candidate_pending_availability(
