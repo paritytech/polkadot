@@ -40,25 +40,21 @@ async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 }
 
 /// Ensure that our current `us` have not submitted anything previously.
-async fn ensure_no_previous_solution<T: EPM::Config, B: BlockT>(
-	client: &WsClient,
-	at: B::Hash,
+async fn ensure_no_previous_solution<
+	T: EPM::Config + frame_system::Config<AccountId = AccountId>,
+	B: BlockT,
+>(
+	ext: &mut Ext,
 	us: &AccountId,
 ) -> Result<(), Error> {
-	crate::any_runtime! {
-		use EPM::{SignedSubmissions, signed::SignedSubmission};
-		let key = sp_core::storage::StorageKey(SignedSubmissions::<T>::hashed_key().to_vec());
-		let queue =
-			get_storage::<Vec<SignedSubmission<AccountId, Balance, NposCompactSolution>>>(client, params!{ key, at }).await
-		?.unwrap_or_default();
-
-		// if we have a solution in the queue, then don't do anything.
-		if queue.iter().any(|ss| &ss.who == us) {
+	use EPM::signed::SignedSubmissions;
+	ext.execute_with(|| {
+		if <SignedSubmissions<T>>::get().iter().any(|ss| &ss.who == us) {
 			Err(Error::AlreadySubmitted)
 		} else {
 			Ok(())
 		}
-	}
+	})
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
@@ -82,7 +78,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			.await
 			.unwrap();
 
-		while let Some(now) = subscription.next().await {
+		while let Some(now) = subscription.next().await.unwrap() {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
@@ -90,12 +86,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
 				continue;
 			};
-
-			if ensure_no_previous_solution::<Runtime, Block>(&client, hash, &signer.account).await.is_err()
-			{
-				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
-				continue;
-			}
 
 			// NOTE: we don't check the score of any of the submitted solutions. If we submit a weak
 			// one, as long as we are valid, we will end up getting our deposit back, so not a big
@@ -105,6 +95,12 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// grab an externalities without staking, just the election snapshot.
 			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), Some(hash), false).await?;
+
+			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
+				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+				continue;
+			}
+
 			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 50)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
@@ -128,7 +124,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				.await
 				.unwrap();
 
-			let _success = while let Some(status_update) = tx_subscription.next().await {
+			let _success = while let Some(status_update) = tx_subscription.next().await.unwrap() {
 				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
 				match status_update {
 					TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,

@@ -442,7 +442,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 			},
 			..Default::default()
 		}))
-		.raw_prefix(&system_block_hash_key)
+		.inject_hashed_prefix(&system_block_hash_key)
 		.build()
 		.await
 		.map_err(|why| Error::RemoteExternalities(why))

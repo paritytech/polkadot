@@ -29,5 +29,5 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 futures = "0.3.15"

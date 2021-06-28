@@ -22,7 +22,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-core-pvf = { path = "../pvf" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-staking-miner" }
 futures = { version = "0.3.15", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
