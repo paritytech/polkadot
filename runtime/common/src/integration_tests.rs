@@ -41,7 +41,7 @@ use crate::{
 	auctions, crowdloan, slots, paras_registrar,
 	slot_range::SlotRange,
 	traits::{
-		Registrar as RegistrarT, Auctioneer,
+		Registrar as RegistrarT, Auctioneer, AuctionStatus,
 	},
 };
 
@@ -868,7 +868,7 @@ fn crowdloan_ending_period_bid() {
 		// Go to beginning of ending period
 		run_to_block(100);
 
-		assert_eq!(Auctions::is_ending(100), Some(0));
+		assert_eq!(Auctions::auction_status(100), AuctionStatus::<u32>::EndingPeriod(0, 0));
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
 		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2001), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] = Some((crowdloan_account, ParaId::from(2000), total));
@@ -1090,5 +1090,156 @@ fn gap_bids_work() {
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)), vec![]);
 		assert_eq!(Balances::reserved_balance(&10), 0);
 		assert_eq!(Balances::reserved_balance(&20), 0);
+	});
+}
+
+// This test verifies that if a parachain already has won some lease periods, that it cannot bid for
+// any of those same lease periods again.
+#[test]
+fn cant_bid_on_existing_lease_periods() {
+	new_test_ext().execute_with(|| {
+		assert!(System::block_number().is_one()); // So events are emitted
+		Balances::make_free_balance_be(&1, 1_000_000_000);
+		// First register a parathread
+		assert_ok!(Registrar::reserve(Origin::signed(1)));
+		assert_ok!(Registrar::register(
+			Origin::signed(1),
+			ParaId::from(2000),
+			test_genesis_head(10),
+			test_validation_code(10),
+		));
+
+		// Start a new auction in the future
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// 2 sessions later they are parathreads
+		run_to_session(2);
+
+		// Open a crowdloan for Para 1 for slots 0-3
+		assert_ok!(Crowdloan::create(
+			Origin::signed(1),
+			ParaId::from(2000),
+			1_000_000, // Cap
+			lease_period_index_start + 0, // First Slot
+			lease_period_index_start + 1, // Last Slot
+			400, // Long block end
+			None,
+		));
+		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+
+		// Bunch of contributions
+		let mut total = 0;
+		for i in 10 .. 20 {
+			Balances::make_free_balance_be(&i, 1_000_000_000);
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(2000), 900 - i, None));
+			total += 900 - i;
+		}
+		assert!(total > 0);
+		assert_eq!(Balances::free_balance(&crowdloan_account), total);
+
+		// Finish the auction.
+		run_to_block(starting_block + 110);
+
+		// Appropriate Paras should have won slots
+		assert_eq!(
+			slots::Leases::<Test>::get(ParaId::from(2000)),
+			// -- 1 --- 2 --- 3 ------------- 4 ------------------------ 5 -------------
+			vec![None, None, None, Some((crowdloan_account, 8855)), Some((crowdloan_account, 8855))],
+		);
+
+		// Let's start another auction for the same range
+		let starting_block = System::block_number();
+		let duration = 99u32;
+		let lease_period_index_start = 4u32;
+		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+
+		// Poke the crowdloan into `NewRaise`
+		assert_ok!(Crowdloan::poke(Origin::signed(1), ParaId::from(2000)));
+		assert_eq!(Crowdloan::new_raise(), vec![ParaId::from(2000)]);
+
+		// Beginning of ending block.
+		run_to_block(starting_block + 100);
+
+		// Bids cannot be made which intersect
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start + 0,
+				lease_period_index_start + 1,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start + 1,
+				lease_period_index_start + 2,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start - 1,
+				lease_period_index_start + 0,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start + 0,
+				lease_period_index_start + 0,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start + 1,
+				lease_period_index_start + 1,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		assert_noop!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start - 1,
+				lease_period_index_start + 5,
+				100,
+			), AuctionsError::<Test>::AlreadyLeasedOut,
+		);
+
+		// Will work when not overlapping
+		assert_ok!(
+			Auctions::bid(
+				Origin::signed(crowdloan_account),
+				ParaId::from(2000),
+				2,
+				lease_period_index_start + 2,
+				lease_period_index_start + 3,
+				100,
+			)
+		);
 	});
 }

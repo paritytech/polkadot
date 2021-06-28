@@ -35,14 +35,15 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 pub enum RelayHeadersAndMessages {
 	MillauRialto(MillauRialtoHeadersAndMessages),
+	RococoWococo(RococoWococoHeadersAndMessages),
 }
 
 /// Parameters that have the same names across all bridges.
 #[derive(StructOpt)]
 pub struct HeadersAndMessagesSharedParams {
-	/// Hex-encoded lane id that should be served by the relay. Defaults to `00000000`.
+	/// Hex-encoded lane identifiers that should be served by the complex relay.
 	#[structopt(long, default_value = "00000000")]
-	lane: HexLaneId,
+	lane: Vec<HexLaneId>,
 	#[structopt(flatten)]
 	prometheus_params: PrometheusParams,
 }
@@ -104,6 +105,26 @@ macro_rules! select_bridge {
 
 				$generic
 			}
+			RelayHeadersAndMessages::RococoWococo(_) => {
+				type Params = RococoWococoHeadersAndMessages;
+
+				type Left = relay_rococo_client::Rococo;
+				type Right = relay_wococo_client::Wococo;
+
+				type LeftToRightFinality = crate::chains::rococo_headers_to_wococo::RococoFinalityToWococo;
+				type RightToLeftFinality = crate::chains::wococo_headers_to_rococo::WococoFinalityToRococo;
+
+				type LeftToRightMessages = crate::chains::rococo_messages_to_wococo::RococoMessagesToWococo;
+				type RightToLeftMessages = crate::chains::wococo_messages_to_rococo::WococoMessagesToRococo;
+
+				const MAX_MISSING_LEFT_HEADERS_AT_RIGHT: bp_rococo::BlockNumber = bp_rococo::SESSION_LENGTH;
+				const MAX_MISSING_RIGHT_HEADERS_AT_LEFT: bp_wococo::BlockNumber = bp_wococo::SESSION_LENGTH;
+
+				use crate::chains::rococo_messages_to_wococo::run as left_to_right_messages;
+				use crate::chains::wococo_messages_to_rococo::run as right_to_left_messages;
+
+				$generic
+			}
 		}
 	};
 }
@@ -111,8 +132,11 @@ macro_rules! select_bridge {
 // All supported chains.
 declare_chain_options!(Millau, millau);
 declare_chain_options!(Rialto, rialto);
+declare_chain_options!(Rococo, rococo);
+declare_chain_options!(Wococo, wococo);
 // All supported bridges.
 declare_bridge_options!(Millau, Rialto);
+declare_bridge_options!(Rococo, Wococo);
 
 impl RelayHeadersAndMessages {
 	/// Run the command.
@@ -125,7 +149,7 @@ impl RelayHeadersAndMessages {
 			let right_client = params.right.to_client::<Right>().await?;
 			let right_sign = params.right_sign.to_keypair::<Right>()?;
 
-			let lane = params.shared.lane.into();
+			let lanes = params.shared.lane;
 
 			let metrics_params: MetricsParams = params.shared.prometheus_params.into();
 			let metrics_params = relay_utils::relay_metrics(None, metrics_params).into_params();
@@ -143,46 +167,49 @@ impl RelayHeadersAndMessages {
 				MAX_MISSING_RIGHT_HEADERS_AT_LEFT,
 			);
 
-			let left_to_right_messages = left_to_right_messages(MessagesRelayParams {
-				source_client: left_client.clone(),
-				source_sign: left_sign.clone(),
-				target_client: right_client.clone(),
-				target_sign: right_sign.clone(),
-				source_to_target_headers_relay: Some(left_to_right_on_demand_headers.clone()),
-				target_to_source_headers_relay: Some(right_to_left_on_demand_headers.clone()),
-				lane_id: lane,
-				metrics_params: metrics_params
-					.clone()
-					.disable()
-					.metrics_prefix(messages_relay::message_lane_loop::metrics_prefix::<LeftToRightMessages>(&lane)),
-			})
-			.map_err(|e| anyhow::format_err!("{}", e))
-			.boxed();
-			let right_to_left_messages = right_to_left_messages(MessagesRelayParams {
-				source_client: right_client,
-				source_sign: right_sign,
-				target_client: left_client.clone(),
-				target_sign: left_sign.clone(),
-				source_to_target_headers_relay: Some(right_to_left_on_demand_headers),
-				target_to_source_headers_relay: Some(left_to_right_on_demand_headers),
-				lane_id: lane,
-				metrics_params: metrics_params
-					.clone()
-					.disable()
-					.metrics_prefix(messages_relay::message_lane_loop::metrics_prefix::<RightToLeftMessages>(&lane)),
-			})
-			.map_err(|e| anyhow::format_err!("{}", e))
-			.boxed();
+			// Need 2x capacity since we consider both directions for each lane
+			let mut message_relays = Vec::with_capacity(lanes.len() * 2);
+			for lane in lanes {
+				let lane = lane.into();
+				let left_to_right_messages = left_to_right_messages(MessagesRelayParams {
+					source_client: left_client.clone(),
+					source_sign: left_sign.clone(),
+					target_client: right_client.clone(),
+					target_sign: right_sign.clone(),
+					source_to_target_headers_relay: Some(left_to_right_on_demand_headers.clone()),
+					target_to_source_headers_relay: Some(right_to_left_on_demand_headers.clone()),
+					lane_id: lane,
+					metrics_params: metrics_params.clone().disable().metrics_prefix(
+						messages_relay::message_lane_loop::metrics_prefix::<LeftToRightMessages>(&lane),
+					),
+				})
+				.map_err(|e| anyhow::format_err!("{}", e))
+				.boxed();
+				let right_to_left_messages = right_to_left_messages(MessagesRelayParams {
+					source_client: right_client.clone(),
+					source_sign: right_sign.clone(),
+					target_client: left_client.clone(),
+					target_sign: left_sign.clone(),
+					source_to_target_headers_relay: Some(right_to_left_on_demand_headers.clone()),
+					target_to_source_headers_relay: Some(left_to_right_on_demand_headers.clone()),
+					lane_id: lane,
+					metrics_params: metrics_params.clone().disable().metrics_prefix(
+						messages_relay::message_lane_loop::metrics_prefix::<RightToLeftMessages>(&lane),
+					),
+				})
+				.map_err(|e| anyhow::format_err!("{}", e))
+				.boxed();
+
+				message_relays.push(left_to_right_messages);
+				message_relays.push(right_to_left_messages);
+			}
 
 			relay_utils::relay_metrics(None, metrics_params)
 				.expose()
 				.await
 				.map_err(|e| anyhow::format_err!("{}", e))?;
 
-			futures::future::select(left_to_right_messages, right_to_left_messages)
-				.await
-				.factor_first()
-				.0
+			futures::future::select_all(message_relays).await.0
 		})
 	}
 }
