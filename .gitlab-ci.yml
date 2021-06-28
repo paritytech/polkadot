@@ -194,7 +194,6 @@ check-transaction-versions:
     - job:                         test-build-linux-stable
       artifacts:                   true
   before_script:
-    - *rust-info-script
     - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     - git fetch origin release
@@ -206,9 +205,12 @@ generate-impl-guide:
   <<:                              *rules-test
   <<:                              *docker-env
   image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.4
+    name: michaelfbryan/mdbook-docker-image:v0.4.7
     entrypoint: [""]
+  before_script:
+    - mdbook --version
   script:
+    # mdbook is sensitive to CARGO_TARGET_DIR env var
     - mdbook build roadmap/implementers-guide
 
 .build-push-image:                 &build-push-image
