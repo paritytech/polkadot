@@ -62,7 +62,7 @@ impl Metrics {
 
 	fn on_collation_sent_requested(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.collations_sent_requested.inc();
+			metrics.collations_send_requested.inc();
 		}
 	}
 
@@ -82,7 +82,7 @@ impl Metrics {
 struct MetricsInner {
 	advertisements_made: prometheus::Counter<prometheus::U64>,
 	collations_sent: prometheus::Counter<prometheus::U64>,
-	collations_sent_requested: prometheus::Counter<prometheus::U64>,
+	collations_send_requested: prometheus::Counter<prometheus::U64>,
 	process_msg: prometheus::Histogram,
 }
 
@@ -98,7 +98,7 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			collations_sent_requested: prometheus::register(
+			collations_send_requested: prometheus::register(
 				prometheus::Counter::new(
 					"parachain_collations_sent_requested_total",
 					"A number of collations requested to be sent to validators.",
@@ -203,7 +203,7 @@ struct Collation {
 /// Stores the state for waiting collation fetches.
 #[derive(Default)]
 struct WaitingCollationFetches {
-	/// Is there currently a collation being fetched?
+	/// Is there currently a collation getting fetched?
 	collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
 	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
@@ -930,16 +930,6 @@ pub(crate) async fn run(
 	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
-		async fn wait_for_collation_fetch(active: &mut ActiveCollationFetches) -> Hash {
-			loop {
-				if active.is_empty() {
-					futures::pending!()
-				} else if let Some(res) = StreamExt::next(active).await {
-					return res
-				}
-			}
-		}
-
 		select! {
 			msg = ctx.recv().fuse() => match msg.map_err(Fatal::SubsystemReceive)? {
 				Communication { msg } => {
@@ -952,7 +942,7 @@ pub(crate) async fn run(
 				Signal(BlockFinalized(..)) => {}
 				Signal(Conclude) => return Ok(()),
 			},
-			relay_parent = wait_for_collation_fetch(&mut state.active_collation_fetches).fuse() => {
+			relay_parent = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
