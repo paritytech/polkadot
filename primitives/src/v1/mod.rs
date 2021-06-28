@@ -223,7 +223,20 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// Maximum compressed code size we support right now.
 /// At the moment we have runtime upgrade on chain, which restricts scalability severely. If we want
 /// to have bigger values, we should fix that first.
+///
+/// Used for:
+/// * initial genesis for the Parachains configuration
+/// * checking updates to this stored runtime configuration do not exceed this limit
+/// * when detecting a code decompression bomb in the client
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
+
+/// Maximum PoV size we support right now.
+///
+/// Used for:
+/// * initial genesis for the Parachains configuration
+/// * checking updates to this stored runtime configuration do not exceed this limit
+/// * when detecting a PoV decompression bomb in the client
+pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
 // The public key of a keypair used by a validator for determining assignments
 /// to approve included parachain candidates.
@@ -667,7 +680,7 @@ impl GroupRotationInfo {
 		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
 		if cores == 0 { return GroupIndex(0) }
 
-		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 
@@ -685,7 +698,7 @@ impl GroupRotationInfo {
 		if self.group_rotation_frequency == 0 { return CoreIndex(group_index.0) }
 		if cores == 0 { return CoreIndex(0) }
 
-		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 		let rotations = rotations % cores as u32;

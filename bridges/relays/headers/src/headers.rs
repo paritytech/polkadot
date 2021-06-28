@@ -295,7 +295,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 				&mut self.orphan,
 				&mut self.known_headers,
 				HeaderStatus::Orphan,
-				&id,
+				id,
 			);
 			return;
 		}
@@ -305,7 +305,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			&mut self.maybe_extra,
 			&mut self.known_headers,
 			HeaderStatus::MaybeExtra,
-			&id,
+			id,
 		);
 	}
 
@@ -324,7 +324,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 			destination_queue,
 			&mut self.known_headers,
 			destination_status,
-			&id,
+			id,
 			|header| header,
 		);
 	}
@@ -654,7 +654,7 @@ impl<P: HeadersSyncPipeline> QueuedHeaders<P> {
 		// remember that the header itself is synced
 		// (condition is here to avoid duplicate log messages)
 		if !id_processed {
-			set_header_status::<P>(&mut self.known_headers, &id, HeaderStatus::Synced);
+			set_header_status::<P>(&mut self.known_headers, id, HeaderStatus::Synced);
 		}
 
 		// now let's move all descendants from maybe_orphan && orphan queues to
@@ -1505,7 +1505,7 @@ pub(crate) mod tests {
 		let mut queue = QueuedHeaders::<TestHeadersSyncPipeline>::default();
 
 		// when we do not know header itself
-		assert_eq!(queue.is_parent_incomplete(&id(50)), false);
+		assert!(!queue.is_parent_incomplete(&id(50)));
 
 		// when we do not know parent
 		queue
@@ -1514,7 +1514,7 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(100), HeaderStatus::Incomplete);
 		queue.incomplete.entry(100).or_default().insert(hash(100), header(100));
-		assert_eq!(queue.is_parent_incomplete(&id(100)), false);
+		assert!(!queue.is_parent_incomplete(&id(100)));
 
 		// when parent is inside incomplete queue (i.e. some other ancestor is actually incomplete)
 		queue
@@ -1523,7 +1523,7 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(101), HeaderStatus::Submitted);
 		queue.submitted.entry(101).or_default().insert(hash(101), header(101));
-		assert_eq!(queue.is_parent_incomplete(&id(101)), true);
+		assert!(queue.is_parent_incomplete(&id(101)));
 
 		// when parent is the incomplete header and we do not have completion data
 		queue.incomplete_headers.insert(id(199), None);
@@ -1533,7 +1533,7 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(200), HeaderStatus::Submitted);
 		queue.submitted.entry(200).or_default().insert(hash(200), header(200));
-		assert_eq!(queue.is_parent_incomplete(&id(200)), true);
+		assert!(queue.is_parent_incomplete(&id(200)));
 
 		// when parent is the incomplete header and we have completion data
 		queue.completion_data.insert(id(299), 299_299);
@@ -1543,7 +1543,7 @@ pub(crate) mod tests {
 			.or_default()
 			.insert(hash(300), HeaderStatus::Submitted);
 		queue.submitted.entry(300).or_default().insert(hash(300), header(300));
-		assert_eq!(queue.is_parent_incomplete(&id(300)), true);
+		assert!(queue.is_parent_incomplete(&id(300)));
 	}
 
 	#[test]

@@ -26,6 +26,7 @@ use runtime_common::{
 	impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
 	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
+	elections::fee_for_submit_call,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 
@@ -95,7 +96,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9051,
+	spec_version: 9070,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -175,8 +176,6 @@ impl frame_system::Config for Runtime {
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
 }
-
-impl pallet_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
@@ -330,11 +329,24 @@ impl pallet_session::historical::Config for Runtime {
 }
 
 parameter_types! {
-	// no signed phase for now, just unsigned.
-	pub const SignedPhase: u32 = 0;
+	// phase durations. 1/4 of the last session for each.
+	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
-	// fallback: run election on-chain.
+	// signed config
+	pub const SignedMaxSubmissions: u32 = 16;
+	pub const SignedDepositBase: Balance = deposit(1, 0);
+	// A typical solution occupies within an order of magnitude of 50kb.
+	// This formula is currently adjusted such that a typical solution will spend an amount equal
+	// to the base deposit for every 50 kb.
+	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub SignedRewardBase: Balance = fee_for_submit_call::<
+		Runtime,
+		crate::constants::fee::WeightToFee,
+		crate::weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>,
+	>(Perbill::from_perthousand(1500));
+
+	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
@@ -358,6 +370,14 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
+	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedRewardBase = SignedRewardBase;
+	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositByte = SignedDepositByte;
+	type SignedDepositWeight = ();
+	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SlashHandler = (); // burn slashes
+	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
@@ -987,7 +1007,6 @@ construct_runtime! {
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 31,
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 1,
 
 		// Must be before session.
@@ -1044,31 +1063,6 @@ construct_runtime! {
 	}
 }
 
-pub struct GrandpaStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::migrate::<Runtime, Grandpa, _>(name)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::pre_migration::<Runtime, Grandpa, _>(name);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_grandpa::migrations::v3_1::post_migration::<Grandpa>();
-		Ok(())
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1099,28 +1093,18 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(GrandpaStoragePrefixMigration, SetStakingLimits),
+	RemoveCollectiveFlip,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-pub struct SetStakingLimits;
-impl frame_support::traits::OnRuntimeUpgrade for SetStakingLimits {
+pub struct RemoveCollectiveFlip;
+impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
 	fn on_runtime_upgrade() -> Weight {
-		// This will be the threshold needed henceforth to become a nominator. All nominators will
-		// less than this amount bonded are at the risk of being chilled by another reporter.
-		let min_nominator_bond = 20 * UNITS;
-		// The absolute maximum number of nominators. This number is set rather conservatively, and
-		// is expected to increase soon after this runtime upgrade via another governance proposal.
-		// The current Polkadot state has more than 30_000 nominators, therefore no other nominator
-		// can join.
-		let max_nominators = 20_000;
-		<pallet_staking::MinNominatorBond<Runtime>>::put(min_nominator_bond);
-		<pallet_staking::MaxNominatorsCount<Runtime>>::put(max_nominators);
-
-		// we set no limits on validators for now.
-
-		<Runtime as frame_system::Config>::DbWeight::get().writes(2)
+		use frame_support::storage::migration;
+		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
+		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
+		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
 	}
 }
 
@@ -1475,7 +1459,6 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use frame_support::weights::WeightToFeePolynomial;
-	use frame_support::storage::StorageValue;
 	use sp_runtime::FixedPointNumber;
 	use frame_support::weights::GetDispatchInfo;
 	use parity_scale_codec::Encode;
@@ -1526,12 +1509,12 @@ mod test_fees {
 		let mut ext = sp_io::TestExternalities::new_empty();
 		let mut test_with_multiplier = |m| {
 			ext.execute_with(|| {
-				pallet_transaction_payment::NextFeeMultiplier::put(m);
+				pallet_transaction_payment::NextFeeMultiplier::<Runtime>::put(m);
 				let fee = TransactionPayment::compute_fee(len, &info, 0);
 				println!(
 					"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
 					info.weight.separated_string(),
-					pallet_transaction_payment::NextFeeMultiplier::get(),
+					pallet_transaction_payment::NextFeeMultiplier::<Runtime>::get(),
 					fee.separated_string(),
 				);
 			});

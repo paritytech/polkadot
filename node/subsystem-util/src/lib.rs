@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal,
 };
 use polkadot_node_jaeger as jaeger;
-use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
+use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::{Stream, SelectAll}};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
@@ -48,7 +48,6 @@ use std::{
 	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
 	time::Duration, fmt, sync::Arc,
 };
-use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 pub use metered_channel as metered;
@@ -523,7 +522,7 @@ pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<ToJob>>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
+	outgoing_msgs: SelectAll<mpsc::Receiver<FromJobCommand>>,
 }
 
 impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
@@ -532,7 +531,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 		Self {
 			spawner,
 			running: HashMap::new(),
-			outgoing_msgs: StreamUnordered::new(),
+			outgoing_msgs: SelectAll::new(),
 		}
 	}
 
@@ -608,17 +607,10 @@ where
 	type Item = FromJobCommand;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-		loop {
-			match Pin::new(&mut self.outgoing_msgs).poll_next(cx) {
-				Poll::Pending => return Poll::Pending,
-				Poll::Ready(r) => match r.map(|v| v.0) {
-					Some(StreamYield::Item(msg)) => return Poll::Ready(Some(msg)),
-					// If a job is finished, rerun the loop
-					Some(StreamYield::Finished(_)) => continue,
-					// Don't end if there are no jobs running
-					None => return Poll::Pending,
-				}
-			}
+		match futures::ready!(Pin::new(&mut self.outgoing_msgs).poll_next(cx)) {
+			Some(msg) => Poll::Ready(Some(msg)),
+			// Don't end if there are no jobs running
+			None => Poll::Pending,
 		}
 	}
 }
@@ -734,9 +726,9 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 				}
 				outgoing = jobs.next() => {
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
 						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+							=> ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {

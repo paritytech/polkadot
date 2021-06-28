@@ -164,6 +164,7 @@ struct PerRequest {
 	span: Option<jaeger::Span>,
 }
 
+#[derive(Debug)]
 struct CollatingPeerState {
 	collator_id: CollatorId,
 	para_id: ParaId,
@@ -172,6 +173,7 @@ struct CollatingPeerState {
 	last_active: Instant,
 }
 
+#[derive(Debug)]
 enum PeerState {
 	// The peer has connected at the given instant.
 	Connected(Instant),
@@ -186,6 +188,7 @@ enum AdvertisementError {
 	UndeclaredCollator,
 }
 
+#[derive(Debug)]
 struct PeerData {
 	view: View,
 	state: PeerState,
@@ -465,8 +468,7 @@ struct PendingCollation {
 
 impl PendingCollation {
 	fn new(relay_parent: Hash, para_id: &ParaId, peer_id: &PeerId) -> Self {
-		let commitments_hash = None;
-		Self { relay_parent, para_id: para_id.clone(), peer_id: peer_id.clone(), commitments_hash }
+		Self { relay_parent, para_id: para_id.clone(), peer_id: peer_id.clone(), commitments_hash: None }
 	}
 }
 
@@ -476,6 +478,63 @@ type PendingCollationFetch = (
 	CollationEvent,
 	std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>,
 );
+
+/// The status of the collations in [`CollationsPerRelayParent`].
+#[derive(Debug, Clone, Copy)]
+enum CollationStatus {
+	/// We are waiting for a collation to be advertised to us.
+	Waiting,
+	/// We are currently fetching a collation.
+	Fetching,
+	/// We are waiting that a collation is being validated.
+	WaitingOnValidation,
+	/// We have seconded a collation.
+	Seconded,
+}
+
+impl Default for CollationStatus {
+	fn default() -> Self {
+		Self::Waiting
+	}
+}
+
+impl CollationStatus {
+	/// Downgrades to `Waiting`, but only if `self != Seconded`.
+	fn back_to_waiting(&mut self) {
+		match self {
+			Self::Seconded => {},
+			_ => *self = Self::Waiting,
+		}
+	}
+}
+
+/// Information about collations per relay parent.
+#[derive(Default)]
+struct CollationsPerRelayParent {
+	/// What is the current status in regards to a collation for this relay parent?
+	status: CollationStatus,
+	/// Collation that were advertised to us, but we did not yet fetch.
+	unfetched_collations: Vec<(PendingCollation, CollatorId)>,
+}
+
+impl CollationsPerRelayParent {
+	/// Returns the next collation to fetch from the `unfetched_collations`.
+	///
+	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
+	///
+	/// Returns `Some(_)` if there is any collation to fetch and the `status` is not `Seconded`.
+	pub fn get_next_collation_to_fetch(&mut self) -> Option<(PendingCollation, CollatorId)> {
+		self.status.back_to_waiting();
+
+		match self.status {
+			// We don't need to fetch any other collation when we already have seconded one.
+			CollationStatus::Seconded => None,
+			CollationStatus::Waiting => self.unfetched_collations.pop(),
+			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
+				unreachable!("We have reset the status above!"),
+		}
+	}
+}
 
 /// All state relevant for the validator side of the protocol lives here.
 #[derive(Default)]
@@ -503,7 +562,10 @@ struct State {
 	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 
 	/// Keep track of all fetch collation requests
-	collations: FuturesUnordered<BoxFuture<'static, PendingCollationFetch>>,
+	collation_fetches: FuturesUnordered<BoxFuture<'static, PendingCollationFetch>>,
+
+	/// Information about the collations per relay parent.
+	collations_per_relay_parent: HashMap<Hash, CollationsPerRelayParent>,
 
 	/// Keep track of all pending candidate collations
 	pending_candidates: HashMap<Hash, CollationEvent>,
@@ -528,19 +590,20 @@ async fn disconnect_peer(ctx: &mut impl SubsystemContext, peer_id: PeerId) {
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
-async fn fetch_collation<Context>(
-	ctx: &mut Context,
+async fn fetch_collation(
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
 	pc: PendingCollation,
-	tx: oneshot::Sender<(CandidateReceipt, PoV)>
-)
-where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
-{
+	id: CollatorId,
+) {
+	let (tx, rx) = oneshot::channel();
+
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
 	if state.peer_data.get(&peer_id).map_or(false, |d| d.has_advertised(&relay_parent)) {
 		request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
 	}
+
+	state.collation_fetches.push(rx.map(|r| ((id, pc), r)).boxed());
 }
 
 /// Report a collator for some malicious actions.
@@ -770,22 +833,26 @@ where
 						?relay_parent,
 						"Received advertise collation",
 					);
-					let (tx, rx) = oneshot::channel::<(
-						CandidateReceipt,
-						PoV,
-					)>();
 
 					let pending_collation = PendingCollation::new(
 						relay_parent,
 						&para_id,
 						&origin,
 					);
-					fetch_collation(ctx, state, pending_collation.clone(), tx).await;
 
-					let future = rx.map(|r|
-						((id, pending_collation), r)
-					);
-					state.collations.push(Box::pin(future));
+					let collations = state.collations_per_relay_parent.entry(relay_parent).or_default();
+
+					match collations.status {
+						CollationStatus::Fetching | CollationStatus::WaitingOnValidation =>
+							collations.unfetched_collations.push((pending_collation, id)),
+						CollationStatus::Waiting => {
+							collations.status = CollationStatus::Fetching;
+							drop(collations);
+
+							fetch_collation(ctx, state, pending_collation.clone(), id).await;
+						},
+						CollationStatus::Seconded => {},
+					}
 				}
 				Err(error) => {
 					tracing::debug!(
@@ -824,6 +891,8 @@ async fn remove_relay_parent(
 	state.pending_candidates.retain(|k, _| {
 		k != &relay_parent
 	});
+
+	state.collations_per_relay_parent.remove(&relay_parent);
 	Ok(())
 }
 
@@ -973,6 +1042,10 @@ where
 				let PendingCollation { relay_parent, peer_id, .. } = pending_collation;
 				note_good_collation(ctx, &state.peer_data, collator_id).await;
 				notify_collation_seconded(ctx, peer_id, relay_parent, stmt).await;
+
+				if let Some(collations) = state.collations_per_relay_parent.get_mut(&parent) {
+					collations.status = CollationStatus::Seconded;
+				}
 			} else {
 				tracing::debug!(
 					target: LOG_TARGET,
@@ -982,15 +1055,28 @@ where
 			}
 		}
 		Invalid(parent, candidate_receipt) => {
-			if match state.pending_candidates.get(&parent) {
-				Some(collation_event)
-					if Some(candidate_receipt.commitments_hash) == collation_event.1.commitments_hash
-				=> true,
-				_ => false,
-			} {
-				if let Some((id, _)) = state.pending_candidates.remove(&parent) {
-					report_collator(ctx, &state.peer_data, id).await;
+			let id = match state.pending_candidates.entry(parent) {
+				Entry::Occupied(entry)
+					if entry.get().1.commitments_hash == Some(candidate_receipt.commitments_hash) => entry.remove().0,
+				Entry::Occupied(_) => {
+					tracing::error!(
+						target: LOG_TARGET,
+						relay_parent = ?parent,
+						candidate = ?candidate_receipt.hash(),
+						"Reported invalid candidate for unknown `pending_candidate`!",
+					);
+					return
 				}
+				Entry::Vacant(_) => return,
+			};
+
+			report_collator(ctx, &state.peer_data, id).await;
+
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
+				fetch_collation(ctx, state, next, id).await;
 			}
 		}
 	}
@@ -1022,7 +1108,6 @@ pub(crate) async fn run<Context>(
 
 	let mut state = State {
 		metrics,
-
 		..Default::default()
 	};
 
@@ -1053,53 +1138,9 @@ pub(crate) async fn run<Context>(
 			_ = next_inactivity_stream.next() => {
 				disconnect_inactive_peers(&mut ctx, &eviction_policy, &state.peer_data).await;
 			}
-			res = state.collations.next() => {
-				// If no prior collation for this relay parent has been seconded, then
-				// memoize the collation_event for that relay_parent, such that we may
-				// notify the collator of their successful second backing
-				if let Some((relay_parent, collation_event)) = match res {
-					Some(
-						(mut collation_event, Ok((candidate_receipt, pov)))
-					) => {
-						let relay_parent = &collation_event.1.relay_parent;
-						// Verify whether this relay_parent has already been seconded
-						if state.pending_candidates.get(relay_parent).is_none() {
-							// Forward Candidate Receipt and PoV to candidate backing [CB]
-							collation_event.1
-								.commitments_hash = Some(candidate_receipt.commitments_hash);
-							ctx.send_message(
-								CandidateBackingMessage::Second(
-									relay_parent.clone(),
-									candidate_receipt,
-									pov,
-								).into()
-							).await;
-							Some((relay_parent.clone(), collation_event))
-						} else {
-							tracing::debug!(
-								target: LOG_TARGET,
-								relay_parent = ?relay_parent,
-								collator_id = ?collation_event.0,
-								"Collation for this relay parent has already been seconded.",
-							);
-							None
-						}
-					}
-					Some(
-						(collation_event, _)
-					) => {
-						let (id, pending_collation) = collation_event;
-						tracing::debug!(
-							target: LOG_TARGET,
-							relay_parent = ?pending_collation.relay_parent,
-							collator_id = ?id,
-							"Collation fetching has timed out.",
-						);
-						None
-					}
-					_ => None,
-				} {
-					state.pending_candidates.insert(relay_parent, collation_event);
+			res = state.collation_fetches.next() => {
+				if let Some(res) = res {
+					handle_collation_fetched_result(&mut ctx, &mut state, res).await;
 				}
 			}
 		}
@@ -1117,6 +1158,66 @@ pub(crate) async fn run<Context>(
 		state.requested_collations.retain(|k, _| retained_requested.contains(k));
 	}
 	Ok(())
+}
+
+/// Handle a fetched collation result.
+async fn handle_collation_fetched_result(
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	state: &mut State,
+	(mut collation_event, res): PendingCollationFetch,
+) {
+	// If no prior collation for this relay parent has been seconded, then
+	// memoize the collation_event for that relay_parent, such that we may
+	// notify the collator of their successful second backing
+	let relay_parent = collation_event.1.relay_parent;
+
+	let (candidate_receipt, pov) = match res {
+		Ok(res) => res,
+		Err(e) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				relay_parent = ?collation_event.1.relay_parent,
+				para_id = ?collation_event.1.para_id,
+				peer_id = ?collation_event.1.peer_id,
+				collator_id = ?collation_event.0,
+				error = ?e,
+				"Failed to fetch collation.",
+			);
+
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&relay_parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
+				fetch_collation(ctx, state, next, id).await;
+			}
+
+			return
+		},
+	};
+
+	if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
+		collations.status = CollationStatus::WaitingOnValidation;
+	}
+
+	if let Entry::Vacant(entry) = state.pending_candidates.entry(relay_parent) {
+		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
+		ctx.send_message(
+			CandidateBackingMessage::Second(
+				relay_parent.clone(),
+				candidate_receipt,
+				pov,
+			).into()
+		).await;
+
+		entry.insert(collation_event);
+	} else {
+		tracing::error!(
+			target: LOG_TARGET,
+			?relay_parent,
+			candidate = ?candidate_receipt.hash(),
+			"Trying to insert a pending candidate failed, because there is already one!",
+		)
+	}
 }
 
 // This issues `NetworkBridge` notifications to disconnect from all inactive peers at the
@@ -1145,7 +1246,7 @@ async fn poll_collation_response<Context>(
 	metrics: &Metrics,
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
-	per_req: &mut PerRequest
+	per_req: &mut PerRequest,
 )
 -> bool
 where
