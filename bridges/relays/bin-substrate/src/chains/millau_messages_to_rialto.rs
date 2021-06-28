@@ -23,7 +23,7 @@ use crate::messages_source::SubstrateMessagesSource;
 use crate::messages_target::SubstrateMessagesTarget;
 
 use bp_messages::MessageNonce;
-use bp_runtime::{MILLAU_BRIDGE_INSTANCE, RIALTO_BRIDGE_INSTANCE};
+use bp_runtime::{MILLAU_CHAIN_ID, RIALTO_CHAIN_ID};
 use bridge_runtime_common::messages::target::FromBridgedChainMessagesProof;
 use codec::Encode;
 use frame_support::dispatch::GetDispatchInfo;
@@ -42,8 +42,7 @@ pub type MillauMessagesToRialto =
 	SubstrateMessageLaneToSubstrate<Millau, MillauSigningParams, Rialto, RialtoSigningParams>;
 
 impl SubstrateMessageLane for MillauMessagesToRialto {
-	const OUTBOUND_LANE_MESSAGES_DISPATCH_WEIGHT_METHOD: &'static str =
-		bp_rialto::TO_RIALTO_MESSAGES_DISPATCH_WEIGHT_METHOD;
+	const OUTBOUND_LANE_MESSAGE_DETAILS_METHOD: &'static str = bp_rialto::TO_RIALTO_MESSAGE_DETAILS_METHOD;
 	const OUTBOUND_LANE_LATEST_GENERATED_NONCE_METHOD: &'static str =
 		bp_rialto::TO_RIALTO_LATEST_GENERATED_NONCE_METHOD;
 	const OUTBOUND_LANE_LATEST_RECEIVED_NONCE_METHOD: &'static str = bp_rialto::TO_RIALTO_LATEST_RECEIVED_NONCE_METHOD;
@@ -59,7 +58,7 @@ impl SubstrateMessageLane for MillauMessagesToRialto {
 	type SourceChain = Millau;
 	type TargetChain = Rialto;
 
-	fn source_transactions_author(&self) -> bp_rialto::AccountId {
+	fn source_transactions_author(&self) -> bp_millau::AccountId {
 		(*self.source_sign.public().as_array_ref()).into()
 	}
 
@@ -127,20 +126,12 @@ impl SubstrateMessageLane for MillauMessagesToRialto {
 }
 
 /// Millau node as messages source.
-type MillauSourceClient = SubstrateMessagesSource<
-	Millau,
-	MillauMessagesToRialto,
-	millau_runtime::Runtime,
-	millau_runtime::WithRialtoMessagesInstance,
->;
+type MillauSourceClient =
+	SubstrateMessagesSource<Millau, MillauMessagesToRialto, millau_runtime::WithRialtoMessagesInstance>;
 
 /// Rialto node as messages target.
-type RialtoTargetClient = SubstrateMessagesTarget<
-	Rialto,
-	MillauMessagesToRialto,
-	rialto_runtime::Runtime,
-	rialto_runtime::WithMillauMessagesInstance,
->;
+type RialtoTargetClient =
+	SubstrateMessagesTarget<Rialto, MillauMessagesToRialto, rialto_runtime::WithMillauMessagesInstance>;
 
 /// Run Millau-to-Rialto messages sync.
 pub async fn run(
@@ -160,7 +151,7 @@ pub async fn run(
 	};
 
 	// 2/3 is reserved for proofs and tx overhead
-	let max_messages_size_in_single_batch = bp_rialto::max_extrinsic_size() as usize / 3;
+	let max_messages_size_in_single_batch = bp_rialto::max_extrinsic_size() / 3;
 	// TODO: use Millau weights after https://github.com/paritytech/parity-bridges-common/issues/390
 	let (max_messages_in_single_batch, max_messages_weight_in_single_batch) =
 		select_delivery_transaction_limits::<pallet_bridge_messages::weights::RialtoWeight<millau_runtime::Runtime>>(
@@ -194,20 +185,21 @@ pub async fn run(
 				max_messages_in_single_batch,
 				max_messages_weight_in_single_batch,
 				max_messages_size_in_single_batch,
+				relayer_mode: messages_relay::message_lane_loop::RelayerMode::Altruistic,
 			},
 		},
 		MillauSourceClient::new(
 			source_client.clone(),
 			lane.clone(),
 			lane_id,
-			RIALTO_BRIDGE_INSTANCE,
+			RIALTO_CHAIN_ID,
 			params.target_to_source_headers_relay,
 		),
 		RialtoTargetClient::new(
 			params.target_client,
 			lane,
 			lane_id,
-			MILLAU_BRIDGE_INSTANCE,
+			MILLAU_CHAIN_ID,
 			params.source_to_target_headers_relay,
 		),
 		relay_utils::relay_metrics(

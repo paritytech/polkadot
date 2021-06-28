@@ -1,4 +1,4 @@
-# testing
+# Testing
 
 Automated testing is an essential tool to assure correctness.
 
@@ -6,7 +6,7 @@ Automated testing is an essential tool to assure correctness.
 
 The testing strategy for polkadot is 4-fold:
 
-### Unit testing
+### Unit testing (1)
 
 Boring, small scale correctness tests of individual functions.
 
@@ -14,16 +14,16 @@ Boring, small scale correctness tests of individual functions.
 
 There are two variants of integration tests:
 
-#### Subsystem tests
+#### Subsystem tests (2)
 
 One particular subsystem (subsystem under test) interacts with a
 mocked overseer that is made to assert incoming and outgoing messages
 of the subsystem under test.
 This is largely present today, but has some fragmentation in the evolved
-integration test implmentation. A proc-macro/macro+rules would allow
+integration test implementation. A proc-macro/macro_rules would allow
 for more consistent implementation and structure.
 
-#### Behavior tests
+#### Behavior tests (3)
 
 Launching small scale networks, with multiple adversarial nodes without any further tooling required.
 This should include tests around the thresholds in order to evaluate the error handling once certain
@@ -33,11 +33,22 @@ For this purpose based on `AllSubsystems` and proc-macro `AllSubsystemsGen`.
 
 This assumes a simplistic test runtime.
 
-### Testing at scale
+#### Testing at scale (4)
 
 Launching many nodes with configurable network speed and node features in a cluster of nodes.
 At this scale the [`simnet`][simnet] comes into play which launches a full cluster of nodes.
-Asserts are(?) made based on metrics.
+The scale is handled by spawning a kubernetes cluster and the meta description
+is covered by [`gurke`][gurke].
+Asserts are made using grafana rules, based on the existing prometheus metrics. This can
+be extended by adding an additional service translating `jaeger` spans into addition
+prometheus avoiding additional polkadot source changes.
+
+
+_Behavior tests_ and _testing at scale_ have naturally soft boundary.
+The most significant difference is the presence of a real network and
+the number of nodes, since a single host often not capable to run
+multiple nodes at once.
+
 
 ---
 
@@ -46,7 +57,7 @@ Asserts are(?) made based on metrics.
 Coverage gives a _hint_ of the actually covered source lines by tests and test applications.
 
 The state of the art is currently [tarpaulin][tarpaulin] which unfortunately yields a
-lot of false negatives. Lines that are in fact covered, marked as uncovered due to a mere linebreak in a statment can cause these artifacts. This leads to
+lot of false negatives. Lines that are in fact covered, marked as uncovered due to a mere linebreak in a statement can cause these artifacts. This leads to
 lower coverage percentages than there actually is.
 
 Since late 2020 rust has gained [MIR based coverage tooling](
@@ -88,9 +99,9 @@ The test coverage in `lcov` can the be published to <codecov.io>.
 bash <(curl -s https://codecov.io/bash) -f lcov.info
 ```
 
-or just printed as part of the PR using a gh action i.e. [jest-lcov-reporter](https://github.com/marketplace/actions/jest-lcov-reporter).
+or just printed as part of the PR using a github action i.e. [jest-lcov-reporter](https://github.com/marketplace/actions/jest-lcov-reporter).
 
-For full examples on how to use [grcov /w polkadot specifics see the gh repo](https://github.com/mozilla/grcov#coverallscodecov-output).
+For full examples on how to use [grcov /w polkadot specifics see the github repo](https://github.com/mozilla/grcov#coverallscodecov-output).
 
 ## Fuzzing
 
@@ -122,7 +133,7 @@ There are various ways of performance metrics.
 
 Most of them are standard tools to aid in the creation of statistical tests regarding change in time of certain unit tests.
 
-`coz` is meant for runtime. In our case, the system is far too large to yield a sufficent number of measurements in finite time.
+`coz` is meant for runtime. In our case, the system is far too large to yield a sufficient number of measurements in finite time.
 An alternative approach could be to record incoming package streams per subsystem and store dumps of them, which in return could be replayed repeatedly at an
 accelerated speed, with which enough metrics could be obtained to yield
 information on which areas would improve the metrics.
@@ -133,7 +144,7 @@ As such the effort gain seems low and this is not pursued at the current time.
 
 Requirements:
 
-* spawn nodes with preconfigured behaviours
+* spawn nodes with preconfigured behaviors
 * allow multiple types of configuration to be specified
 * allow extensability via external crates
 * ...
@@ -141,52 +152,116 @@ Requirements:
 ---
 
 
-## Implementation of different behaviour strain nodes.
+## Implementation of different behavior strain nodes.
 
 ### Goals
 
 The main goals are is to allow creating a test node which
-exhibits a certain behaviour by utilizing a subset of _wrapped_ or _replaced_ subsystems easily.
+exhibits a certain behavior by utilizing a subset of _wrapped_ or _replaced_ subsystems easily.
 The runtime must not matter at all for these tests and should be simplistic.
 The execution must be fast, this mostly means to assure a close to zero network latency as
 well as shorting the block time and epoch times down to a few `100ms` and a few dozend blocks per epoch.
 
 ### Approach
 
-`AllSubsystems` is an intermediate mocking type. As such it is a prime target for modification.
-`AllSubsystemsGen` is a proc-macro that should be extended as needed for per subsystem specific
-logic that would otherwise cause significant boilerplate additions.
+#### MVP
 
-There are common patterns, where i.e. a subsystem produces garbage, or does not produce any output.
-These most be provided by default for re-usability. Another option would be a `CopyCat` node that
-picks one other node and just repeats whatever the initial node does. These are just _ideas_
-and might not prove viable or yield signifcant outcomes.
+A simple small scale builder pattern would suffice for stage one impl of allowing to
+replace individual subsystems.
+An alternative would be to harness the existing `AllSubsystems` type
+and replace the subsystems as needed.
 
-### Impl
+#### Full proc-macro impl
+
+`Overseer` is a common pattern.
+It could be extracted as proc macro and generative proc-macro.
+This would replace the `AllSubsystems` type as well as implicitly create
+the `AllMessages` enum as  `AllSubsystemsGen` does today.
+
+The implementation is yet to be completed, see the [implementation PR](https://github.com/paritytech/polkadot/pull/2962) for details.
+
+##### Declare an overseer impl
+
+```rust
+struct BehaveMaleficient;
+
+impl OverseerGen for BehaveMaleficient {
+	fn generate<'a, Spawner, RuntimeClient>(
+		&self,
+		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+	where
+		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
+		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+		Spawner: 'static + SpawnNamed + Clone + Unpin,
+	{
+		let spawner = args.spawner.clone();
+		let leaves = args.leaves.clone();
+		let runtime_client = args.runtime_client.clone();
+		let registry = args.registry.clone();
+		let candidate_validation_config = args.candidate_validation_config.clone();
+		// modify the subsystem(s) as needed:
+		let all_subsystems = create_default_subsystems(args)?.
+        // or spawn an entirely new set
+
+        replace_candidate_validation(
+			// create the filtered subsystem
+			FilteredSubsystem::new(
+				CandidateValidationSubsystem::with_config(
+					candidate_validation_config,
+					Metrics::register(registry)?,
+				),
+                // an implementation of
+				Skippy::default(),
+			),
+		);
+
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+			.map_err(|e| e.into())
+
+        // A builder pattern will simplify this further
+        // WIP https://github.com/paritytech/polkadot/pull/2962
+	}
+}
+
+fn main() -> eyre::Result<()> {
+	color_eyre::install()?;
+	let cli = Cli::from_args();
+	assert_matches::assert_matches!(cli.subcommand, None);
+	polkadot_cli::run_node(cli, BehaveMaleficient)?;
+	Ok(())
+}
+```
+
+[`variant-a`](../node/malus/src/variant-a.rs) is a fully working example.
+
+#### Simnet
+
+Spawn a kubernetes cluster based on a meta description using [gurke] with the
+[simnet] scripts.
+
+Coordinated attacks of multiple nodes or subsystems must be made possible via
+a side-channel, that is out of scope for this document.
+
+The individual node configurations are done as targets with a particular
+builder configuration.
+
+#### Behavior tests w/o simnet
+
+Commonly this will require multiple nodes, and most machines are limited to
+running two or three nodes concurrently.
+Hence, this is not the common case and is just an impl _idea_.
 
 ```rust
 behavior_testcase!{
 "TestRuntime" =>
-"Alice": SubsystemsAll<GenericParam=DropAll,..>,
-"Bob": SubsystemsAll<GenericParam=DropSome,..>,
+"Alice": <AvailabilityDistribution=DropAll, .. >,
+"Bob": <AvailabilityDistribution=DuplicateSend, .. >,
 "Charles": Default,
-"David": "Bob",
+"David": "Charles",
 "Eve": "Bob",
 }
 ```
 
-> There was a suggestion about adding predefined profiles at runtime,
-> which would be a nice thing to have for integration and re-usability
-> with [simnet][simnet] rather than a tool that yields anything by itself.
-
-The coordination of multiple subsystems across nodes must be made possible via
-a side-channel. That means those nodes most be able to prepare attacks that
-are collaborative based on each others actions or sync deliberately based on a
-attack leader.
-
-> There must be clear picture on what kind of
-> scenerios we want to test this way which scenarios
-> are out of scope and should be handled by [simnet][simnet].
-
-
+[gurke]: https://github.com/paritytech/gurke
 [simnet]: https://github.com/paritytech/simnet_scripts

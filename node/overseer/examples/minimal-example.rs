@@ -104,7 +104,7 @@ impl Subsystem2 {
 					Delay::new(Duration::from_secs(1)).await;
 				}
 			}),
-		).await.unwrap();
+		).unwrap();
 
 		loop {
 			match ctx.try_recv().await {

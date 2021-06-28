@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,6 +37,9 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
+
+#[cfg(test)]
+mod tests;
 
 const COST_SIGNATURE_INVALID: Rep = Rep::CostMajor("Bitfield signature invalid");
 const COST_VALIDATOR_INDEX_INVALID: Rep = Rep::CostMajor("Bitfield validator index invalid");
@@ -77,9 +80,13 @@ impl BitfieldGossipMessage {
 /// overseer ordered us to work on.
 #[derive(Default, Debug)]
 struct ProtocolState {
-	/// track all active peers and their views
+	/// Track all active peers and their views
 	/// to determine what is relevant to them.
 	peer_views: HashMap<PeerId, View>,
+
+	/// Track all our neighbors in the current gossip topology.
+	/// We're not necessarily connected to all of them.
+	gossip_peers: HashSet<PeerId>,
 
 	/// Our current view.
 	view: OurView,
@@ -152,7 +159,6 @@ impl BitfieldDistribution {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
@@ -234,7 +240,6 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
@@ -254,7 +259,6 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// For this variant the source is this node.
-#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_bitfield_distribution<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -294,13 +298,14 @@ where
 		return;
 	};
 
-	let peer_views = &mut state.peer_views;
 	let msg = BitfieldGossipMessage {
 		relay_parent,
 		signed_availability,
 	};
 
-	relay_message(ctx, job_data, peer_views, validator, msg).await;
+	let gossip_peers = &state.gossip_peers;
+	let peer_views = &mut state.peer_views;
+	relay_message(ctx, job_data, gossip_peers, peer_views, validator, msg).await;
 
 	metrics.on_own_bitfield_gossipped();
 }
@@ -308,10 +313,10 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
+	gossip_peers: &HashSet<PeerId>,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -354,7 +359,11 @@ where
 			}
 		})
 		.collect::<Vec<PeerId>>();
-	let interested_peers = util::choose_random_sqrt_subset(interested_peers, MIN_GOSSIP_PEERS);
+	let interested_peers = util::choose_random_subset(
+		|e| gossip_peers.contains(e),
+		interested_peers,
+		MIN_GOSSIP_PEERS,
+	);
 	interested_peers.iter()
 		.for_each(|peer|{
 			// track the message as sent for this peer
@@ -385,7 +394,6 @@ where
 }
 
 /// Handle an incoming message from a peer.
-#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -499,14 +507,13 @@ where
 	metrics.on_bitfield_received();
 	one_per_validator.insert(validator.clone(), message.clone());
 
-	relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
+	relay_message(ctx, job_data, &state.gossip_peers, &mut state.peer_views, validator, message).await;
 
 	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
-#[tracing::instrument(level = "trace", skip(ctx, metrics), fields(subsystem = LOG_TARGET))]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -538,6 +545,15 @@ where
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
 		}
+		NetworkBridgeEvent::NewGossipTopology(peers) => {
+			let newly_added: Vec<PeerId> = peers.difference(&state.gossip_peers).cloned().collect();
+			state.gossip_peers = peers;
+			for peer in newly_added {
+				if let Some(view) = state.peer_views.remove(&peer) {
+					handle_peer_view_change(ctx, state, peer, view).await;
+				}
+			}
+		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -561,7 +577,6 @@ where
 }
 
 /// Handle the changes necessary when our view changes.
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
@@ -584,7 +599,6 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 // Send the difference between two views which were not sent
 // to that particular peer.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -595,7 +609,13 @@ where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
-	let lucky = util::gen_ratio_sqrt_subset(state.peer_views.len(), util::MIN_GOSSIP_PEERS);
+
+	let is_gossip_peer = state.gossip_peers.contains(&origin);
+	let lucky = is_gossip_peer || util::gen_ratio(
+		util::MIN_GOSSIP_PEERS.saturating_sub(state.gossip_peers.len()),
+		util::MIN_GOSSIP_PEERS,
+	);
+
 	if !lucky {
 		tracing::trace!(
 			target: LOG_TARGET,
@@ -604,9 +624,9 @@ where
 		);
 		return;
 	}
+
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
-
 	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
@@ -637,7 +657,6 @@ where
 }
 
 /// Send a gossip message and track it in the per relay parent data.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -693,7 +712,6 @@ where
 }
 
 /// Query our validator set and signing context for a particular relay parent.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,

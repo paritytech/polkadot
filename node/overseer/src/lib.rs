@@ -84,7 +84,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
-	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
+	ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, CollationGenerationMessage,
@@ -395,7 +395,13 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Create a new instance of the `Overseer` with a fixed set of [`Subsystem`]s.
+	/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
+	///
+	/// This returns the overseer along with an [`OverseerHandler`] which can
+	/// be used to send messages from external parts of the codebase.
+	///
+	/// The [`OverseerHandler`] returned from this function is connected to
+	/// the returned [`Overseer`].
 	///
 	/// ```text
 	///                  +------------------------------------+
@@ -485,9 +491,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
+	pub fn new<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
+		all_subsystems: AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
@@ -598,7 +604,6 @@ where
 	}
 
 	/// Run the `Overseer`.
-	#[tracing::instrument(skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -681,7 +686,6 @@ where
 		}
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		match self.active_leaves.entry(block.hash) {
 			hash_map::Entry::Vacant(entry) => entry.insert(block.number),
@@ -715,7 +719,6 @@ where
 		Ok(())
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
@@ -746,7 +749,6 @@ where
 
 	/// Handles a header activation. If the header's state doesn't support the parachains API,
 	/// this returns `None`.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_activated(&mut self, hash: &Hash, parent_hash: Option<Hash>)
 		-> Option<(Arc<jaeger::Span>, LeafStatus)>
 	{
@@ -780,14 +782,12 @@ where
 		Some((span, status))
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
 		self.activation_external_listeners.remove(hash);
 		self.span_per_active_leaf.remove(hash);
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn clean_up_external_listeners(&mut self) {
 		self.activation_external_listeners.retain(|_, v| {
 			// remove dead listeners
@@ -796,7 +796,6 @@ where
 		})
 	}
 
-	#[tracing::instrument(level = "trace", skip(self, request), fields(subsystem = LOG_TARGET))]
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {

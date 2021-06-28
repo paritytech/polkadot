@@ -46,7 +46,7 @@ pub use polkadot_overseer_gen::{
 };
 
 use polkadot_node_jaeger as jaeger;
-use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
+use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::{Stream, SelectAll}};
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
@@ -63,14 +63,12 @@ use std::{
 	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
 	time::Duration, fmt, sync::Arc,
 };
-use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
-mod error_handling;
-
+pub use determine_new_blocks::determine_new_blocks;
 /// Error classification.
 pub use error_handling::{Fault, unwrap_non_fatal};
 
@@ -86,6 +84,14 @@ pub mod reexports {
 
 /// Convenient and efficient runtime info access.
 pub mod runtime;
+/// A rolling session window cache.
+pub mod rolling_session_window;
+
+mod determine_new_blocks;
+mod error_handling;
+
+#[cfg(test)]
+mod tests;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -243,30 +249,32 @@ pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorInde
 	})
 }
 
-/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
-pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+/// Choose a random subset of `min` elements.
+/// But always include `is_priority` elements.
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, mut v: Vec<T>, min: usize) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
 
-	let len = max_of_min_and_sqrt_len(v.len(), min);
-	v.truncate(len);
+	// partition the elements into priority first
+	// the returned index is when non_priority elements start
+	let i = itertools::partition(&mut v, is_priority);
+
+	if i >= min || v.len() <= i {
+		v.truncate(i);
+		return v;
+	}
+
+	let mut rng = rand::thread_rng();
+	v[i..].shuffle(&mut rng);
+
+	v.truncate(min);
 	v
 }
 
-/// Returns bool with a probability of `max(len.sqrt(), min) / len`
-/// being true.
-pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
+/// Returns a bool with a probability of `a / b` of being true.
+pub fn gen_ratio(a: usize, b: usize) -> bool {
 	use rand::Rng as _;
 	let mut rng = rand::thread_rng();
-	let threshold = max_of_min_and_sqrt_len(len, min);
-	let n = rng.gen_range(0..len);
-	n < threshold
-}
-
-fn max_of_min_and_sqrt_len(len: usize, min: usize) -> usize {
-	let len_sqrt = (len as f64).sqrt() as usize;
-	std::cmp::max(min, len_sqrt)
+	rng.gen_ratio(a as u32, b as u32)
 }
 
 /// Local validator information
@@ -559,7 +567,7 @@ pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<ToJob>>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
+	outgoing_msgs: SelectAll<mpsc::Receiver<FromJobCommand>>,
 }
 
 impl<Spawner, ToJob> Jobs<Spawner, ToJob>
@@ -572,7 +580,7 @@ where
 		Self {
 			spawner,
 			running: HashMap::new(),
-			outgoing_msgs: StreamUnordered::new(),
+			outgoing_msgs: SelectAll::new(),
 		}
 	}
 
@@ -651,17 +659,10 @@ where
 	type Item = FromJobCommand;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-		loop {
-			match Pin::new(&mut self.outgoing_msgs).poll_next(cx) {
-				Poll::Pending => return Poll::Pending,
-				Poll::Ready(r) => match r.map(|v| v.0) {
-					Some(StreamYield::Item(msg)) => return Poll::Ready(Some(msg)),
-					// If a job is finished, rerun the loop
-					Some(StreamYield::Finished(_)) => continue,
-					// Don't end if there are no jobs running
-					None => return Poll::Pending,
-				}
-			}
+		match futures::ready!(Pin::new(&mut self.outgoing_msgs).poll_next(cx)) {
+			Some(msg) => Poll::Ready(Some(msg)),
+			// Don't end if there are no jobs running
+			None => Poll::Pending,
 		}
 	}
 }
@@ -778,9 +779,9 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 				}
 				outgoing = jobs.next() => {
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
 						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+							=> ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {

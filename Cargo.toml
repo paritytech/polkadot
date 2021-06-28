@@ -6,17 +6,14 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.4"
+version = "0.9.7"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
 
 [dependencies]
-cli = { package = "polkadot-cli", path = "cli" }
-color-eyre = "0.5.10"
-thiserror = "1.0.23"
-futures = "0.3.12"
-service = { package = "polkadot-service", path = "node/service" }
+polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
+color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -49,14 +46,17 @@ members = [
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"xcm/pallet-xcm",
+	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
-	"node/core/candidate-selection",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
+	"node/core/chain-selection",
+	"node/core/dispute-coordinator",
+	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
 	"node/core/provisioner",
 	"node/core/pvf",
@@ -73,6 +73,7 @@ members = [
 	"node/overseer",
 	"node/overseer/overseer-gen",
 	"node/overseer/overseer-gen/proc-macro",
+	"node/malus",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
@@ -105,8 +106,8 @@ opt-level = 3
 panic = "unwind"
 
 [features]
-runtime-benchmarks=["cli/runtime-benchmarks"]
-try-runtime = ["cli/try-runtime"]
+runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
+try-runtime = [ "polkadot-cli/try-runtime" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
