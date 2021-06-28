@@ -10,7 +10,7 @@ Validation of candidates is a heavy task, and furthermore, the [`PoV`][PoV] itse
 
 > TODO: note the incremental validation function Ximin proposes at https://github.com/paritytech/polkadot/issues/1348
 
-As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate with the [`CandidateBacking`][CB] and [`CandidateSelection`][CS] subsystems.
+As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate only with the [`CandidateBacking`][CB].
 
 ## Protocol
 
@@ -20,7 +20,7 @@ Output:
 
 - [`RuntimeApiMessage`][RAM]
 - [`NetworkBridgeMessage`][NBM]
-- [`CandidateSelectionMessage`][CSM]
+- [`CandidateBackingMessage`][CBM]
 
 ## Functionality
 
@@ -106,16 +106,24 @@ As a validator, we will handle requests from other subsystems to fetch a collati
 
 When acting on an advertisement, we issue a `Requests::CollationFetching`. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.
 
-As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator` or `NoteGoodCollation` message. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it.
+As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator`. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it. If the collation is seconded, we notify the collator and apply a benefit to the `PeerId` associated with the collator.
 
-### Interaction with [Candidate Selection][CS]
+### Interaction with [Candidate Backing][CB]
 
-As collators advertise the availability, we notify the Candidate Selection subsystem with a [`CandidateSelection`][CSM]`::Collation` message. Note that this message is lightweight: it only contains the relay parent, para id, and collator id.
+As collators advertise the availability, a validator will simply second the first valid parablock candidate per relay head by sending a [`CandidateBackingMessage`][CBM]`::Second`. Note that this message contains the relay parent of the advertised collation, the candidate receipt and the [PoV][PoV].
 
-At that point, the Candidate Selection algorithm is free to use an arbitrary algorithm to determine which if any of these messages to follow up on. It is expected to use the [`CollatorProtocolMessage`][CPM]`::FetchCollation` message to follow up.
+Subsequently, once a valid parablock candidate has been seconded, the [`CandidateBacking`][CB] subsystem will send a [`CollatorProtocolMessage`][CPM]`::Seconded`, which will trigger this subsystem to notify the collator at the `PeerId` that first advertised the parablock on the seconded relay head of their successful seconding.
 
-The intent behind this design is to minimize the total number of (large) collations which must be transmitted.
 
+## Future Work
+
+Several approaches have been discussed, but all have some issues:
+
+- The current approach is very straightforward. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.
+- If collators produce blocks via Aura, BABE or in future Sassafrass, it may be possible to choose an "Official" collator for the round, but it may be tricky to ensure that the PVF logic is enforced at collator leader election.
+- We could use relay-chain BABE randomness to generate some delay `D` on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after `D`, or in case none has arrived by `2*D`, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.
+- A variation of that scheme would be to have a fixed acceptance window `D` for parablock candidates and keep track of count `C`: the number of parablock candidates received. At the end of the period `D`, we choose a random number I in the range [0, C) and second the block at Index I. Its drawback is the same: it must wait the full `D` period before seconding any of its received candidates, reducing throughput.
+- In order to protect against DoS attacks, it may be prudent to run throw out collations from collators that have behaved poorly (whether recently or historically) and subsequently only verify the PoV for the most suitable of collations.
 
 [CB]: ../backing/candidate-backing.md
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-mesage

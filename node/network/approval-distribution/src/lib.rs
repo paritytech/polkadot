@@ -20,10 +20,6 @@
 
 #![warn(missing_docs)]
 
-#[cfg(test)]
-mod tests;
-
-
 use std::collections::{BTreeMap, HashMap, HashSet, hash_map};
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_primitives::v1::{
@@ -46,6 +42,9 @@ use polkadot_node_subsystem_util::{
 use polkadot_node_network_protocol::{
 	PeerId, View, v1 as protocol_v1, UnifiedReputationChange as Rep,
 };
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
 
@@ -82,6 +81,10 @@ struct State {
 
 	/// Peer view data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_views: HashMap<PeerId, View>,
+
+	/// Track all our neighbors in the current gossip topology.
+	/// We're not necessarily connected to all of them.
+	gossip_peers: HashSet<PeerId>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -146,8 +149,6 @@ enum LocalSource {
 	No,
 }
 
-type BlockDepth = usize;
-
 /// Information about candidates in the context of a particular block they are included in.
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
 /// if it is included by multiple blocks - this is likely the case when there are forks.
@@ -211,6 +212,15 @@ impl State {
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
+			}
+			NetworkBridgeEvent::NewGossipTopology(peers) => {
+				let newly_added: Vec<PeerId> = peers.difference(&self.gossip_peers).cloned().collect();
+				self.gossip_peers = peers;
+				for peer_id in newly_added {
+					if let Some(view) = self.peer_views.remove(&peer_id) {
+						self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+					}
+				}
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
@@ -339,6 +349,7 @@ impl State {
 			);
 			Self::unify_with_peer(
 				ctx,
+				&self.gossip_peers,
 				metrics,
 				&mut self.blocks,
 				peer_id.clone(),
@@ -442,11 +453,9 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
-		let lucky = util::gen_ratio_sqrt_subset(self.peer_views.len(), util::MIN_GOSSIP_PEERS);
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
-			?lucky,
 			"Peer view change",
 		);
 		let finalized_number = view.finalized_number;
@@ -471,12 +480,9 @@ impl State {
 			});
 		}
 
-		if !lucky {
-			return;
-		}
-
 		Self::unify_with_peer(
 			ctx,
+			&self.gossip_peers,
 			metrics,
 			&mut self.blocks,
 			peer_id.clone(),
@@ -627,13 +633,29 @@ impl State {
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint);
 					}
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an `AcceptedDuplicate` assignment",
+					);
 					return;
 				}
 				AssignmentCheckResult::TooFarInFuture => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Got an assignment too far in the future",
+					);
 					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return;
 				}
-				AssignmentCheckResult::Bad => {
+				AssignmentCheckResult::Bad(error) => {
+					tracing::info!(
+						target: LOG_TARGET,
+						?peer_id,
+						%error,
+						"Got a bad assignment from peer",
+					);
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					return;
 				}
@@ -691,7 +713,12 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.contains(e),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -847,11 +874,12 @@ impl State {
 						peer_knowledge.received.insert(fingerprint.clone());
 					}
 				}
-				ApprovalCheckResult::Bad => {
+				ApprovalCheckResult::Bad(error) => {
 					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					tracing::info!(
 						target: LOG_TARGET,
 						?peer_id,
+						%error,
 						"Got a bad approval from peer",
 					);
 					return;
@@ -929,7 +957,13 @@ impl State {
 			.cloned()
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.contains(e),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -961,14 +995,30 @@ impl State {
 
 	async fn unify_with_peer(
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
 		view: View,
 	) {
+		let is_gossip_peer = gossip_peers.contains(&peer_id);
+		let lucky = is_gossip_peer || util::gen_ratio(
+			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+			util::MIN_GOSSIP_PEERS,
+		);
+
+		if !lucky {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				"Unlucky peer",
+			);
+			return;
+		}
+
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
-		let mut to_send: Vec<(BlockDepth, Hash)> = Vec::new();
+		let mut to_send: Vec<Hash> = Vec::new();
 
 		let view_finalized_number = view.finalized_number;
 		for head in view.into_iter() {
@@ -996,7 +1046,7 @@ impl State {
 				block = entry.parent_hash.clone();
 				Some(interesting_block)
 			});
-			to_send.extend(interesting_blocks.enumerate());
+			to_send.extend(interesting_blocks);
 		}
 		// step 6.
 		// send all assignments and approvals for all candidates in those blocks to the peer
@@ -1012,16 +1062,13 @@ impl State {
 		entries: &HashMap<Hash, BlockEntry>,
 		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 		peer_id: PeerId,
-		blocks: Vec<(BlockDepth, Hash)>,
+		blocks: Vec<Hash>,
 	) {
-		// we will propagate only local assignment/approvals after a certain depth
-		const DEPTH_THRESHOLD: usize = 5;
-
 		let mut assignments = Vec::new();
 		let mut approvals = Vec::new();
 		let num_blocks = blocks.len();
 
-		for (depth, block) in blocks.into_iter() {
+		for block in blocks.into_iter() {
 			let entry = match entries.get(&block) {
 				Some(entry) => entry,
 				None => continue, // should be unreachable
@@ -1036,10 +1083,7 @@ impl State {
 
 			for (candidate_index, candidate_entry) in entry.candidates.iter().enumerate() {
 				let candidate_index = candidate_index as u32;
-				for (validator_index, (approval_state, is_local)) in candidate_entry.approvals.iter() {
-					if depth >= DEPTH_THRESHOLD && !matches!(is_local, LocalSource::Yes) {
-						continue;
-					}
+				for (validator_index, (approval_state, _is_local)) in candidate_entry.approvals.iter() {
 					match approval_state {
 						ApprovalState::Assigned(cert) => {
 							assignments.push((
@@ -1110,7 +1154,6 @@ impl State {
 
 
 /// Modify the reputation of a peer based on its behavior.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation(
 	ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
 	peer_id: PeerId,
@@ -1134,7 +1177,6 @@ impl ApprovalDistribution {
 		Self { metrics }
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
@@ -1144,7 +1186,6 @@ impl ApprovalDistribution {
 	}
 
 	/// Used for testing.
-	#[tracing::instrument(skip(self, ctx, state), fields(subsystem = LOG_TARGET))]
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,

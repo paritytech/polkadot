@@ -22,6 +22,7 @@ use crate::types::{
 use crate::{ConnectionParams, Error, Result};
 
 use jsonrpsee_ws_client::{WsClient as RpcClient, WsClientBuilder as RpcClientBuilder};
+use relay_utils::relay_loop::RECONNECT_DELAY;
 use std::sync::Arc;
 
 /// Number of headers missing from the Ethereum node for us to consider node not synced.
@@ -36,7 +37,28 @@ pub struct Client {
 
 impl Client {
 	/// Create a new Ethereum RPC Client.
-	pub async fn new(params: ConnectionParams) -> Result<Self> {
+	///
+	/// This function will keep connecting to given Ethereum node until connection is established
+	/// and is functional. If attempt fail, it will wait for `RECONNECT_DELAY` and retry again.
+	pub async fn new(params: ConnectionParams) -> Self {
+		loop {
+			match Self::try_connect(params.clone()).await {
+				Ok(client) => return client,
+				Err(error) => log::error!(
+					target: "bridge",
+					"Failed to connect to Ethereum node: {:?}. Going to retry in {}s",
+					error,
+					RECONNECT_DELAY.as_secs(),
+				),
+			}
+
+			async_std::task::sleep(RECONNECT_DELAY).await;
+		}
+	}
+
+	/// Try to connect to Ethereum node. Returns Ethereum RPC client if connection has been established
+	/// or error otherwise.
+	pub async fn try_connect(params: ConnectionParams) -> Result<Self> {
 		Ok(Self {
 			client: Self::build_client(&params).await?,
 			params,

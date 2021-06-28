@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.9.4"
+version = "0.9.7"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -32,6 +32,7 @@ tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/parit
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -54,7 +55,6 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -97,7 +97,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.61"
 
 [build-dependencies]
-substrate-wasm-builder = "3.0.0"
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]
@@ -151,7 +151,6 @@ std = [
 	"pallet-vesting/std",
 	"pallet-xcm/std",
 	"pallet-babe/std",
-	"pallet-randomness-collective-flip/std",
 	"frame-executive/std",
 	"sp-runtime/std",
 	"sp-staking/std",
@@ -171,6 +170,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-builder/std",
 	"max-encoded-len/std",
+	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -203,6 +203,7 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
+	"frame-election-provider-support/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -236,7 +237,6 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-randomness-collective-flip/try-runtime",
 	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime api will not be build.

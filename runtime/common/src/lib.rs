@@ -36,7 +36,7 @@ mod mock;
 #[cfg(test)]
 mod integration_tests;
 
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use primitives::v1::{AccountId, AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
