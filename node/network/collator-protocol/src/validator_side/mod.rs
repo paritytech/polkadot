@@ -520,18 +520,18 @@ struct CollationsPerRelayParent {
 impl CollationsPerRelayParent {
 	/// Returns the next collation to fetch from the `unfetched_collations`.
 	///
-	/// If the `status` is `Seconded`, `WaitingOnValidation`, `Fetching`, this will return `None`.
+	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
 	///
-	/// Returns `Some(_)` if there is any collation to fetch and the `status` is correct.
-	pub fn get_next_collation_to_fetch(
-		&mut self,
-	) -> Option<(PendingCollation, CollatorId)> {
+	/// Returns `Some(_)` if there is any collation to fetch and the `status` is not `Seconded`.
+	pub fn get_next_collation_to_fetch(&mut self) -> Option<(PendingCollation, CollatorId)> {
+		self.status.back_to_waiting();
+
 		match self.status {
 			// We don't need to fetch any other collation when we already have seconded one.
 			CollationStatus::Seconded => None,
-			CollationStatus::WaitingOnValidation => None,
 			CollationStatus::Waiting => self.unfetched_collations.pop(),
-			CollationStatus::Fetching => None,
+			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
+				unreachable!("We have reset the status above!"),
 		}
 	}
 }
@@ -1072,14 +1072,10 @@ where
 
 			report_collator(ctx, &state.peer_data, id).await;
 
-			let next = if let Some(collations) = state.collations_per_relay_parent.get_mut(&parent) {
-				collations.status.back_to_waiting();
-				collations.get_next_collation_to_fetch()
-			} else {
-				None
-			};
-
-			if let Some((next, id)) = next {
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
 				fetch_collation(ctx, state, next, id).await;
 			}
 		}
@@ -1188,14 +1184,10 @@ async fn handle_collation_fetched_result(
 				"Failed to fetch collation.",
 			);
 
-			let fetch = if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
-				collations.status.back_to_waiting();
-				collations.get_next_collation_to_fetch()
-			} else {
-				None
-			};
-
-			if let Some((next, id)) = fetch {
+			if let Some((next, id)) = state.collations_per_relay_parent
+				.get_mut(&relay_parent)
+				.and_then(|c| c.get_next_collation_to_fetch())
+			{
 				fetch_collation(ctx, state, next, id).await;
 			}
 
