@@ -223,7 +223,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::max_value(), |g| group_quorum(g.len()))
+		self.groups.get(group).map_or(usize::MAX, |g| group_quorum(g.len()))
 	}
 }
 
