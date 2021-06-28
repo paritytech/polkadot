@@ -334,7 +334,7 @@ mod tests {
 					id1,
 					None,
 					&header_to_import.header,
-					u64::max_value(),
+					u64::MAX,
 				)
 				.map(|eff| eff.finalized_headers),
 				Ok(Vec::new()),
@@ -353,7 +353,7 @@ mod tests {
 					id2,
 					None,
 					&header_to_import.header,
-					u64::max_value(),
+					u64::MAX,
 				)
 				.map(|eff| eff.finalized_headers),
 				Ok(Vec::new()),
@@ -372,7 +372,7 @@ mod tests {
 					id3,
 					None,
 					&header_to_import.header,
-					u64::max_value(),
+					u64::MAX,
 				)
 				.map(|eff| eff.finalized_headers),
 				Ok(vec![(id1, None)]),

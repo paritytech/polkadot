@@ -35,7 +35,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -91,6 +91,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
 	"pallet-treasury/std",
+	"pallet-election-provider-multi-phase/std",
 	"slot-range-helper/std",
 	"sp-runtime/std",
 	"sp-session/std",

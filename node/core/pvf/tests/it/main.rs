@@ -15,9 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_core_pvf::{Pvf, ValidationHost, start, Config, InvalidCandidate, ValidationError};
-use polkadot_parachain::{
-	primitives::{BlockData, ValidationParams, ValidationResult},
-};
+use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use parity_scale_codec::Encode as _;
 use async_std::sync::Mutex;
 
@@ -58,11 +56,14 @@ impl TestHost {
 		params: ValidationParams,
 	) -> Result<ValidationResult, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
+
+		let code = sp_maybe_compressed_blob::decompress(code, 16 * 1024 * 1024).expect("Compression works");
+
 		self.host
 			.lock()
 			.await
 			.execute_pvf(
-				Pvf::from_code(code.to_vec()),
+				Pvf::from_code(code.into()),
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
 				result_tx,
