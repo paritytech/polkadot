@@ -376,11 +376,7 @@ where
 
 			let _ = sender.send(res.clone());
 
-			if let Ok(res) = res {
-				Some(RequestResult::ValidationCode(relay_parent, para, assumption, res))
-			} else {
-				None
-			}
+			res.ok().map(|res| RequestResult::ValidationCode(relay_parent, para, assumption, res))
 		},
 		Request::ValidationCodeHash(para, assumption, sender) => {
 			let api = client.runtime_api();
@@ -409,11 +405,8 @@ where
 
 			let _ = sender.send(res.clone());
 
-			if let Ok(res) = res {
-				Some(RequestResult::ValidationCodeHash(relay_parent, para, assumption, res))
-			} else {
-				None
-			}
+			res.ok()
+				.map(|res| RequestResult::ValidationCodeHash(relay_parent, para, assumption, res))
 		},
 		Request::ValidationCodeByHash(validation_code_hash, sender) =>
 			query!(ValidationCodeByHash, validation_code_by_hash(validation_code_hash), sender),
