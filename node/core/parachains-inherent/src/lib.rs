@@ -25,10 +25,13 @@
 #![deny(unused_crate_dependencies, unused_results)]
 
 use futures::{select, FutureExt};
-use polkadot_node_subsystem::{
-	messages::{AllMessages, ProvisionerMessage}, SubsystemError,
+use polkadot_overseer::{
+	AllMessages,
+	Handler,
 };
-use polkadot_overseer::OverseerHandler;
+use polkadot_node_subsystem::{
+	messages::ProvisionerMessage, SubsystemError,
+};
 use polkadot_primitives::v1::{
 	Block, Hash, InherentData as ParachainsInherentData,
 };
@@ -48,7 +51,7 @@ impl ParachainsInherentDataProvider {
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
-		mut overseer: OverseerHandler,
+		mut overseer: Handler,
 		parent: Hash,
 	) -> Result<Self, Error> {
 		let pid = async {

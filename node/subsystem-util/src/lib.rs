@@ -45,7 +45,7 @@ pub use polkadot_overseer::{
 	gen::Timeout,
 };
 
-pub use subsystem_node_metrics::{
+pub use polkadot_node_metrics::{
 	Metronome,
 	metrics,
 };
@@ -79,7 +79,7 @@ pub use error_handling::{Fault, unwrap_non_fatal};
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
-	pub use polkadot_overseer_gen::{
+	pub use polkadot_overseer::gen::{
 		SpawnNamed,
 		SpawnedSubsystem,
 		Subsystem,

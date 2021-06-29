@@ -26,8 +26,14 @@ pub use polkadot_node_subsystem_types::{errors, messages};
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-use self::messages::AllMessages;
-
+use std::sync::Arc;
+use std::fmt;
+use smallvec::SmallVec;
+use futures::prelude::*;
+use futures::channel::{oneshot, mpsc};
+use futures::future::BoxFuture;
+use polkadot_overseer::{AllMessages, OverseerSignal};
+use polkadot_primitives::v1::{Hash, BlockNumber};
 /// How many slots are stack-reserved for active leaves updates
 ///
 /// If there are fewer than this number of slots, then we've wasted some stack space.
@@ -135,40 +141,6 @@ impl fmt::Debug for ActiveLeavesUpdate {
 	}
 }
 
-/// Signals sent by an overseer to a subsystem.
-#[derive(PartialEq, Clone, Debug)]
-pub enum OverseerSignal {
-	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
-	ActiveLeaves(ActiveLeavesUpdate),
-	/// `Subsystem` is informed of a finalized block by its block hash and number.
-	BlockFinalized(Hash, BlockNumber),
-	/// Conclude the work of the `Overseer` and all `Subsystem`s.
-	Conclude,
-}
-
-/// A message type that a subsystem receives from an overseer.
-/// It wraps signals from an overseer and messages that are circulating
-/// between subsystems.
-///
-/// It is generic over over the message type `M` that a particular `Subsystem` may use.
-#[derive(Debug)]
-pub enum FromOverseer<M> {
-	/// Signal from the `Overseer`.
-	Signal(OverseerSignal),
-
-	/// Some other `Subsystem`'s message.
-	Communication {
-		/// Contained message
-		msg: M,
-	},
-}
-
-impl<M> From<OverseerSignal> for FromOverseer<M> {
-	fn from(signal: OverseerSignal) -> Self {
-		FromOverseer::Signal(signal)
-	}
-}
-
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -192,7 +164,7 @@ pub enum SubsystemError {
 	Infallible(#[from] std::convert::Infallible),
 
 	#[error(transparent)]
-	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
+	Prometheus(#[from] polkadot_node_metrics::metrics::prometheus::PrometheusError),
 
 	#[error(transparent)]
 	Jaeger(#[from] JaegerError),
@@ -234,91 +206,6 @@ pub struct SpawnedSubsystem {
 ///
 /// [`SubsystemError`]: struct.SubsystemError.html
 pub type SubsystemResult<T> = Result<T, SubsystemError>;
-
-/// A sender used by subsystems to communicate with other subsystems.
-///
-/// Each clone of this type may add more capacity to the bounded buffer, so clones should
-/// be used sparingly.
-#[async_trait]
-pub trait SubsystemSender: Send + Clone + 'static {
-	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages);
-
-	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
-
-	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
-	/// type.
-	///
-	/// This function should be used only when there is some other bounding factor on the messages
-	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: AllMessages);
-}
-
-/// A context type that is given to the [`Subsystem`] upon spawning.
-/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
-/// or spawn jobs.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`SubsystemJob`]: trait.SubsystemJob.html
-#[async_trait]
-pub trait SubsystemContext: Send + Sized + 'static {
-	/// The message type of this context. Subsystems launched with this context will expect
-	/// to receive messages of this type.
-	type Message: Send;
-
-	/// The message sender type of this context. Clones of the sender should be used sparingly.
-	type Sender: SubsystemSender;
-
-	/// Try to asynchronously receive a message.
-	///
-	/// This has to be used with caution, if you loop over this without
-	/// using `pending!()` macro you will end up with a busy loop!
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()>;
-
-	/// Receive a message.
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
-
-	/// Spawn a child task on the executor.
-	fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
-
-	/// Spawn a blocking child task on the executor's dedicated thread pool.
-	fn spawn_blocking(
-		&mut self,
-		name: &'static str,
-		s: Pin<Box<dyn Future<Output = ()> + Send>>,
-	) -> SubsystemResult<()>;
-
-	/// Get a mutable reference to the sender.
-	fn sender(&mut self) -> &mut Self::Sender;
-
-	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.sender().send_message(msg).await
-	}
-
-	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
-	{
-		self.sender().send_messages(msgs).await
-	}
-
-
-	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
-	/// type.
-	///
-	/// This function should be used only when there is some other bounding factor on the messages
-	/// sent with it. Otherwise, it risks a memory leak.
-	///
-	/// Generally, for this method to be used, these conditions should be met:
-	/// * There is a communication cycle between subsystems
-	/// * One of the parts of the cycle has a clear bound on the number of messages produced.
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.sender().send_unbounded_message(msg)
-	}
-}
 
 // Simplify usage without having to do large scale modifications of all
 // subsystems at once.

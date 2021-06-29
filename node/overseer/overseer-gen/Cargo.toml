@@ -23,4 +23,4 @@ futures-util = "0.3"
 
 [dev-dependencies]
 trybuild = "1.0.41"
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = { path = "../../subsystem" }

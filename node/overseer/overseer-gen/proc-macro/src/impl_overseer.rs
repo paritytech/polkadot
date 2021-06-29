@@ -161,6 +161,8 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 
 	let ts = quote::quote! {
 
+		use ::polkadot_overseer_gen::futures::SinkExt as _;
+
 		/// A subsystem that the overseer oversees.
 		///
 		/// Ties together the [`Subsystem`] itself and it's running instance

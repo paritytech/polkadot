@@ -17,7 +17,7 @@
 //! Prometheus metrics related to the overseer and its channels.
 
 use super::*;
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Overseer Prometheus metrics.
 #[derive(Clone)]

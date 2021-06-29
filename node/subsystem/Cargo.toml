@@ -10,3 +10,9 @@ polkadot-overseer = { path = "../overseer" }
 polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-jaeger = { path = "../jaeger" }
+thiserror = "1.0.23"
+smallvec = "1.6.1"
+futures = "0.3"
+polkadot-primitives = { path = "../../primitives" }
+polkadot-node-primitives = { path = "../primitives" }
+polkadot-node-metrics = { path = "../metrics" }

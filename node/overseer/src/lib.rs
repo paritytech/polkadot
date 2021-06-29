@@ -74,7 +74,6 @@ use futures::{
 };
 use lru::LruCache;
 
-use polkadot_node_subsystem_util::OverseerError;
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -106,8 +105,15 @@ use self::subsystems::AllSubsystems;
 mod metrics;
 use self::metrics::Metrics;
 
-use polkadot_node_subsystem_util::{metrics::{prometheus, Metrics as MetricsTrait}, Metronome};
+use polkadot_node_metrics::{
+	metrics::{
+		prometheus,
+		Metrics as MetricsTrait
+	},
+	Metronome,
+};
 use polkadot_overseer_gen::{
+	OverseerError,
 	TimeoutExt,
 	SpawnNamed,
 	Subsystem,
@@ -318,9 +324,6 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateBackingMessage)]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(no_dispatch, CandidateSelectionMessage)]
-	candidate_selection: CandidateSelection,
-
 	#[subsystem(StatementDistributionMessage)]
 	statement_distribution: StatementDistribution,
 
@@ -501,7 +504,6 @@ where
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
 		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>, SubsystemError> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError> + Send,
 		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError> + Send,
@@ -524,7 +526,6 @@ where
 		let (mut overseer, handler) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
 			.candidate_backing(all_subsystems.candidate_backing)
-			.candidate_selection(all_subsystems.candidate_selection)
 			.statement_distribution(all_subsystems.statement_distribution)
 			.availability_distribution(all_subsystems.availability_distribution)
 			.availability_recovery(all_subsystems.availability_recovery)

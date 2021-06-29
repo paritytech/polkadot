@@ -19,7 +19,10 @@
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage,
 };
-use polkadot_overseer_gen::SubsystemSender;
+use polkadot_overseer::{
+	AllMessages,
+	gen::SubsystemSender,
+};
 use polkadot_primitives::v1::{Hash, Header, BlockNumber};
 use futures::prelude::*;
 use futures::channel::oneshot;

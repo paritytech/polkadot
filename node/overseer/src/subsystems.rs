@@ -55,7 +55,7 @@ where
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 #[derive(Debug, Clone)]
 pub struct AllSubsystems<
-	CV = (), CB = (), CS = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
+	CV = (), CB = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
 	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
 	GS = (),
 > {
@@ -63,8 +63,6 @@ pub struct AllSubsystems<
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
 	pub candidate_backing: CB,
-	/// A candidate selection subsystem.
-	pub candidate_selection: CS,
 	/// A statement distribution subsystem.
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
@@ -97,8 +95,8 @@ pub struct AllSubsystems<
 	pub gossip_support: GS,
 }
 
-impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
-	AllSubsystems<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
+impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
+	AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 {
 	/// Create a new instance of [`AllSubsystems`].
 	///
@@ -130,12 +128,10 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
-		DummySubsystem,
 	> {
 		AllSubsystems {
 			candidate_validation: DummySubsystem,
 			candidate_backing: DummySubsystem,
-			candidate_selection: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
 			availability_recovery: DummySubsystem,
@@ -154,11 +150,10 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
-	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ CS, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
+	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,
 			candidate_backing: &self.candidate_backing,
-			candidate_selection: &self.candidate_selection,
 			statement_distribution: &self.statement_distribution,
 			availability_distribution: &self.availability_distribution,
 			availability_recovery: &self.availability_recovery,
@@ -181,7 +176,6 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		-> AllSubsystems<
 			<Mapper as MapSubsystem<CV>>::Output,
 			<Mapper as MapSubsystem<CB>>::Output,
-			<Mapper as MapSubsystem<CS>>::Output,
 			<Mapper as MapSubsystem<SD>>::Output,
 			<Mapper as MapSubsystem<AD>>::Output,
 			<Mapper as MapSubsystem<AR>>::Output,
@@ -201,7 +195,6 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 	where
 		Mapper: MapSubsystem<CV>,
 		Mapper: MapSubsystem<CB>,
-		Mapper: MapSubsystem<CS>,
 		Mapper: MapSubsystem<SD>,
 		Mapper: MapSubsystem<AD>,
 		Mapper: MapSubsystem<AR>,
@@ -221,7 +214,6 @@ impl<CV, CB, CS, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		AllSubsystems {
 			candidate_validation: <Mapper as MapSubsystem<CV>>::map_subsystem(&mapper, self.candidate_validation),
 			candidate_backing: <Mapper as MapSubsystem<CB>>::map_subsystem(&mapper, self.candidate_backing),
-			candidate_selection: <Mapper as MapSubsystem<CS>>::map_subsystem(&mapper, self.candidate_selection),
 			statement_distribution: <Mapper as MapSubsystem<SD>>::map_subsystem(&mapper, self.statement_distribution),
 			availability_distribution: <Mapper as MapSubsystem<AD>>::map_subsystem(&mapper, self.availability_distribution),
 			availability_recovery: <Mapper as MapSubsystem<AR>>::map_subsystem(&mapper, self.availability_recovery),

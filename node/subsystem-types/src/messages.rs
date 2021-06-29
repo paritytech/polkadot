@@ -22,7 +22,6 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use std::{collections::{BTreeMap, HashSet}, sync::Arc};
 
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
@@ -49,7 +48,10 @@ use polkadot_primitives::v1::{
 	ValidatorSignature,
 };
 use polkadot_statement_table::v1::Misbehavior;
-use std::{sync::Arc, collections::btree_map::BTreeMap};
+use std::{
+	collections::{BTreeMap, HashSet},
+	sync::Arc,
+};
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
 pub mod network_bridge_event;
