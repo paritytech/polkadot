@@ -18,8 +18,9 @@ use super::*;
 use executor::block_on;
 use thiserror::Error;
 use polkadot_node_jaeger as jaeger;
+use polkadot_overseer::AllMessages;
 use polkadot_node_subsystem::{
-	messages::{AllMessages, CollatorProtocolMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+	messages::{CollatorProtocolMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, ActivatedLeaf, LeafStatus,
 };
 use assert_matches::assert_matches;

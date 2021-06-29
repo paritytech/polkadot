@@ -20,8 +20,8 @@
 //! care about the state of particular blocks.
 
 use polkadot_primitives::v1::{Hash, Header, SessionInfo, SessionIndex};
+use polkadot_overseer::SubsystemContext;
 use polkadot_node_subsystem::{
-	SubsystemContext,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	errors::RuntimeApiError,
 };
