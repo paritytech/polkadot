@@ -224,8 +224,8 @@ pub enum SubsystemError {
 		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
 	},
 
-        #[error(transparent)]
-        Io(#[from] std::io::Error),
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
 }
 
 impl SubsystemError {
