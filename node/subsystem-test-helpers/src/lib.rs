@@ -324,7 +324,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 
 	futures::executor::block_on(async move {
 		future::join(overseer, test)
-			.timeout(Duration::from_secs(2))
+			.timeout(Duration::from_secs(8))
 			.await
 			.expect("test timed out instead of completing")
 	});

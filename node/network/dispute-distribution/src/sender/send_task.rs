@@ -234,6 +234,8 @@ impl SendTask
 
 
 /// Start sending of the given msg to all given authorities.
+///
+/// And spawn tasks for handling the response.
 async fn send_requests<Context: SubsystemContext>(
 	ctx: &mut Context,
 	tx: mpsc::Sender<FromSendingTask>,

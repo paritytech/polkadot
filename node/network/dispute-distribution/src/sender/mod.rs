@@ -53,7 +53,11 @@ pub use error::{Result, Error, Fatal, NonFatal};
 use crate::LOG_TARGET;
 use self::error::NonFatalResult;
 
-/// Sending of disputes to all relevant validator nodes.
+/// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
+///
+/// For each dispute a `SendTask` is responsible of sending to the concerned validators for that
+/// particular dispute. The `DisputeSender` keeps track of those tasks, informs them about new
+/// sessions/validator sets and cleans them up when they become obsolete.
 pub struct DisputeSender {
 	/// All heads we currently consider active.
 	active_heads: Vec<Hash>,
@@ -64,7 +68,7 @@ pub struct DisputeSender {
 	active_sessions: HashMap<SessionIndex, Hash>,
 
 	/// All ongoing dispute sendings this subsystem is aware of.
-	sendings: HashMap<CandidateHash, SendTask>,
+	disputes: HashMap<CandidateHash, SendTask>,
 
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<FromSendingTask>,
@@ -72,17 +76,18 @@ pub struct DisputeSender {
 
 impl DisputeSender
 {
+	/// Create a new `DisputeSender` which can be used to start dispute sendings.
 	pub fn new(tx: mpsc::Sender<FromSendingTask>) -> Self {
 		Self {
 			active_heads: Vec::new(),
 			active_sessions: HashMap::new(),
-			sendings: HashMap::new(),
+			disputes: HashMap::new(),
 			tx,
 		}
 	}
 
-	/// Initiates sending a dispute message to peers.
-	pub async fn start_sending<Context: SubsystemContext>(
+	/// Create a `SendTask` for a particular new dispute.
+	pub async fn start_sender<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -90,7 +95,7 @@ impl DisputeSender
 	) -> Result<()> {
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();
-		match self.sendings.entry(candidate_hash) {
+		match self.disputes.entry(candidate_hash) {
 			Entry::Occupied(_) => {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -116,7 +121,7 @@ impl DisputeSender
 
 	/// Take care of a change in active leaves.
 	///
-	/// - Initiate a retry of sends disputes are still active.
+	/// - Initiate a retry of failed sends which are still active.
 	/// - Get new authorities to send messages to.
 	/// - Get rid of obsolete tasks and disputes.
 	/// - Get dispute sending started in case we missed one for some reason (e.g. on node startup)
@@ -136,20 +141,20 @@ impl DisputeSender
 		let active_disputes = get_active_disputes(ctx).await?;
 		let unknown_disputes = {
 			let mut disputes = active_disputes.clone();
-			disputes.retain(|(_, c)| !self.sendings.contains_key(c));
+			disputes.retain(|(_, c)| !self.disputes.contains_key(c));
 			disputes
 		};
 
 		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c)| c).collect();
 
 		// Cleanup obsolete senders:
-		self.sendings.retain(
+		self.disputes.retain(
 			|candidate_hash, _| active_disputes.contains(candidate_hash)
 		);
 
-		for send in self.sendings.values_mut() {
-			if have_new_sessions || send.has_failed_sends() {
-				send.refresh_sends(ctx, runtime, &self.active_sessions).await?;
+		for dispute in self.disputes.values_mut() {
+			if have_new_sessions || dispute.has_failed_sends() {
+				dispute.refresh_sends(ctx, runtime, &self.active_sessions).await?;
 			}
 		}
 
@@ -164,7 +169,7 @@ impl DisputeSender
 	pub async fn on_task_message(&mut self, msg: FromSendingTask) {
 		match msg {
 			FromSendingTask::Finished(candidate_hash, authority, result) => {
-				let task = match self.sendings.get_mut(&candidate_hash) {
+				let task = match self.disputes.get_mut(&candidate_hash) {
 					None => {
 						// Can happen when a dispute ends, with messages still in queue:
 						tracing::trace!(
@@ -181,7 +186,7 @@ impl DisputeSender
 		}
 	}
 
-	/// Call `start_sending` on all passed in disputes.
+	/// Call `start_sender` on all passed in disputes.
 	///
 	/// Recover necessary votes for building up `DisputeMessage` and start sending for all of them.
 	async fn start_send_for_dispute<Context: SubsystemContext>(
@@ -294,7 +299,7 @@ impl DisputeSender
 		.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
 
 		// Finally, get the party started:
-		self.start_sending(ctx, runtime, message).await
+		self.start_sender(ctx, runtime, message).await
 	}
 
 	/// Make active sessions correspond to currently active heads.

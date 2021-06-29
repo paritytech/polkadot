@@ -20,6 +20,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
+use lazy_static::lazy_static;
 
 use polkadot_node_network_protocol::{PeerId, authority_discovery::AuthorityDiscovery};
 use sc_keystore::LocalKeystore;
@@ -33,8 +34,8 @@ use polkadot_primitives::v1::{
 	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, AuthorityDiscoveryId,
 };
 
-
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;
+pub const MOCK_NEXT_SESSION_INDEX: SessionIndex = 2;
 pub const MOCK_VALIDATORS: [Sr25519Keyring; 6] = [
 	Sr25519Keyring::Ferdie,
 	Sr25519Keyring::Alice,
@@ -52,25 +53,45 @@ pub const MOCK_AUTHORITIES_NEXT_SESSION: [Sr25519Keyring;2] = [
 pub const FERDIE_INDEX: ValidatorIndex = ValidatorIndex(0);
 pub const ALICE_INDEX: ValidatorIndex = ValidatorIndex(1);
 
-pub fn make_session_info() -> SessionInfo {
+
+lazy_static! {
+
+/// Mocked AuthorityDiscovery service.
+pub static ref MOCK_AUTHORITY_DISCOVERY: MockAuthorityDiscovery = MockAuthorityDiscovery::new();
+// Creating an innocent looking `SessionInfo` is really expensive in a debug build. Around
+// 700ms on my machine, We therefore cache those keys here:
+pub static ref MOCK_VALIDATORS_DISCOVERY_KEYS: HashMap<Sr25519Keyring, AuthorityDiscoveryId> = 
+	MOCK_VALIDATORS
+	.iter()
+	.chain(MOCK_AUTHORITIES_NEXT_SESSION.iter())
+	.map(|v| (v.clone(), v.public().into()))
+	.collect()
+;
+pub static ref FERDIE_DISCOVERY_KEY: AuthorityDiscoveryId =
+	MOCK_VALIDATORS_DISCOVERY_KEYS.get(&Sr25519Keyring::Ferdie).unwrap().clone();
+
+pub static ref MOCK_SESSION_INFO: SessionInfo =
 	SessionInfo {
 		validators: MOCK_VALIDATORS.iter().take(4).map(|k| k.public().into()).collect(),
-		discovery_keys: MOCK_VALIDATORS.iter().map(|k| k.public().into()).collect(),
+		discovery_keys: MOCK_VALIDATORS
+			.iter()
+			.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
+			.collect(),
 		..Default::default()
-	}
-}
+	};
 
 /// SessionInfo for the second session. (No more validators, but two more authorities.
-pub fn make_next_session_info() -> SessionInfo {
+pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 	SessionInfo {
 		discovery_keys:
 			MOCK_AUTHORITIES_NEXT_SESSION
 				.iter()
-				.map(|k| k.public().into())
+				.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 				.collect(),
 		..Default::default()
-	}
+	};
 }
+
 
 pub fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	CandidateReceipt {
@@ -124,7 +145,7 @@ pub async fn make_dispute_message(
 		invalid_vote,
 		invalid_validator,
 		candidate,
-		&make_session_info(),
+		&MOCK_SESSION_INFO,
 	)
 	.expect("DisputeMessage construction should work.")
 }
@@ -166,7 +187,7 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 		-> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
 		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
-				return Some(a.public().into())
+				return Some(MOCK_VALIDATORS_DISCOVERY_KEYS.get(&a).unwrap().clone())
 			}
 		}
 		None

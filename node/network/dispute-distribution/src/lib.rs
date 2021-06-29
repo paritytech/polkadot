@@ -171,7 +171,7 @@ impl DisputeDistributionSubsystem {
 	{
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
-				self.disputes_sender.start_sending(ctx, &mut self.runtime, dispute_msg).await?,
+				self.disputes_sender.start_sender(ctx, &mut self.runtime, dispute_msg).await?,
 			// This message will only arrive once:
 			DisputeDistributionMessage::DisputeSendingReceiver(receiver) => {
 				let (tx, rx) = oneshot::channel();

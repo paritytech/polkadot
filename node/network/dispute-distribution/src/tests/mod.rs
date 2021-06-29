@@ -19,10 +19,12 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 
 use assert_matches::assert_matches;
 use futures::{Future, channel::mpsc};
 
+use futures_timer::Delay;
 use parity_scale_codec::Encode;
 
 use polkadot_subsystem::messages::DisputeCoordinatorMessage;
@@ -34,9 +36,12 @@ use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, Session
 use polkadot_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span, messages::{AllMessages, DisputeDistributionMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest}};
 use polkadot_subsystem_testhelpers::{TestSubsystemContextHandle, mock::make_ferdie_keystore, subsystem_test_harness};
 
-use crate::{DisputeDistributionSubsystem, LOG_TARGET, tests::mock::{MOCK_SESSION_INDEX, make_session_info}};
-
-use self::mock::{ALICE_INDEX, FERDIE_INDEX, make_candidate_receipt, make_dispute_message, MockAuthorityDiscovery};
+use crate::{DisputeDistributionSubsystem, LOG_TARGET};
+use self::mock::{
+	ALICE_INDEX, FERDIE_INDEX, make_candidate_receipt, make_dispute_message,
+	MOCK_AUTHORITY_DISCOVERY, MOCK_SESSION_INDEX, MOCK_SESSION_INFO, MOCK_NEXT_SESSION_INDEX,
+	MOCK_NEXT_SESSION_INFO, FERDIE_DISCOVERY_KEY,
+};
 
 /// Useful mock providers.
 pub mod mock;
@@ -46,12 +51,12 @@ fn send_dispute_sends_dispute() {
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>|
 		async move {
 
-			let (req_tx, authority_discovery) = handle_subsystem_startup(&mut handle).await;
+			let (_, _) = handle_subsystem_startup(&mut handle).await;
 
 			let relay_parent = Hash::random();
 			let candidate = make_candidate_receipt(relay_parent);
 			let message =
-				make_dispute_message(candidate, ALICE_INDEX, FERDIE_INDEX,).await;
+				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
 			handle.send(
 				FromOverseer::Communication {
 					msg: DisputeDistributionMessage::SendDispute(message.clone())
@@ -71,16 +76,12 @@ fn send_dispute_sends_dispute() {
 						hash,
 						message.candidate_receipt().descriptor.relay_parent
 					);
-					tx.send(Ok(Some(make_session_info()))).expect("Receiver should stay alive.");
-					tracing::trace!(
-						target: LOG_TARGET,
-						"After tx.send"
-					);
+					tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
 				}
 			);
 
 			let expected_receivers = {
-				let info = make_session_info();
+				let info = &MOCK_SESSION_INFO;
 				info.discovery_keys
 					.clone()
 					.into_iter()
@@ -91,7 +92,108 @@ fn send_dispute_sends_dispute() {
 			};
 			check_sent_requests(&mut handle, expected_receivers, true).await;
 
-			// println!("Received: {:?}", handle.recv().await);
+			// Dispute is over as far as distribution is concerned (we delivered our vote to all
+			// nodes)
+
+			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+	test_harness(test);
+}
+
+#[test]
+fn dispute_retries_and_works_across_session_boundaries() {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>|
+		async move {
+
+			let (old_head, req_tx) = handle_subsystem_startup(&mut handle).await;
+
+			let relay_parent = Hash::random();
+			let candidate = make_candidate_receipt(relay_parent);
+			let message =
+				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
+			handle.send(
+				FromOverseer::Communication {
+					msg: DisputeDistributionMessage::SendDispute(message.clone())
+				}
+			).await;
+			// Requests needed session info:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(
+						hash,
+						RuntimeApiRequest::SessionInfo(session_index, tx)
+					)
+				) => {
+					assert_eq!(session_index, MOCK_SESSION_INDEX);
+					assert_eq!(
+						hash,
+						message.candidate_receipt().descriptor.relay_parent
+					);
+					tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+				}
+			);
+
+			let expected_receivers: HashSet<_> = {
+				let info = &MOCK_SESSION_INFO;
+				info.discovery_keys
+					.clone()
+					.into_iter()
+					.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
+					.collect()
+				// All validators are also authorities in the first session, so we are
+				// done here.
+			};
+			// Requests don't get confirmed - dispute is carried over to next session.
+			check_sent_requests(&mut handle, expected_receivers.clone(), false).await;
+
+			// Give tasks a chance to finish:
+			Delay::new(Duration::from_millis(20)).await;
+
+			// Trigger retry:
+			let old_head2 = Hash::random();
+			activate_leaf(
+				&mut handle,
+				old_head2,
+				Some(old_head),
+				MOCK_SESSION_INDEX,
+				None,
+				vec![(MOCK_SESSION_INDEX, candidate.hash())]
+			).await;
+
+			check_sent_requests(&mut handle, expected_receivers.clone(), false).await;
+			// Give tasks a chance to finish:
+			Delay::new(Duration::from_millis(20)).await;
+
+			// Session change:
+			activate_leaf(
+				&mut handle,
+				Hash::random(),
+				Some(old_head2),
+				MOCK_NEXT_SESSION_INDEX,
+				Some(MOCK_NEXT_SESSION_INFO.clone()),
+				vec![(MOCK_SESSION_INDEX, candidate.hash())]
+			).await;
+
+			let expected_receivers = {
+				let validator_count = MOCK_SESSION_INFO.validators.len();
+				let old_validators = MOCK_SESSION_INFO
+					.discovery_keys
+					.clone()
+					.into_iter()
+					.take(validator_count)
+					.filter(|a| *a != *FERDIE_DISCOVERY_KEY);
+
+				MOCK_NEXT_SESSION_INFO
+					.discovery_keys
+					.clone()
+					.into_iter()
+					.filter(|a| *a != *FERDIE_DISCOVERY_KEY)
+					.chain(old_validators)
+					.collect()
+			};
+			check_sent_requests(&mut handle, expected_receivers, true).await;
+
 			handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 	test_harness(test);
@@ -102,21 +204,28 @@ fn send_dispute_sends_dispute() {
 async fn activate_leaf(
 	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>,
 	activate: Hash,
+	deactivate: Option<Hash>,
 	session_index: SessionIndex,
 	// New session if we expect the subsystem to request it.
 	new_session: Option<SessionInfo>,
 	// Currently active disputes to send to the subsystem.
 	active_disputes: Vec<(SessionIndex, CandidateHash)>,
 ) {
+	let has_active_disputes = !active_disputes.is_empty();
 	handle.send(FromOverseer::Signal(
 		OverseerSignal::ActiveLeaves(
-			ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: activate,
-				number: 10,
-				status: LeafStatus::Fresh,
-				span: Arc::new(Span::Disabled),
+			ActiveLeavesUpdate {
+				activated: [ActivatedLeaf {
+						hash: activate,
+						number: 10,
+						status: LeafStatus::Fresh,
+						span: Arc::new(Span::Disabled),
+					}][..]
+				   .into(),
+				deactivated: deactivate.into_iter().collect(),
 			}
-	))))
+
+	)))
 	.await;
 	assert_matches!(
 		handle.recv().await,
@@ -134,8 +243,22 @@ async fn activate_leaf(
 			tx.send(active_disputes).expect("Receiver should stay alive.");
 		}
 	);
+	let new_session = match (new_session, has_active_disputes) {
+		(Some(new_session), true) => new_session,
+		_ => return,
+	};
 
-	// panic!("Got: {:?}", handle.recv().await);
+	assert_matches!(
+		handle.recv().await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				h,
+				RuntimeApiRequest::SessionInfo(i, tx)
+		)) => {
+			assert_eq!(h, activate);
+			assert_eq!(i, session_index);
+			tx.send(Ok(Some(new_session))).expect("Receiver should stay alive.");
+		}
+	);
 }
 
 /// Check whether sent network bridge requests match the expectation.
@@ -151,8 +274,8 @@ async fn check_sent_requests(
 			.collect();
 
 	// Sends to concerned validators:
-	// assert_matches!(
-	match handle.recv().await {
+	assert_matches!(
+		handle.recv().await,
 		AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)
 		) => {
@@ -178,17 +301,14 @@ async fn check_sent_requests(
 				}
 			}
 		}
-		_ => {
-			unreachable!("Unexpected message received.");
-		}
-	};
+	);
 }
 
 /// Initialize subsystem and return request sender needed for sending incoming requests to the
 /// subsystem.
 async fn handle_subsystem_startup(
 	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>
-) -> (mpsc::Sender<sc_network::config::IncomingRequest>, MockAuthorityDiscovery) {
+) -> (Hash, mpsc::Sender<sc_network::config::IncomingRequest>) {
 	let (request_tx, request_rx) = mpsc::channel(5);
 	handle.send(
 		FromOverseer::Communication {
@@ -196,20 +316,19 @@ async fn handle_subsystem_startup(
 		}
 	).await;
 
-	let authority_discovery = MockAuthorityDiscovery::new();
-
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::NetworkBridge(
 			NetworkBridgeMessage::GetAuthorityDiscoveryService(tx)
 		) => {
 			tx
-				.send(Box::new(authority_discovery.clone()))
-				.expect("Receiver shoult still be alive.");
+				.send(Box::new(MOCK_AUTHORITY_DISCOVERY.clone()))
+				.expect("Receiver should still be alive.");
 		}
 	);
-	activate_leaf(handle, Hash::random(), MOCK_SESSION_INDEX, Some(make_session_info()), Vec::new()).await;
-	(request_tx, authority_discovery)
+	let relay_parent = Hash::random();
+	activate_leaf(handle, relay_parent, None, MOCK_SESSION_INDEX, Some(MOCK_SESSION_INFO.clone()), Vec::new()).await;
+	(relay_parent, request_tx)
 }
 
 
