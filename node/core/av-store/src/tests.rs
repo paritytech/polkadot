@@ -33,6 +33,7 @@ use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages, ActivatedLeaf,
+	LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -258,11 +259,31 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 				activated: vec![ActivatedLeaf {
 					hash: new_leaf,
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
 				}].into(),
 				deactivated: vec![].into(),
 			}),
 		).await;
+
+		let header = Header {
+			parent_hash: Hash::zero(),
+			number: 1,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
 
 		// runtime api call fails
 		assert_matches!(
@@ -764,6 +785,134 @@ fn stored_data_kept_until_finalized() {
 }
 
 #[test]
+fn we_dont_miss_anything_if_import_notifications_are_missed() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+	let test_state = TestState::default();
+
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::BlockFinalized(Hash::zero(), 1)
+		).await;
+
+		let header = Header {
+			parent_hash: Hash::repeat_byte(3),
+			number: 4,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+		let new_leaf = Hash::repeat_byte(4);
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: vec![ActivatedLeaf {
+					hash: new_leaf,
+					number: 4,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}].into(),
+				deactivated: vec![].into(),
+			}),
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+
+		let new_heads = vec![
+			(Hash::repeat_byte(2), Hash::repeat_byte(1)),
+			(Hash::repeat_byte(3), Hash::repeat_byte(2)),
+			(Hash::repeat_byte(4), Hash::repeat_byte(3)),
+		];
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel: tx,
+			}) => {
+				assert_eq!(hash, new_leaf);
+				assert_eq!(k, 2);
+				let _ = tx.send(Ok(vec![
+					Hash::repeat_byte(3),
+					Hash::repeat_byte(2),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, Hash::repeat_byte(3));
+				tx.send(Ok(Some(Header {
+					parent_hash: Hash::repeat_byte(2),
+					number: 3,
+					state_root: Hash::zero(),
+					extrinsics_root: Hash::zero(),
+					digest: Default::default(),
+				}))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, Hash::repeat_byte(2));
+				tx.send(Ok(Some(Header {
+					parent_hash: Hash::repeat_byte(1),
+					number: 2,
+					state_root: Hash::zero(),
+					extrinsics_root: Hash::zero(),
+					digest: Default::default(),
+				}))).unwrap();
+			}
+		);
+
+		for (head, parent) in new_heads {
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::CandidateEvents(tx),
+				)) => {
+					assert_eq!(relay_parent, head);
+					tx.send(Ok(Vec::new())).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, parent);
+					tx.send(Ok(Vec::new())).unwrap();
+				}
+			);
+		}
+
+		virtual_overseer
+	});
+}
+
+#[test]
 fn forkfullness_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
@@ -994,11 +1143,23 @@ async fn import_leaf(
 			activated: vec![ActivatedLeaf {
 				hash: new_leaf,
 				number: 1,
+				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
 			}].into(),
 			deactivated: vec![].into(),
 		}),
 	).await;
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+			relay_parent,
+			tx,
+		)) => {
+			assert_eq!(relay_parent, new_leaf);
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
@@ -1011,27 +1172,6 @@ async fn import_leaf(
 		}
 	);
 
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(block_number))).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(header))).unwrap();
-		}
-	);
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,

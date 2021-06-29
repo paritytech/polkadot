@@ -23,6 +23,7 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, features = ["derive"] }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
@@ -41,6 +42,7 @@ std = [
 	"hash256-std-hasher/std",
 	"impl-codec/std",
 	"impl-serde",
+	"max-encoded-len/std",
 	"parity-util-mem/std",
 	"serde",
 	"sp-api/std",

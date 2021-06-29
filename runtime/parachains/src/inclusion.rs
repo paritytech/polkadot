@@ -691,7 +691,7 @@ impl<T: Config> Module<T> {
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
 		);
-		weight += <ump::Module<T>>::enact_upward_messages(
+		weight += <ump::Module<T>>::receive_upward_messages(
 			receipt.descriptor.para_id,
 			commitments.upward_messages,
 		);

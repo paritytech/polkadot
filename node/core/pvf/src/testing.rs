@@ -31,10 +31,15 @@ pub fn validate_candidate(
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 	use crate::executor_intf::{prevalidate, prepare, execute, TaskExecutor};
 
-	let blob = prevalidate(code)?;
+	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024).expect("Decompressing code failed");
+
+	let blob = prevalidate(&*code)?;
 	let artifact = prepare(blob)?;
 	let executor = TaskExecutor::new()?;
-	let result = execute(&artifact, params, executor)?;
+	let result = unsafe {
+		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
+		execute(&artifact, params, executor)?
+	};
 
 	Ok(result)
 }

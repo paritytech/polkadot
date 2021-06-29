@@ -10,7 +10,7 @@ Validation of candidates is a heavy task, and furthermore, the [`PoV`][PoV] itse
 
 > TODO: note the incremental validation function Ximin proposes at https://github.com/paritytech/polkadot/issues/1348
 
-As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate with the [`CandidateBacking`][CB] and [`CandidateSelection`][CS] subsystems.
+As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate only with the [`CandidateBacking`][CB].
 
 ## Protocol
 
@@ -20,7 +20,7 @@ Output:
 
 - [`RuntimeApiMessage`][RAM]
 - [`NetworkBridgeMessage`][NBM]
-- [`CandidateSelectionMessage`][CSM]
+- [`CandidateBackingMessage`][CBM]
 
 ## Functionality
 
@@ -60,7 +60,7 @@ As seen in the [Scheduler Module][SCH] of the runtime, validator groups are fixe
   * Determine the group on that core and the next group on that core.
   * Issue a discovery request for the validators of the current group and the next group with[`NetworkBridgeMessage`][NBM]`::ConnectToValidators`.
 
-Once connected to the relevant peers for the current group assigned to the core (transitively, the para), advertise the collation to any of them which advertise the relay-parent in their view (as provided by the [Network Bridge][NB]). If any respond with a request for the full collation, provide it. Upon receiving a view update from any of these peers which includes a relay-parent for which we have a collation that they will find relevant, advertise the collation to them if we haven't already.
+Once connected to the relevant peers for the current group assigned to the core (transitively, the para), advertise the collation to any of them which advertise the relay-parent in their view (as provided by the [Network Bridge][NB]). If any respond with a request for the full collation, provide it. However, we only send one collation at a time per relay parent, other requests need to wait. This is done to reduce the bandwidth requirements of a collator and also increases the chance to fully send the collation to at least one validator. From the point where one validator has received the collation and seconded it, it will also start to share this collation with other validators in its backing group. Upon receiving a view update from any of these peers which includes a relay-parent for which we have a collation that they will find relevant, advertise the collation to them if we haven't already.
 
 ### Validators
 
@@ -104,18 +104,26 @@ The protocol tracks advertisements received and the source of the advertisement.
 
 As a validator, we will handle requests from other subsystems to fetch a collation on a specific `ParaId` and relay-parent. These requests are made with the request response protocol `CollationFetchingRequest` request. To do so, we need to first check if we have already gathered a collation on that `ParaId` and relay-parent. If not, we need to select one of the advertisements and issue a request for it. If we've already issued a request, we shouldn't issue another one until the first has returned.
 
-When acting on an advertisement, we issue a `Requests::CollationFetching`. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.
+When acting on an advertisement, we issue a `Requests::CollationFetching`. However, we only request one collation at a time per relay parent. This reduces the bandwidth requirements and as we can second only one candidate per relay parent, the others are probably not required anyway. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.
 
-As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator` or `NoteGoodCollation` message. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it.
+As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator`. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it. If the collation is seconded, we notify the collator and apply a benefit to the `PeerId` associated with the collator.
 
-### Interaction with [Candidate Selection][CS]
+### Interaction with [Candidate Backing][CB]
 
-As collators advertise the availability, we notify the Candidate Selection subsystem with a [`CandidateSelection`][CSM]`::Collation` message. Note that this message is lightweight: it only contains the relay parent, para id, and collator id.
+As collators advertise the availability, a validator will simply second the first valid parablock candidate per relay head by sending a [`CandidateBackingMessage`][CBM]`::Second`. Note that this message contains the relay parent of the advertised collation, the candidate receipt and the [PoV][PoV].
 
-At that point, the Candidate Selection algorithm is free to use an arbitrary algorithm to determine which if any of these messages to follow up on. It is expected to use the [`CollatorProtocolMessage`][CPM]`::FetchCollation` message to follow up.
+Subsequently, once a valid parablock candidate has been seconded, the [`CandidateBacking`][CB] subsystem will send a [`CollatorProtocolMessage`][CPM]`::Seconded`, which will trigger this subsystem to notify the collator at the `PeerId` that first advertised the parablock on the seconded relay head of their successful seconding.
 
-The intent behind this design is to minimize the total number of (large) collations which must be transmitted.
 
+## Future Work
+
+Several approaches have been discussed, but all have some issues:
+
+- The current approach is very straightforward. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.
+- If collators produce blocks via Aura, BABE or in future Sassafrass, it may be possible to choose an "Official" collator for the round, but it may be tricky to ensure that the PVF logic is enforced at collator leader election.
+- We could use relay-chain BABE randomness to generate some delay `D` on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after `D`, or in case none has arrived by `2*D`, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.
+- A variation of that scheme would be to have a fixed acceptance window `D` for parablock candidates and keep track of count `C`: the number of parablock candidates received. At the end of the period `D`, we choose a random number I in the range [0, C) and second the block at Index I. Its drawback is the same: it must wait the full `D` period before seconding any of its received candidates, reducing throughput.
+- In order to protect against DoS attacks, it may be prudent to run throw out collations from collators that have behaved poorly (whether recently or historically) and subsequently only verify the PoV for the most suitable of collations.
 
 [CB]: ../backing/candidate-backing.md
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-mesage

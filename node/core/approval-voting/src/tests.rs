@@ -191,7 +191,7 @@ impl DBReader for TestStore {
 
 fn blank_state() -> State<TestStore> {
 	State {
-		session_window: import::RollingSessionWindow::default(),
+		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: Arc::new(LocalKeystore::in_memory()),
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		db: TestStore::default(),
@@ -204,10 +204,11 @@ fn single_session_state(index: SessionIndex, info: SessionInfo)
 	-> State<TestStore>
 {
 	State {
-		session_window: import::RollingSessionWindow {
-			earliest_session: Some(index),
-			session_info: vec![info],
-		},
+		session_window: RollingSessionWindow::with_session_info(
+			APPROVAL_SESSIONS,
+			index,
+			vec![info],
+		),
 		..blank_state()
 	}
 }
@@ -231,7 +232,7 @@ fn sign_approval(
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
 ) -> ValidatorSignature {
-	key.sign(&super::approval_signing_payload(ApprovalVote(candidate_hash), session_index)).into()
+	key.sign(&ApprovalVote(candidate_hash).signing_payload(session_index)).into()
 }
 
 #[derive(Clone)]
@@ -396,8 +397,9 @@ fn rejects_bad_assignment() {
 	assert!(res.1.iter().any(|action| matches!(action, Action::WriteCandidateEntry(..))));
 
 	// unknown hash
+	let unknown_hash = Hash::repeat_byte(0x02);
 	let assignment = IndirectAssignmentCert {
-		block_hash: Hash::repeat_byte(0x02),
+		block_hash: unknown_hash,
 		validator: ValidatorIndex(0),
 		cert: garbage_assignment_cert(
 			AssignmentCertKind::RelayVRFModulo {
@@ -411,7 +413,7 @@ fn rejects_bad_assignment() {
 		assignment,
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(unknown_hash)));
 
 	let mut state = State {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
@@ -426,7 +428,7 @@ fn rejects_bad_assignment() {
 		assignment_good,
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(ValidatorIndex(0))));
 }
 
 #[test]
@@ -494,7 +496,7 @@ fn rejects_assignment_with_unknown_candidate() {
 		assignment.clone(),
 		candidate_index,
 	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad);
+	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index)));
 }
 
 #[test]
@@ -578,7 +580,7 @@ fn rejects_approval_before_assignment() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad);
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(ValidatorIndex(0))));
 	assert!(actions.is_empty());
 }
 
@@ -610,7 +612,7 @@ fn rejects_approval_if_no_candidate_entry() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad);
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(0, candidate_hash)));
 	assert!(actions.is_empty());
 }
 
@@ -648,7 +650,7 @@ fn rejects_approval_if_no_block_entry() {
 		|r| r
 	).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad);
+	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(block_hash)));
 	assert!(actions.is_empty());
 }
 

@@ -46,9 +46,9 @@ pub fn aura_configuration() -> AuraConfiguration {
 		strict_empty_steps_transition: 0,
 		validate_step_transition: 0,
 		validate_score_transition: 0,
-		two_thirds_majority_transition: u64::max_value(),
+		two_thirds_majority_transition: u64::MAX,
 		min_gas_limit: 0x1388.into(),
-		max_gas_limit: U256::max_value(),
+		max_gas_limit: U256::MAX,
 		maximum_extra_data_size: 0x20,
 	}
 }
@@ -130,7 +130,7 @@ impl InclusionProofVerifier for RialtoBlockchain {
 
 	fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<Self::Transaction> {
 		let is_transaction_finalized =
-			crate::BridgeRialtoPoA::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
+			crate::BridgeRialtoPoa::verify_transaction_finalized(proof.block, proof.index, &proof.proof);
 
 		if !is_transaction_finalized {
 			return None;
