@@ -76,7 +76,7 @@ pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-featur
 max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = "3.0.0"
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

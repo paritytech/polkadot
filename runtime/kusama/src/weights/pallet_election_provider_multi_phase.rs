@@ -67,6 +67,13 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
+	fn submit(c: u32, ) -> Weight {
+		(84_430_000 as Weight)
+			// Standard Error: 146_000
+			.saturating_add((2_758_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(T::DbWeight::get().reads(3 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 13_000
@@ -91,5 +98,15 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			// Standard Error: 44_000
 			.saturating_add((4_469_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+	}
+	fn finalize_signed_phase_accept_solution() -> Weight {
+		(47_783_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
+	fn finalize_signed_phase_reject_solution() -> Weight {
+		(21_277_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 }

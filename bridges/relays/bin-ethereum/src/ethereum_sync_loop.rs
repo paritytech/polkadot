@@ -270,8 +270,8 @@ pub async fn run(params: EthereumSyncParams) -> Result<(), RpcError> {
 		instance,
 	} = params;
 
-	let eth_client = EthereumClient::new(eth_params).await?;
-	let sub_client = SubstrateClient::<Rialto>::new(sub_params).await?;
+	let eth_client = EthereumClient::new(eth_params).await;
+	let sub_client = SubstrateClient::<Rialto>::new(sub_params).await;
 
 	let sign_sub_transactions = match sync_params.target_tx_mode {
 		TargetTransactionMode::Signed | TargetTransactionMode::Backup => true,
