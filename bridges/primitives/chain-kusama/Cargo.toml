@@ -14,8 +14,8 @@ bp-polkadot-core = { path = "../polkadot-core", default-features = false }
 bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Based Dependencies
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [features]
 default = ["std"]

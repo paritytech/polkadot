@@ -21,14 +21,14 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 # Substrate Based Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-staking-miner" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [features]
 default = ["std"]
