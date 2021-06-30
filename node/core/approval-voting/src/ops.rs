@@ -50,22 +50,45 @@ pub(super) struct NewCandidateInfo {
 	pub our_assignment: Option<OurAssignment>,
 }
 
+fn visit_and_remove_block_entry(
+	block_hash: Hash,
+	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
+	visited_candidates: &mut HashMap<CandidateHash, CandidateEntry>,
+) -> SubsystemResult<Vec<Hash>> {
+	let block_entry = match overlayed_db.load_block_entry(&block_hash)? {
+		None => return Ok(Vec::new()),
+		Some(b) => b,
+	};
+
+	overlayed_db.delete_block_entry(&block_hash);
+	for &(_, ref candidate_hash) in block_entry.candidates() {
+		let candidate = match visited_candidates.entry(*candidate_hash) {
+			Entry::Occupied(e) => e.into_mut(),
+			Entry::Vacant(e) => {
+				e.insert(match overlayed_db.load_candidate_entry(candidate_hash)? {
+					None => continue, // Should not happen except for corrupt DB
+					Some(c) => c,
+				})
+			}
+		};
+
+		candidate.block_assignments.remove(&block_hash);
+	}
+
+	Ok(block_entry.children)
+}
+
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.
-pub(super) fn canonicalize<T>(
-	overlay_db: &mut OverlayedBackend<'_, T>,
+pub(super) fn canonicalize(
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	canon_number: BlockNumber,
 	canon_hash: Hash,
-) -> SubsystemResult<()>
-	where T: Backend
-{
+) -> SubsystemResult<()> {
 	let range = match overlay_db.load_stored_blocks()? {
 		None => return Ok(()),
-		Some(range) => if range.0 >= canon_number {
-			return Ok(())
-		} else {
-			range
-		},
+		Some(range) if range.0 >= canon_number => return Ok(()),
+		Some(range) => range,
 	};
 
 	// Storing all candidates in memory is potentially heavy, but should be fine
@@ -75,34 +98,6 @@ pub(super) fn canonicalize<T>(
 
 	// All the block heights we visited but didn't necessarily delete everything from.
 	let mut visited_heights = HashMap::new();
-
-	let visit_and_remove_block_entry = |
-		block_hash: Hash,
-		overlayed_db: &mut OverlayedBackend<'_, T>,
-		visited_candidates: &mut HashMap<CandidateHash, CandidateEntry>,
-	| -> SubsystemResult<Vec<Hash>> {
-		let block_entry = match overlayed_db.load_block_entry(&block_hash)? {
-			None => return Ok(Vec::new()),
-			Some(b) => b,
-		};
-
-		overlayed_db.delete_block_entry(&block_hash);
-		for &(_, ref candidate_hash) in block_entry.candidates() {
-			let candidate = match visited_candidates.entry(*candidate_hash) {
-				Entry::Occupied(e) => e.into_mut(),
-				Entry::Vacant(e) => {
-					e.insert(match overlayed_db.load_candidate_entry(candidate_hash)? {
-						None => continue, // Should not happen except for corrupt DB
-						Some(c) => c,
-					})
-				}
-			};
-
-			candidate.block_assignments.remove(&block_hash);
-		}
-
-		Ok(block_entry.children)
-	};
 
 	// First visit everything before the height.
 	for i in range.0..canon_number {
@@ -220,11 +215,8 @@ pub(super) fn add_block_entry(
 	{
 		let new_range = match store.load_stored_blocks()? {
 			None => Some(StoredBlockRange(number, number + 1)),
-			Some(range) => if range.1 <= number {
-				Some(StoredBlockRange(range.0, number + 1))
-			} else {
-				None
-			}
+			Some(range) if range.1 <= number => Some(StoredBlockRange(range.0, number + 1)),
+			Some(_) => None,
 		};
 
 		new_range.map(|n| store.write_stored_block_range(n));

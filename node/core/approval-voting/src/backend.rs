@@ -26,7 +26,7 @@ use super::approval_db;
 use super::approval_db::v1::{
 	blocks_at_height_key, block_entry_key, candidate_entry_key, STORED_BLOCKS_KEY, Config,
 };
-use super::ops::StoredBlockRange;
+use super::ops::{self, StoredBlockRange};
 use super::persisted_entries::{BlockEntry, CandidateEntry};
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl Backend for DbBackend {
 		&self,
 		block_hash: &Hash,
 	) -> SubsystemResult<Option<BlockEntry>> {
-		super::ops::load_block_entry(&*self.inner, &self.config, block_hash)
+		ops::load_block_entry(&*self.inner, &self.config, block_hash)
 			.map(|e| e.map(Into::into))
 	}
 
@@ -69,7 +69,7 @@ impl Backend for DbBackend {
 		&self,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateEntry>> {
-		super::ops::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
+		ops::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
 			.map(|e| e.map(Into::into))
 	}
 
@@ -77,15 +77,15 @@ impl Backend for DbBackend {
 		&self,
 		block_height: &BlockNumber
 	) -> SubsystemResult<Vec<Hash>> {
-		super::ops::load_blocks_at_height(&*self.inner, &self.config, block_height)
+		ops::load_blocks_at_height(&*self.inner, &self.config, block_height)
 	}
 
 	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
-		super::ops::load_all_blocks(&*self.inner, &self.config)
+		ops::load_all_blocks(&*self.inner, &self.config)
 	}
 
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
-		super::ops::load_stored_blocks(&*self.inner, &self.config)
+		ops::load_stored_blocks(&*self.inner, &self.config)
 	}
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
