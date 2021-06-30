@@ -32,6 +32,7 @@ use parity_scale_codec::{Encode, Decode};
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
+use polkadot_node_subsystem_util::TimeoutExt;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::{IfDisconnected, request_response::{Recipient, Requests, v1::DisputeResponse}};
@@ -132,83 +133,70 @@ fn received_request_triggers_import() {
                     assert_eq!(reputation_changes.len(), 1);
                 }
             );
-    
-            // Valid peer, valid message:
-            let rx_response = send_network_dispute_request(
-                &mut req_tx,
+   
+			// Nested valid and invalid import.
+			//
+			// Nested requests from same peer should get dropped. For the invalid request even
+			// subsequent requests should get dropped.
+			nested_network_dispute_request(
+				&mut handle,
+				&mut req_tx,
                 MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
-                message.clone().into()
-            ).await;
+				message.clone().into(),
+				ImportStatementsResult::InvalidImport,
+				move |handle, req_tx, message| 
+					nested_network_dispute_request(
+						handle, 
+						req_tx,
+						MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
+						message.clone().into(),
+						ImportStatementsResult::ValidImport,
+						move |_, req_tx, message| async move {
+							// Another request from Alice should get dropped (request already in
+							// flight):
+							{
+								let rx_response = send_network_dispute_request(
+									req_tx,
+									MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+									message.clone(),
+								).await;
 
-            // Subsystem needs `SessionInfo` for determinging indices:
-            assert_matches!(
-                handle.recv().await,
-                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-                        _,
-                        RuntimeApiRequest::SessionInfo(_, tx)
-                )) => {
-                    tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-                }
-            );
+								assert_matches!(
+									rx_response.await,
+									Err(err) => {
+										tracing::trace!(
+											target: LOG_TARGET,
+											?err,
+											"Request got dropped - other request already in flight"
+										);
+									}
+								);
+							}
+							// Another request from Bob should get dropped (request already in
+							// flight):
+							{
+								let rx_response = send_network_dispute_request(
+									req_tx,
+									MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
+									message.clone(),
+								).await;
 
-			// Import should get initiated:
-			let pending_confirmation = assert_matches!(
-				handle.recv().await,
-				AllMessages::DisputeCoordinator(
-					DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
-						candidate_receipt,
-						session,
-						statements,
-						pending_confirmation,
-					}
-				) => {
-					assert_eq!(session, MOCK_SESSION_INDEX);
-					assert_eq!(candidate_hash, message.candidate_receipt().hash());
-					assert_eq!(candidate_hash, candidate_receipt.hash());
-					assert_eq!(statements.len(), 2);
-                    pending_confirmation
-				}
-			);
+								assert_matches!(
+									rx_response.await,
+									Err(err) => {
+										tracing::trace!(
+											target: LOG_TARGET,
+											?err,
+											"Request got dropped - other request already in flight"
+										);
+									}
+								);
+							}
+						}
+					)
+			).await;
 
-			// Another valid import, but other import still in flight - should get dropped (from
-			// same peer):
-            {
-                let rx_response = send_network_dispute_request(
-                    &mut req_tx,
-                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
-                    message.clone().into()
-                ).await;
-
-                assert_matches!(
-                    rx_response.await,
-                    Err(err) => {
-                        tracing::trace!(
-                            target: LOG_TARGET,
-                            ?err,
-                            "Request got dropped - other request already in flight"
-                        );
-                    }
-                );
-            }
-
-			// Pretend import was bad (should result in peer getting banned):
-            pending_confirmation.send(ImportStatementsResult::InvalidImport).unwrap();
-
-            assert_matches!(
-                rx_response.await,
-                Ok(resp) => {
-                    let sc_network::config::OutgoingResponse {
-                        result: _,
-                        reputation_changes,
-                        sent_feedback: _,
-                    } = resp;
-                    // Peer should get punished:
-                    assert_eq!(reputation_changes.len(), 1);
-                }
-            );
-
-			// Subsequent sends should fail (peer is banned):
+			// Subsequent sends from Alice should fail (peer is banned):
             {
                 let rx_response = send_network_dispute_request(
                     &mut req_tx,
@@ -228,59 +216,15 @@ fn received_request_triggers_import() {
                 );
             }
 
-			// But should work fine for any other peer:
-            {
-                let rx_response = send_network_dispute_request(
-                    &mut req_tx,
-                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
-                    message.clone().into()
-                ).await;
-
-				// Import should get initiated:
-				let pending_confirmation = assert_matches!(
-					handle.recv().await,
-					AllMessages::DisputeCoordinator(
-						DisputeCoordinatorMessage::ImportStatements {
-							candidate_hash,
-							candidate_receipt,
-							session,
-							statements,
-							pending_confirmation,
-						}
-					) => {
-						assert_eq!(session, MOCK_SESSION_INDEX);
-						assert_eq!(candidate_hash, message.candidate_receipt().hash());
-						assert_eq!(candidate_hash, candidate_receipt.hash());
-						assert_eq!(statements.len(), 2);
-						pending_confirmation
-					}
-				);
-
-				pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
-
-				assert_matches!(
-					rx_response.await,
-					Ok(resp) => {
-						let sc_network::config::OutgoingResponse {
-							result,
-							reputation_changes: _,
-							sent_feedback,
-						} = resp;
-						let result = result.unwrap();
-						let decoded = 
-							<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
-
-						assert!(decoded == DisputeResponse::Confirmed);
-						if let Some(sent_feedback) = sent_feedback {
-							sent_feedback.send(()).unwrap();
-						}
-						tracing::trace!(
-							target: LOG_TARGET,
-							"Valid import happened."
-						);
-					}
-				);
-            }
+			// But should work fine for Bob:
+			nested_network_dispute_request(
+				&mut handle, 
+				&mut req_tx, 
+				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
+				message.clone().into(),
+				ImportStatementsResult::ValidImport,
+				|_, _, _| async {}
+			).await;
 
             tracing::trace!(target: LOG_TARGET, "Concluding.");
 			conclude(&mut handle).await;
@@ -526,6 +470,108 @@ async fn send_network_dispute_request(
     };
     req_tx.feed(req).await.unwrap();
     rx_response
+}
+
+/// Send request and handle its reactions.
+///
+/// Passed in function will be called while votes are still being imported.
+async fn nested_network_dispute_request<'a, F, O>(
+	handle: &'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
+    req_tx: &'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+    peer: PeerId,
+	message: DisputeRequest,
+	import_result: ImportStatementsResult,
+	inner: F,
+) 
+	where
+		F: FnOnce(
+				&'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
+				&'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+				DisputeRequest,
+			) -> O + 'a,
+		O: Future<Output = ()> + 'a
+{
+	let rx_response = send_network_dispute_request(
+		req_tx,
+		peer,
+		message.clone().into()
+	).await;
+
+	// Subsystem might need `SessionInfo` for determining indices:
+	match handle.recv().timeout(Duration::from_millis(1)).await {
+		Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::SessionInfo(_, tx)
+		))) => {
+			tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+		}
+		Some(unexpected) => panic!("Unexpected message {:?}", unexpected),
+		None => {
+			tracing::trace!(
+				target: LOG_TARGET,
+				"No session info needed."
+			);
+		}
+	}
+
+	// Import should get initiated:
+	let pending_confirmation = assert_matches!(
+		handle.recv().await,
+		AllMessages::DisputeCoordinator(
+			DisputeCoordinatorMessage::ImportStatements {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				statements,
+				pending_confirmation,
+			}
+		) => {
+			assert_eq!(session, MOCK_SESSION_INDEX);
+			assert_eq!(candidate_hash, message.0.candidate_receipt.hash());
+			assert_eq!(candidate_hash, candidate_receipt.hash());
+			assert_eq!(statements.len(), 2);
+			pending_confirmation
+		}
+	);
+	
+	// Do the inner thing:
+	inner(handle, req_tx, message).await;
+
+	// Confirm import
+	pending_confirmation.send(import_result).unwrap();
+
+	assert_matches!(
+		rx_response.await,
+		Ok(resp) => {
+			let sc_network::config::OutgoingResponse {
+				result,
+				reputation_changes,
+				sent_feedback,
+			} = resp;
+
+			match import_result {
+				ImportStatementsResult::ValidImport => {
+					let result = result.unwrap();
+					let decoded = 
+						<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
+
+					assert!(decoded == DisputeResponse::Confirmed);
+					if let Some(sent_feedback) = sent_feedback {
+						sent_feedback.send(()).unwrap();
+					}
+					tracing::trace!(
+						target: LOG_TARGET,
+						"Valid import happened."
+					);
+
+				}
+				ImportStatementsResult::InvalidImport => {
+					// Peer should get punished:
+					assert_eq!(reputation_changes.len(), 1);
+				}
+			}
+		}
+	);
 }
 
 async fn conclude(

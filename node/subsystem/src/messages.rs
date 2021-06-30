@@ -237,7 +237,7 @@ pub enum DisputeCoordinatorMessage {
 }
 
 /// The result of `DisputeCoordinatorMessage::ImportStatements`.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ImportStatementsResult {
 	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
 	InvalidImport,
