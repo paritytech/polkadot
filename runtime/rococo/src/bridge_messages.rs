@@ -78,7 +78,7 @@ pub type WococoAtRococo = RococoLikeChain<AtRococoWithWococoMessageBridge, crate
 /// Rococo/Wococo chain from message lane point of view.
 #[derive(RuntimeDebug, Clone, Copy)]
 pub struct RococoLikeChain<B, GI> {
-	__bridge_definition: PhantomData<B>,
+	_bridge_definition: PhantomData<B>,
 	_at_this_chain_grandpa_pallet_instance: PhantomData<GI>,
 }
 
