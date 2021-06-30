@@ -23,18 +23,20 @@ use std::task::Poll;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
+use futures::channel::oneshot;
 use futures::future::poll_fn;
 use futures::pin_mut;
-use futures::{Future, channel::mpsc};
+use futures::{Future, channel::mpsc, SinkExt};
 use futures_timer::Delay;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
 
+use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::{IfDisconnected, request_response::{Recipient, Requests, v1::DisputeResponse}};
 use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo};
-use polkadot_subsystem::messages::DisputeCoordinatorMessage;
+use polkadot_subsystem::messages::{DisputeCoordinatorMessage, ImportStatementsResult};
 use polkadot_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span, messages::{AllMessages, DisputeDistributionMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest}};
 use polkadot_subsystem_testhelpers::{TestSubsystemContextHandle, mock::make_ferdie_keystore, subsystem_test_harness};
 
@@ -94,6 +96,88 @@ fn send_dispute_sends_dispute() {
 			};
 			check_sent_requests(&mut handle, expected_receivers, true).await;
 
+			conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
+
+#[test]
+fn received_request_triggers_import() {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>|
+		async move {
+			let (_, mut req_tx) = handle_subsystem_startup(&mut handle, None).await;
+
+			let relay_parent = Hash::random();
+			let candidate = make_candidate_receipt(relay_parent);
+			let message =
+				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
+            tracing::trace!(
+                "Sending request"
+                );
+            let (pending_response, rx_response) = oneshot::channel();
+            let req = sc_network::config::IncomingRequest {
+                peer: MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Ferdie),
+                payload: <DisputeRequest as From<_>>::from(message.clone()).encode(),
+                pending_response,
+            };
+            req_tx.feed(req).await.unwrap();
+
+            // Subsystem needs `SessionInfo` for determinging indices:
+            assert_matches!(
+                handle.recv().await,
+                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+                        _,
+                        RuntimeApiRequest::SessionInfo(_, tx)
+                )) => {
+                    tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+                }
+            );
+
+            tracing::trace!(
+                "Awaiting import message!"
+                );
+			// Import should get initiated:
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::DisputeCoordinator(
+					DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt,
+						session,
+						statements,
+						pending_confirmation,
+					}
+				) => {
+					assert_eq!(session, MOCK_SESSION_INDEX);
+					assert_eq!(candidate_hash, message.candidate_receipt().hash());
+					assert_eq!(candidate_hash, candidate_receipt.hash());
+					assert_eq!(statements.len(), 2);
+					pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+				}
+			);
+
+            assert_matches!(
+                rx_response.await,
+                Ok(resp) => {
+                    let sc_network::config::OutgoingResponse {
+                        result,
+                        reputation_changes: _,
+                        sent_feedback,
+                    } = resp;
+                    let result = result.unwrap();
+                    let decoded = 
+                        <DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
+
+                    assert!(decoded == DisputeResponse::Confirmed);
+                    if let Some(sent_feedback) = sent_feedback {
+                        sent_feedback.send(()).unwrap();
+                    }
+                }
+            );
+
+            tracing::trace!(
+                "Concluding!"
+                );
 			conclude(&mut handle).await;
 	};
 	test_harness(test);

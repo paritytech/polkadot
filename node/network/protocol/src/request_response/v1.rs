@@ -206,7 +206,7 @@ impl From<DisputeMessage> for DisputeRequest {
 }
 
 /// Possible responses to a `DisputeRequest`.
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq)]
 pub enum DisputeResponse {
 	/// Recipient successfully processed the dispute request.
 	#[codec(index = 0)]
