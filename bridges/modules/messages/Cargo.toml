@@ -7,6 +7,7 @@ edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
+bitvec = { version = "0.20", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 log = { version = "0.4.14", default-features = false }
 num-traits = { version = "0.2", default-features = false }
@@ -14,6 +15,7 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
+bp-message-dispatch = { path = "../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../primitives/messages", default-features = false }
 bp-rialto = { path = "../../primitives/chain-rialto", default-features = false }
 bp-runtime = { path = "../../primitives/runtime", default-features = false }
@@ -36,6 +38,7 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "m
 [features]
 default = ["std"]
 std = [
+	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-runtime/std",
 	"bp-rialto/std",

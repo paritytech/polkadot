@@ -41,6 +41,7 @@ impl Chain for Kusama {
 	type Index = bp_kusama::Nonce;
 	type SignedBlock = bp_kusama::SignedBlock;
 	type Call = ();
+	type Balance = bp_kusama::Balance;
 }
 
 /// Kusama header type used in headers sync.

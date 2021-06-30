@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	our_view, ObservedRole, request_response::{Requests, ResponseSender},
 };
 
-const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(50);
+const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
 
 #[derive(Clone)]
@@ -262,7 +262,7 @@ async fn assert_candidate_backing_second(
 	expected_relay_parent: Hash,
 	expected_para_id: ParaId,
 	expected_pov: &PoV,
-) {
+) -> CandidateReceipt {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
@@ -270,7 +270,8 @@ async fn assert_candidate_backing_second(
 		assert_eq!(expected_relay_parent, relay_parent);
 		assert_eq!(expected_para_id, candidate_receipt.descriptor.para_id);
 		assert_eq!(*expected_pov, incoming_pov);
-	});
+		candidate_receipt
+	})
 }
 
 /// Assert that a collator got disconnected.
@@ -288,25 +289,6 @@ async fn assert_collator_disconnect(
 			assert_eq!(PeerSet::Collation, peer_set);
 		}
 	);
-}
-
-/// Assert that the given collators got disconnected.
-async fn assert_collators_disconnect(
-	virtual_overseer: &mut VirtualOverseer,
-	expected_peers: &[PeerId],
-) {
-	for _ in expected_peers {
-		assert_matches!(
-			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
-				peer,
-				peer_set,
-			)) => {
-				assert!(expected_peers.contains(&peer), "Unexpected collator disconnected: {:?}", peer);
-				assert_eq!(PeerSet::Collation, peer_set);
-			}
-		);
-	}
 }
 
 /// Assert that a fetch collation request was send.
@@ -603,8 +585,6 @@ fn fetch_collations_works() {
 			&pov,
 		).await;
 
-		assert_collators_disconnect(&mut virtual_overseer, &[peer_b.clone(), peer_c.clone()]).await;
-
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerDisconnected(peer_b.clone())),
@@ -675,6 +655,97 @@ fn fetch_collations_works() {
 			second,
 			test_state.chain_ids[0],
 			&pov,
+		).await;
+
+		virtual_overseer
+	});
+}
+
+// Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
+#[test]
+fn fetch_next_collation_on_invalid_collation() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+		} = test_harness;
+
+		let second = Hash::random();
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::OurViewChange(our_view![test_state.relay_parent, second])
+			),
+		).await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+		let peer_c = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[0].clone(),
+		).await;
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_c.clone(),
+			test_state.collators[1].clone(),
+			test_state.chain_ids[0].clone(),
+		).await;
+
+		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+		advertise_collation(&mut virtual_overseer, peer_c.clone(), test_state.relay_parent).await;
+
+		let response_channel = assert_fetch_collation_request(
+			&mut virtual_overseer,
+			test_state.relay_parent,
+			test_state.chain_ids[0],
+		).await;
+
+		let pov = PoV { block_data: BlockData(vec![]) };
+		let mut candidate_a = CandidateReceipt::default();
+		candidate_a.descriptor.para_id = test_state.chain_ids[0];
+		candidate_a.descriptor.relay_parent = test_state.relay_parent;
+		response_channel.send(Ok(
+			CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			).encode()
+		)).expect("Sending response should succeed");
+
+		let receipt = assert_candidate_backing_second(
+			&mut virtual_overseer,
+			test_state.relay_parent,
+			test_state.chain_ids[0],
+			&pov,
+		).await;
+
+		// Inform that the candidate was invalid.
+		overseer_send(&mut virtual_overseer, CollatorProtocolMessage::Invalid(test_state.relay_parent, receipt)).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_REPORT_BAD);
+			}
+		);
+
+		// We should see a request for another collation.
+		assert_fetch_collation_request(
+			&mut virtual_overseer,
+			test_state.relay_parent,
+			test_state.chain_ids[0],
 		).await;
 
 		virtual_overseer

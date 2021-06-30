@@ -36,6 +36,7 @@ use runtime_common::{
 	impls::ToAuthor,
 	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
+	elections::fee_for_submit_call,
 };
 
 use runtime_parachains::origin as parachains_origin;
@@ -340,11 +341,18 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
-	pub const SignedRewardBase: Balance = 100 * CENTS;
-	pub const SignedDepositBase: Balance = 100 * CENTS;
-	pub const SignedDepositByte: Balance = 1 * CENTS;
+	pub const SignedDepositBase: Balance = deposit(1, 0);
+	// A typical solution occupies within an order of magnitude of 50kb.
+	// This formula is currently adjusted such that a typical solution will spend an amount equal
+	// to the base deposit for every 50 kb.
+	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub SignedRewardBase: Balance = fee_for_submit_call::<
+		Runtime,
+		crate::constants::fee::WeightToFee,
+		crate::weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>,
+	>(Perbill::from_perthousand(1500));
 
-	// fallback: run election on-chain.
+	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 
