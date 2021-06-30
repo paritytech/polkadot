@@ -340,7 +340,7 @@ mod tests {
 		// to (any) inbound lane in Rococo<>Wococo bridge can be delivered to the bridged chain.
 		// Since we deal with testnets here, in case of failure + urgency:
 		//
-		// 1) ping bridges team about this failure;
+		// 1) ping bridges team about this failure (see the CODEOWNERS file if you're unsure who to ping);
 		// 2) comment/remove the test.
 
 		// we don't have any knowledge of messages-at-Rococo weights, so we'll be using
