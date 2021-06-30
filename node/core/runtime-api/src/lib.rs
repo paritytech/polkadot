@@ -305,7 +305,7 @@ where
 		($req_variant:ident, $api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent), $( $param.clone() ),*)
+			let res = api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
