@@ -114,26 +114,26 @@ fn received_request_triggers_import() {
 			let message =
 				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
 
-            // Non validator request should get dropped:
-            let rx_response = send_network_dispute_request(
-                &mut req_tx,
-                PeerId::random(),
-                message.clone().into()
-            ).await;
+			// Non validator request should get dropped:
+			let rx_response = send_network_dispute_request(
+				&mut req_tx,
+				PeerId::random(),
+				message.clone().into()
+			).await;
 
-            assert_matches!(
-                rx_response.await,
-                Ok(resp) => {
-                    let sc_network::config::OutgoingResponse {
-                        result: _,
-                        reputation_changes,
-                        sent_feedback: _,
-                    } = resp;
-                    // Peer should get punished:
-                    assert_eq!(reputation_changes.len(), 1);
-                }
-            );
-   
+			assert_matches!(
+				rx_response.await,
+				Ok(resp) => {
+					let sc_network::config::OutgoingResponse {
+						result: _,
+						reputation_changes,
+						sent_feedback: _,
+					} = resp;
+					// Peer should get punished:
+					assert_eq!(reputation_changes.len(), 1);
+				}
+			);
+
 			// Nested valid and invalid import.
 			//
 			// Nested requests from same peer should get dropped. For the invalid request even
@@ -141,7 +141,7 @@ fn received_request_triggers_import() {
 			nested_network_dispute_request(
 				&mut handle,
 				&mut req_tx,
-                MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 				message.clone().into(),
 				ImportStatementsResult::InvalidImport,
 				move |handle, req_tx, message| 
@@ -197,24 +197,24 @@ fn received_request_triggers_import() {
 			).await;
 
 			// Subsequent sends from Alice should fail (peer is banned):
-            {
-                let rx_response = send_network_dispute_request(
-                    &mut req_tx,
-                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
-                    message.clone().into()
-                ).await;
+			{
+				let rx_response = send_network_dispute_request(
+					&mut req_tx,
+					MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+					message.clone().into()
+				).await;
 
-                assert_matches!(
-                    rx_response.await,
-                    Err(err) => {
-                        tracing::trace!(
-                            target: LOG_TARGET,
-                            ?err,
-                            "Request got dropped - peer is banned."
-                        );
-                    }
-                );
-            }
+				assert_matches!(
+					rx_response.await,
+					Err(err) => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							?err,
+							"Request got dropped - peer is banned."
+							);
+					}
+				);
+			}
 
 			// But should work fine for Bob:
 			nested_network_dispute_request(
@@ -226,7 +226,7 @@ fn received_request_triggers_import() {
 				|_, _, _| async {}
 			).await;
 
-            tracing::trace!(target: LOG_TARGET, "Concluding.");
+			tracing::trace!(target: LOG_TARGET, "Concluding.");
 			conclude(&mut handle).await;
 	};
 	test_harness(test);
@@ -458,18 +458,18 @@ fn dispute_retries_and_works_across_session_boundaries() {
 }
 
 async fn send_network_dispute_request(
-    req_tx: &mut mpsc::Sender<sc_network::config::IncomingRequest>,
-    peer: PeerId,
-    message: DisputeRequest,
+	req_tx: &mut mpsc::Sender<sc_network::config::IncomingRequest>,
+	peer: PeerId,
+	message: DisputeRequest,
 ) -> oneshot::Receiver<sc_network::config::OutgoingResponse> {
-    let (pending_response, rx_response) = oneshot::channel();
-    let req = sc_network::config::IncomingRequest {
-        peer, 
-        payload: message.encode(),
-        pending_response,
-    };
-    req_tx.feed(req).await.unwrap();
-    rx_response
+	let (pending_response, rx_response) = oneshot::channel();
+	let req = sc_network::config::IncomingRequest {
+		peer, 
+		payload: message.encode(),
+		pending_response,
+	};
+	req_tx.feed(req).await.unwrap();
+	rx_response
 }
 
 /// Send request and handle its reactions.
@@ -477,8 +477,8 @@ async fn send_network_dispute_request(
 /// Passed in function will be called while votes are still being imported.
 async fn nested_network_dispute_request<'a, F, O>(
 	handle: &'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
-    req_tx: &'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
-    peer: PeerId,
+	req_tx: &'a mut mpsc::Sender<sc_network::config::IncomingRequest>,
+	peer: PeerId,
 	message: DisputeRequest,
 	import_result: ImportStatementsResult,
 	inner: F,
