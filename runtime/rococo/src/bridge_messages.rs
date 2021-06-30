@@ -385,7 +385,8 @@ mod tests {
 		// case of Rococo<>Wococo, means any chain) on-chain properly. If this assert fails:
 		//
 		// 1) just fix the `TX_EXTRA_BYTES` constant to actual (or sightly rounded up) value;
-		// 2) (only if it has changed significantly (> x2 times)) ping the bridges team (see the CODEOWNERS file if you're unsure who to ping)
+		// 2) (only if it has changed significantly (> x2 times)) ping the bridges team (see the CODEOWNERS
+		//    file if you're unsure who to ping)
 
 		let signed_extra: crate::SignedExtra = (
 			frame_system::CheckSpecVersion::new(),
