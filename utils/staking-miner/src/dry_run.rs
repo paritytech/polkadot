@@ -68,7 +68,6 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 		measure_snapshot_size::<Runtime>(&mut ext);
-		find_threshold::<Runtime>(&mut ext, 20_000);
 		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 100)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
