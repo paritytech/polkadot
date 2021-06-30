@@ -612,7 +612,7 @@ pub struct InvalidDisputeVote {
 	pub signature: ValidatorSignature,
 
 	/// Kind of dispute statement.
-	kind: InvalidDisputeStatementKind,
+	pub kind: InvalidDisputeStatementKind,
 }
 
 /// Any valid vote (backing, approval, explicit).
@@ -626,5 +626,5 @@ pub struct ValidDisputeVote {
 	pub signature: ValidatorSignature,
 
 	/// Kind of dispute statement.
-	kind: ValidDisputeStatementKind,
+	pub kind: ValidDisputeStatementKind,
 }
