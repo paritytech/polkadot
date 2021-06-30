@@ -310,7 +310,7 @@ where
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
 
-			res.ok().map(|res| RequestResult::$req_variant(relay_parent, $( $param, )* res.clone()))
+			res.ok().map(|res| RequestResult::$req_variant(relay_parent, $( $param, )* res))
 		}}
 	}
 
