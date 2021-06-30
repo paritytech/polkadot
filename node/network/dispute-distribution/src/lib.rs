@@ -187,7 +187,6 @@ impl DisputeDistributionSubsystem {
 				let receiver = DisputesReceiver::new(ctx.sender().clone(), receiver, service);
 				ctx
 					.spawn("disputes-receiver", receiver.run().boxed(),)
-					.await
 					.map_err(Fatal::SpawnTask)?;
 			},
 

@@ -42,7 +42,7 @@ use polkadot_primitives::v1::{
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	CandidateReceipt, ValidatorId, SessionIndex, DisputeStatement,
+	CandidateReceipt, ValidatorId, SessionIndex, DisputeStatement, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -50,13 +50,10 @@ pub use polkadot_parachain::primitives::BlockData;
 pub mod approval;
 
 /// The bomb limit for decompressing code blobs.
-pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
-
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
 /// It would be nice to draw this from the chain state, but we have no tools for it right now.
 /// On Polkadot this is 1 day, and on Kusama it's 6 hours.

@@ -36,8 +36,7 @@ use std::{borrow::Cow, u64};
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use polkadot_node_primitives::MAX_POV_SIZE;
-use polkadot_primitives::v1::MAX_CODE_SIZE;
+use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::EnumIter;
 
 pub use sc_network::config as network;
@@ -45,7 +44,7 @@ pub use sc_network::config::RequestResponseConfig;
 
 /// All requests that can be sent to the network bridge.
 pub mod request;
-pub use request::{IncomingRequest, OutgoingRequest, Requests, Recipient, OutgoingResult};
+pub use request::{IncomingRequest, OutgoingRequest, Requests, Recipient, OutgoingResult, ResponseSender};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;

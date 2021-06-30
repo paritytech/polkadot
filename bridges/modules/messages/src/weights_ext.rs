@@ -34,6 +34,7 @@ pub fn ensure_weights_are_correct<W: WeightInfoExt>(
 	expected_default_message_delivery_tx_weight: Weight,
 	expected_additional_byte_delivery_weight: Weight,
 	expected_messages_delivery_confirmation_tx_weight: Weight,
+	expected_pay_inbound_dispatch_fee_weight: Weight,
 ) {
 	// verify `send_message` weight components
 	assert_ne!(W::send_message_overhead(), 0);
@@ -87,6 +88,15 @@ pub fn ensure_weights_are_correct<W: WeightInfoExt>(
 		"Messages delivery confirmation transaction weight {} is larger than expected weight {}",
 		actual_messages_delivery_confirmation_tx_weight,
 		expected_messages_delivery_confirmation_tx_weight,
+	);
+
+	// verify pay-dispatch-fee overhead for inbound messages
+	let actual_pay_inbound_dispatch_fee_weight = W::pay_inbound_dispatch_fee_overhead();
+	assert!(
+		actual_pay_inbound_dispatch_fee_weight <= expected_pay_inbound_dispatch_fee_weight,
+		"Weight {} of pay-dispatch-fee overhead for inbound messages is larger than expected weight {}",
+		actual_pay_inbound_dispatch_fee_weight,
+		expected_pay_inbound_dispatch_fee_weight,
 	);
 }
 
@@ -303,6 +313,13 @@ pub trait WeightInfoExt: WeightInfo {
 		let byte_weight =
 			(Self::receive_single_message_proof_16_kb() - Self::receive_single_message_proof_1_kb()) / (15 * 1024);
 		proof_size_in_bytes * byte_weight
+	}
+
+	/// Returns weight of the pay-dispatch-fee operation for inbound messages.
+	///
+	/// This function may return zero if runtime doesn't support pay-dispatch-fee-at-target-chain option.
+	fn pay_inbound_dispatch_fee_overhead() -> Weight {
+		Self::receive_single_message_proof().saturating_sub(Self::receive_single_prepaid_message_proof())
 	}
 }
 

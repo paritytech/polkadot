@@ -107,7 +107,7 @@ async fn run(
 	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 	);
-	ctx.spawn_blocking("pvf-validation-host", task.boxed()).await?;
+	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
 
 	loop {
 		match ctx.recv().await? {

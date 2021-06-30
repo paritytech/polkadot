@@ -262,7 +262,6 @@ async fn send_requests<Context: SubsystemContext>(
 
 		let (remote, remote_handle) = fut.remote_handle();
 		ctx.spawn("dispute-sender", remote.boxed())
-			.await
 			.map_err(Fatal::SpawnTask)?;
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
