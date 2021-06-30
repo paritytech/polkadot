@@ -30,6 +30,7 @@ use futures::{Future, channel::mpsc, SinkExt};
 use futures_timer::Delay;
 use parity_scale_codec::{Encode, Decode};
 
+use polkadot_node_network_protocol::PeerId;
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use sp_keyring::Sr25519Keyring;
 
@@ -111,16 +112,33 @@ fn received_request_triggers_import() {
 			let candidate = make_candidate_receipt(relay_parent);
 			let message =
 				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
-            tracing::trace!(
-                "Sending request"
-                );
-            let (pending_response, rx_response) = oneshot::channel();
-            let req = sc_network::config::IncomingRequest {
-                peer: MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Ferdie),
-                payload: <DisputeRequest as From<_>>::from(message.clone()).encode(),
-                pending_response,
-            };
-            req_tx.feed(req).await.unwrap();
+
+            // Non validator request should get dropped:
+            let rx_response = send_network_message(
+                &mut req_tx,
+                PeerId::random(),
+                message.clone().into()
+            ).await;
+
+            assert_matches!(
+                rx_response.await,
+                Ok(resp) => {
+                    let sc_network::config::OutgoingResponse {
+                        result: _,
+                        reputation_changes,
+                        sent_feedback: _,
+                    } = resp;
+                    // Peer should get punished:
+                    assert_eq!(reputation_changes.len(), 1);
+                }
+            );
+    
+            // Valid peer, valid message:
+            let rx_response = send_network_message(
+                &mut req_tx,
+                MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Ferdie),
+                message.clone().into()
+            ).await;
 
             // Subsystem needs `SessionInfo` for determinging indices:
             assert_matches!(
@@ -133,9 +151,6 @@ fn received_request_triggers_import() {
                 }
             );
 
-            tracing::trace!(
-                "Awaiting import message!"
-                );
 			// Import should get initiated:
 			assert_matches!(
 				handle.recv().await,
@@ -406,6 +421,21 @@ fn dispute_retries_and_works_across_session_boundaries() {
 			conclude(&mut handle).await;
 	};
 	test_harness(test);
+}
+
+async fn send_network_message(
+    req_tx: &mut mpsc::Sender<sc_network::config::IncomingRequest>,
+    peer: PeerId,
+    message: DisputeRequest,
+) -> oneshot::Receiver<sc_network::config::OutgoingResponse> {
+    let (pending_response, rx_response) = oneshot::channel();
+    let req = sc_network::config::IncomingRequest {
+        peer, 
+        payload: message.encode(),
+        pending_response,
+    };
+    req_tx.feed(req).await.unwrap();
+    rx_response
 }
 
 async fn conclude(
