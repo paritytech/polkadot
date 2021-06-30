@@ -32,6 +32,7 @@ use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, SignedDisputeStat
 use polkadot_node_subsystem::{
 	messages::{
 		DisputeCoordinatorMessage, ChainApiMessage, DisputeParticipationMessage,
+		ImportStatementsResult,
 	},
 	Subsystem, SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
@@ -126,6 +127,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
+	#[error("Oneshot send failed")]
+	OneshotSend,
 
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
@@ -297,6 +301,7 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			statements,
+			pending_confirmation,
 		} => {
 			handle_import_statements(
 				ctx,
@@ -308,6 +313,10 @@ async fn handle_incoming(
 				session,
 				statements,
 			).await?;
+			// TODO: Recover availability and report back unavailable data:
+			pending_confirmation
+				.send(ImportStatementsResult::ValidImport)
+				.map_err(|_| Error::OneshotSend)?;
 		}
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
 			let active_disputes = db::v1::load_active_disputes(store, &config.column_config())?

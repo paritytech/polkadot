@@ -125,6 +125,7 @@ full-node = [
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
+	"polkadot-dispute-distribution",
 	"polkadot-gossip-support",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
