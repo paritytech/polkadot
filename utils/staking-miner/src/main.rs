@@ -432,7 +432,9 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 						.expect("Pallet always has name; qed.")
 						.to_string(),
 					// NOTE: change when staking moves to frame v2.
-					"Staking".to_owned(),
+					<T as frame_system::Config>::PalletInfo::name::<pallet_staking::Pallet<T>>()
+						.expect("Pallet always has name; qed.")
+						.to_string(),,
 				]
 			} else {
 				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
@@ -507,10 +509,7 @@ fn mine_dpos<T: EPM::Config>(
 			let sum_squared = winners.iter().fold(0u128, |acc, (_, stake)| acc + stake);
 			[min_staker, sum_stake, sum_squared]
 		};
-
 		println!("mined a dpos-like solution with score = {:?}", score);
-
-		todo!();
 	})
 }
 
@@ -603,9 +602,7 @@ async fn main() {
 			Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
 			// --------------------^^ comes from the macro prelude, needs no generic.
 			Command::DryRun(c) => dry_run_cmd(client, shared, c, signer).await,
-			// ------------------^^ likewise.
 			Command::EmergencySolution => emergency_solution_cmd(client, shared).await,
-			// --------------------------^^ likewise.
 		}
 	};
 
@@ -627,25 +624,14 @@ mod tests {
 		unsafe {
 			RUNTIME = AnyRuntime::Polkadot;
 		}
-		let polkadot_version = any_runtime! { get_version<Runtime>() };
+		let polkadot_version = any_runtime! { get_version::<Runtime>() };
 
 		unsafe {
 			RUNTIME = AnyRuntime::Kusama;
 		}
-		let kusama_version = any_runtime! { get_version<Runtime>() };
+		let kusama_version = any_runtime! { get_version::<Runtime>() };
 
 		assert_eq!(polkadot_version.spec_name, "polkadot".into());
 		assert_eq!(kusama_version.spec_name, "kusama".into());
-	}
-
-	#[tokio::test]
-	async fn can_compute_anytime() {
-		env_logger::Builder::from_default_env().format_module_path(true).format_level(true).init();
-		let client = WsClientBuilder::default().build(TEST_URI).await.unwrap();
-
-		let hash = rpc!(client<chain_getFinalizedHead, Hash>,).unwrap();
-		let mut ext = create_election_ext(TEST_URI.to_owned(), Some(hash), true).await;
-		force_create_snapshot(&mut ext);
-		mine_unchecked(&mut ext);
 	}
 }
