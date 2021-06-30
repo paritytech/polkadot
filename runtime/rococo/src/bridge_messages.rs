@@ -139,7 +139,7 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 		// we don't want to relay too large messages + keep reserve for future upgrades
 		let upper_limit = messages_target::maximal_incoming_message_dispatch_weight(max_extrinsic_weight());
 
-		// we're charging for payload bytes in `With?ococoMessageBridge::transaction_payment` function
+		// we're charging for payload bytes in `With(Wococo | Rococo)MessageBridge::transaction_payment` function
 		//
 		// this bridge may be used to deliver all kind of messages, so we're not making any assumptions about
 		// minimal dispatch weight here
