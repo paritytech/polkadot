@@ -26,17 +26,15 @@ use assert_matches::assert_matches;
 use futures::future::poll_fn;
 use futures::pin_mut;
 use futures::{Future, channel::mpsc};
-
 use futures_timer::Delay;
 use parity_scale_codec::Encode;
 
-use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
-use polkadot_subsystem::messages::DisputeCoordinatorMessage;
-use smallvec::SmallVec;
-use sp_keyring::{Sr25519Keyring};
+use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::{IfDisconnected, request_response::{Recipient, Requests, v1::DisputeResponse}};
+use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
 use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo};
+use polkadot_subsystem::messages::DisputeCoordinatorMessage;
 use polkadot_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span, messages::{AllMessages, DisputeDistributionMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest}};
 use polkadot_subsystem_testhelpers::{TestSubsystemContextHandle, mock::make_ferdie_keystore, subsystem_test_harness};
 
@@ -232,7 +230,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>|
 		async move {
 
-			let (old_head, req_tx) = handle_subsystem_startup(&mut handle, None).await;
+			let (old_head, _) = handle_subsystem_startup(&mut handle, None).await;
 
 			let relay_parent = Hash::random();
 			let candidate = make_candidate_receipt(relay_parent);
@@ -495,7 +493,6 @@ where
 	TestFn: FnOnce(TestSubsystemContextHandle<DisputeDistributionMessage>) -> Fut,
 	Fut: Future<Output = ()>
 {
-	// Uncomment this for debugging:
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 

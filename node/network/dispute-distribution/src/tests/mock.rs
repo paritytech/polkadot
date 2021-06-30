@@ -171,9 +171,9 @@ impl MockAuthorityDiscovery {
 		Self { peer_ids }
 	}
 
-	pub fn get_peer_id_by_authority(&self, authority: Sr25519Keyring) -> PeerId {
-		*self.peer_ids.get(&authority).expect("Tester only picks valid authorities")
-	}
+	// pub fn get_peer_id_by_authority(&self, authority: Sr25519Keyring) -> PeerId {
+	//     *self.peer_ids.get(&authority).expect("Tester only picks valid authorities")
+	// }
 }
 
 #[async_trait]
