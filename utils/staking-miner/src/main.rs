@@ -19,9 +19,9 @@
 // things to look out for:
 // 1. weight (already taken care of).
 // 2. length (already taken care of).
-// 3. Important, but hard to do: memory usage of the chain. For this we need to bring in a substrate
-//    wasm executor.
+// 3. Important, but hard to do: memory usage of the chain.
 
+mod rpc_helpers;
 mod dry_run;
 mod emergency_solution;
 mod monitor;
@@ -44,61 +44,59 @@ pub(crate) enum AnyRuntime {
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
-	($runtime:ident, $npos:ty) => {
-		paste::paste! {
-				#[allow(unused_import)]
-				pub(crate) mod [<$runtime _runtime_exports>] {
-					pub(crate) use crate::prelude::EPM;
-					pub(crate) use [<$runtime _runtime>]::*;
-					pub(crate) type NposCompactSolution = [<$runtime _runtime>]::$npos;
-					pub(crate) use crate::monitor::[<monitor_cmd_ $runtime>] as monitor_cmd;
-					pub(crate) use crate::dry_run::[<dry_run_cmd_ $runtime>] as dry_run_cmd;
-					pub(crate) use crate::emergency_solution::[<emergency_solution_cmd_ $runtime>] as emergency_solution_cmd;
-					pub(crate) use private::{[<create_uxt_ $runtime>] as create_uxt};
+	($runtime:ident, $npos:ty) => { paste::paste! {
+		#[allow(unused_import)]
+		pub(crate) mod [<$runtime _runtime_exports>] {
+			pub(crate) use crate::prelude::EPM;
+			pub(crate) use [<$runtime _runtime>]::*;
+			pub(crate) type NposCompactSolution = [<$runtime _runtime>]::$npos;
+			pub(crate) use crate::monitor::[<monitor_cmd_ $runtime>] as monitor_cmd;
+			pub(crate) use crate::dry_run::[<dry_run_cmd_ $runtime>] as dry_run_cmd;
+			pub(crate) use crate::emergency_solution::[<emergency_solution_cmd_ $runtime>] as emergency_solution_cmd;
+			pub(crate) use private::{[<create_uxt_ $runtime>] as create_uxt};
 
-					mod private {
-						use super::*;
-						pub(crate) fn [<create_uxt_ $runtime>](
-							raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
-							witness: u32,
-							signer: crate::Signer,
-							nonce: crate::prelude::Index,
-							tip: crate::prelude::Balance,
-							era: sp_runtime::generic::Era,
-						) -> UncheckedExtrinsic {
-							use codec::Encode as _;
-							use sp_core::Pair as _;
-							use sp_runtime::traits::StaticLookup as _;
+			mod private {
+				use super::*;
+				pub(crate) fn [<create_uxt_ $runtime>](
+					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
+					witness: u32,
+					signer: crate::Signer,
+					nonce: crate::prelude::Index,
+					tip: crate::prelude::Balance,
+					era: sp_runtime::generic::Era,
+				) -> UncheckedExtrinsic {
+					use codec::Encode as _;
+					use sp_core::Pair as _;
+					use sp_runtime::traits::StaticLookup as _;
 
-							let crate::Signer { account, pair, .. } = signer;
+					let crate::Signer { account, pair, .. } = signer;
 
-							let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
-							let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
-								.expect("election provider pallet must exist in the runtime, thus \
-									inner call can be converted, qed."
-								);
+					let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
+					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
+						.expect("election provider pallet must exist in the runtime, thus \
+							inner call can be converted, qed."
+						);
 
-							let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
-							let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
-							let signature = raw_payload.using_encoded(|payload| {
-								pair.clone().sign(payload)
-							});
-							let (call, extra, _) = raw_payload.deconstruct();
-							let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
-							let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
-							log::debug!(
-								target: crate::LOG_TARGET, "constructed extrinsic {}",
-								sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode())
-							);
-							extrinsic
-						}
-					}
+					let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
+					let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
+					let signature = raw_payload.using_encoded(|payload| {
+						pair.clone().sign(payload)
+					});
+					let (call, extra, _) = raw_payload.deconstruct();
+					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
+					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
+					log::debug!(
+						target: crate::LOG_TARGET, "constructed extrinsic {}",
+						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode())
+					);
+					extrinsic
 				}
 			}
+		}}
 	};
 }
 
-// TODO: we might be able to use some code from the bridges repo here.
+// NOTE: we might be able to use some code from the bridges repo here.
 fn signed_ext_builder_polkadot(
 	nonce: Index,
 	tip: Balance,
@@ -155,6 +153,12 @@ construct_runtime_prelude!(polkadot, NposCompactSolution16);
 construct_runtime_prelude!(kusama, NposCompactSolution24);
 construct_runtime_prelude!(westend, NposCompactSolution16);
 
+// NOTE: this is no longer used extensively, most of the per-runtime stuff us delegated to
+// `construct_runtime_prelude` and macro's the import directly from it. A part of the code is also
+// still generic over `T`. My hope is to still make everything generic over a `Runtime`, but sadly
+// that is not currently possible as each runtime has its unique `Call`, and all Calls are not
+// sharing any generic trait. In other words, to create the `UncheckedExtrinsic` of each chain, you
+// need the concrete `Call` of that chain as well.
 #[macro_export]
 macro_rules! any_runtime {
 	($($code:tt)*) => {
@@ -173,45 +177,6 @@ macro_rules! any_runtime {
 					$($code)*
 				}
 			}
-		}
-	}
-}
-
-#[derive(codec::Encode, codec::Decode, Clone, Copy, Debug)]
-#[allow(unused)]
-enum MinerProfile {
-	/// seq-phragmen -> balancing(round) -> reduce
-	WithBalancing(u32),
-	/// seq-phragmen -> reduce
-	JustSeqPhragmen,
-	/// trim the least staked `perbill%` nominators, then seq-phragmen -> reduce
-	TrimmedVoters(sp_runtime::Percent),
-	/// Terminate. There's nothing else that we can do about this. Sorry.
-	Terminate,
-}
-
-#[allow(unused)]
-impl MinerProfile {
-	/// Get the next miner profile to use, should this one fail.
-	fn next(self) -> Self {
-		use sp_runtime::Percent;
-		match self {
-			MinerProfile::WithBalancing(count) => {
-				if count > 0 {
-					MinerProfile::WithBalancing(count.saturating_sub(3))
-				} else {
-					MinerProfile::JustSeqPhragmen
-				}
-			}
-			MinerProfile::JustSeqPhragmen => MinerProfile::TrimmedVoters(Percent::from_percent(90)),
-			MinerProfile::TrimmedVoters(percent) => {
-				if !percent.is_zero() {
-					MinerProfile::TrimmedVoters(percent.saturating_sub(Percent::from_percent(10)))
-				} else {
-					MinerProfile::Terminate
-				}
-			}
-			MinerProfile::Terminate => panic!("miner profile is to terminate."),
 		}
 	}
 }
@@ -259,17 +224,6 @@ impl std::fmt::Display for Error {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		<Error as std::fmt::Debug>::fmt(self, f)
 	}
-}
-
-/// Some information about the signer. Redundant at this point, but makes life easier.
-#[derive(Clone)]
-struct Signer {
-	/// The account id.
-	account: AccountId,
-	/// The full crypto key-pair.
-	pair: Pair,
-	/// The raw uri read from file.
-	uri: String,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -320,96 +274,15 @@ struct Opt {
 	command: Command,
 }
 
-mod rpc_helpers {
-	use super::*;
-	use jsonrpsee_ws_client::traits::Client;
-	pub(crate) use jsonrpsee_ws_client::v2::params::JsonRpcParams;
-
-	#[macro_export]
-	macro_rules! params {
-		($($param:expr),*) => {
-			{
-				let mut __params = vec![];
-				$(
-					__params.push(serde_json::to_value($param).expect("json serialization infallible; qed."));
-				)*
-				$crate::rpc_helpers::JsonRpcParams::Array(__params)
-			}
-		};
-		() => {
-			$crate::rpc::JsonRpcParams::NoParams,
-		}
-	}
-
-	/// Make the rpc request, returning `Ret`.
-	pub(crate) async fn rpc<'a, Ret: serde::de::DeserializeOwned>(
-		client: &WsClient,
-		method: &'a str,
-		params: JsonRpcParams<'a>,
-	) -> Result<Ret, Error> {
-		client.request::<Ret>(method, params).await.map_err(Into::into)
-	}
-
-	/// Make the rpc request, decode the outcome into `Dec`. Don't use for storage, it will fail for
-	/// non-existent storage items.
-	pub(crate) async fn rpc_decode<'a, Dec: codec::Decode>(
-		client: &WsClient,
-		method: &'a str,
-		params: JsonRpcParams<'a>,
-	) -> Result<Dec, Error> {
-		let bytes = rpc::<sp_core::Bytes>(client, method, params).await?;
-		<Dec as codec::Decode>::decode(&mut &*bytes.0).map_err(Into::into)
-	}
-
-	/// Get the storage item.
-	pub(crate) async fn get_storage<'a, T: codec::Decode>(
-		client: &WsClient,
-		params: JsonRpcParams<'a>,
-	) -> Result<Option<T>, Error> {
-		let maybe_bytes = rpc::<Option<sp_core::Bytes>>(client, "state_getStorage", params).await?;
-		if let Some(bytes) = maybe_bytes {
-			let decoded = <T as codec::Decode>::decode(&mut &*bytes.0)?;
-			Ok(Some(decoded))
-		} else {
-			Ok(None)
-		}
-	}
-
-	use codec::{EncodeLike, FullCodec};
-	use frame_support::storage::{StorageMap, StorageValue};
-	#[allow(unused)]
-	pub(crate) async fn get_storage_value_frame_v2<'a, V: StorageValue<T>, T: FullCodec, Hash>(
-		client: &WsClient,
-		maybe_at: Option<Hash>,
-	) -> Result<Option<V::Query>, Error>
-	where
-		V::Query: codec::Decode,
-		Hash: serde::Serialize,
-	{
-		let key = <V as StorageValue<T>>::hashed_key();
-		get_storage::<V::Query>(&client, params! { key, maybe_at }).await
-	}
-
-	#[allow(unused)]
-	pub(crate) async fn get_storage_map_frame_v2<
-		'a,
-		Hash,
-		KeyArg: EncodeLike<K>,
-		K: FullCodec,
-		T: FullCodec,
-		M: StorageMap<K, T>,
-	>(
-		client: &WsClient,
-		key: KeyArg,
-		maybe_at: Option<Hash>,
-	) -> Result<Option<M::Query>, Error>
-	where
-		M::Query: codec::Decode,
-		Hash: serde::Serialize,
-	{
-		let key = <M as StorageMap<K, T>>::hashed_key_for(key);
-		get_storage::<M::Query>(&client, params! { key, maybe_at }).await
-	}
+/// Some information about the signer. Redundant at this point, but makes life easier.
+#[derive(Clone)]
+struct Signer {
+	/// The account id.
+	account: AccountId,
+	/// The full crypto key-pair.
+	pair: Pair,
+	/// The raw uri read from file.
+	uri: String,
 }
 
 /// Build the `Ext` at `hash` with all the data of `ElectionProviderMultiPhase` and `Staking`
@@ -431,10 +304,9 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
 						.expect("Pallet always has name; qed.")
 						.to_string(),
-					// NOTE: change when staking moves to frame v2.
 					<T as frame_system::Config>::PalletInfo::name::<pallet_staking::Pallet<T>>()
 						.expect("Pallet always has name; qed.")
-						.to_string(),,
+						.to_string(),
 				]
 			} else {
 				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
@@ -463,6 +335,7 @@ fn mine_unchecked<T: EPM::Config>(
 	})
 }
 
+/// Same as `mine_checked`, but it also does all the needed internal checks as well.
 fn mine_checked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
@@ -477,7 +350,7 @@ fn mine_checked<T: EPM::Config>(
 #[allow(unused)]
 fn mine_dpos<T: EPM::Config>(
 	ext: &mut Ext,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+) -> Result<(), Error> {
 	ext.execute_with(|| {
 		use EPM::RoundSnapshot;
 		use std::collections::BTreeMap;
@@ -510,6 +383,7 @@ fn mine_dpos<T: EPM::Config>(
 			[min_staker, sum_stake, sum_squared]
 		};
 		println!("mined a dpos-like solution with score = {:?}", score);
+		Ok(())
 	})
 }
 
@@ -570,6 +444,8 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
 			);
+			// safety: this program will always be single threaded, thus accessing global static is
+			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
@@ -578,6 +454,8 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
 			);
+			// safety: this program will always be single threaded, thus accessing global static is
+			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
@@ -586,6 +464,8 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
 			);
+			// safety: this program will always be single threaded, thus accessing global static is
+			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}

@@ -32,6 +32,7 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 	})
 }
 
+/// Helper method to print the encoded size of the snapshot.
 fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
 	ext.execute_with(|| {
 		log::info!(target: LOG_TARGET, "Metadata: {:?}", <EPM::Pallet<T>>::snapshot_metadata());
@@ -46,13 +47,15 @@ fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
 	})
 }
 
+/// Fir the stake threshold to in order to have at most `count` voters.
+#[allow(unused)]
 fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 	ext.execute_with(|| {
 		let mut voters = <EPM::Pallet<T>>::snapshot()
 			.expect("snapshot must exist before calling `measure_snapshot_size`")
 			.voters;
 		voters.sort_by_key(|v| v.1);
-		dbg!(voters.into_iter().rev().take(count).last());
+		println!("smallest allowed voter is {:?}", voters.into_iter().rev().take(count).last());
 	})
 }
 

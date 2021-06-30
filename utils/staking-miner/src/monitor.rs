@@ -21,6 +21,7 @@ use codec::Encode;
 use jsonrpsee_ws_client::{
 	traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription, WsClient,
 };
+use sp_transaction_pool::TransactionStatus;
 
 /// Ensure that now is the singed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
@@ -82,6 +83,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
+			// we prefer doing this check before fetching anything into a remote-ext.
 			if ensure_signed_phase::<Runtime, Block>(&client, hash).await.is_err() {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
 				continue;
@@ -101,7 +103,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
-			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 50)?;
+			let (raw_solution, witness) = crate::mine_checked::<Runtime>(&mut ext, 50)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
@@ -112,11 +114,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					it is likely due to a bug, or the signer got slashed. Terminating."
 				);
 			let tip = 0 as Balance;
-			let era = sp_runtime::generic::Era::Immortal;
+			let era = sp_runtime::generic::Era::Immortal; // TODO: make this a mortal transaction.
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
-			use sp_transaction_pool::TransactionStatus;
 			let mut tx_subscription: Subscription<
 				TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
 			> = client
