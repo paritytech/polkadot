@@ -114,7 +114,7 @@ fn received_request_triggers_import() {
 				make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX,).await;
 
             // Non validator request should get dropped:
-            let rx_response = send_network_message(
+            let rx_response = send_network_dispute_request(
                 &mut req_tx,
                 PeerId::random(),
                 message.clone().into()
@@ -134,9 +134,9 @@ fn received_request_triggers_import() {
             );
     
             // Valid peer, valid message:
-            let rx_response = send_network_message(
+            let rx_response = send_network_dispute_request(
                 &mut req_tx,
-                MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Ferdie),
+                MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
                 message.clone().into()
             ).await;
 
@@ -152,7 +152,7 @@ fn received_request_triggers_import() {
             );
 
 			// Import should get initiated:
-			assert_matches!(
+			let pending_confirmation = assert_matches!(
 				handle.recv().await,
 				AllMessages::DisputeCoordinator(
 					DisputeCoordinatorMessage::ImportStatements {
@@ -167,32 +167,122 @@ fn received_request_triggers_import() {
 					assert_eq!(candidate_hash, message.candidate_receipt().hash());
 					assert_eq!(candidate_hash, candidate_receipt.hash());
 					assert_eq!(statements.len(), 2);
-					pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+                    pending_confirmation
 				}
 			);
+
+			// Another valid import, but other import still in flight - should get dropped (from
+			// same peer):
+            {
+                let rx_response = send_network_dispute_request(
+                    &mut req_tx,
+                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+                    message.clone().into()
+                ).await;
+
+                assert_matches!(
+                    rx_response.await,
+                    Err(err) => {
+                        tracing::trace!(
+                            target: LOG_TARGET,
+                            ?err,
+                            "Request got dropped - other request already in flight"
+                        );
+                    }
+                );
+            }
+
+			// Pretend import was bad (should result in peer getting banned):
+            pending_confirmation.send(ImportStatementsResult::InvalidImport).unwrap();
 
             assert_matches!(
                 rx_response.await,
                 Ok(resp) => {
                     let sc_network::config::OutgoingResponse {
-                        result,
-                        reputation_changes: _,
-                        sent_feedback,
+                        result: _,
+                        reputation_changes,
+                        sent_feedback: _,
                     } = resp;
-                    let result = result.unwrap();
-                    let decoded = 
-                        <DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
-
-                    assert!(decoded == DisputeResponse::Confirmed);
-                    if let Some(sent_feedback) = sent_feedback {
-                        sent_feedback.send(()).unwrap();
-                    }
+                    // Peer should get punished:
+                    assert_eq!(reputation_changes.len(), 1);
                 }
             );
 
-            tracing::trace!(
-                "Concluding!"
+			// Subsequent sends should fail (peer is banned):
+            {
+                let rx_response = send_network_dispute_request(
+                    &mut req_tx,
+                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+                    message.clone().into()
+                ).await;
+
+                assert_matches!(
+                    rx_response.await,
+                    Err(err) => {
+                        tracing::trace!(
+                            target: LOG_TARGET,
+                            ?err,
+                            "Request got dropped - peer is banned."
+                        );
+                    }
                 );
+            }
+
+			// But should work fine for any other peer:
+            {
+                let rx_response = send_network_dispute_request(
+                    &mut req_tx,
+                    MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
+                    message.clone().into()
+                ).await;
+
+				// Import should get initiated:
+				let pending_confirmation = assert_matches!(
+					handle.recv().await,
+					AllMessages::DisputeCoordinator(
+						DisputeCoordinatorMessage::ImportStatements {
+							candidate_hash,
+							candidate_receipt,
+							session,
+							statements,
+							pending_confirmation,
+						}
+					) => {
+						assert_eq!(session, MOCK_SESSION_INDEX);
+						assert_eq!(candidate_hash, message.candidate_receipt().hash());
+						assert_eq!(candidate_hash, candidate_receipt.hash());
+						assert_eq!(statements.len(), 2);
+						pending_confirmation
+					}
+				);
+
+				pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+
+				assert_matches!(
+					rx_response.await,
+					Ok(resp) => {
+						let sc_network::config::OutgoingResponse {
+							result,
+							reputation_changes: _,
+							sent_feedback,
+						} = resp;
+						let result = result.unwrap();
+						let decoded = 
+							<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
+
+						assert!(decoded == DisputeResponse::Confirmed);
+						if let Some(sent_feedback) = sent_feedback {
+							sent_feedback.send(()).unwrap();
+						}
+						tracing::trace!(
+							target: LOG_TARGET,
+							"Valid import happened."
+						);
+					}
+				);
+            }
+
+            tracing::trace!(target: LOG_TARGET, "Concluding.");
 			conclude(&mut handle).await;
 	};
 	test_harness(test);
@@ -423,7 +513,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 	test_harness(test);
 }
 
-async fn send_network_message(
+async fn send_network_dispute_request(
     req_tx: &mut mpsc::Sender<sc_network::config::IncomingRequest>,
     peer: PeerId,
     message: DisputeRequest,
