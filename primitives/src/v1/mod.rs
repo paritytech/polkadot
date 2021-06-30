@@ -940,9 +940,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// To fetch the hash of the code use [`Self::validation_code_hash`].
 		///
-		/// # Warning
-		///
-		/// This function is no longer available since parachain host version 2.
+		/// NOTE: This function is no longer available since parachain host version 2.
 		#[skip_initialize_block]
 		#[changed_in(2)]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
@@ -956,9 +954,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// To fetch only the hash of the code use [`Self::validation_code_hash`].
 		///
-		/// # Warning
-		///
-		/// This function is only available since parachain host version 2.
+		/// NOTE: This function is only available since parachain host version 2.
 		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCodeAndHash>;
@@ -972,9 +968,7 @@ sp_api::decl_runtime_apis! {
 		/// This is similar to [`Self::validation_code_and_hash`] except it fetches the hash of
 		/// the code.
 		///
-		/// # Warning
-		///
-		/// This function is only available since parachain host version 2.
+		/// NOTE: This function is only available since parachain host version 2.
 		#[skip_initialize_block]
 		fn validation_code_hash(
 			para_id: Id,
