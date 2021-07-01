@@ -31,7 +31,7 @@ use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
 use prelude::*;
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_core::crypto::Pair as _;
-use sp_runtime::traits::{Block as BlockT, Saturating};
+use sp_runtime::traits::Block as BlockT;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -44,12 +44,11 @@ pub(crate) enum AnyRuntime {
 pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
-	($runtime:ident, $npos:ty) => { paste::paste! {
+	($runtime:ident) => { paste::paste! {
 		#[allow(unused_import)]
 		pub(crate) mod [<$runtime _runtime_exports>] {
 			pub(crate) use crate::prelude::EPM;
 			pub(crate) use [<$runtime _runtime>]::*;
-			pub(crate) type NposCompactSolution = [<$runtime _runtime>]::$npos;
 			pub(crate) use crate::monitor::[<monitor_cmd_ $runtime>] as monitor_cmd;
 			pub(crate) use crate::dry_run::[<dry_run_cmd_ $runtime>] as dry_run_cmd;
 			pub(crate) use crate::emergency_solution::[<emergency_solution_cmd_ $runtime>] as emergency_solution_cmd;
@@ -149,9 +148,9 @@ fn signed_ext_builder_westend(
 	)
 }
 
-construct_runtime_prelude!(polkadot, NposCompactSolution16);
-construct_runtime_prelude!(kusama, NposCompactSolution24);
-construct_runtime_prelude!(westend, NposCompactSolution16);
+construct_runtime_prelude!(polkadot);
+construct_runtime_prelude!(kusama);
+construct_runtime_prelude!(westend);
 
 // NOTE: this is no longer used extensively, most of the per-runtime stuff us delegated to
 // `construct_runtime_prelude` and macro's the import directly from it. A part of the code is also
@@ -327,21 +326,13 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
+	do_feasibility: bool,
 ) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
-		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
-		Ok((solution, witness as u32))
-	})
-}
-
-/// Same as `mine_checked`, but it also does all the needed internal checks as well.
-fn mine_checked<T: EPM::Config>(
-	ext: &mut Ext,
-	iterations: usize,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
-	ext.execute_with(|| {
-		let (solution, _) = <EPM::Pallet<T>>::mine_and_check(iterations)?;
+		if do_feasibility {
+			let _ = <EPM::Pallet<T>>::feasibility_check(solution.clone(), EPM::ElectionCompute::Signed)?;
+		}
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
 	})
@@ -429,12 +420,24 @@ async fn main() {
 	let Opt { shared, command } = Opt::from_args();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
-	let client = WsClientBuilder::default()
-		.connection_timeout(std::time::Duration::new(20, 0))
-		.max_request_body_size(u32::MAX)
-		.build(&shared.uri)
-		.await
-		.unwrap();
+	let client = loop {
+		let maybe_client = WsClientBuilder::default()
+			.connection_timeout(std::time::Duration::new(20, 0))
+			.max_request_body_size(u32::MAX)
+			.build(&shared.uri)
+			.await;
+		match maybe_client {
+			Ok(client) => break client,
+			Err(why) => {
+				log::warn!(
+					target: LOG_TARGET,
+					"failed to connect to client due to {:?}, retrying soon..",
+					why
+				);
+				std::thread::sleep_ms(2500);
+			}
+		}
+	};
 
 	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", params! {})
 		.await

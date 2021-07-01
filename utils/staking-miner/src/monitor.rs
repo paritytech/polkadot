@@ -103,7 +103,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
-			let (raw_solution, witness) = crate::mine_checked::<Runtime>(&mut ext, 50)?;
+			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 100, true)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
@@ -114,13 +114,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					it is likely due to a bug, or the signer got slashed. Terminating."
 				);
 			let tip = 0 as Balance;
-			let period = Runtime::BlockHashCount::get()
-				.checked_next_power_of_two()
-				.map(|c| c / 2)
-				.unwrap_or(2) as u64;
-			let current_block = now.number
-				.saturated_into::<u64>();
-			let era = Era::mortal(period, current_block);
+			let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
+			let current_block = now.number.saturating_sub(1);
+			let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
+			dbg!(era);
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
@@ -131,7 +128,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				.await
 				.unwrap();
 
-			let _success = while let Some(status_update) = tx_subscription.next().await.unwrap() {
+			let _success = while let Ok(Some(status_update)) = tx_subscription.next().await {
 				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
 				match status_update {
 					TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
