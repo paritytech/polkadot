@@ -23,7 +23,7 @@ use jsonrpsee_ws_client::{
 };
 use sp_transaction_pool::TransactionStatus;
 
-/// Ensure that now is the singed phase.
+/// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	client: &WsClient,
 	at: B::Hash,
