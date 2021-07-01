@@ -102,9 +102,9 @@ use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
 mod tests;
 
 // A capacity of bounded channels inside the overseer.
-const CHANNEL_CAPACITY: usize = 128;
+const CHANNEL_CAPACITY: usize = 1024;
 // The capacity of signal channels to subsystems.
-const SIGNAL_CHANNEL_CAPACITY: usize = 16;
+const SIGNAL_CHANNEL_CAPACITY: usize = 64;
 
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
