@@ -37,7 +37,7 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
+pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "aj-metadata-vnext", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
