@@ -26,7 +26,7 @@
 
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
-	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
 	ActiveLeavesUpdate, OverseerSignal,
 	errors::{
 		SubsystemError,

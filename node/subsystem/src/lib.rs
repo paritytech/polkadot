@@ -20,9 +20,6 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem_types::messages::AvailabilityStoreMessage;
-pub use polkadot_node_subsystem_types::{errors, messages};
-
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
@@ -33,7 +30,7 @@ use futures::prelude::*;
 use futures::channel::{oneshot, mpsc};
 use futures::future::BoxFuture;
 use polkadot_node_subsystem_types::errors::*;
-pub use polkadot_overseer::{AllMessages, OverseerSignal, ActiveLeavesUpdate};
+pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate};
 use polkadot_primitives::v1::{Hash, BlockNumber};
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -41,6 +38,11 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 /// If there are greater than this number of slots, then we fall back to a heap vector.
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
+pub use polkadot_node_subsystem_types::errors::{self, *};
+pub mod messages {
+	pub use polkadot_overseer::AllMessages;
+	pub use polkadot_node_subsystem_types::messages::*;
+}
 
 /// The status of an activated leaf.
 #[derive(Debug, Clone)]
@@ -70,15 +72,6 @@ impl LeafStatus {
 		}
 	}
 }
-/// An asynchronous subsystem task..
-///
-/// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem {
-	/// Name of the subsystem being spawned.
-	pub name: &'static str,
-	/// The task of the subsystem being spawned.
-	pub future: BoxFuture<'static, SubsystemResult<()>>,
-}
 
 /// A `Result` type that wraps [`SubsystemError`].
 ///
@@ -94,42 +87,49 @@ pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSigna
 pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
 
 // Same for traits
-// pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<AllMessages> {}
+pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {}
 
-// impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<AllMessages> {
-// }
+impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
+}
 
-pub use polkadot_overseer::gen::SubsystemSender;
+// pub use polkadot_overseer::gen::SubsystemSender;
 
-
+pub type SpawnedSubsystem = polkadot_overseer::gen::SpawnedSubsystem<SubsystemError>;
 pub trait Subsystem<Ctx> : polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>
 where
 	Ctx: SubsystemContext,
-{}
+{
+	fn start(self, ctx: Ctx) -> SpawnedSubsystem;
+}
 
 impl<Ctx, T> Subsystem<Ctx> for T
 where
 	T: polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>,
 	Ctx: SubsystemContext,
-{}
-
-
-
+{
+	fn start(self, ctx: Ctx) -> SpawnedSubsystem {
+		<Self as polkadot_overseer::gen::Subsystem<
+			Ctx,SubsystemError,
+		>>::start(self, ctx)
+	}
+}
 
 pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
 	Signal=OverseerSignal,
-	AllMessages=AllMessages,
+	AllMessages=messages::AllMessages,
 	Error=SubsystemError,
 >
 {
+
 }
 
 impl<T> SubsystemContext for T
 where
 	T: polkadot_overseer::gen::SubsystemContext<
 		Signal=OverseerSignal,
-		AllMessages=AllMessages,
+		AllMessages=messages::AllMessages,
 		Error=SubsystemError,
 	>,
 {
+
 }
