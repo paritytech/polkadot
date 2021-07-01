@@ -56,7 +56,7 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 		let mut voters = <EPM::Pallet<T>>::snapshot()
 			.expect("snapshot must exist before calling `measure_snapshot_size`")
 			.voters;
-		voters.sort_by_key(|(_voter, score, _targets)| std::cmp::Reverse(score));
+		voters.sort_by_key(|(_voter, weight, _targets)| std::cmp::Reverse(*weight));
 		match voters.get(count) {
 			Some(threshold_voter) => println!("smallest allowed voter is {:?}", threshold_voter),
 			None => {

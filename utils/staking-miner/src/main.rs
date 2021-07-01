@@ -456,7 +456,6 @@ async fn main() {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	const TEST_URI: &'static str = DEFAULT_URI;
 
 	fn get_version<T: frame_system::Config>() -> sp_version::RuntimeVersion {
 		use frame_support::traits::Get;
