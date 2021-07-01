@@ -3182,6 +3182,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpsee"
+version = "0.2.0-alpha.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4e48ecdd757b22fae87e87aad2dbadf11c56499c6509763c8ef20db16ffb0e9"
+
+[[package]]
 name = "jsonrpsee-proc-macros"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9983,6 +9989,44 @@ name = "stable_deref_trait"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
+
+[[package]]
+name = "staking-miner"
+version = "0.9.0"
+dependencies = [
+ "env_logger 0.8.4",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "jsonrpsee",
+ "jsonrpsee-types",
+ "jsonrpsee-ws-client",
+ "kusama-runtime",
+ "lazy_static",
+ "log",
+ "pallet-election-provider-multi-phase",
+ "pallet-staking",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "paste 1.0.5",
+ "polkadot-core-primitives",
+ "polkadot-runtime",
+ "polkadot-runtime-common",
+ "remote-externalities",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "sp-version",
+ "structopt",
+ "thiserror",
+ "tokio 0.2.21",
+ "westend-runtime",
+]
 
 [[package]]
 name = "static_assertions"
