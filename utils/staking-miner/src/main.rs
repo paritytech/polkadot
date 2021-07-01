@@ -449,19 +449,20 @@ async fn main() {
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
-	let outcome = any_runtime! {
-		let signer = signer::read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
-			.await
-			.expect("Provided account is invalid, terminating.");
-		match command {
-			Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
-			// --------------------^^ comes from the macro prelude, needs no generic.
-			Command::DryRun(c) => dry_run_cmd(client, shared, c, signer).await,
-			Command::EmergencySolution => emergency_solution_cmd(client, shared).await,
-		}
-	};
-
-	log::info!(target: LOG_TARGET, "execution finished. outcome = {:?}", outcome);
+	loop {
+		let outcome = any_runtime! {
+			let signer = signer::read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
+				.await
+				.expect("Provided account is invalid, terminating.");
+			match command {
+				Command::Monitor(c) => monitor_cmd(client, shared, c, signer).await,
+				// --------------------^^ comes from the macro prelude, needs no generic.
+				Command::DryRun(c) => dry_run_cmd(client, shared, c, signer).await,
+				Command::EmergencySolution => emergency_solution_cmd(client, shared).await,
+			}
+		};
+		log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+	}
 }
 
 #[cfg(test)]

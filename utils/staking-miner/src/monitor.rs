@@ -81,7 +81,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			.await
 			.unwrap();
 
-		while let Some(now) = subscription.next().await.unwrap() {
+		while let Ok(Some(now)) = subscription.next().await {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
