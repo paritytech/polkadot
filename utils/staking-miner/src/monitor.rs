@@ -114,7 +114,13 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					it is likely due to a bug, or the signer got slashed. Terminating."
 				);
 			let tip = 0 as Balance;
-			let era = sp_runtime::generic::Era::Immortal; // TODO: make this a mortal transaction.
+			let period = Runtime::BlockHashCount::get()
+				.checked_next_power_of_two()
+				.map(|c| c / 2)
+				.unwrap_or(2) as u64;
+			let current_block = now.number
+				.saturated_into::<u64>();
+			let era = Era::mortal(period, current_block);
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
