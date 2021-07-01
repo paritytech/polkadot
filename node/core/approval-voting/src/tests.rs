@@ -466,3 +466,797 @@ async fn overseer_signal(
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
 }
+
+#[test]
+fn blank_subsystem_act_on_bad_block() {
+	let (oracle, handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let (tx, rx) = oneshot::channel();
+
+		let bad_block_hash: Hash = Default::default();
+
+		overseer_send(
+			&mut virtual_overseer,
+			FromOverseer::Communication {
+				msg: ApprovalVotingMessage::CheckAndImportAssignment(
+					IndirectAssignmentCert{
+						block_hash: bad_block_hash.clone(),
+						validator: 0u32.into(),
+						cert: garbage_assignment_cert(
+							AssignmentCertKind::RelayVRFModulo { sample: 0 }
+						),
+					},
+					0u32,
+					tx,
+				)
+			}
+		).await;
+
+		handle.await_mode_switch().await;
+
+		assert_matches!(
+			rx.await,
+			Ok(
+				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(hash))
+			) => {
+				assert_eq!(hash, bad_block_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_rejects_approval_if_no_block_entry() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+		let candidate_hash = CandidateReceipt::<Hash>::default().hash();
+		let session_index = 1;
+
+		let rx = cai_approval(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+			candidate_hash,
+			session_index,
+		).await;
+
+		assert_matches!(
+			rx.await,
+			Ok(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(hash))) => {
+				assert_eq!(hash, block_hash);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_rejects_approval_before_assignment() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_hash = {
+			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			candidate_receipt.descriptor.para_id = 1.into();
+			candidate_receipt.descriptor.relay_parent = block_hash;
+			candidate_receipt.hash()
+		};
+
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+		let session_index = 1;
+
+		// Add block hash 00.
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_approval(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+			candidate_hash,
+			session_index,
+		).await;
+
+		assert_matches!(
+			rx.await,
+			Ok(ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(v))) => {
+				assert_eq!(v, validator);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_rejects_assignment_in_future() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(HarnessConfig {
+		tick_start: 0,
+		assigned_tranche: TICK_TOO_FAR_IN_FUTURE as _,
+		..Default::default()
+	}, Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			clock,
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+
+		// Add block hash 00.
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::TooFarInFuture));
+
+		// Advance clock to make assignment reasonably near.
+		clock.inner.lock().set_tick(1);
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_accepts_duplicate_assignment() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+
+		// Add block hash 00.
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::AcceptedDuplicate));
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_rejects_assignment_with_unknown_candidate() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_index = 7;
+		let validator = ValidatorIndex(0);
+
+		// Add block hash 00.
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(
+			rx.await,
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index))),
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn ss_accepts_and_imports_approval_after_assignment() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_hash = {
+			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			candidate_receipt.descriptor.para_id = 1.into();
+			candidate_receipt.descriptor.relay_parent = block_hash;
+			candidate_receipt.hash()
+		};
+
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+		let session_index = 1;
+
+		// Add block hash 0x01...
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		let rx = cai_approval(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+			candidate_hash,
+			session_index,
+		).await;
+
+		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+
+		virtual_overseer
+	});
+}
+#[test]
+fn ss_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let _candidate_hash = {
+			let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+			candidate_receipt.descriptor.para_id = 1.into();
+			candidate_receipt.descriptor.relay_parent = block_hash;
+			candidate_receipt.hash()
+		};
+
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+
+		// Add block hash 0x01...
+		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+
+		let rx = cai_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator,
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		// TODO(ladi): fix
+		//assert!(clock.inner.lock().has_wakeup(20));
+
+		virtual_overseer
+	});
+}
+
+async fn cai_approval(
+	overseer: &mut VirtualOverseer,
+	block_hash: Hash,
+	candidate_index: CandidateIndex,
+	validator: ValidatorIndex,
+	candidate_hash: CandidateHash,
+	session_index: SessionIndex,
+) -> oneshot::Receiver<ApprovalCheckResult> {
+	let signature = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
+	let (tx, rx) = oneshot::channel();
+	overseer_send(
+		overseer,
+		FromOverseer::Communication {
+			msg: ApprovalVotingMessage::CheckAndImportApproval(
+				IndirectSignedApprovalVote {
+					block_hash,
+					candidate_index,
+					validator,
+					signature,
+				},
+				tx,
+			),
+		}
+	).await;
+	rx
+}
+
+async fn cai_assignment(
+	overseer: &mut VirtualOverseer,
+	block_hash: Hash,
+	candidate_index: CandidateIndex,
+	validator: ValidatorIndex,
+) -> oneshot::Receiver<AssignmentCheckResult> {
+	let (tx, rx) = oneshot::channel();
+	overseer_send(
+		overseer,
+		FromOverseer::Communication {
+			msg: ApprovalVotingMessage::CheckAndImportAssignment(
+				IndirectAssignmentCert {
+					block_hash,
+					validator,
+					cert: garbage_assignment_cert(
+						AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						},
+					),
+				},
+				candidate_index,
+				tx,
+			),
+		}
+	).await;
+	rx
+}
+
+async fn import_n_blocks(
+	overseer: &mut VirtualOverseer,
+	mut blocks: Vec<Hash>,
+) {
+	let n_blocks = blocks.len();
+	assert!(n_blocks > 0 && n_blocks < u8::MAX.into());
+
+	let mut blocks_with_genesis = vec![Hash::repeat_byte(0xff)];
+	blocks_with_genesis.append(&mut blocks);
+
+	let mut head = Hash::default();
+	let mut hashes = Vec::new();
+	for (i, hash) in blocks_with_genesis.iter().enumerate() {
+		let slot = Slot::from(i as u64);
+		let header = Header {
+			digest: {
+				let mut d = Digest::default();
+				let (vrf_output, vrf_proof) = garbage_vrf();
+				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+					SecondaryVRFPreDigest {
+						authority_index: 0,
+						slot,
+						vrf_output,
+						vrf_proof,
+					}
+				)));
+
+				d
+			},
+			extrinsics_root: Default::default(),
+			number: i as u32,
+			state_root: Default::default(),
+			parent_hash: head,
+		};
+		hashes.push((*hash, header));
+		import_block(overseer, hashes.as_ref(), i as u32, false, false).await;
+		head = *hash;
+		let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
+	}
+}
+
+async fn import_block(
+	overseer: &mut VirtualOverseer,
+	hashes: &[(Hash, Header)],
+	session: u32,
+	gap: bool,
+	fork: bool,
+) {
+	let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob];
+	let session_info = SessionInfo {
+		validators: validators.iter().map(|v| v.public().into()).collect(),
+		discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
+		assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
+		validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+		n_cores: 6,
+		needed_approvals: 1,
+		zeroth_delay_tranche_width: 5,
+		relay_vrf_modulo_samples: 3,
+		n_delay_tranches: 50,
+		no_show_slots: 2,
+	};
+
+	let (new_head, new_header) = &hashes[hashes.len() - 1];
+	overseer_send(
+		overseer,
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: *new_head,
+			number: session,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		})),
+	)).await;
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(head, h_tx)) => {
+			assert_eq!(*new_head, head);
+			h_tx.send(Ok(Some(new_header.clone()))).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				req_block_hash,
+				RuntimeApiRequest::SessionIndexForChild(s_tx)
+			)
+		) => {
+			let hash = &hashes[session.saturating_sub(1) as usize];
+			assert_eq!(req_block_hash, hash.0.clone());
+			s_tx.send(Ok(session.into())).unwrap();
+		}
+	);
+
+	if !fork {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::SessionInfo(idx, si_tx),
+				)
+			) => {
+				assert_eq!(session, idx);
+				assert_eq!(req_block_hash, *new_head);
+				si_tx.send(Ok(Some(session_info.clone()))).unwrap();
+			}
+		);
+
+		let mut _ancestry_step = 0;
+		if gap {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash,
+					k,
+					response_channel,
+				}) => {
+					assert_eq!(hash, *new_head);
+					let history: Vec<Hash> = hashes.iter().map(|v| v.0).take(k).collect();
+					let _ = response_channel.send(Ok(history));
+					_ancestry_step = k;
+				}
+			);
+
+			for i in 0.._ancestry_step {
+				match overseer_recv(overseer).await {
+					AllMessages::ChainApi(ChainApiMessage::BlockHeader(_, h_tx)) => {
+						let (hash, header) = hashes[i as usize].clone();
+						assert_eq!(hash, *new_head);
+						h_tx.send(Ok(Some(header))).unwrap();
+					}
+					AllMessages::ChainApi(ChainApiMessage::Ancestors {
+						hash,
+						k,
+						response_channel,
+					}) => {
+						assert_eq!(hash, *new_head);
+						assert_eq!(k as u32, session-1);
+						let history: Vec<Hash> = hashes.iter().map(|v| v.0).take(k).collect();
+						response_channel.send(Ok(history)).unwrap();
+					}
+					_ => unreachable!{},
+				}
+			}
+		}
+
+	}
+
+	if session > 0 {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(c_tx))
+			) => {
+				assert_eq!(hash, *new_head);
+
+				let make_candidate = |para_id| {
+					let mut r = CandidateReceipt::default();
+					r.descriptor.para_id = para_id;
+					r.descriptor.relay_parent = hash;
+					r
+				};
+				let candidates = vec![
+					(make_candidate(1.into()), CoreIndex(0), GroupIndex(2)),
+					(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
+				];
+
+				let inclusion_events = candidates.into_iter()
+					.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
+					.collect::<Vec<_>>();
+				c_tx.send(Ok(inclusion_events)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::SessionIndexForChild(s_tx)
+				)
+			) => {
+				let hash = &hashes[(session-1) as usize];
+				assert_eq!(req_block_hash, hash.0.clone());
+				s_tx.send(Ok(session.into())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(
+					req_block_hash,
+					RuntimeApiRequest::CurrentBabeEpoch(c_tx),
+				)
+			) => {
+				let hash = &hashes[session as usize];
+				assert_eq!(req_block_hash, hash.0.clone());
+				let _ = c_tx.send(Ok(BabeEpoch {
+					epoch_index: session as _,
+					start_slot: Slot::from(0),
+					duration: 200,
+					authorities: vec![(Sr25519Keyring::Alice.public().into(), 1)],
+					randomness: [0u8; 32],
+					config: BabeEpochConfiguration {
+						c: (1, 4),
+						allowed_slots: AllowedSlots::PrimarySlots,
+					},
+				}));
+			}
+		);
+	}
+
+	if session == 0 {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::NewBlocks(v)) => {
+				assert_eq!(v.len(), 0usize);
+			}
+		);
+	} else {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ApprovalDistribution(
+				ApprovalDistributionMessage::NewBlocks(mut approval_vec)
+			) => {
+				assert_eq!(approval_vec.len(), 1);
+				let metadata = approval_vec.pop().unwrap();
+				let hash = &hashes[session as usize];
+				let parent_hash = &hashes[(session - 1) as usize];
+				assert_eq!(metadata.hash, hash.0.clone());
+				assert_eq!(metadata.parent_hash, parent_hash.0.clone());
+				assert_eq!(metadata.slot, Slot::from(session as u64));
+			}
+		);
+	}
+}
+
+#[test]
+fn linear_import_act_on_leaf() {
+	use super::import::tests::{Digest, garbage_vrf, DigestItem, PreDigest, SecondaryVRFPreDigest};
+	use sp_consensus_babe::digests::CompatibleDigestItem;
+	let session = 3u32;
+
+	let mut hashes = Vec::new();
+	let mut head: Hash = Default::default();
+
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		for i in 0..session {
+			let slot = Slot::from(i as u64);
+			let hash = Hash::repeat_byte(i as u8 + 1);
+			let header = Header {
+				digest: {
+					let mut d = Digest::default();
+					let (vrf_output, vrf_proof) = garbage_vrf();
+					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+						SecondaryVRFPreDigest {
+							authority_index: 0,
+							slot,
+							vrf_output,
+							vrf_proof,
+						}
+					)));
+
+					d
+				},
+				extrinsics_root: Default::default(),
+				number: i,
+				state_root: Default::default(),
+				parent_hash: head,
+			};
+			hashes.push((hash, header));
+			import_block(&mut virtual_overseer, hashes.as_ref(), i, false, false).await;
+			head = hash.clone();
+		}
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			FromOverseer::Communication {
+				msg: ApprovalVotingMessage::CheckAndImportAssignment(
+					IndirectAssignmentCert{
+						block_hash: head,
+						validator: 0u32.into(),
+						cert: garbage_assignment_cert(
+							AssignmentCertKind::RelayVRFModulo { sample: 0 }
+						),
+					},
+					0u32,
+					tx,
+				)
+			}
+		).await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn forkful_import_at_same_height_act_on_leaf() {
+	use super::import::tests::{Digest, garbage_vrf, DigestItem, PreDigest, SecondaryVRFPreDigest};
+	use sp_consensus_babe::digests::CompatibleDigestItem;
+	let session = 3u32;
+
+	let mut hashes = Vec::new();
+	let mut head: Hash = Default::default();
+
+	let (oracle, _handle) = make_sync_oracle(false);
+	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		for i in 0..session {
+			let slot = Slot::from(i as u64);
+			let hash = Hash::repeat_byte(i as u8 + 1);
+			let header = Header {
+				digest: {
+					let mut d = Digest::default();
+					let (vrf_output, vrf_proof) = garbage_vrf();
+					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+						SecondaryVRFPreDigest {
+							authority_index: 0,
+							slot,
+							vrf_output,
+							vrf_proof,
+						}
+					)));
+
+					d
+				},
+				extrinsics_root: Default::default(),
+				number: i,
+				state_root: Default::default(),
+				parent_hash: head,
+			};
+			hashes.push((hash, header));
+			import_block(&mut virtual_overseer, hashes.as_ref(), i, false, false).await;
+			head = hash.clone();
+			let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
+		}
+		let num_forks = 3;
+		let forks = Vec::new();
+
+		for i in 0..num_forks {
+			let slot = Slot::from(session as u64);
+			let hash = Hash::repeat_byte(session as u8 + i + 1);
+			let header = Header {
+				digest: {
+					let mut d = Digest::default();
+					let (vrf_output, vrf_proof) = garbage_vrf();
+					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+						SecondaryVRFPreDigest {
+							authority_index: 0,
+							slot,
+							vrf_output,
+							vrf_proof,
+						}
+					)));
+
+					d
+				},
+				extrinsics_root: Default::default(),
+				number: session as u32,
+				state_root: Default::default(),
+				parent_hash: head,
+			};
+			hashes.push((hash, header));
+			import_block(&mut virtual_overseer, hashes.as_ref(), session as u32, false, i != 0).await;
+			hashes.pop();
+			let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
+		}
+
+		for head in forks.into_iter() {
+			let (tx, rx) = oneshot::channel();
+
+			overseer_send(
+				&mut virtual_overseer,
+				FromOverseer::Communication {
+					msg: ApprovalVotingMessage::CheckAndImportAssignment(
+						IndirectAssignmentCert{
+							block_hash: head,
+							validator: 0u32.into(),
+							cert: garbage_assignment_cert(
+								AssignmentCertKind::RelayVRFModulo { sample: 0 }
+							),
+						},
+						0u32,
+						tx,
+					)
+				}
+			).await;
+
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+		}
+		virtual_overseer
+	});
+}
