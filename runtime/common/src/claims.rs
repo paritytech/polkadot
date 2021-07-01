@@ -1224,7 +1224,7 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
@@ -1250,7 +1250,7 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			let eth_address = account("eth_address", 0, SEED);
@@ -1267,11 +1267,11 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			// Crate signature
-			let attest_c = u32::max_value() - c;
+			let attest_c = u32::MAX - c;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
@@ -1296,10 +1296,10 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
+			let attest_c = u32::MAX - c;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
@@ -1334,14 +1334,14 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
+			let attest_c = u32::MAX - c;
 			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 
-			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::max_value()/2).encode())).unwrap();
+			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::MAX/2).encode())).unwrap();
 			let new_eth_address = eth(&new_secret_key);
 
 			let account: T::AccountId = account("user", c, SEED);

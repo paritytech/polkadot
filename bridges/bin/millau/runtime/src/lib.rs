@@ -252,6 +252,7 @@ parameter_types! {
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
+	pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -265,6 +266,8 @@ impl pallet_balances::Config for Runtime {
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
 	type MaxLocks = MaxLocks;
+	type MaxReserves = MaxReserves;
+	type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -381,6 +384,7 @@ impl pallet_bridge_messages::Config<WithRialtoMessagesInstance> for Runtime {
 		GetDeliveryConfirmationTransactionFee,
 		RootAccountForPayments,
 	>;
+	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = crate::rialto_messages::Rialto;
 	type MessageDispatch = crate::rialto_messages::FromRialtoMessageDispatch;
@@ -600,17 +604,23 @@ impl_runtime_apis! {
 			).ok()
 		}
 
-		fn messages_dispatch_weight(
+		fn message_details(
 			lane: bp_messages::LaneId,
 			begin: bp_messages::MessageNonce,
 			end: bp_messages::MessageNonce,
-		) -> Vec<(bp_messages::MessageNonce, Weight, u32)> {
+		) -> Vec<bp_messages::MessageDetails<Balance>> {
 			(begin..=end).filter_map(|nonce| {
-				let encoded_payload = BridgeRialtoMessages::outbound_message_payload(lane, nonce)?;
+				let message_data = BridgeRialtoMessages::outbound_message_data(lane, nonce)?;
 				let decoded_payload = rialto_messages::ToRialtoMessagePayload::decode(
-					&mut &encoded_payload[..]
+					&mut &message_data.payload[..]
 				).ok()?;
-				Some((nonce, decoded_payload.weight, encoded_payload.len() as _))
+				Some(bp_messages::MessageDetails {
+					nonce,
+					dispatch_weight: decoded_payload.weight,
+					size: message_data.payload.len() as _,
+					delivery_and_dispatch_fee: message_data.fee,
+					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
+				})
 			})
 			.collect()
 		}
@@ -644,7 +654,7 @@ impl_runtime_apis! {
 /// The byte vector returned by this function should be signed with a Rialto account private key.
 /// This way, the owner of `millau_account_id` on Millau proves that the Rialto account private key
 /// is also under his control.
-pub fn rialto_account_ownership_digest<Call, AccountId, SpecVersion>(
+pub fn millau_to_rialto_account_ownership_digest<Call, AccountId, SpecVersion>(
 	rialto_call: &Call,
 	millau_account_id: AccountId,
 	rialto_spec_version: SpecVersion,
@@ -658,7 +668,8 @@ where
 		rialto_call,
 		millau_account_id,
 		rialto_spec_version,
-		bp_runtime::MILLAU_BRIDGE_INSTANCE,
+		bp_runtime::MILLAU_CHAIN_ID,
+		bp_runtime::RIALTO_CHAIN_ID,
 	)
 }
 
@@ -676,6 +687,7 @@ mod tests {
 			bp_millau::DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT,
 			bp_millau::ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT,
 			bp_millau::MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT,
+			bp_millau::PAY_INBOUND_DISPATCH_FEE_WEIGHT,
 		);
 
 		let max_incoming_message_proof_size = bp_rialto::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
@@ -691,6 +703,7 @@ mod tests {
 		let max_incoming_inbound_lane_data_proof_size = bp_messages::InboundLaneData::<()>::encoded_size_hint(
 			bp_millau::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
 			bp_rialto::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
+			bp_rialto::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
 		)
 		.unwrap_or(u32::MAX);
 		pallet_bridge_messages::ensure_able_to_receive_confirmation::<Weights>(

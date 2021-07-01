@@ -19,7 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 
-use bp_runtime::{InstanceId, Size};
+use bp_runtime::{
+	messages::{DispatchFeePayment, MessageDispatchResult},
+	ChainId, Size,
+};
 use codec::{Decode, Encode};
 use frame_support::RuntimeDebug;
 use sp_std::prelude::*;
@@ -31,7 +34,7 @@ pub type Weight = u64;
 pub type SpecVersion = u32;
 
 /// A generic trait to dispatch arbitrary messages delivered over the bridge.
-pub trait MessageDispatch<MessageId> {
+pub trait MessageDispatch<AccountId, MessageId> {
 	/// A type of the message to be dispatched.
 	type Message: codec::Decode;
 
@@ -43,7 +46,8 @@ pub trait MessageDispatch<MessageId> {
 
 	/// Dispatches the message internally.
 	///
-	/// `bridge` indicates instance of deployed bridge where the message came from.
+	/// `source_chain` indicates the chain where the message came from.
+	/// `target_chain` indicates the chain where message dispatch happens.
 	///
 	/// `id` is a short unique identifier of the message.
 	///
@@ -51,7 +55,15 @@ pub trait MessageDispatch<MessageId> {
 	/// a sign that some other component has rejected the message even before it has
 	/// reached `dispatch` method (right now this may only be caused if we fail to decode
 	/// the whole message).
-	fn dispatch(bridge: InstanceId, id: MessageId, message: Result<Self::Message, ()>);
+	///
+	/// Returns unspent dispatch weight.
+	fn dispatch<P: FnOnce(&AccountId, Weight) -> Result<(), ()>>(
+		source_chain: ChainId,
+		target_chain: ChainId,
+		id: MessageId,
+		message: Result<Self::Message, ()>,
+		pay_dispatch_fee: P,
+	) -> MessageDispatchResult;
 }
 
 /// Origin of a Call when it is dispatched on the target chain.
@@ -90,7 +102,7 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 	/// Call is sent by the `SourceChainAccountId` on the source chain. On the target chain it is
 	/// dispatched from a derived account ID.
 	///
-	/// The account ID on the target chain is derived from the source account ID This is useful if
+	/// The account ID on the target chain is derived from the source account ID. This is useful if
 	/// you need a way to represent foreign accounts on this chain for call dispatch purposes.
 	///
 	/// Note that the derived account does not need to have a private key on the target chain. This
@@ -109,6 +121,8 @@ pub struct MessagePayload<SourceChainAccountId, TargetChainAccountPublic, Target
 	pub weight: Weight,
 	/// Call origin to be used during dispatch.
 	pub origin: CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature>,
+	/// Where the fee for dispatching message is paid?
+	pub dispatch_fee_payment: DispatchFeePayment,
 	/// The call itself.
 	pub call: Call,
 }

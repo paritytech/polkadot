@@ -33,7 +33,7 @@ pub trait Environment<C: ChainWithBalances>: Send + Sync + 'static {
 	/// Return current runtime version.
 	async fn runtime_version(&mut self) -> Result<RuntimeVersion, String>;
 	/// Return free native balance of the account on the chain.
-	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::NativeBalance, String>;
+	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::Balance, String>;
 
 	/// Return current time.
 	fn now(&self) -> Instant {
@@ -85,7 +85,7 @@ pub fn abort_on_spec_version_change<C: ChainWithBalances>(mut env: impl Environm
 pub fn abort_when_account_balance_decreased<C: ChainWithBalances>(
 	mut env: impl Environment<C>,
 	account_id: C::AccountId,
-	maximal_decrease: C::NativeBalance,
+	maximal_decrease: C::Balance,
 ) {
 	const DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
@@ -155,7 +155,7 @@ impl<C: ChainWithBalances> Environment<C> for Client<C> {
 		Client::<C>::runtime_version(self).await.map_err(|e| e.to_string())
 	}
 
-	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::NativeBalance, String> {
+	async fn free_native_balance(&mut self, account: C::AccountId) -> Result<C::Balance, String> {
 		Client::<C>::free_native_balance(self, account)
 			.await
 			.map_err(|e| e.to_string())
@@ -191,11 +191,10 @@ mod tests {
 		type SignedBlock =
 			sp_runtime::generic::SignedBlock<sp_runtime::generic::Block<Self::Header, sp_runtime::OpaqueExtrinsic>>;
 		type Call = ();
+		type Balance = u32;
 	}
 
 	impl ChainWithBalances for TestChain {
-		type NativeBalance = u32;
-
 		fn account_info_storage_key(_account_id: &u32) -> sp_core::storage::StorageKey {
 			unreachable!()
 		}

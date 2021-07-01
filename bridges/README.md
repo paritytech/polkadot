@@ -24,7 +24,7 @@ Substrate chains or Ethereum Proof-of-Authority chains.
 To get up and running you need both stable and nightly Rust. Rust nightly is used to build the Web
 Assembly (WASM) runtime for the node. You can configure the WASM support as so:
 
-```
+```bash
 rustup install nightly
 rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
@@ -94,7 +94,7 @@ the `relays` which are used to pass messages between chains.
 │  └──  ...
 ├── relays          // Application for sending headers and messages between chains
 │  └──  ...
-└── scripts         // Useful development and maintenence scripts
+└── scripts         // Useful development and maintenance scripts
 ```
 
 ## Running the Bridge
@@ -103,6 +103,7 @@ To run the Bridge you need to be able to connect the bridge relay node to the RP
 on each side of the bridge (source and target chain).
 
 There are 3 ways to run the bridge, described below:
+
 - building & running from source,
 - building or using Docker images for each individual component,
 - running a Docker Compose setup (recommended).
