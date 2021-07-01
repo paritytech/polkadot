@@ -554,7 +554,7 @@ impl MultiLocation {
 			this loop iterates over the junctions of `self`; \
 			the loop can push to the new multi-location at most one time; \
 			thus the size of the new multi-location is at most N junctions; \
-			qed"
+			qed";
 		while let Some(j) = iter.next() {
 			if j == &Junction::Parent {
 				match normalized.last() {
