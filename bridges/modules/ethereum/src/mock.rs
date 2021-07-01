@@ -112,13 +112,13 @@ pub struct TestContext {
 /// Aura configuration that is used in tests by default.
 pub fn test_aura_config() -> AuraConfiguration {
 	AuraConfiguration {
-		empty_steps_transition: u64::max_value(),
+		empty_steps_transition: u64::MAX,
 		strict_empty_steps_transition: 0,
 		validate_step_transition: 0x16e360,
 		validate_score_transition: 0x41a3c4,
-		two_thirds_majority_transition: u64::max_value(),
+		two_thirds_majority_transition: u64::MAX,
 		min_gas_limit: 0x1388.into(),
-		max_gas_limit: U256::max_value(),
+		max_gas_limit: U256::MAX,
 		maximum_extra_data_size: 0x20,
 	}
 }
@@ -186,7 +186,7 @@ pub struct ConstChainTime;
 
 impl ChainTime for ConstChainTime {
 	fn is_timestamp_ahead(&self, timestamp: u64) -> bool {
-		let now = i32::max_value() as u64 / 2;
+		let now = i32::MAX as u64 / 2;
 		timestamp > now
 	}
 }

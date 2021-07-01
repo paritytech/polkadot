@@ -1,0 +1,12 @@
+{
+	"--1": "Rococo Types",
+	"RococoBalance": "u128",
+	"RococoBlockHash": "H256",
+	"RococoBlockNumber": "u32",
+	"RococoHeader": "Header",
+	"--2": "Wococo Types",
+	"WococoBalance": "RococoBalance",
+	"WococoBlockHash": "RococoBlockHash",
+	"WococoBlockNumber": "RococoBlockNumber",
+	"WococoHeader": "RococoHeader"
+}

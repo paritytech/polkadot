@@ -650,7 +650,7 @@ async fn launch_interaction(
 		awaiting: vec![response_sender],
 	});
 
-	if let Err(e) = ctx.spawn("recovery interaction", Box::pin(remote)).await {
+	if let Err(e) = ctx.spawn("recovery interaction", Box::pin(remote)) {
 		tracing::warn!(
 			target: LOG_TARGET,
 			err = ?e,
@@ -806,8 +806,8 @@ impl AvailabilityRecoverySubsystem {
 						}
 					}
 				}
-				output = state.interactions.next() => {
-					if let Some((candidate_hash, result)) = output.flatten() {
+				output = state.interactions.select_next_some() => {
+					if let Some((candidate_hash, result)) = output {
 						state.availability_lru.put(candidate_hash, result);
 					}
 				}

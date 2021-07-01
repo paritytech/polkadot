@@ -25,6 +25,7 @@ use crate::messages::{
 };
 
 use bp_messages::{LaneId, MessageData, MessageKey, MessagePayload};
+use bp_runtime::ChainId;
 use codec::Encode;
 use ed25519_dalek::{PublicKey, SecretKey, Signer, KEYPAIR_LENGTH, SECRET_KEY_LENGTH};
 use frame_support::weights::Weight;
@@ -37,7 +38,13 @@ use sp_trie::{record_all_keys, trie_types::TrieDBMut, Layout, MemoryDB, Recorder
 /// Generate ed25519 signature to be used in `pallet_brdige_call_dispatch::CallOrigin::TargetAccount`.
 ///
 /// Returns public key of the signer and the signature itself.
-pub fn ed25519_sign(target_call: &impl Encode, source_account_id: &impl Encode) -> ([u8; 32], [u8; 64]) {
+pub fn ed25519_sign(
+	target_call: &impl Encode,
+	source_account_id: &impl Encode,
+	target_spec_version: u32,
+	source_chain_id: ChainId,
+	target_chain_id: ChainId,
+) -> ([u8; 32], [u8; 64]) {
 	// key from the repo example (https://docs.rs/ed25519-dalek/1.0.1/ed25519_dalek/struct.SecretKey.html)
 	let target_secret = SecretKey::from_bytes(&[
 		157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073, 197, 105, 123, 050,
@@ -51,9 +58,13 @@ pub fn ed25519_sign(target_call: &impl Encode, source_account_id: &impl Encode) 
 	target_pair_bytes[SECRET_KEY_LENGTH..].copy_from_slice(&target_public.to_bytes());
 	let target_pair = ed25519_dalek::Keypair::from_bytes(&target_pair_bytes).expect("hardcoded pair is valid");
 
-	let mut signature_message = Vec::new();
-	target_call.encode_to(&mut signature_message);
-	source_account_id.encode_to(&mut signature_message);
+	let signature_message = pallet_bridge_dispatch::account_ownership_digest(
+		target_call,
+		source_account_id,
+		target_spec_version,
+		source_chain_id,
+		target_chain_id,
+	);
 	let target_origin_signature = target_pair
 		.try_sign(&signature_message)
 		.expect("Ed25519 try_sign should not fail in benchmarks");

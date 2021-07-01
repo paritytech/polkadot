@@ -19,15 +19,17 @@
 
 use crate::Config;
 
+use bitvec::prelude::*;
 use bp_messages::{
 	source_chain::{
-		LaneMessageVerifier, MessageDeliveryAndDispatchPayment, RelayersRewards, Sender, TargetHeaderChain,
+		LaneMessageVerifier, MessageDeliveryAndDispatchPayment, OnDeliveryConfirmed, RelayersRewards, Sender,
+		TargetHeaderChain,
 	},
 	target_chain::{DispatchMessage, MessageDispatch, ProvedLaneMessages, ProvedMessages, SourceHeaderChain},
-	InboundLaneData, LaneId, Message, MessageData, MessageKey, MessageNonce, OutboundLaneData,
-	Parameter as MessagesParameter,
+	DeliveredMessages, InboundLaneData, LaneId, Message, MessageData, MessageKey, MessageNonce, OutboundLaneData,
+	Parameter as MessagesParameter, UnrewardedRelayer,
 };
-use bp_runtime::Size;
+use bp_runtime::{messages::MessageDispatchResult, Size};
 use codec::{Decode, Encode};
 use frame_support::{parameter_types, weights::Weight};
 use sp_core::H256;
@@ -41,7 +43,17 @@ use std::collections::BTreeMap;
 pub type AccountId = u64;
 pub type Balance = u64;
 #[derive(Decode, Encode, Clone, Debug, PartialEq, Eq)]
-pub struct TestPayload(pub u64, pub Weight);
+pub struct TestPayload {
+	/// Field that may be used to identify messages.
+	pub id: u64,
+	/// Dispatch weight that is declared by the message sender.
+	pub declared_weight: Weight,
+	/// Message dispatch result.
+	///
+	/// Note: in correct code `dispatch_result.unspent_weight` will always be <= `declared_weight`, but for test
+	/// purposes we'll be making it larger than `declared_weight` sometimes.
+	pub dispatch_result: MessageDispatchResult,
+}
 pub type TestMessageFee = u64;
 pub type TestRelayer = u64;
 
@@ -115,6 +127,8 @@ impl pallet_balances::Config for TestRuntime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = frame_system::Pallet<TestRuntime>;
 	type WeightInfo = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = ();
 }
 
 parameter_types! {
@@ -157,6 +171,7 @@ impl Config for TestRuntime {
 	type TargetHeaderChain = TestTargetHeaderChain;
 	type LaneMessageVerifier = TestLaneMessageVerifier;
 	type MessageDeliveryAndDispatchPayment = TestMessageDeliveryAndDispatchPayment;
+	type OnDeliveryConfirmed = (TestOnDeliveryConfirmed1, TestOnDeliveryConfirmed2);
 
 	type SourceHeaderChain = TestSourceHeaderChain;
 	type MessageDispatch = TestMessageDispatch;
@@ -187,10 +202,10 @@ pub const TEST_ERROR: &str = "Test error";
 pub const TEST_LANE_ID: LaneId = [0, 0, 0, 1];
 
 /// Regular message payload.
-pub const REGULAR_PAYLOAD: TestPayload = TestPayload(0, 50);
+pub const REGULAR_PAYLOAD: TestPayload = message_payload(0, 50);
 
 /// Payload that is rejected by `TestTargetHeaderChain`.
-pub const PAYLOAD_REJECTED_BY_TARGET_CHAIN: TestPayload = TestPayload(1, 50);
+pub const PAYLOAD_REJECTED_BY_TARGET_CHAIN: TestPayload = message_payload(1, 50);
 
 /// Vec of proved messages, grouped by lane.
 pub type MessagesByLaneVec = Vec<(LaneId, ProvedLaneMessages<Message<TestMessageFee>>)>;
@@ -333,6 +348,44 @@ impl MessageDeliveryAndDispatchPayment<AccountId, TestMessageFee> for TestMessag
 	}
 }
 
+/// First on-messages-delivered callback.
+#[derive(Debug)]
+pub struct TestOnDeliveryConfirmed1;
+
+impl TestOnDeliveryConfirmed1 {
+	/// Verify that the callback has been called with given delivered messages.
+	pub fn ensure_called(lane: &LaneId, messages: &DeliveredMessages) {
+		let key = (b"TestOnDeliveryConfirmed1", lane, messages).encode();
+		assert_eq!(frame_support::storage::unhashed::get(&key), Some(true));
+	}
+}
+
+impl OnDeliveryConfirmed for TestOnDeliveryConfirmed1 {
+	fn on_messages_delivered(lane: &LaneId, messages: &DeliveredMessages) {
+		let key = (b"TestOnDeliveryConfirmed1", lane, messages).encode();
+		frame_support::storage::unhashed::put(&key, &true);
+	}
+}
+
+/// Seconde on-messages-delivered callback.
+#[derive(Debug)]
+pub struct TestOnDeliveryConfirmed2;
+
+impl TestOnDeliveryConfirmed2 {
+	/// Verify that the callback has been called with given delivered messages.
+	pub fn ensure_called(lane: &LaneId, messages: &DeliveredMessages) {
+		let key = (b"TestOnDeliveryConfirmed2", lane, messages).encode();
+		assert_eq!(frame_support::storage::unhashed::get(&key), Some(true));
+	}
+}
+
+impl OnDeliveryConfirmed for TestOnDeliveryConfirmed2 {
+	fn on_messages_delivered(lane: &LaneId, messages: &DeliveredMessages) {
+		let key = (b"TestOnDeliveryConfirmed2", lane, messages).encode();
+		frame_support::storage::unhashed::put(&key, &true);
+	}
+}
+
 /// Source header chain that is used in tests.
 #[derive(Debug)]
 pub struct TestSourceHeaderChain;
@@ -357,17 +410,25 @@ impl SourceHeaderChain<TestMessageFee> for TestSourceHeaderChain {
 #[derive(Debug)]
 pub struct TestMessageDispatch;
 
-impl MessageDispatch<TestMessageFee> for TestMessageDispatch {
+impl MessageDispatch<AccountId, TestMessageFee> for TestMessageDispatch {
 	type DispatchPayload = TestPayload;
 
 	fn dispatch_weight(message: &DispatchMessage<TestPayload, TestMessageFee>) -> Weight {
 		match message.data.payload.as_ref() {
-			Ok(payload) => payload.1,
+			Ok(payload) => payload.declared_weight,
 			Err(_) => 0,
 		}
 	}
 
-	fn dispatch(_message: DispatchMessage<TestPayload, TestMessageFee>) {}
+	fn dispatch(
+		_relayer_account: &AccountId,
+		message: DispatchMessage<TestPayload, TestMessageFee>,
+	) -> MessageDispatchResult {
+		match message.data.payload.as_ref() {
+			Ok(payload) => payload.dispatch_result.clone(),
+			Err(_) => dispatch_result(0),
+		}
+	}
 }
 
 /// Return test lane message with given nonce and payload.
@@ -381,11 +442,49 @@ pub fn message(nonce: MessageNonce, payload: TestPayload) -> Message<TestMessage
 	}
 }
 
+/// Constructs message payload using given arguments and zero unspent weight.
+pub const fn message_payload(id: u64, declared_weight: Weight) -> TestPayload {
+	TestPayload {
+		id,
+		declared_weight,
+		dispatch_result: dispatch_result(0),
+	}
+}
+
 /// Return message data with valid fee for given payload.
 pub fn message_data(payload: TestPayload) -> MessageData<TestMessageFee> {
 	MessageData {
 		payload: payload.encode(),
 		fee: 1,
+	}
+}
+
+/// Returns message dispatch result with given unspent weight.
+pub const fn dispatch_result(unspent_weight: Weight) -> MessageDispatchResult {
+	MessageDispatchResult {
+		dispatch_result: true,
+		unspent_weight,
+		dispatch_fee_paid_during_dispatch: true,
+	}
+}
+
+/// Constructs unrewarded relayer entry from nonces range and relayer id.
+pub fn unrewarded_relayer(
+	begin: MessageNonce,
+	end: MessageNonce,
+	relayer: TestRelayer,
+) -> UnrewardedRelayer<TestRelayer> {
+	UnrewardedRelayer {
+		relayer,
+		messages: DeliveredMessages {
+			begin,
+			end,
+			dispatch_results: if end >= begin {
+				bitvec![Msb0, u8; 1; (end - begin + 1) as _]
+			} else {
+				Default::default()
+			},
+		},
 	}
 }
 
