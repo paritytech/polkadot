@@ -18,10 +18,14 @@
 
 use frame_support::{
 	parameter_types,
-	traits::Get,
-	weights::{DispatchClass, Weight, WeightToFeePolynomial},
+	weights::{DispatchClass, Weight},
 };
-use sp_runtime::Perbill;
+use sp_runtime::{
+	traits::{Zero, Dispatchable},
+	FixedU128, FixedPointNumber, Perbill,
+};
+use pallet_transaction_payment::OnChargeTransaction;
+use frame_support::weights::{DispatchInfo, Pays};
 use super::{BlockExecutionWeight, BlockLength, BlockWeights};
 
 parameter_types! {
@@ -44,18 +48,21 @@ parameter_types! {
 		.get(DispatchClass::Normal);
 }
 
-/// Compute the expected fee for submitting an election solution.
-///
-/// This is `multiplier` multiplied by the fee for the expected submission weight according to the
-/// weight info.
-///
-/// Assumes that the signed submission queue is full.
-pub fn fee_for_submit_call<T, WeightToFee, WeightInfo>(multiplier: Perbill) -> WeightToFee::Balance
+pub fn fee_for_submit_call<T>(
+	multiplier: FixedU128,
+	weight: Weight,
+	length: u32,
+) -> primitives::v1::Balance
 where
-	T: pallet_election_provider_multi_phase::Config,
-	WeightToFee: WeightToFeePolynomial,
-	WeightInfo: pallet_election_provider_multi_phase::WeightInfo,
+	T: pallet_transaction_payment::Config,
+	<T as pallet_transaction_payment::Config>::OnChargeTransaction:
+		OnChargeTransaction<T, Balance = primitives::v1::Balance>,
+	<T as frame_system::Config>::Call: Dispatchable<Info = DispatchInfo>,
 {
-	let expected_weight = WeightInfo::submit(T::SignedMaxSubmissions::get());
-	multiplier * WeightToFee::calc(&expected_weight)
+	let info = DispatchInfo { weight, class: DispatchClass::Normal, pays_fee: Pays::Yes };
+	multiplier.saturating_mul_int(pallet_transaction_payment::Pallet::<T>::compute_fee(
+		length,
+		&info,
+		Zero::zero(),
+	))
 }
