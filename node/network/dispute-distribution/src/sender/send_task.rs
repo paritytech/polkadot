@@ -24,22 +24,21 @@ use futures::SinkExt;
 use futures::channel::mpsc;
 use futures::future::RemoteHandle;
 
-use polkadot_node_network_protocol::IfDisconnected;
-use polkadot_node_network_protocol::request_response::OutgoingRequest;
-use polkadot_node_network_protocol::request_response::OutgoingResult;
-use polkadot_node_network_protocol::request_response::Recipient;
-use polkadot_node_network_protocol::request_response::Requests;
-use polkadot_node_network_protocol::request_response::v1::DisputeResponse;
-use polkadot_primitives::v1::SessionIndex;
-use polkadot_primitives::v1::ValidatorIndex;
-use polkadot_primitives::v1::AuthorityDiscoveryId;
-use polkadot_subsystem::messages::AllMessages;
-use polkadot_subsystem::messages::NetworkBridgeMessage;
-use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_primitives::v1::CandidateHash;
-use polkadot_primitives::v1::Hash;
-use polkadot_subsystem::SubsystemContext;
+use polkadot_node_network_protocol::{
+	IfDisconnected,
+	request_response::{
+		OutgoingRequest, OutgoingResult, Recipient, Requests,
+		v1::{DisputeRequest, DisputeResponse},
+	}
+};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
+};
+use polkadot_subsystem::{
+	SubsystemContext,
+	messages::{AllMessages, NetworkBridgeMessage},
+};
 
 use super::error::{Fatal, Result};
 

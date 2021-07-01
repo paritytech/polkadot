@@ -15,27 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
-use futures::channel::mpsc;
-use futures::channel::oneshot;
-
-use polkadot_node_primitives::CandidateVotes;
-use polkadot_node_primitives::DisputeMessage;
-use polkadot_node_primitives::SignedDisputeStatement;
-use polkadot_primitives::v1::DisputeStatement;
-use polkadot_primitives::v1::SessionIndex;
-use polkadot_subsystem::ActiveLeavesUpdate;
-use polkadot_subsystem::messages::AllMessages;
-use polkadot_subsystem::messages::DisputeCoordinatorMessage;
+use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
+use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::CandidateHash;
-use polkadot_primitives::v1::Hash;
-use polkadot_subsystem::SubsystemContext;
+use polkadot_primitives::v1::{CandidateHash, DisputeStatement, Hash, SessionIndex};
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, SubsystemContext,
+	messages::{AllMessages, DisputeCoordinatorMessage}
+};
 
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.

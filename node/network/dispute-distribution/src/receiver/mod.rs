@@ -43,10 +43,12 @@ use polkadot_node_subsystem_util::{
 	runtime,
 	runtime::RuntimeInfo,
 };
-use polkadot_subsystem::SubsystemSender;
-use polkadot_subsystem::messages::AllMessages;
-use polkadot_subsystem::messages::DisputeCoordinatorMessage;
-use polkadot_subsystem::messages::ImportStatementsResult;
+use polkadot_subsystem::{
+	SubsystemSender,
+	messages::{
+		AllMessages, DisputeCoordinatorMessage, ImportStatementsResult,
+	},
+};
 
 use crate::LOG_TARGET;
 

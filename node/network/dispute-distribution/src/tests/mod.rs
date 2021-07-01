@@ -23,10 +23,12 @@ use std::task::Poll;
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use futures::channel::oneshot;
-use futures::future::poll_fn;
-use futures::pin_mut;
-use futures::{Future, channel::mpsc, SinkExt};
+use futures::{
+	channel::{oneshot, mpsc},
+	future::poll_fn,
+	pin_mut,
+	SinkExt, Future
+};
 use futures_timer::Delay;
 use parity_scale_codec::{Encode, Decode};
 
