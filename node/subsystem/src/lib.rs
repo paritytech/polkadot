@@ -32,6 +32,7 @@ use smallvec::SmallVec;
 use futures::prelude::*;
 use futures::channel::{oneshot, mpsc};
 use futures::future::BoxFuture;
+use polkadot_node_subsystem_types::errors::*;
 use polkadot_overseer::{AllMessages, OverseerSignal};
 use polkadot_primitives::v1::{Hash, BlockNumber};
 /// How many slots are stack-reserved for active leaves updates
@@ -138,57 +139,6 @@ impl fmt::Debug for ActiveLeavesUpdate {
 			.field("activated", &Activated(&self.activated))
 			.field("deactivated", &self.deactivated)
 			.finish()
-	}
-}
-
-/// An error type that describes faults that may happen
-///
-/// These are:
-///   * Channels being closed
-///   * Subsystems dying when they are not expected to
-///   * Subsystems not dying when they are told to die
-///   * etc.
-#[derive(thiserror::Error, Debug)]
-#[allow(missing_docs)]
-pub enum SubsystemError {
-	#[error(transparent)]
-	NotifyCancellation(#[from] oneshot::Canceled),
-
-	#[error(transparent)]
-	QueueError(#[from] mpsc::SendError),
-
-	#[error("Failed to spawn a task: {0}")]
-	TaskSpawn(&'static str),
-
-	#[error(transparent)]
-	Infallible(#[from] std::convert::Infallible),
-
-	#[error(transparent)]
-	Prometheus(#[from] polkadot_node_metrics::metrics::prometheus::PrometheusError),
-
-	#[error(transparent)]
-	Jaeger(#[from] JaegerError),
-
-	#[error("Failed to {0}")]
-	Context(String),
-
-	#[error("Subsystem stalled: {0}")]
-	SubsystemStalled(&'static str),
-
-	/// Per origin (or subsystem) annotations to wrap an error.
-	#[error("Error originated in {origin}")]
-	FromOrigin {
-		/// An additional annotation tag for the origin of `source`.
-		origin: &'static str,
-		/// The wrapped error. Marked as source for tracking the error chain.
-		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
-	},
-}
-
-impl SubsystemError {
-	/// Adds a `str` as `origin` to the given error `err`.
-	pub fn with_origin<E: 'static + Send + Sync + std::error::Error>(origin: &'static str, err: E) -> Self {
-		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
 
