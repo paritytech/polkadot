@@ -24,15 +24,16 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
+	overseer,
+	SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,
 	messages::{
 		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
 		ValidationFailed, RuntimeApiRequest,
 	},
+	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{
 	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
 };
@@ -84,7 +85,7 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-impl<C> Subsystem<C> for CandidateValidationSubsystem where
+impl<C> overseer::Subsystem<C, SubsystemError> for CandidateValidationSubsystem where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
@@ -107,7 +108,7 @@ async fn run(
 	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 	);
-	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
+	ctx.spawn_blocking("pvf-validation-host", task.boxed()).await?;
 
 	loop {
 		match ctx.recv().await? {
@@ -181,7 +182,7 @@ async fn runtime_api_request<T>(
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
 ) -> SubsystemResult<Result<T, RuntimeApiError>> {
 	ctx.send_message(
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
 			relay_parent,
 			request,
 		))

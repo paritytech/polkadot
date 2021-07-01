@@ -30,7 +30,7 @@ use futures::prelude::*;
 use futures::channel::{oneshot, mpsc};
 use futures::future::BoxFuture;
 use polkadot_node_subsystem_types::errors::*;
-pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate};
+pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate, self as overseer};
 use polkadot_primitives::v1::{Hash, BlockNumber};
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -40,7 +40,7 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
 pub use polkadot_node_subsystem_types::errors::{self, *};
 pub mod messages {
-	pub use polkadot_overseer::AllMessages;
+	pub use super::overseer::AllMessages;
 	pub use polkadot_node_subsystem_types::messages::*;
 }
 
@@ -87,7 +87,8 @@ pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSigna
 pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
 
 // Same for traits
-pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {}
+pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
+}
 
 impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
 }
@@ -95,24 +96,7 @@ impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<m
 // pub use polkadot_overseer::gen::SubsystemSender;
 
 pub type SpawnedSubsystem = polkadot_overseer::gen::SpawnedSubsystem<SubsystemError>;
-pub trait Subsystem<Ctx> : polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>
-where
-	Ctx: SubsystemContext,
-{
-	fn start(self, ctx: Ctx) -> SpawnedSubsystem;
-}
 
-impl<Ctx, T> Subsystem<Ctx> for T
-where
-	T: polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>,
-	Ctx: SubsystemContext,
-{
-	fn start(self, ctx: Ctx) -> SpawnedSubsystem {
-		<Self as polkadot_overseer::gen::Subsystem<
-			Ctx,SubsystemError,
-		>>::start(self, ctx)
-	}
-}
 
 pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
 	Signal=OverseerSignal,
@@ -120,7 +104,8 @@ pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
 	Error=SubsystemError,
 >
 {
-
+	type Message: std::fmt::Debug + Send + 'static;
+	type Sender: SubsystemSender + Send + Clone + 'static;
 }
 
 impl<T> SubsystemContext for T
@@ -131,5 +116,6 @@ where
 		Error=SubsystemError,
 	>,
 {
-
+	type Message = <Self as polkadot_overseer::gen::SubsystemContext>::Message;
+	type Sender = <Self as polkadot_overseer::gen::SubsystemContext>::Sender;
 }

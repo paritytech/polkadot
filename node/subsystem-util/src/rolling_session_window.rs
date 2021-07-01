@@ -26,7 +26,6 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	errors::RuntimeApiError,
 	SubsystemContext,
-	Subsystem,
 	SubsystemSender,
 	SubsystemInstance,
 	SubsystemResult,

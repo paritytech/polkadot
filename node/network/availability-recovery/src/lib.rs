@@ -133,7 +133,7 @@ impl RequestFromBackersPhase {
 	async fn run(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender<AllMessages>,
+		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
 		tracing::trace!(
 			target: LOG_TARGET,
@@ -218,7 +218,7 @@ impl RequestChunksPhase {
 	async fn launch_parallel_requests(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender<AllMessages>,
+		sender: &mut impl SubsystemSender,
 	) {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
@@ -330,7 +330,7 @@ impl RequestChunksPhase {
 	async fn run(
 		&mut self,
 		params: &InteractionParams,
-		sender: &mut impl SubsystemSender<AllMessages>,
+		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
 		// First query the store for any chunks we've got.
 		{

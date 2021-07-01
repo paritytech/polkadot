@@ -25,22 +25,29 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
+	overseer,
 	errors::RuntimeApiError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
+	messages::{
+		AllMessages,
+		RuntimeApiMessage,
+		RuntimeApiRequest,
+		RuntimeApiSender,
+		BoundToRelayParent,
+	},
 	ActiveLeavesUpdate, OverseerSignal,
+	SubsystemSender,
 	errors::{
 		SubsystemError,
 		SubsystemResult,
 	},
+	SubsystemContext,
+	SpawnedSubsystem,
+	FromOverseer,
 };
 
-pub use polkadot_overseer::{
-	FromOverseer,
+pub use overseer::{
 	Subsystem,
-	SubsystemContext,
-	SubsystemSender,
 	TimeoutExt,
-	gen::SpawnedSubsystem,
 	gen::OverseerError,
 	gen::Timeout,
 };
@@ -142,15 +149,14 @@ impl From<OverseerError> for Error {
 pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response, Sender, M>(
+pub async fn request_from_runtime<RequestBuilder, Response, Sender>(
 	parent: Hash,
 	sender: &mut Sender,
 	request_builder: RequestBuilder,
 ) -> RuntimeApiReceiver<Response>
 where
 	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
-	Sender: SubsystemSender<M>,
-	M: From<RuntimeApiMessage>,
+	Sender: SubsystemSender,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -175,7 +181,7 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name <M, Sender> (
+		pub async fn $func_name <Sender> (
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
@@ -183,10 +189,9 @@ macro_rules! specialize_requests {
 			sender: &mut Sender,
 		) -> RuntimeApiReceiver<$return_ty>
 			where
-				M: From<RuntimeApiMessage>,
-				Sender: SubsystemSender<M>,
+				Sender: SubsystemSender,
 		{
-			request_from_runtime::<_, _, Sender, M>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
+			request_from_runtime::<_, _, Sender>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
 		}
@@ -295,20 +300,18 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new<M>(
+	pub async fn new(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,
-		sender: &mut impl SubsystemSender <M>,
+		sender: &mut impl SubsystemSender,
 	) -> Result<Self, Error>
-	where
-		M: From<RuntimeApiMessage>,
 	{
 		// Note: request_validators and request_session_index_for_child do not and cannot
 		// run concurrently: they both have a mutable handle to the same sender.
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
 		let (validators, session_index) = futures::try_join!(
 			request_validators(parent, sender).await,
-			request_session_index_for_child::<M,_>(parent, sender).await,
+			request_session_index_for_child(parent, sender).await,
 		)?;
 
 		let signing_context = SigningContext {
@@ -395,40 +398,40 @@ pub enum FromJobCommand {
 }
 
 /// A sender for messages from jobs, as well as commands to the overseer.
-pub struct JobSender<S: SubsystemSender<M>, M> {
+pub struct JobSender<S: SubsystemSender> {
 	sender: S,
 	from_job: mpsc::Sender<FromJobCommand>,
-	_phantom: std::marker::PhantomData<M>,
 }
 
 // A custom clone impl, since M does not need to impl `Clone`
 // which `#[derive(Clone)]` requires.
-impl<S: SubsystemSender<M>, M> Clone for JobSender<S, M> {
+impl<S: SubsystemSender> Clone for JobSender<S> {
 	fn clone(&self) -> Self {
 		Self {
 			sender: self.sender.clone(),
 			from_job: self.from_job.clone(),
-			_phantom: Default::default(),
 		}
 	}
 }
 
-impl<S: SubsystemSender<M>, M> JobSender<S, M> {
+impl<S: SubsystemSender> JobSender<S> {
 	/// Get access to the underlying subsystem sender.
 	pub fn subsystem_sender(&mut self) -> &mut S {
 		&mut self.sender
 	}
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	pub async fn send_message(&mut self, msg: M) {
-		self.sender.send_message(msg).await
+	pub async fn send_message(&mut self, msg: impl Into<AllMessages>) {
+		self.sender.send_message(msg.into()).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	pub async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send
+	pub async fn send_messages<T, M>(&mut self, msgs: T)
+	where
+		T: IntoIterator<Item = M> + Send, T::IntoIter: Send,
+		M: Into<AllMessages>,
 	{
-		self.sender.send_messages(msgs).await
+		self.sender.send_messages(msgs.into_iter().map(|m| m.into())).await
 	}
 
 
@@ -437,8 +440,8 @@ impl<S: SubsystemSender<M>, M> JobSender<S, M> {
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	pub fn send_unbounded_message(&mut self, msg: M) {
-		self.sender.send_unbounded_message(msg)
+	pub fn send_unbounded_message(&mut self, msg: impl Into<AllMessages>) {
+		self.sender.send_unbounded_message(msg.into())
 	}
 
 	/// Send a command to the subsystem, to be relayed onwards to the overseer.
@@ -447,24 +450,25 @@ impl<S: SubsystemSender<M>, M> JobSender<S, M> {
 	}
 }
 
+
 #[async_trait::async_trait]
-impl<S, M> SubsystemSender<M> for JobSender<S, M>
+impl<S, M> overseer::SubsystemSender<M> for JobSender<S>
 where
-	M: Send + 'static,
-	S: SubsystemSender<M> + Clone,
+	M: Send + 'static + Into<AllMessages>,
+	S: SubsystemSender + Clone,
 {
 	async fn send_message(&mut self, msg: M) {
-		self.sender.send_message(msg).await
+		self.sender.send_message(msg.into()).await
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
 		where T: IntoIterator<Item = M> + Send, T::IntoIter: Send
 	{
-		self.sender.send_messages(msgs).await
+		self.sender.send_messages(msgs.into_iter().map(|m| m.into())).await
 	}
 
 	fn send_unbounded_message(&mut self, msg: M) {
-		self.sender.send_unbounded_message(msg)
+		self.sender.send_unbounded_message(msg.into())
 	}
 }
 
@@ -503,13 +507,13 @@ pub trait JobTrait: Unpin + Sized {
 	/// Run a job for the given relay `parent`.
 	///
 	/// The job should be ended when `receiver` returns `None`.
-	fn run<S: SubsystemSender< Self::ToJob >>(
+	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
-		sender: JobSender<S, Self::ToJob>,
+		sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
@@ -565,7 +569,7 @@ where
 	)
 		where
 			Job: JobTrait<ToJob = ToJob>,
-			Sender: SubsystemSender<Job::ToJob>,
+			Sender: SubsystemSender,
 	{
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -580,7 +584,6 @@ where
 				JobSender {
 					sender,
 					from_job: from_job_tx,
-					_phantom: Default::default(),
 				},
 			).await {
 				tracing::error!(
@@ -687,11 +690,11 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 		where
 			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 			Context: SubsystemContext<Message=<Job as JobTrait>::ToJob, Signal=OverseerSignal>,
-			<Context as SubsystemContext>::Sender: Clone,
+			<Context as SubsystemContext>::Sender: SubsystemSender,
 			Job: 'static + JobTrait + Send,
-			Job::RunArgs: Clone + Sync,
-			Job::ToJob: From<RuntimeApiMessage>,
-			Job::Metrics: Sync,
+			<Job as JobTrait>::RunArgs: Clone + Sync,
+			<Job as JobTrait>::ToJob: Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
+			<Job as JobTrait>::Metrics: Sync,
 	{
 		let JobSubsystem {
 			params: JobSubsystemParams {
@@ -713,7 +716,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							deactivated,
 						}))) => {
 							for activated in activated {
-								let sender: Context::Sender = ctx.sender().clone();
+								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
 									activated.hash,
 									activated.span,
@@ -733,7 +736,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 						}
 						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
 						Ok(FromOverseer::Communication { msg }) => {
-							if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
+							if let Ok(to_job) = <<Context as SubsystemContext>::Message>::try_from(msg) {
 								jobs.send_msg(to_job.relay_parent(), to_job).await;
 							}
 						}
@@ -773,10 +776,10 @@ where
 	Context: SubsystemContext<Message=Job::ToJob,Signal=OverseerSignal>,
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
-	Job::ToJob: Sync + From<RuntimeApiMessage>,
+	<Job as JobTrait>::ToJob: Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
 	Job::Metrics: Sync,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			self.run(ctx).await;
 			Ok(())

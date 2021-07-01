@@ -19,9 +19,9 @@
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage,
 };
-use polkadot_overseer::{
-	AllMessages,
-	gen::SubsystemSender,
+use polkadot_node_subsystem::{
+	messages::AllMessages,
+	SubsystemSender,
 };
 use polkadot_primitives::v1::{Hash, Header, BlockNumber};
 use futures::prelude::*;
@@ -45,7 +45,7 @@ pub async fn determine_new_blocks<E, Sender>(
 	header: &Header,
 	lower_bound_number: BlockNumber,
 ) -> Result<Vec<(Hash, Header)>, E> where
-	Sender: SubsystemSender<AllMessages>,
+	Sender: SubsystemSender,
 {
 	const ANCESTRY_STEP: usize = 4;
 

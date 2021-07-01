@@ -605,7 +605,7 @@ where
 }
 
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
-	mut sender: impl SubsystemSender<AllMessages>,
+	mut sender: impl SubsystemSender,
 	mut network_service: impl Network,
 	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
@@ -1104,21 +1104,21 @@ fn send_collation_message(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 ) {
 	for msg in AllMessages::dispatch_iter(event) {
 		ctx.send_unbounded_message(msg);
@@ -1127,7 +1127,7 @@ fn dispatch_validation_event_to_all_unbounded(
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 ) {
 	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdateV1) {
 		ctx.send_unbounded_message(msg.into());
@@ -1136,7 +1136,7 @@ fn dispatch_collation_event_to_all_unbounded(
 
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
@@ -1147,7 +1147,7 @@ async fn dispatch_validation_events_to_all<I>(
 
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl SubsystemSender<AllMessages>
+	ctx: &mut impl SubsystemSender
 )
 	where
 		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,

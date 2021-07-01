@@ -24,9 +24,11 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
-use polkadot_overseer::SubsystemContext;
-use polkadot_node_subsystem::messages::RuntimeApiMessage;
-use polkadot_node_subsystem::OverseerSignal;
+use polkadot_node_subsystem::{
+	messages::RuntimeApiMessage,
+	OverseerSignal,
+	SubsystemContext,
+};
 
 
 use crate::{
@@ -96,13 +98,13 @@ impl RuntimeInfo {
 	) -> Result<SessionIndex>
 	where
 		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+		Context: SubsystemContext<Message=M>,
 	{
 		match self.session_index_cache.get(&parent) {
 			Some(index) => Ok(*index),
 			None => {
 				let index =
-					recv_runtime(request_session_index_for_child::<M,_>(parent, ctx.sender()).await)
+					recv_runtime(request_session_index_for_child(parent, ctx.sender()).await)
 						.await?;
 				self.session_index_cache.put(parent, index);
 				Ok(index)
@@ -118,7 +120,7 @@ impl RuntimeInfo {
 	) -> Result<&'a ExtendedSessionInfo>
 	where
 		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+		Context: SubsystemContext<Message=M>,
 	{
 		let session_index = self.get_session_index::<_,M>(ctx, parent).await?;
 
@@ -137,11 +139,11 @@ impl RuntimeInfo {
 	) -> Result<&'a ExtendedSessionInfo>
 	where
 		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+		Context: SubsystemContext<Message=M>,
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
-				recv_runtime(request_session_info::<M,_>(parent, session_index, ctx.sender()).await)
+				recv_runtime(request_session_info(parent, session_index, ctx.sender()).await)
 					.await?
 					.ok_or(NonFatal::NoSuchSession(session_index))?;
 			let validator_info = self.get_validator_info(&session_info).await?;
@@ -168,7 +170,7 @@ impl RuntimeInfo {
 	) -> Result<std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>>
 	where
 		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+		Context: SubsystemContext<Message=M>,
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
@@ -253,9 +255,9 @@ pub async fn get_availability_cores<Context, M>(ctx: &mut Context, relay_parent:
 	-> Result<Vec<CoreState>>
 	where
 		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+		Context: SubsystemContext<Message=M>,
 {
-	recv_runtime(request_availability_cores::<M,_>(relay_parent, ctx.sender()).await).await
+	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
 }
 
 /// Variant of `request_availability_cores` that only returns occupied ones.
@@ -265,7 +267,7 @@ pub async fn get_occupied_cores<Context, M>(
 ) -> Result<Vec<OccupiedCore>>
 where
 M: From<RuntimeApiMessage>,
-Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+Context: SubsystemContext<Message=M>,
 {
 	let cores = get_availability_cores(ctx, relay_parent).await?;
 
@@ -287,10 +289,10 @@ pub async fn get_group_rotation_info<Context, M>(ctx: &mut Context, relay_parent
 	-> Result<GroupRotationInfo>
 where
 	M: From<RuntimeApiMessage>,
-	Context: SubsystemContext<Message=M, Signal=OverseerSignal>,
+	Context: SubsystemContext<Message=M>,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.
-	let (_, info) = recv_runtime(request_validator_groups::<M,_>(relay_parent, ctx.sender()).await).await?;
+	let (_, info) = recv_runtime(request_validator_groups(relay_parent, ctx.sender()).await).await?;
 	Ok(info)
 }
