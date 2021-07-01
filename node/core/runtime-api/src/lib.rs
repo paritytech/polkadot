@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
-	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
+	overseer{self, Subsystem}, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,
 	messages::{
 		RuntimeApiMessage, RuntimeApiRequest as Request,

@@ -37,7 +37,9 @@ use polkadot_node_primitives::{
 	ErasureChunk, AvailableData,
 };
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+	FromOverseer, OverseerSignal, SubsystemError,
+	SubsystemContext, SpawnedSubsystem,
+	overseer::{self, Subsystem},
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };

@@ -26,9 +26,10 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemResult,
 	jaeger,
+	overseer::{self, Subsystem,},
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
