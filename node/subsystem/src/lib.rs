@@ -33,7 +33,7 @@ use futures::prelude::*;
 use futures::channel::{oneshot, mpsc};
 use futures::future::BoxFuture;
 use polkadot_node_subsystem_types::errors::*;
-use polkadot_overseer::{AllMessages, OverseerSignal};
+pub use polkadot_overseer::{AllMessages, OverseerSignal, ActiveLeavesUpdate};
 use polkadot_primitives::v1::{Hash, BlockNumber};
 /// How many slots are stack-reserved for active leaves updates
 ///
@@ -70,78 +70,6 @@ impl LeafStatus {
 		}
 	}
 }
-
-/// Activated leaf.
-#[derive(Debug, Clone)]
-pub struct ActivatedLeaf {
-	/// The block hash.
-	pub hash: Hash,
-	/// The block number.
-	pub number: BlockNumber,
-	/// The status of the leaf.
-	pub status: LeafStatus,
-	/// An associated [`jaeger::Span`].
-	///
-	/// NOTE: Each span should only be kept active as long as the leaf is considered active and should be dropped
-	/// when the leaf is deactivated.
-	pub span: Arc<jaeger::Span>,
-}
-
-/// Changes in the set of active leaves: the parachain heads which we care to work on.
-///
-/// Note that the activated and deactivated fields indicate deltas, not complete sets.
-#[derive(Clone, Default)]
-pub struct ActiveLeavesUpdate {
-	/// New relay chain blocks of interest.
-	pub activated: SmallVec<[ActivatedLeaf; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
-	/// Relay chain block hashes no longer of interest.
-	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
-}
-
-impl ActiveLeavesUpdate {
-	/// Create a ActiveLeavesUpdate with a single activated hash
-	pub fn start_work(activated: ActivatedLeaf) -> Self {
-		Self { activated: [activated][..].into(), ..Default::default() }
-	}
-
-	/// Create a ActiveLeavesUpdate with a single deactivated hash
-	pub fn stop_work(hash: Hash) -> Self {
-		Self { deactivated: [hash][..].into(), ..Default::default() }
-	}
-
-	/// Is this update empty and doesn't contain any information?
-	pub fn is_empty(&self) -> bool {
-		self.activated.is_empty() && self.deactivated.is_empty()
-	}
-}
-
-impl PartialEq for ActiveLeavesUpdate {
-	/// Equality for `ActiveLeavesUpdate` doesnt imply bitwise equality.
-	///
-	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
-	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
-			&& self.activated.iter().all(|a| other.activated.iter().any(|o| a.hash == o.hash))
-			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
-	}
-}
-
-impl fmt::Debug for ActiveLeavesUpdate {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		struct Activated<'a>(&'a [ActivatedLeaf]);
-		impl fmt::Debug for Activated<'_> {
-			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-				f.debug_list().entries(self.0.iter().map(|e| e.hash)).finish()
-			}
-		}
-
-		f.debug_struct("ActiveLeavesUpdate")
-			.field("activated", &Activated(&self.activated))
-			.field("deactivated", &self.deactivated)
-			.finish()
-	}
-}
-
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
@@ -159,10 +87,49 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 
 // Simplify usage without having to do large scale modifications of all
 // subsystems at once.
-pub type SubsystemSender = polkadot_overseer::gen::SubsystemSender<AllMessages>;
 
 pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
 
-pub type Subsystem<Ctx> = polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>;
 
 pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
+
+// Same for traits
+// pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<AllMessages> {}
+
+// impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<AllMessages> {
+// }
+
+pub use polkadot_overseer::gen::SubsystemSender;
+
+
+pub trait Subsystem<Ctx> : polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>
+where
+	Ctx: SubsystemContext,
+{}
+
+impl<Ctx, T> Subsystem<Ctx> for T
+where
+	T: polkadot_overseer::gen::Subsystem<Ctx, SubsystemError>,
+	Ctx: SubsystemContext,
+{}
+
+
+
+
+pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
+	Signal=OverseerSignal,
+	AllMessages=AllMessages,
+	Error=SubsystemError,
+>
+{
+}
+
+impl<T> SubsystemContext for T
+where
+	T: polkadot_overseer::gen::SubsystemContext<
+		Signal=OverseerSignal,
+		AllMessages=AllMessages,
+		Error=SubsystemError,
+	>,
+{
+}

@@ -24,7 +24,7 @@
 
 use std::{sync::Arc, fmt};
 
-use polkadot_primitives::v1::{Hash, BlockNumber};
+pub use polkadot_primitives::v1::{Hash, BlockNumber};
 use smallvec::SmallVec;
 
 pub mod errors;
@@ -68,6 +68,7 @@ impl LeafStatus {
 		}
 	}
 }
+
 
 /// Activated leaf.
 #[derive(Debug, Clone)]

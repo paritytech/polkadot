@@ -30,7 +30,7 @@ use polkadot_overseer::{
 	Handler,
 };
 use polkadot_node_subsystem::{
-	messages::ProvisionerMessage, SubsystemError,
+	messages::ProvisionerMessage, errors::SubsystemError,
 };
 use polkadot_primitives::v1::{
 	Block, Hash, InherentData as ParachainsInherentData,
@@ -60,9 +60,9 @@ impl ParachainsInherentDataProvider {
 			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)?.map_err(|e| Error::Subsystem(e))?;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
-			overseer.send_msg(AllMessages::Provisioner(
+			overseer.send_msg(
 				ProvisionerMessage::RequestInherentData(parent, sender),
-			)).await;
+			).await;
 
 			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
 		};

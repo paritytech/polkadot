@@ -134,20 +134,20 @@ where
 		}
 	}
 
-	fn spawn(
+	async fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.inner.spawn(name, s)
+		self.inner.spawn(name, s).await
 	}
 
-	fn spawn_blocking(
+	async  fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.inner.spawn_blocking(name, s)
+		self.inner.spawn_blocking(name, s).await
 	}
 
 	fn sender(&mut self) -> &mut Self::Sender {

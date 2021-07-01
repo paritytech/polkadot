@@ -20,10 +20,18 @@
 //! care about the state of particular blocks.
 
 use polkadot_primitives::v1::{Hash, Header, SessionInfo, SessionIndex};
-use polkadot_overseer::SubsystemContext;
+
+use polkadot_overseer::AllMessages;
 use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	errors::RuntimeApiError,
+	SubsystemContext,
+	Subsystem,
+	SubsystemSender,
+	SubsystemInstance,
+	SubsystemResult,
+	SpawnedSubsystem,
+	FromOverseer,
 };
 use futures::channel::oneshot;
 
@@ -159,10 +167,10 @@ impl RollingSessionWindow {
 			// The genesis is guaranteed to be at the beginning of the session and its parent state
 			// is non-existent. Therefore if we're at the genesis, we request using its state and
 			// not the parent.
-			ctx.send_message(RuntimeApiMessage::Request(
+			ctx.send_message(AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
 				if block_header.number == 0 { block_hash } else { block_header.parent_hash },
 				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			).into()).await;
+			))).await;
 
 			match s_rx.await {
 				Ok(Ok(s)) => s,
@@ -271,10 +279,10 @@ async fn load_all_sessions(
 	let mut v = Vec::new();
 	for i in start..=end_inclusive {
 		let (tx, rx)= oneshot::channel();
-		ctx.send_message(RuntimeApiMessage::Request(
+		ctx.send_message(AllMessages::from(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::SessionInfo(i, tx),
-		).into()).await;
+		))).await;
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,

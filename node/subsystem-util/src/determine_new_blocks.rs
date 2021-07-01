@@ -111,8 +111,8 @@ pub async fn determine_new_blocks<E, Sender>(
 				.map(|_| oneshot::channel())
 				.unzip::<_, _, Vec<_>, Vec<_>>();
 
-			for (hash, sender) in batch_hashes.iter().cloned().zip(batch_senders) {
-				sender.send_message(ChainApiMessage::BlockHeader(hash, sender).into()).await;
+			for (hash, batched_sender) in batch_hashes.iter().cloned().zip(batch_senders) {
+				sender.send_message(ChainApiMessage::BlockHeader(hash, batched_sender).into()).await;
 			}
 
 			let mut requests = futures::stream::FuturesOrdered::new();

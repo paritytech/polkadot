@@ -112,7 +112,7 @@ use polkadot_node_metrics::{
 	},
 	Metronome,
 };
-use polkadot_overseer_gen::{
+pub use polkadot_overseer_gen::{
 	OverseerError,
 	TimeoutExt,
 	SpawnNamed,
