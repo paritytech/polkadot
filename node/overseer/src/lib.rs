@@ -909,8 +909,8 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 				}
 			}
 
-			let mut await_message = self.messages.next().fuse();
-			let mut await_signal = self.signals.next().fuse();
+			let mut await_message = self.messages.next();
+			let mut await_signal = self.signals.next();
 			let signals_received = self.signals_received.load();
 			let pending_incoming = &mut self.pending_incoming;
 
@@ -1901,13 +1901,7 @@ where
 
 		loop {
 			select! {
-				msg = self.events_rx.next().fuse() => {
-					let msg = if let Some(msg) = msg {
-						msg
-					} else {
-						continue
-					};
-
+				msg = self.events_rx.select_next_some() => {
 					match msg {
 						Event::MsgToSubsystem(msg) => {
 							self.route_message(msg.into()).await?;
@@ -1927,16 +1921,7 @@ where
 						}
 					}
 				},
-				msg = self.to_overseer_rx.next() => {
-					let msg = match msg {
-						Some(m) => m,
-						None => {
-							// This is a fused stream so we will shut down after receiving all
-							// shutdown notifications.
-							continue
-						}
-					};
-
+				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
 						ToOverseer::SpawnJob { name, s } => {
 							self.spawn_job(name, s);
@@ -1946,16 +1931,14 @@ where
 						}
 					}
 				},
-				res = self.running_subsystems.next().fuse() => {
-					let finished = if let Some(finished) = res {
-						finished
-					} else {
-						continue
-					};
-
-					tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
+				res = self.running_subsystems.select_next_some() => {
+					tracing::error!(
+						target: LOG_TARGET,
+						subsystem = ?res,
+						"subsystem finished unexpectedly",
+					);
 					self.stop().await;
-					return finished;
+					return res;
 				},
 			}
 		}
