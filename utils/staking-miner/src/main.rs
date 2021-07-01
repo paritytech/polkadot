@@ -431,7 +431,10 @@ async fn main() {
 				RUNTIME = AnyRuntime::Westend;
 			}
 		}
-		_ => panic!("unexpected chain: {:?}", chain),
+		_ => {
+			eprintln!("unexpected chain: {:?}", chain);
+			return;
+		}
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
