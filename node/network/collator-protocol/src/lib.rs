@@ -28,16 +28,16 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
 use polkadot_primitives::v1::CollatorPair;
-use polkadot_subsystem::{
-	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
-};
 
-use polkadot_overseer::{
-	AllMessages,
+use polkadot_subsystem::{
 	OverseerSignal,
-	gen::{
-		Subsystem, SpawnedSubsystem, OverseerError, SubsystemContext,
-		FromOverseer,
+	FromOverseer,
+	SpawnedSubsystem,
+	SubsystemContext,
+	SubsystemSender,
+	overseer::{self, OverseerError, },
+	messages::{
+		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
 };
 use polkadot_subsystem::{
@@ -106,7 +106,8 @@ impl CollatorProtocolSubsystem {
 
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
-		Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal>,
+		Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+		Context: SubsystemContext<Message=CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
@@ -125,9 +126,11 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage, Signal = OverseerSignal, Error = SubsystemError> + Sync + Send,
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	<Context as SubsystemContext>::Sender: SubsystemSender,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -154,7 +157,7 @@ where
 		"reputation change for peer",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)).await;
+	).await;
 }

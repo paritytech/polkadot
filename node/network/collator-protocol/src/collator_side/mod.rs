@@ -917,13 +917,16 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
-pub(crate) async fn run(
-	mut ctx: impl SubsystemContext<Message = CollatorProtocolMessage>,
+pub(crate) async fn run<Context>(
+	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	metrics: Metrics,
-) -> Result<()> {
-	use FromOverseer::*;
+) -> Result<()>
+where
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>
+{
 	use OverseerSignal::*;
 
 	let mut state = State::new(local_peer_id, collator_pair, metrics);
@@ -932,15 +935,15 @@ pub(crate) async fn run(
 	loop {
 		select! {
 			msg = ctx.recv().fuse() => match msg.map_err(Fatal::SubsystemReceive)? {
-				Communication { msg } => {
+				FromOverseer::Communication { msg } => {
 					log_error(
 						process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
 						"Failed to process message"
 					)?;
 				},
-				Signal(ActiveLeaves(_update)) => {}
-				Signal(BlockFinalized(..)) => {}
-				Signal(Conclude) => return Ok(()),
+				FromOverseer::Signal(ActiveLeaves(_update)) => {}
+				FromOverseer::Signal(BlockFinalized(..)) => {}
+				FromOverseer::Signal(Conclude) => return Ok(()),
 			},
 			relay_parent = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
