@@ -21,18 +21,19 @@
 // 2. length (already taken care of).
 // 3. Important, but hard to do: memory usage of the chain.
 
-mod rpc_helpers;
 mod dry_run;
 mod emergency_solution;
 mod monitor;
 mod prelude;
+mod rpc_helpers;
+mod signer;
+
+pub(crate) use prelude::*;
+pub(crate) use signer::get_account_info;
 
 use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
-use prelude::*;
 use remote_externalities::{Builder, Mode, OnlineConfig};
-use sp_core::crypto::Pair as _;
 use sp_runtime::traits::Block as BlockT;
-use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 pub(crate) enum AnyRuntime {
@@ -59,7 +60,7 @@ macro_rules! construct_runtime_prelude {
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
 					witness: u32,
-					signer: crate::Signer,
+					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
 					tip: crate::prelude::Balance,
 					era: sp_runtime::generic::Era,
@@ -68,7 +69,7 @@ macro_rules! construct_runtime_prelude {
 					use sp_core::Pair as _;
 					use sp_runtime::traits::StaticLookup as _;
 
-					let crate::Signer { account, pair, .. } = signer;
+					let crate::signer::Signer { account, pair, .. } = signer;
 
 					let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
@@ -243,6 +244,9 @@ struct MonitorConfig {
 	/// slower. It is recommended if the duration of the signed phase is longer than the a
 	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
+
+	#[structopt(long, short, default_value = "10")]
+	iterations: usize,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -250,6 +254,9 @@ struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[structopt(long)]
 	at: Option<Hash>,
+
+	#[structopt(long, short, default_value = "10")]
+	iterations: usize,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -260,7 +267,7 @@ struct SharedConfig {
 
 	/// The file from which we read the account seed.
 	#[structopt(long)]
-	account_seed: PathBuf,
+	account_seed: std::path::PathBuf,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -271,17 +278,6 @@ struct Opt {
 
 	#[structopt(subcommand)]
 	command: Command,
-}
-
-/// Some information about the signer. Redundant at this point, but makes life easier.
-#[derive(Clone)]
-struct Signer {
-	/// The account id.
-	account: AccountId,
-	/// The full crypto key-pair.
-	pair: Pair,
-	/// The raw uri read from file.
-	uri: String,
 }
 
 /// Build the `Ext` at `hash` with all the data of `ElectionProviderMultiPhase` and `Staking`
@@ -339,12 +335,10 @@ fn mine_unchecked<T: EPM::Config>(
 }
 
 #[allow(unused)]
-fn mine_dpos<T: EPM::Config>(
-	ext: &mut Ext,
-) -> Result<(), Error> {
+fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 	ext.execute_with(|| {
-		use EPM::RoundSnapshot;
 		use std::collections::BTreeMap;
+		use EPM::RoundSnapshot;
 		let RoundSnapshot { voters, .. } = EPM::Snapshot::<T>::get().unwrap();
 		let desired_targets = EPM::DesiredTargets::<T>::get().unwrap();
 		let mut candidates_and_backing = BTreeMap::<T::AccountId, u128>::new();
@@ -378,42 +372,6 @@ fn mine_dpos<T: EPM::Config>(
 	})
 }
 
-pub(crate) async fn get_account_info<T: frame_system::Config>(
-	client: &WsClient,
-	who: &T::AccountId,
-	maybe_at: Option<T::Hash>,
-) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error> {
-	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
-		client,
-		params! {
-			sp_core::storage::StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
-			maybe_at
-		},
-	)
-	.await
-}
-
-/// Read the signer account's uri from the given `path`.
-async fn read_signer_uri<
-	P: AsRef<Path>,
-	T: frame_system::Config<AccountId = AccountId, Index = Index>,
->(
-	path: P,
-	client: &WsClient,
-) -> Result<Signer, Error> {
-	let uri = std::fs::read_to_string(path)?;
-
-	// trim any trailing garbage.
-	let uri = uri.trim_end();
-
-	let pair = Pair::from_string(&uri, None)?;
-	let account = T::AccountId::from(pair.public());
-	let _info =
-		get_account_info::<T>(&client, &account, None).await?.ok_or(Error::AccountDoesNotExists)?;
-	log::info!(target: LOG_TARGET, "loaded account {:?}, info: {:?}", &account, _info);
-	Ok(Signer { account, pair, uri: uri.to_string() })
-}
-
 #[tokio::main]
 async fn main() {
 	env_logger::Builder::from_default_env().format_module_path(true).format_level(true).init();
@@ -434,7 +392,7 @@ async fn main() {
 					"failed to connect to client due to {:?}, retrying soon..",
 					why
 				);
-				std::thread::sleep_ms(2500);
+				std::thread::sleep(std::time::Duration::from_millis(2500));
 			}
 		}
 	};
@@ -478,7 +436,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	let outcome = any_runtime! {
-		let signer = read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
+		let signer = signer::read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
 			.await
 			.expect("Provided account is invalid, terminating.");
 		match command {

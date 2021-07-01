@@ -16,7 +16,9 @@
 
 //! The dry-run command.
 
-use crate::{prelude::*, Signer, SharedConfig, DryRunConfig, WsClient, Error, rpc_helpers::*, params};
+use crate::{
+	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
+};
 use codec::Encode;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
@@ -71,7 +73,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 		measure_snapshot_size::<Runtime>(&mut ext);
-		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 100, false)?;
+		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, false)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 		let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, config.at)

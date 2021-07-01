@@ -16,7 +16,9 @@
 
 //! The monitor command.
 
-use crate::{params, prelude::*, rpc_helpers::*, Error, MonitorConfig, SharedConfig, Signer};
+use crate::{
+	params, prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig,
+};
 use codec::Encode;
 use jsonrpsee_ws_client::{
 	traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription, WsClient,
@@ -103,21 +105,17 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
-			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, 100, true)?;
+			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, true)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
 				.await?
 				.map(|i| i.nonce)
-				.expect("signer account is checked to exist upon startup; it can only die if it \
-					transfers funds out of it, or get slashed. If it does not exist at this point, \
-					it is likely due to a bug, or the signer got slashed. Terminating."
-				);
+				.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
 			let tip = 0 as Balance;
 			let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
 			let current_block = now.number.saturating_sub(1);
 			let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
-			dbg!(era);
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 
