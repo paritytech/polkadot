@@ -116,6 +116,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
 			let current_block = now.number.saturating_sub(1);
 			let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
+			log::trace!(target: LOG_TARGET, "transaction mortality: {:?} -> {:?}", era.birth(current_block.into()), era.death(current_block.into()));
 			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 			let bytes = sp_core::Bytes(extrinsic.encode());
 

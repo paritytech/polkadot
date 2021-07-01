@@ -874,37 +874,16 @@ impl ApprovalVote {
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
-		// NOTE: Many runtime API are declared with `#[skip_initialize_block]`. This is because without
-		// this attribute before each runtime call, the `initialize_block` runtime API will be called.
-		// That in turns will lead to two things:
-		//
-		// (a) The frame_system module will be initialized to the next block.
-		// (b) Initialization sequences for each runtime module (pallet) will be run.
-		//
-		// (a) is undesirable because the runtime APIs are querying the state against a specific
-		// block state. However, due to that initialization the observed block number would be as if
-		// it was the next block.
-		//
-		// We dont want (b) mainly because block initialization can be very heavy. Upgrade enactment,
-		// storage migration, and whatever other logic exists in `on_initialize` will be executed
-		// if not explicitly opted out with the `#[skip_initialize_block]` attribute.
-		//
-		// Additionally, some runtime APIs may depend on state that is pruned on the `on_initialize`.
-		// At the moment of writing, this is `candidate_events`.
-
 		/// Get the current validators.
-		#[skip_initialize_block]
 		fn validators() -> Vec<ValidatorId>;
 
 		/// Returns the validator groups and rotation info localized based on the hypothetical child
 		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
 		/// should be the successor of the number of the block.
-		#[skip_initialize_block]
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores as relevant to the child block.
 		/// Cores are either free or occupied. Free cores can have paras assigned to them.
-		#[skip_initialize_block]
 		fn availability_cores() -> Vec<CoreState<H, N>>;
 
 		/// Yields the persisted validation data for the given ParaId along with an assumption that
@@ -912,54 +891,44 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		#[skip_initialize_block]
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<H, N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		#[skip_initialize_block]
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		#[skip_initialize_block]
 		fn session_index_for_child() -> SessionIndex;
 
 		/// Get the session info for the given session, if stored.
-		#[skip_initialize_block]
 		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		#[skip_initialize_block]
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		#[skip_initialize_block]
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
 
 		/// Get a vector of events concerning candidates that occurred within a block.
-		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get all the pending inbound messages in the downward message queue for a para.
-		#[skip_initialize_block]
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.
-		#[skip_initialize_block]
 		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 
 		/// Get the validation code from its hash.
-		#[skip_initialize_block]
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
 	}
 }

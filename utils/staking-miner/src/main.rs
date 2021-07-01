@@ -14,12 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// ## Staking Miner
-//
-// things to look out for:
-// 1. weight (already taken care of).
-// 2. length (already taken care of).
-// 3. Important, but hard to do: memory usage of the chain.
+//! # Polkadot Staking Miner.
+//!
+//! Simple bot capable of monitoring a polkadot (and cousins) chain and submitting solutions to the
+//! 'pallet-election-provider-multi-phase'. See `--help` for more details.
+//!
+//! # Implementation Notes:
+//!
+//! - First draft: Be aware that this is the first draft and there might be bugs, or undefined
+//!   behaviors. Don't attach this bot to an account with lots of funds.
+//! - Quick to crash: The bot is written so that it only continues to work if everything goes well.
+//!   In case of any failure (RPC, logic, IO), it will crash. This was a decision to simplify the
+//!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
+//!   crash, but resumes work thereafter.
 
 mod dry_run;
 mod emergency_solution;
@@ -241,7 +248,8 @@ struct MonitorConfig {
 	/// They type of event to listen to.
 	///
 	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
-	/// slower. It is recommended if the duration of the signed phase is longer than the a
+	/// slower. It is recommended to use finalized, if the duration of the signed phase is longer
+	/// than the the finality delay.
 	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
 
@@ -266,6 +274,9 @@ struct SharedConfig {
 	uri: String,
 
 	/// The file from which we read the account seed.
+	///
+	/// WARNING: don't use an account with a large stash for this. Based on how the bot is
+	/// configured, it might re-try lose funds through transaction fees/deposits.
 	#[structopt(long)]
 	account_seed: std::path::PathBuf,
 }
