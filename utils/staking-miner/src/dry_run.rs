@@ -55,7 +55,13 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 			.expect("snapshot must exist before calling `measure_snapshot_size`")
 			.voters;
 		voters.sort_by_key(|(_voter, score, _targets)| std::cmp::Reverse(score));
-		println!("smallest allowed voter is {:?}", voters.into_iter().rev().take(count).last());
+		match voters.get(count) {
+			Some(threshold_voter) => println!("smallest allowed voter is {:?}", threshold_voter),
+			None => {
+				println!("requested truncation to {} voters but had only {}", count, voters.len());
+				println!("smallest current voter: {:?}", voters.last());
+			}
+		}
 	})
 }
 
