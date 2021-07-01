@@ -47,7 +47,7 @@ fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
 	})
 }
 
-/// Fir the stake threshold to in order to have at most `count` voters.
+/// Find the stake threshold in order to have at most `count` voters.
 #[allow(unused)]
 fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 	ext.execute_with(|| {
