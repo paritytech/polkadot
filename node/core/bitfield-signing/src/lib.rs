@@ -299,7 +299,7 @@ impl JobTrait for BitfieldSigningJob {
 				.send_message(BitfieldDistributionMessage::DistributeBitfield(
 					relay_parent,
 					signed_bitfield,
-				).into())
+				))
 				.await;
 
 			Ok(())
