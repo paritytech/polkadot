@@ -46,6 +46,7 @@ use frame_support::{ensure, fail};
 use frame_system::{ensure_signed, RawOrigin};
 use sp_finality_grandpa::{ConsensusLog, GRANDPA_ENGINE_ID};
 use sp_runtime::traits::{BadOrigin, Header as HeaderT, Zero};
+use sp_std::convert::TryInto;
 
 #[cfg(test)]
 mod mock;
@@ -124,8 +125,8 @@ pub mod pallet {
 		/// If successful in verification, it will write the target header to the underlying storage
 		/// pallet.
 		#[pallet::weight(T::WeightInfo::submit_finality_proof(
-			justification.votes_ancestries.len() as u32,
-			justification.commit.precommits.len() as u32,
+			justification.commit.precommits.len().try_into().unwrap_or(u32::MAX),
+			justification.votes_ancestries.len().try_into().unwrap_or(u32::MAX),
 		))]
 		pub fn submit_finality_proof(
 			origin: OriginFor<T>,
@@ -414,9 +415,14 @@ pub mod pallet {
 		let set_id = authority_set.set_id;
 
 		Ok(
-			verify_justification::<BridgedHeader<T, I>>((hash, number), set_id, &voter_set, &justification).map_err(
+			verify_justification::<BridgedHeader<T, I>>((hash, number), set_id, &voter_set, justification).map_err(
 				|e| {
-					log::error!(target: "runtime::bridge-grandpa", "Received invalid justification for {:?}: {:?}", hash, e);
+					log::error!(
+						target: "runtime::bridge-grandpa",
+						"Received invalid justification for {:?}: {:?}",
+						hash,
+						e,
+					);
 					<Error<T, I>>::InvalidJustification
 				},
 			)?,
@@ -693,7 +699,7 @@ mod tests {
 				CurrentAuthoritySet::<TestRuntime>::get().authorities,
 				init_data.authority_list
 			);
-			assert_eq!(IsHalted::<TestRuntime>::get(), false);
+			assert!(!IsHalted::<TestRuntime>::get());
 		})
 	}
 

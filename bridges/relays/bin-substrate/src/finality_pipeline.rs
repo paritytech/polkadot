@@ -26,12 +26,12 @@ use sp_core::Bytes;
 use std::{fmt::Debug, marker::PhantomData, time::Duration};
 
 /// Default synchronization loop timeout.
-const STALL_TIMEOUT: Duration = Duration::from_secs(120);
+pub(crate) const STALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// Default limit of recent finality proofs.
 ///
 /// Finality delay of 4096 blocks is unlikely to happen in practice in
 /// Substrate+GRANDPA based chains (good to know).
-const RECENT_FINALITY_PROOFS_LIMIT: usize = 4096;
+pub(crate) const RECENT_FINALITY_PROOFS_LIMIT: usize = 4096;
 
 /// Headers sync pipeline for Substrate <-> Substrate relays.
 pub trait SubstrateFinalitySyncPipeline: FinalitySyncPipeline {
@@ -45,6 +45,13 @@ pub trait SubstrateFinalitySyncPipeline: FinalitySyncPipeline {
 	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
 		Ok(params)
 	}
+
+	/// Start finality relay guards.
+	///
+	/// Different finality bridges may have different set of guards - e.g. on ephemeral chains we
+	/// don't need version guards, on test chains we don't care that much about relayer account
+	/// balance, ... So the implementation is left to the specific bridges.
+	fn start_relay_guards(&self) {}
 
 	/// Returns id of account that we're using to sign transactions at target chain.
 	fn transactions_author(&self) -> <Self::TargetChain as Chain>::AccountId;
@@ -112,7 +119,7 @@ pub async fn run<SourceChain, TargetChain, P>(
 	pipeline: P,
 	source_client: Client<SourceChain>,
 	target_client: Client<TargetChain>,
-	is_on_demand_task: bool,
+	only_mandatory_headers: bool,
 	metrics_params: MetricsParams,
 ) -> anyhow::Result<()>
 where
@@ -135,13 +142,13 @@ where
 	);
 
 	finality_relay::run(
-		FinalitySource::new(source_client),
+		FinalitySource::new(source_client, None),
 		SubstrateFinalityTarget::new(target_client, pipeline),
 		FinalitySyncParams {
-			is_on_demand_task,
 			tick: std::cmp::max(SourceChain::AVERAGE_BLOCK_INTERVAL, TargetChain::AVERAGE_BLOCK_INTERVAL),
 			recent_finality_proofs_limit: RECENT_FINALITY_PROOFS_LIMIT,
 			stall_timeout: STALL_TIMEOUT,
+			only_mandatory_headers,
 		},
 		metrics_params,
 		futures::future::pending(),

@@ -22,6 +22,8 @@ use sp_core::{storage::StorageKey, Pair};
 use sp_runtime::{generic::SignedPayload, traits::IdentifyAccount};
 use std::time::Duration;
 
+pub mod runtime;
+
 /// Wococo header id.
 pub type HeaderId = relay_utils::HeaderId<bp_wococo::Hash, bp_wococo::BlockNumber>;
 
@@ -46,12 +48,11 @@ impl Chain for Wococo {
 	type AccountId = bp_wococo::AccountId;
 	type Index = bp_wococo::Index;
 	type SignedBlock = bp_wococo::SignedBlock;
-	type Call = bp_wococo::Call;
+	type Call = crate::runtime::Call;
+	type Balance = bp_wococo::Balance;
 }
 
 impl ChainWithBalances for Wococo {
-	type NativeBalance = bp_wococo::Balance;
-
 	fn account_info_storage_key(account_id: &Self::AccountId) -> StorageKey {
 		StorageKey(bp_wococo::account_info_storage_key(account_id))
 	}
@@ -60,7 +61,7 @@ impl ChainWithBalances for Wococo {
 impl TransactionSignScheme for Wococo {
 	type Chain = Wococo;
 	type AccountKeyPair = sp_core::sr25519::Pair;
-	type SignedTransaction = bp_wococo::UncheckedExtrinsic;
+	type SignedTransaction = crate::runtime::UncheckedExtrinsic;
 
 	fn sign_transaction(
 		genesis_hash: <Self::Chain as ChainBase>::Hash,
