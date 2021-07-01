@@ -21,15 +21,15 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 # Substrate Based Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, features = ["derive"] }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+max-encoded-len = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["derive"] , branch = "polkadot-v0.9.8" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.8" }
 
 [features]
 default = ["std"]
