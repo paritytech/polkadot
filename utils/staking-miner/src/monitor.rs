@@ -63,7 +63,7 @@ async fn ensure_no_previous_solution<
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: WsClient,
+		client: &WsClient,
 		shared: SharedConfig,
 		config: MonitorConfig,
 		signer: Signer,
@@ -81,12 +81,12 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			.await
 			.unwrap();
 
-		while let Ok(Some(now)) = subscription.next().await {
+		while let Some(now) = subscription.next().await? {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
 			// we prefer doing this check before fetching anything into a remote-ext.
-			if ensure_signed_phase::<Runtime, Block>(&client, hash).await.is_err() {
+			if ensure_signed_phase::<Runtime, Block>(client, hash).await.is_err() {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
 				continue;
 			};
@@ -108,7 +108,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, true)?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, Some(hash))
+			let nonce = crate::get_account_info::<Runtime>(client, &signer.account, Some(hash))
 				.await?
 				.map(|i| i.nonce)
 				.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
@@ -127,7 +127,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				.await
 				.unwrap();
 
-			let _success = while let Ok(Some(status_update)) = tx_subscription.next().await {
+			let _success = while let Some(status_update) = tx_subscription.next().await? {
 				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
 				match status_update {
 					TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
@@ -136,7 +136,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						let key = sp_core::storage::StorageKey(frame_system::Events::<Runtime>::hashed_key().to_vec());
 						let events =get_storage::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>
-						>(&client, params!{ key, hash }).await?.unwrap_or_default();
+						>(client, params!{ key, hash }).await?.unwrap_or_default();
 						log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
 					}
 					TransactionStatus::Retracted(hash) => {

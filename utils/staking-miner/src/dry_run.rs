@@ -70,7 +70,7 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the dry-run command.
 	pub(crate) async fn [<dry_run_cmd_ $runtime>](
-		client: WsClient,
+		client: &WsClient,
 		shared: SharedConfig,
 		config: DryRunConfig,
 		signer: Signer,
@@ -82,7 +82,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, false)?;
 		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-		let nonce = crate::get_account_info::<Runtime>(&client, &signer.account, config.at)
+		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
 			.expect("signer account is checked to exist upon startup; it can only die if it \
@@ -94,7 +94,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
-		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(&client, "system_dryRun", params!{ bytes }).await?;
+		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes }).await?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
 		Ok(())
 	}
