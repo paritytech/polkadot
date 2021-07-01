@@ -801,3 +801,19 @@ pub enum ApprovalDistributionMessage {
 #[derive(Debug)]
 pub enum GossipSupportMessage {
 }
+
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		Self::PoVFetchingRequest(req)
+	}
+}
+impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AvailabilityDistributionMessage {
+	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
+		Self::ChunkFetchingRequest(req)
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		Self::CollationFetchingRequest(req)
+	}
+}

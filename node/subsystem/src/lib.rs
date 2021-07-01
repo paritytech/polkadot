@@ -38,7 +38,10 @@ use polkadot_primitives::v1::{Hash, BlockNumber};
 /// If there are greater than this number of slots, then we fall back to a heap vector.
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
-pub use polkadot_node_subsystem_types::errors::{self, *};
+pub use polkadot_node_subsystem_types::{
+	errors::{self, *},
+	ActivatedLeaf,
+};
 pub mod messages {
 	pub use super::overseer::AllMessages;
 	pub use polkadot_node_subsystem_types::messages::*;

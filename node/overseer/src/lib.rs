@@ -397,6 +397,38 @@ pub struct Overseer<SupportsParachains> {
 	// pub candidate_validation_config: CandidateValidationConfig,
 }
 
+
+// Additional `From` implementations, in order to deal with incoming network messages.
+// Kept out of the proc macro, for sake of simplicity reduce the need to make even
+// more types to the proc macro logic.
+
+use polkadot_node_network_protocol::{
+	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	PeerId, UnifiedReputationChange,
+};
+
+impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
+		From::<AvailabilityDistributionMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
+		From::<CollatorProtocolMessage>::from(From::from(req))
+	}
+}
+impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
+	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
+		From::<AvailabilityRecoveryMessage>::from(From::from(req))
+	}
+}
+
+
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	SupportsParachains: HeadSupportsParachains,

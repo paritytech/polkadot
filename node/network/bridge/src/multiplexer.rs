@@ -172,7 +172,7 @@ fn multiplex_single(
 			pending_response,
 		)),
 		Protocol::StatementFetching => {
-			panic!("Statement fetching requests are handled directly. qed.");
+			unreachable!("Statement fetching requests are handled directly. qed.");
 		}
 	};
 	Ok(r)

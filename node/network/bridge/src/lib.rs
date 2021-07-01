@@ -28,20 +28,23 @@ use polkadot_overseer::Overseer;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
-use polkadot_overseer::{AllMessages, OverseerSignal};
 use polkadot_overseer::gen::{
-	FromOverseer,
-	SpawnedSubsystem,
-	Subsystem, SubsystemContext, OverseerError,
-	SubsystemSender,
+	Subsystem,
+	OverseerError,
 };
 use polkadot_subsystem::{
+	overseer,
+	OverseerSignal,
+	FromOverseer,
+	SpawnedSubsystem,
+	SubsystemContext,
+	SubsystemSender,
 	errors::{SubsystemError, SubsystemResult},
 	ActivatedLeaf, ActiveLeavesUpdate,
-	messages::StatementDistributionMessage
-};
-use polkadot_subsystem::messages::{
-	NetworkBridgeMessage, CollatorProtocolMessage, NetworkBridgeEvent,
+	messages::{
+		AllMessages, StatementDistributionMessage,
+		NetworkBridgeMessage, CollatorProtocolMessage, NetworkBridgeEvent,
+	},
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -303,9 +306,9 @@ impl<Net, AD, Context> Subsystem<Context, SubsystemError> for NetworkBridge<Net,
 	where
 		Net: Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
-		Context: SubsystemContext<Message = NetworkBridgeMessage, Signal = OverseerSignal, AllMessages = AllMessages>,
+		Context: SubsystemContext<Message = NetworkBridgeMessage> + overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 {
-	fn start(mut self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
+	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the
 		// networking might open connections before the stream of events has been grabbed.
 		let network_stream = self.network_service.event_stream();
@@ -375,7 +378,8 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	metrics: Metrics,
 ) -> Result<(), UnexpectedAbort>
 where
-	Context: SubsystemContext<Message = NetworkBridgeMessage, Signal = OverseerSignal, AllMessages = AllMessages>,
+	Context: SubsystemContext<Message = NetworkBridgeMessage>,
+	Context: overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
@@ -867,14 +871,15 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-async fn run_network<N, AD>(
+async fn run_network<N, AD, Context>(
 	bridge: NetworkBridge<N, AD>,
-	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage, Signal=OverseerSignal, AllMessages=AllMessages>,
+	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
+	Context: SubsystemContext<Message=NetworkBridgeMessage> + overseer::SubsystemContext<Message=NetworkBridgeMessage>,
 {
 	let shared = Shared::default();
 
@@ -900,7 +905,7 @@ where
 		shared.clone(),
 	).remote_handle();
 
-	ctx.spawn("network-bridge-network-worker", Box::pin(remote))?;
+	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
 
 	ctx.send_message(
 		AllMessages::from(StatementDistributionMessage::StatementFetchingReceiver(statement_receiver))
