@@ -102,8 +102,7 @@ runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 
 [patch.crates-io]
-parity-util-mem = { git = "https://github.com/paritytech/parity-common" }
-primitive-types = { git = "https://github.com/paritytech/parity-common" }
+primitive-types = { git = "https://github.com/paritytech/parity-common", branch = "aj-update-scale-info" }
 finality-grandpa = { git = "https://github.com/paritytech/finality-grandpa", branch = "aj-scale-info" }
 
 # Configuration for building a .deb package - for use with `cargo-deb`
