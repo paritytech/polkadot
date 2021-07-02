@@ -109,7 +109,7 @@ Do nothing.
    regards to that candidate,  also continue with 10. Otherwise proceed with 9.
 9. Issue a
    [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
-   Wait for response on the `report_availability` oneshot, if available continue
+   Wait for response on the `report_availability` oneshot. If available, continue
    with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
 10. Write the `CandidateVotes` to the underyling DB.
 11. Send back `ImportStatementsResult::ValidImport`.
