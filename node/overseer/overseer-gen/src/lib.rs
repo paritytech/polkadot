@@ -415,6 +415,15 @@ pub trait SubsystemContext: Send + 'static {
 		self.sender().send_messages(msgs.into_iter().map(|x| <Self::AllMessages>::from(x))).await
 	}
 
+	/// Send a message using the unbounded connection.
+	fn send_unbounded_message<X>(&mut self, msg: X)
+	where
+		Self::AllMessages: From<X>,
+		X: Send,
+	{
+		self.sender().send_unbounded_message(Self::AllMessages::from(msg))
+	}
+
 	/// Obtain the sender.
 	fn sender(&mut self) -> &mut Self::Sender;
 }

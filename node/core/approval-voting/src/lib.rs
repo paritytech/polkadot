@@ -23,13 +23,14 @@
 
 use polkadot_node_subsystem::{
 	messages::{
+		AllMessages,
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
 		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
+	overseer::{self, SubsystemSender as _}, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
@@ -326,11 +327,13 @@ impl ApprovalVotingSubsystem {
 	}
 }
 
-impl<C> Subsystem<C> for ApprovalVotingSubsystem
-	where C: SubsystemContext<Message = ApprovalVotingMessage>
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
+where
+	Context: SubsystemContext<Message = ApprovalVotingMessage>,
+	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<C>(
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run::<Context>(
 			ctx,
 			self,
 			Box::new(SystemClock),
@@ -722,13 +725,15 @@ enum Action {
 	Conclude,
 }
 
-async fn run<C>(
-	mut ctx: C,
+async fn run<Context>(
+	mut ctx: Context,
 	mut subsystem: ApprovalVotingSubsystem,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 ) -> SubsystemResult<()>
-	where C: SubsystemContext<Message = ApprovalVotingMessage>
+where
+	Context: SubsystemContext<Message = ApprovalVotingMessage>,
+	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 {
 	let mut state = State {
 		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
@@ -849,8 +854,7 @@ async fn run<C>(
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl DBReader>,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
@@ -922,7 +926,7 @@ async fn handle_actions(
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,
-				).into());
+				));
 
 				match approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
@@ -969,7 +973,7 @@ async fn handle_actions(
 					ApprovalDBV1Reader::new(db, db_config)
 				)?;
 
-				ctx.send_messages(messages.into_iter().map(Into::into)).await;
+				ctx.send_messages(messages.into_iter()).await;
 			}
 			Action::Conclude => { conclude = true; }
 		}
@@ -1084,7 +1088,7 @@ fn distribution_messages_for_activation<'a>(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
 	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	db_writer: &dyn KeyValueDB,
@@ -1198,7 +1202,7 @@ async fn handle_from_overseer(
 }
 
 async fn handle_approved_ancestor(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	db: &impl DBReader,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1217,7 +1221,7 @@ async fn handle_approved_ancestor(
 	let target_number = {
 		let (tx, rx) = oneshot::channel();
 
-		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
+		ctx.send_message(ChainApiMessage::BlockNumber(target, tx)).await;
 
 		match rx.await {
 			Ok(Ok(Some(n))) => n,
@@ -1241,7 +1245,7 @@ async fn handle_approved_ancestor(
 			hash: target,
 			k: (target_number - (lower_bound + 1)) as usize,
 			response_channel: tx,
-		}.into()).await;
+		}).await;
 
 		match rx.await {
 			Ok(Ok(a)) => a,
@@ -2054,7 +2058,7 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,
@@ -2103,7 +2107,7 @@ async fn launch_approval(
 		session_index,
 		Some(backing_group),
 		a_tx,
-	).into()).await;
+	)).await;
 
 	ctx.send_message(
 		RuntimeApiMessage::Request(
@@ -2112,7 +2116,7 @@ async fn launch_approval(
 				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
-		).into()
+		)
 	).await;
 
 	let candidate = candidate.clone();
@@ -2196,13 +2200,13 @@ async fn launch_approval(
 
 		let para_id = candidate.descriptor.para_id;
 
-		sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+		sender.send_message(AllMessages::from(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
 			candidate.descriptor,
 			available_data.pov,
 			val_tx,
-		).into()).await;
+		))).await;
 
 		match val_rx.await {
 			Err(_) =>
@@ -2261,7 +2265,7 @@ async fn launch_approval(
 	};
 
 	let (background, remote_handle) = background.remote_handle();
-	ctx.spawn("approval-checks", Box::pin(background))
+	ctx.spawn("approval-checks", Box::pin(background)).await
 		.map(move |()| remote_handle)
 }
 

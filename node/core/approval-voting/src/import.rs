@@ -29,9 +29,11 @@
 //! We maintain a rolling window of session indices. This starts as empty
 
 use polkadot_node_subsystem::{
+	overseer,
 	messages::{
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
+		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage, ApprovalVotingMessage,
 	},
+	SubsystemSender,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::determine_new_blocks;
@@ -83,7 +85,7 @@ struct ImportedBlockInfoEnv<'a> {
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
 // failure to communicate with overseer,
 async fn imported_block_info(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext),
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -97,7 +99,7 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CandidateEvents(c_tx),
-		).into()).await;
+		)).await;
 
 		let events: Vec<CandidateEvent> = match c_rx.await {
 			Ok(Ok(events)) => events,
@@ -119,7 +121,7 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_header.parent_hash,
 			RuntimeApiRequest::SessionIndexForChild(s_tx),
-		).into()).await;
+		)).await;
 
 		let session_index = match s_rx.await {
 			Ok(Ok(s)) => s,
@@ -160,7 +162,7 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CurrentBabeEpoch(s_tx),
-		).into()).await;
+		)).await;
 
 		match s_rx.await {
 			Ok(Ok(s)) => s,
@@ -284,20 +286,21 @@ pub struct BlockImportedCandidates {
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
 pub(crate) async fn handle_new_head(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
 	state: &mut State<impl DBReader>,
 	db_writer: &dyn KeyValueDB,
 	db_config: DatabaseConfig,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
-) -> SubsystemResult<Vec<BlockImportedCandidates>> {
+) -> SubsystemResult<Vec<BlockImportedCandidates>>
+{
 	// Update session info based on most recent head.
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
-		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx).into()).await;
+		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 
 		match h_rx.await? {
 			Err(e) => {
@@ -375,7 +378,7 @@ pub(crate) async fn handle_new_head(
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
 					ctx.send_message(
-						ChainApiMessage::FinalizedBlockHash(block_header.number.clone(), tx).into()
+						ChainApiMessage::FinalizedBlockHash(block_header.number.clone(), tx)
 					).await;
 
 					let lost_to_finality = match rx.await {
@@ -541,7 +544,7 @@ pub(crate) async fn handle_new_head(
 		"Informing distribution of newly imported chain",
 	);
 
-	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta).into());
+	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta));
 
 	Ok(imported_candidates)
 }

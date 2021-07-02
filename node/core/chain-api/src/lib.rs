@@ -40,7 +40,12 @@ use sp_blockchain::HeaderBackend;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId};
 use polkadot_subsystem::{
-	messages::ChainApiMessage, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	overseer,
+	messages::{
+		AllMessages,
+		ChainApiMessage,
+	},
+	FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
 
@@ -62,13 +67,14 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client>
+impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client>
 where
 	Client: HeaderBackend<Block> + AuxStore + 'static,
 	Context: SubsystemContext<Message = ChainApiMessage>,
+	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(ctx, self)
+		let future = run::<Client, Context>(ctx, self)
 			.map_err(|e| SubsystemError::with_origin("chain-api", e))
 			.boxed();
 		SpawnedSubsystem {
@@ -78,12 +84,14 @@ where
 	}
 }
 
-async fn run<Client>(
-	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
+async fn run<Client, Context>(
+	mut ctx: Context,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block> + AuxStore,
+	Context: SubsystemContext<Message = ChainApiMessage>,
+	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	loop {
 		match ctx.recv().await? {
