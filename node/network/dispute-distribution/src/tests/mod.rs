@@ -34,7 +34,6 @@ use parity_scale_codec::{Encode, Decode};
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_node_subsystem_util::TimeoutExt;
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::{IfDisconnected, request_response::{Recipient, Requests, v1::DisputeResponse}};
@@ -151,6 +150,7 @@ fn received_request_triggers_import() {
 				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 				message.clone().into(),
 				ImportStatementsResult::InvalidImport,
+				true,
 				move |handle, req_tx, message| 
 					nested_network_dispute_request(
 						handle, 
@@ -158,6 +158,7 @@ fn received_request_triggers_import() {
 						MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
 						message.clone().into(),
 						ImportStatementsResult::ValidImport,
+						false,
 						move |_, req_tx, message| async move {
 							// Another request from Alice should get dropped (request already in
 							// flight):
@@ -230,6 +231,7 @@ fn received_request_triggers_import() {
 				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
 				message.clone().into(),
 				ImportStatementsResult::ValidImport,
+				false,
 				|_, _, _| async {}
 			).await;
 
@@ -488,6 +490,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 	peer: PeerId,
 	message: DisputeRequest,
 	import_result: ImportStatementsResult,
+	need_session_info: bool,
 	inner: F,
 ) 
 	where
@@ -504,20 +507,16 @@ async fn nested_network_dispute_request<'a, F, O>(
 		message.clone().into()
 	).await;
 
-	// Subsystem might need `SessionInfo` for determining indices:
-	match handle.recv().timeout(Duration::from_millis(1)).await {
-		Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				_,
-				RuntimeApiRequest::SessionInfo(_, tx)
-		))) => {
-			tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-		}
-		Some(unexpected) => panic!("Unexpected message {:?}", unexpected),
-		None => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				"No session info needed."
-			);
+	if need_session_info {
+		// Subsystem might need `SessionInfo` for determining indices:
+		match handle.recv().await {
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionInfo(_, tx)
+			)) => {
+				tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+			}
+			unexpected => panic!("Unexpected message {:?}", unexpected),
 		}
 	}
 
