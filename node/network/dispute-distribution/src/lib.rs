@@ -115,9 +115,9 @@ impl DisputeDistributionSubsystem {
 		Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
 	{
 		loop {
-			let message = Message::receive(&mut ctx, &mut self.sender_rx).await;
+			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
-				Message::Subsystem(result) => {
+				MuxedMessage::Subsystem(result) => {
 					let result = match result? {
 						FromOverseer::Signal(signal) => {
 							match self.handle_signals(&mut ctx, signal).await {
@@ -130,7 +130,7 @@ impl DisputeDistributionSubsystem {
 					};
 					log_error(result, "on FromOverseer")?;
 				}
-				Message::Sender(result) => {
+				MuxedMessage::Sender(result) => {
 					self.disputes_sender.on_task_message(
 						result.ok_or(Fatal::SenderExhausted)?
 					)
@@ -206,25 +206,25 @@ impl DisputeDistributionSubsystem {
 
 /// Messages to be handled in this subsystem.
 #[derive(Debug)]
-enum Message {
+enum MuxedMessage {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
 	/// Messages from spawned sender background tasks.
 	Sender(Option<FromSendingTask>),
 }
 
-impl Message {
+impl MuxedMessage {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
 		from_sender: &mut mpsc::Receiver<FromSendingTask>,
-	) -> Message {
+	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
-			msg = from_sender.next() => Message::Sender(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_sender.next() => MuxedMessage::Sender(msg),
 		)
 	}
 }

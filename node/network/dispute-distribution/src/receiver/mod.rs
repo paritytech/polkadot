@@ -96,7 +96,7 @@ pub struct DisputesReceiver<Sender> {
 }
 
 /// Messages as handled by this receiver internally.
-enum Message {
+enum MuxedMessage {
 	/// An import got confirmed by the coordinator.
 	///
 	/// We need to handle those for two reasons:
@@ -110,23 +110,23 @@ enum Message {
 	NewRequest(sc_network::config::IncomingRequest),
 }
 
-impl Message {
+impl MuxedMessage {
 	async fn receive(
 		pending_imports: &mut PendingImports,
 		pending_requests: &mut mpsc::Receiver<sc_network::config::IncomingRequest>,
-	) -> FatalResult<Message> {
+	) -> FatalResult<MuxedMessage> {
 		poll_fn(|ctx| {
 			if let Poll::Ready(v) = pending_requests.poll_next_unpin(ctx) {
 				let r = match v {
 					None => Err(Fatal::RequestChannelFinished),
-					Some(msg) => Ok(Message::NewRequest(msg)),
+					Some(msg) => Ok(MuxedMessage::NewRequest(msg)),
 				};
 				return Poll::Ready(r)
 			}
 			// In case of Ready(None) return `Pending` below - we want to wait for the next request
 			// in that case ^^ (no busy looping).
 			if let Poll::Ready(Some(v)) = pending_imports.poll_next_unpin(ctx) {
-				return Poll::Ready(Ok(Message::ConfirmedImport(v)))
+				return Poll::Ready(Ok(MuxedMessage::ConfirmedImport(v)))
 			}
 			Poll::Pending
 		}).await
@@ -187,7 +187,7 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 	/// Actual work happening here.
 	async fn run_inner(&mut self) -> Result<()> {
 
-		let msg = Message::receive(
+		let msg = MuxedMessage::receive(
 			&mut self.pending_imports,
 			&mut self.receiver
 		)
@@ -195,11 +195,11 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 
 		let raw = match msg {
 			// We need to clean up futures, to make sure responses are sent:
-			Message::ConfirmedImport(m_bad) => {
+			MuxedMessage::ConfirmedImport(m_bad) => {
 				self.ban_bad_peer(m_bad)?;
 				return Ok(())
 			}
-			Message::NewRequest(req) => req,
+			MuxedMessage::NewRequest(req) => req,
 		};
 
 		self.metrics.on_received_request();
