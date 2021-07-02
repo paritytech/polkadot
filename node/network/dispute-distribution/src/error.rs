@@ -73,10 +73,6 @@ pub enum Fatal {
 	/// Errors coming from DisputeSender
 	#[error("Error while accessing runtime information")]
 	Sender(#[from] #[source] sender::Fatal),
-
-	/// A oneshot that's not supposed to get cancelled got cancelled.
-	#[error("Oneshot got killed unexpectedly: {0}")]
-	CanceledOneshot(&'static str),
 }
 
 /// Non-fatal errors of this subsystem.

@@ -63,7 +63,7 @@ pub struct SendTask {
 	has_failed_sends: bool,
 
 	/// Sender to be cloned for tasks.
-	tx: mpsc::Sender<FromSendingTask>,
+	tx: mpsc::Sender<TaskFinish>,
 }
 
 /// Status of a particular vote/statement delivery to a particular validator.
@@ -74,11 +74,15 @@ enum DeliveryStatus {
 	Succeeded,
 }
 
-/// Messages from tasks trying to get disputes delievered.
+/// A sending task finishes with this result:
 #[derive(Debug)]
-pub enum FromSendingTask {
-	/// Delivery of statements for given candidate finished for this authority.
-	Finished(CandidateHash, AuthorityDiscoveryId, TaskResult),
+pub struct TaskFinish {
+	/// The candidate this task was running for.
+	pub candidate_hash: CandidateHash,
+	/// The authority the request was sent to.
+	pub receiver: AuthorityDiscoveryId,
+	/// The result of the delivery attempt.
+	pub result: TaskResult,
 }
 
 #[derive(Debug)]
@@ -107,7 +111,7 @@ impl SendTask
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex,Hash>,
-		tx: mpsc::Sender<FromSendingTask>,
+		tx: mpsc::Sender<TaskFinish>,
 		request: DisputeRequest,
 	) -> Result<Self> {
 		let mut send_task = Self {
@@ -248,7 +252,7 @@ impl SendTask
 /// And spawn tasks for handling the response.
 async fn send_requests<Context: SubsystemContext>(
 	ctx: &mut Context,
-	tx: mpsc::Sender<FromSendingTask>,
+	tx: mpsc::Sender<TaskFinish>,
 	receivers: Vec<AuthorityDiscoveryId>,
 	req: DisputeRequest,
 ) -> Result<HashMap<AuthorityDiscoveryId, DeliveryStatus>> {
@@ -290,7 +294,7 @@ async fn wait_response_task(
 	pending_response: impl Future<Output = OutgoingResult<DisputeResponse>>,
 	candidate_hash: CandidateHash,
 	receiver: AuthorityDiscoveryId,
-	mut tx: mpsc::Sender<FromSendingTask>,
+	mut tx: mpsc::Sender<TaskFinish>,
 ) {
 	let result = pending_response.await;
 	let msg = match result {
@@ -302,7 +306,7 @@ async fn wait_response_task(
 				%err,
 				"Error sending dispute statements to node."
 			);
-			FromSendingTask::Finished(candidate_hash, receiver, TaskResult::Failed)
+			TaskFinish { candidate_hash, receiver, result: TaskResult::Failed}
 		}
 		Ok(DisputeResponse::Confirmed) => {
 			tracing::trace!(
@@ -311,7 +315,7 @@ async fn wait_response_task(
 				%receiver,
 				"Sending dispute message succeeded"
 			);
-			FromSendingTask::Finished(candidate_hash, receiver, TaskResult::Succeeded)
+			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded }
 		}
 	};
 	if let Err(err) = tx.feed(msg).await {

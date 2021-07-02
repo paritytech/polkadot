@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::pin::Pin;
+use std::unreachable;
 
 use futures::channel::mpsc;
 use futures::stream::{FusedStream, Stream};
@@ -69,8 +70,8 @@ impl RequestMultiplexer {
 			})
 			.unzip();
 
-		// Ok this code is ugly as hell, it is also a hack, see #2842. But it works and is executed
-		// on startup so, if anything is wrong here it will be noticed immediately.
+		// Ok this code is ugly as hell, it is also a hack, see https://github.com/paritytech/polkadot/issues/2842.
+		// But it works and is executed on startup so, if anything is wrong here it will be noticed immediately.
 		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
 			if let Protocol::StatementFetching = p {
 				Some(i)
@@ -192,10 +193,10 @@ fn multiplex_single(
 			pending_response,
 		)),
 		Protocol::StatementFetching => {
-			panic!("Statement fetching requests are handled directly. qed.");
+			unreachable!("Statement fetching requests are handled directly. qed.");
 		}
 		Protocol::DisputeSending => {
-			panic!("Dispute sending request are handled directly. qed.");
+			unreachable!("Dispute sending request are handled directly. qed.");
 		}
 	};
 	Ok(r)

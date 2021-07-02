@@ -68,7 +68,7 @@ pub const MAX_PARALLEL_IMPORTS: usize = 10;
 ///
 /// This is supposed to run as its own task in order to easily impose back pressure on the incoming
 /// request channel and at the same time to drop flood messages as fast as possible.
-pub struct DisputesReceiver<Sender> {
+pub struct DisputesReceiver<Sender, AD> {
 	/// Access to session information.
 	runtime: RuntimeInfo,
 
@@ -79,7 +79,7 @@ pub struct DisputesReceiver<Sender> {
 	receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 
 	/// Authority discovery service:
-	authority_discovery: Box<dyn AuthorityDiscovery>,
+	authority_discovery: AD,
 
 	/// Imports currently being processed.
 	pending_imports: PendingImports,
@@ -124,7 +124,7 @@ impl MuxedMessage {
 				return Poll::Ready(r)
 			}
 			// In case of Ready(None) return `Pending` below - we want to wait for the next request
-			// in that case ^^ (no busy looping).
+			// in that case.
 			if let Poll::Ready(Some(v)) = pending_imports.poll_next_unpin(ctx) {
 				return Poll::Ready(Ok(MuxedMessage::ConfirmedImport(v)))
 			}
@@ -133,12 +133,15 @@ impl MuxedMessage {
 	}
 }
 
-impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
+impl<Sender: SubsystemSender, AD> DisputesReceiver<Sender, AD>
+where 
+	AD: AuthorityDiscovery,
+{
 	/// Create a new receiver which can be `run`.
 	pub fn new(
 		sender: Sender,
 		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
-		authority_discovery: Box<dyn AuthorityDiscovery>,
+		authority_discovery: AD,
 		metrics: Metrics,
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
@@ -229,6 +232,11 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		// Immediately drop requests from peers that already have requests in flight or have
 		// been banned recently (flood protection):
 		if self.pending_imports.peer_is_pending(&peer) || self.banned_peers.contains(&peer) {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer,
+				"Dropping message from peer (banned/pending import)"
+			);
 			return Ok(())
 		}
 

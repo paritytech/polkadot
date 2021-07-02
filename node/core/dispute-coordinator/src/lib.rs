@@ -314,6 +314,7 @@ async fn handle_incoming(
 				statements,
 			).await?;
 			// TODO: Recover availability and report back unavailable data:
+			// https://github.com/paritytech/polkadot/issues/3399
 			pending_confirmation
 				.send(ImportStatementsResult::ValidImport)
 				.map_err(|_| Error::OneshotSend)?;

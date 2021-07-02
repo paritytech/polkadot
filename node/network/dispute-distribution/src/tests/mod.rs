@@ -719,16 +719,6 @@ async fn handle_subsystem_startup(
 		}
 	).await;
 
-	assert_matches!(
-		handle.recv().await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::GetAuthorityDiscoveryService(tx)
-		) => {
-			tx
-				.send(Box::new(MOCK_AUTHORITY_DISCOVERY.clone()))
-				.expect("Receiver should still be alive.");
-		}
-	);
 	let relay_parent = Hash::random();
 	activate_leaf(
 		handle,
@@ -753,7 +743,11 @@ where
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
-	let subsystem = DisputeDistributionSubsystem::new(keystore, Metrics::new_dummy());
+	let subsystem = DisputeDistributionSubsystem::new(
+		keystore,
+		MOCK_AUTHORITY_DISCOVERY.clone(),
+		Metrics::new_dummy()
+	);
 
 	let subsystem = |ctx| async {
 		match subsystem.run(ctx).await {

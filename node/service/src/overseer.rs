@@ -130,7 +130,7 @@ pub fn create_default_subsystems<'a, Spawner, RuntimeClient>
 	ApprovalDistributionSubsystem,
 	ApprovalVotingSubsystem,
 	GossipSupportSubsystem,
-	DisputeDistributionSubsystem,
+	DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 >,
 	Error
 >
@@ -196,7 +196,7 @@ where
 		},
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service.clone(),
-			authority_discovery_service,
+			authority_discovery_service.clone(),
 			request_multiplexer,
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
@@ -230,6 +230,7 @@ where
 		),
 		dispute_distribution: DisputeDistributionSubsystem::new(
 			keystore.clone(),
+			authority_discovery_service,
 			Metrics::register(registry)?,
 		),
 	};

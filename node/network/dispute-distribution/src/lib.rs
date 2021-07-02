@@ -17,13 +17,13 @@
 
 /// Sending and receiving of `DisputeRequest`s.
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::{mpsc};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 
+use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_subsystem::messages::{AllMessages, NetworkBridgeMessage};
 use polkadot_subsystem::{
 	messages::DisputeDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError,
@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 /// See the implementers guide for more detail on the general protocol, but in general
 /// `DisputeSender` takes care of getting our vote out to all other relevant validators.
 mod sender;
-use self::sender::{DisputeSender, FromSendingTask};
+use self::sender::{DisputeSender, TaskFinish};
 
 /// Handle receival of dispute requests.
 ///
@@ -59,13 +59,10 @@ mod metrics;
 //// Prometheus `Metrics` for dispute distribution.
 pub use metrics::Metrics;
 
-// #[cfg(test)]
-// mod tests;
-
 const LOG_TARGET: &'static str = "parachain::dispute-distribution";
 
 /// The dispute distribution subsystem.
-pub struct DisputeDistributionSubsystem {
+pub struct DisputeDistributionSubsystem<AD> {
 	/// Easy and efficient runtime access for this subsystem.
 	runtime: RuntimeInfo,
 
@@ -73,15 +70,19 @@ pub struct DisputeDistributionSubsystem {
 	disputes_sender: DisputeSender,
 
 	/// Receive messages from `SendTask`.
-	sender_rx: mpsc::Receiver<FromSendingTask>,
+	sender_rx: mpsc::Receiver<TaskFinish>,
+
+	/// Authority discovery service.
+	authority_discovery: AD,
 
 	/// Metrics for this subsystem.
 	metrics: Metrics,
 }
 
-impl<Context> Subsystem<Context> for DisputeDistributionSubsystem
+impl<Context, AD> Subsystem<Context> for DisputeDistributionSubsystem<AD>
 where
 	Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
+	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -96,17 +97,19 @@ where
 	}
 }
 
-impl DisputeDistributionSubsystem {
-
+impl<AD> DisputeDistributionSubsystem<AD> 
+where
+	AD: AuthorityDiscovery + Clone,
+{
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
 			session_cache_lru_size: DISPUTE_WINDOW as usize,
 		});
 		let (tx, sender_rx) = mpsc::channel(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());
-		Self { runtime, disputes_sender, sender_rx, metrics }
+		Self { runtime, disputes_sender, sender_rx, authority_discovery, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -121,8 +124,9 @@ impl DisputeDistributionSubsystem {
 					let result = match result? {
 						FromOverseer::Signal(signal) => {
 							match self.handle_signals(&mut ctx, signal).await {
-								SignalResult::Conclude => return Ok(()),
-								SignalResult::Result(result) => result,
+								Ok(SignalResult::Conclude) => return Ok(()),
+								Ok(SignalResult::Continue) => Ok(()),
+								Err(f) => Err(f),
 							}
 						}
 						FromOverseer::Communication { msg } =>
@@ -145,24 +149,22 @@ impl DisputeDistributionSubsystem {
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal
-	) -> SignalResult
+	) -> Result<SignalResult>
 	{
-		let result = match signal {
-			OverseerSignal::Conclude => return SignalResult::Conclude,
+		match signal {
+			OverseerSignal::Conclude =>
+				return Ok(SignalResult::Conclude),
 			OverseerSignal::ActiveLeaves(update) => {
 				self.disputes_sender.update_leaves(
 					ctx,
 					&mut self.runtime,
 					update
 				)
-				.await
-				.map_err(From::from)
+				.await?;
 			}
-			OverseerSignal::BlockFinalized(_,_) => {
-				Ok(())
-			}
+			OverseerSignal::BlockFinalized(_,_) => {}
 		};
-		SignalResult::Result(result)
+		Ok(SignalResult::Continue)
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
@@ -177,20 +179,10 @@ impl DisputeDistributionSubsystem {
 				self.disputes_sender.start_sender(ctx, &mut self.runtime, dispute_msg).await?,
 			// This message will only arrive once:
 			DisputeDistributionMessage::DisputeSendingReceiver(receiver) => {
-				let (tx, rx) = oneshot::channel();
-				ctx.send_message(
-					AllMessages::NetworkBridge(
-						NetworkBridgeMessage::GetAuthorityDiscoveryService(tx)
-					)
-				).await;
-				let service = rx
-					.await
-					.map_err(|_| Fatal::CanceledOneshot("get_authority_discovery_service"))?;
-
 				let receiver = DisputesReceiver::new(
 					ctx.sender().clone(),
 					receiver,
-					service,
+					self.authority_discovery.clone(),
 					self.metrics.clone()
 				);
 
@@ -210,13 +202,13 @@ enum MuxedMessage {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
 	/// Messages from spawned sender background tasks.
-	Sender(Option<FromSendingTask>),
+	Sender(Option<TaskFinish>),
 }
 
 impl MuxedMessage {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
-		from_sender: &mut mpsc::Receiver<FromSendingTask>,
+		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
@@ -231,6 +223,8 @@ impl MuxedMessage {
 
 /// Result of handling signal from overseer.
 enum SignalResult {
+	/// Overseer asked us to conclude.
 	Conclude,
-	Result(Result<()>),
+	/// We can continue processing events.
+	Continue,
 }

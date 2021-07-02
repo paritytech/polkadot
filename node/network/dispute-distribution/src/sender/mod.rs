@@ -35,7 +35,7 @@ use polkadot_subsystem::{
 /// out.
 mod send_task;
 use send_task::SendTask;
-pub use send_task::FromSendingTask;
+pub use send_task::TaskFinish;
 
 /// Error and [`Result`] type for sender
 mod error;
@@ -62,7 +62,7 @@ pub struct DisputeSender {
 	disputes: HashMap<CandidateHash, SendTask>,
 
 	/// Sender to be cloned for `SendTask`s.
-	tx: mpsc::Sender<FromSendingTask>,
+	tx: mpsc::Sender<TaskFinish>,
 
 	/// Metrics for reporting stats about sent requests.
 	metrics: Metrics,
@@ -71,7 +71,7 @@ pub struct DisputeSender {
 impl DisputeSender
 {
 	/// Create a new `DisputeSender` which can be used to start dispute sendings.
-	pub fn new(tx: mpsc::Sender<FromSendingTask>, metrics: Metrics) -> Self {
+	pub fn new(tx: mpsc::Sender<TaskFinish>, metrics: Metrics) -> Self {
 		Self {
 			active_heads: Vec::new(),
 			active_sessions: HashMap::new(),
@@ -161,27 +161,25 @@ impl DisputeSender
 	}
 
 	/// Receive message from a sending task.
-	pub async fn on_task_message(&mut self, msg: FromSendingTask) {
-		match msg {
-			FromSendingTask::Finished(candidate_hash, authority, result) => {
+	pub async fn on_task_message(&mut self, msg: TaskFinish) {
 
-				self.metrics.on_sent_request(result.as_metrics_label());
+		let TaskFinish { candidate_hash, receiver, result } = msg;
 
-				let task = match self.disputes.get_mut(&candidate_hash) {
-					None => {
-						// Can happen when a dispute ends, with messages still in queue:
-						tracing::trace!(
-							target: LOG_TARGET,
-							?result,
-							"Received `FromSendingTask::Finished` for non existing dispute."
-						);
-						return
-					}
-					Some(task) => task,
-				};
-				task.on_finished_send(&authority, result);
+		self.metrics.on_sent_request(result.as_metrics_label());
+
+		let task = match self.disputes.get_mut(&candidate_hash) {
+			None => {
+				// Can happen when a dispute ends, with messages still in queue:
+				tracing::trace!(
+					target: LOG_TARGET,
+					?result,
+					"Received `FromSendingTask::Finished` for non existing dispute."
+				);
+				return
 			}
-		}
+			Some(task) => task,
+		};
+		task.on_finished_send(&receiver, result);
 	}
 
 	/// Call `start_sender` on all passed in disputes.

@@ -563,15 +563,6 @@ where
 						network_service = ns;
 						authority_discovery_service = ads;
 					}
-					NetworkBridgeMessage::GetAuthorityDiscoveryService(tx) => {
-						if let Err(err) = tx.send(Box::new(authority_discovery_service.clone())) {
-							tracing::debug!(
-								target: LOG_TARGET,
-								?err,
-								"Answering `GetAuthorityDiscoveryService` request failed."
-							);
-						}
-					}
 					NetworkBridgeMessage::NewGossipTopology {
 						our_neighbors,
 					} => {

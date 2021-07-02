@@ -29,7 +29,7 @@ use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, authority_discovery::AuthorityDiscovery, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
 use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -322,12 +322,6 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
-
-	/// Get an instance of the authority discovery service.
-	///
-	/// This can be used to discovery `PeerId`s belonging to `AuthorityId`s and the other way
-	/// round.
-	GetAuthorityDiscoveryService(oneshot::Sender<Box<dyn AuthorityDiscovery>>),
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
@@ -349,7 +343,6 @@ impl NetworkBridgeMessage {
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
 			Self::SendRequests { .. } => None,
-			Self::GetAuthorityDiscoveryService(_) => None,
 			Self::NewGossipTopology { .. } => None,
 		}
 	}

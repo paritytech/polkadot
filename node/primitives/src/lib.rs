@@ -470,11 +470,13 @@ impl DisputeMessage {
 		let candidate_hash = *valid_statement.candidate_hash();
 		// Check statements concern same candidate:
 		if candidate_hash != *invalid_statement.candidate_hash() {
+			tracing::debug!("Candidate hashes did not match up");
 			return None
 		}
 
 		let session_index = valid_statement.session_index();
 		if session_index != invalid_statement.session_index() {
+			tracing::debug!("Session indices did not match up");
 			return None
 		}
 
@@ -482,25 +484,34 @@ impl DisputeMessage {
 		let invalid_id = session_info.validators.get(invalid_index.0 as usize)?;
 
 		if valid_id != valid_statement.validator_public() {
+			tracing::debug!("Valid statement validator key did not match session information");
 			return None
 		}
 
 		if invalid_id != invalid_statement.validator_public() {
+			tracing::debug!("Invalid statement validator key did not match session information");
 			return None
 		}
 
 		if candidate_receipt.hash() != candidate_hash {
+			tracing::debug!("Candidate receipt had invalid candidate hash");
 			return None
 		}
 
 		let valid_kind = match valid_statement.statement() {
 			DisputeStatement::Valid(v) => v,
-			_ => return None,
+			_ => {
+				tracing::debug!("Valid statement had no valid kind.");
+				return None
+			}
 		};
 
 		let invalid_kind = match invalid_statement.statement() {
 			DisputeStatement::Invalid(v) => v,
-			_ => return None,
+			_ => {
+				tracing::debug!("Invalid statement had no invalid kind.");
+				return None
+			}
 		};
 
 		let valid_vote = ValidDisputeVote {

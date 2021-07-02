@@ -90,6 +90,7 @@ impl Default for Config {
 	fn default() -> Self {
 		Self {
 			keystore: None,
+			// Usually we need to cache the current and the last session.
 			session_cache_lru_size: 2,
 		}
 	}
