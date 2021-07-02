@@ -541,7 +541,7 @@ impl MultiLocation {
 		}
 	}
 
-	/// This function ensures a multi-junction is in it's canonicalized/normalized form, removing
+	/// This function ensures a multi-junction is in its canonicalized/normalized form, removing
 	/// any internal `[Non-Parent, Parent]` combinations.
 	pub fn canonicalize(&mut self) {
 		let mut normalized = MultiLocation::Null;
