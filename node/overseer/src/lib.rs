@@ -462,6 +462,11 @@ impl OverseerHandler {
 		}).await
 	}
 
+	/// Same as `send_msg`, but with no origin. Used for tests.
+	pub async fn send_msg_anon(&mut self, msg: impl Into<AllMessages>) {
+		self.send_msg(msg, "").await
+	}
+
 	/// Inform the `Overseer` that some block was finalized.
 	pub async fn block_finalized(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockFinalized(block)).await
