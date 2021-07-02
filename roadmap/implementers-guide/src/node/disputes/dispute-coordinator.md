@@ -107,11 +107,18 @@ Do nothing.
    10. If it is freshly disputed now, load `"active-dsiputes"` and add the
    candidate hash and session index. Then, if we have local statements with
    regards to that candidate,  also continue with 10. Otherwise proceed with 9.
-9. Issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage]. Wait for response on the `report_availability` oneshot, if available continue with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
+9. Issue a
+   [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
+   Wait for response on the `report_availability` oneshot, if available continue
+   with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
 10. Write the `CandidateVotes` to the underyling DB.
 11. Send back `ImportStatementsResult::ValidImport`.
-12. If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, remove from `"active-disputes"`.
-13. If the dispute now has supermajority votes in the "invalid" direction, there is no need to do anything explicitly. The actual rollback will be handled during the active leaves update by observing digests from the runtime.
+12. If the dispute now has supermajority votes in the "valid" direction,
+    according to the `SessionInfo` of the dispute candidate's session, remove
+    from `"active-disputes"`.
+13. If the dispute now has supermajority votes in the "invalid" direction, there
+    is no need to do anything explicitly. The actual rollback will be handled
+    during the active leaves update by observing digests from the runtime.
 14. Write `"active-disputes"`
 
 ### On `DisputeCoordinatorMessage::ActiveDisputes`
