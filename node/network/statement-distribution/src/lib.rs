@@ -595,14 +595,14 @@ impl MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
-		let from_requester = from_requester.next().fuse();
-		let from_responder = from_responder.next().fuse();
+		let from_requester = from_requester.next();
+		let from_responder = from_responder.next();
 		futures::pin_mut!(from_overseer, from_requester, from_responder);
-		futures::select!(
+		futures::select! {
 			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
 			msg = from_requester => MuxedMessage::Requester(msg),
 			msg = from_responder => MuxedMessage::Responder(msg),
-		)
+		}
 	}
 }
 

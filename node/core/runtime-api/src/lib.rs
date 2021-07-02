@@ -302,33 +302,15 @@ where
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
-		($req_variant:ident, $api_name:ident (), $sender:expr) => {{
+		($req_variant:ident, $api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent))
+			let res = api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
 
-			if let Ok(res) = res {
-				Some(RequestResult::$req_variant(relay_parent, res.clone()))
-			} else {
-				None
-			}
-		}};
-		($req_variant:ident, $api_name:ident ($($param:expr),+), $sender:expr) => {{
-			let sender = $sender;
-			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent), $($param.clone()),*)
-				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
-			metrics.on_request(res.is_ok());
-			let _ = sender.send(res.clone());
-
-			if let Ok(res) = res {
-				Some(RequestResult::$req_variant(relay_parent, $($param),+, res.clone()))
-			} else {
-				None
-			}
+			res.ok().map(|res| RequestResult::$req_variant(relay_parent, $( $param, )* res))
 		}}
 	}
 
