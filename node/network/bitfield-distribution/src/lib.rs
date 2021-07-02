@@ -27,9 +27,9 @@ use futures::{channel::oneshot, FutureExt};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemResult,
+	SubsystemContext, SubsystemResult, SubsystemError,
 	jaeger,
-	overseer::{self, Subsystem,},
+	overseer,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -163,6 +163,7 @@ impl BitfieldDistribution {
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
 	{
 		// work: process incoming messages from the overseer and process accordingly.
 		let mut state = ProtocolState::default();
@@ -251,9 +252,9 @@ where
 {
 	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
-	))
+	)
 	.await
 }
 
@@ -329,7 +330,7 @@ where
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
-	ctx.send_message(AllMessages::Provisioner(
+	ctx.send_message(
 		ProvisionerMessage::ProvisionableData(
 			message.relay_parent,
 			ProvisionableData::Bitfield(
@@ -337,7 +338,7 @@ where
 				message.signed_availability.clone(),
 			),
 		),
-	))
+	)
 	.await;
 
 	drop(_span);
@@ -384,12 +385,12 @@ where
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(AllMessages::NetworkBridge(
+		ctx.send_message(
 			NetworkBridgeMessage::SendValidationMessage(
 				interested_peers,
 				message.into_validation_protocol(),
 			),
-		))
+		)
 		.await;
 	}
 }
@@ -688,19 +689,20 @@ where
 		.or_default()
 		.insert(validator.clone());
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::SendValidationMessage(
 			vec![dest],
 			message.into_validation_protocol(),
 		),
-	)).await;
+	).await;
 }
 
-impl<C> Subsystem<C> for BitfieldDistribution
+impl<Context> overseer::Subsystem<Context, SubsystemError> for BitfieldDistribution
 where
-	C: SubsystemContext<Message = BitfieldDistributionMessage> + Sync + Send,
+	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
+	Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)
 			.map(|_| Ok(()))
 			.boxed();
@@ -723,12 +725,12 @@ where
 	let (validators_tx, validators_rx) = oneshot::channel();
 	let (session_tx, session_rx) = oneshot::channel();
 
-	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+	let query_validators = AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::Validators(validators_tx),
 	));
 
-	let query_signing = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+	let query_signing = AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
 	));
