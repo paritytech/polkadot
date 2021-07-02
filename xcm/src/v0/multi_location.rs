@@ -574,7 +574,7 @@ impl MultiLocation {
 
 
 	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
-	/// removing any internal `[Non-Parent, Parent`]  combinations.
+	/// removing any internal `[Non-Parent, Parent]`  combinations.
 	///
 	/// In the case of overflow, `self` is unmodified and  we return `Err` with `suffix`.
 	///
