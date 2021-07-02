@@ -90,6 +90,7 @@ use polkadot_node_subsystem::messages::{
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
 	ApprovalVotingMessage, GossipSupportMessage,
 	NetworkBridgeEvent,
+	DisputeParticipationMessage, DisputeCoordinatorMessage, ChainSelectionMessage,
 };
 pub use polkadot_node_subsystem::{
 	OverseerSignal,
@@ -100,7 +101,7 @@ pub use polkadot_node_subsystem::{
 
 /// TODO legacy, to be deleted, left for easier integration
 mod subsystems;
-use self::subsystems::AllSubsystems;
+pub use self::subsystems::AllSubsystems;
 
 mod metrics;
 use self::metrics::Metrics;
@@ -210,6 +211,24 @@ impl Handler {
 		if self.0.send(event).await.is_err() {
 			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
+	}
+
+	/// Whether the overseer handler is connected to an overseer.
+	#[deprecated(note ="Makes no sense imho")]
+	pub fn is_connected(&self) -> bool {
+		true
+	}
+
+	/// Whether the handler is disconnected.
+	#[deprecated(note="Makes no sense imho")]
+	pub fn is_disconnected(&self) -> bool {
+		false
+	}
+
+	/// Using this handler, connect another handler to the same
+	/// overseer, if any.
+	pub fn connect_other(&self, other: &mut Handler) {
+		*other = self.clone();
 	}
 }
 
@@ -368,6 +387,15 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(no_dispatch, GossipSupportMessage)]
 	gossip_support: GossipSupport,
+
+	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
+	dipute_coordinator: DisputeCoordinator,
+
+	#[subsystem(no_dispatch, DisputeParticipationMessage)]
+	dispute_participation: DisputeParticipation,
+
+	#[subsystem(no_dispatch, ChainSelectionMessage)]
+	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	pub activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
