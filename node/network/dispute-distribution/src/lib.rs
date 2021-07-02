@@ -55,9 +55,9 @@ use error::{Result, log_error};
 #[cfg(test)]
 mod tests;
 
-// mod metrics;
+mod metrics;
 //// Prometheus `Metrics` for dispute distribution.
-// pub use metrics::Metrics;
+pub use metrics::Metrics;
 
 // #[cfg(test)]
 // mod tests;
@@ -74,6 +74,9 @@ pub struct DisputeDistributionSubsystem {
 
 	/// Receive messages from `SendTask`.
 	sender_rx: mpsc::Receiver<FromSendingTask>,
+
+	/// Metrics for this subsystem.
+	metrics: Metrics,
 }
 
 impl<Context> Subsystem<Context> for DisputeDistributionSubsystem
@@ -96,14 +99,14 @@ where
 impl DisputeDistributionSubsystem {
 
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
 			session_cache_lru_size: DISPUTE_WINDOW as usize,
 		});
 		let (tx, sender_rx) = mpsc::channel(1);
-		let disputes_sender = DisputeSender::new(tx);
-		Self { runtime, disputes_sender, sender_rx }
+		let disputes_sender = DisputeSender::new(tx, metrics.clone());
+		Self { runtime, disputes_sender, sender_rx, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -184,7 +187,13 @@ impl DisputeDistributionSubsystem {
 					.await
 					.map_err(|_| Fatal::CanceledOneshot("get_authority_discovery_service"))?;
 
-				let receiver = DisputesReceiver::new(ctx.sender().clone(), receiver, service);
+				let receiver = DisputesReceiver::new(
+					ctx.sender().clone(),
+					receiver,
+					service,
+					self.metrics.clone()
+				);
+
 				ctx
 					.spawn("disputes-receiver", receiver.run().boxed(),)
 					.map_err(Fatal::SpawnTask)?;

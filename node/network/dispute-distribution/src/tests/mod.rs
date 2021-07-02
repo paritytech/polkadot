@@ -49,7 +49,7 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem_testhelpers::{TestSubsystemContextHandle, mock::make_ferdie_keystore, subsystem_test_harness};
 
-use crate::{DisputeDistributionSubsystem, LOG_TARGET};
+use crate::{DisputeDistributionSubsystem, LOG_TARGET, Metrics};
 use self::mock::{
 	ALICE_INDEX, FERDIE_INDEX, make_candidate_receipt, make_dispute_message,
 	MOCK_AUTHORITY_DISCOVERY, MOCK_SESSION_INDEX, MOCK_SESSION_INFO, MOCK_NEXT_SESSION_INDEX,
@@ -753,7 +753,7 @@ where
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
-	let subsystem = DisputeDistributionSubsystem::new(keystore);
+	let subsystem = DisputeDistributionSubsystem::new(keystore, Metrics::new_dummy());
 
 	let subsystem = |ctx| async {
 		match subsystem.run(ctx).await {

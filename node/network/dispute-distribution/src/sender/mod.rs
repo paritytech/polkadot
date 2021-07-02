@@ -41,7 +41,7 @@ pub use send_task::FromSendingTask;
 mod error;
 pub use error::{Result, Error, Fatal, NonFatal};
 
-use crate::LOG_TARGET;
+use crate::{LOG_TARGET, Metrics};
 use self::error::NonFatalResult;
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
@@ -63,17 +63,21 @@ pub struct DisputeSender {
 
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<FromSendingTask>,
+
+	/// Metrics for reporting stats about sent requests.
+	metrics: Metrics,
 }
 
 impl DisputeSender
 {
 	/// Create a new `DisputeSender` which can be used to start dispute sendings.
-	pub fn new(tx: mpsc::Sender<FromSendingTask>) -> Self {
+	pub fn new(tx: mpsc::Sender<FromSendingTask>, metrics: Metrics) -> Self {
 		Self {
 			active_heads: Vec::new(),
 			active_sessions: HashMap::new(),
 			disputes: HashMap::new(),
 			tx,
+			metrics,
 		}
 	}
 
@@ -160,6 +164,9 @@ impl DisputeSender
 	pub async fn on_task_message(&mut self, msg: FromSendingTask) {
 		match msg {
 			FromSendingTask::Finished(candidate_hash, authority, result) => {
+
+				self.metrics.on_sent_request(result.as_metrics_label());
+
 				let task = match self.disputes.get_mut(&candidate_hash) {
 					None => {
 						// Can happen when a dispute ends, with messages still in queue:

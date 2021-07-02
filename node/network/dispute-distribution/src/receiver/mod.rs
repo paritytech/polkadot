@@ -50,7 +50,8 @@ use polkadot_subsystem::{
 	},
 };
 
-use crate::LOG_TARGET;
+use crate::metrics::{FAILED, SUCCEEDED};
+use crate::{LOG_TARGET, Metrics};
 
 mod error;
 use self::error::{log_error, FatalResult, NonFatalResult, NonFatal, Fatal, Result};
@@ -89,6 +90,9 @@ pub struct DisputesReceiver<Sender> {
 	/// in the incoming channel - we should not waste time recovering availability for those, as we
 	/// already know the peer is malicious.
 	banned_peers: LruCache<PeerId, ()>,
+
+	/// Log received requests.
+	metrics: Metrics,
 }
 
 /// Messages as handled by this receiver internally.
@@ -135,6 +139,7 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 		sender: Sender,
 		receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
 		authority_discovery: Box<dyn AuthorityDiscovery>,
+		metrics: Metrics,
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: None,
@@ -149,6 +154,7 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
 			banned_peers: LruCache::new(MAX_PARALLEL_IMPORTS),
+			metrics,
 		}
 	}
 
@@ -195,6 +201,8 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 			}
 			Message::NewRequest(req) => req,
 		};
+
+		self.metrics.on_received_request();
 
 		let peer = raw.peer;
 
@@ -290,13 +298,18 @@ impl<Sender: SubsystemSender> DisputesReceiver<Sender> {
 	}
 
 	/// Await an import and ban any misbehaving peers.
+	///
+	/// In addition we report import metrics.
 	fn ban_bad_peer(
 		&mut self,
 		result: NonFatalResult<(PeerId, ImportStatementsResult)>
 	) -> NonFatalResult<()> {
 		match result? {
-			(_, ImportStatementsResult::ValidImport) => {}
+			(_, ImportStatementsResult::ValidImport) => { 
+				self.metrics.on_imported(SUCCEEDED);
+			}
 			(bad_peer, ImportStatementsResult::InvalidImport) => {
+				self.metrics.on_imported(FAILED);
 				self.banned_peers.put(bad_peer, ());
 			}
 		}

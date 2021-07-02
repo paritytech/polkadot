@@ -230,6 +230,7 @@ where
 		),
 		dispute_distribution: DisputeDistributionSubsystem::new(
 			keystore.clone(),
+			Metrics::register(registry)?,
 		),
 	};
 	Ok(all_subsystems)

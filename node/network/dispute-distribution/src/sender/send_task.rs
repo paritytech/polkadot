@@ -43,6 +43,8 @@ use polkadot_subsystem::{
 use super::error::{Fatal, Result};
 
 use crate::LOG_TARGET;
+use crate::metrics::FAILED;
+use crate::metrics::SUCCEEDED;
 
 /// Delivery status for a particular dispute.
 ///
@@ -87,6 +89,15 @@ pub enum TaskResult {
 	///
 	/// It should be retried in that case.
 	Failed,
+}
+
+impl TaskResult {
+	pub fn as_metrics_label(&self) -> &'static str {
+		match self {
+			Self::Succeeded => SUCCEEDED,
+			Self::Failed => FAILED,
+		}
+	}
 }
 
 impl SendTask
