@@ -45,8 +45,6 @@ Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
   - [`DisputeParticipationMessage`][DisputeParticipationMessage]
-  - [`AvailabilityRecoveryMessage`][AvailabilityRecoveryMessage]
-  - [`AvailabilityStoreMessage`][AvailabilityStoreMessage]
 
 ## Functionality
 
@@ -91,21 +89,25 @@ Do nothing.
 
 1. Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
 2. If the session is earlier than `state.highest_session - DISPUTE_WINDOW`,
-  respond with `ImportStatementsResult::InvalidImport` and return.
-3. Load from underlying DB by querying `("candidate-votes", session, candidate_hash)`.
-  If that does not exist, create fresh with the given candidate receipt.
-4. If candidate votes is empty and the statements only contain dispute-specific votes, respond with `ImportStatementsResult::InvalidImport` and return.
+   respond with `ImportStatementsResult::InvalidImport` and return.
+3. Load from underlying DB by querying `("candidate-votes", session,
+   candidate_hash)`.  If that does not exist, create fresh with the given
+   candidate receipt.
+4. If candidate votes is empty and the statements only contain dispute-specific
+   votes, respond with `ImportStatementsResult::InvalidImport` and return.
 5. Otherwise, if there is already an entry from the validator in the respective
   `valid` or `invalid` field of the `CandidateVotes`,  respond with
   `ImportStatementsResult::ValidImport` and return.
-6. Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`.
+6. Add an entry to the respective `valid` or `invalid` list of the
+   `CandidateVotes` for each statement in `statements`.
 7. If the both `valid` and `invalid` lists now became non-zero length where
-  previously one or both had zero length, the candidate would be freshly
-  disputed now.
-8. If the candidate is not freshly disputed as determined by 7, continue with 10. If it is freshly disputed now, but we have local
-  statements with regards to that candidate, also continue with 10. Otherwise
-  proceed with 9.
-9. Load `"active-disputes"` and add the candidate hash and session index. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage]. Wait for response on the `report_availability` oneshot, if available continue with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
+   previously one or both had zero length, the candidate would be freshly
+   disputed now.
+8. If the candidate is not freshly disputed as determined by 7, continue with
+   10. If it is freshly disputed now, load `"active-dsiputes"` and add the
+   candidate hash and session index. Then, if we have local statements with
+   regards to that candidate,  also continue with 10. Otherwise proceed with 9.
+9. Issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage]. Wait for response on the `report_availability` oneshot, if available continue with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
 10. Write the `CandidateVotes` to the underyling DB.
 11. Send back `ImportStatementsResult::ValidImport`.
 12. If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, remove from `"active-disputes"`.
@@ -138,7 +140,6 @@ Do nothing.
   1. If there is a dispute, exit the loop.
 * For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
 
-[AvailabilityRecoveryMessage]: ../../types/overseer-protocol.md#availability-recovery-message
 [DisputeTypes]: ../../types/disputes.md
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message

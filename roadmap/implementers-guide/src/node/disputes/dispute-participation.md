@@ -12,6 +12,7 @@ Output:
   - [RuntimeApiMessage][RuntimeApiMessage]
   - [CandidateValidationMessage][CandidateValidationMessage]
   - [AvailabilityRecoveryMessage][AvailabilityRecoveryMessage]
+  - [`AvailabilityStoreMessage`][AvailabilityStoreMessage]
   - [ChainApiMessage][ChainApiMessage]
 
 ## Functionality
