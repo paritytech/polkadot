@@ -72,7 +72,7 @@ impl Alternative {
 				"tokenDecimals": 9,
 				"tokenSymbol": "MLAU",
 				"bridgeIds": {
-					"Rialto": bp_runtime::RIALTO_BRIDGE_INSTANCE,
+					"Rialto": bp_runtime::RIALTO_CHAIN_ID,
 				}
 			})
 			.as_object()
@@ -145,10 +145,19 @@ impl Alternative {
 								get_account_id_from_seed::<sr25519::Public>("Alice"),
 							)),
 							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+								get_account_id_from_seed::<sr25519::Public>("Bob"),
+							)),
+							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
 								get_account_id_from_seed::<sr25519::Public>("Charlie"),
 							)),
 							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+								get_account_id_from_seed::<sr25519::Public>("Dave"),
+							)),
+							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
 								get_account_id_from_seed::<sr25519::Public>("Eve"),
+							)),
+							derive_account_from_rialto_id(bp_runtime::SourceAccount::Account(
+								get_account_id_from_seed::<sr25519::Public>("Ferdie"),
 							)),
 						],
 						true,
@@ -180,7 +189,7 @@ fn testnet_genesis(
 			changes_trie_config: Default::default(),
 		},
 		balances: BalancesConfig {
-			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 40)).collect(),
+			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 50)).collect(),
 		},
 		aura: AuraConfig {
 			authorities: Vec::new(),

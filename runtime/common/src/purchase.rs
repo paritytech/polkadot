@@ -898,8 +898,8 @@ mod tests {
 			assert_noop!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
-				u64::max_value(),
-				u64::max_value(),
+				u64::MAX,
+				u64::MAX,
 				Permill::zero(),
 			), Error::<Test>::InvalidAccount);
 		});

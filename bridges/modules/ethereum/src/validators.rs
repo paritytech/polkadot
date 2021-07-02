@@ -323,7 +323,7 @@ pub(crate) mod tests {
 		let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(Default::default(), Vec::new()));
 		let validators = Validators::new(&config);
 		let mut header = AuraHeader {
-			number: u64::max_value(),
+			number: u64::MAX,
 			..Default::default()
 		};
 		assert!(!validators.maybe_signals_validators_change(&header));
