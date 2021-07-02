@@ -524,9 +524,10 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
 where
 	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
@@ -542,7 +543,8 @@ where
 
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
@@ -572,7 +574,8 @@ async fn run_iteration<Context>(
 )
 	-> Result<bool, Error>
 where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
@@ -617,18 +620,22 @@ where
 	Ok(false)
 }
 
-async fn process_block_activated(
-	ctx: &mut impl SubsystemContext,
+async fn process_block_activated<Context>(
+	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 	let now = subsystem.clock.now()?;
 
 	let block_header = {
 		let (tx, rx) = oneshot::channel();
 
 		ctx.send_message(
-			ChainApiMessage::BlockHeader(activated, tx).into()
+			ChainApiMessage::BlockHeader(activated, tx)
 		).await;
 
 		match rx.await?? {
@@ -668,8 +675,8 @@ async fn process_block_activated(
 	Ok(())
 }
 
-async fn process_new_head(
-	ctx: &mut impl SubsystemContext,
+async fn process_new_head<Context>(
+	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
@@ -677,12 +684,16 @@ async fn process_new_head(
 	now: Duration,
 	hash: Hash,
 	header: Header,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 
 	let candidate_events = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(
-			RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(tx)).into()
+			RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(tx))
 		).await;
 
 		rx.await??
@@ -693,7 +704,7 @@ async fn process_new_head(
 	let n_validators = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(
-			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
+			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx))
 		).await;
 
 		rx.await??.len()
@@ -837,12 +848,16 @@ macro_rules! peek_num {
 	}
 }
 
-async fn process_block_finalized(
-	ctx: &mut impl SubsystemContext,
+async fn process_block_finalized<Context>(
+	ctx: &mut Context,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 	let now = subsystem.clock.now()?;
 
 	let mut next_possible_batch = 0;
@@ -871,7 +886,7 @@ async fn process_block_finalized(
 			finalized_hash
 		} else {
 			let (tx, rx) = oneshot::channel();
-			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx).into()).await;
+			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx)).await;
 
 			match rx.await?? {
 				None => {
