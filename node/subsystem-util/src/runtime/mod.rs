@@ -91,14 +91,13 @@ impl RuntimeInfo {
 	}
 
 	/// Retrieve the current session index.
-	pub async fn get_session_index<Context, M>(
+	pub async fn get_session_index<Context>(
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
 	) -> Result<SessionIndex>
 	where
-		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M>,
+		Context: SubsystemContext,
 	{
 		match self.session_index_cache.get(&parent) {
 			Some(index) => Ok(*index),
@@ -113,16 +112,13 @@ impl RuntimeInfo {
 	}
 
 	/// Get `ExtendedSessionInfo` by relay parent hash.
-	pub async fn get_session_info<'a, Context, M>(
+	pub async fn get_session_info<'a>(
 		&'a mut self,
-		ctx: &mut Context,
+		ctx: &mut impl SubsystemContext,
 		parent: Hash,
 	) -> Result<&'a ExtendedSessionInfo>
-	where
-		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M>,
 	{
-		let session_index = self.get_session_index::<_,M>(ctx, parent).await?;
+		let session_index = self.get_session_index(ctx, parent).await?;
 
 		self.get_session_info_by_index(ctx, parent, session_index).await
 	}
@@ -131,15 +127,12 @@ impl RuntimeInfo {
 	///
 	/// `request_session_info` still requires the parent to be passed in, so we take the parent
 	/// in addition to the `SessionIndex`.
-	pub async fn get_session_info_by_index<'a, Context, M>(
+	pub async fn get_session_info_by_index<'a>(
 		&'a mut self,
-		ctx: &mut Context,
+		ctx: &mut impl SubsystemContext,
 		parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<&'a ExtendedSessionInfo>
-	where
-		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M>,
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
@@ -162,20 +155,19 @@ impl RuntimeInfo {
 	}
 
 	/// Convenience function for checking the signature of something signed.
-	pub async fn check_signature<Context, Payload, RealPayload, M>(
+	pub async fn check_signature<Context, Payload, RealPayload>(
 		&mut self,
 		ctx: &mut Context,
 		parent: Hash,
 		signed: UncheckedSigned<Payload, RealPayload>,
 	) -> Result<std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>>
 	where
-		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M>,
+		Context: SubsystemContext,
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
-		let session_index = self.get_session_index::<_,M>(ctx, parent).await?;
-		let info = self.get_session_info_by_index::<_,M>(ctx, parent, session_index).await?;
+		let session_index = self.get_session_index(ctx, parent).await?;
+		let info = self.get_session_info_by_index(ctx, parent, session_index).await?;
 		Ok(check_signature(session_index, &info.session_info, parent, signed))
 	}
 
@@ -251,23 +243,21 @@ where
 }
 
 /// Request availability cores from the runtime.
-pub async fn get_availability_cores<Context, M>(ctx: &mut Context, relay_parent: Hash)
+pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<Vec<CoreState>>
 	where
-		M: From<RuntimeApiMessage>,
-		Context: SubsystemContext<Message=M>,
+		Context: SubsystemContext,
 {
 	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
 }
 
 /// Variant of `request_availability_cores` that only returns occupied ones.
-pub async fn get_occupied_cores<Context, M>(
+pub async fn get_occupied_cores<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> Result<Vec<OccupiedCore>>
 where
-M: From<RuntimeApiMessage>,
-Context: SubsystemContext<Message=M>,
+	Context: SubsystemContext,
 {
 	let cores = get_availability_cores(ctx, relay_parent).await?;
 
@@ -285,11 +275,10 @@ Context: SubsystemContext<Message=M>,
 }
 
 /// Get group rotation info based on the given relay_parent.
-pub async fn get_group_rotation_info<Context, M>(ctx: &mut Context, relay_parent: Hash)
+pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<GroupRotationInfo>
 where
-	M: From<RuntimeApiMessage>,
-	Context: SubsystemContext<Message=M>,
+	Context: SubsystemContext,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.

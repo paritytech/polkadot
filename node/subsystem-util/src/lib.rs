@@ -181,17 +181,15 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name <Sender> (
+		pub async fn $func_name (
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
 			)*
-			sender: &mut Sender,
+			sender: &mut impl SubsystemSender,
 		) -> RuntimeApiReceiver<$return_ty>
-			where
-				Sender: SubsystemSender,
 		{
-			request_from_runtime::<_, _, Sender>(parent, sender, |tx| RuntimeApiRequest::$request_variant(
+			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
 		}
