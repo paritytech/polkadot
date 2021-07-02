@@ -62,7 +62,7 @@ where
 	let full_req = Requests::PoVFetching(req);
 
 	ctx.send_message(
-		AllMessages::NetworkBridge(
+		AllMessages::NetworkBridgeMessage(
 			NetworkBridgeMessage::SendRequests(
 				vec![full_req],
 				// We are supposed to be connected to validators of our group via `PeerSet`,
@@ -75,7 +75,7 @@ where
 	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
 		.with_validator_index(from_validator)
 		.with_relay_parent(parent);
-	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
+	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed()).await
 		.map_err(|e| Fatal::SpawnTask(e))?;
 	Ok(())
 }

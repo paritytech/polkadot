@@ -158,9 +158,9 @@ where
 	Context: SubsystemContext,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::AvailabilityStore(
+	ctx.send_message(
 		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-	))
+	)
 	.await;
 
 	let result = rx.await.map_err(|e| {
@@ -185,9 +185,9 @@ where
 	Context: SubsystemContext,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::AvailabilityStore(
+	ctx.send_message(
 		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
-	))
+	)
 	.await;
 
 	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;

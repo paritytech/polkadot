@@ -188,7 +188,7 @@ impl FetchTask {
 		if let Some(running) = prepared_running {
 			let (handle, kill) = oneshot::channel();
 
-			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
+			ctx.spawn("chunk-fetcher", running.run(kill).boxed()).await
 				.map_err(|e| Fatal::SpawnTask(e))?;
 
 			Ok(FetchTask {
@@ -336,7 +336,7 @@ impl RunningTask {
 		let requests = Requests::ChunkFetching(full_request);
 
 		self.sender
-			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
+			.send(FromFetchTask::Message(AllMessages::NetworkBridgeMessage(
 				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect)
 			)))
 			.await
@@ -399,7 +399,7 @@ impl RunningTask {
 		let (tx, rx) = oneshot::channel();
 		let r = self
 			.sender
-			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
+			.send(FromFetchTask::Message(AllMessages::AvailabilityStoreMessage(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
 					chunk,
