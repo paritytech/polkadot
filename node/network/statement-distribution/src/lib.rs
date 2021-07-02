@@ -577,7 +577,7 @@ struct FetchingInfo {
 }
 
 /// Messages to be handled in this subsystem.
-enum Message {
+enum MuxedMessage {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOverseer<StatementDistributionMessage>>),
 	/// Messages from spawned requester background tasks.
@@ -586,12 +586,12 @@ enum Message {
 	Responder(Option<ResponderMessage>)
 }
 
-impl Message {
+impl MuxedMessage {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
-	) -> Message {
+	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
@@ -599,9 +599,9 @@ impl Message {
 		let from_responder = from_responder.next().fuse();
 		futures::pin_mut!(from_overseer, from_requester, from_responder);
 		futures::select!(
-			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
-			msg = from_requester => Message::Requester(msg),
-			msg = from_responder => Message::Responder(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_requester => MuxedMessage::Requester(msg),
+			msg = from_responder => MuxedMessage::Responder(msg),
 		)
 	}
 }
@@ -1614,9 +1614,9 @@ impl StatementDistribution {
 		let (res_sender, mut res_receiver) = mpsc::channel(1);
 
 		loop {
-			let message = Message::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
+			let message = MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
 			match message {
-				Message::Subsystem(result) => {
+				MuxedMessage::Subsystem(result) => {
 					let result = self.handle_subsystem_message(
 						&mut ctx,
 						&mut runtime,
@@ -1637,7 +1637,7 @@ impl StatementDistribution {
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
 				}
-				Message::Requester(result) => {
+				MuxedMessage::Requester(result) => {
 					let result = self.handle_requester_message(
 						&mut ctx,
 						&gossip_peers,
@@ -1649,7 +1649,7 @@ impl StatementDistribution {
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
 				}
-				Message::Responder(result) => {
+				MuxedMessage::Responder(result) => {
 					let result = self.handle_responder_message(
 						&peers,
 						&mut active_heads,
