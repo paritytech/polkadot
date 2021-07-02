@@ -326,7 +326,7 @@ enum ChainApiMessage {
     BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
     /// Get the cumulative weight of the given block, by hash.
     /// If the block or weight is unknown, this returns `None`.
-    /// 
+    ///
     /// Weight is used for comparing blocks in a fork-choice rule.
     BlockWeight(Hash, ResponseChannel<Result<Option<Weight>, Error>>),
     /// Get the finalized block hash by number.
@@ -438,7 +438,7 @@ enum DisputeCoordinatorMessage {
         /// This is, we either discarded the votes, just record them because we
         /// casted our vote already or recovered availability for the candidate
         /// successfully.
-        pending_confirmation: oneshot::Sender<()>,
+        pending_confirmation: oneshot::Sender<ImportStatementsResult>
     },
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
@@ -458,6 +458,14 @@ enum DisputeCoordinatorMessage {
         block_descriptions: Vec<(BlockHash, SessionIndex, Vec<CandidateHash>)>,
         rx: ResponseSender<Option<(BlockNumber, BlockHash)>>,
     }
+}
+
+/// Result of `ImportStatements`.
+pub enum ImportStatementsResult {
+	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
+	InvalidImport,
+	/// Import was valid and can be confirmed to peer.
+	ValidImport
 }
 ```
 
@@ -507,9 +515,6 @@ enum DisputeDistributionMessage {
     /// referenced session.
     from_validator: Option<ValidatorIndex>,
   }
-  /// Tell the subsystem that a candidate is not available. Dispute distribution
-  /// can punish peers distributing votes on unavailable hashes.
-  ReportCandidateUnavailable(CandidateHash),
 }
 ```
 

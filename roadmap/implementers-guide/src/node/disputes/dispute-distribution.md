@@ -1,6 +1,7 @@
 # Dispute Distribution
 
-Dispute distribution is responsible for ensuring all concerned validators will be aware of a dispute and have the relevant votes.
+Dispute distribution is responsible for ensuring all concerned validators will
+be aware of a dispute and have the relevant votes.
 
 ## Design Goals
 
@@ -35,33 +36,43 @@ Request:
 
 ```rust
 struct DisputeRequest {
-  // Either initiating invalid vote or our own (if we voted invalid).
-  invalid_vote: InvalidVote,
-  // Some invalid vote (can be from backing/approval) or our own if we voted
-  // valid.
-  valid_vote: ValidVote,
-}
-
-struct InvalidVote {
-  subject: VoteSubject,
-  kind: InvalidDisputeStatementKind,
-}
-
-struct ValidVote {
-  subject: VoteSubject,
-  kind: ValidDisputeStatementKind,
-}
-
-struct VoteSubject {
   /// The candidate being disputed.
-  candidate_hash: CandidateHash,
-  /// The voting validator.
-  validator_index: ValidatorIndex,
+  pub candidate_receipt: CandidateReceipt,
+
   /// The session the candidate appears in.
-  candidate_session: SessionIndex,
+  pub session_index: SessionIndex,
+
+  /// The invalid vote data that makes up this dispute.
+  pub invalid_vote: InvalidDisputeVote,
+
+  /// The valid vote that makes this dispute request valid.
+  pub valid_vote: ValidDisputeVote,
+}
+
+/// Any invalid vote (currently only explicit).
+pub struct InvalidDisputeVote {
+  /// The voting validator index.
+  pub validator_index: ValidatorIndex,
+
   /// The validator signature, that can be verified when constructing a
   /// `SignedDisputeStatement`.
-  validator_signature: ValidatorSignature,
+  pub signature: ValidatorSignature,
+
+  /// Kind of dispute statement.
+  pub kind: InvalidDisputeStatementKind,
+}
+
+/// Any valid vote (backing, approval, explicit).
+pub struct ValidDisputeVote {
+  /// The voting validator index.
+  pub validator_index: ValidatorIndex,
+
+  /// The validator signature, that can be verified when constructing a
+  /// `SignedDisputeStatement`.
+  pub signature: ValidatorSignature,
+
+  /// Kind of dispute statement.
+  pub kind: ValidDisputeStatementKind,
 }
 ```
 
@@ -135,17 +146,11 @@ initially received `Invalid` vote.
 
 Note, that we rely on the coordinator to check availability for spam protection
 (see below).
-In case the current node is only a potential block producer and does not
-actually need to recover availability (as it is not going to participate in the
-dispute), there is a potential optimization available: The coordinator could
-first just check whether we have our piece and only if we don't, try to recover
-availability. Our node having a piece would be proof enough of the
-data to be available and thus the dispute to not be spam.
 
 ### Sending of messages
 
 Starting and participating in a dispute are pretty similar from the perspective
-of disptute distribution. Once we receive a `SendDispute` message we try to make
+of dispute distribution. Once we receive a `SendDispute` message we try to make
 sure to get the data out. We keep track of all the parachain validators that
 should see the message, which are all the parachain validators of the session
 where the dispute happened as they will want to participate in the dispute.  In
@@ -165,8 +170,8 @@ a dispute is no longer live, we will clean up the state accordingly.
 
 ### Reception & Spam Considerations
 
-Because we are not forwarding foreign statements, spam is not so much of an
-issue as in other subsystems. Rate limiting should be implemented at the
+Because we are not forwarding foreign statements, spam is less of an issue in
+comparison to gossip based systems. Rate limiting should be implemented at the
 substrate level, see
 [#7750](https://github.com/paritytech/substrate/issues/7750). Still we should
 make sure that it is not possible via spamming to prevent a dispute concluding
@@ -180,7 +185,9 @@ Considered attack vectors:
 2. An attacker can just flood us with notifications on any notification
    protocol, assuming flood protection is not effective enough, our unbounded
    buffers can fill up and we will run out of memory eventually.
-3. Attackers could spam us at a high rate with invalid disputes. Our incoming
+3. An attacker could participate in a valid dispute, but send its votes multiple
+   times.
+4. Attackers could spam us at a high rate with invalid disputes. Our incoming
    queue of requests could get monopolized by those malicious requests and we
    won't be able to import any valid disputes and we could run out of resources,
    if we tried to process them all in parallel.
@@ -194,15 +201,17 @@ For 2, we will pick up on any dispute on restart, so assuming that any realistic
 memory filling attack will take some time, we should be able to participate in a
 dispute under such attacks.
 
-For 3, full monopolization of the incoming queue should not be possible assuming
+Importing/discarding redundant votes should be pretty quick, so measures with
+regards to 4 should suffice to prevent 3, from doing any real harm.
+
+For 4, full monopolization of the incoming queue should not be possible assuming
 substrate handles incoming requests in a somewhat fair way. Still we want some
 defense mechanisms, at the very least we need to make sure to not exhaust
 resources.
 
-The dispute coordinator will notify us
-via `DisputeDistributionMessage::ReportCandidateUnavailable` about unavailable
-candidates and we can disconnect from such peers/decrease their reputation
-drastically. This alone should get us quite far with regards to queue
+The dispute coordinator will notify us on import about unavailable candidates or
+otherwise invalid imports and we can disconnect from such peers/decrease their
+reputation drastically. This alone should get us quite far with regards to queue
 monopolization, as availability recovery is expected to fail relatively quickly
 for unavailable data.
 
@@ -270,7 +279,7 @@ received a `SendDispute` message for that candidate.
 ## Backing and Approval Votes
 
 Backing and approval votes get imported when they arrive/are created via the
-distpute coordinator by corresponding subsystems.
+dispute coordinator by corresponding subsystems.
 
 We assume that under normal operation each node will be aware of backing and
 approval votes and optimize for that case. Nevertheless we want disputes to
@@ -346,6 +355,6 @@ dispute will succeed eventually, which is all that matters. And again, even if
 an attacker managed to prevent such a dispute from happening somehow, there is
 no real harm done: There was no serious attack to begin with.
 
-[DistputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
+[DisputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
 [DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

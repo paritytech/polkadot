@@ -45,6 +45,8 @@ Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
   - [`DisputeParticipationMessage`][DisputeParticipationMessage]
+  - [`AvailabilityRecoveryMessage`][AvailabilityRecoveryMessage]
+  - [`AvailabilityStoreMessage`][AvailabilityStoreMessage]
 
 ## Functionality
 
@@ -58,6 +60,13 @@ struct State {
     highest_session: SessionIndex,
 }
 ```
+
+### On startup
+
+Check DB for recorded votes for non concluded disputes we have not yet
+recorded a local statement for.
+For all of those send `DisputeParticipationMessage::Participate` message to
+dispute participation subsystem.
 
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
@@ -81,10 +90,19 @@ Do nothing.
 ### On `DisputeCoordinatorMessage::ImportStatement`
 
 * Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
-* If the session is earlier than `state.highest_session - DISPUTE_WINDOW`, return.
-* Load from underlying DB by querying `("candidate-votes", session, candidate_hash). If that does not exist, create fresh with the given candidate receipt.
-* If candidate votes is empty and the statements only contain dispute-specific votes, return.
-* Otherwise, if there is already an entry from the validator in the respective `valid` or `invalid` field of the `CandidateVotes`, return.
+* If the session is earlier than `state.highest_session - DISPUTE_WINDOW`,
+  respond with `ImportStatementsResult::InvalidImport` and return.
+* Load from underlying DB by querying `("candidate-votes", session, candidate_hash)`.
+  If that does not exist, create fresh with the given candidate receipt.
+* If candidate votes is empty and the statements only contain dispute-specific votes, respond with `ImportStatementsResult::InvalidImport` and return.
+* Otherwise, if there is already an entry from the validator in the respective
+  `valid` or `invalid` field of the `CandidateVotes`,  respond with
+  `ImportStatementsResult::ValidImport` and return.
+* Recover availability
+  ([`AvailabilityRecoveryMessage::RecoverAvailableData`][AvailabilityRecoveryMessage])
+  for candidate. If that fails, answer with `ImportStatementsResult::InvalidImport` otherwise with
+  `ImportStatementsResult::ValidImport`. We can proceed on case `Invalid`, as
+  that will be handled by `DisputeParticipation`.
 * Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`.
 * Write the `CandidateVotes` to the underyling DB.
 * If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
@@ -119,6 +137,8 @@ Do nothing.
   1. If there is a dispute, exit the loop.
 * For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
 
+[AvailabilityRecoveryMessage]: ../../types/overseer-protocol.md#availability-recovery-message
+[AvailabilityStoreMessage]: ../../types/overseer-protocol.md#availability-store-message
 [DisputeTypes]: ../../types/disputes.md
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
