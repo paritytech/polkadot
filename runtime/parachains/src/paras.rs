@@ -344,14 +344,25 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
-	pub(super) type PastCodeHash<T: Config> = StorageMap<_, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+	pub(super) type PastCodeHash<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		(ParaId, T::BlockNumber),
+		ValidationCodeHash
+	>;
 
 	/// Past code of parachains. The parachains themselves may not be registered anymore,
 	/// but we also keep their code on-chain for the same amount of time as outdated code
 	/// to keep it available for secondary checkers.
 	#[pallet::storage]
 	#[pallet::getter(fn past_code_meta)]
-	pub(super) type PastCodeMeta<T: Config> = StorageMap<_, Twox64Concat, ParaId, ParaPastCodeMeta<T::BlockNumber>, ValueQuery>;
+	pub(super) type PastCodeMeta<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		ParaPastCodeMeta<T::BlockNumber>,
+		ValueQuery
+	>;
 
 	/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
 	/// Note that this is the actual height of the included block, not the expected height at which the
@@ -467,7 +478,12 @@ pub mod pallet {
 
 		/// Schedule a code upgrade for block `expected_at`.
 		#[pallet::weight(0)]
-		pub fn force_schedule_code_upgrade(origin: OriginFor<T>, para: ParaId, new_code: ValidationCode, expected_at: T::BlockNumber) -> DispatchResult {
+		pub fn force_schedule_code_upgrade(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_code: ValidationCode,
+			expected_at: T::BlockNumber
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_code_upgrade(para, new_code, expected_at);
 			Self::deposit_event(Event::CodeUpgradeScheduled(para));
