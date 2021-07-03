@@ -277,14 +277,14 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config:
 		frame_system::Config +
 		configuration::Config +
 		shared::Config
 	{
 		/// The outer origin type.
-		type Origin: From<Origin>
-			+ From<<Self as frame_system::Config>::Origin>
+		type Origin: From<<Self as frame_system::Config>::Origin>
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
@@ -1030,10 +1030,7 @@ impl GenesisConfig {
 mod tests {
 	use super::*;
 	use primitives::v1::BlockNumber;
-	use frame_support::{
-		assert_ok,
-		traits::{OnFinalize, OnInitialize}
-	};
+	use frame_support::assert_ok;
 
 	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
@@ -1689,9 +1686,9 @@ mod tests {
 			);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::<T>::get(&a), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::<T>::get(&b), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::<T>::get(&c), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 			// run to block without session change.
 			run_to_block(2, None);
@@ -1703,9 +1700,9 @@ mod tests {
 			);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::<T>::get(&a), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::<T>::get(&b), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::<T>::get(&c), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
 			// Two sessions pass, so action queue is triggered
@@ -1715,9 +1712,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::<T>::get(&a), Some(ParaLifecycle::Parathread));
-			assert_eq!(ParaLifecycles::<T>::get(&b), Some(ParaLifecycle::Parachain));
-			assert_eq!(ParaLifecycles::<T>::get(&c), Some(ParaLifecycle::Parachain));
+			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
+			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
+			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
@@ -1853,18 +1850,18 @@ mod tests {
 			Paras::increase_code_ref(&code.hash(), &code);
 			Paras::increase_code_ref(&code.hash(), &code);
 
-			assert!(CodeByHash::<T>::contains_key(code.hash()));
-			assert_eq!(CodeByHashRefs::<T>::get(code.hash()), 2);
+			assert!(CodeByHash::contains_key(code.hash()));
+			assert_eq!(CodeByHashRefs::get(code.hash()), 2);
 
 			Paras::decrease_code_ref(&code.hash());
 
-			assert!(CodeByHash::<T>::contains_key(code.hash()));
-			assert_eq!(CodeByHashRefs::<T>::get(code.hash()), 1);
+			assert!(CodeByHash::contains_key(code.hash()));
+			assert_eq!(CodeByHashRefs::get(code.hash()), 1);
 
 			Paras::decrease_code_ref(&code.hash());
 
-			assert!(!CodeByHash::<T>::contains_key(code.hash()));
-			assert!(!CodeByHashRefs::<T>::contains_key(code.hash()));
+			assert!(!CodeByHash::contains_key(code.hash()));
+			assert!(!CodeByHashRefs::contains_key(code.hash()));
 		});
 	}
 }
