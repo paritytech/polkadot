@@ -217,5 +217,5 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
-	pub paras: crate::paras::GenesisConfig<Test>,
+	pub paras: crate::paras::GenesisConfig,
 }
