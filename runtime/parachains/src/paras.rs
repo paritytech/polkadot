@@ -277,14 +277,14 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config:
 		frame_system::Config +
 		configuration::Config +
 		shared::Config
 	{
 		/// The outer origin type.
-		type Origin: From<<Self as frame_system::Config>::Origin>
+		type Origin: From<Origin>
+			+ From<<Self as frame_system::Config>::Origin>
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
