@@ -29,14 +29,8 @@ use primitives::v1::{
 	Id as ParaId, ValidationCode, ValidationCodeHash, HeadData, SessionIndex, ConsensusLog,
 };
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
-use frame_system::ensure_root;
 use frame_system::pallet_prelude::*;
-use frame_support::{
-	ensure,
-	pallet_prelude::*,
-	traits::Get,
-	weights::Weight,
-};
+use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, shared, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
