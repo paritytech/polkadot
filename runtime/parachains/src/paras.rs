@@ -44,7 +44,7 @@ use sp_core::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub use crate::Origin;
+pub use crate::Origin as ParachainOrigin;
 
 pub use pallet::*;
 
@@ -450,8 +450,8 @@ pub mod pallet {
 		}
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+	#[pallet::origin]
+	pub type Origin = ParachainOrigin;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
