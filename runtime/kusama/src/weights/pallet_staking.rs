@@ -227,4 +227,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
+	fn rebag() -> Weight {
+		// TODO!
+		0
+	}
+	fn regenerate(_: u32, _: u32) -> Weight {
+		// TODO!
+		0
+	}
 }
