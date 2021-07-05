@@ -110,7 +110,8 @@ impl TransactAsset for Tuple {
 		log::trace!(
 			target: "xcm::TransactAsset::can_check_in",
 			"asset not found: what: {:?}, origin: {:?}",
-			&what, &origin,
+			what,
+			origin,
 		);
 		Err(XcmError::AssetNotFound)
 	}
@@ -134,7 +135,8 @@ impl TransactAsset for Tuple {
 		log::trace!(
 			target: "xcm::TransactAsset::deposit_asset",
 			"did not deposit asset: what: {:?}, who: {:?}",
-			&what, &who,
+			what,
+			who,
 		);
 		Err(XcmError::Unimplemented)
 	}
@@ -146,7 +148,8 @@ impl TransactAsset for Tuple {
 		log::trace!(
 			target: "xcm::TransactAsset::withdraw_asset",
 			"did not withdraw asset: what: {:?}, who: {:?}",
-			&what, &who,
+			what, 
+			who,
 		);
 		Err(XcmError::Unimplemented)
 	}
@@ -158,7 +161,9 @@ impl TransactAsset for Tuple {
 		log::trace!(
 			target: "xcm::TransactAsset::transfer_asset",
 			"did not transfer asset: what: {:?}, from: {:?}, to: {:?}",
-			&what, &from, &to,
+			what,
+			from,
+			to,
 		);
 		Err(XcmError::Unimplemented)
 	}

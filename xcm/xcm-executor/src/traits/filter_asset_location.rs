@@ -33,7 +33,8 @@ impl FilterAssetLocation for Tuple {
 		log::trace!(
 			target: "xcm::filter_asset_location",
 			"got filtered: what: {:?}, origin: {:?}",
-			&what, &origin,
+			what,
+			origin,
 		);
 		false
 	}

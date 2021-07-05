@@ -176,7 +176,8 @@ impl<O> ConvertOrigin<O> for Tuple {
 		log::trace!(
 			target: "xcm::convert_origin",
 			"could not convert: origin: {:?}, kind: {:?}",
-			&origin, &kind
+			origin,
+			kind,
 		);
 		Err(origin)
 	}

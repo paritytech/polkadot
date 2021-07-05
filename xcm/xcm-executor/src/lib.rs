@@ -50,7 +50,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
-			&origin, &message, weight_limit, weight_credit,
+			origin,
+			message,
+			weight_limit,
+			weight_credit,
 		);
 		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
@@ -103,7 +106,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
 			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
-			&origin, top_level, &message, weight_credit, maybe_shallow_weight,
+			origin, 
+			top_level, 
+			message, 
+			weight_credit, 
+			maybe_shallow_weight,
 		);
 		// This is the weight of everything that cannot be paid for. This basically means all computation
 		// except any XCM which is behind an Order::BuyExecution.
@@ -239,7 +246,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::execute_effects",
 			"origin: {:?}, holding: {:?}, effect: {:?}",
-			origin, holding, &effect,
+			origin,
+			holding,
+			effect,
 		);
 		let mut total_surplus = 0;
 		match effect {

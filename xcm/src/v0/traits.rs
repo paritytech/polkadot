@@ -137,7 +137,9 @@ pub trait ExecuteXcm<Call> {
 		log::debug!(
 			target: "xcm::execute_xcm",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}",
-			&origin, &message, weight_limit,
+			origin,
+			message,
+			weight_limit,
 		);
 		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
 	}
