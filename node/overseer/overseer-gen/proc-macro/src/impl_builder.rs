@@ -28,17 +28,17 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
 	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
 
-	let subsystem_name = &info.subsystem_names();
+	let subsystem_name = &info.subsystem_names_without_wip();
 	let builder_generic_ty = &info.builder_generic_types();
 
-	let channel_name = &info.channel_names("");
-	let channel_name_unbounded = &info.channel_names("_unbounded");
+	let channel_name = &info.channel_names_without_wip("");
+	let channel_name_unbounded = &info.channel_names_without_wip("_unbounded");
 
-	let channel_name_tx = &info.channel_names("_tx");
-	let channel_name_unbounded_tx = &info.channel_names("_unbounded_tx");
+	let channel_name_tx = &info.channel_names_without_wip("_tx");
+	let channel_name_unbounded_tx = &info.channel_names_without_wip("_unbounded_tx");
 
-	let channel_name_rx = &info.channel_names("_rx");
-	let channel_name_unbounded_rx = &info.channel_names("_unbounded_rx");
+	let channel_name_rx = &info.channel_names_without_wip("_rx");
+	let channel_name_unbounded_rx = &info.channel_names_without_wip("_unbounded_rx");
 
 	let baggage_generic_ty = &info.baggage_generic_types();
 	let baggage_name = &info.baggage_names();

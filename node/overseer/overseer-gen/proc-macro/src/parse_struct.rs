@@ -159,14 +159,6 @@ impl OverseerInfo {
 		self.subsystems.as_slice()
 	}
 
-	pub(crate) fn subsystem_names(&self) -> Vec<Ident> {
-		self.subsystems
-			.iter()
-			.filter(|ssf| !ssf.wip)
-			.map(|ssf| ssf.name.clone())
-			.collect::<Vec<_>>()
-	}
-
 	pub(crate) fn subsystem_names_without_wip(&self) -> Vec<Ident> {
 		self.subsystems
 			.iter()

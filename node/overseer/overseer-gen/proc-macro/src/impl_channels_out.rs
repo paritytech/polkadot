@@ -23,10 +23,11 @@ use super::*;
 pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let message_wrapper = info.message_wrapper.clone();
 
-	let channel_name = &info.channel_names("");
-	let channel_name_unbounded = &info.channel_names("_unbounded");
+	let channel_name = &info.channel_names_without_wip("");
+	let channel_name_unbounded = &info.channel_names_without_wip("_unbounded");
 
-	let consumes = &info.consumes();
+	let consumes = &info.consumes_without_wip();
+	let unconsumes = &info.consumes_only_wip();
 
 	let ts = quote! {
 		/// Collection of channels to the individual subsystems.
@@ -66,6 +67,10 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 						).await
 					}
 				)*
+				// subsystems that are wip
+				#(
+					#message_wrapper :: #unconsumes ( _ ) => Ok(()),
+				)*
 				};
 
 				if res.is_err() {
@@ -92,6 +97,10 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 						)
 						.map_err(|e| e.into_send_error())
 					},
+				)*
+				// subsystems that are wip
+				#(
+					#message_wrapper :: #unconsumes ( _ ) => Ok(()),
 				)*
 				};
 
