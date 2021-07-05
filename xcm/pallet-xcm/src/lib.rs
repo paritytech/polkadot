@@ -254,6 +254,7 @@ pub mod pallet {
 				MultiLocation::Null => message,
 				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
 			};
+			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 			T::XcmRouter::send_xcm(dest, message)
 		}
 
