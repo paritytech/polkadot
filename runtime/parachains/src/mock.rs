@@ -23,6 +23,7 @@ use sp_runtime::traits::{
 };
 use primitives::v1::{AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex};
 use frame_support::parameter_types;
+use frame_support::traits::GenesisBuild;
 use frame_support_test::TestRandomness;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -208,7 +209,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
-	state.paras.assimilate_storage::<Test>(&mut t).unwrap();
+	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	t.into()
 }

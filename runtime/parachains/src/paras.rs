@@ -1010,16 +1010,6 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-#[cfg(feature = "std")]
-impl GenesisConfig {
-	pub fn assimilate_storage<T: Config>(
-		&self,
-		storage: &mut sp_runtime::Storage
-	) -> Result<(), String> {
-		<Self as GenesisBuild<T>>::assimilate_storage(self, storage)
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
