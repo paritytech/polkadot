@@ -6234,6 +6234,7 @@ dependencies = [
  "sp-externalities",
  "sp-io",
  "sp-maybe-compressed-blob",
+ "sp-tracing",
  "sp-wasm-interface",
  "tempfile",
  "test-parachain-adder",
