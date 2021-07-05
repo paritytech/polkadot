@@ -1138,10 +1138,8 @@ pub(crate) async fn run<Context>(
 			_ = next_inactivity_stream.next() => {
 				disconnect_inactive_peers(&mut ctx, &eviction_policy, &state.peer_data).await;
 			}
-			res = state.collation_fetches.next() => {
-				if let Some(res) = res {
-					handle_collation_fetched_result(&mut ctx, &mut state, res).await;
-				}
+			res = state.collation_fetches.select_next_some() => {
+				handle_collation_fetched_result(&mut ctx, &mut state, res).await;
 			}
 		}
 
