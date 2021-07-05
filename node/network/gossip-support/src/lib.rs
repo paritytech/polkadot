@@ -52,6 +52,12 @@ const LOG_TARGET: &str = "parachain::gossip-support";
 // since the last authority discovery resolution failure.
 const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 
+/// Duration after which we consider low connectivity a problem.
+///
+/// Especially at startup low connectivity is expected (authority discovery cache needs to be
+/// populated). After one minute of low connectivity a warning seems to be justified.
+const STARTUP_PERIOD: Duration = Duration::from_secs(60);
+
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
 	keystore: SyncCryptoStorePtr,
@@ -64,6 +70,11 @@ struct State {
 	// at least a third of authorities the last time.
 	// `None` otherwise.
 	last_failure: Option<Instant>,
+
+	/// First time we did not reach our connectivity treshold.
+	///
+	/// Will be cleared once we reached it.
+	first_failure: Option<Instant>,
 }
 
 impl GossipSupport {
@@ -313,10 +324,26 @@ impl State {
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved
-		self.last_failure = if failures >= num / 3 {
-			Some(Instant::now())
+		if failures >= num / 3 {
+			let timestamp = Instant::now();
+			match self.first_failure {
+				None => self.first_failure = Some(timestamp),
+				Some(first) if first.elapsed() >= STARTUP_PERIOD => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity"
+					);
+
+				}
+				Some(_) => {}
+			}
+
+			self.last_failure = Some(timestamp);
 		} else {
-			None
+			self.last_failure = None;
+			self.first_failure = None;
 		};
 
 		Ok(())
