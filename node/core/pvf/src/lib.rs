@@ -88,6 +88,9 @@ mod worker_common;
 #[doc(hidden)]
 pub mod testing;
 
+#[doc(hidden)]
+pub use sp_tracing;
+
 pub use error::{ValidationError, InvalidCandidate};
 pub use priority::Priority;
 pub use pvf::Pvf;
