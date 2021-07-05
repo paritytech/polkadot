@@ -75,7 +75,7 @@ struct State {
 	// `None` otherwise.
 	last_failure: Option<Instant>,
 
-	/// First time we did not reach our connectivity treshold.
+	/// First time we did not reach our connectivity threshold.
 	///
 	/// This is the time of the first failed attempt to connect to >2/3 of all validators in a
 	/// potential sequence of failed attempts. It will be cleared once we reached >2/3
@@ -339,13 +339,19 @@ impl State {
 						target: LOG_TARGET,
 						connected = ?(num - failures),
 						target = ?num,
-						"Low connectivity"
+						"Low connectivity - authority lookup failed for too many validators."
 					);
 
 				}
-				Some(_) => {}
+				Some(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity (due to authority lookup failures) - expected on startup."
+					);
+				}
 			}
-
 			self.last_failure = Some(timestamp);
 		} else {
 			self.last_failure = None;
