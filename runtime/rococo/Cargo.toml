@@ -6,7 +6,7 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
 serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
@@ -73,8 +73,6 @@ bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features =
 bp-wococo = { path = "../../bridges/primitives/chain-wococo", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 
-max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -135,7 +133,6 @@ std = [
 	"xcm-builder/std",
 	"pallet-xcm/std",
 	"log/std",
-	"max-encoded-len/std",
 ]
 # When enabled, the runtime api will not be build.
 #
