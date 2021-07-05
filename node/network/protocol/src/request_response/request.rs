@@ -29,6 +29,9 @@ use crate::UnifiedReputationChange;
 
 use super::{v1, Protocol};
 
+/// Used by the network to send us a response to a request.
+pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>;
+
 /// Common properties of any `Request`.
 pub trait IsRequest {
 	/// Each request has a corresponding `Response`.
@@ -109,7 +112,7 @@ pub struct OutgoingRequest<Req> {
 	/// The actual request to send over the wire.
 	pub payload: Req,
 	/// Sender which is used by networking to get us back a response.
-	pub pending_response: oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>,
+	pub pending_response: ResponseSender,
 }
 
 /// Any error that can occur when sending a request.

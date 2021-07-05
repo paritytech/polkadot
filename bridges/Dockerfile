@@ -8,14 +8,14 @@
 #
 # See the `deployments/README.md` for all the available `PROJECT` values.
 
-FROM paritytech/bridge-dependencies as builder
+FROM paritytech/bridges-ci:latest as builder
 WORKDIR /parity-bridges-common
 
 COPY . .
 
 ARG PROJECT=ethereum-poa-relay
-RUN cargo build --release --verbose -p ${PROJECT}
-RUN strip ./target/release/${PROJECT}
+RUN cargo build --release --verbose -p ${PROJECT} && \
+    strip ./target/release/${PROJECT}
 
 # In this final stage we copy over the final binary and do some checks
 # to make sure that everything looks good.
@@ -27,9 +27,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
 	apt-get update && \
-	apt-get install -y curl ca-certificates && \
-	apt-get install -y --no-install-recommends libssl-dev && \
-	update-ca-certificates && \
+	apt-get install -y --no-install-recommends \
+        curl ca-certificates libssl-dev && \
+    update-ca-certificates && \
 	groupadd -g 1000 user && \
 	useradd -u 1000 -g user -s /bin/sh -m user && \
 	# apt clean up

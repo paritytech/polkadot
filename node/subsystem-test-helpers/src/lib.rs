@@ -224,7 +224,7 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 			.ok_or_else(|| SubsystemError::Context("Receiving end closed".to_owned()))
 	}
 
-	async fn spawn(
+	fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
@@ -233,7 +233,7 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
 		self.spawn.spawn_blocking(name, s);
@@ -385,7 +385,7 @@ mod tests {
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg(CollatorProtocolMessage::CollateOn(Default::default())));
+		block_on(handler.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
 		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CollatorProtocolMessage::CollateOn(_)));
 	}
 }

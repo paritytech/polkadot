@@ -22,6 +22,8 @@ arg_enum! {
 	pub enum FullBridge {
 		MillauToRialto,
 		RialtoToMillau,
+		RococoToWococo,
+		WococoToRococo,
 	}
 }
 
@@ -31,12 +33,16 @@ impl FullBridge {
 		match self {
 			Self::MillauToRialto => MILLAU_TO_RIALTO_INDEX,
 			Self::RialtoToMillau => RIALTO_TO_MILLAU_INDEX,
+			Self::RococoToWococo => ROCOCO_TO_WOCOCO_INDEX,
+			Self::WococoToRococo => WOCOCO_TO_ROCOCO_INDEX,
 		}
 	}
 }
 
 pub const RIALTO_TO_MILLAU_INDEX: u8 = 0;
 pub const MILLAU_TO_RIALTO_INDEX: u8 = 0;
+pub const ROCOCO_TO_WOCOCO_INDEX: u8 = 0;
+pub const WOCOCO_TO_ROCOCO_INDEX: u8 = 0;
 
 /// The macro allows executing bridge-specific code without going fully generic.
 ///
@@ -64,7 +70,7 @@ macro_rules! select_full_bridge {
 				use bp_rialto::TO_RIALTO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
 				// Send-message
 				#[allow(unused_imports)]
-				use millau_runtime::rialto_account_ownership_digest as account_ownership_digest;
+				use millau_runtime::millau_to_rialto_account_ownership_digest as account_ownership_digest;
 
 				$generic
 			}
@@ -87,7 +93,51 @@ macro_rules! select_full_bridge {
 
 				// Send-message
 				#[allow(unused_imports)]
-				use rialto_runtime::millau_account_ownership_digest as account_ownership_digest;
+				use rialto_runtime::rialto_to_millau_account_ownership_digest as account_ownership_digest;
+
+				$generic
+			}
+			FullBridge::RococoToWococo => {
+				type Source = relay_rococo_client::Rococo;
+				#[allow(dead_code)]
+				type Target = relay_wococo_client::Wococo;
+
+				// Derive-account
+				#[allow(unused_imports)]
+				use bp_wococo::derive_account_from_rococo_id as derive_account;
+
+				// Relay-messages
+				#[allow(unused_imports)]
+				use crate::chains::rococo_messages_to_wococo::run as relay_messages;
+
+				// Send-message / Estimate-fee
+				#[allow(unused_imports)]
+				use bp_wococo::TO_WOCOCO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
+				// Send-message
+				#[allow(unused_imports)]
+				use relay_rococo_client::runtime::rococo_to_wococo_account_ownership_digest as account_ownership_digest;
+
+				$generic
+			}
+			FullBridge::WococoToRococo => {
+				type Source = relay_wococo_client::Wococo;
+				#[allow(dead_code)]
+				type Target = relay_rococo_client::Rococo;
+
+				// Derive-account
+				#[allow(unused_imports)]
+				use bp_rococo::derive_account_from_wococo_id as derive_account;
+
+				// Relay-messages
+				#[allow(unused_imports)]
+				use crate::chains::wococo_messages_to_rococo::run as relay_messages;
+
+				// Send-message / Estimate-fee
+				#[allow(unused_imports)]
+				use bp_rococo::TO_ROCOCO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
+				// Send-message
+				#[allow(unused_imports)]
+				use relay_wococo_client::runtime::wococo_to_rococo_account_ownership_digest as account_ownership_digest;
 
 				$generic
 			}

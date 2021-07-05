@@ -18,7 +18,7 @@
 
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;
@@ -149,8 +149,7 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 fn default_parachains_host_configuration() ->
 	polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::v1::BlockNumber>
 {
-	use polkadot_node_primitives::MAX_POV_SIZE;
-	use polkadot_primitives::v1::MAX_CODE_SIZE;
+	use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
 
 	polkadot_runtime_parachains::configuration::HostConfiguration {
 		validation_upgrade_frequency: 1u32,
@@ -1214,7 +1213,7 @@ pub fn polkadot_testnet_genesis(
 		},
 		staking: polkadot::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1313,7 +1312,7 @@ pub fn kusama_testnet_genesis(
 		},
 		staking: kusama::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1417,7 +1416,7 @@ pub fn westend_testnet_genesis(
 		},
 		staking: westend::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {

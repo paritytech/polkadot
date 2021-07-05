@@ -21,8 +21,10 @@ pub mod millau_messages_to_rialto;
 pub mod rialto_headers_to_millau;
 pub mod rialto_messages_to_millau;
 pub mod rococo_headers_to_wococo;
+pub mod rococo_messages_to_wococo;
 pub mod westend_headers_to_millau;
 pub mod wococo_headers_to_rococo;
+pub mod wococo_messages_to_rococo;
 
 mod millau;
 mod rialto;
@@ -86,7 +88,7 @@ mod tests {
 		let millau_public: bp_millau::AccountSigner = millau_sign.public().into();
 		let millau_account_id: bp_millau::AccountId = millau_public.into_account();
 
-		let digest = millau_runtime::rialto_account_ownership_digest(
+		let digest = millau_runtime::millau_to_rialto_account_ownership_digest(
 			&call,
 			millau_account_id,
 			rialto_runtime::VERSION.spec_version,
@@ -107,7 +109,7 @@ mod tests {
 		let rialto_public: bp_rialto::AccountSigner = rialto_sign.public().into();
 		let rialto_account_id: bp_rialto::AccountId = rialto_public.into_account();
 
-		let digest = rialto_runtime::millau_account_ownership_digest(
+		let digest = rialto_runtime::rialto_to_millau_account_ownership_digest(
 			&call,
 			rialto_account_id,
 			millau_runtime::VERSION.spec_version,
@@ -271,7 +273,10 @@ mod rococo_tests {
 			votes_ancestries: vec![],
 		};
 
-		let actual = bp_rococo::BridgeGrandpaWococoCall::submit_finality_proof(header.clone(), justification.clone());
+		let actual = relay_rococo_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof(
+			header.clone(),
+			justification.clone(),
+		);
 		let expected = millau_runtime::BridgeGrandpaRialtoCall::<millau_runtime::Runtime>::submit_finality_proof(
 			header,
 			justification,

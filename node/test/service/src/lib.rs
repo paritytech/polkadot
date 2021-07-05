@@ -78,7 +78,7 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
 		config,
 		is_collator,
 		None,
@@ -86,6 +86,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		polkadot_service::RealOverseerGen,
 	)
 }
 
@@ -187,6 +188,7 @@ pub fn node_config(
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
+		rpc_max_payload: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		telemetry_external_transport: None,
@@ -346,11 +348,11 @@ impl PolkadotTestNode {
 		};
 
 		self.overseer_handler
-			.send_msg(CollationGenerationMessage::Initialize(config))
+			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 			.await;
 
 		self.overseer_handler
-			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 			.await;
 	}
 }
