@@ -169,7 +169,11 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *rules-test
   script:
+<<<<<<< HEAD
     - cargo spellcheck check -vvv --cfg=.config/spellcheck.toml --checkers hunspell --code 1
+=======
+    - cargo spellcheck check -m 1 -vv
+>>>>>>> 3c63314a954a5e0064d1ede42e314bd43ee3c3b3
   allow_failure:                   true
 
 # build-adder-collator:
