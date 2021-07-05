@@ -233,7 +233,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 				)*
 
 				#(
-					let #baggage_name = self. #baggage_name .expect("Baggage must initialized");
+					let #baggage_name = self. #baggage_name .expect(&format!("Baggage variable `{1}` of `{0}` ", stringify!(#overseer_name), stringify!( #baggage_name )));
 				)*
 
 				use ::polkadot_overseer_gen::StreamExt;

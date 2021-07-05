@@ -608,6 +608,7 @@ where
 			.leaves(Vec::from_iter(
 				leaves.into_iter().map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			))
+			.known_leaves(LruCache::new(128))// FIXME verify this number
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
