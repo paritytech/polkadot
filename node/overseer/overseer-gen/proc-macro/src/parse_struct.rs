@@ -212,13 +212,6 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
-	pub(crate) fn channel_names(&self, suffix: &'static str) -> Vec<Ident> {
-		self.subsystems
-			.iter()
-			.map(|ssf| Ident::new(&(ssf.name.to_string() + suffix), ssf.name.span()))
-			.collect::<Vec<_>>()
-	}
-
 	pub(crate) fn consumes(&self) -> Vec<Path> {
 		self.subsystems.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>()
 	}
@@ -238,6 +231,7 @@ impl OverseerInfo {
 			.map(|ssf| ssf.consumes.clone())
 			.collect::<Vec<_>>()
 	}
+
 	pub(crate) fn consumes_only_wip(&self) -> Vec<Path> {
 		self.subsystems
 			.iter()

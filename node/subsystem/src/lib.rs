@@ -20,10 +20,10 @@
 
 #![warn(missing_docs)]
 
+use overseer::Overseer;
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-use futures::future::BoxFuture;
 use polkadot_node_subsystem_types::errors::*;
 pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate, self as overseer};
 
