@@ -21,7 +21,7 @@ use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, Semantics};
+use sc_executor_wasmtime::{Config, Semantics, DeterministicStackLimit};
 use sp_core::{
 	storage::{ChildInfo, TrackedStorageKey},
 };
@@ -34,7 +34,10 @@ const CONFIG: Config = Config {
 	cache_path: None,
 	semantics: Semantics {
 		fast_instance_reuse: false,
-		stack_depth_metering: true,
+		deterministic_stack_limit: Some(DeterministicStackLimit {
+			logical_max: 65536,
+			native_stack_max: 256 * 1024 * 1024,
+		}),
 		canonicalize_nans: true,
 	},
 };
