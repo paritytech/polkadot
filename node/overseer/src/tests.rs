@@ -190,58 +190,58 @@ fn overseer_works() {
 // Checks activated/deactivated metrics are updated properly.
 #[test]
 fn overseer_metrics_work() {
-    let spawner = sp_core::testing::TaskExecutor::new();
+	let spawner = sp_core::testing::TaskExecutor::new();
 
-    executor::block_on(async move {
-        let first_block_hash = [1; 32].into();
-        let second_block_hash = [2; 32].into();
-        let third_block_hash = [3; 32].into();
+	executor::block_on(async move {
+		let first_block_hash = [1; 32].into();
+		let second_block_hash = [2; 32].into();
+		let third_block_hash = [3; 32].into();
 
-        let first_block = BlockInfo {
-            hash: first_block_hash,
-            parent_hash: [0; 32].into(),
-            number: 1,
-        };
-        let second_block = BlockInfo {
-            hash: second_block_hash,
-            parent_hash: first_block_hash,
-            number: 2,
-        };
-        let third_block = BlockInfo {
-            hash: third_block_hash,
-            parent_hash: second_block_hash,
-            number: 3,
-        };
+		let first_block = BlockInfo {
+			hash: first_block_hash,
+			parent_hash: [0; 32].into(),
+			number: 1,
+		};
+		let second_block = BlockInfo {
+			hash: second_block_hash,
+			parent_hash: first_block_hash,
+			number: 2,
+		};
+		let third_block = BlockInfo {
+			hash: third_block_hash,
+			parent_hash: second_block_hash,
+			number: 3,
+		};
 
-        let all_subsystems = AllSubsystems::<()>::dummy();
-        let registry = prometheus::Registry::new();
-        let (overseer, mut handler) = Overseer::new(
-            vec![first_block],
-            all_subsystems,
-            Some(&registry),
-            MockSupportsParachains,
-            spawner,
-        ).unwrap();
-        let overseer_fut = overseer.run().fuse();
+		let all_subsystems = AllSubsystems::<()>::dummy();
+		let registry = prometheus::Registry::new();
+		let (overseer, mut handler) = Overseer::new(
+			vec![first_block],
+			all_subsystems,
+			Some(&registry),
+			MockSupportsParachains,
+			spawner,
+		).unwrap();
+		let overseer_fut = overseer.run().fuse();
 
-        pin_mut!(overseer_fut);
+		pin_mut!(overseer_fut);
 
-        handler.block_imported(second_block).await;
-        handler.block_imported(third_block).await;
-        handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-        handler.stop().await;
+		handler.block_imported(second_block).await;
+		handler.block_imported(third_block).await;
+		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handler.stop().await;
 
-        select! {
-            res = overseer_fut => {
-                assert!(res.is_ok());
-                let metrics = extract_metrics(&registry);
-                assert_eq!(metrics["activated"], 3);
-                assert_eq!(metrics["deactivated"], 2);
-                assert_eq!(metrics["relayed"], 1);
-            },
-            complete => (),
-        }
-    });
+		select! {
+			res = overseer_fut => {
+				assert!(res.is_ok());
+				let metrics = extract_metrics(&registry);
+				assert_eq!(metrics["activated"], 3);
+				assert_eq!(metrics["deactivated"], 2);
+				assert_eq!(metrics["relayed"], 1);
+			},
+			complete => (),
+		}
+	});
 }
 
 fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
@@ -783,108 +783,106 @@ fn test_approval_voting_msg() -> ApprovalVotingMessage {
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
-    const NUM_SUBSYSTEMS: usize = 18;
-    // -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
-    const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
+	const NUM_SUBSYSTEMS: usize = 17;
+	// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
+	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
 
-    let spawner = sp_core::testing::TaskExecutor::new();
-    executor::block_on(async move {
-        let stop_signals_received = Arc::new(atomic::AtomicUsize::new(0));
-        let signals_received = Arc::new(atomic::AtomicUsize::new(0));
-        let msgs_received = Arc::new(atomic::AtomicUsize::new(0));
+	let spawner = sp_core::testing::TaskExecutor::new();
+	executor::block_on(async move {
+		let stop_signals_received = Arc::new(atomic::AtomicUsize::new(0));
+		let signals_received = Arc::new(atomic::AtomicUsize::new(0));
+		let msgs_received = Arc::new(atomic::AtomicUsize::new(0));
 
-        let subsystem = CounterSubsystem::new(
-            stop_signals_received.clone(),
-            signals_received.clone(),
-            msgs_received.clone(),
-        );
+		let subsystem = CounterSubsystem::new(
+			stop_signals_received.clone(),
+			signals_received.clone(),
+			msgs_received.clone(),
+		);
 
-        let all_subsystems = AllSubsystems {
-            candidate_validation: subsystem.clone(),
-            candidate_backing: subsystem.clone(),
-            candidate_selection: subsystem.clone(),
-            collation_generation: subsystem.clone(),
-            collator_protocol: subsystem.clone(),
-            statement_distribution: subsystem.clone(),
-            availability_distribution: subsystem.clone(),
-            availability_recovery: subsystem.clone(),
-            bitfield_signing: subsystem.clone(),
-            bitfield_distribution: subsystem.clone(),
-            provisioner: subsystem.clone(),
-            runtime_api: subsystem.clone(),
-            availability_store: subsystem.clone(),
-            network_bridge: subsystem.clone(),
-            chain_api: subsystem.clone(),
-            approval_distribution: subsystem.clone(),
-            approval_voting: subsystem.clone(),
-            gossip_support: subsystem.clone(),
-        };
-        let (overseer, mut handler) = Overseer::new(
-            vec![],
-            all_subsystems,
-            None,
-            MockSupportsParachains,
-            spawner,
-        ).unwrap();
-        let overseer_fut = overseer.run().fuse();
+		let all_subsystems = AllSubsystems {
+			candidate_validation: subsystem.clone(),
+			candidate_backing: subsystem.clone(),
+			collation_generation: subsystem.clone(),
+			collator_protocol: subsystem.clone(),
+			statement_distribution: subsystem.clone(),
+			availability_distribution: subsystem.clone(),
+			availability_recovery: subsystem.clone(),
+			bitfield_signing: subsystem.clone(),
+			bitfield_distribution: subsystem.clone(),
+			provisioner: subsystem.clone(),
+			runtime_api: subsystem.clone(),
+			availability_store: subsystem.clone(),
+			network_bridge: subsystem.clone(),
+			chain_api: subsystem.clone(),
+			approval_distribution: subsystem.clone(),
+			approval_voting: subsystem.clone(),
+			gossip_support: subsystem.clone(),
+		};
+		let (overseer, mut handler) = Overseer::new(
+			vec![],
+			all_subsystems,
+			None,
+			MockSupportsParachains,
+			spawner,
+		).unwrap();
+		let overseer_fut = overseer.run().fuse();
 
-        pin_mut!(overseer_fut);
+		pin_mut!(overseer_fut);
 
-        // send a signal to each subsystem
-        handler.block_imported(BlockInfo {
-            hash: Default::default(),
-            parent_hash: Default::default(),
-            number: Default::default(),
-        }).await;
+		// send a signal to each subsystem
+		handler.block_imported(BlockInfo {
+			hash: Default::default(),
+			parent_hash: Default::default(),
+			number: Default::default(),
+		}).await;
 
-        // send a msg to each subsystem
-        // except for BitfieldSigning and GossipSupport as the messages are not instantiable
-        handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-        handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
-        handler.send_msg(AllMessages::CandidateSelection(test_candidate_selection_msg())).await;
-        handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
-        handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
-        handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
-        handler.send_msg(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
-        // handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
-        // handler.send_msg(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
-        handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
-        handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
-        handler.send_msg(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
-        handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
-        handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
-        handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
-        handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
-        handler.send_msg(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
+		// send a msg to each subsystem
+		// except for BitfieldSigning and GossipSupport as the messages are not instantiable
+		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handler.send_msg_anon(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
+		handler.send_msg_anon(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
+		handler.send_msg_anon(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
+		handler.send_msg_anon(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
+		// handler.send_msg_anon(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
+		// handler.send_msg_anon(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
+		handler.send_msg_anon(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::Provisioner(test_provisioner_msg())).await;
+		handler.send_msg_anon(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
+		handler.send_msg_anon(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
+		handler.send_msg_anon(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
+		handler.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
+		handler.send_msg_anon(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
 
-        // Wait until all subsystems have received. Otherwise the messages might race against
-        // the conclude signal.
-        loop {
-            match (&mut overseer_fut).timeout(Duration::from_millis(100)).await {
-                None => {
-                    let r = msgs_received.load(atomic::Ordering::SeqCst);
-                    if r < NUM_SUBSYSTEMS_MESSAGED {
-                        Delay::new(Duration::from_millis(100)).await;
-                    } else if r > NUM_SUBSYSTEMS_MESSAGED {
-                        panic!("too many messages received??");
-                    } else {
-                        break
-                    }
-                }
-                Some(_) => panic!("exited too early"),
-            }
-        }
+		// Wait until all subsystems have received. Otherwise the messages might race against
+		// the conclude signal.
+		loop {
+			match (&mut overseer_fut).timeout(Duration::from_millis(100)).await {
+				None => {
+					let r = msgs_received.load(atomic::Ordering::SeqCst);
+					if r < NUM_SUBSYSTEMS_MESSAGED {
+						Delay::new(Duration::from_millis(100)).await;
+					} else if r > NUM_SUBSYSTEMS_MESSAGED {
+						panic!("too many messages received??");
+					} else {
+						break
+					}
+				}
+				Some(_) => panic!("exited too early"),
+			}
+		}
 
-        // send a stop signal to each subsystems
-        handler.stop().await;
+		// send a stop signal to each subsystems
+		handler.stop().await;
 
-        let res = overseer_fut.await;
-        assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-        assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-        assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
+		let res = overseer_fut.await;
+		assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
+		assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
+		assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
 
-        assert!(res.is_ok());
-    });
+		assert!(res.is_ok());
+	});
 }
 
 #[test]

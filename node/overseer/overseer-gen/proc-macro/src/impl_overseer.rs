@@ -137,10 +137,11 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			}
 
 			/// Route a particular message to a subsystem that consumes the message.
-			pub async fn route_message(&mut self, message: #message_wrapper) -> ::std::result::Result<(), #error_ty > {
+			pub async fn route_message(&mut self, message: #message_wrapper, origin: &'static str) -> ::std::result::Result<(), #error_ty > {
 				match message {
 					#(
-						#message_wrapper :: #consumes ( inner ) => self. #subsystem_name .send_message( inner ).await?,
+						#message_wrapper :: #consumes ( inner ) =>
+							OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
 					)*
 					// subsystems that are still work in progress
 					#(
@@ -202,7 +203,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 			/// Send a message to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
-			pub async fn send_message(&mut self, message: M) -> ::std::result::Result<(), #error_ty > {
+			pub async fn send_message2(&mut self, message: M, origin: &'static str) -> ::std::result::Result<(), #error_ty > {
 				const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 
 				if let Some(ref mut instance) = self.instance {
@@ -212,6 +213,12 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
+							::polkadot_overseer_gen::tracing::error!(
+								target: LOG_TARGET,
+								%origin,
+								"Subsystem {} appears unresponsive.",
+								instance.name,
+							);
 							Err(#error_ty :: from(
 								::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name)
 							))

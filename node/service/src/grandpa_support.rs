@@ -130,11 +130,14 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 		Box::pin(async move {
 			let (tx, rx) = oneshot::channel();
 			let approval_checking_subsystem_vote = {
-				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-					best_hash,
-					base_number,
-					tx,
-				)).await;
+				overseer.send_msg(
+					ApprovalVotingMessage::ApprovedAncestor(
+						best_hash,
+						base_number,
+						tx,
+					),
+					std::any::type_name::<Self>(),
+				).await;
 
 				rx.await.ok().and_then(|v| v)
 			};

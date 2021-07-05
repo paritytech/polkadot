@@ -59,6 +59,7 @@ impl ParachainsInherentDataProvider {
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			overseer.send_msg(
 				ProvisionerMessage::RequestInherentData(parent, sender),
+				std::any::type_name::<Self>(),
 			).await;
 
 			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)

@@ -169,19 +169,22 @@ pub struct Handler(pub OverseerHandler);
 
 impl Handler {
 	/// Inform the `Overseer` that that some block was imported.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_imported(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockImported(block)).await
 	}
 
 	/// Send some message to one of the `Subsystem`s.
-	#[tracing::instrument(level = "trace", skip(self, msg), fields(subsystem = LOG_TARGET))]
-	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) {
-		self.send_and_log_error(Event::MsgToSubsystem(msg.into())).await
+	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>, origin: &'static str) {
+		self.send_and_log_error(Event::MsgToSubsystem { msg: msg.into(), origin }).await
+	}
+
+	/// Send a message not providing an origin.
+	#[inline(always)]
+	pub async fn send_msg_anon(&mut self, msg: impl Into<AllMessages>) {
+		self.send_msg(msg, "").await
 	}
 
 	/// Inform the `Overseer` that some block was finalized.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn block_finalized(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockFinalized(block)).await
 	}
@@ -192,7 +195,6 @@ impl Handler {
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
 	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
-	#[tracing::instrument(level = "trace", skip(self, response_channel), fields(subsystem = LOG_TARGET))]
 	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) {
 		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 				hash,
@@ -201,11 +203,11 @@ impl Handler {
 	}
 
 	/// Tell `Overseer` to shutdown.
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	pub async fn stop(&mut self) {
 		self.send_and_log_error(Event::Stop).await;
 	}
 
+	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
 		if self.0.send(event).await.is_err() {
 			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
@@ -213,13 +215,11 @@ impl Handler {
 	}
 
 	/// Whether the overseer handler is connected to an overseer.
-	#[deprecated(note ="Makes no sense imho")]
 	pub fn is_connected(&self) -> bool {
 		true
 	}
 
 	/// Whether the handler is disconnected.
-	#[deprecated(note="Makes no sense imho")]
 	pub fn is_disconnected(&self) -> bool {
 		false
 	}
@@ -274,9 +274,14 @@ pub enum Event {
 	BlockImported(BlockInfo),
 	/// A block was finalized with i.e. babe or another consensus algorithm.
 	BlockFinalized(BlockInfo),
-	/// An explicit message to the subsystem.
-	MsgToSubsystem(AllMessages),
-	/// An external request, see the inner type for details.
+	/// Message as sent to a subsystem.
+	MsgToSubsystem {
+		/// The actual message.
+		msg: AllMessages,
+		/// The originating subsystem name.
+		origin: &'static str,
+	},
+	/// A request from the outer world.
 	ExternalRequest(ExternalRequest),
 	/// Stop the overseer on i.e. a UNIX signal.
 	Stop,
@@ -654,17 +659,11 @@ where
 
 		loop {
 			select! {
-				msg = self.events_rx.next().fuse() => {
-					let msg = if let Some(msg) = msg {
-						msg
-					} else {
-						continue
-					};
-
+				msg = self.events_rx.select_next_some() => {
 					match msg {
-						Event::MsgToSubsystem(msg) => {
+						Event::MsgToSubsystem { msg, origin } => {
+							self.route_message(msg.into(), origin).await?;
 							self.metrics.on_message_relayed();
-							self.route_message(msg.into()).await?;
 						}
 						Event::Stop => {
 							self.stop().await;
@@ -681,16 +680,7 @@ where
 						}
 					}
 				},
-				msg = self.to_overseer_rx.next() => {
-					let msg = match msg {
-						Some(m) => m,
-						None => {
-							// This is a fused stream so we will shut down after receiving all
-							// shutdown notifications.
-							continue
-						}
-					};
-
+				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
 						ToOverseer::SpawnJob { name, s } => {
 							self.spawn_job(name, s);
@@ -700,16 +690,14 @@ where
 						}
 					}
 				},
-				res = self.running_subsystems.next().fuse() => {
-					let finished = if let Some(finished) = res {
-						finished
-					} else {
-						continue
-					};
-
-					tracing::error!(target: LOG_TARGET, subsystem = ?finished, "subsystem finished unexpectedly");
+				res = self.running_subsystems.select_next_some() => {
+					tracing::error!(
+						target: LOG_TARGET,
+						subsystem = ?res,
+						"subsystem finished unexpectedly",
+					);
 					self.stop().await;
-					return Ok(finished?);
+					return res;
 				},
 			}
 		}

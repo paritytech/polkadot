@@ -81,7 +81,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			{
 				// This can definitely be optimized if necessary.
 				for msg in msgs {
-					self.send_message( #wrapper_message ::from ( msg )).await;
+					self.send_message(msg).await;
 				}
 			}
 

@@ -1213,7 +1213,7 @@ pub fn polkadot_testnet_genesis(
 		},
 		staking: polkadot::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1312,7 +1312,7 @@ pub fn kusama_testnet_genesis(
 		},
 		staking: kusama::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1416,7 +1416,7 @@ pub fn westend_testnet_genesis(
 		},
 		staking: westend::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
