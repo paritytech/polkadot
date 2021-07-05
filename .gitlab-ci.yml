@@ -164,6 +164,13 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+spellcheck:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *rules-test
+  script:
+    - cargo spellcheck check -m 1 -vv
+
 build-adder-collator:
   stage:                           test
   <<:                              *collect-artifacts
