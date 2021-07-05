@@ -114,7 +114,6 @@ use polkadot_node_metrics::{
 	Metronome,
 };
 pub use polkadot_overseer_gen::{
-	OverseerError,
 	TimeoutExt,
 	SpawnNamed,
 	Subsystem,

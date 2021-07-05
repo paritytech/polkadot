@@ -19,7 +19,6 @@
 
 use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_subsystem::errors::SubsystemError;
-use polkadot_overseer::OverseerError;
 use thiserror::Error;
 
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
@@ -61,10 +60,6 @@ pub enum Fatal {
 	/// Receiving subsystem message from overseer failed.
 	#[error("Receiving message from overseer failed")]
 	SubsystemReceive(#[source] SubsystemError),
-
-	/// Receiving subsystem message from overseer failed.
-	#[error("Receiving message from overseer failed")]
-	Overseer(#[source] OverseerError),
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]

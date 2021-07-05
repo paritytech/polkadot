@@ -28,7 +28,7 @@ use polkadot_subsystem::{
 	SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,
 	messages::{
-		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
+		CandidateValidationMessage, RuntimeApiMessage,
 		ValidationFailed, RuntimeApiRequest,
 	},
 	errors::RuntimeApiError,
@@ -192,10 +192,10 @@ where
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
 	ctx.send_message(
-		AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
+		RuntimeApiMessage::Request(
 			relay_parent,
 			request,
-		))
+		)
 	).await;
 
 	receiver.await.map_err(Into::into)

@@ -63,7 +63,7 @@ impl Subsystem1 {
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
-			ctx.send_message(AllMessages::CandidateValidation(
+			ctx.send_message(
 				CandidateValidationMessage::ValidateFromChainState(
 					Default::default(),
 					PoV {
@@ -71,7 +71,7 @@ impl Subsystem1 {
 					}.into(),
 					tx,
 				)
-			)).await;
+			).await;
 		}
 	}
 }

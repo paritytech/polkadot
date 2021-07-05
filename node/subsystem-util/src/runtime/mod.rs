@@ -24,11 +24,7 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
-use polkadot_node_subsystem::{
-	messages::RuntimeApiMessage,
-	OverseerSignal,
-	SubsystemContext,
-};
+use polkadot_node_subsystem::SubsystemContext;
 
 
 use crate::{

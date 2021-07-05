@@ -18,7 +18,6 @@ use polkadot_node_subsystem::errors::SubsystemError;
 use ::polkadot_overseer_gen::{
 	MapSubsystem, SubsystemContext,
 	Subsystem,
-	OverseerError,
 	SpawnedSubsystem,
 	FromOverseer,
 };
@@ -165,6 +164,7 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
+	/// Reference every indidviudal subsystem.
 	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,
@@ -187,6 +187,7 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
+	/// Map each subsystem.
 	pub fn map_subsystems<Mapper>(self, mapper: Mapper)
 		-> AllSubsystems<
 			<Mapper as MapSubsystem<CV>>::Output,

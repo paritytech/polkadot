@@ -25,11 +25,8 @@
 #![deny(unused_crate_dependencies, unused_results)]
 
 use futures::{select, FutureExt};
-use polkadot_overseer::{
-	AllMessages,
-	Handler,
-};
 use polkadot_node_subsystem::{
+	overseer::Handler,
 	messages::ProvisionerMessage, errors::SubsystemError,
 };
 use polkadot_primitives::v1::{

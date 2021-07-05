@@ -43,7 +43,7 @@ use polkadot_subsystem::{
 	overseer,
 	jaeger,
 	messages::{
-		AllMessages, CollatorProtocolMessage, IfDisconnected,
+		CollatorProtocolMessage, IfDisconnected,
 		NetworkBridgeEvent, NetworkBridgeMessage, CandidateBackingMessage,
 	},
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,

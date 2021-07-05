@@ -28,7 +28,7 @@ use polkadot_subsystem::{
 	SubsystemContext,
 	errors::RuntimeApiError,
 	messages::{
-		AllMessages, RuntimeApiMessage, RuntimeApiRequest as Request,
+		RuntimeApiMessage, RuntimeApiRequest as Request,
 	},
 	overseer,
 };

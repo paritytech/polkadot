@@ -23,26 +23,16 @@
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-use std::sync::Arc;
-use std::fmt;
-use smallvec::SmallVec;
-use futures::prelude::*;
-use futures::channel::{oneshot, mpsc};
 use futures::future::BoxFuture;
 use polkadot_node_subsystem_types::errors::*;
 pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate, self as overseer};
-use polkadot_primitives::v1::{Hash, BlockNumber};
-/// How many slots are stack-reserved for active leaves updates
-///
-/// If there are fewer than this number of slots, then we've wasted some stack space.
-/// If there are greater than this number of slots, then we fall back to a heap vector.
-const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
 pub use polkadot_node_subsystem_types::{
 	errors::{self, *},
 	ActivatedLeaf,
 	LeafStatus,
 };
+
 pub mod messages {
 	pub use super::overseer::AllMessages;
 	pub use polkadot_node_subsystem_types::messages::*;

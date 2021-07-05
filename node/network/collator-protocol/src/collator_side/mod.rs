@@ -27,7 +27,7 @@ use polkadot_subsystem::{
 	overseer,
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger,
 	messages::{
-		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
 };
 use polkadot_node_network_protocol::{

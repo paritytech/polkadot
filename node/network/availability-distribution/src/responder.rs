@@ -24,7 +24,7 @@ use polkadot_node_network_protocol::request_response::{request::IncomingRequest,
 use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_subsystem::{
-	messages::{AllMessages, AvailabilityStoreMessage},
+	messages::AvailabilityStoreMessage,
 	SubsystemContext, jaeger,
 };
 

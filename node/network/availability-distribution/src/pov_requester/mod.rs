@@ -29,7 +29,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::PoV;
 use polkadot_subsystem::{
 	SubsystemContext,
-	messages::{AllMessages, NetworkBridgeMessage, IfDisconnected}
+	messages::{NetworkBridgeMessage, IfDisconnected}
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
@@ -62,7 +62,6 @@ where
 	let full_req = Requests::PoVFetching(req);
 
 	ctx.send_message(
-		AllMessages::NetworkBridgeMessage(
 			NetworkBridgeMessage::SendRequests(
 				vec![full_req],
 				// We are supposed to be connected to validators of our group via `PeerSet`,
@@ -70,7 +69,7 @@ where
 				// longer to get established, so we try to connect in any case.
 				IfDisconnected::TryConnect
 			)
-	)).await;
+	).await;
 
 	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
 		.with_validator_index(from_validator)

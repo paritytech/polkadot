@@ -20,7 +20,6 @@ use polkadot_node_subsystem::{
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem::{
-	messages::AllMessages,
 	SubsystemSender,
 };
 use polkadot_primitives::v1::{Hash, Header, BlockNumber};

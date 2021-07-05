@@ -725,18 +725,17 @@ where
 	let (validators_tx, validators_rx) = oneshot::channel();
 	let (session_tx, session_rx) = oneshot::channel();
 
-	let query_validators = AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
+	// query validators
+	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::Validators(validators_tx),
-	));
+	)).await;
 
-	let query_signing = AllMessages::RuntimeApiMessage(RuntimeApiMessage::Request(
+	// query signing context
+	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
-	));
-
-	ctx.send_messages(std::iter::once(query_validators).chain(std::iter::once(query_signing)))
-		.await;
+	)).await;
 
 	match (validators_rx.await?, session_rx.await?) {
 		(Ok(v), Ok(s)) => Ok(Some((

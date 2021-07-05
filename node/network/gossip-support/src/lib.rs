@@ -33,7 +33,6 @@ use polkadot_node_subsystem::{
 	SubsystemError,
 	FromOverseer, SpawnedSubsystem, SubsystemContext,
 	messages::{
-		AllMessages,
 		GossipSupportMessage,
 		NetworkBridgeMessage,
 		RuntimeApiMessage,

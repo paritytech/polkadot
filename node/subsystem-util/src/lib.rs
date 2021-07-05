@@ -38,7 +38,6 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 	errors::{
 		SubsystemError,
-		SubsystemResult,
 	},
 	SubsystemContext,
 	SpawnedSubsystem,
@@ -59,14 +58,13 @@ pub use polkadot_node_metrics::{
 
 use polkadot_node_jaeger as jaeger;
 use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::{Stream, SelectAll}};
-use futures_timer::Delay;
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId, GroupIndex,
+AuthorityDiscoveryId, GroupIndex,
 };
 use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;

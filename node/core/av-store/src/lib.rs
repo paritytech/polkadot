@@ -39,7 +39,7 @@ use polkadot_node_primitives::{
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError,
 	SubsystemContext, SpawnedSubsystem,
-	overseer::{self, Subsystem},
+	overseer,
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };

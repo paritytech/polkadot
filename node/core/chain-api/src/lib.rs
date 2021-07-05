@@ -41,10 +41,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId};
 use polkadot_subsystem::{
 	overseer,
-	messages::{
-		AllMessages,
-		ChainApiMessage,
-	},
+	messages::ChainApiMessage,
 	FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };

@@ -24,7 +24,6 @@ use parity_scale_codec::{Encode, Decode};
 use parking_lot::Mutex;
 use futures::prelude::*;
 use futures::stream::BoxStream;
-use polkadot_overseer::Overseer;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
@@ -908,7 +907,7 @@ where
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote)).await?;
 
 	ctx.send_message(
-		AllMessages::from(StatementDistributionMessage::StatementFetchingReceiver(statement_receiver))
+		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
 	).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(

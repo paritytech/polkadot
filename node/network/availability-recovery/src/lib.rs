@@ -40,7 +40,7 @@ use polkadot_subsystem::{
 	errors::RecoveryError,
 	jaeger,
 	messages::{
-		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
+		AvailabilityStoreMessage, AvailabilityRecoveryMessage, NetworkBridgeMessage,
 	},
 };
 use polkadot_node_network_protocol::{

@@ -78,8 +78,6 @@ impl<M> NetworkBridgeEvent<M> {
 				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
 			NetworkBridgeEvent::NewGossipTopology(ref peers)
 				=> NetworkBridgeEvent::NewGossipTopology(peers.clone()),
-			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
-				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
 				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view)

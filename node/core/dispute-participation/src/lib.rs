@@ -360,13 +360,13 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 ) {
-	ctx.send_message(AllMessages::DisputeCoordinator(
+	ctx.send_message(
 		DisputeCoordinatorMessage::IssueLocalStatement(
 			session,
 			candidate_hash,
 			candidate_receipt,
 			valid,
 		),
-	))
+	)
 	.await
 }

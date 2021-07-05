@@ -19,7 +19,7 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
-	messages::{AllMessages, AvailabilityDistributionMessage}, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	messages::AvailabilityDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
 	overseer,
 };

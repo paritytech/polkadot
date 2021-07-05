@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	overseer,
 	messages::{
-		AllMessages, ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
+		ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
 		AssignmentCheckResult, ApprovalCheckResult, NetworkBridgeEvent,
 	},
 	SubsystemError,

@@ -23,7 +23,6 @@
 
 use polkadot_node_subsystem::{
 	messages::{
-		AllMessages,
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
@@ -2200,13 +2199,13 @@ async fn launch_approval(
 
 		let para_id = candidate.descriptor.para_id;
 
-		sender.send_message(AllMessages::from(CandidateValidationMessage::ValidateFromExhaustive(
+		sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
 			candidate.descriptor,
 			available_data.pov,
 			val_tx,
-		))).await;
+		).into()).await;
 
 		match val_rx.await {
 			Err(_) =>
