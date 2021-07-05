@@ -22,7 +22,7 @@ use super::*;
 pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let message_wrapper = &info.message_wrapper.clone();
 	let overseer_name = info.overseer_name.clone();
-	let subsystem_name = &info.subsystem_names();
+	let subsystem_name = &info.subsystem_names_without_wip();
 
 	let baggage_decl = &info.baggage_decl();
 
@@ -38,7 +38,8 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 	};
 	// TODO add `where ..` clauses for baggage types
 
-	let consumes = &info.consumes();
+	let consumes = &info.consumes_without_wip();
+	let unconsumes = &info.consumes_only_wip();
 
 	let signal_ty = &info.extern_signal_ty;
 
@@ -140,6 +141,10 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				match message {
 					#(
 						#message_wrapper :: #consumes ( inner ) => self. #subsystem_name .send_message( inner ).await?,
+					)*
+					// subsystems that are still work in progress
+					#(
+						#message_wrapper :: #unconsumes ( inner ) => {}
 					)*
 				}
 				Ok(())

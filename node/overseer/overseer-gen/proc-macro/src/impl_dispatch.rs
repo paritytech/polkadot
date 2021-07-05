@@ -43,6 +43,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 							::std::iter::once(
 								extern_msg
 									// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
+									// TODO do not require this to be hardcoded, either externalize or ...
 									.focus()
 									.ok()
 									.map(|event: NetworkBridgeEvent< _ >| {

@@ -167,6 +167,14 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
+	pub(crate) fn subsystem_names_without_wip(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|ssf| ssf.name.clone())
+			.collect::<Vec<_>>()
+	}
+
 	#[allow(dead_code)]
 	// TODO use as the defaults, if no subsystem is specified
 	// TODO or drop the type argument.
@@ -197,7 +205,11 @@ impl OverseerInfo {
 
 	/// Generic types per subsystem, in the form `Sub#N`.
 	pub(crate) fn builder_generic_types(&self) -> Vec<Ident> {
-		self.subsystems.iter().map(|sff| sff.generic.clone()).collect::<Vec<_>>()
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|sff| sff.generic.clone())
+			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
@@ -217,6 +229,29 @@ impl OverseerInfo {
 
 	pub(crate) fn consumes(&self) -> Vec<Path> {
 		self.subsystems.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>()
+	}
+
+	pub(crate) fn channel_names_without_wip(&self, suffix: &'static str) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|ssf| Ident::new(&(ssf.name.to_string() + suffix), ssf.name.span()))
+			.collect::<Vec<_>>()
+	}
+
+	pub(crate) fn consumes_without_wip(&self) -> Vec<Path> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|ssf| ssf.consumes.clone())
+			.collect::<Vec<_>>()
+	}
+	pub(crate) fn consumes_only_wip(&self) -> Vec<Path> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| ssf.wip)
+			.map(|ssf| ssf.consumes.clone())
+			.collect::<Vec<_>>()
 	}
 }
 
