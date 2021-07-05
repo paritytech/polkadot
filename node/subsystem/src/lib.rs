@@ -20,11 +20,9 @@
 
 #![warn(missing_docs)]
 
-use overseer::Overseer;
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
-use polkadot_node_subsystem_types::errors::*;
 pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate, self as overseer};
 
 pub use polkadot_node_subsystem_types::{
@@ -33,6 +31,7 @@ pub use polkadot_node_subsystem_types::{
 	LeafStatus,
 };
 
+/// Re-export of all messages type, including the wrapper type.
 pub mod messages {
 	pub use super::overseer::AllMessages;
 	pub use polkadot_node_subsystem_types::messages::*;
@@ -47,30 +46,34 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 // Simplify usage without having to do large scale modifications of all
 // subsystems at once.
 
+
+/// Specialized message type originating from the overseer.
 pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
 
-
+/// Specialized subsystem instance type of subsystems consuming a particular message type.
 pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
 
-// Same for traits
+/// Sender trait for the `AllMessages` wrapper.
 pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
 }
 
 impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
 }
 
-// pub use polkadot_overseer::gen::SubsystemSender;
-
+/// Spawned subsystem.
 pub type SpawnedSubsystem = polkadot_overseer::gen::SpawnedSubsystem<SubsystemError>;
 
 
+/// Convenience trait specialization.
 pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
 	Signal=OverseerSignal,
 	AllMessages=messages::AllMessages,
 	Error=SubsystemError,
 >
 {
+	/// The message type the subsystem consumes.
 	type Message: std::fmt::Debug + Send + 'static;
+	/// Sender type to communicate with other subsystems.
 	type Sender: SubsystemSender + Send + Clone + 'static;
 }
 

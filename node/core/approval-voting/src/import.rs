@@ -33,7 +33,6 @@ use polkadot_node_subsystem::{
 	messages::{
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage, ApprovalVotingMessage,
 	},
-	SubsystemSender,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::determine_new_blocks;
