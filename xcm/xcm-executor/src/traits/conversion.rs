@@ -173,6 +173,12 @@ impl<O> ConvertOrigin<O> for Tuple {
 				r => return r
 			};
 		)* );
+		log::trace!(
+			target: "xcm::convert_origin",
+			"could not convert: origin: {:?}, kind: {:?}",
+			origin,
+			kind,
+		);
 		Err(origin)
 	}
 }

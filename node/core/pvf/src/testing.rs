@@ -50,6 +50,8 @@ pub fn validate_candidate(
 macro_rules! decl_puppet_worker_main {
 	() => {
 		fn main() {
+			$crate::sp_tracing::try_init_simple();
+
 			let args = std::env::args().collect::<Vec<_>>();
 			if args.len() < 2 {
 				panic!("wrong number of arguments");

@@ -26,6 +26,7 @@ impl<Balance> MatchesFungible<Balance> for Tuple {
 		for_tuples!( #(
 			match Tuple::matches_fungible(a) { o @ Some(_) => return o, _ => () }
 		)* );
+		log::trace!(target: "xcm::matches_fungible", "did not match fungible asset: {:?}", &a);
 		None
 	}
 }

@@ -47,6 +47,14 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		weight_limit: Weight,
 		mut weight_credit: Weight,
 	) -> Outcome {
+		log::trace!(
+			target: "xcm::execute_xcm_in_credit",
+			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
+			origin,
+			message,
+			weight_limit,
+			weight_credit,
+		);
 		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
 		let shallow_weight = match Config::Weigher::shallow(&mut message) {
@@ -67,6 +75,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let mut trader = Config::Trader::new();
 		let result = Self::do_execute_xcm(origin, true, message, &mut weight_credit, Some(shallow_weight), &mut trader);
 		drop(trader);
+		log::trace!(target: "xcm::execute_xcm", "result: {:?}", &result);
 		match result {
 			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
 			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
@@ -94,6 +103,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		maybe_shallow_weight: Option<Weight>,
 		trader: &mut Config::Trader,
 	) -> Result<Weight, XcmError> {
+		log::trace!(
+			target: "xcm::do_execute_xcm",
+			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
+			origin, 
+			top_level, 
+			message, 
+			weight_credit, 
+			maybe_shallow_weight,
+		);
 		// This is the weight of everything that cannot be paid for. This basically means all computation
 		// except any XCM which is behind an Order::BuyExecution.
 		let shallow_weight = maybe_shallow_weight
@@ -165,7 +183,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Some((Assets::from(assets), effects))
 			}
-			(origin, Xcm::Transact { origin_type, require_weight_at_most,  mut call }) => {
+			(origin, Xcm::Transact { origin_type, require_weight_at_most, mut call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
@@ -225,6 +243,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		effect: Order<Config::Call>,
 		trader: &mut Config::Trader,
 	) -> Result<Weight, XcmError> {
+		log::trace!(
+			target: "xcm::execute_effects",
+			"origin: {:?}, holding: {:?}, effect: {:?}",
+			origin,
+			holding,
+			effect,
+		);
 		let mut total_surplus = 0;
 		match effect {
 			Order::DepositAsset { assets, dest } => {
