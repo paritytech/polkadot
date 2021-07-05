@@ -689,7 +689,7 @@ mod tests {
 				shared::Pallet::<Test>::set_session_index(
 					shared::Pallet::<Test>::session_index() + 1
 				);
-				Parachains::test_on_new_session();
+				Paras::test_on_new_session();
 			}
 			System::set_block_number(b + 1);
 			System::on_initialize(System::block_number());
@@ -736,7 +736,7 @@ mod tests {
 			let para_id = LOWEST_PUBLIC_ID;
 			run_to_block(1);
 			// first para is not yet registered
-			assert!(!Parachains::is_parathread(para_id));
+			assert!(!Paras::is_parathread(para_id));
 			// We register the Para ID
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
@@ -747,19 +747,19 @@ mod tests {
 			));
 			run_to_session(2);
 			// It is now a parathread.
-			assert!(Parachains::is_parathread(para_id));
-			assert!(!Parachains::is_parachain(para_id));
+			assert!(Paras::is_parathread(para_id));
+			assert!(!Paras::is_parachain(para_id));
 			// Some other external process will elevate parathread to parachain
 			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(4);
 			// It is now a parachain.
-			assert!(!Parachains::is_parathread(para_id));
-			assert!(Parachains::is_parachain(para_id));
+			assert!(!Paras::is_parathread(para_id));
+			assert!(Paras::is_parachain(para_id));
 			// Turn it back into a parathread
 			assert_ok!(Registrar::make_parathread(para_id));
 			run_to_session(6);
-			assert!(Parachains::is_parathread(para_id));
-			assert!(!Parachains::is_parachain(para_id));
+			assert!(Paras::is_parathread(para_id));
+			assert!(!Paras::is_parachain(para_id));
 			// Deregister it
 			assert_ok!(Registrar::deregister(
 				Origin::root(),
@@ -767,8 +767,8 @@ mod tests {
 			));
 			run_to_session(8);
 			// It is nothing
-			assert!(!Parachains::is_parathread(para_id));
-			assert!(!Parachains::is_parachain(para_id));
+			assert!(!Paras::is_parathread(para_id));
+			assert!(!Paras::is_parachain(para_id));
 		});
 	}
 
@@ -777,7 +777,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Parachains::is_parathread(para_id));
+			assert!(!Paras::is_parathread(para_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
@@ -787,7 +787,7 @@ mod tests {
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Parachains::is_parathread(para_id));
+			assert!(Paras::is_parathread(para_id));
 			assert_eq!(
 				Balances::reserved_balance(&1),
 				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
@@ -863,7 +863,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Parachains::is_parathread(para_id));
+			assert!(!Paras::is_parathread(para_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
@@ -872,7 +872,7 @@ mod tests {
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Parachains::is_parathread(para_id));
+			assert!(Paras::is_parathread(para_id));
 			assert_ok!(Registrar::deregister(
 				Origin::root(),
 				para_id,
@@ -888,7 +888,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Parachains::is_parathread(para_id));
+			assert!(!Paras::is_parathread(para_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
@@ -897,7 +897,7 @@ mod tests {
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Parachains::is_parathread(para_id));
+			assert!(Paras::is_parathread(para_id));
 			// Owner check
 			assert_noop!(Registrar::deregister(
 				Origin::signed(2),
@@ -941,10 +941,10 @@ mod tests {
 			run_to_session(4);
 
 			// Roles are as we expect
-			assert!(Parachains::is_parachain(para_1));
-			assert!(!Parachains::is_parathread(para_1));
-			assert!(!Parachains::is_parachain(para_2));
-			assert!(Parachains::is_parathread(para_2));
+			assert!(Paras::is_parachain(para_1));
+			assert!(!Paras::is_parathread(para_1));
+			assert!(!Paras::is_parachain(para_2));
+			assert!(Paras::is_parathread(para_2));
 
 			// Both paras initiate a swap
 			assert_ok!(Registrar::swap(
@@ -961,16 +961,16 @@ mod tests {
 			run_to_session(6);
 
 			// Deregister a parathread that was originally a parachain
-			assert_eq!(Parachains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(para_1), Some(ParaLifecycle::Parathread));
 			assert_ok!(Registrar::deregister(runtime_parachains::Origin::Parachain(para_1).into(), para_1));
 
 			run_to_block(21);
 
 			// Roles are swapped
-			assert!(!Parachains::is_parachain(para_1));
-			assert!(Parachains::is_parathread(para_1));
-			assert!(Parachains::is_parachain(para_2));
-			assert!(!Parachains::is_parathread(para_2));
+			assert!(!Paras::is_parachain(para_1));
+			assert!(Paras::is_parathread(para_1));
+			assert!(Paras::is_parachain(para_2));
+			assert!(!Paras::is_parathread(para_2));
 		});
 	}
 
@@ -993,7 +993,7 @@ mod tests {
 
 			// 2 session changes to fully onboard.
 			run_to_session(2);
-			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(para_id), Some(ParaLifecycle::Parathread));
 
 			// Once they begin onboarding, we lock them in.
 			assert_ok!(Registrar::make_parachain(para_id));
