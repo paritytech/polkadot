@@ -46,7 +46,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 									// TODO do not require this to be hardcoded, either externalize or ...
 									.focus()
 									.ok()
-									.map(|event: NetworkBridgeEvent< _ >| {
+									.map(|event: NetworkBridgeEvent<_>| {
 										#message_wrapper :: #dispatchable (
 											// the inner type of the enum variant
 											#dispatchable :: from( event )

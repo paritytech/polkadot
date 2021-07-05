@@ -41,40 +41,13 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 pub use polkadot_node_subsystem_types::{
 	errors::{self, *},
 	ActivatedLeaf,
+	LeafStatus,
 };
 pub mod messages {
 	pub use super::overseer::AllMessages;
 	pub use polkadot_node_subsystem_types::messages::*;
 }
 
-/// The status of an activated leaf.
-#[derive(Debug, Clone)]
-pub enum LeafStatus {
-	/// A leaf is fresh when it's the first time the leaf has been encountered.
-	/// Most leaves should be fresh.
-	Fresh,
-	/// A leaf is stale when it's encountered for a subsequent time. This will happen
-	/// when the chain is reverted or the fork-choice rule abandons some chain.
-	Stale,
-}
-
-impl LeafStatus {
-	/// Returns a bool indicating fresh status.
-	pub fn is_fresh(&self) -> bool {
-		match *self {
-			LeafStatus::Fresh => true,
-			LeafStatus::Stale => false,
-		}
-	}
-
-	/// Returns a bool indicating stale status.
-	pub fn is_stale(&self) -> bool {
-		match *self {
-			LeafStatus::Fresh => false,
-			LeafStatus::Stale => true,
-		}
-	}
-}
 
 /// A `Result` type that wraps [`SubsystemError`].
 ///

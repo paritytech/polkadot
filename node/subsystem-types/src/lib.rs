@@ -69,7 +69,6 @@ impl LeafStatus {
 	}
 }
 
-
 /// Activated leaf.
 #[derive(Debug, Clone)]
 pub struct ActivatedLeaf {

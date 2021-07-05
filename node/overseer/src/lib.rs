@@ -419,10 +419,6 @@ pub struct Overseer<SupportsParachains> {
 
 	/// Various Prometheus metrics.
 	pub metrics: Metrics,
-
-	// Configuration for the candidate validation subsystem.
-	// FIXME !!!
-	// pub candidate_validation_config: CandidateValidationConfig,
 }
 
 
