@@ -49,6 +49,10 @@ pub(crate) struct SubSysField {
 	/// If the subsystem implementation is blocking execution and hence
 	/// has to be spawned on a separate thread or thread pool.
 	pub(crate) blocking: bool,
+	/// The subsystem is a work in progress.
+	/// Avoids dispatching `Wrapper` type messages, but generates the variants.
+	/// Does not require the subsystem to be instanciated with the builder pattern.
+	pub(crate) wip: bool,
 }
 
 fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
@@ -63,6 +67,9 @@ pub(crate) struct SubSystemTag {
 	pub(crate) attrs: Vec<Attribute>,
 	#[allow(dead_code)]
 	pub(crate) no_dispatch: bool,
+	/// The subsystem is WIP, only generate the `Wrapper` variant, but do not forward messages
+	/// and also not include the subsystem in the list of subsystems.
+	pub(crate) wip: bool,
 	pub(crate) blocking: bool,
 	pub(crate) consumes: Punctuated<Path, Token![|]>,
 }
@@ -86,7 +93,7 @@ impl Parse for SubSystemTag {
 
 		let mut unique = HashSet::<_, RandomState>::default();
 		while let Some(ident) = parse_tags()? {
-			if ident != "no_dispatch" && ident != "blocking" {
+			if ident != "no_dispatch" && ident != "blocking" && ident != "wip" {
 				return Err(Error::new(ident.span(), "Allowed tags are only `no_dispatch` or `blocking`."));
 			}
 			if !unique.insert(ident.to_string()) {
@@ -95,10 +102,11 @@ impl Parse for SubSystemTag {
 		}
 		let no_dispatch = unique.take("no_dispatch").is_some();
 		let blocking = unique.take("blocking").is_some();
+		let wip = unique.take("wip").is_some();
 
 		let consumes = content.parse_terminated(Path::parse)?;
 
-		Ok(Self { attrs, no_dispatch, blocking, consumes })
+		Ok(Self { attrs, no_dispatch, blocking, consumes, wip})
 	}
 }
 
@@ -152,7 +160,11 @@ impl OverseerInfo {
 	}
 
 	pub(crate) fn subsystem_names(&self) -> Vec<Ident> {
-		self.subsystems.iter().map(|ssf| ssf.name.clone()).collect::<Vec<_>>()
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|ssf| ssf.name.clone())
+			.collect::<Vec<_>>()
 	}
 
 	#[allow(dead_code)]
@@ -169,15 +181,18 @@ impl OverseerInfo {
 		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
 	}
 	pub(crate) fn baggage_decl(&self) -> Vec<TokenStream> {
-		self.baggage.iter().map(|bag| {
-			let BaggageField {
-				vis,
-				field_ty,
-				field_name,
-				..
-			} = bag;
-			quote!{ #vis #field_name: #field_ty }
-		}).collect::<Vec<TokenStream>>()
+		self.baggage
+			.iter()
+			.map(|bag| {
+				let BaggageField {
+					vis,
+					field_ty,
+					field_name,
+					..
+				} = bag;
+				quote!{ #vis #field_name: #field_ty }
+			})
+			.collect::<Vec<TokenStream>>()
 	}
 
 	/// Generic types per subsystem, in the form `Sub#N`.
@@ -254,6 +269,7 @@ impl OverseerGuts {
 					ty: try_type_to_path(ty, span)?,
 					consumes: consumes_paths[0].clone(),
 					no_dispatch: variant.no_dispatch,
+					wip: variant.wip,
 					blocking: variant.blocking,
 				});
 			} else {
