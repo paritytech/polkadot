@@ -7,7 +7,7 @@ build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", default-features = false }
@@ -85,8 +85,6 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
-
-max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.1"
@@ -169,7 +167,6 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
-	"max-encoded-len/std",
 	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
