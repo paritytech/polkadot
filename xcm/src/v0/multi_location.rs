@@ -491,7 +491,7 @@ impl MultiLocation {
 	}
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
-	pub fn parent_count(&self) -> usize {
+	pub fn leading_parent_count(&self) -> usize {
 		use Junction::Parent;
 		match self {
 			MultiLocation::X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent) => 8,
@@ -541,10 +541,42 @@ impl MultiLocation {
 		}
 	}
 
+	/// This function ensures a multi-junction is in its canonicalized/normalized form, removing
+	/// any internal `[Non-Parent, Parent]` combinations.
+	pub fn canonicalize(&mut self) {
+		let mut normalized = MultiLocation::Null;
+		let mut iter = self.iter();
+		// We build up the the new normalized path by taking items from the original multi-location.
+		// When the next item we would add is `Parent`, we instead remove the last item assuming
+		// it is non-parent.
+		const EXPECT_MESSAGE: &'static str =
+			"`self` is a well formed multi-location with N junctions; \
+			this loop iterates over the junctions of `self`; \
+			the loop can push to the new multi-location at most one time; \
+			thus the size of the new multi-location is at most N junctions; \
+			qed";
+		while let Some(j) = iter.next() {
+			if j == &Junction::Parent {
+				match normalized.last() {
+					None | Some(Junction::Parent) => {}
+					Some(_) => {
+						normalized.take_last();
+						continue;
+					},
+				}
+			}
+
+			normalized.push(j.clone()).expect(EXPECT_MESSAGE);
+		}
+
+		core::mem::swap(self, &mut normalized);
+	}
+
+
 	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
-	/// removing any internal [Non-Parent, `Parent`]  combinations.
+	/// removing any internal `[Non-Parent, Parent]`  combinations.
 	///
-	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
+	/// In the case of overflow, `self` is unmodified and  we return `Err` with `suffix`.
 	///
 	/// # Example
 	/// ```rust
@@ -571,7 +603,7 @@ impl MultiLocation {
 	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalized form is returned,
 	/// removing any internal [Non-Parent, `Parent`] combinations.
 	///
-	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	/// In the case of overflow, `self` is unmodified and  we return `Err` with `prefix`.
 	///
 	/// # Example
 	/// ```rust
@@ -583,22 +615,41 @@ impl MultiLocation {
 	/// # }
 	/// ```
 	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
-		let self_parents = self.parent_count();
-		let prefix_rest = prefix.len() - prefix.parent_count();
-		let skipped = self_parents.min(prefix_rest);
+		let mut prefix = prefix;
+
+		// This will guarantee that all `Parent` junctions in the prefix are leading, which is
+		// important for calculating the `skipped` items below.
+		prefix.canonicalize();
+
+		let self_leading_parents = self.leading_parent_count();
+		// These are the number of `non-parent` items in the prefix that we can
+		// potentially remove if the original location leads with parents.
+		let prefix_rest = prefix.len() - prefix.leading_parent_count();
+		// 2 * skipped items will be removed when performing the normalization below.
+		let skipped = self_leading_parents.min(prefix_rest);
+
+		// Pre-pending this prefix would create a multi-location with too many junctions.
 		if self.len() + prefix.len() - 2 * skipped > MAX_MULTILOCATION_LENGTH {
 			return Err(prefix);
 		}
 
-		let mut prefix = prefix;
-		while match (prefix.last(), self.first()) {
-			(Some(x), Some(Junction::Parent)) if x.is_interior() => {
-				prefix.take_last();
-				self.take_first();
-				true
-			}
-			_ => false,
-		} {}
+		// Here we cancel out `[Non-Parent, Parent]` items (normalization), where
+		// the non-parent item comes from the end of the prefix, and the parent item
+		// comes from the front of the original location.
+		//
+		// We calculated already how many of these there should be above.
+		for _ in 0 .. skipped {
+				let _non_parent = prefix.take_last();
+				let _parent = self.take_first();
+				debug_assert!(
+					_non_parent.is_some() && _non_parent != Some(Junction::Parent),
+					"prepend_with should always remove a non-parent from the end of the prefix",
+				);
+				debug_assert!(
+					_parent == Some(Junction::Parent),
+					"prepend_with should always remove a parent from the front of the location",
+				);
+		}
 
 		for j in prefix.into_iter_rev() {
 			self.push_front(j).expect("len + prefix minus 2*skipped is less than max length; qed");
@@ -680,5 +731,60 @@ mod tests {
 		let mut m = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parachain(42));
 		let prefix = X2(Parent, Parent);
 		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
+
+		// Can handle shared prefix and resizing correctly.
+		let mut m = X1(Parent);
+		let prefix = X8(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
+		assert_eq!(m, X5(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild));
+
+		let mut m = X1(Parent);
+		let prefix = X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
+
+		let mut m = X1(Parent);
+		let prefix = X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
+		assert_eq!(m, X8(Parent, Parent, Parent, Parent, Parent, Parent, Parent, Parent));
+
+		let mut m = X1(Parent);
+		let prefix = X8(Parent, Parent, Parent, Parent, OnlyChild, Parent, Parent, Parent);
+		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
+		assert_eq!(m, X7(Parent, Parent, Parent, Parent, Parent, Parent, Parent));
+	}
+
+	#[test]
+	fn canonicalize_works() {
+		let mut m = X1(Parent);
+		m.canonicalize();
+		assert_eq!(m, X1(Parent));
+
+		let mut m = X1(Parachain(1));
+		m.canonicalize();
+		assert_eq!(m, X1(Parachain(1)));
+
+		let mut m = X6(Parent, Parachain(1), Parent, Parachain(2), Parent, Parachain(3));
+		m.canonicalize();
+		assert_eq!(m, X2(Parent, Parachain(3)));
+
+		let mut m = X5(Parachain(1), Parent, Parachain(2), Parent, Parachain(3));
+		m.canonicalize();
+		assert_eq!(m, X1(Parachain(3)));
+
+		let mut m = X6(Parachain(1), Parent, Parachain(2), Parent, Parachain(3), Parent);
+		m.canonicalize();
+		assert_eq!(m, Null);
+
+		let mut m = X5(Parachain(1), Parent, Parent, Parent, Parachain(3));
+		m.canonicalize();
+		assert_eq!(m, X3(Parent, Parent, Parachain(3)));
+
+		let mut m = X4(Parachain(1), Parachain(2), Parent, Parent);
+		m.canonicalize();
+		assert_eq!(m, Null);
+
+		let mut m = X4( Parent, Parent, Parachain(1), Parachain(2));
+		m.canonicalize();
+		assert_eq!(m, X4( Parent, Parent, Parachain(1), Parachain(2)));
 	}
 }

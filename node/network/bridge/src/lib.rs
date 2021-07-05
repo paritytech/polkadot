@@ -830,7 +830,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 					}
 				}
 			},
-			req_res_event = request_multiplexer.next().fuse() => match req_res_event {
+			req_res_event = request_multiplexer.next() => match req_res_event {
 				None => return Err(UnexpectedAbort::RequestStreamConcluded),
 				Some(Err(err)) => {
 					network_service.report_peer(err.peer, MALFORMED_MESSAGE_COST);
