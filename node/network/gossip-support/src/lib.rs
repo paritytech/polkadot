@@ -55,8 +55,12 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// Duration after which we consider low connectivity a problem.
 ///
 /// Especially at startup low connectivity is expected (authority discovery cache needs to be
-/// populated). After one minute of low connectivity a warning seems to be justified.
-const STARTUP_PERIOD: Duration = Duration::from_secs(60);
+/// populated). Authority discovery on Kusama takes around 8 minutes, so warning after 10 minutes
+/// should be fine:
+///
+/// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
+///
+const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
@@ -73,8 +77,10 @@ struct State {
 
 	/// First time we did not reach our connectivity treshold.
 	///
-	/// Will be cleared once we reached it.
-	first_failure: Option<Instant>,
+	/// This is the time of the first failed attempt to connect to >2/3 of all validators in a
+	/// potential sequence of failed attempts. It will be cleared once we reached >2/3
+	/// connectivity.
+	failure_start: Option<Instant>,
 }
 
 impl GossipSupport {
@@ -326,9 +332,9 @@ impl State {
 		// if at least a third of the authorities were not resolved
 		if failures >= num / 3 {
 			let timestamp = Instant::now();
-			match self.first_failure {
-				None => self.first_failure = Some(timestamp),
-				Some(first) if first.elapsed() >= STARTUP_PERIOD => {
+			match self.failure_start {
+				None => self.failure_start = Some(timestamp),
+				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						connected = ?(num - failures),
@@ -343,7 +349,7 @@ impl State {
 			self.last_failure = Some(timestamp);
 		} else {
 			self.last_failure = None;
-			self.first_failure = None;
+			self.failure_start = None;
 		};
 
 		Ok(())
