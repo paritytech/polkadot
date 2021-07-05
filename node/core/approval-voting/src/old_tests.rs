@@ -971,7 +971,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			db.load_candidate_entry(&candidate_hash).unwrap().unwrap(),
 			ApprovalSource::Remote(validator_index_b),
 		);
-		assert_eq!(actions.len(), 0);
+		assert_eq!(actions.len(), 1);
 
 		let mut write_ops = overlay_db.into_write_ops().collect::<Vec<BackendWriteOp>>();
 		assert_eq!(write_ops.len(), 2);
@@ -1526,7 +1526,7 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 		ApprovalSource::Remote(validator_index_b),
 	);
 
-	assert_eq!(actions.len(), 0);
+	assert_eq!(actions.len(), 1);
 
 	let write_ops = overlay_db.into_write_ops().collect::<Vec<BackendWriteOp>>();
 	assert_eq!(write_ops.len(), 2);

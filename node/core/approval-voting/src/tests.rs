@@ -38,12 +38,12 @@ use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
 use assert_matches::assert_matches;
 
-use crate::ops::StoredBlockRange;
-use crate::backend::BackendWriteOp;
 use super::import::tests::{
 	BabeEpoch, BabeEpochConfiguration, AllowedSlots, Digest, garbage_vrf, DigestItem, PreDigest,
 	SecondaryVRFPreDigest, CompatibleDigestItem,
 };
+use super::approval_db::v1::StoredBlockRange;
+use super::backend::BackendWriteOp;
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
@@ -570,7 +570,10 @@ fn ss_rejects_approval_before_assignment() {
 		let session_index = 1;
 
 		// Add block hash 00.
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_approval(
 			&mut virtual_overseer,
@@ -610,7 +613,10 @@ fn ss_rejects_assignment_in_future() {
 		let validator = ValidatorIndex(0);
 
 		// Add block hash 00.
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_assignment(
 			&mut virtual_overseer,
@@ -651,7 +657,10 @@ fn ss_accepts_duplicate_assignment() {
 		let validator = ValidatorIndex(0);
 
 		// Add block hash 00.
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_assignment(
 			&mut virtual_overseer,
@@ -689,7 +698,10 @@ fn ss_rejects_assignment_with_unknown_candidate() {
 		let validator = ValidatorIndex(0);
 
 		// Add block hash 00.
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_assignment(
 			&mut virtual_overseer,
@@ -730,7 +742,10 @@ fn ss_accepts_and_imports_approval_after_assignment() {
 		let session_index = 1;
 
 		// Add block hash 0x01...
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_assignment(
 			&mut virtual_overseer,
@@ -777,7 +792,10 @@ fn ss_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 		let validator = ValidatorIndex(0);
 
 		// Add block hash 0x01...
-		import_n_blocks(&mut virtual_overseer, vec![block_hash]).await;
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+			.build(&mut virtual_overseer)
+			.await;
 
 		let rx = cai_assignment(
 			&mut virtual_overseer,
@@ -850,46 +868,100 @@ async fn cai_assignment(
 	rx
 }
 
-async fn import_n_blocks(
-	overseer: &mut VirtualOverseer,
-	mut blocks: Vec<Hash>,
-) {
-	let n_blocks = blocks.len();
-	assert!(n_blocks > 0 && n_blocks < u8::MAX.into());
-
-	let mut blocks_with_genesis = vec![Hash::repeat_byte(0xff)];
-	blocks_with_genesis.append(&mut blocks);
-
-	let mut head = Hash::default();
-	let mut hashes = Vec::new();
-	for (i, hash) in blocks_with_genesis.iter().enumerate() {
-		let slot = Slot::from(i as u64);
-		let header = Header {
-			digest: {
-				let mut d = Digest::default();
-				let (vrf_output, vrf_proof) = garbage_vrf();
-				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest {
-						authority_index: 0,
-						slot,
-						vrf_output,
-						vrf_proof,
-					}
-				)));
-
-				d
-			},
-			extrinsics_root: Default::default(),
-			number: i as u32,
-			state_root: Default::default(),
-			parent_hash: head,
-		};
-		hashes.push((*hash, header));
-		import_block(overseer, hashes.as_ref(), i as u32, false, false).await;
-		head = *hash;
-		let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
-	}
+struct ChainBuilder {
+	blocks_by_hash: HashMap<Hash, Header>,
+	blocks_at_height: BTreeMap<u32, Vec<Hash>>,
 }
+
+
+impl ChainBuilder {
+	const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
+	const GENESIS_PARENT_HASH: Hash = Hash::repeat_byte(0x00);
+
+	pub fn new() -> Self {
+		let mut builder = Self {
+			blocks_by_hash: HashMap::new(),
+			blocks_at_height: BTreeMap::new(),
+		};
+		builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
+		builder
+	}
+
+	pub fn add_block<'a>(
+		&'a mut self,
+		hash: Hash,
+		parent_hash: Hash,
+		slot: Slot,
+		number: u32,
+	) -> &'a mut Self {
+		assert!(number != 0, "cannot add duplicate genesis block");
+		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
+		assert!(parent_hash != Self::GENESIS_PARENT_HASH, "cannot add block with genesis parent hash");
+		assert!(self.blocks_by_hash.len() < u8::MAX.into());
+		self.add_block_inner(hash, parent_hash, slot, number)
+	}
+
+	fn add_block_inner<'a>(
+		&'a mut self,
+		hash: Hash,
+		parent_hash: Hash,
+		slot: Slot,
+		number: u32,
+	) -> &'a mut Self {
+		let header = ChainBuilder::make_header(parent_hash, slot, number);
+		assert!(
+			self.blocks_by_hash.insert(hash, header).is_none(),
+			"block with hash {:?} already exists", hash,
+		);
+		self.blocks_at_height.entry(number).or_insert_with(Vec::new).push(hash);
+		self
+	}
+
+	pub async fn build(&self, overseer: &mut VirtualOverseer) {
+		for (number, blocks) in self.blocks_at_height.iter() {
+			for (i, hash) in blocks.iter().enumerate() {
+				let mut cur_hash = *hash;
+				let mut ancestry = Vec::new();
+				while cur_hash != Self::GENESIS_PARENT_HASH {
+					let cur_header = self.blocks_by_hash.get(&cur_hash).expect("chain is not contiguous");
+					ancestry.push((cur_hash, cur_header.clone()));
+					cur_hash = cur_header.parent_hash;
+				}
+				ancestry.reverse();
+				import_block(overseer, ancestry.as_ref(), *number, false, i > 0).await;
+				let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
+			}
+		}
+	}
+
+	fn make_header(
+		parent_hash: Hash,
+		slot: Slot,
+		number: u32,
+	) -> Header {
+		let digest = {
+			let mut digest = Digest::default();
+			let (vrf_output, vrf_proof) = garbage_vrf();
+			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+				SecondaryVRFPreDigest {
+					authority_index: 0,
+					slot,
+					vrf_output,
+					vrf_proof,
+				}
+			)));
+			digest
+		};
+
+		Header {
+			digest,
+			extrinsics_root: Default::default(),
+			number,
+			state_root: Default::default(),
+			parent_hash,
+		}
+ 	}
+ }
 
 async fn import_block(
 	overseer: &mut VirtualOverseer,
@@ -1092,12 +1164,7 @@ async fn import_block(
 
 #[test]
 fn linear_import_act_on_leaf() {
-	use super::import::tests::{Digest, garbage_vrf, DigestItem, PreDigest, SecondaryVRFPreDigest};
-	use sp_consensus_babe::digests::CompatibleDigestItem;
 	let session = 3u32;
-
-	let mut hashes = Vec::new();
-	let mut head: Hash = Default::default();
 
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
@@ -1106,33 +1173,17 @@ fn linear_import_act_on_leaf() {
 			..
 		} = test_harness;
 
-		for i in 0..session {
+		let mut head: Hash = ChainBuilder::GENESIS_HASH;
+		let mut builder = ChainBuilder::new();
+		for i in 1..session {
 			let slot = Slot::from(i as u64);
-			let hash = Hash::repeat_byte(i as u8 + 1);
-			let header = Header {
-				digest: {
-					let mut d = Digest::default();
-					let (vrf_output, vrf_proof) = garbage_vrf();
-					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-						SecondaryVRFPreDigest {
-							authority_index: 0,
-							slot,
-							vrf_output,
-							vrf_proof,
-						}
-					)));
 
-					d
-				},
-				extrinsics_root: Default::default(),
-				number: i,
-				state_root: Default::default(),
-				parent_hash: head,
-			};
-			hashes.push((hash, header));
-			import_block(&mut virtual_overseer, hashes.as_ref(), i, false, false).await;
-			head = hash.clone();
-		}
+			let hash = Hash::repeat_byte(i as u8);
+			builder.add_block(hash, head, slot, i);
+			head = hash;
+ 		}
+
+		builder.build(&mut virtual_overseer).await;
 
 		let (tx, rx) = oneshot::channel();
 
@@ -1161,12 +1212,7 @@ fn linear_import_act_on_leaf() {
 
 #[test]
 fn forkful_import_at_same_height_act_on_leaf() {
-	use super::import::tests::{Digest, garbage_vrf, DigestItem, PreDigest, SecondaryVRFPreDigest};
-	use sp_consensus_babe::digests::CompatibleDigestItem;
 	let session = 3u32;
-
-	let mut hashes = Vec::new();
-	let mut head: Hash = Default::default();
 
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
@@ -1175,65 +1221,23 @@ fn forkful_import_at_same_height_act_on_leaf() {
 			..
 		} = test_harness;
 
-		for i in 0..session {
+		let mut head: Hash = ChainBuilder::GENESIS_HASH;
+		let mut builder = ChainBuilder::new();
+		for i in 1..session {
 			let slot = Slot::from(i as u64);
-			let hash = Hash::repeat_byte(i as u8 + 1);
-			let header = Header {
-				digest: {
-					let mut d = Digest::default();
-					let (vrf_output, vrf_proof) = garbage_vrf();
-					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-						SecondaryVRFPreDigest {
-							authority_index: 0,
-							slot,
-							vrf_output,
-							vrf_proof,
-						}
-					)));
-
-					d
-				},
-				extrinsics_root: Default::default(),
-				number: i,
-				state_root: Default::default(),
-				parent_hash: head,
-			};
-			hashes.push((hash, header));
-			import_block(&mut virtual_overseer, hashes.as_ref(), i, false, false).await;
-			head = hash.clone();
-			let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
+			let hash = Hash::repeat_byte(i as u8);
+			builder.add_block(hash, head, slot, i);
+			head = hash;
 		}
 		let num_forks = 3;
 		let forks = Vec::new();
 
 		for i in 0..num_forks {
 			let slot = Slot::from(session as u64);
-			let hash = Hash::repeat_byte(session as u8 + i + 1);
-			let header = Header {
-				digest: {
-					let mut d = Digest::default();
-					let (vrf_output, vrf_proof) = garbage_vrf();
-					d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-						SecondaryVRFPreDigest {
-							authority_index: 0,
-							slot,
-							vrf_output,
-							vrf_proof,
-						}
-					)));
-
-					d
-				},
-				extrinsics_root: Default::default(),
-				number: session as u32,
-				state_root: Default::default(),
-				parent_hash: head,
-			};
-			hashes.push((hash, header));
-			import_block(&mut virtual_overseer, hashes.as_ref(), session as u32, false, i != 0).await;
-			hashes.pop();
-			let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
-		}
+			let hash = Hash::repeat_byte(session as u8 + i);
+			builder.add_block(hash, head, slot, session);
+ 		}
+		builder.build(&mut virtual_overseer).await;
 
 		for head in forks.into_iter() {
 			let (tx, rx) = oneshot::channel();
