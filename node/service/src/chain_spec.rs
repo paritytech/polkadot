@@ -975,7 +975,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		hrmp: Default::default(),
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
@@ -1516,7 +1515,6 @@ pub fn rococo_testnet_genesis(
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(root_key.clone()),

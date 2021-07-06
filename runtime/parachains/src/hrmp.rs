@@ -573,8 +573,8 @@ impl<T: Config> Module<T> {
 			);
 
 			if request.confirmed {
-				if <paras::Module<T>>::is_valid_para(channel_id.sender)
-					&& <paras::Module<T>>::is_valid_para(channel_id.recipient)
+				if <paras::Pallet<T>>::is_valid_para(channel_id.sender)
+					&& <paras::Pallet<T>>::is_valid_para(channel_id.recipient)
 				{
 					<Self as Store>::HrmpChannels::insert(
 						&channel_id,
@@ -972,7 +972,7 @@ impl<T: Config> Module<T> {
 	) -> DispatchResult {
 		ensure!(origin != recipient, Error::<T>::OpenHrmpChannelToSelf);
 		ensure!(
-			<paras::Module<T>>::is_valid_para(recipient),
+			<paras::Pallet<T>>::is_valid_para(recipient),
 			Error::<T>::OpenHrmpChannelInvalidRecipient,
 		);
 
@@ -1010,7 +1010,7 @@ impl<T: Config> Module<T> {
 		let egress_cnt =
 			<Self as Store>::HrmpEgressChannelsIndex::decode_len(&origin).unwrap_or(0) as u32;
 		let open_req_cnt = <Self as Store>::HrmpOpenChannelRequestCount::get(&origin);
-		let channel_num_limit = if <paras::Module<T>>::is_parathread(origin) {
+		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
 			config.hrmp_max_parathread_outbound_channels
 		} else {
 			config.hrmp_max_parachain_outbound_channels
@@ -1080,7 +1080,7 @@ impl<T: Config> Module<T> {
 		// check if by accepting this open channel request, this parachain would exceed the
 		// number of inbound channels.
 		let config = <configuration::Module<T>>::config();
-		let channel_num_limit = if <paras::Module<T>>::is_parathread(origin) {
+		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
 			config.hrmp_max_parathread_inbound_channels
 		} else {
 			config.hrmp_max_parachain_inbound_channels
