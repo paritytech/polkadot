@@ -27,7 +27,9 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 	let channel_name_unbounded = &info.channel_names_without_wip("_unbounded");
 
 	let consumes = &info.consumes_without_wip();
-	let unconsumes = &info.consumes_only_wip();
+
+	let consumes_variant = &info.variant_names_without_wip();
+	let unconsumes_variant = &info.variant_names_only_wip();
 
 	let ts = quote! {
 		/// Collection of channels to the individual subsystems.
@@ -61,7 +63,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 			) {
 				let res: ::std::result::Result<_, _> = match message {
 				#(
-					#message_wrapper :: #consumes ( inner ) => {
+					#message_wrapper :: #consumes_variant ( inner ) => {
 						self. #channel_name .send(
 							::polkadot_overseer_gen::make_packet(signals_received, inner)
 						).await
@@ -69,7 +71,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				)*
 				// subsystems that are wip
 				#(
-					#message_wrapper :: #unconsumes ( _ ) => Ok(()),
+					#message_wrapper :: #unconsumes_variant ( _ ) => Ok(()),
 				)*
 				};
 
@@ -91,7 +93,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 
 				let res: ::std::result::Result<_, _> = match message {
 				#(
-					#message_wrapper :: #consumes (inner) => {
+					#message_wrapper :: #consumes_variant (inner) => {
 						self. #channel_name_unbounded .unbounded_send(
 							::polkadot_overseer_gen::make_packet(signals_received, inner)
 						)
@@ -100,7 +102,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				)*
 				// subsystems that are wip
 				#(
-					#message_wrapper :: #unconsumes ( _ ) => Ok(()),
+					#message_wrapper :: #unconsumes_variant ( _ ) => Ok(()),
 				)*
 				};
 

@@ -1020,7 +1020,7 @@ async fn circulate_statement<'a>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridgeMessage(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))).await;
@@ -1062,7 +1062,7 @@ async fn send_statements_about(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridgeMessage(
+		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 		)).await;
 
@@ -1097,7 +1097,7 @@ async fn send_statements(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(AllMessages::NetworkBridgeMessage(
+		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
 		)).await;
 
@@ -1110,7 +1110,7 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	ctx.send_message(AllMessages::NetworkBridgeMessage(
+	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep)
 	)).await
 }
@@ -1774,7 +1774,7 @@ impl StatementDistribution {
 			}
 			RequesterMessage::SendRequest(req) => {
 				ctx.send_message(
-					AllMessages::NetworkBridgeMessage(
+					AllMessages::NetworkBridge(
 						NetworkBridgeMessage::SendRequests(
 							vec![req],
 							IfDisconnected::ImmediateError,

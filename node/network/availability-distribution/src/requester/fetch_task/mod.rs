@@ -336,7 +336,7 @@ impl RunningTask {
 		let requests = Requests::ChunkFetching(full_request);
 
 		self.sender
-			.send(FromFetchTask::Message(AllMessages::NetworkBridgeMessage(
+			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect)
 			)))
 			.await
@@ -399,7 +399,7 @@ impl RunningTask {
 		let (tx, rx) = oneshot::channel();
 		let r = self
 			.sender
-			.send(FromFetchTask::Message(AllMessages::AvailabilityStoreMessage(
+			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
 					chunk,

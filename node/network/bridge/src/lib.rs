@@ -1158,7 +1158,7 @@ async fn dispatch_collation_events_to_all<I>(
 		I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<protocol_v1::CollationProtocol>| {
-		event.focus().ok().map(|m| AllMessages::CollatorProtocolMessage(
+		event.focus().ok().map(|m| AllMessages::CollatorProtocol(
 			CollatorProtocolMessage::NetworkBridgeUpdateV1(m)
 		))
 	};

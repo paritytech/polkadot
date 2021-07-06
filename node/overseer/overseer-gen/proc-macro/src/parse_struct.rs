@@ -37,7 +37,9 @@ use syn::{Error, GenericParam, ItemStruct, Result};
 pub(crate) struct SubSysField {
 	/// Name of the field.
 	pub(crate) name: Ident,
-	/// Generate generic type name for the `AllSubsystems` type.
+	/// Generate generic type name for the `AllSubsystems` type
+	/// which is also used `#wrapper_message :: #variant` variant
+	/// part.
 	pub(crate) generic: Ident,
 	/// Type of the subsystem.
 	pub(crate) ty: Path,
@@ -155,6 +157,29 @@ pub(crate) struct OverseerInfo {
 }
 
 impl OverseerInfo {
+	pub(crate) fn variant_names(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.map(|ssf| ssf.generic.clone())
+			.collect::<Vec<_>>()
+	}
+
+	pub(crate) fn variant_names_without_wip(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|ssf| ssf.generic.clone())
+			.collect::<Vec<_>>()
+	}
+
+	pub(crate) fn variant_names_only_wip(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| ssf.wip)
+			.map(|ssf| ssf.generic.clone())
+			.collect::<Vec<_>>()
+	}
+
 	pub(crate) fn subsystems(&self) -> &[SubSysField] {
 		self.subsystems.as_slice()
 	}
@@ -231,14 +256,6 @@ impl OverseerInfo {
 			.map(|ssf| ssf.consumes.clone())
 			.collect::<Vec<_>>()
 	}
-
-	pub(crate) fn consumes_only_wip(&self) -> Vec<Path> {
-		self.subsystems
-			.iter()
-			.filter(|ssf| ssf.wip)
-			.map(|ssf| ssf.consumes.clone())
-			.collect::<Vec<_>>()
-	}
 }
 
 /// Internals of the overseer.
@@ -254,7 +271,7 @@ impl OverseerGuts {
 		let n = fields.named.len();
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
-		for (idx, Field { attrs, vis, ident, ty, .. }) in fields.named.into_iter().enumerate() {
+		for Field { attrs, vis, ident, ty, .. } in fields.named.into_iter() {
 			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 				let span = attr.path.span();
 				attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
@@ -284,10 +301,12 @@ impl OverseerGuts {
 					return Err(Error::new(span, "Subsystem must consume at least one message"));
 				}
 
+				let ty = try_type_to_path(ty, span)?;
+				let generic = ty.get_ident().ok_or_else(|| Error::new(ty.span(), "Must be a identifier, not a path."))?.clone();
 				subsystems.push(SubSysField {
 					name: ident,
-					generic: Ident::new(format!("Sub{}", idx).as_str(), span),
-					ty: try_type_to_path(ty, span)?,
+					generic,
+					ty,
 					consumes: consumes_paths[0].clone(),
 					no_dispatch: variant.no_dispatch,
 					wip: variant.wip,

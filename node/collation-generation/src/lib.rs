@@ -404,7 +404,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				);
 				metrics.on_collation_generated();
 
-				if let Err(err) = task_sender.send(AllMessages::CollatorProtocolMessage(
+				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
 				)).await {
 					tracing::warn!(

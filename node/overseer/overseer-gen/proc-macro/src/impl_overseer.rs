@@ -39,7 +39,8 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 	// TODO add `where ..` clauses for baggage types
 
 	let consumes = &info.consumes_without_wip();
-	let unconsumes = &info.consumes_only_wip();
+	let consumes_variant = &info.variant_names_without_wip();
+	let unconsumes_variant = &info.variant_names_only_wip();
 
 	let signal_ty = &info.extern_signal_ty;
 
@@ -140,12 +141,12 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			pub async fn route_message(&mut self, message: #message_wrapper, origin: &'static str) -> ::std::result::Result<(), #error_ty > {
 				match message {
 					#(
-						#message_wrapper :: #consumes ( inner ) =>
+						#message_wrapper :: #consumes_variant ( inner ) =>
 							OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
 					)*
 					// subsystems that are still work in progress
 					#(
-						#message_wrapper :: #unconsumes ( inner ) => {}
+						#message_wrapper :: #unconsumes_variant ( _ ) => {}
 					)*
 				}
 				Ok(())

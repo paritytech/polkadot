@@ -15,17 +15,26 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Ident};
 use quote::quote;
 use syn::{Path, Result};
 
 pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 	let message_wrapper = &info.message_wrapper;
 
-	let dispatchable = info
+	let dispatchable_variant = info
 		.subsystems()
 		.into_iter()
 		.filter(|ssf| !ssf.no_dispatch)
+		.filter(|ssf| !ssf.wip)
+		.map(|ssf| ssf.generic.clone())
+		.collect::<Vec<Ident>>();
+
+	let dispatchable_message = info
+		.subsystems()
+		.into_iter()
+		.filter(|ssf| !ssf.no_dispatch)
+		.filter(|ssf| !ssf.wip)
 		.map(|ssf| ssf.consumes.clone())
 		.collect::<Vec<Path>>();
 
@@ -46,10 +55,10 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 									// TODO do not require this to be hardcoded, either externalize or ...
 									.focus()
 									.ok()
-									.map(|event: NetworkBridgeEvent<_>| {
-										#message_wrapper :: #dispatchable (
+									.map(|event| {
+										#message_wrapper :: #dispatchable_variant (
 											// the inner type of the enum variant
-											#dispatchable :: from( event )
+											#dispatchable_message :: from( event )
 										)
 									})
 							)

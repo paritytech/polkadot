@@ -1,6 +1,3 @@
-use quote::quote;
-use syn::Result;
-use syn::Path;
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -17,23 +14,16 @@ use syn::Path;
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use quote::quote;
+use syn::Result;
 use syn::spanned::Spanned;
-use proc_macro2::Ident;
 
 use super::*;
 
 /// Generates the wrapper type enum.
 pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let consumes = info.consumes();
-	let consumes_variant = info.consumes()
-		.into_iter()
-		.try_fold(Vec::new(), |mut acc: Vec<Ident>, path: Path| {
-			let ident = path.get_ident().ok_or_else(||{
-				syn::Error::new(path.span(), "Missing identifier to use as enum variant.")
-			})?;
-			acc.push(ident.clone());
-			Ok::<_, syn::Error>(acc)
-		})?;
+	let consumes_variant = info.variant_names();
 
 	let outgoing = &info.outgoing_ty;
 
