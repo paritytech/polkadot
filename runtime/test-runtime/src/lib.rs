@@ -437,10 +437,10 @@ parameter_types! {
 	pub const MaxVestingSchedules: u32 = 28;
 }
 
-impl pallet_vesting::Config for Test {
+impl pallet_vesting::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type BlockNumberToBalance = Identity;
+	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = ();
 	type MaxVestingSchedules = MaxVestingSchedules;
