@@ -1597,7 +1597,7 @@ mod test_fees {
 
 	#[test]
 	fn vesting_schedules_encoded_use_correct_space() {
-		use pallet_vesting::vesting_info::VestingInfo;
+		use pallet_vesting::VestingInfo;
 		use frame_support::BoundedVec;
 		use parity_scale_codec::MaxEncodedLen;
 

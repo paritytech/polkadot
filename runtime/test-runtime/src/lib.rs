@@ -434,15 +434,18 @@ impl claims::Config for Runtime {
 
 parameter_types! {
 	pub storage MinVestedTransfer: Balance = 100 * DOLLARS;
-}
+		pub const MaxVestingSchedules: u32 = 28;
+	}
 
-impl pallet_vesting::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type BlockNumberToBalance = ConvertInto;
-	type MinVestedTransfer = MinVestedTransfer;
-	type WeightInfo = ();
-}
+	impl pallet_vesting::Config for Test {
+		type Event = Event;
+		type Currency = Balances;
+		type BlockNumberToBalance = Identity;
+		type MinVestedTransfer = MinVestedTransfer;
+		type WeightInfo = ();
+		type MaxVestingSchedules = MaxVestingSchedules;
+	}
+
 
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
