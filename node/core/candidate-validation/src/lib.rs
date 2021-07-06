@@ -23,7 +23,7 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	overseer,
 	SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,

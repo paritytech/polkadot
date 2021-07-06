@@ -368,7 +368,7 @@ pub trait SubsystemContext: Send + 'static {
 	/// In some cases can be identical to `Self::Message`.
 	type AllMessages: From<Self::Message> + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: SubsystemSender<Self::AllMessages> + std::fmt::Debug + Send;
+	type Sender: SubsystemSender<Self::AllMessages> + Send + 'static;
 	/// The error type.
 	type Error: ::std::error::Error + ::std::convert::From< OverseerError > + Sync + Send + 'static;
 
