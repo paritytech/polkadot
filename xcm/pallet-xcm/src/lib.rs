@@ -265,7 +265,7 @@ pub mod pallet {
 	}
 
 	/// Origin for the parachains module.
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, scale_info::TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 	#[pallet::origin]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space.
