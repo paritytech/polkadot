@@ -869,7 +869,7 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 
 // Instance that is 'deployed' at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
 pub type AtWococoFromRococoMessagesDispatch = pallet_bridge_dispatch::DefaultInstance;
-impl pallet_bridge_dispatch::Config for Runtime {
+impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runtime {
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
@@ -907,7 +907,7 @@ parameter_types! {
 // Instance that is 'deployed' at Wococo chain. Responsible for sending Wococo -> Rococo messages
 // and receiving Rococo -> Wococo messages.
 pub type AtWococoWithRococoMessagesInstance = pallet_bridge_messages::DefaultInstance;
-impl pallet_bridge_messages::Config for Runtime {
+impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
 	type Event = Event;
 	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
 	type Parameter = ();
