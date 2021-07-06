@@ -134,6 +134,13 @@ pub trait ExecuteXcm<Call> {
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		log::debug!(
+			target: "xcm::execute_xcm",
+			"origin: {:?}, message: {:?}, weight_limit: {:?}",
+			origin,
+			message,
+			weight_limit,
+		);
 		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
 	}
 

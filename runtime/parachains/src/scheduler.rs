@@ -229,7 +229,7 @@ impl<T: Config> Module<T> {
 		let config = new_config;
 
 		let mut thread_queue = ParathreadQueue::get();
-		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
+		let n_parachains = <paras::Pallet<T>>::parachains().len() as u32;
 		let n_cores = core::cmp::max(
 			n_parachains + config.parathread_cores,
 			match config.max_validators_per_core {
@@ -298,7 +298,7 @@ impl<T: Config> Module<T> {
 			// prune out all entries beyond retry or that no longer correspond to live parathread.
 			thread_queue.queue.retain(|queued| {
 				let will_keep = queued.claim.retries <= config.parathread_retries
-					&& <paras::Module<T>>::is_parathread(queued.claim.claim.0);
+					&& <paras::Pallet<T>>::is_parathread(queued.claim.claim.0);
 
 				if !will_keep {
 					let claim_para = queued.claim.claim.0;
@@ -334,7 +334,7 @@ impl<T: Config> Module<T> {
 	/// Fails if the claim does not correspond to any live parathread.
 	#[allow(unused)]
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
-		if !<paras::Module<T>>::is_parathread(claim.0) { return }
+		if !<paras::Pallet<T>>::is_parathread(claim.0) { return }
 
 		let config = <configuration::Module<T>>::config();
 		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
@@ -400,7 +400,7 @@ impl<T: Config> Module<T> {
 			}
 		}
 
-		let parachains = <paras::Module<T>>::parachains();
+		let parachains = <paras::Pallet<T>>::parachains();
 		let mut scheduled = Scheduled::get();
 		let mut parathread_queue = ParathreadQueue::get();
 
@@ -538,7 +538,7 @@ impl<T: Config> Module<T> {
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
 			Some(CoreOccupied::Parachain) => {
-				let parachains = <paras::Module<T>>::parachains();
+				let parachains = <paras::Pallet<T>>::parachains();
 				Some(parachains[core_index.0 as usize])
 			}
 			Some(CoreOccupied::Parathread(ref entry)) => Some(entry.claim.0),
@@ -648,7 +648,7 @@ impl<T: Config> Module<T> {
 	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Module<T>>::parachains();
+		let parachains = <paras::Pallet<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
 			Some(ScheduledCore {
 				para_id: parachains[core.0 as usize],
@@ -672,7 +672,7 @@ impl<T: Config> Module<T> {
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Module<T>>::parachains();
+		let parachains = <paras::Pallet<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
 			Some(ScheduledCore {
 				para_id: parachains[core.0 as usize],
@@ -713,7 +713,7 @@ impl<T: Config> Module<T> {
 		ParathreadQueue::mutate(|queue| {
 			for core_assignment in Scheduled::take() {
 				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
-					if !<paras::Module<T>>::is_parathread(core_assignment.para_id) { continue }
+					if !<paras::Pallet<T>>::is_parathread(core_assignment.para_id) { continue }
 
 					let entry = ParathreadEntry {
 						claim: ParathreadClaim(core_assignment.para_id, collator),

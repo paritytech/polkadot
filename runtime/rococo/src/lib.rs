@@ -23,8 +23,8 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
+use parity_scale_codec::{Encode, Decode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use parity_scale_codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
@@ -42,7 +42,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec, MaxEncodedLen},
+	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
 	weights::Weight,
 	PalletId
 };
@@ -215,7 +215,7 @@ construct_runtime! {
 		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
