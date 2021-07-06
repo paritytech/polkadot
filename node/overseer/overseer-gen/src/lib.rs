@@ -350,6 +350,12 @@ pub enum FromOverseer<Message, Signal> {
 	},
 }
 
+impl<Signal, Message> From<Signal> for FromOverseer<Message, Signal> {
+	fn from(signal: Signal) -> Self {
+		Self::Signal(signal)
+	}
+}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or spawn jobs.
