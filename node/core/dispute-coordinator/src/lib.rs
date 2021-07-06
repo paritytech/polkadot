@@ -232,7 +232,7 @@ where
 }
 
 async fn handle_new_activations(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage> + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 	store: &dyn KeyValueDB,
 	state: &mut State,
 	config: &Config,

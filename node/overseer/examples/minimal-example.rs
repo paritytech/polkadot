@@ -26,9 +26,11 @@ use futures::{
 };
 use futures_timer::Delay;
 
+use overseer::OverseerSignal;
 use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_primitives::v1::Hash;
 use polkadot_overseer::{
+	SubsystemSender as _,
 	self as overseer,
 	AllMessages,
 	AllSubsystems,
@@ -51,46 +53,51 @@ impl HeadSupportsParachains for AlwaysSupportsParachains {
 	fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
 }
 
+
+////////
+
 struct Subsystem1;
 
 impl Subsystem1 {
-	async fn run(mut ctx: impl SubsystemContext<Message=CandidateBackingMessage>)  {
-		loop {
+	async fn run<Ctx>(mut ctx: Ctx) -> ()
+	where
+		Ctx: overseer::SubsystemContext<Message=CandidateBackingMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
+	{
+		'louy: loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
 					if let FromOverseer::Communication { msg } = msg {
 						tracing::info!("msg {:?}", msg);
 					}
-					continue;
+					continue 'louy;
 				}
 				Ok(None) => (),
 				Err(_) => {
 					tracing::info!("exiting");
-					return;
+					break 'louy;
 				}
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
-			ctx.send_message(
-				CandidateValidationMessage::ValidateFromChainState(
-					Default::default(),
-					PoV {
-						block_data: BlockData(Vec::new()),
-					}.into(),
-					tx,
-				)
-			).await;
+			let msg = CandidateValidationMessage::ValidateFromChainState(
+				Default::default(),
+				PoV {
+					block_data: BlockData(Vec::new()),
+				}.into(),
+				tx,
+			);
+			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg)).await;
 		}
+		()
 	}
 }
 
 
 impl<Context> overseer::Subsystem<Context,SubsystemError> for Subsystem1
 where
-	Context: SubsystemContext<Message=CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message=CandidateBackingMessage>,
+	Context: overseer::SubsystemContext<Message=CandidateBackingMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
@@ -105,10 +112,15 @@ where
 	}
 }
 
+//////////////////
+
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
+	async fn run<Ctx>(mut ctx: Ctx)
+	where
+		Ctx: overseer::SubsystemContext<Message=CandidateValidationMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
+	{
 		ctx.spawn(
 			"subsystem-2-job",
 			Box::pin(async {
@@ -137,8 +149,7 @@ impl Subsystem2 {
 
 impl<Context> overseer::Subsystem<Context,SubsystemError> for Subsystem2
 where
-	Context: SubsystemContext<Message=CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message=CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message=CandidateValidationMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
@@ -163,7 +174,9 @@ fn main() {
 
 		let all_subsystems = AllSubsystems::<()>::dummy()
 			.replace_candidate_validation(Subsystem2)
-			.replace_candidate_backing(Subsystem1);
+			.replace_candidate_backing(Subsystem1)
+			;
+
 		let (overseer, _handler) = Overseer::new(
 			vec![],
 			all_subsystems,

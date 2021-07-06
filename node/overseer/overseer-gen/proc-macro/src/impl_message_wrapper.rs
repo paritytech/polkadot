@@ -58,6 +58,14 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 				#consumes_variant ( #consumes ),
 			)*
 			#outgoing_decl
+			// dummy message type
+			Empty,
+		}
+
+		impl ::std::convert::From< () > for #message_wrapper {
+			fn from(_: ()) -> Self {
+				#message_wrapper :: Empty
+			}
 		}
 
 		#(

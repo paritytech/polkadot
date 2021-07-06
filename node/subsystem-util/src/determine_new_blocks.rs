@@ -160,7 +160,8 @@ pub async fn determine_new_blocks<E, Sender>(
 mod tests {
 	use super::*;
 	use std::collections::{HashSet, HashMap};
-	use sp_core::testing::TaskExecutor;
+	use polkadot_node_subsystem::messages::AvailabilityStoreMessage;
+use sp_core::testing::TaskExecutor;
 	use polkadot_overseer::{AllMessages, SubsystemContext};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use assert_matches::assert_matches;
@@ -611,7 +612,7 @@ mod tests {
 				}
 			);
 
-			for _ in 0..2 {
+			for _ in 0_u8..2 {
 				assert_matches!(
 					handle.recv().await,
 					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {

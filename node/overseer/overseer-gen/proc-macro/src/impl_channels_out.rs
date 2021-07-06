@@ -69,10 +69,12 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 						).await
 					}
 				)*
-				// subsystems that are wip
+					// subsystems that are wip
 				#(
 					#message_wrapper :: #unconsumes_variant ( _ ) => Ok(()),
 				)*
+					// dummy message type
+					#message_wrapper :: Empty => Ok(()),
 				};
 
 				if res.is_err() {
@@ -100,10 +102,12 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 						.map_err(|e| e.into_send_error())
 					},
 				)*
-				// subsystems that are wip
+					// subsystems that are wip
 				#(
 					#message_wrapper :: #unconsumes_variant ( _ ) => Ok(()),
 				)*
+					// dummy message type
+					#message_wrapper :: Empty => Ok(())
 				};
 
 				if res.is_err() {

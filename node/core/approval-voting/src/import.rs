@@ -31,7 +31,7 @@
 use polkadot_node_subsystem::{
 	overseer,
 	messages::{
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage, ApprovalVotingMessage,
+		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
 	},
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
@@ -84,7 +84,7 @@ struct ImportedBlockInfoEnv<'a> {
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
 // failure to communicate with overseer,
 async fn imported_block_info(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -285,7 +285,7 @@ pub struct BlockImportedCandidates {
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
 pub(crate) async fn handle_new_head(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	state: &mut State<impl DBReader>,
 	db_writer: &dyn KeyValueDB,
 	db_config: DatabaseConfig,

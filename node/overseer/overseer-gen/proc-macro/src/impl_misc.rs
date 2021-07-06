@@ -138,8 +138,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		impl<M: std::fmt::Debug + Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
 		where
 			#subsystem_sender_name: ::polkadot_overseer_gen::SubsystemSender< #wrapper_message >,
-			#subsystem_sender_name: ::polkadot_overseer_gen::SubsystemSender< M >,
-			AllMessages: From<M>,
+			#wrapper_message: From<M>,
 		{
 			type Message = M;
 			type Signal = #signal;

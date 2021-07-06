@@ -24,34 +24,35 @@ use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
 use polkadot_node_subsystem_types::{
     ActivatedLeaf, LeafStatus,
-    messages::RuntimeApiRequest,
-    messages::NetworkBridgeEvent,
+    messages::{
+        RuntimeApiRequest,
+        NetworkBridgeEvent,
+    },
     jaeger,
 };
-use polkadot_node_subsystem::{
-    overseer::{
-        Overseer,
-        HeadSupportsParachains,
-        gen::Delay,
-        SubsystemContext as OSC,
-    },
-    SpawnedSubsystem,
-    SubsystemContext,
-    overseer,
+
+use crate::{
+    self as overseer,
+    Overseer,
+    HeadSupportsParachains,
+    gen::Delay,
+
 };
-use polkadot_node_subsystem_util::metered;
+use metered_channel as metered;
 
 use sp_core::crypto::Pair as _;
 use assert_matches::assert_matches;
 
 use super::*;
 
+
+type SpawnedSubsystem = crate::gen::SpawnedSubsystem<SubsystemError>;
+
 struct TestSubsystem1(metered::MeteredSender<usize>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem1
 where
-    C: overseer::SubsystemContext<Message=CandidateValidationMessage>,
-    C: SubsystemContext<Message=CandidateValidationMessage>,
+    C: overseer::SubsystemContext<Message=CandidateValidationMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
@@ -81,8 +82,7 @@ struct TestSubsystem2(metered::MeteredSender<usize>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
 where
-    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
-    C: SubsystemContext<Message=CandidateBackingMessage>,
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let sender = self.0.clone();
@@ -129,8 +129,7 @@ struct ReturnOnStart;
 
 impl<C> overseer::Subsystem<C, SubsystemError> for ReturnOnStart
 where
-    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
-    C: SubsystemContext<Message=CandidateBackingMessage>,
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
     fn start(self, mut _ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem {
@@ -307,8 +306,7 @@ struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem5
 where
-    C: overseer::SubsystemContext<Message=CandidateValidationMessage>,
-    C: SubsystemContext<Message=CandidateValidationMessage>,
+    C: overseer::SubsystemContext<Message=CandidateValidationMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let mut sender = self.0.clone();
@@ -340,8 +338,7 @@ struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 impl<C> Subsystem<C, SubsystemError> for TestSubsystem6
 where
-    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
-    C: SubsystemContext<Message=CandidateBackingMessage>,
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let mut sender = self.0.clone();
@@ -690,8 +687,7 @@ impl CounterSubsystem {
 
 impl<C, M> Subsystem<C, SubsystemError> for CounterSubsystem
 where
-    C: overseer::SubsystemContext<Message=M>,
-    C: SubsystemContext<Message=M>,
+    C: overseer::SubsystemContext<Message=M,Signal=OverseerSignal,AllMessages=AllMessages>,
     M: Send,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
@@ -922,7 +918,6 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 fn context_holds_onto_message_until_enough_signals_received() {
     let (candidate_validation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
     let (candidate_backing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-    let (candidate_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
     let (statement_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
     let (availability_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
     let (availability_recovery_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
@@ -941,7 +936,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
     let (candidate_validation_unbounded_tx, _) = metered::unbounded();
     let (candidate_backing_unbounded_tx, _) = metered::unbounded();
-    let (candidate_selection_unbounded_tx, _) = metered::unbounded();
     let (statement_distribution_unbounded_tx, _) = metered::unbounded();
     let (availability_distribution_unbounded_tx, _) = metered::unbounded();
     let (availability_recovery_unbounded_tx, _) = metered::unbounded();
@@ -961,7 +955,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
     let channels_out = ChannelsOut {
         candidate_validation: candidate_validation_bounded_tx.clone(),
         candidate_backing: candidate_backing_bounded_tx.clone(),
-        candidate_selection: candidate_selection_bounded_tx.clone(),
         statement_distribution: statement_distribution_bounded_tx.clone(),
         availability_distribution: availability_distribution_bounded_tx.clone(),
         availability_recovery: availability_recovery_bounded_tx.clone(),
@@ -980,7 +973,6 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
         candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
         candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
-        candidate_selection_unbounded: candidate_selection_unbounded_tx.clone(),
         statement_distribution_unbounded: statement_distribution_unbounded_tx.clone(),
         availability_distribution_unbounded: availability_distribution_unbounded_tx.clone(),
         availability_recovery_unbounded: availability_recovery_unbounded_tx.clone(),
@@ -1003,7 +995,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
     let (unbounded_tx, unbounded_rx) = metered::unbounded();
     let (to_overseer_tx, _to_overseer_rx) = metered::unbounded();
 
-    let mut ctx = OverseerSubsystemContext::<()>::new(
+    let mut ctx = OverseerSubsystemContext::new(
         signal_rx,
         stream::select(bounded_rx, unbounded_rx),
         channels_out,

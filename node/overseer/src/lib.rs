@@ -472,17 +472,19 @@ where
 	/// # use futures_timer::Delay;
 	/// # use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	/// # use polkadot_primitives::v1::Hash;
-	/// # use polkadot_node_subsystem::{
+	/// # use crate::{
+	/// #     self as overseer, OverseerSignal, AllMessages,
 	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     messages::CandidateValidationMessage, SubsystemError,
+	/// # };
+	/// # use polkadot_node_subsystem_types::{
+	/// #     messages::CandidateValidationMessage}, SubsystemError,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
 	///
 	/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
 	/// where
-	///     Ctx: overseer::SubsystemContext<Message=CandidateValidationMessage>,
-	///     Ctx: SubsystemContext<Message=CandidateValidationMessage>,
+	///     Ctx: overseer::SubsystemContext<Message=CandidateValidationMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
 	/// {
 	///     fn start(
 	///         self,

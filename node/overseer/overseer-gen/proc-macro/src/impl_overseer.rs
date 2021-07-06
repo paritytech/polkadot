@@ -148,6 +148,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 					#(
 						#message_wrapper :: #unconsumes_variant ( _ ) => {}
 					)*
+					#message_wrapper :: Empty => {}
 				}
 				Ok(())
 			}

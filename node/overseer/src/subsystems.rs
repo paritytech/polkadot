@@ -28,6 +28,7 @@ use polkadot_overseer_gen::{
 };
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
 use crate::OverseerSignal;
+use crate::AllMessages;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
@@ -36,7 +37,7 @@ pub struct DummySubsystem;
 
 impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
-	Context: SubsystemContext<Signal=OverseerSignal, Error=SubsystemError>,
+	Context: SubsystemContext<Signal=OverseerSignal, Error=SubsystemError, AllMessages=AllMessages>,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {

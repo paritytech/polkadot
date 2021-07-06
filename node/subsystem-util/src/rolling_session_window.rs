@@ -297,7 +297,7 @@ async fn load_all_sessions(
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage, AvailabilityStoreMessage};
 	use sp_core::testing::TaskExecutor;
 	use assert_matches::assert_matches;
 
@@ -333,7 +333,7 @@ mod tests {
 		};
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) = make_subsystem_context::<AvailabilityRecoveryMessage, _>(pool.clone());
 
 		let hash = header.hash();
 
