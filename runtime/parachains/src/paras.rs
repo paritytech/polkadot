@@ -14,29 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The paras module is responsible for storing data on parachains and parathreads.
+//! The paras pallet is responsible for storing data on parachains and parathreads.
 //!
 //! It tracks which paras are parachains, what their current head data is in
 //! this fork of the relay chain, what their validation code is, and what their past and upcoming
 //! validation code is.
 //!
-//! A para is not considered live until it is registered and activated in this module. Activation can
+//! A para is not considered live until it is registered and activated in this pallet. Activation can
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
 use sp_std::result;
-#[cfg(feature = "std")]
-use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, ValidationCodeHash, HeadData, SessionIndex, ConsensusLog,
 };
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
-use frame_system::ensure_root;
-use frame_support::{
-	decl_storage, decl_module, decl_error, decl_event, ensure,
-	traits::Get,
-	weights::Weight,
-};
+use frame_system::pallet_prelude::*;
+use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use crate::{configuration, shared, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
@@ -44,20 +38,9 @@ use sp_core::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub use crate::Origin;
+pub use crate::Origin as ParachainOrigin;
 
-pub trait Config:
-	frame_system::Config +
-	configuration::Config +
-	shared::Config
-{
-	/// The outer origin type.
-	type Origin: From<Origin>
-		+ From<<Self as frame_system::Config>::Origin>
-		+ Into<result::Result<Origin, <Self as Config>::Origin>>;
-
-	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
-}
+pub use pallet::*;
 
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode)]
@@ -279,105 +262,30 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
-decl_storage! {
-	trait Store for Module<T: Config> as Paras {
-		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
-		Parachains get(fn parachains): Vec<ParaId>;
-		/// The current lifecycle of a all known Para IDs.
-		ParaLifecycles: map hasher(twox_64_concat) ParaId => Option<ParaLifecycle>;
-		/// The head-data of every registered para.
-		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
-		/// The validation code hash of every live para.
-		///
-		/// Corresponding code can be retrieved with [`CodeByHash`].
-		CurrentCodeHash: map hasher(twox_64_concat) ParaId => Option<ValidationCodeHash>;
-		/// Actual past code hash, indicated by the para id as well as the block number at which it
-		/// became outdated.
-		///
-		/// Corresponding code can be retrieved with [`CodeByHash`].
-		PastCodeHash: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<ValidationCodeHash>;
-		/// Past code of parachains. The parachains themselves may not be registered anymore,
-		/// but we also keep their code on-chain for the same amount of time as outdated code
-		/// to keep it available for secondary checkers.
-		PastCodeMeta get(fn past_code_meta):
-			map hasher(twox_64_concat) ParaId => ParaPastCodeMeta<T::BlockNumber>;
-		/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
-		/// Note that this is the actual height of the included block, not the expected height at which the
-		/// code upgrade would be applied, although they may be equal.
-		/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
-		/// from the time at which the parachain perceives a code upgrade as having occurred.
-		/// Multiple entries for a single para are permitted. Ordered ascending by block number.
-		PastCodePruning: Vec<(ParaId, T::BlockNumber)>;
-		/// The block number at which the planned code change is expected for a para.
-		/// The change will be applied after the first parablock for this ID included which executes
-		/// in the context of a relay chain block with a number >= `expected_at`.
-		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
-		/// The actual future code hash of a para.
-		///
-		/// Corresponding code can be retrieved with [`CodeByHash`].
-		FutureCodeHash: map hasher(twox_64_concat) ParaId => Option<ValidationCodeHash>;
-		/// The actions to perform during the start of a specific session index.
-		ActionsQueue get(fn actions_queue): map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
-		/// Upcoming paras instantiation arguments.
-		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
-		/// The number of reference on the validation code in [`CodeByHash`] storage.
-		CodeByHashRefs: map hasher(identity) ValidationCodeHash => u32;
-		/// Validation code stored by its hash.
-		///
-		/// This storage is consistent with [`FutureCodeHash`], [`CurrentCodeHash`] and
-		/// [`PastCodeHash`].
-		CodeByHash get(fn code_by_hash): map hasher(identity) ValidationCodeHash => Option<ValidationCode>;
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config:
+		frame_system::Config +
+		configuration::Config +
+		shared::Config
+	{
+		/// The outer origin type.
+		type Origin: From<Origin>
+			+ From<<Self as frame_system::Config>::Origin>
+			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+
+		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 	}
-	add_extra_genesis {
-		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
-		config(_phdata): PhantomData<T>;
-		build(build::<T>);
-	}
-}
 
-#[cfg(feature = "std")]
-fn build<T: Config>(config: &GenesisConfig<T>) {
-	let mut parachains: Vec<_> = config.paras
-		.iter()
-		.filter(|(_, args)| args.parachain)
-		.map(|&(ref id, _)| id)
-		.cloned()
-		.collect();
-
-	parachains.sort();
-	parachains.dedup();
-
-	Parachains::put(&parachains);
-
-	for (id, genesis_args) in &config.paras {
-		let code_hash = genesis_args.validation_code.hash();
-		<Module<T>>::increase_code_ref(&code_hash, &genesis_args.validation_code);
-		<Module<T> as Store>::CurrentCodeHash::insert(&id, &code_hash);
-		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
-		if genesis_args.parachain {
-			ParaLifecycles::insert(&id, ParaLifecycle::Parachain);
-		} else {
-			ParaLifecycles::insert(&id, ParaLifecycle::Parathread);
-		}
-	}
-}
-
-decl_error! {
-	pub enum Error for Module<T: Config> {
-		/// Para is not registered in our system.
-		NotRegistered,
-		/// Para cannot be onboarded because it is already tracked by our system.
-		CannotOnboard,
-		/// Para cannot be offboarded at this time.
-		CannotOffboard,
-		/// Para cannot be upgraded to a parachain.
-		CannotUpgrade,
-		/// Para cannot be downgraded to a parathread.
-		CannotDowngrade,
-	}
-}
-
-decl_event! {
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
 		/// Current code has been updated for a Para. \[para_id\]
 		CurrentCodeUpdated(ParaId),
@@ -390,18 +298,160 @@ decl_event! {
 		/// A para has been queued to execute pending actions. \[para_id\]
 		ActionQueued(ParaId, SessionIndex),
 	}
-}
 
-decl_module! {
-	/// The parachains configuration module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	#[pallet::error]
+	pub enum Error<T> {
+		/// Para is not registered in our system.
+		NotRegistered,
+		/// Para cannot be onboarded because it is already tracked by our system.
+		CannotOnboard,
+		/// Para cannot be offboarded at this time.
+		CannotOffboard,
+		/// Para cannot be upgraded to a parachain.
+		CannotUpgrade,
+		/// Para cannot be downgraded to a parathread.
+		CannotDowngrade,
+	}
 
-		fn deposit_event() = default;
+	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	#[pallet::storage]
+	#[pallet::getter(fn parachains)]
+	pub(super) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
+	/// The current lifecycle of a all known Para IDs.
+	#[pallet::storage]
+	pub(super) type ParaLifecycles<T: Config> = StorageMap<_, Twox64Concat, ParaId, ParaLifecycle>;
+
+	/// The head-data of every registered para.
+	#[pallet::storage]
+	#[pallet::getter(fn para_head)]
+	pub(super) type Heads<T: Config> = StorageMap<_, Twox64Concat, ParaId, HeadData>;
+
+	/// The validation code hash of every live para.
+	///
+	/// Corresponding code can be retrieved with [`CodeByHash`].
+	#[pallet::storage]
+	pub(super) type CurrentCodeHash<T: Config> = StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
+
+	/// Actual past code hash, indicated by the para id as well as the block number at which it
+	/// became outdated.
+	///
+	/// Corresponding code can be retrieved with [`CodeByHash`].
+	#[pallet::storage]
+	pub(super) type PastCodeHash<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		(ParaId, T::BlockNumber),
+		ValidationCodeHash
+	>;
+
+	/// Past code of parachains. The parachains themselves may not be registered anymore,
+	/// but we also keep their code on-chain for the same amount of time as outdated code
+	/// to keep it available for secondary checkers.
+	#[pallet::storage]
+	#[pallet::getter(fn past_code_meta)]
+	pub(super) type PastCodeMeta<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		ParaPastCodeMeta<T::BlockNumber>,
+		ValueQuery
+	>;
+
+	/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
+	/// Note that this is the actual height of the included block, not the expected height at which the
+	/// code upgrade would be applied, although they may be equal.
+	/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
+	/// from the time at which the parachain perceives a code upgrade as having occurred.
+	/// Multiple entries for a single para are permitted. Ordered ascending by block number.
+	#[pallet::storage]
+	pub(super) type PastCodePruning<T: Config> = StorageValue<_, Vec<(ParaId, T::BlockNumber)>, ValueQuery>;
+
+	/// The block number at which the planned code change is expected for a para.
+	/// The change will be applied after the first parablock for this ID included which executes
+	/// in the context of a relay chain block with a number >= `expected_at`.
+	#[pallet::storage]
+	#[pallet::getter(fn future_code_upgrade_at)]
+	pub(super) type FutureCodeUpgrades<T: Config> = StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
+
+	/// The actual future code hash of a para.
+	///
+	/// Corresponding code can be retrieved with [`CodeByHash`].
+	#[pallet::storage]
+	pub(super) type FutureCodeHash<T: Config> = StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
+
+	/// The actions to perform during the start of a specific session index.
+	#[pallet::storage]
+	#[pallet::getter(fn actions_queue)]
+	pub(super) type ActionsQueue<T: Config> = StorageMap<_, Twox64Concat, SessionIndex, Vec<ParaId>, ValueQuery>;
+
+	/// Upcoming paras instantiation arguments.
+	#[pallet::storage]
+	pub(super) type UpcomingParasGenesis<T: Config> = StorageMap<_, Twox64Concat, ParaId, ParaGenesisArgs>;
+
+	/// The number of reference on the validation code in [`CodeByHash`] storage.
+	#[pallet::storage]
+	pub(super) type CodeByHashRefs<T: Config> = StorageMap<_, Identity, ValidationCodeHash, u32, ValueQuery>;
+
+	/// Validation code stored by its hash.
+	///
+	/// This storage is consistent with [`FutureCodeHash`], [`CurrentCodeHash`] and
+	/// [`PastCodeHash`].
+	#[pallet::storage]
+	#[pallet::getter(fn code_by_hash)]
+	pub(super) type CodeByHash<T: Config> =  StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig {
+		pub paras: Vec<(ParaId, ParaGenesisArgs)>,
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			GenesisConfig {
+				paras: Default::default(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			let mut parachains: Vec<_> = self.paras
+				.iter()
+				.filter(|(_, args)| args.parachain)
+				.map(|&(ref id, _)| id)
+				.cloned()
+				.collect();
+
+			parachains.sort();
+			parachains.dedup();
+
+			Parachains::<T>::put(&parachains);
+
+			for (id, genesis_args) in &self.paras {
+				let code_hash = genesis_args.validation_code.hash();
+				<Pallet<T>>::increase_code_ref(&code_hash, &genesis_args.validation_code);
+				<Pallet<T> as Store>::CurrentCodeHash::insert(&id, &code_hash);
+				<Pallet<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
+				if genesis_args.parachain {
+					ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
+				} else {
+					ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread);
+				}
+			}
+		}
+	}
+
+	#[pallet::origin]
+	pub type Origin = ParachainOrigin;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
-		#[weight = 0]
-		fn force_set_current_code(origin, para: ParaId, new_code: ValidationCode) {
+		#[pallet::weight(0)]
+		pub fn force_set_current_code(origin: OriginFor<T>, para: ParaId, new_code: ValidationCode) -> DispatchResult {
 			ensure_root(origin)?;
 			let prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para).unwrap_or_default();
 			let new_code_hash = new_code.hash();
@@ -411,57 +461,67 @@ decl_module! {
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_past_code(para, now, now, prior_code_hash);
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
+			Ok(())
 		}
 
 		/// Set the storage for the current parachain head data immediately.
-		#[weight = 0]
-		fn force_set_current_head(origin, para: ParaId, new_head: HeadData) {
+		#[pallet::weight(0)]
+		pub fn force_set_current_head(origin: OriginFor<T>, para: ParaId, new_head: HeadData) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Store>::Heads::insert(&para, new_head);
 			Self::deposit_event(Event::CurrentHeadUpdated(para));
+			Ok(())
 		}
 
 		/// Schedule a code upgrade for block `expected_at`.
-		#[weight = 0]
-		fn force_schedule_code_upgrade(origin, para: ParaId, new_code: ValidationCode, expected_at: T::BlockNumber) {
+		#[pallet::weight(0)]
+		pub fn force_schedule_code_upgrade(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_code: ValidationCode,
+			expected_at: T::BlockNumber
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_code_upgrade(para, new_code, expected_at);
 			Self::deposit_event(Event::CodeUpgradeScheduled(para));
+			Ok(())
 		}
 
 		/// Note a new block head for para within the context of the current block.
-		#[weight = 0]
-		fn force_note_new_head(origin, para: ParaId, new_head: HeadData) {
+		#[pallet::weight(0)]
+		pub fn force_note_new_head(origin: OriginFor<T>, para: ParaId, new_head: HeadData) -> DispatchResult {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_new_head(para, new_head, now);
 			Self::deposit_event(Event::NewHeadNoted(para));
+			Ok(())
 		}
 
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
-		#[weight = 0]
-		fn force_queue_action(origin, para: ParaId) {
+		#[pallet::weight(0)]
+		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			let next_session = shared::Module::<T>::session_index().saturating_add(One::one());
-			ActionsQueue::mutate(next_session, |v| {
+			let next_session = shared::Pallet::<T>::session_index().saturating_add(One::one());
+			ActionsQueue::<T>::mutate(next_session, |v| {
 				if let Err(i) = v.binary_search(&para) {
 					v.insert(i, para);
 				}
 			});
 			Self::deposit_event(Event::ActionQueued(para, next_session));
+			Ok(())
 		}
 	}
 }
 
-impl<T: Config> Module<T> {
-	/// Called by the initializer to initialize the configuration module.
+impl<T: Config> Pallet<T> {
+	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		Self::prune_old_code(now)
 	}
 
-	/// Called by the initializer to finalize the configuration module.
+	/// Called by the initializer to finalize the configuration pallet.
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
@@ -474,8 +534,8 @@ impl<T: Config> Module<T> {
 
 	/// The validation code of live para.
 	pub(crate) fn current_code(para_id: &ParaId) -> Option<ValidationCode> {
-		CurrentCodeHash::get(para_id).and_then(|code_hash| {
-			let code = CodeByHash::get(&code_hash);
+		CurrentCodeHash::<T>::get(para_id).and_then(|code_hash| {
+			let code = CodeByHash::<T>::get(&code_hash);
 			if code.is_none() {
 				log::error!(
 					"Pallet paras storage is inconsistent, code not found for hash {}",
@@ -496,13 +556,13 @@ impl<T: Config> Module<T> {
 	//
 	// Returns the list of outgoing paras from the actions queue.
 	fn apply_actions_queue(session: SessionIndex) -> Vec<ParaId> {
-		let actions = ActionsQueue::take(session);
+		let actions = ActionsQueue::<T>::take(session);
 		let mut parachains = <Self as Store>::Parachains::get();
 		let now = <frame_system::Pallet<T>>::block_number();
 		let mut outgoing = Vec::new();
 
 		for para in actions {
-			let lifecycle = ParaLifecycles::get(&para);
+			let lifecycle = ParaLifecycles::<T>::get(&para);
 			match lifecycle {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */ },
 				// Onboard a new parathread or parachain.
@@ -512,9 +572,9 @@ impl<T: Config> Module<T> {
 							if let Err(i) = parachains.binary_search(&para) {
 								parachains.insert(i, para);
 							}
-							ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
+							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
 						} else {
-							ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
+							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 						}
 
 						let code_hash = genesis_data.validation_code.hash();
@@ -528,14 +588,14 @@ impl<T: Config> Module<T> {
 					if let Err(i) = parachains.binary_search(&para) {
 						parachains.insert(i, para);
 					}
-					ParaLifecycles::insert(&para, ParaLifecycle::Parachain);
+					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
 				},
 				// Downgrade a parachain to a parathread
 				Some(ParaLifecycle::DowngradingParachain) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
-					ParaLifecycles::insert(&para, ParaLifecycle::Parathread);
+					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 				},
 				// Offboard a parathread or parachain from the system
 				Some(ParaLifecycle::OffboardingParachain) | Some(ParaLifecycle::OffboardingParathread) => {
@@ -545,7 +605,7 @@ impl<T: Config> Module<T> {
 
 					<Self as Store>::Heads::remove(&para);
 					<Self as Store>::FutureCodeUpgrades::remove(&para);
-					ParaLifecycles::remove(&para);
+					ParaLifecycles::<T>::remove(&para);
 					let removed_future_code_hash = <Self as Store>::FutureCodeHash::take(&para);
 					if let Some(removed_future_code_hash) = removed_future_code_hash {
 						Self::decrease_code_ref(&removed_future_code_hash);
@@ -599,7 +659,7 @@ impl<T: Config> Module<T> {
 	// looks at old code metadata, compares them to the current acceptance window, and prunes those
 	// that are too old.
 	fn prune_old_code(now: T::BlockNumber) -> Weight {
-		let config = configuration::Module::<T>::config();
+		let config = configuration::Pallet::<T>::config();
 		let code_retention_period = config.code_retention_period;
 		if now <= code_retention_period {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
@@ -658,7 +718,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Returns false if para is already registered in the system.
 	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
-		let lifecycle = ParaLifecycles::get(id);
+		let lifecycle = ParaLifecycles::<T>::get(id);
 		lifecycle.is_none()
 	}
 
@@ -671,9 +731,9 @@ impl<T: Config> Module<T> {
 		// Make sure parachain isn't already in our system.
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
 
-		ParaLifecycles::insert(&id, ParaLifecycle::Onboarding);
-		UpcomingParasGenesis::insert(&id, genesis);
-		ActionsQueue::mutate(scheduled_session, |v| {
+		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
+		UpcomingParasGenesis::<T>::insert(&id, genesis);
+		ActionsQueue::<T>::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
@@ -688,23 +748,23 @@ impl<T: Config> Module<T> {
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
-		let lifecycle = ParaLifecycles::get(&id);
+		let lifecycle = ParaLifecycles::<T>::get(&id);
 		match lifecycle {
 			// If para is not registered, nothing to do!
 			None => {
 				return Ok(())
 			},
 			Some(ParaLifecycle::Parathread) => {
-				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParathread);
+				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParathread);
 			},
 			Some(ParaLifecycle::Parachain) => {
-				ParaLifecycles::insert(&id, ParaLifecycle::OffboardingParachain);
+				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParachain);
 			},
 			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
 
 		let scheduled_session = Self::scheduled_session();
-		ActionsQueue::mutate(scheduled_session, |v| {
+		ActionsQueue::<T>::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
@@ -718,12 +778,12 @@ impl<T: Config> Module<T> {
 	/// Will return error if `ParaLifecycle` is not `Parathread`.
 	pub(crate) fn schedule_parathread_upgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
+		let lifecycle = ParaLifecycles::<T>::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parathread, Error::<T>::CannotUpgrade);
 
-		ParaLifecycles::insert(&id, ParaLifecycle::UpgradingParathread);
-		ActionsQueue::mutate(scheduled_session, |v| {
+		ParaLifecycles::<T>::insert(&id, ParaLifecycle::UpgradingParathread);
+		ActionsQueue::<T>::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
@@ -737,12 +797,12 @@ impl<T: Config> Module<T> {
 	/// Noop if `ParaLifecycle` is not `Parachain`.
 	pub(crate) fn schedule_parachain_downgrade(id: ParaId) -> DispatchResult {
 		let scheduled_session = Self::scheduled_session();
-		let lifecycle = ParaLifecycles::get(&id).ok_or(Error::<T>::NotRegistered)?;
+		let lifecycle = ParaLifecycles::<T>::get(&id).ok_or(Error::<T>::NotRegistered)?;
 
 		ensure!(lifecycle == ParaLifecycle::Parachain, Error::<T>::CannotDowngrade);
 
-		ParaLifecycles::insert(&id, ParaLifecycle::DowngradingParachain);
-		ActionsQueue::mutate(scheduled_session, |v| {
+		ParaLifecycles::<T>::insert(&id, ParaLifecycle::DowngradingParachain);
+		ActionsQueue::<T>::mutate(scheduled_session, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
@@ -773,7 +833,7 @@ impl<T: Config> Module<T> {
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
 				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
-				FutureCodeHash::insert(&id, new_code_hash);
+				FutureCodeHash::<T>::insert(&id, new_code_hash);
 				T::DbWeight::get().reads_writes(1 + reads, 2 + writes)
 			}
 		})
@@ -787,16 +847,16 @@ impl<T: Config> Module<T> {
 		new_head: HeadData,
 		execution_context: T::BlockNumber,
 	) -> Weight {
-		Heads::insert(&id, new_head);
+		Heads::<T>::insert(&id, new_head);
 
 		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
-				let new_code_hash = FutureCodeHash::take(&id).unwrap_or_default();
-				let prior_code_hash = CurrentCodeHash::get(&id).unwrap_or_default();
-				CurrentCodeHash::insert(&id, &new_code_hash);
+				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or_default();
+				let prior_code_hash = CurrentCodeHash::<T>::get(&id).unwrap_or_default();
+				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
 
 				let log = ConsensusLog::ParaUpgradeCode(id, new_code_hash);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
@@ -847,11 +907,11 @@ impl<T: Config> Module<T> {
 		};
 
 		if upgrade_applied_intermediate {
-			FutureCodeHash::get(&id)
+			FutureCodeHash::<T>::get(&id)
 		} else {
 			match Self::past_code_meta(&id).code_at(at) {
 				None => None,
-				Some(UseCodeAt::Current) => CurrentCodeHash::get(&id),
+				Some(UseCodeAt::Current) => CurrentCodeHash::<T>::get(&id),
 				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCodeHash::get(&(id, replaced)),
 			}
 		}
@@ -859,14 +919,14 @@ impl<T: Config> Module<T> {
 
 	/// Returns the current lifecycle state of the para.
 	pub fn lifecycle(id: ParaId) -> Option<ParaLifecycle> {
-		ParaLifecycles::get(&id)
+		ParaLifecycles::<T>::get(&id)
 	}
 
 	/// Returns whether the given ID refers to a valid para.
 	///
 	/// Paras that are onboarding or offboarding are not included.
 	pub fn is_valid_para(id: ParaId) -> bool {
-		if let Some(state) = ParaLifecycles::get(&id) {
+		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			!state.is_onboarding() && !state.is_offboarding()
 		} else {
 			false
@@ -877,7 +937,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Includes parachains which will downgrade to a parathread in the future.
 	pub fn is_parachain(id: ParaId) -> bool {
-		if let Some(state) = ParaLifecycles::get(&id) {
+		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parachain()
 		} else {
 			false
@@ -888,7 +948,7 @@ impl<T: Config> Module<T> {
 	///
 	/// Includes parathreads which will upgrade to parachains in the future.
 	pub fn is_parathread(id: ParaId) -> bool {
-		if let Some(state) = ParaLifecycles::get(&id) {
+		if let Some(state) = ParaLifecycles::<T>::get(&id) {
 			state.is_parathread()
 		} else {
 			false
@@ -909,7 +969,7 @@ impl<T: Config> Module<T> {
 
 	/// Return the session index that should be used for any future scheduled changes.
 	fn scheduled_session() -> SessionIndex {
-		shared::Module::<T>::scheduled_session()
+		shared::Pallet::<T>::scheduled_session()
 	}
 
 	/// Store the validation code if not already stored, and increase the number of reference.
@@ -944,7 +1004,7 @@ impl<T: Config> Module<T> {
 	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
 	pub fn test_on_new_session() {
 		Self::initializer_on_new_session(&SessionChangeNotification {
-			session_index: shared::Module::<T>::session_index(),
+			session_index: shared::Pallet::<T>::session_index(),
 			..Default::default()
 		});
 	}
@@ -954,10 +1014,7 @@ impl<T: Config> Module<T> {
 mod tests {
 	use super::*;
 	use primitives::v1::BlockNumber;
-	use frame_support::{
-		assert_ok,
-		traits::{OnFinalize, OnInitialize}
-	};
+	use frame_support::assert_ok;
 
 	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
@@ -1613,9 +1670,9 @@ mod tests {
 			);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 			// run to block without session change.
 			run_to_block(2, None);
@@ -1627,9 +1684,9 @@ mod tests {
 			);
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
 
 
 			// Two sessions pass, so action queue is triggered
@@ -1639,9 +1696,9 @@ mod tests {
 			assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
 
 			// Lifecycle is tracked correctly
-			assert_eq!(ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
-			assert_eq!(ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
-			assert_eq!(ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
+			assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
@@ -1777,18 +1834,18 @@ mod tests {
 			Paras::increase_code_ref(&code.hash(), &code);
 			Paras::increase_code_ref(&code.hash(), &code);
 
-			assert!(CodeByHash::contains_key(code.hash()));
-			assert_eq!(CodeByHashRefs::get(code.hash()), 2);
+			assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
 
 			Paras::decrease_code_ref(&code.hash());
 
-			assert!(CodeByHash::contains_key(code.hash()));
-			assert_eq!(CodeByHashRefs::get(code.hash()), 1);
+			assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
+			assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 1);
 
 			Paras::decrease_code_ref(&code.hash());
 
-			assert!(!CodeByHash::contains_key(code.hash()));
-			assert!(!CodeByHashRefs::contains_key(code.hash()));
+			assert!(!<Paras as Store>::CodeByHash::contains_key(code.hash()));
+			assert!(!<Paras as Store>::CodeByHashRefs::contains_key(code.hash()));
 		});
 	}
 }

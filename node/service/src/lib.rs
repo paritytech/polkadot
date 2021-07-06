@@ -893,8 +893,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		let enable_approval_checking_voting_rule = chain_spec.is_kusama()
 			|| chain_spec.is_westend()
 			|| chain_spec.is_rococo()
-			|| chain_spec.is_wococo()
-			|| chain_spec.is_dev();
+			|| chain_spec.is_wococo();
 
 		let builder = if let Some(ref overseer) = overseer_handler {
 			if enable_approval_checking_voting_rule {

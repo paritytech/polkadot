@@ -23,7 +23,7 @@ use crate::cli::{
 };
 use bp_message_dispatch::{CallOrigin, MessagePayload};
 use codec::Decode;
-use frame_support::weights::{GetDispatchInfo, Weight};
+use frame_support::weights::{DispatchInfo, GetDispatchInfo, Weight};
 use relay_rialto_client::Rialto;
 use sp_version::RuntimeVersion;
 
@@ -59,6 +59,10 @@ impl CliEncodeCall for Rialto {
 				),
 			},
 		})
+	}
+
+	fn get_dispatch_info(call: &rialto_runtime::Call) -> anyhow::Result<DispatchInfo> {
+		Ok(call.get_dispatch_info())
 	}
 }
 

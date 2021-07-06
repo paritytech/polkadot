@@ -385,7 +385,7 @@ mod tests {
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg(CollatorProtocolMessage::CollateOn(Default::default())));
+		block_on(handler.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
 		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CollatorProtocolMessage::CollateOn(_)));
 	}
 }

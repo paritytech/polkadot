@@ -58,6 +58,15 @@ impl ShouldExecute for Tuple {
 				_ => (),
 			}
 		)* );
+		log::trace!(
+			target: "xcm::should_execute",
+			"did not pass barrier: origin: {:?}, top_level: {:?}, message: {:?}, shallow_weight: {:?}, weight_credit: {:?}",
+			origin,
+			top_level,
+			message,
+			shallow_weight,
+			weight_credit,
+		);
 		Err(())
 	}
 }

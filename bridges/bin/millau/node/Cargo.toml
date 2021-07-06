@@ -51,7 +51,7 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "mast
 substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [build-dependencies]
-substrate-build-script-utils = "3.0.0"
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
