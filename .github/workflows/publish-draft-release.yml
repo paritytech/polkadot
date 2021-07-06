@@ -24,14 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        runtime: ['polkadot', 'kusama']
-    container:
-      image: paritytech/srtool:nightly-2021-03-15
-      volumes:
-        - ${{ github.workspace }}:/build
-      env:
-        PACKAGE: ${{ matrix.runtime }}-runtime
-        RUSTC_VERSION: nightly-2020-10-27
+        runtime: ['polkadot', 'kusama', 'westend']
+    # container:
+    #   image: paritytech/srtool:nightly-2021-03-15
+    #   volumes:
+    #     - ${{ github.workspace }}:/build
+    #   env:
+    #     PACKAGE: ${{ matrix.runtime }}-runtime
+    #     RUSTC_VERSION: nightly-2020-10-27
     steps:
       - uses: actions/checkout@v2
       - name: Cache target dir
@@ -42,30 +42,51 @@ jobs:
           restore-keys: |
             srtool-target-${{ matrix.runtime }}-
             srtool-target-
+
       - name: Build ${{ matrix.runtime }} runtime
-        id: build-runtime
-        shell: bash
-        env:
-          srtool_output_filename: ${{ matrix.runtime }}_srtool_output.json
+        id: srtool_build
+        uses: chevdor/srtool-actions@v0.3.0
+        with:
+          # This is the default with chevdor/srtool-actions@v0.3.0 but we make it clear
+          image: paritytech/srtool
+          chain: ${{ matrix.runtime }}
+
+      - name: Gather srtool artifacts
         run: |
-          cd /build
+          echo '${{ steps.srtool_build.outputs.json }}' | jq > ${{ matrix.runtime }}_srtool_output.json
           pwd
-          ls -la
-          build --json | tee $srtool_output_filename
-          cat $srtool_output_filename
-          while IFS= read -r line; do
-            echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
-          done <<< "$(jq -r 'keys[]' < $srtool_output_filename)"
+          ls -al ${{ matrix.runtime }}_srtool_output.json
+          ls -al ${{ steps.srtool_build.outputs.wasm }}
+          ls -al ${{ steps.srtool_build.outputs.wasm_compressed }}
+
+      # - name: Build ${{ matrix.runtime }} runtime
+      #   id: build-runtime
+      #   shell: bash
+      #   env:
+      #     srtool_output_filename: ${{ matrix.runtime }}_srtool_output.json
+      #   run: |
+      #     cd /build
+      #     pwd
+      #     ls -la
+      #     build --json | tee $srtool_output_filename
+      #     cat $srtool_output_filename
+      #     while IFS= read -r line; do
+      #       echo "::set-output name=$line::$(jq -r ".$line" < $srtool_output_filename)"
+      #     done <<< "$(jq -r 'keys[]' < $srtool_output_filename)"
+
       - name: Upload ${{ matrix.runtime }} srtool json
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-srtool-json
           path: ${{ matrix.runtime }}_srtool_output.json
+
       - name: Upload ${{ matrix.runtime }} runtime
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.runtime }}-runtime
-          path: "${{ steps.build-runtime.outputs.wasm }}"
+          path: |
+            ${{ steps.srtool_build.outputs.wasm }}
+            ${{ steps.srtool_build.outputs.wasm_compressed }}
 
   publish-draft-release:
     runs-on: ubuntu-latest
@@ -107,7 +128,7 @@ jobs:
     needs: ['publish-draft-release']
     strategy:
       matrix:
-        runtime: ['polkadot', 'kusama']
+        runtime: ['polkadot', 'kusama', 'westend']
     steps:
       - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
@@ -122,7 +143,7 @@ jobs:
           ls "${{ matrix.runtime }}-runtime"
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
           echo "::set-output name=runtime_ver::$runtime_ver"
-      - name: Upload ${{ matrix.runtime }} wasm
+      - name: Upload compact ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -130,6 +151,16 @@ jobs:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
           asset_path: "${{ matrix.runtime }}-runtime/${{ matrix.runtime }}_runtime.compact.wasm"
           asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
+          asset_content_type: application/wasm
+
+      - name: Upload compressed ${{ matrix.runtime }} wasm
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
+          asset_path: "${{ matrix.runtime }}-runtime/${{ matrix.runtime }}_runtime.compact.compressed.wasm"
+          asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.compressed.wasm
           asset_content_type: application/wasm
 
   post_to_matrix:
