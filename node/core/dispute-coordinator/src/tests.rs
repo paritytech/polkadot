@@ -25,7 +25,10 @@ use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystem
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use futures::future::{self, BoxFuture};
+use futures::{
+	channel::oneshot,
+	future::{self, BoxFuture},
+};
 use parity_scale_codec::Encode;
 use assert_matches::assert_matches;
 
@@ -274,7 +277,6 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				pending_confirmation,
 			},
 		}).await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::DisputeParticipation(DisputeParticipationMessage::Participate {
@@ -282,11 +284,13 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				candidate_receipt: c_receipt,
 				session: s,
 				n_validators,
+				report_availability,
 			}) => {
 				assert_eq!(c_hash, candidate_hash);
 				assert_eq!(c_receipt, candidate_receipt);
 				assert_eq!(s, session);
 				assert_eq!(n_validators, test_state.validators.len() as u32);
+				report_availability.send(true).unwrap();
 			}
 		);
 
@@ -564,7 +568,18 @@ fn finality_votes_ignore_disputed_candidates() {
 				pending_confirmation,
 			},
 		}).await;
-		let _ = virtual_overseer.recv().await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					report_availability,
+					..
+				}
+			) => {
+				report_availability.send(true).unwrap();
+			}
+		);
 
 		{
 			let (tx, rx) = oneshot::channel();

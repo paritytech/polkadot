@@ -79,7 +79,7 @@ pub enum NonFatal {
 	InvalidSignature(PeerId),
 
 	/// Import oneshot got canceled.
-	#[error("Import of dispute got canceled for peer {0} - not supposed to happen.")]
+	#[error("Import of dispute got canceled for peer {0} - import failed for some reason.")]
 	ImportCanceled(PeerId),
 
 	/// Non validator tried to participate in dispute.

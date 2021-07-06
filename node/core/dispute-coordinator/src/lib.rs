@@ -312,12 +312,8 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				statements,
+				pending_confirmation,
 			).await?;
-			// TODO: Recover availability and report back unavailable data:
-			// https://github.com/paritytech/polkadot/issues/3399
-			pending_confirmation
-				.send(ImportStatementsResult::ValidImport)
-				.map_err(|_| Error::OneshotSend)?;
 		}
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
 			let active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
@@ -399,8 +395,13 @@ async fn handle_import_statements(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
+
+		// It is not valid to participate in an ancient dispute (spam?).
+		pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
+
 		return Ok(());
 	}
 
@@ -478,37 +479,54 @@ async fn handle_import_statements(
 	let already_disputed = is_disputed && !was_undisputed;
 	let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
-	let mut tx = db::v1::Transaction::default();
+	{ // Scope so we will only confirm valid import after the import got actually persisted.
+		let mut tx = db::v1::Transaction::default();
 
-	if freshly_disputed && !concluded_valid {
-		// add to active disputes and begin local participation.
-		update_active_disputes(
-			store,
-			config,
-			&mut tx,
-			|active| active.insert(session, candidate_hash),
-		)?;
+		if freshly_disputed && !concluded_valid {
 
-		ctx.send_message(DisputeParticipationMessage::Participate {
-			candidate_hash,
-			candidate_receipt,
-			session,
-			n_validators: n_validators as u32,
-		}.into()).await;
+			let (report_availability, receive_availability) = oneshot::channel();
+			ctx.send_message(DisputeParticipationMessage::Participate {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				n_validators: n_validators as u32,
+				report_availability,
+			}.into()).await;
+
+			if !receive_availability.await.map_err(Error::Oneshot)? {
+				pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Recovering availability failed - invalid import."
+				);
+				return Ok(())
+			}
+
+			// add to active disputes and begin local participation.
+			update_active_disputes(
+				store,
+				config,
+				&mut tx,
+				|active| active.insert(session, candidate_hash),
+			)?;
+
+		}
+
+		if concluded_valid && already_disputed {
+			// remove from active disputes.
+			update_active_disputes(
+				store,
+				config,
+				&mut tx,
+				|active| active.delete(session, candidate_hash),
+			)?;
+		}
+
+		tx.put_candidate_votes(session, candidate_hash, votes.into());
+		tx.write(store, &config.column_config())?;
 	}
 
-	if concluded_valid && already_disputed {
-		// remove from active disputes.
-		update_active_disputes(
-			store,
-			config,
-			&mut tx,
-			|active| active.delete(session, candidate_hash),
-		)?;
-	}
-
-	tx.put_candidate_votes(session, candidate_hash, votes.into());
-	tx.write(store, &config.column_config())?;
+	pending_confirmation.send(ImportStatementsResult::ValidImport).map_err(|_| Error::OneshotSend)?;
 
 	Ok(())
 }
@@ -605,6 +623,7 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
+		let (pending_confirmation, _rx) = oneshot::channel();
 		handle_import_statements(
 			ctx,
 			store,
@@ -614,6 +633,7 @@ async fn issue_local_statement(
 			candidate_receipt,
 			session,
 			statements,
+			pending_confirmation,
 		).await?;
 	}
 
