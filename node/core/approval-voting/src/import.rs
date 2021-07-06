@@ -31,7 +31,6 @@
 use polkadot_node_subsystem::{
 	messages::{
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ChainSelectionMessage,
 	},
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
@@ -463,15 +462,9 @@ pub(crate) async fn handle_new_head(
 						result.len(),
 					);
 				}
-
 				result
 			}
 		};
-
-		// If all bits are already set, then send an approve message.
-		if approved_bitfield.count_ones() == approved_bitfield.len() {
-			ctx.send_message(ChainSelectionMessage::Approved(block_hash).into()).await;
-		}
 
 		let block_entry = approval_db::v1::BlockEntry {
 			block_hash,
@@ -494,18 +487,8 @@ pub(crate) async fn handle_new_head(
 				"Enacting force-approve",
 			);
 
-			let approved_hashes = approval_db::v1::force_approve(
-				db_writer,
-				db_config,
-				block_hash,
-				up_to,
-			)
+			approval_db::v1::force_approve(db_writer, db_config, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-			// Notify chain-selection of all approved hashes.
-			for hash in approved_hashes {
-				ctx.send_message(ChainSelectionMessage::Approved(hash).into()).await;
-			}
 		}
 
 		tracing::trace!(

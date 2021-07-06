@@ -251,9 +251,8 @@ pub(crate) fn import_block(
 	parent_hash: Hash,
 	reversion_logs: Vec<BlockNumber>,
 	weight: BlockWeight,
-	stagnant_at: Timestamp,
 ) -> Result<(), Error> {
-	add_block(backend, block_hash, block_number, parent_hash, weight, stagnant_at)?;
+	add_block(backend, block_hash, block_number, parent_hash, weight)?;
 	apply_reversions(
 		backend,
 		block_hash,
@@ -309,7 +308,6 @@ fn add_block(
 	block_number: BlockNumber,
 	parent_hash: Hash,
 	weight: BlockWeight,
-	stagnant_at: Timestamp,
 ) -> Result<(), Error> {
 	let mut leaves = backend.load_leaves()?;
 	let parent_entry = backend.load_block_entry(&parent_hash)?;
@@ -352,6 +350,7 @@ fn add_block(
 	backend.write_blocks_by_number(block_number, blocks_by_number);
 
 	// 5. Add stagnation timeout.
+	let stagnant_at = crate::stagnant_timeout_from_now();
 	let mut stagnant_at_list = backend.load_stagnant_at(stagnant_at)?;
 	stagnant_at_list.push(block_hash);
 	backend.write_stagnant_at(stagnant_at, stagnant_at_list);
@@ -550,6 +549,8 @@ pub(super) fn approve_block(
 ///
 /// This accepts a fresh backend and returns an overlay on top of it representing
 /// all changes made.
+// TODO https://github.com/paritytech/polkadot/issues/3293:: remove allow
+#[allow(unused)]
 pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	backend: &'a B,
 	up_to: Timestamp,

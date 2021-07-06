@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
-		AvailabilityRecoveryMessage, ChainSelectionMessage,
+		AvailabilityRecoveryMessage,
 	},
 	errors::RecoveryError,
 	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -717,7 +717,6 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
-	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
 	BecomeActive,
 	Conclude,
@@ -962,9 +961,6 @@ async fn handle_actions(
 					}
 					Some(_) => {},
 				}
-			}
-			Action::NoteApprovedInChainSelection(block_hash) => {
-				ctx.send_message(ChainSelectionMessage::Approved(block_hash).into()).await;
 			}
 			Action::BecomeActive => {
 				*mode = Mode::Active;
@@ -1809,7 +1805,6 @@ fn import_checked_approval(
 
 			if is_block_approved && !was_block_approved {
 				metrics.on_block_approved(status.tranche_now as _);
-				actions.push(Action::NoteApprovedInChainSelection(block_hash));
 			}
 
 			actions.push(Action::WriteBlockEntry(block_entry));
