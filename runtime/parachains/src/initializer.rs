@@ -133,7 +133,7 @@ pub mod pallet {
 			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				shared::Module::<T>::initializer_initialize(now) +
-				paras::Module::<T>::initializer_initialize(now) +
+				paras::Pallet::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
 				session_info::Module::<T>::initializer_initialize(now) +
@@ -154,7 +154,7 @@ pub mod pallet {
 			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
-			paras::Module::<T>::initializer_finalize();
+			paras::Pallet::<T>::initializer_finalize();
 			shared::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 
@@ -230,7 +230,7 @@ impl<T: Config> Pallet<T> {
 			session_index,
 		};
 
-		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
+		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
