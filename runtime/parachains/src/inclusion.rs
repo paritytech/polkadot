@@ -239,8 +239,8 @@ impl<T: Config> Module<T> {
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> Result<Vec<CoreIndex>, DispatchError> {
-		let validators = shared::Module::<T>::active_validator_keys();
-		let session_index = shared::Module::<T>::session_index();
+		let validators = shared::Pallet::<T>::active_validator_keys();
+		let session_index = shared::Pallet::<T>::session_index();
 
 		let mut assigned_paras_record: Vec<_> = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -397,7 +397,7 @@ impl<T: Config> Module<T> {
 			return Ok(Vec::new());
 		}
 
-		let validators = shared::Module::<T>::active_validator_keys();
+		let validators = shared::Pallet::<T>::active_validator_keys();
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
 		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
@@ -424,7 +424,7 @@ impl<T: Config> Module<T> {
 
 			let signing_context = SigningContext {
 				parent_hash,
-				session_index: shared::Module::<T>::session_index(),
+				session_index: shared::Pallet::<T>::session_index(),
 			};
 
 			// We combine an outer loop over candidates with an inner loop over the scheduled,
@@ -1233,8 +1233,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1467,8 +1467,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			let signing_context = SigningContext {
 				parent_hash: System::parent_hash(),
@@ -1632,8 +1632,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2156,8 +2156,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2353,8 +2353,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			run_to_block(5, |_| None);
 
@@ -2450,8 +2450,8 @@ mod tests {
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
-			shared::Module::<Test>::set_active_validators_ascending(validator_public.clone());
-			shared::Module::<Test>::set_session_index(5);
+			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+			shared::Pallet::<Test>::set_session_index(5);
 
 			let validators_new = vec![
 				Sr25519Keyring::Alice,
@@ -2514,7 +2514,7 @@ mod tests {
 
 			run_to_block(11, |_| None);
 
-			assert_eq!(shared::Module::<Test>::session_index(), 5);
+			assert_eq!(shared::Pallet::<Test>::session_index(), 5);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(0)).is_some());
 			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(1)).is_some());
@@ -2537,7 +2537,7 @@ mod tests {
 				_ => None,
 			});
 
-			assert_eq!(shared::Module::<Test>::session_index(), 6);
+			assert_eq!(shared::Pallet::<Test>::session_index(), 6);
 
 			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(0)).is_none());
 			assert!(<AvailabilityBitfields<Test>>::get(&ValidatorIndex(1)).is_none());

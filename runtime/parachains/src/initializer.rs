@@ -130,7 +130,7 @@ decl_module! {
 			// - UMP
 			// - HRMP
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
-				shared::Module::<T>::initializer_initialize(now) +
+				shared::Pallet::<T>::initializer_initialize(now) +
 				paras::Pallet::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
@@ -153,7 +153,7 @@ decl_module! {
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Pallet::<T>::initializer_finalize();
-			shared::Module::<T>::initializer_finalize();
+			shared::Pallet::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
@@ -208,7 +208,7 @@ impl<T: Config> Module<T> {
 
 		let new_config = <configuration::Module<T>>::config();
 
-		let validators = shared::Module::<T>::initializer_on_new_session(
+		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
 			random_seed.clone(),
 			&new_config,

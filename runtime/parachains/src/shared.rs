@@ -20,10 +20,7 @@
 //! dependent on any of the other modules.
 
 use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
-use frame_support::{
-	decl_storage, decl_module, decl_error,
-	weights::Weight,
-};
+use frame_support::pallet_prelude::*;
 use sp_std::vec::Vec;
 
 use rand::{SeedableRng, seq::SliceRandom};
@@ -31,38 +28,46 @@ use rand_chacha::ChaCha20Rng;
 
 use crate::configuration::HostConfiguration;
 
-pub trait Config: frame_system::Config { }
+pub use pallet::*;
 
 // `SESSION_DELAY` is used to delay any changes to Paras registration or configurations.
 // Wait until the session index is 2 larger then the current index to apply any changes,
 // which guarantees that at least one full session has passed before any changes are applied.
 pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParasShared {
-		/// The current session index.
-		CurrentSessionIndex get(fn session_index): SessionIndex;
-		/// All the validators actively participating in parachain consensus.
-		/// Indices are into the broader validator set.
-		ActiveValidatorIndices get(fn active_validator_indices): Vec<ValidatorIndex>;
-		/// The parachain attestation keys of the validators actively participating in parachain consensus.
-		/// This should be the same length as `ActiveValidatorIndices`.
-		ActiveValidatorKeys get(fn active_validator_keys): Vec<ValidatorId>;
-	}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config {}
+
+	/// The current session index.
+	#[pallet::storage]
+	#[pallet::getter(fn session_index)]
+	pub type CurrentSessionIndex<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+
+	/// All the validators actively participating in parachain consensus.
+	/// Indices are into the broader validator set.
+	#[pallet::storage]
+	#[pallet::getter(fn active_validator_indices)]
+	pub type ActiveValidatorIndices<T: Config> = StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
+
+	/// The parachain attestation keys of the validators actively participating in parachain consensus.
+	/// This should be the same length as `ActiveValidatorIndices`.
+	#[pallet::storage]
+	#[pallet::getter(fn active_validator_keys)]
+	pub type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {}
 }
 
-decl_error! {
-	pub enum Error for Module<T: Config> { }
-}
-
-decl_module! {
-	/// The session info module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
-	}
-}
-
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -80,7 +85,7 @@ impl<T: Config> Module<T> {
 		new_config: &HostConfiguration<T::BlockNumber>,
 		all_validators: Vec<ValidatorId>,
 	) -> Vec<ValidatorId> {
-		CurrentSessionIndex::set(session_index);
+		CurrentSessionIndex::<T>::set(session_index);
 		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
 
 		let mut shuffled_indices: Vec<_> = (0..all_validators.len())
@@ -99,8 +104,8 @@ impl<T: Config> Module<T> {
 			&all_validators,
 		);
 
-		ActiveValidatorIndices::set(shuffled_indices);
-		ActiveValidatorKeys::set(active_validator_keys.clone());
+		ActiveValidatorIndices::<T>::set(shuffled_indices);
+		ActiveValidatorKeys::<T>::set(active_validator_keys.clone());
 
 		active_validator_keys
 	}
@@ -113,15 +118,15 @@ impl<T: Config> Module<T> {
 	/// Test function for setting the current session index.
 	#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
 	pub fn set_session_index(index: SessionIndex) {
-		CurrentSessionIndex::set(index);
+		CurrentSessionIndex::<T>::set(index);
 	}
 
 	#[cfg(test)]
 	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
-		ActiveValidatorIndices::set(
+		ActiveValidatorIndices::<T>::set(
 			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect()
 		);
-		ActiveValidatorKeys::set(active);
+		ActiveValidatorKeys::<T>::set(active);
 	}
 
 	#[cfg(test)]
@@ -130,8 +135,8 @@ impl<T: Config> Module<T> {
 		keys: Vec<ValidatorId>,
 	) {
 		assert_eq!(indices.len(), keys.len());
-		ActiveValidatorIndices::set(indices);
-		ActiveValidatorKeys::set(keys);
+		ActiveValidatorIndices::<T>::set(indices);
+		ActiveValidatorKeys::<T>::set(keys);
 	}
 }
 

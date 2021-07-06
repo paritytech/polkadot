@@ -89,7 +89,7 @@ impl<T: Config> Module<T> {
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		let assignment_keys = AssignmentKeysUnsafe::get();
-		let active_set = <shared::Module<T>>::active_validator_indices();
+		let active_set = <shared::Pallet<T>>::active_validator_indices();
 
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
 		let n_cores = <scheduler::Module<T>>::availability_cores().len() as u32;
