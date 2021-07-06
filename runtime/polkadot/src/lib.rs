@@ -831,7 +831,7 @@ impl claims::Config for Runtime {
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 1 * DOLLARS;
-	pub const MaxVestingSchedules: u32 = 24;
+	pub const MaxVestingSchedules: u32 = 28;
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -1593,5 +1593,19 @@ mod test_fees {
 
 		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
 		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
+	}
+
+	#[test]
+	fn vesting_schedules_encoded_use_correct_space() {
+		use pallet_vesting::vesting_info::VestingInfo;
+		use frame_support::BoundedVec;
+		use parity_scale_codec::MaxEncodedLen;
+
+		let sched_len = VestingInfo::<Balance, BlockNumber>::max_encoded_len();
+		let vec_len = BoundedVec::<VestingInfo<Balance, BlockNumber>, MaxVestingSchedules>::max_encoded_len();
+
+		println!("Vesting schedules max encoded len: {} ({}).", vec_len, sched_len);
+		assert_eq!(sched_len, 36);
+		assert_eq!(vec_len, 1009);
 	}
 }

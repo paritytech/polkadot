@@ -949,7 +949,7 @@ impl pallet_society::Config for Runtime {
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * CENTS;
-	pub const MaxVestingSchedules: u32 = 24;
+	pub const MaxVestingSchedules: u32 = 28;
 }
 
 impl pallet_vesting::Config for Runtime {
