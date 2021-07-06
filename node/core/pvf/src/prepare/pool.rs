@@ -179,7 +179,7 @@ async fn purge_dead(
 		}
 	}
 	for w in to_remove {
-		if let Some(_) = spawned.remove(w) {
+		if spawned.remove(w).is_some() {
 			reply(from_pool, FromPool::Rip(w))?;
 		}
 	}
@@ -313,14 +313,14 @@ fn handle_mux(
 					Ok(())
 				}
 				Outcome::Unreachable => {
-					if let Some(_data) = spawned.remove(worker) {
+					if spawned.remove(worker).is_some() {
 						reply(from_pool, FromPool::Rip(worker))?;
 					}
 
 					Ok(())
 				}
 				Outcome::DidntMakeIt => {
-					if let Some(_data) = spawned.remove(worker) {
+					if spawned.remove(worker).is_some() {
 						reply(from_pool, FromPool::Concluded(worker, true))?;
 					}
 
