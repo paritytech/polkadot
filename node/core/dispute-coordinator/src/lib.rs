@@ -28,22 +28,20 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem::{
-	messages::{
-		DisputeCoordinatorMessage, ChainApiMessage, DisputeParticipationMessage,
-		ImportStatementsResult,
-	},
-	Subsystem, SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemError,
+	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
-};
+	messages::{
+		AllMessages, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		DisputeParticipationMessage, ImportStatementsResult
+	}};
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
-	ValidatorSignature, BlockNumber, ValidatorPair,
+	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash,
+	SessionIndex, SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature
 };
 
 use futures::prelude::*;
@@ -558,7 +556,7 @@ async fn issue_local_statement(
 	valid: bool,
 ) -> Result<(), Error> {
 	// Load session info.
-	let validators = match state.rolling_session_window.session_info(session) {
+	let info = match state.rolling_session_window.session_info(session) {
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -568,8 +566,10 @@ async fn issue_local_statement(
 
 			return Ok(())
 		}
-		Some(info) => info.validators.clone(),
+		Some(info) => info,
 	};
+
+	let validators = info.validators.clone();
 
 	let votes = db::v1::load_candidate_votes(
 		store,
@@ -621,6 +621,28 @@ async fn issue_local_statement(
 		}
 	}
 
+	// Get our message out:
+	for (statement, index) in &statements {
+		let dispute_message = match make_dispute_message(info, &votes, statement.clone(), *index) {
+			Err(err) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?err,
+					"Creating dispute message failed."
+				);
+				continue
+			}
+			Ok(dispute_message) => dispute_message,
+		};
+
+		ctx.send_message(
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::SendDispute(dispute_message)
+			)
+		).await;
+	}
+
+
 	// Do import
 	if !statements.is_empty() {
 		let (pending_confirmation, _rx) = oneshot::channel();
@@ -638,6 +660,60 @@ async fn issue_local_statement(
 	}
 
 	Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum MakeDisputeMessageError {
+	#[error("There was no opposite vote available")]
+	NoOppositeVote,
+	#[error("Found vote had an invalid validator index that could not be found")]
+	InvalidValidatorIndex,
+	#[error("Statement found in votes had invalid signature.")]
+	InvalidStoredStatement,
+	#[error("DisputeMessage could not be built.")]
+	InvalidStatementCombination,
+}
+
+fn make_dispute_message(
+	info: &SessionInfo,
+	votes: &CandidateVotes,
+	our_vote: SignedDisputeStatement,
+	our_index: ValidatorIndex
+) -> Result<DisputeMessage, MakeDisputeMessageError> {
+
+	let validators = &info.validators;
+
+	let (valid_statement, valid_index, invalid_statement, invalid_index) =
+		if let DisputeStatement::Valid(_) = our_vote.statement() {
+			let (statement_kind, validator_index, validator_signature)
+				= votes.invalid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+			let other_vote = SignedDisputeStatement::new_checked(
+				DisputeStatement::Invalid(statement_kind),
+				our_vote.candidate_hash().clone(),
+				our_vote.session_index(),
+				validators.get(validator_index.0 as usize).ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?.clone(),
+				validator_signature,
+			).map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+			(our_vote, our_index, other_vote, validator_index)
+	} else {
+		let (statement_kind, validator_index, validator_signature)
+			= votes.valid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+		let other_vote = SignedDisputeStatement::new_checked(
+			DisputeStatement::Valid(statement_kind),
+			our_vote.candidate_hash().clone(),
+			our_vote.session_index(),
+			validators.get(validator_index.0 as usize).ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?.clone(),
+			validator_signature,
+		).map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+		(other_vote, validator_index, our_vote, our_index)
+	};
+
+	DisputeMessage::from_signed_statements(
+		valid_statement, valid_index,
+		invalid_statement, invalid_index,
+		votes.candidate_receipt.clone(),
+		info,
+	).ok_or(MakeDisputeMessageError::InvalidStatementCombination)
 }
 
 fn determine_undisputed_chain(
