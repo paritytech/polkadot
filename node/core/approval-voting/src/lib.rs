@@ -25,7 +25,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
-		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
+		ApprovalDistributionMessage, CandidateValidationMessage,
 		AvailabilityRecoveryMessage, ChainSelectionMessage,
 	},
 	errors::RecoveryError,
