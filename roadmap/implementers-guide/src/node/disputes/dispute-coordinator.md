@@ -101,10 +101,10 @@ Do nothing.
 6. Add an entry to the respective `valid` or `invalid` list of the
    `CandidateVotes` for each statement in `statements`.
 7. If the both `valid` and `invalid` lists now became non-zero length where
-   previously one or both had zero length, the candidate would be freshly
-   disputed now.
+   previously one or both had zero length, the candidate is now freshly
+   disputed.
 8. If the candidate is not freshly disputed as determined by 7, continue with
-   10. If it is freshly disputed now, load `"active-dsiputes"` and add the
+   10. If it is freshly disputed now, load `"active-disputes"` and add the
    candidate hash and session index. Then, if we have local statements with
    regards to that candidate,  also continue with 10. Otherwise proceed with 9.
 9. Issue a
