@@ -69,9 +69,14 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 # Bridge Dependencies
+bp-messages = { path = "../../bridges/primitives/messages", default-features = false }
 bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features = false }
+bp-runtime = { path = "../../bridges/primitives/runtime", default-features = false }
 bp-wococo = { path = "../../bridges/primitives/chain-wococo", default-features = false }
+bridge-runtime-common = { path = "../../bridges/bin/runtime-common", default-features = false }
+pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
+pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -82,8 +87,11 @@ no_std = []
 std = [
 	"authority-discovery-primitives/std",
 	"babe-primitives/std",
+	"bp-messages/std",
 	"bp-rococo/std",
+	"bp-runtime/std",
 	"bp-wococo/std",
+	"bridge-runtime-common/std",
 	"parity-scale-codec/std",
 	"frame-executive/std",
 	"pallet-authority-discovery/std",
@@ -91,7 +99,9 @@ std = [
 	"pallet-babe/std",
 	"beefy-primitives/std",
 	"pallet-balances/std",
+	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
+	"pallet-bridge-messages/std",
 	"pallet-collective/std",
 	"pallet-beefy/std",
 	"pallet-grandpa/std",
