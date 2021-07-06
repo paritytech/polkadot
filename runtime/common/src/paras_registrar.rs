@@ -572,7 +572,7 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			ParachainsConfiguration: configuration::{Pallet, Call, Storage, Config<T>},
-			Parachains: paras::{Pallet, Origin, Call, Storage, Config<T>, Event},
+			Parachains: paras::{Pallet, Origin, Call, Storage, Config, Event},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 		}
 	);
