@@ -28,10 +28,20 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_primitives::v1::Hash;
-use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
-
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
-use polkadot_subsystem::messages::{
+use polkadot_overseer::{
+	self as overseer,
+	AllMessages,
+	AllSubsystems,
+	HeadSupportsParachains,
+	Overseer,
+	SubsystemError,
+	gen::{
+		SubsystemContext,
+		FromOverseer,
+		SpawnedSubsystem,
+	},
+};
+use polkadot_node_subsystem_types::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	NetworkBridgeMessage,
 };
@@ -76,10 +86,13 @@ impl Subsystem1 {
 	}
 }
 
-impl<C> Subsystem<C> for Subsystem1
-	where C: SubsystemContext<Message=CandidateBackingMessage>
+
+impl<Context> overseer::Subsystem<Context,SubsystemError> for Subsystem1
+where
+	Context: SubsystemContext<Message=CandidateBackingMessage>,
+	Context: overseer::SubsystemContext<Message=CandidateBackingMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
 			Ok(())
@@ -104,7 +117,7 @@ impl Subsystem2 {
 					Delay::new(Duration::from_secs(1)).await;
 				}
 			}),
-		).unwrap();
+		).await.unwrap();
 
 		loop {
 			match ctx.try_recv().await {
@@ -122,10 +135,12 @@ impl Subsystem2 {
 	}
 }
 
-impl<C> Subsystem<C> for Subsystem2
-	where C: SubsystemContext<Message=CandidateValidationMessage>
+impl<Context> overseer::Subsystem<Context,SubsystemError> for Subsystem2
+where
+	Context: SubsystemContext<Message=CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message=CandidateValidationMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
 			Ok(())

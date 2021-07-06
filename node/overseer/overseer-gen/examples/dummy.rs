@@ -3,7 +3,8 @@
 use std::convert::Infallible;
 
 use polkadot_overseer_gen::*;
-use polkadot_subsystem::messages::NetworkBridgeEvent;
+use polkadot_node_subsystem::messages::NetworkBridgeEvent;
+use polkadot_node_network_protocol::WrongVariant;
 
 
 /// Concrete subsystem implementation for `MsgStrukt` msg type.
@@ -59,6 +60,12 @@ impl From<polkadot_overseer_gen::OverseerError> for Yikes {
 	}
 }
 
+impl From<polkadot_overseer_gen::mpsc::SendError> for Yikes {
+	fn from(_: polkadot_overseer_gen::mpsc::SendError) -> Yikes {
+		Yikes
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct MsgStrukt(u8);
 
@@ -73,12 +80,21 @@ impl From<NetworkMsg> for MsgStrukt {
 
 
 #[derive(Debug, Clone, Copy)]
-enum NetworkMsg {
+pub enum NetworkMsg {
 	A,
 	B,
 	C,
 }
 
+
+impl NetworkMsg {
+	fn focus(&self) -> Result<Self, WrongVariant> {
+		Ok(match self {
+			Self::B => return Err(WrongVariant),
+			Self::A | Self::C => self.clone()
+		})
+	}
+}
 
 
 
