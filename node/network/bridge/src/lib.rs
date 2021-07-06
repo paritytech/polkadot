@@ -72,9 +72,6 @@ use network::{Network, send_message, get_peer_id_by_authority_id};
 mod multiplexer;
 pub use multiplexer::RequestMultiplexer;
 
-#[cfg(test)]
-mod tests;
-
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
 ///
 /// We use the same limit to compute the view sent to peers locally.

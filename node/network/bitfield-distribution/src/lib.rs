@@ -39,9 +39,6 @@ use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, 
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
 use std::collections::{HashMap, HashSet};
 
-#[cfg(test)]
-mod tests;
-
 const COST_SIGNATURE_INVALID: Rep = Rep::CostMajor("Bitfield signature invalid");
 const COST_VALIDATOR_INDEX_INVALID: Rep = Rep::CostMajor("Bitfield validator index invalid");
 const COST_MISSING_PEER_SESSION_KEY: Rep = Rep::CostMinor("Missing peer session key");

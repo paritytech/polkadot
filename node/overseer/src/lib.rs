@@ -81,7 +81,7 @@ use sp_api::{ApiExt, ProvideRuntimeApi};
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1,
 };
-use polkadot_node_subsystem::messages::{
+use polkadot_node_subsystem_types::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
@@ -92,7 +92,7 @@ use polkadot_node_subsystem::messages::{
 	NetworkBridgeEvent,
 	DisputeParticipationMessage, DisputeCoordinatorMessage, ChainSelectionMessage,
 };
-pub use polkadot_node_subsystem::{
+pub use polkadot_node_subsystem_types::{
 	OverseerSignal,
 	errors::{SubsystemResult, SubsystemError,},
 	ActiveLeavesUpdate, ActivatedLeaf, LeafStatus,
@@ -474,17 +474,19 @@ where
 	/// # use polkadot_primitives::v1::Hash;
 	/// # use polkadot_node_subsystem::{
 	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     messages::CandidateValidationMessage,
+	/// #     messages::CandidateValidationMessage, SubsystemError,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
 	///
-	/// impl<C> Subsystem<C> for ValidationSubsystem
-	///     where C: SubsystemContext<Message=CandidateValidationMessage>
+	/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
+	/// where
+	///     Ctx: overseer::SubsystemContext<Message=CandidateValidationMessage>,
+	///     Ctx: SubsystemContext<Message=CandidateValidationMessage>,
 	/// {
 	///     fn start(
 	///         self,
-	///         mut ctx: C,
+	///         mut ctx: Ctx,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem {
 	///             name: "validation-subsystem",

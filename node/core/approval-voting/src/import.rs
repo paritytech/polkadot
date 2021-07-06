@@ -84,7 +84,7 @@ struct ImportedBlockInfoEnv<'a> {
 // Computes information about the imported block. Returns `None` if the info couldn't be extracted -
 // failure to communicate with overseer,
 async fn imported_block_info(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext),
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,

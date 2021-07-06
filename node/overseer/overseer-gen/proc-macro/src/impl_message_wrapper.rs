@@ -29,7 +29,6 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 
 	let message_wrapper = &info.message_wrapper;
 
-
 	let (outgoing_from_impl, outgoing_decl) = if let Some(outgoing) = outgoing {
 		let outgoing_variant = outgoing
 			.get_ident()

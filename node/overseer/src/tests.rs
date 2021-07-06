@@ -16,12 +16,29 @@
 
 use std::sync::atomic;
 use std::collections::HashMap;
-use futures::{executor, pin_mut, select, FutureExt, pending};
+use std::task::{Poll};
+use futures::{executor, pin_mut, select, FutureExt, pending, poll, stream};
 
 use polkadot_primitives::v1::{CollatorPair, CandidateHash};
-use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, jaeger};
 use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, BlockData};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
+use polkadot_node_subsystem_types::{
+    ActivatedLeaf, LeafStatus,
+    messages::RuntimeApiRequest,
+    messages::NetworkBridgeEvent,
+    jaeger,
+};
+use polkadot_node_subsystem::{
+    overseer::{
+        Overseer,
+        HeadSupportsParachains,
+        gen::Delay,
+        SubsystemContext as OSC,
+    },
+    SpawnedSubsystem,
+    SubsystemContext,
+    overseer,
+};
 use polkadot_node_subsystem_util::metered;
 
 use sp_core::crypto::Pair as _;
@@ -31,8 +48,11 @@ use super::*;
 
 struct TestSubsystem1(metered::MeteredSender<usize>);
 
-impl<C> Subsystem<C> for TestSubsystem1
-    where C: SubsystemContext<Message=CandidateValidationMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem1
+where
+    C: overseer::SubsystemContext<Message=CandidateValidationMessage>,
+    C: SubsystemContext<Message=CandidateValidationMessage>,
+
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let mut sender = self.0;
@@ -59,8 +79,10 @@ impl<C> Subsystem<C> for TestSubsystem1
 
 struct TestSubsystem2(metered::MeteredSender<usize>);
 
-impl<C> Subsystem<C> for TestSubsystem2
-    where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
+where
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
+    C: SubsystemContext<Message=CandidateBackingMessage>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let sender = self.0.clone();
@@ -73,14 +95,12 @@ impl<C> Subsystem<C> for TestSubsystem2
                     if c < 10 {
                         let (tx, _) = oneshot::channel();
                         ctx.send_message(
-                            AllMessages::CandidateValidation(
-                                CandidateValidationMessage::ValidateFromChainState(
-                                    Default::default(),
-                                    PoV {
-                                        block_data: BlockData(Vec::new()),
-                                    }.into(),
-                                    tx,
-                                )
+                            CandidateValidationMessage::ValidateFromChainState(
+                                Default::default(),
+                                PoV {
+                                    block_data: BlockData(Vec::new()),
+                                }.into(),
+                                tx,
                             )
                         ).await;
                         c += 1;
@@ -107,8 +127,10 @@ impl<C> Subsystem<C> for TestSubsystem2
 
 struct ReturnOnStart;
 
-impl<C> Subsystem<C> for ReturnOnStart
-    where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for ReturnOnStart
+where
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
+    C: SubsystemContext<Message=CandidateBackingMessage>,
 {
     fn start(self, mut _ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem {
@@ -283,8 +305,10 @@ fn overseer_ends_on_subsystem_exit() {
 
 struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
-impl<C> Subsystem<C> for TestSubsystem5
-    where C: SubsystemContext<Message=CandidateValidationMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem5
+where
+    C: overseer::SubsystemContext<Message=CandidateValidationMessage>,
+    C: SubsystemContext<Message=CandidateValidationMessage>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let mut sender = self.0.clone();
@@ -314,8 +338,10 @@ impl<C> Subsystem<C> for TestSubsystem5
 
 struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
-impl<C> Subsystem<C> for TestSubsystem6
-    where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> Subsystem<C, SubsystemError> for TestSubsystem6
+where
+    C: overseer::SubsystemContext<Message=CandidateBackingMessage>,
+    C: SubsystemContext<Message=CandidateBackingMessage>,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         let mut sender = self.0.clone();
@@ -397,12 +423,14 @@ fn overseer_start_stop_works() {
                 hash: first_block_hash,
                 number: 1,
                 span: Arc::new(jaeger::Span::Disabled),
+                status: LeafStatus::Fresh,
             })),
             OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
                 activated: [ActivatedLeaf {
                     hash: second_block_hash,
                     number: 2,
                     span: Arc::new(jaeger::Span::Disabled),
+                    status: LeafStatus::Fresh,
                 }].as_ref().into(),
                 deactivated: [first_block_hash].as_ref().into(),
             }),
@@ -411,6 +439,7 @@ fn overseer_start_stop_works() {
                     hash: third_block_hash,
                     number: 3,
                     span: Arc::new(jaeger::Span::Disabled),
+                    status: LeafStatus::Fresh,
                 }].as_ref().into(),
                 deactivated: [second_block_hash].as_ref().into(),
             }),
@@ -505,11 +534,13 @@ fn overseer_finalize_works() {
                         hash: first_block_hash,
                         number: 1,
                         span: Arc::new(jaeger::Span::Disabled),
+                        status: LeafStatus::Fresh,
                     },
                     ActivatedLeaf {
                         hash: second_block_hash,
                         number: 2,
                         span: Arc::new(jaeger::Span::Disabled),
+                        status: LeafStatus::Fresh,
                     },
                 ].as_ref().into(),
                 ..Default::default()
@@ -601,7 +632,8 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
                     ActivatedLeaf {
                         hash: imported_block.hash,
                         number: imported_block.number,
-                        span: Arc::new(jaeger::Span::Disabled)
+                        span: Arc::new(jaeger::Span::Disabled),
+                        status: LeafStatus::Fresh,
                     }
                 ].as_ref().into(),
                 ..Default::default()
@@ -656,10 +688,11 @@ impl CounterSubsystem {
     }
 }
 
-impl<C, M> Subsystem<C> for CounterSubsystem
-    where
-        C: SubsystemContext<Message=M>,
-        M: Send,
+impl<C, M> Subsystem<C, SubsystemError> for CounterSubsystem
+where
+    C: overseer::SubsystemContext<Message=M>,
+    C: SubsystemContext<Message=M>,
+    M: Send,
 {
     fn start(self, mut ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem {
@@ -970,7 +1003,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
     let (unbounded_tx, unbounded_rx) = metered::unbounded();
     let (to_overseer_tx, _to_overseer_rx) = metered::unbounded();
 
-    let mut ctx = OverseerSubsystemContext::<()>::new_unmetered(
+    let mut ctx = OverseerSubsystemContext::<()>::new(
         signal_rx,
         stream::select(bounded_rx, unbounded_rx),
         channels_out,

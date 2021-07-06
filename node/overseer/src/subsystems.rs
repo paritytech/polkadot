@@ -14,14 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem::errors::SubsystemError;
-use ::polkadot_overseer_gen::{
+//! Legacy way of defining subsystems.
+//!
+//! In the future, everything should be set up using the generated
+//! overeseer builder pattern instead.
+
+use polkadot_node_subsystem_types::errors::SubsystemError;
+use polkadot_overseer_gen::{
 	MapSubsystem, SubsystemContext,
 	Subsystem,
 	SpawnedSubsystem,
 	FromOverseer,
 };
-
+use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
 use crate::OverseerSignal;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
@@ -67,7 +72,7 @@ where
 /// Each [`Subsystem`] is supposed to implement some interface that is generic over
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AllSubsystemsGen)]
 pub struct AllSubsystems<
 	CV = (), CB = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
 	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
