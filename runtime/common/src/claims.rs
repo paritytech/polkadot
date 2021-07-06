@@ -726,7 +726,7 @@ mod tests {
 
 	parameter_types! {
 		pub const MinVestedTransfer: u64 = 0;
-		pub const MinVestedTransfer: u32 = 28;
+		pub const MaxVestingSchedules: u32 = 28;
 	}
 
 	impl pallet_vesting::Config for Test {
