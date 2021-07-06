@@ -79,6 +79,7 @@ members = [
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
+	"utils/staking-miner",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
