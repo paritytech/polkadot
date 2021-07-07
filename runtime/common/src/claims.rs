@@ -725,7 +725,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const MinVestedTransfer: u64 = 0;
+		pub const MinVestedTransfer: u64 = 1;
 		pub const MaxVestingSchedules: u32 = 28;
 	}
 
