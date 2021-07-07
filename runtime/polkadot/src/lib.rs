@@ -49,8 +49,6 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
-#[cfg(feature = "runtime-benchmarks")]
-use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
