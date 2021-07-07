@@ -975,7 +975,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		hrmp: Default::default(),
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
@@ -986,6 +985,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			..Default::default()
 		},
 		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
 			owner: Some(endowed_accounts[0].clone()),
 			..Default::default()
 		},
@@ -1516,13 +1523,20 @@ pub fn rococo_testnet_genesis(
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(root_key.clone()),
 			..Default::default()
 		},
 		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
 			owner: Some(root_key.clone()),
 			..Default::default()
 		},
