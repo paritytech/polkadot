@@ -23,6 +23,7 @@ use syn::parse_quote;
 fn print() {
 	let attr = quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
+		error=OverseerError,
 	};
 
 	let item = quote! {
@@ -85,6 +86,7 @@ fn struct_parse_basic() {
 fn attr_full() {
 	let attr: AttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
+		error=OverseerError,
 	};
 	assert_matches!(attr, AttrArgs {
 		message_channel_capacity,
@@ -100,6 +102,7 @@ fn attr_full() {
 fn attr_partial() {
 	let attr: AttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=::foo::SigSigSig,
+		error=OverseerError,
 	};
 	assert_matches!(attr, AttrArgs {
 		message_channel_capacity: _,
