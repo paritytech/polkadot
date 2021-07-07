@@ -191,7 +191,7 @@ impl ProvisioningJob {
 		};
 		loop {
 			futures::select! {
-				msg = self.receiver.next().fuse() => match msg {
+				msg = self.receiver.next() => match msg {
 					Some(RequestInherentData(_, return_sender)) => {
 						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();

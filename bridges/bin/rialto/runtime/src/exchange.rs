@@ -250,7 +250,7 @@ mod tests {
 		assert_eq!(
 			EthTransaction::parse(
 				&prepare_ethereum_transaction(&ferdie(), |tx| {
-					tx.value = sp_core::U256::from(u128::max_value()) + sp_core::U256::from(1);
+					tx.value = sp_core::U256::from(u128::MAX) + sp_core::U256::from(1);
 				})
 				.0
 			),

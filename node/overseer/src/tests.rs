@@ -228,7 +228,7 @@ fn overseer_metrics_work() {
 
 		handler.block_imported(second_block).await;
 		handler.block_imported(third_block).await;
-		handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
 		handler.stop().await;
 
 		select! {
@@ -984,22 +984,22 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		// send a msg to each subsystem
 		// except for BitfieldSigning and GossipSupport as the messages are not instantiable
-		handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-		handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
-		handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
-		handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
-		handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
-		handler.send_msg(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
-		// handler.send_msg(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
-		// handler.send_msg(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
-		handler.send_msg(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
-		handler.send_msg(AllMessages::Provisioner(test_provisioner_msg())).await;
-		handler.send_msg(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
-		handler.send_msg(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
-		handler.send_msg(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
-		handler.send_msg(AllMessages::ChainApi(test_chain_api_msg())).await;
-		handler.send_msg(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
-		handler.send_msg(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
+		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handler.send_msg_anon(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
+		handler.send_msg_anon(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
+		handler.send_msg_anon(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
+		handler.send_msg_anon(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
+		// handler.send_msg_anon(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
+		// handler.send_msg_anon(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
+		handler.send_msg_anon(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::Provisioner(test_provisioner_msg())).await;
+		handler.send_msg_anon(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
+		handler.send_msg_anon(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
+		handler.send_msg_anon(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
+		handler.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
+		handler.send_msg_anon(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
 		// the conclude signal.

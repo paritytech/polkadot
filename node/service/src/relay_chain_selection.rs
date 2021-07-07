@@ -216,7 +216,10 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 		self.overseer
 			.clone()
-			.send_msg(ChainSelectionMessage::Leaves(tx)).await;
+			.send_msg(
+				ChainSelectionMessage::Leaves(tx),
+				std::any::type_name::<Self>(),
+			).await;
 
 		rx.await
 			.map_err(Error::OverseerDisconnected)
@@ -264,7 +267,10 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 		let subchain_head = {
 			let (tx, rx) = oneshot::channel();
-			overseer.send_msg(ChainSelectionMessage::BestLeafContaining(target_hash, tx)).await;
+			overseer.send_msg(
+				ChainSelectionMessage::BestLeafContaining(target_hash, tx),
+				std::any::type_name::<Self>(),
+			).await;
 
 			let best = rx.await
 				.map_err(Error::OverseerDisconnected)
@@ -318,11 +324,14 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		let (subchain_head, subchain_number) = {
 
 			let (tx, rx) = oneshot::channel();
-			overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-				subchain_head,
-				target_number,
-				tx,
-			)).await;
+			overseer.send_msg(
+				ApprovalVotingMessage::ApprovedAncestor(
+					subchain_head,
+					target_number,
+					tx,
+				),
+				std::any::type_name::<Self>(),
+			).await;
 
 			match rx.await
 				.map_err(Error::OverseerDisconnected)
