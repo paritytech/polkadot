@@ -22,18 +22,27 @@
 
 use std::error::Error;
 
-mod polkadot_chain_info;
+use test_runner::{Node, client_parts, ConfigOrChainSpec};
+use polkadot_runtime_test::PolkadotChainInfo;
+use polkadot_cli::Cli;
+use structopt::StructOpt;
+use sc_cli::{SubstrateCli, CliConfiguration, print_node_infos};
 
-use polkadot_chain_info::PolkadotSimnetChainInfo;
-use test_runner::{Node};
+fn main() -> Result<(), Box<dyn Error>> {
+    let cmd = <Cli as StructOpt>::from_args();
+    let config = cmd.create_configuration(&cmd.run.base, task_executor).unwrap();
+    let filters = cmd.run.base.log_filters().unwrap();
+    let logger = sc_tracing::logging::LoggerBuilder::new(filters);
+    logger.init().unwrap();
+    print_node_infos::<Cli>(&config);
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let node = Node::<PolkadotSimnetChainInfo>::new()?;
+    let (rpc, mut tokio_runtime, task_manager, client, pool, command_sink, backend) =
+        client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))
+            .unwrap();
+    let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
     // wait for ctrl_c signal, then drop node.
-    node.until_shutdown();
-
+    tokio_runtime.block_on(node.until_shutdown());
     drop(node);
 
     Ok(())
