@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet, VecDeque}, pin::Pin};
+use std::{collections::{HashMap, HashSet, VecDeque}, pin::Pin, time::Duration};
 
 use futures::{FutureExt, StreamExt, channel::oneshot, stream::FuturesUnordered, select, Future};
 use sp_core::Pair;
@@ -36,10 +36,7 @@ use polkadot_node_network_protocol::{
 	},
 	v1 as protocol_v1,
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}
-};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}};
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
 use crate::error::{Fatal, NonFatal, log_error};
@@ -49,6 +46,18 @@ use super::{LOG_TARGET,  Result};
 mod tests;
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
+
+/// Time after starting an upload to a validator we will start another one to the next validator,
+/// even if the upload was not finished yet.
+///
+/// This is to protect from a single slow validator preventing collations from happening.
+///
+/// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
+/// the transfer should be possible within 0.1 seconds. 300 milli seconds should therefore be
+/// plenty and should be low enough for other validators to still be able to finish on time.
+///
+/// There is debug logging output, so we can adjust this value based on production results.
+const TIMEOUT_UPLOAD: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -695,6 +704,7 @@ async fn send_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let relay_parent = request.payload.relay_parent;
+	let peer_id = request.peer;
 
 	let response = OutgoingResponse {
 		result: Ok(CollationFetchingResponse::Collation(receipt, pov)),
@@ -710,7 +720,15 @@ async fn send_collation(
 	}
 
 	state.active_collation_fetches.push(async move {
-		let _ = rx.await;
+		let r = rx.timeout(TIMEOUT_UPLOAD).await;
+		if r.is_none() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?peer_id,
+				"Sending collation to validator timed out, carrying on with next validator."
+			);
+		}
 		relay_parent
 	}.boxed());
 
