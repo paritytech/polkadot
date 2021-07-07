@@ -470,26 +470,42 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	/// # use polkadot_primitives::v1::Hash;
-	/// # use crate::{
-	/// #     self as overseer, OverseerSignal, AllMessages,
-	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
+	/// # use polkadot_overseer::{
+	/// # 	self as overseer,
+	/// #   OverseerSignal,
+	/// # 	SubsystemSender as _,
+	/// # 	AllMessages,
+	/// # 	AllSubsystems,
+	/// # 	HeadSupportsParachains,
+	/// # 	Overseer,
+	/// # 	SubsystemError,
+	/// # 	gen::{
+	/// # 		SubsystemContext,
+	/// # 		FromOverseer,
+	/// # 		SpawnedSubsystem,
+	/// # 	},
 	/// # };
-	/// # use polkadot_node_subsystem_types::{
-	/// #     messages::CandidateValidationMessage}, SubsystemError,
+	/// # use polkadot_node_subsystem_types::messages::{
+	/// # 	CandidateValidationMessage, CandidateBackingMessage,
+	/// # 	NetworkBridgeMessage,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
 	///
 	/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
 	/// where
-	///     Ctx: overseer::SubsystemContext<Message=CandidateValidationMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
+	///     Ctx: overseer::SubsystemContext<
+	///				Message=CandidateValidationMessage,
+	///				AllMessages=AllMessages,
+	///				Signal=OverseerSignal,
+	///				Error=SubsystemError,
+	///			>,
 	/// {
 	///     fn start(
 	///         self,
 	///         mut ctx: Ctx,
-	///     ) -> SpawnedSubsystem {
+	///     ) -> SpawnedSubsystem<SubsystemError> {
 	///         SpawnedSubsystem {
 	///             name: "validation-subsystem",
 	///             future: Box::pin(async move {
@@ -508,7 +524,8 @@ where
 	///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
 	/// }
 	/// let spawner = sp_core::testing::TaskExecutor::new();
-	/// let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_validation(ValidationSubsystem);
+	/// let all_subsystems = AllSubsystems::<()>::dummy()
+	///		.replace_candidate_validation(ValidationSubsystem);
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
@@ -528,7 +545,8 @@ where
 	///     _ = timer => (),
 	/// }
 	/// #
-	/// # }); }
+	/// # 	});
+	/// # }
 	/// ```
 	pub fn new<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
 		leaves: impl IntoIterator<Item = BlockInfo>,

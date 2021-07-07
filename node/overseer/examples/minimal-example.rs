@@ -26,7 +26,6 @@ use futures::{
 };
 use futures_timer::Delay;
 
-use overseer::OverseerSignal;
 use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_primitives::v1::Hash;
 use polkadot_overseer::{
@@ -36,6 +35,7 @@ use polkadot_overseer::{
 	AllSubsystems,
 	HeadSupportsParachains,
 	Overseer,
+	OverseerSignal,
 	SubsystemError,
 	gen::{
 		SubsystemContext,
