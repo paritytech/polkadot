@@ -16,7 +16,8 @@
 
 //! Version 1 of the DB schema.
 
-use kvdb::KeyValueDB;
+use kvdb::{DBTransaction, KeyValueDB};
+use polkadot_node_subsystem::{SubsystemResult, SubsystemError};
 use polkadot_node_primitives::approval::{DelayTranche, AssignmentCert};
 use polkadot_primitives::v1::{
 	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
@@ -26,18 +27,138 @@ use sp_consensus_slots::Slot;
 use parity_scale_codec::{Encode, Decode};
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
-pub(crate) const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
+use crate::backend::{Backend, BackendWriteOp};
+use crate::persisted_entries;
+
+const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
 #[cfg(test)]
 pub mod tests;
+
+/// DbBackend is a concrete implementation of the higher-level Backend trait
+pub struct DbBackend {
+	inner: Arc<dyn KeyValueDB>,
+	config: Config,
+}
+
+impl DbBackend {
+	/// Create a new [`DbBackend`] with the supplied key-value store and
+	/// config.
+	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
+		DbBackend {
+			inner: db,
+			config,
+		}
+	}
+}
+
+impl Backend for DbBackend {
+	fn load_block_entry(
+		&self,
+		block_hash: &Hash,
+	) -> SubsystemResult<Option<persisted_entries::BlockEntry>> {
+		load_block_entry(&*self.inner, &self.config, block_hash)
+			.map(|e| e.map(Into::into))
+	}
+
+	fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
+		load_candidate_entry(&*self.inner, &self.config, candidate_hash)
+			.map(|e| e.map(Into::into))
+	}
+
+	fn load_blocks_at_height(
+		&self,
+		block_height: &BlockNumber
+	) -> SubsystemResult<Vec<Hash>> {
+		load_blocks_at_height(&*self.inner, &self.config, block_height)
+	}
+
+	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
+		load_all_blocks(&*self.inner, &self.config)
+	}
+
+	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
+		load_stored_blocks(&*self.inner, &self.config)
+	}
+
+	/// Atomically write the list of operations, with later operations taking precedence over prior.
+	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+		where I: IntoIterator<Item = BackendWriteOp>
+	{
+		let mut tx = DBTransaction::new();
+		for op in ops {
+			match op {
+				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
+					tx.put_vec(
+						self.config.col_data,
+						&STORED_BLOCKS_KEY,
+						stored_block_range.encode(),
+					);
+				}
+				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
+					tx.put_vec(
+						self.config.col_data,
+						&blocks_at_height_key(h),
+						blocks.encode(),
+					);
+				}
+				BackendWriteOp::DeleteBlocksAtHeight(h) => {
+					tx.delete(
+						self.config.col_data,
+						&blocks_at_height_key(h),
+					);
+				}
+				BackendWriteOp::WriteBlockEntry(block_entry) => {
+					let block_entry: BlockEntry = block_entry.into();
+					tx.put_vec(
+						self.config.col_data,
+						&block_entry_key(&block_entry.block_hash),
+						block_entry.encode(),
+					);
+				}
+				BackendWriteOp::DeleteBlockEntry(hash) => {
+					tx.delete(
+						self.config.col_data,
+						&block_entry_key(&hash),
+					);
+				}
+				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
+					let candidate_entry: CandidateEntry = candidate_entry.into();
+					tx.put_vec(
+						self.config.col_data,
+						&candidate_entry_key(&candidate_entry.candidate.hash()),
+						candidate_entry.encode(),
+					);
+				}
+				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
+					tx.delete(
+						self.config.col_data,
+						&candidate_entry_key(&candidate_hash),
+					);
+				}
+			}
+		}
+
+		self.inner.write(tx).map_err(|e| e.into())
+	}
+}
+
+/// A range from earliest..last block number stored within the DB.
+#[derive(Encode, Decode, Debug, Clone, PartialEq)]
+pub struct StoredBlockRange(pub BlockNumber, pub BlockNumber);
 
 // slot_duration * 2 + DelayTranche gives the number of delay tranches since the
 // unix epoch.
 #[derive(Encode, Decode, Clone, Copy, Debug, PartialEq)]
 pub struct Tick(u64);
 
+/// Convenience type definition
 pub type Bitfield = BitVec<BitOrderLsb0, u8>;
 
 /// The database config.
@@ -177,4 +298,60 @@ pub(crate) fn blocks_at_height_key(block_number: BlockNumber) -> [u8; 16] {
 	block_number.using_encoded(|s| key[12..16].copy_from_slice(s));
 
 	key
+}
+
+/// Return all blocks which have entries in the DB, ascending, by height.
+pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResult<Vec<Hash>> {
+	let mut hashes = Vec::new();
+	if let Some(stored_blocks) = load_stored_blocks(store, config)? {
+		for height in stored_blocks.0..stored_blocks.1 {
+			let blocks = load_blocks_at_height(store, config, &height)?;
+			hashes.extend(blocks);
+		}
+
+	}
+
+	Ok(hashes)
+}
+
+/// Load the stored-blocks key from the state.
+pub fn load_stored_blocks(
+	store: &dyn KeyValueDB,
+	config: &Config,
+) -> SubsystemResult<Option<StoredBlockRange>> {
+	load_decode(store, config.col_data, STORED_BLOCKS_KEY)
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
+/// Load a blocks-at-height entry for a given block number.
+pub fn load_blocks_at_height(
+	store: &dyn KeyValueDB,
+	config: &Config,
+	block_number: &BlockNumber,
+) -> SubsystemResult<Vec<Hash>> {
+	load_decode(store, config.col_data, &blocks_at_height_key(*block_number))
+		.map(|x| x.unwrap_or_default())
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
+/// Load a block entry from the aux store.
+pub fn load_block_entry(
+	store: &dyn KeyValueDB,
+	config: &Config,
+	block_hash: &Hash,
+) -> SubsystemResult<Option<BlockEntry>> {
+	load_decode(store, config.col_data, &block_entry_key(block_hash))
+		.map(|u: Option<BlockEntry>| u.map(|v| v.into()))
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+}
+
+/// Load a candidate entry from the aux store.
+pub fn load_candidate_entry(
+	store: &dyn KeyValueDB,
+	config: &Config,
+	candidate_hash: &CandidateHash,
+) -> SubsystemResult<Option<CandidateEntry>> {
+	load_decode(store, config.col_data, &candidate_entry_key(candidate_hash))
+		.map(|u: Option<CandidateEntry>| u.map(|v| v.into()))
+		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }

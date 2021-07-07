@@ -153,34 +153,3 @@ impl<T> MeteredSender<T> {
 		})
 	}
 }
-
-impl<T> futures::sink::Sink<T> for MeteredSender<T> {
-	type Error = mpsc::SendError;
-
-	fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-		Pin::new(&mut self.inner).start_send(item)
-	}
-
-	fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_ready(cx)
-	}
-
-	fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_close(cx) {
-			val @ Poll::Ready(_)=> {
-				val
-			}
-			other => other,
-		}
-	}
-
-	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_flush(cx) {
-			val @ Poll::Ready(_)=> {
-				self.meter.note_sent();
-				val
-			}
-			other => other,
-		}
-	}
-}

@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem::{SubsystemResult, SubsystemError};
+//! Middleware interface that leverages low-level database operations
+//! to provide a clean API for processing block and candidate imports.
+
+use polkadot_node_subsystem::SubsystemResult;
 
 use polkadot_primitives::v1::{
 	CandidateHash, CandidateReceipt, BlockNumber, GroupIndex, Hash,
 };
-use parity_scale_codec::{Encode, Decode};
-use kvdb::{KeyValueDB};
 use bitvec::{order::Lsb0 as BitOrderLsb0};
 
 use std::convert::Into;
@@ -30,24 +31,29 @@ use std::collections::hash_map::Entry;
 use super::persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
 use super::backend::{Backend, OverlayedBackend};
 use super::approval_db::{
-	self,
 	v1::{
-		Config, OurAssignment, STORED_BLOCKS_KEY,
-		block_entry_key, blocks_at_height_key, candidate_entry_key, load_decode,
+		OurAssignment, StoredBlockRange,
 	},
 };
-
-/// A range from earliest..last block number stored within the DB.
-#[derive(Encode, Decode, Debug, Clone, PartialEq)]
-pub struct StoredBlockRange(pub(super) BlockNumber, pub(super) BlockNumber);
 
 /// Information about a new candidate necessary to instantiate the requisite
 /// candidate and approval entries.
 #[derive(Clone)]
-pub(super) struct NewCandidateInfo {
-	pub candidate: CandidateReceipt,
-	pub backing_group: GroupIndex,
-	pub our_assignment: Option<OurAssignment>,
+pub struct NewCandidateInfo {
+	candidate: CandidateReceipt,
+	backing_group: GroupIndex,
+	our_assignment: Option<OurAssignment>,
+}
+
+impl NewCandidateInfo {
+	/// Convenience constructor
+	pub fn new(
+		candidate: CandidateReceipt,
+		backing_group: GroupIndex,
+		our_assignment: Option<OurAssignment>,
+	) -> Self {
+		Self { candidate, backing_group, our_assignment }
+	}
 }
 
 fn visit_and_remove_block_entry(
@@ -80,7 +86,7 @@ fn visit_and_remove_block_entry(
 
 /// Canonicalize some particular block, pruning everything before it and
 /// pruning any competing branches at the same height.
-pub(super) fn canonicalize(
+pub fn canonicalize(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	canon_number: BlockNumber,
 	canon_hash: Hash,
@@ -202,7 +208,7 @@ pub(super) fn canonicalize(
 /// Has no effect if there is already an entry for the block or `candidate_info` returns
 /// `None` for any of the candidates referenced by the block entry. In these cases,
 /// no information about new candidates will be referred to by this function.
-pub(super) fn add_block_entry(
+pub fn add_block_entry(
 	store: &mut OverlayedBackend<'_, impl Backend>,
 	entry: BlockEntry,
 	n_validators: usize,
@@ -288,15 +294,17 @@ pub(super) fn add_block_entry(
 }
 /// Forcibly approve all candidates included at up to the given relay-chain height in the indicated
 /// chain.
-pub(super) fn force_approve(
+pub fn force_approve(
 	store: &mut OverlayedBackend<'_, impl Backend>,
 	chain_head: Hash,
 	up_to: BlockNumber,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Vec<Hash>> {
 	enum State {
 		WalkTo,
 		Approving,
 	}
+
+	let mut approved_hashes = Vec::new();
 
 	let mut cur_hash = chain_head;
 	let mut state = State::WalkTo;
@@ -315,65 +323,11 @@ pub(super) fn force_approve(
 			State::WalkTo => {},
 			State::Approving => {
 				entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
+				approved_hashes.push(entry.block_hash());
 				store.write_block_entry(entry);
 			}
 		}
 	}
 
-	Ok(())
-}
-/// Return all blocks which have entries in the DB, ascending, by height.
-pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResult<Vec<Hash>> {
-	let mut hashes = Vec::new();
-	if let Some(stored_blocks) = load_stored_blocks(store, config)? {
-		for height in stored_blocks.0..stored_blocks.1 {
-			let blocks = load_blocks_at_height(store, config, &height)?;
-			hashes.extend(blocks);
-		}
-
-	}
-
-	Ok(hashes)
-}
-
-/// Load the stored-blocks key from the state.
-pub(super) fn load_stored_blocks(
-	store: &dyn KeyValueDB,
-	config: &Config,
-) -> SubsystemResult<Option<StoredBlockRange>> {
-	load_decode(store, config.col_data, STORED_BLOCKS_KEY)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
-/// Load a blocks-at-height entry for a given block number.
-pub(super) fn load_blocks_at_height(
-	store: &dyn KeyValueDB,
-	config: &Config,
-	block_number: &BlockNumber,
-) -> SubsystemResult<Vec<Hash>> {
-	load_decode(store, config.col_data, &blocks_at_height_key(*block_number))
-		.map(|x| x.unwrap_or_default())
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
-/// Load a block entry from the aux store.
-pub(super) fn load_block_entry(
-	store: &dyn KeyValueDB,
-	config: &Config,
-	block_hash: &Hash,
-) -> SubsystemResult<Option<BlockEntry>> {
-	load_decode(store, config.col_data, &block_entry_key(block_hash))
-		.map(|u: Option<approval_db::v1::BlockEntry>| u.map(|v| v.into()))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-}
-
-/// Load a candidate entry from the aux store.
-pub(super) fn load_candidate_entry(
-	store: &dyn KeyValueDB,
-	config: &Config,
-	candidate_hash: &CandidateHash,
-) -> SubsystemResult<Option<CandidateEntry>> {
-	load_decode(store, config.col_data, &candidate_entry_key(candidate_hash))
-		.map(|u: Option<approval_db::v1::CandidateEntry>| u.map(|v| v.into()))
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+	Ok(approved_hashes)
 }

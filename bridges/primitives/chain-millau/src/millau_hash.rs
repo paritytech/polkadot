@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::traits::MaxEncodedLen;
 use parity_util_mem::MallocSizeOf;
 use sp_runtime::traits::CheckEqual;
 
@@ -23,7 +22,7 @@ use sp_runtime::traits::CheckEqual;
 
 fixed_hash::construct_fixed_hash! {
 	/// Hash type used in Millau chain.
-	#[derive(MallocSizeOf, MaxEncodedLen)]
+	#[derive(MallocSizeOf)]
 	pub struct MillauHash(64);
 }
 

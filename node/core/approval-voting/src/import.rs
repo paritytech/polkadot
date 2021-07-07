@@ -31,6 +31,7 @@
 use polkadot_node_subsystem::{
 	messages::{
 		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
+		ChainSelectionMessage,
 	},
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
@@ -56,7 +57,7 @@ use bitvec::order::Lsb0 as BitOrderLsb0;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
-use crate::approval_db;
+use super::approval_db::v1;
 use crate::backend::{Backend, OverlayedBackend};
 use crate::persisted_entries::CandidateEntry;
 use crate::criteria::{AssignmentCriteria, OurAssignment};
@@ -461,11 +462,17 @@ pub(crate) async fn handle_new_head<'a>(
 						result.len(),
 					);
 				}
+
 				result
 			}
 		};
 
-		let block_entry = approval_db::v1::BlockEntry {
+		// If all bits are already set, then send an approve message.
+		if approved_bitfield.count_ones() == approved_bitfield.len() {
+			ctx.send_message(ChainSelectionMessage::Approved(block_hash).into()).await;
+		}
+
+		let block_entry = v1::BlockEntry {
 			block_hash,
 			parent_hash: block_header.parent_hash,
 			block_number: block_header.number,
@@ -486,8 +493,13 @@ pub(crate) async fn handle_new_head<'a>(
 				"Enacting force-approve",
 			);
 
-			crate::ops::force_approve(db, block_hash, up_to)
+			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+			// Notify chain-selection of all approved hashes.
+			for hash in approved_hashes {
+				ctx.send_message(ChainSelectionMessage::Approved(hash).into()).await;
+			}
 		}
 
 		tracing::trace!(
@@ -503,11 +515,11 @@ pub(crate) async fn handle_new_head<'a>(
 			n_validators,
 			|candidate_hash| {
 				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
-					.map(|(_, receipt, core, backing_group)| super::ops::NewCandidateInfo {
-						candidate: receipt.clone(),
-						backing_group: *backing_group,
-						our_assignment: assignments.get(core).map(|a| a.clone().into()),
-					})
+					.map(|(_, receipt, core, backing_group)| super::ops::NewCandidateInfo::new(
+						receipt.clone(),
+						*backing_group,
+						assignments.get(core).map(|a| a.clone().into()),
+					))
 			}
 		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		approval_meta.push(BlockApprovalMeta {
@@ -547,7 +559,7 @@ pub(crate) async fn handle_new_head<'a>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::backend::DbBackend;
+	use crate::approval_db::v1::DbBackend;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
@@ -1178,7 +1190,7 @@ mod tests {
 
 		let mut state = single_session_state(session, session_info);
 		overlay_db.write_block_entry(
-			crate::approval_db::v1::BlockEntry {
+			v1::BlockEntry {
 				block_hash: parent_hash.clone(),
 				parent_hash: Default::default(),
 				block_number: 4,
@@ -1215,7 +1227,7 @@ mod tests {
 				assert_eq!(candidates[1].1.approvals().len(), 6);
 				// the first candidate should be insta-approved
 				// the second should not
-				let entry: BlockEntry = crate::ops::load_block_entry(
+				let entry: BlockEntry = v1::load_block_entry(
 					db_writer.as_ref(),
 					&TEST_CONFIG,
 					&hash,

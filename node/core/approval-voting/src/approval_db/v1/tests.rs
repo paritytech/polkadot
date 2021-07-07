@@ -21,11 +21,9 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use polkadot_primitives::v1::Id as ParaId;
 use kvdb::KeyValueDB;
-use crate::backend::{Backend, DbBackend, OverlayedBackend};
-use crate::ops::{
-	NewCandidateInfo, StoredBlockRange, load_block_entry, load_candidate_entry, load_stored_blocks,
-	load_all_blocks, load_blocks_at_height, add_block_entry, force_approve, canonicalize,
-};
+use super::{DbBackend, StoredBlockRange};
+use crate::backend::{Backend, OverlayedBackend};
+use crate::ops::{NewCandidateInfo, add_block_entry, force_approve, canonicalize};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -167,11 +165,11 @@ fn add_block_entry_works() {
 	let n_validators = 10;
 
 	let mut new_candidate_info = HashMap::new();
-	new_candidate_info.insert(candidate_hash_a, NewCandidateInfo {
-		candidate: candidate_receipt_a,
-		backing_group: GroupIndex(0),
-		our_assignment: None,
-	});
+	new_candidate_info.insert(candidate_hash_a, NewCandidateInfo::new(
+		candidate_receipt_a,
+		GroupIndex(0),
+		None,
+	));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
@@ -183,11 +181,11 @@ fn add_block_entry_works() {
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
 
-	new_candidate_info.insert(candidate_hash_b, NewCandidateInfo {
-		candidate: candidate_receipt_b,
-		backing_group: GroupIndex(1),
-		our_assignment: None,
-	});
+	new_candidate_info.insert(candidate_hash_b, NewCandidateInfo::new(
+		candidate_receipt_b,
+		GroupIndex(1),
+		None,
+	));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
@@ -335,35 +333,35 @@ fn canonicalize_works() {
 
 	let candidate_info = {
 		let mut candidate_info = HashMap::new();
-		candidate_info.insert(cand_hash_1, NewCandidateInfo {
-			candidate: candidate_receipt_genesis,
-			backing_group: GroupIndex(1),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_1, NewCandidateInfo::new(
+			candidate_receipt_genesis,
+			GroupIndex(1),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_2, NewCandidateInfo {
-			candidate: candidate_receipt_a,
-			backing_group: GroupIndex(2),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_2, NewCandidateInfo::new(
+			candidate_receipt_a,
+			GroupIndex(2),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_3, NewCandidateInfo {
-			candidate: candidate_receipt_b,
-			backing_group: GroupIndex(3),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_3, NewCandidateInfo::new(
+			candidate_receipt_b,
+			GroupIndex(3),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_4, NewCandidateInfo {
-			candidate: candidate_receipt_b1,
-			backing_group: GroupIndex(4),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_4, NewCandidateInfo::new(
+			candidate_receipt_b1,
+			GroupIndex(4),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_5, NewCandidateInfo {
-			candidate: candidate_receipt_c1,
-			backing_group: GroupIndex(5),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_5, NewCandidateInfo::new(
+			candidate_receipt_c1,
+			GroupIndex(5),
+			None,
+		));
 
 		candidate_info
 	};
@@ -425,10 +423,10 @@ fn canonicalize_works() {
 				),
 			};
 
-			assert_eq!(entry.candidates().len(), with_candidates.len());
+			assert_eq!(entry.candidates.len(), with_candidates.len());
 
 			for x in with_candidates {
-				assert!(entry.candidates().iter().position(|&(_, ref c)| c == &x).is_some());
+				assert!(entry.candidates.iter().position(|&(_, ref c)| c == &x).is_some());
 			}
 		}
 	};
@@ -491,11 +489,11 @@ fn force_approve_works() {
 	let single_candidate_vec = vec![(CoreIndex(0), candidate_hash)];
 	let candidate_info = {
 		let mut candidate_info = HashMap::new();
-		candidate_info.insert(candidate_hash, NewCandidateInfo {
-			candidate: make_candidate(1.into(), Default::default()),
-			backing_group: GroupIndex(1),
-			our_assignment: None,
-		});
+		candidate_info.insert(candidate_hash, NewCandidateInfo::new(
+			make_candidate(1.into(), Default::default()),
+			GroupIndex(1),
+			None,
+		));
 
 		candidate_info
 	};
@@ -527,7 +525,7 @@ fn force_approve_works() {
 			|h| candidate_info.get(h).map(|x| x.clone()),
 		).unwrap();
 	}
-	force_approve(&mut overlay_db,  block_hash_d, 2).unwrap();
+	let approved_hashes = force_approve(&mut overlay_db,  block_hash_d, 2).unwrap();
 	let write_ops = overlay_db.into_write_ops();
 	db.write(write_ops).unwrap();
 
@@ -551,6 +549,10 @@ fn force_approve_works() {
 		&TEST_CONFIG,
 		&block_hash_d,
 	).unwrap().unwrap().approved_bitfield.not_any());
+	assert_eq!(
+		approved_hashes,
+		vec![block_hash_b, block_hash_a],
+	);
 }
 
 #[test]

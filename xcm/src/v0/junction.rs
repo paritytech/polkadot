@@ -138,6 +138,14 @@ pub enum Junction {
 }
 
 impl Junction {
+	/// Returns true if this junction is a `Parent` item.
+	pub fn is_parent(&self) -> bool {
+		match self {
+			Junction::Parent => true,
+			_ => false,
+		}
+	}
+
 	/// Returns true if this junction can be considered an interior part of its context. This is generally `true`,
 	/// except for the `Parent` item.
 	pub fn is_interior(&self) -> bool {
