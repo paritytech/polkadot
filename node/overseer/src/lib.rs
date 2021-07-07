@@ -99,7 +99,8 @@ pub use polkadot_node_subsystem_types::{
 	jaeger,
 };
 
-/// TODO legacy, to be deleted, left for easier integration
+// TODO legacy, to be deleted, left for easier integration
+// TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
 pub use self::subsystems::AllSubsystems;
 

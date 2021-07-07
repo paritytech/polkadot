@@ -204,6 +204,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 				#(
 					// TODO generate a builder pattern that ensures this
+					// TODO https://github.com/paritytech/polkadot/issues/3427
 					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();

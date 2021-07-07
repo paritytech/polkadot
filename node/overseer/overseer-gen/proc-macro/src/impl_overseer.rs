@@ -37,6 +37,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			S: ::polkadot_overseer_gen::SpawnNamed,
 	};
 	// TODO add `where ..` clauses for baggage types
+	// TODO https://github.com/paritytech/polkadot/issues/3427
 
 	let consumes = &info.consumes_without_wip();
 	let consumes_variant = &info.variant_names_without_wip();

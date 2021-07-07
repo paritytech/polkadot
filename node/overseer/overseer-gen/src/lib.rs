@@ -247,7 +247,6 @@ pub struct SpawnedSubsystem<E>
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-// FIXME XXX make generic over the source error of FromOrigin
 #[derive(thiserror::Error, Debug)]
 #[allow(missing_docs)]
 pub enum OverseerError {

@@ -53,6 +53,7 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 								extern_msg
 									// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
 									// TODO do not require this to be hardcoded, either externalize or ...
+									// https://github.com/paritytech/polkadot/issues/3427
 									.focus()
 									.ok()
 									.map(|event| {
