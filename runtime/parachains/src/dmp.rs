@@ -108,8 +108,6 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {}
 }
 
-
-
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
