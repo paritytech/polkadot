@@ -211,7 +211,7 @@ impl OverseerInfo {
 			.collect::<Vec<TokenStream>>()
 	}
 
-	/// Generic types per subsystem, in the form `Sub#N`.
+	/// Generic types per subsystem, as defined by the user.
 	pub(crate) fn builder_generic_types(&self) -> Vec<Ident> {
 		self.subsystems
 			.iter()
