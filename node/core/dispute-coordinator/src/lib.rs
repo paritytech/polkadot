@@ -65,6 +65,11 @@ const LOG_TARGET: &str = "parachain::dispute-coordinator";
 // On Polkadot this is 1 day, and on Kusama it's 6 hours.
 const DISPUTE_WINDOW: SessionIndex = 6;
 
+// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
+// is not worth considering anymore. Changing this value has little to no bearing on consensus,
+// and really only affects the work that the node might do on startup during periods of many disputes.
+const ACTIVE_DURATION_SECS: Timestamp = 180;
+
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 type Timestamp = u64;
 
@@ -429,7 +434,7 @@ async fn handle_incoming(
 			let recent_disputes = db::v1::load_recent_disputes(store, &config.column_config())?
 				.unwrap_or_default();
 
-			let _ = rx.send(collect_recent(recent_disputes, now));
+			let _ = rx.send(collect_active(recent_disputes, now));
 		}
 		DisputeCoordinatorMessage::QueryCandidateVotes(
 			session,
@@ -482,14 +487,12 @@ async fn handle_incoming(
 	Ok(())
 }
 
-fn collect_recent(recent_disputes: RecentDisputes, now: Timestamp) -> Vec<(SessionIndex, CandidateHash)> {
-	// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
-	// is not worth considering anymore. Changing this value has little to no bearing on consensus,
-	// and really only affects the work that the node might do on startup during periods of many disputes.
-	const RECENT_DURATION: Timestamp = 180;
-
+fn collect_active(recent_disputes: RecentDisputes, now: Timestamp) -> Vec<(SessionIndex, CandidateHash)> {
 	recent_disputes.iter().filter_map(|(disputed, status)|
-		status.concluded_at().filter(|at| at + RECENT_DURATION >= now).map(move |_| *disputed)
+		status.concluded_at().filter(|at| at + ACTIVE_DURATION_SECS < now).map_or(
+			Some(*disputed),
+			|_| None,
+		)
 	).collect()
 }
 
