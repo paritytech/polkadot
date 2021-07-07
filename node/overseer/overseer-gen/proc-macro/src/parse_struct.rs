@@ -41,8 +41,6 @@ pub(crate) struct SubSysField {
 	/// which is also used `#wrapper_message :: #variant` variant
 	/// part.
 	pub(crate) generic: Ident,
-	/// Type of the subsystem.
-	pub(crate) ty: Path,
 	/// Type to be consumed by the subsystem.
 	pub(crate) consumes: Path,
 	/// If `no_dispatch` is present, if the message is incoming via
@@ -192,13 +190,6 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
-	#[allow(dead_code)]
-	// TODO use as the defaults, if no subsystem is specified
-	// TODO or drop the type argument.
-	pub(crate) fn subsystem_types(&self) -> Vec<Path> {
-		self.subsystems.iter().map(|ssf| ssf.ty.clone()).collect::<Vec<_>>()
-	}
-
 	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
 		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
 	}
@@ -271,6 +262,11 @@ impl OverseerGuts {
 		let n = fields.named.len();
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
+
+		// The types of `#[subsystem(..)]` annotated fields
+		// have to be unique, since they are used as generics
+		// for the builder pattern besides other places.
+		let mut unique_subsystem_idents = HashSet::<Ident>::new();
 		for Field { attrs, vis, ident, ty, .. } in fields.named.into_iter() {
 			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 				let span = attr.path.span();
@@ -301,12 +297,18 @@ impl OverseerGuts {
 					return Err(Error::new(span, "Subsystem must consume at least one message"));
 				}
 
-				let ty = try_type_to_path(ty, span)?;
-				let generic = ty.get_ident().ok_or_else(|| Error::new(ty.span(), "Must be a identifier, not a path."))?.clone();
+				let field_ty = try_type_to_path(ty, span)?;
+				let generic = field_ty.get_ident().ok_or_else(|| Error::new(field_ty.span(), "Must be an identifier, not a path."))?.clone();
+				if let Some(previous) = unique_subsystem_idents.get(&generic) {
+					let mut e = Error::new(generic.span(), format!("Duplicate subsystem names `{}`", generic));
+					e.combine(Error::new(previous.span(), "previously defined here."));
+					return Err(e)
+				}
+				unique_subsystem_idents.insert(generic.clone());
+
 				subsystems.push(SubSysField {
 					name: ident,
 					generic,
-					ty,
 					consumes: consumes_paths[0].clone(),
 					no_dispatch: variant.no_dispatch,
 					wip: variant.wip,

@@ -166,7 +166,7 @@ impl Parse for AttrArgs {
 			.remove(TAG_EXT_ERROR_TY)
 			.map(|x| if let AttrItem::ExternErrorType(x) = x { x.clone() } else { unreachable!() })
 			.ok_or_else(|| {
-				Error::new(span, format!("Must declare the overseer signals type via `{}=..`.", TAG_EXT_ERROR_TY))
+				Error::new(span, format!("Must declare the overseer error type via `{}=..`.", TAG_EXT_ERROR_TY))
 			})?;
 
 		let extern_signal_ty = unique

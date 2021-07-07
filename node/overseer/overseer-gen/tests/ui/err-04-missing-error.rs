@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::overlord;
+use polkadot_overseer_gen::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
 
+#[derive(Clone, Debug)]
 struct SigSigSig;
 
 struct Event;
@@ -26,9 +27,10 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<_,_>::builder()
+	let _ = Overseer::builder()
 		.sub0(AwesomeSubSys::default())
 		.i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)
-		.build(|| -> DummyCtx { DummyCtx } );
+		.build()
+		.unwrap();
 }

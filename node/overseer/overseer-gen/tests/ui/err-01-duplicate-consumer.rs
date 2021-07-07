@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::overlord;
+use polkadot_overseer_gen::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
@@ -8,6 +8,7 @@ struct AwesomeSubSys;
 #[derive(Default)]
 struct AwesomeSubSys2;
 
+#[derive(Clone, Debug)]
 struct SigSigSig;
 
 struct Event;
@@ -15,7 +16,7 @@ struct Event;
 #[derive(Clone)]
 struct MsgStrukt(u8);
 
-#[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
+#[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
 struct Overseer {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
