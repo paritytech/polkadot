@@ -21,7 +21,7 @@ use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, Semantics};
+use sc_executor_wasmtime::{Config, Semantics, DeterministicStackLimit};
 use sp_core::{
 	storage::{ChildInfo, TrackedStorageKey},
 };
@@ -34,7 +34,23 @@ const CONFIG: Config = Config {
 	cache_path: None,
 	semantics: Semantics {
 		fast_instance_reuse: false,
-		stack_depth_metering: false,
+		// Enable determinstic stack limit to pin down the exact number of items the wasmtime stack
+		// can contain before it traps with stack overflow.
+		//
+		// Here is how the values below were chosen.
+		//
+		// At the moment of writing, the default native stack size limit is 1 MiB. Assuming a logical item
+		// (see the docs about the field and the instrumentation algorithm) is 8 bytes, 1 MiB can
+		// fit 2x 65536 logical items.
+		//
+		// Since reaching the native stack limit is undesirable, we halven the logical item limit and
+		// also increase the native 256x. This hopefully should preclude wasm code from reaching
+		// the stack limit set by the wasmtime.
+		deterministic_stack_limit: Some(DeterministicStackLimit {
+			logical_max: 65536,
+			native_stack_max: 256 * 1024 * 1024,
+		}),
+		canonicalize_nans: true,
 	},
 };
 

@@ -321,7 +321,7 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParasInitializer,
+		pub para_validator: Initializer,
 		pub para_assignment: ParasSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
@@ -1487,7 +1487,7 @@ construct_runtime! {
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
 		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage} = 55,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
-		ParasInitializer: parachains_initializer::{Pallet, Call, Storage} = 57,
+		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
