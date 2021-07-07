@@ -24,7 +24,6 @@ use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
 use xcm::v0::Error as XcmError;
 
-
 pub use pallet::*;
 
 /// An error sending a downward message.
