@@ -492,9 +492,10 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#10872bb2542c3c93303e27e085b9725f5683532e"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#4808f96849676024b156581485eae64f95133e97"
 dependencies = [
  "beefy-primitives",
+ "fnv",
  "futures 0.3.15",
  "hex",
  "log",
@@ -520,7 +521,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#10872bb2542c3c93303e27e085b9725f5683532e"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#4808f96849676024b156581485eae64f95133e97"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -541,7 +542,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#10872bb2542c3c93303e27e085b9725f5683532e"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#4808f96849676024b156581485eae64f95133e97"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -4675,7 +4676,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#10872bb2542c3c93303e27e085b9725f5683532e"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#4808f96849676024b156581485eae64f95133e97"
 dependencies = [
  "beefy-primitives",
  "frame-support",
