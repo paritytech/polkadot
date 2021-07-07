@@ -1,5 +1,3 @@
-use super::*;
-
 #[test]
 fn ui_pass() {
     let t = trybuild::TestCases::new();

@@ -160,8 +160,7 @@ pub async fn determine_new_blocks<E, Sender>(
 mod tests {
 	use super::*;
 	use std::collections::{HashSet, HashMap};
-	use polkadot_node_subsystem::messages::AvailabilityStoreMessage;
-use sp_core::testing::TaskExecutor;
+	use sp_core::testing::TaskExecutor;
 	use polkadot_overseer::{AllMessages, SubsystemContext};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use assert_matches::assert_matches;

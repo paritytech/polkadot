@@ -29,7 +29,6 @@ use futures_timer::Delay;
 use polkadot_node_primitives::{PoV, BlockData};
 use polkadot_primitives::v1::Hash;
 use polkadot_overseer::{
-	SubsystemSender as _,
 	self as overseer,
 	AllMessages,
 	AllSubsystems,
@@ -38,14 +37,12 @@ use polkadot_overseer::{
 	OverseerSignal,
 	SubsystemError,
 	gen::{
-		SubsystemContext,
 		FromOverseer,
 		SpawnedSubsystem,
 	},
 };
 use polkadot_node_subsystem_types::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
-	NetworkBridgeMessage,
 };
 
 struct AlwaysSupportsParachains;

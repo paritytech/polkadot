@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
-
 #[derive(Clone, AllSubsystemsGen)]
 struct AllSubsystems<X> {
 	a: X,

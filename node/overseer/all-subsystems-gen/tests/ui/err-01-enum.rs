@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_procmacro_overseer_subsystems_gen::AllSubsystemsGen;
+use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
 
 #[derive(Clone, AllSubsystemsGen)]
 enum AllSubsystems<A,B> {

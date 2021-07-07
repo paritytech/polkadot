@@ -29,7 +29,6 @@ use futures::channel::oneshot;
 use polkadot_node_primitives::{
 	BabeEpoch, BabeEpochConfiguration, BabeAllowedSlots,
 };
-use polkadot_subsystem::messages::AllMessages;
 
 #[derive(Default, Clone)]
 struct MockRuntimeApi {

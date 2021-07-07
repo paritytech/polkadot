@@ -21,7 +21,6 @@ use futures::channel::oneshot;
 
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use parking_lot::Mutex;

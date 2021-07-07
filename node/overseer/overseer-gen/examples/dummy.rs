@@ -1,9 +1,6 @@
 //! A dummy to be used with cargo expand
 
-use std::convert::Infallible;
-
 use polkadot_overseer_gen::*;
-use polkadot_node_subsystem::messages::NetworkBridgeEvent;
 use polkadot_node_network_protocol::WrongVariant;
 
 
@@ -12,7 +9,7 @@ use polkadot_node_network_protocol::WrongVariant;
 pub struct AwesomeSubSys;
 
 impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
-	fn start(self, ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
+	fn start(self, _ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("starting yay!")
 	}
 }
@@ -21,7 +18,7 @@ impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> f
 pub struct GoblinTower;
 
 impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
-	fn start(self, ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
+	fn start(self, _ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("welcum")
 	}
 }
@@ -113,12 +110,12 @@ struct Xxx {
 struct DummySpawner;
 
 impl SpawnNamed for DummySpawner{
-	fn spawn_blocking(&self, name: &'static str, future: futures::future::BoxFuture<'static, ()>) {
-		unimplemented!("spawn blocking")
+	fn spawn_blocking(&self, name: &'static str, _future: futures::future::BoxFuture<'static, ()>) {
+		unimplemented!("spawn blocking {}", name)
 	}
 
-	fn spawn(&self, name: &'static str, future: futures::future::BoxFuture<'static, ()>) {
-		unimplemented!("spawn")
+	fn spawn(&self, name: &'static str, _future: futures::future::BoxFuture<'static, ()>) {
+		unimplemented!("spawn {}", name)
 	}
 }
 
@@ -126,10 +123,12 @@ impl SpawnNamed for DummySpawner{
 struct DummyCtx;
 
 fn main() {
-	let overseer = Xxx::builder()
+	let (overseer, _handler): (Xxx<_>, _) = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)
 		.spawner(DummySpawner)
-		.build();
+		.build()
+		.unwrap();
+	assert_eq!(overseer.i_like_pi.floor() as i8, 3);
 }

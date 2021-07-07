@@ -297,7 +297,7 @@ async fn load_all_sessions(
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage, AvailabilityStoreMessage};
+	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use sp_core::testing::TaskExecutor;
 	use assert_matches::assert_matches;
 
