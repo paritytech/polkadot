@@ -920,7 +920,7 @@ mod tests {
 	use sc_keystore::LocalKeystore;
 	use crate::mock::{
 		new_test_ext, Configuration, Paras, System, Inclusion,
-		MockGenesisConfig, Test, Shared,
+		MockGenesisConfig, Test, ParasShared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -1049,10 +1049,10 @@ mod tests {
 
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
-			Shared::initializer_finalize();
+			ParasShared::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
-				Shared::initializer_on_new_session(
+				ParasShared::initializer_on_new_session(
 					notification.session_index,
 					notification.random_seed,
 					&notification.new_config,
@@ -1067,7 +1067,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			Shared::initializer_initialize(b + 1);
+			ParasShared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 			Inclusion::initializer_initialize(b + 1);
 		}
@@ -1082,11 +1082,11 @@ mod tests {
 	}
 
 	fn default_availability_votes() -> BitVec<BitOrderLsb0, u8> {
-		bitvec::bitvec![BitOrderLsb0, u8; 0; Shared::active_validator_keys().len()]
+		bitvec::bitvec![BitOrderLsb0, u8; 0; ParasShared::active_validator_keys().len()]
 	}
 
 	fn default_backing_bitfield() -> BitVec<BitOrderLsb0, u8> {
-		bitvec::bitvec![BitOrderLsb0, u8; 0; Shared::active_validator_keys().len()]
+		bitvec::bitvec![BitOrderLsb0, u8; 0; ParasShared::active_validator_keys().len()]
 	}
 
 	fn backing_bitfield(v: &[usize]) -> BitVec<BitOrderLsb0, u8> {

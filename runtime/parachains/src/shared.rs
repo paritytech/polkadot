@@ -49,19 +49,19 @@ pub mod pallet {
 	/// The current session index.
 	#[pallet::storage]
 	#[pallet::getter(fn session_index)]
-	pub type CurrentSessionIndex<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+	pub(super) type CurrentSessionIndex<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
 
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_indices)]
-	pub type ActiveValidatorIndices<T: Config> = StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
+	pub(super) type ActiveValidatorIndices<T: Config> = StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
 
 	/// The parachain attestation keys of the validators actively participating in parachain consensus.
 	/// This should be the same length as `ActiveValidatorIndices`.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_keys)]
-	pub type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
+	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -144,7 +144,7 @@ impl<T: Config> Pallet<T> {
 mod tests {
 	use super::*;
 	use crate::configuration::HostConfiguration;
-	use crate::mock::{new_test_ext, MockGenesisConfig, Shared};
+	use crate::mock::{new_test_ext, MockGenesisConfig, ParasShared};
 	use keyring::Sr25519Keyring;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -167,7 +167,7 @@ mod tests {
 		let pubkeys = validator_pubkeys(&validators);
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = Shared::initializer_on_new_session(
+			let validators = ParasShared::initializer_on_new_session(
 				1,
 				[1; 32],
 				&config,
@@ -186,12 +186,12 @@ mod tests {
 			);
 
 			assert_eq!(
-				Shared::active_validator_keys(),
+				ParasShared::active_validator_keys(),
 				validators,
 			);
 
 			assert_eq!(
-				Shared::active_validator_indices(),
+				ParasShared::active_validator_indices(),
 				vec![
 					ValidatorIndex(4),
 					ValidatorIndex(1),
@@ -219,7 +219,7 @@ mod tests {
 		let pubkeys = validator_pubkeys(&validators);
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = Shared::initializer_on_new_session(
+			let validators = ParasShared::initializer_on_new_session(
 				1,
 				[1; 32],
 				&config,
@@ -235,12 +235,12 @@ mod tests {
 			);
 
 			assert_eq!(
-				Shared::active_validator_keys(),
+				ParasShared::active_validator_keys(),
 				validators,
 			);
 
 			assert_eq!(
-				Shared::active_validator_indices(),
+				ParasShared::active_validator_indices(),
 				vec![
 					ValidatorIndex(4),
 					ValidatorIndex(1),

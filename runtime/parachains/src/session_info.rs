@@ -169,7 +169,7 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin, Shared,
+		Origin, ParasShared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -185,14 +185,14 @@ mod tests {
 			let b = System::block_number();
 
 			SessionInfo::initializer_finalize();
-			Shared::initializer_finalize();
+			ParasShared::initializer_finalize();
 			Configuration::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
 				Configuration::initializer_on_new_session(
 					&notification.session_index,
 				);
-				Shared::initializer_on_new_session(
+				ParasShared::initializer_on_new_session(
 					notification.session_index,
 					notification.random_seed,
 					&notification.new_config,
@@ -207,7 +207,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			Configuration::initializer_initialize(b + 1);
-			Shared::initializer_initialize(b + 1);
+			ParasShared::initializer_initialize(b + 1);
 			SessionInfo::initializer_initialize(b + 1);
 		}
 	}
@@ -342,12 +342,12 @@ mod tests {
 		let validators = take_active_subset(&active_set, &unscrambled_validators);
 
 		new_test_ext(genesis_config()).execute_with(|| {
-			Shared::set_active_validators_with_indices(
+			ParasShared::set_active_validators_with_indices(
 				active_set.clone(),
 				validators.clone(),
 			);
 
-			assert_eq!(Shared::active_validator_indices(), active_set);
+			assert_eq!(ParasShared::active_validator_indices(), active_set);
 
 			AssignmentKeysUnsafe::set(unscrambled_assignment.clone());
 			crate::mock::set_discovery_authorities(unscrambled_discovery.clone());
