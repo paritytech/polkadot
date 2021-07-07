@@ -58,6 +58,7 @@
 // unused dependencies can not work for test and examples at the same time
 // yielding false positives
 #![deny(missing_docs)]
+#![deny(unused_crate_dependencies)]
 
 pub use polkadot_overseer_gen_proc_macro::overlord;
 

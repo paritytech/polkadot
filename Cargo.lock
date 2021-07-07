@@ -2568,7 +2568,7 @@ dependencies = [
  "log",
  "slab",
  "tokio 0.2.21",
- "tokio-util 0.3.1",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3289,7 +3289,7 @@ dependencies = [
  "thiserror",
  "tokio 0.2.21",
  "tokio-rustls 0.15.0",
- "tokio-util 0.3.1",
+ "tokio-util",
  "url 2.2.0",
 ]
 
@@ -6535,11 +6535,9 @@ dependencies = [
  "metered-channel",
  "pin-project 1.0.7",
  "polkadot-node-network-protocol",
- "polkadot-node-subsystem",
  "polkadot-overseer-gen-proc-macro",
  "sp-core",
  "thiserror",
- "tokio-util 0.6.7",
  "tracing",
  "trybuild",
 ]
@@ -6549,11 +6547,9 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote",
  "syn",
- "trybuild",
 ]
 
 [[package]]
@@ -10947,21 +10943,6 @@ dependencies = [
  "log",
  "pin-project-lite 0.1.7",
  "tokio 0.2.21",
-]
-
-[[package]]
-name = "tokio-util"
-version = "0.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1caa0b0c8d94a049db56b5acf8cba99dc0623aab1b26d5b5f5e2d945846b3592"
-dependencies = [
- "bytes 1.0.1",
- "futures-core",
- "futures-sink",
- "log",
- "pin-project-lite 0.2.4",
- "slab",
- "tokio 1.6.1",
 ]
 
 [[package]]
