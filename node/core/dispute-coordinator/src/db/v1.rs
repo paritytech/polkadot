@@ -24,7 +24,7 @@ use polkadot_primitives::v1::{
 use kvdb::{KeyValueDB, DBTransaction};
 use parity_scale_codec::{Encode, Decode};
 
-use crate::{DISPUTE_WINDOW, DisputeStatus, Timestamp};
+use crate::{DISPUTE_WINDOW, DisputeStatus};
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";

@@ -27,6 +27,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem::{
@@ -64,7 +65,7 @@ const LOG_TARGET: &str = "parachain::dispute-coordinator";
 // On Polkadot this is 1 day, and on Kusama it's 6 hours.
 const DISPUTE_WINDOW: SessionIndex = 6;
 
-// TODO [now]
+/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 type Timestamp = u64;
 
 struct State {
@@ -108,13 +109,42 @@ impl<Context> Subsystem<Context> for DisputeCoordinatorSubsystem
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx)
+		let future = run(self, ctx, Box::new(SystemClock))
 			.map(|_| Ok(()))
 			.boxed();
 
 		SpawnedSubsystem {
 			name: "dispute-coordinator-subsystem",
 			future,
+		}
+	}
+}
+
+trait Clock: Send + Sync {
+	fn now(&self) -> Timestamp;
+}
+
+struct SystemClock;
+
+impl Clock for SystemClock {
+	fn now(&self) -> Timestamp {
+		// `SystemTime` is notoriously non-monotonic, so our timers might not work
+		// exactly as expected.
+		//
+		// Regardless, disputes are considered active based on an order of minutes,
+		// so a few seconds of slippage in either direction shouldn't affect the
+		// amount of work the node is doing significantly.
+		match SystemTime::now().duration_since(UNIX_EPOCH) {
+			Ok(d) => d.as_secs(),
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Current time is before unix epoch. Validation will not work correctly."
+				);
+
+				0
+			}
 		}
 	}
 }
@@ -216,13 +246,25 @@ impl DisputeStatus {
 			DisputeStatus::ConcludedFor(_) => false,
 		}
 	}
+
+	/// Yields the timestamp this dispute concluded at, if any.
+	pub fn concluded_at(&self) -> Option<Timestamp> {
+		match self {
+			DisputeStatus::Active => None,
+			DisputeStatus::ConcludedFor(at) | DisputeStatus::ConcludedAgainst(at) => Some(*at),
+		}
+	}
 }
 
-async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
+async fn run<Context>(
+	subsystem: DisputeCoordinatorSubsystem,
+	mut ctx: Context,
+	clock: Box<dyn Clock>,
+)
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	loop {
-		let res = run_iteration(&mut ctx, &subsystem).await;
+		let res = run_iteration(&mut ctx, &subsystem, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -244,7 +286,11 @@ async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
-async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinatorSubsystem)
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	subsystem: &DisputeCoordinatorSubsystem,
+	clock: &dyn Clock,
+)
 	-> Result<(), Error>
 	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
@@ -277,6 +323,7 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 					&mut state,
 					config,
 					msg,
+					clock.now(),
 				).await?
 			}
 		}
@@ -340,8 +387,6 @@ async fn handle_new_activations(
 			}
 			_ => {}
 		}
-
-		// TODO [after https://github.com/paritytech/polkadot/issues/3160]: chain rollbacks
 	}
 
 	Ok(())
@@ -353,6 +398,7 @@ async fn handle_incoming(
 	state: &mut State,
 	config: &Config,
 	message: DisputeCoordinatorMessage,
+	now: Timestamp,
 ) -> Result<(), Error> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
@@ -370,6 +416,7 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				statements,
+				now,
 			).await?;
 		}
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
@@ -382,7 +429,7 @@ async fn handle_incoming(
 			let recent_disputes = db::v1::load_recent_disputes(store, &config.column_config())?
 				.unwrap_or_default();
 
-			let _ = rx.send(unimplemented!());
+			let _ = rx.send(collect_recent(recent_disputes, now));
 		}
 		DisputeCoordinatorMessage::QueryCandidateVotes(
 			session,
@@ -413,6 +460,7 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				valid,
+				now,
 			).await?;
 		}
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
@@ -432,6 +480,17 @@ async fn handle_incoming(
 	}
 
 	Ok(())
+}
+
+fn collect_recent(recent_disputes: RecentDisputes, now: Timestamp) -> Vec<(SessionIndex, CandidateHash)> {
+	// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
+	// is not worth considering anymore. Changing this value has little to no bearing on consensus,
+	// and really only affects the work that the node might do on startup during periods of many disputes.
+	const RECENT_DURATION: Timestamp = 180;
+
+	recent_disputes.iter().filter_map(|(disputed, status)|
+		status.concluded_at().filter(|at| at + RECENT_DURATION >= now).map(move |_| *disputed)
+	).collect()
 }
 
 fn insert_into_statement_vec<T>(
@@ -457,6 +516,7 @@ async fn handle_import_statements(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	now: Timestamp,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		return Ok(());
@@ -491,8 +551,6 @@ async fn handle_import_statements(
 			valid: Vec::new(),
 			invalid: Vec::new(),
 		});
-
-	let was_undisputed = votes.valid.is_empty() || votes.invalid.is_empty();
 
 	// Update candidate votes.
 	for (statement, val_index) in statements {
@@ -547,8 +605,6 @@ async fn handle_import_statements(
 			.entry((session, candidate_hash))
 			.or_insert(DisputeStatus::active());
 
-		let now: Timestamp = unimplemented!();
-
 		// Note: concluded-invalid overwrites concluded-valid,
 		// so we do this check first. Dispute state machine is
 		// non-commutative.
@@ -597,6 +653,7 @@ async fn issue_local_statement(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	valid: bool,
+	now: Timestamp,
 ) -> Result<(), Error> {
 	// Load session info.
 	let validators = match state.rolling_session_window.session_info(session) {
@@ -673,6 +730,7 @@ async fn issue_local_statement(
 			candidate_receipt,
 			session,
 			statements,
+			now,
 		).await?;
 	}
 
