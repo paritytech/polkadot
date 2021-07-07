@@ -854,7 +854,8 @@ where
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),	state: &mut State<impl DBReader>,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	state: &mut State<impl DBReader>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
 	currently_checking_set: &mut CurrentlyCheckingSet,
