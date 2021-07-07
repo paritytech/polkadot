@@ -132,18 +132,6 @@ pub use polkadot_overseer_gen::{
 };
 pub use polkadot_overseer_gen as gen;
 
-/// Boiler plate reduction, `Signal` and `AllMessages` are fixed for one overseer.
-/// So the only variation for external entities is `M`.
-pub trait SubsystemCtx<M> : SubsystemContext<Message = M, Signal = OverseerSignal, AllMessages = AllMessages> {
-}
-
-impl<T,M> SubsystemCtx<M> for T
-where
-	T: SubsystemContext<Message = M, Signal = OverseerSignal, AllMessages = AllMessages>
-{
-}
-
-
 /// Whether a header supports parachain consensus or not.
 pub trait HeadSupportsParachains {
 	/// Return true if the given header supports parachain consensus. Otherwise, false.
