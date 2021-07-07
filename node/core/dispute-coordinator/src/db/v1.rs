@@ -321,17 +321,13 @@ mod tests {
 			tx.put_earliest_session(0);
 			tx.put_earliest_session(1);
 
-			tx.put_recent_disputes(RecentDisputes {
-				disputed: vec![
-					(0, CandidateHash(Hash::repeat_byte(0))),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((0, CandidateHash(Hash::repeat_byte(0))), DisputeStatus::Active),
+			].into_iter().collect());
 
-			tx.put_recent_disputes(RecentDisputes {
-				disputed: vec![
-					(1, CandidateHash(Hash::repeat_byte(1))),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
+			].into_iter().collect());
 
 			tx.put_candidate_votes(
 				1,
@@ -369,11 +365,9 @@ mod tests {
 
 			assert_eq!(
 				load_recent_disputes(&store, &config).unwrap().unwrap(),
-				RecentDisputes {
-					disputed: vec![
-						(1, CandidateHash(Hash::repeat_byte(1))),
-					],
-				},
+				vec![
+					((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
+				].into_iter().collect()
 			);
 
 			assert_eq!(
@@ -477,14 +471,12 @@ mod tests {
 		{
 			let mut tx = Transaction::default();
 			tx.put_earliest_session(prev_earliest_session);
-			tx.put_recent_disputes(RecentDisputes {
-				disputed: vec![
-					(very_old, hash_a),
-					(slightly_old, hash_b),
-					(new_earliest_session, hash_c),
-					(very_recent, hash_d),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((very_old, hash_a), DisputeStatus::Active),
+				((slightly_old, hash_b), DisputeStatus::Active),
+				((new_earliest_session, hash_c), DisputeStatus::Active),
+				((very_recent, hash_d), DisputeStatus::Active),
+			].into_iter().collect());
 
 			tx.put_candidate_votes(
 				very_old,
@@ -522,9 +514,10 @@ mod tests {
 
 		assert_eq!(
 			load_recent_disputes(&store, &config).unwrap().unwrap(),
-			RecentDisputes {
-				disputed: vec![(new_earliest_session, hash_c), (very_recent, hash_d)],
-			},
+			vec![
+				((new_earliest_session, hash_c), DisputeStatus::Active),
+				((very_recent, hash_d), DisputeStatus::Active),
+			].into_iter().collect(),
 		);
 
 		assert!(load_candidate_votes(&store, &config, very_old, &hash_a).unwrap().is_none());
