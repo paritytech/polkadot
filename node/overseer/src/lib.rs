@@ -132,6 +132,10 @@ pub use polkadot_overseer_gen::{
 };
 pub use polkadot_overseer_gen as gen;
 
+/// Store 2 days worth of blocks, not accounting for forks,
+/// in the LRU cache. Assumes a 6-second block time.
+const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+
 /// Whether a header supports parachain consensus or not.
 pub trait HeadSupportsParachains {
 	/// Return true if the given header supports parachain consensus. Otherwise, false.
@@ -586,7 +590,7 @@ where
 			.leaves(Vec::from_iter(
 				leaves.into_iter().map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			))
-			.known_leaves(LruCache::new(128))// FIXME verify this number
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 			.active_leaves(Default::default())
 			.span_per_active_leaf(Default::default())
 			.activation_external_listeners(Default::default())
