@@ -59,7 +59,8 @@
 // yielding false positives
 #![deny(missing_docs)]
 
-pub use overseer_gen_proc_macro::*;
+pub use polkadot_overseer_gen_proc_macro::overlord;
+
 #[doc(hidden)]
 pub use tracing;
 #[doc(hidden)]
