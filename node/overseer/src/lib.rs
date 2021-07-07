@@ -643,12 +643,10 @@ where
 
 	/// Stop the overseer.
 	async fn stop(mut self) {
-		::std::mem::drop(
-			self.wait_terminate(
+		let _ = self.wait_terminate(
 				OverseerSignal::Conclude,
 				::std::time::Duration::from_secs(1_u64)
-			).await
-		);
+			).await;
 	}
 
 	/// Run the `Overseer`.
