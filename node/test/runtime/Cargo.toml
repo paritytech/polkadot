@@ -24,6 +24,7 @@ sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }

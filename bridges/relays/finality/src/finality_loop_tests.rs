@@ -20,7 +20,8 @@
 
 use crate::finality_loop::{
 	prune_recent_finality_proofs, read_finality_proofs_from_stream, run, select_better_recent_finality_proof,
-	FinalityProofs, FinalitySyncParams, SourceClient, TargetClient,
+	select_header_to_submit, FinalityProofs, FinalitySyncParams, RestartableFinalityProofsStream, SourceClient,
+	TargetClient,
 };
 use crate::{FinalityProof, FinalitySyncPipeline, SourceHeader};
 
@@ -165,8 +166,11 @@ impl TargetClient<TestFinalitySyncPipeline> for TestTargetClient {
 	}
 }
 
-fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static) -> ClientsData {
-	let (exit_sender, exit_receiver) = futures::channel::mpsc::unbounded();
+fn prepare_test_clients(
+	exit_sender: futures::channel::mpsc::UnboundedSender<()>,
+	state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static,
+	source_headers: HashMap<TestNumber, (TestSourceHeader, Option<TestFinalityProof>)>,
+) -> (TestSourceClient, TestTargetClient) {
 	let internal_state_function: Arc<dyn Fn(&mut ClientsData) + Send + Sync> = Arc::new(move |data| {
 		if state_function(data) {
 			exit_sender.unbounded_send(()).unwrap();
@@ -174,7 +178,30 @@ fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync
 	});
 	let clients_data = Arc::new(Mutex::new(ClientsData {
 		source_best_block_number: 10,
-		source_headers: vec![
+		source_headers,
+		source_proofs: vec![TestFinalityProof(12), TestFinalityProof(14)],
+
+		target_best_block_number: 5,
+		target_headers: vec![],
+	}));
+	(
+		TestSourceClient {
+			on_method_call: internal_state_function.clone(),
+			data: clients_data.clone(),
+		},
+		TestTargetClient {
+			on_method_call: internal_state_function,
+			data: clients_data,
+		},
+	)
+}
+
+fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync + 'static) -> ClientsData {
+	let (exit_sender, exit_receiver) = futures::channel::mpsc::unbounded();
+	let (source_client, target_client) = prepare_test_clients(
+		exit_sender,
+		state_function,
+		vec![
 			(6, (TestSourceHeader(false, 6), None)),
 			(7, (TestSourceHeader(false, 7), Some(TestFinalityProof(7)))),
 			(8, (TestSourceHeader(true, 8), Some(TestFinalityProof(8)))),
@@ -183,26 +210,15 @@ fn run_sync_loop(state_function: impl Fn(&mut ClientsData) -> bool + Send + Sync
 		]
 		.into_iter()
 		.collect(),
-		source_proofs: vec![TestFinalityProof(12), TestFinalityProof(14)],
-
-		target_best_block_number: 5,
-		target_headers: vec![],
-	}));
-	let source_client = TestSourceClient {
-		on_method_call: internal_state_function.clone(),
-		data: clients_data.clone(),
-	};
-	let target_client = TestTargetClient {
-		on_method_call: internal_state_function,
-		data: clients_data.clone(),
-	};
+	);
 	let sync_params = FinalitySyncParams {
-		is_on_demand_task: false,
 		tick: Duration::from_secs(0),
 		recent_finality_proofs_limit: 1024,
 		stall_timeout: Duration::from_secs(1),
+		only_mandatory_headers: false,
 	};
 
+	let clients_data = source_client.data.clone();
 	let _ = async_std::task::block_on(run(
 		source_client,
 		target_client,
@@ -257,6 +273,65 @@ fn finality_sync_loop_works() {
 			// after adding 15..17: persistent finality proof for non-mandatory header#16
 			(TestSourceHeader(false, 16), TestFinalityProof(16)),
 		],
+	);
+}
+
+fn run_only_mandatory_headers_mode_test(
+	only_mandatory_headers: bool,
+	has_mandatory_headers: bool,
+) -> Option<(TestSourceHeader, TestFinalityProof)> {
+	let (exit_sender, _) = futures::channel::mpsc::unbounded();
+	let (source_client, target_client) = prepare_test_clients(
+		exit_sender,
+		|_| false,
+		vec![
+			(6, (TestSourceHeader(false, 6), Some(TestFinalityProof(6)))),
+			(7, (TestSourceHeader(false, 7), Some(TestFinalityProof(7)))),
+			(
+				8,
+				(TestSourceHeader(has_mandatory_headers, 8), Some(TestFinalityProof(8))),
+			),
+			(9, (TestSourceHeader(false, 9), Some(TestFinalityProof(9)))),
+			(10, (TestSourceHeader(false, 10), Some(TestFinalityProof(10)))),
+		]
+		.into_iter()
+		.collect(),
+	);
+	async_std::task::block_on(select_header_to_submit(
+		&source_client,
+		&target_client,
+		&mut RestartableFinalityProofsStream::from(futures::stream::empty().boxed()),
+		&mut vec![],
+		10,
+		5,
+		&FinalitySyncParams {
+			tick: Duration::from_secs(0),
+			recent_finality_proofs_limit: 0,
+			stall_timeout: Duration::from_secs(0),
+			only_mandatory_headers,
+		},
+	))
+	.unwrap()
+}
+
+#[test]
+fn select_header_to_submit_skips_non_mandatory_headers_when_only_mandatory_headers_are_required() {
+	assert_eq!(run_only_mandatory_headers_mode_test(true, false), None);
+	assert_eq!(
+		run_only_mandatory_headers_mode_test(false, false),
+		Some((TestSourceHeader(false, 10), TestFinalityProof(10))),
+	);
+}
+
+#[test]
+fn select_header_to_submit_selects_mandatory_headers_when_only_mandatory_headers_are_required() {
+	assert_eq!(
+		run_only_mandatory_headers_mode_test(true, true),
+		Some((TestSourceHeader(true, 8), TestFinalityProof(8))),
+	);
+	assert_eq!(
+		run_only_mandatory_headers_mode_test(false, true),
+		Some((TestSourceHeader(true, 8), TestFinalityProof(8))),
 	);
 }
 
@@ -343,7 +418,7 @@ fn read_finality_proofs_from_stream_works() {
 	let mut stream = futures::stream::pending().into();
 	read_finality_proofs_from_stream::<TestFinalitySyncPipeline, _>(&mut stream, &mut recent_finality_proofs);
 	assert_eq!(recent_finality_proofs, vec![(1, TestFinalityProof(1))]);
-	assert_eq!(stream.needs_restart, false);
+	assert!(!stream.needs_restart);
 
 	// when stream has entry with target, it is added to the recent proofs container
 	let mut stream = futures::stream::iter(vec![TestFinalityProof(4)])
@@ -354,7 +429,7 @@ fn read_finality_proofs_from_stream_works() {
 		recent_finality_proofs,
 		vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]
 	);
-	assert_eq!(stream.needs_restart, false);
+	assert!(!stream.needs_restart);
 
 	// when stream has ended, we'll need to restart it
 	let mut stream = futures::stream::empty().into();
@@ -363,7 +438,7 @@ fn read_finality_proofs_from_stream_works() {
 		recent_finality_proofs,
 		vec![(1, TestFinalityProof(1)), (4, TestFinalityProof(4))]
 	);
-	assert_eq!(stream.needs_restart, true);
+	assert!(stream.needs_restart);
 }
 
 #[test]

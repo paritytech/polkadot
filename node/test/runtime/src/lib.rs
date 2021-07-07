@@ -81,105 +81,11 @@ impl ChainInfo for PolkadotChainInfo {
             claims::PrevalidateAttests::<Runtime>::new(),
         )
     }
-
-    fn config(task_executor: TaskExecutor) -> Configuration {
-        default_config(task_executor, Box::new(polkadot_development_config().unwrap()))
-    }
-
-    fn create_client_parts(
-        config: &Configuration,
-    ) -> Result<
-        (
-            Arc<TFullClient<Self::Block, RuntimeApi, Self::Executor>>,
-            Arc<TFullBackend<Self::Block>>,
-            SyncCryptoStorePtr,
-            TaskManager,
-            Box<dyn CreateInherentDataProviders<
-                Self::Block,
-                (),
-                InherentDataProviders = Self::InherentDataProviders
-            >>,
-            Option<
-                Box<
-                    dyn ConsensusDataProvider<
-                        Self::Block,
-                        Transaction = TransactionFor<
-                            TFullClient<Self::Block, RuntimeApi, Self::Executor>,
-                            Self::Block,
-                        >,
-                    >,
-                >,
-            >,
-            Self::SelectChain,
-            Self::BlockImport,
-            BasicQueue<
-                Self::Block,
-                TransactionFor<
-                    TFullClient<Self::Block, Self::RuntimeApi, Self::Executor>,
-                    Self::Block,
-                >,
-            >
-        ),
-        sc_service::Error,
-    > {
-        let (client, backend, keystore, task_manager) =
-            new_full_parts::<Self::Block, RuntimeApi, Self::Executor>(config, None)?;
-        let client = Arc::new(client);
-
-        let select_chain = sc_consensus::LongestChain::new(backend.clone());
-
-        let (grandpa_block_import, ..) =
-            grandpa::block_import(client.clone(), &(client.clone() as Arc<_>), select_chain.clone(), None)?;
-
-        let (block_import, babe_link) = sc_consensus_babe::block_import(
-            sc_consensus_babe::Config::get_or_compute(&*client)?,
-            grandpa_block_import,
-            client.clone(),
-        )?;
-
-        let consensus_data_provider = BabeConsensusDataProvider::new(
-            client.clone(),
-            keystore.sync_keystore(),
-            babe_link.epoch_changes().clone(),
-            vec![(AuthorityId::from(Alice.public()), 1000)],
-        )
-            .expect("failed to create ConsensusDataProvider");
-
-        let import_queue = BasicQueue::new(
-            BabeVerifier::new(babe_link.epoch_changes().clone(), client.clone()),
-            Box::new(block_import.clone()),
-            None,
-            &task_manager.spawn_essential_handle(),
-            None,
-        );
-
-        Ok((
-            client.clone(),
-            backend,
-            keystore.sync_keystore(),
-            task_manager,
-            Box::new(move |_, _| {
-                let client = client.clone();
-                async move {
-                    let timestamp = SlotTimestampProvider::new(client.clone()).map_err(|err| format!("{:?}", err))?;
-                    let babe = sp_consensus_babe::inherents::InherentDataProvider::new(timestamp.slot().into());
-                    Ok((timestamp, babe))
-                }
-            }),
-            Some(Box::new(consensus_data_provider)),
-            select_chain,
-            block_import,
-            import_queue,
-        ))
-    }
-
-    fn dispatch_with_root(call: <Runtime as frame_system::Config>::Call, node: &Node<Self>) {
-        dispatch_with_pallet_democracy(call, node)
-    }
 }
 
 /// Dispatch with pallet_democracy
-pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &Node<T>)
+pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &Node<T>)
+    -> Result<(), sc_transaction_pool::error::Error>
     where
         T: ChainInfo<
             Block = Block,
@@ -218,8 +124,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     ));
 
     // note the call (pre-image?) of the call.
-    node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone());
-    node.seal_blocks(1);
+    node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone()).await?;
+    node.seal_blocks(1).await;
 
     // fetch proposal hash from event emitted by the runtime
     let events = node.events();
@@ -243,8 +149,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         proposal_length
     );
 
-    node.submit_extrinsic(proposal.clone(), council_collective[0].clone());
-    node.seal_blocks(1);
+    node.submit_extrinsic(proposal.clone(), council_collective[0].clone()).await?;
+    node.seal_blocks(1).await;
 
     // fetch proposal index from event emitted by the runtime
     let events = node.events();
@@ -261,14 +167,14 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     // vote
     for member in &council_collective[1..] {
         let call = CouncilCollectiveCall::vote(council_proposal_hash.clone(), council_proposal_index, true);
-        node.submit_extrinsic(call, member.clone());
+        node.submit_extrinsic(call, member.clone()).await?;
     }
-    node.seal_blocks(1);
+    node.seal_blocks(1).await;
 
     // close vote
     let call = CouncilCollectiveCall::close(council_proposal_hash, council_proposal_index, proposal_weight, proposal_length);
-    node.submit_extrinsic(call, council_collective[0].clone());
-    node.seal_blocks(1);
+    node.submit_extrinsic(call, council_collective[0].clone()).await?;
+    node.seal_blocks(1).await;
 
     // assert that proposal has been passed on chain
     let events = node.events()
@@ -296,8 +202,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         fast_track_length
     );
 
-    node.submit_extrinsic(proposal, technical_collective[0].clone());
-    node.seal_blocks(1);
+    node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
+    node.seal_blocks(1).await;
 
     let (technical_proposal_index, technical_proposal_hash) = node.events()
         .into_iter()
@@ -315,9 +221,9 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
     // vote
     for member in &technical_collective[1..] {
         let call = TechnicalCollectiveCall::vote(technical_proposal_hash.clone(), technical_proposal_index, true);
-        node.submit_extrinsic(call, member.clone());
+        node.submit_extrinsic(call, member.clone()).await?;
     }
-    node.seal_blocks(1);
+    node.seal_blocks(1).await;
 
     // close vote
     let call = TechnicalCollectiveCall::close(
@@ -326,8 +232,8 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         proposal_weight,
         fast_track_length,
     );
-    node.submit_extrinsic(call, technical_collective[0].clone());
-    node.seal_blocks(1);
+    node.submit_extrinsic(call, technical_collective[0].clone()).await?;
+    node.seal_blocks(1).await;
 
     // assert that fast-track proposal has been passed on chain
     let collective_events = node.events()
@@ -362,11 +268,11 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
         }
     );
     for whale in whales {
-        node.submit_extrinsic(call.clone(), whale);
+        node.submit_extrinsic(call.clone(), whale).await?;
     }
 
     // wait for fast track period.
-    node.seal_blocks(FastTrackVotingPeriod::get() as usize);
+    node.seal_blocks(FastTrackVotingPeriod::get() as usize).await;
 
     // assert that the proposal is passed by looking at events
     let events = node.events()
@@ -383,25 +289,38 @@ pub fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Conf
 
     // make sure all events were emitted
     assert_eq!(events.len(), 3);
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
+    use test_runner::{ConfigOrChainSpec, client_parts, task_executor, build_runtime};
 
     #[test]
     fn test_runner() {
-        let node = Node::<PolkadotChainInfo>::new().unwrap();
-        // seals blocks
-        node.seal_blocks(1);
-        // submit extrinsics
-        let alice = MultiSigner::from(Alice.public()).into_account();
-        node.submit_extrinsic(frame_system::Call::remark((b"hello world").to_vec()), alice);
+        let mut runtime = build_runtime().unwrap();
+        let task_executor = task_executor(runtime.handle().clone());
+        let (rpc,task_manager, client, pool, command_sink, backend) =
+            client_parts::<PolkadotChainInfo>(
+                ConfigOrChainSpec::ChainSpec(Box::new(polkadot_development_config()), task_executor)
+            )?;
+        let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
-        // look ma, I can read state.
-        let _events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
-        // get access to the underlying client.
-        let _client = node.client();
+        runtime.block_on(async {
+           // seals blocks
+           node.seal_blocks(1).await;
+           // submit extrinsics
+           let alice = MultiSigner::from(Alice.public()).into_account();
+           node.submit_extrinsic(frame_system::Call::remark((b"hello world").to_vec()), alice)
+               .await
+               .unwrap();
+
+           // look ma, I can read state.
+           let _events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
+           // get access to the underlying client.
+           let _client = node.client();
+       });
     }
 }

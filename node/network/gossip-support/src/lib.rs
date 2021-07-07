@@ -52,6 +52,16 @@ const LOG_TARGET: &str = "parachain::gossip-support";
 // since the last authority discovery resolution failure.
 const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 
+/// Duration after which we consider low connectivity a problem.
+///
+/// Especially at startup low connectivity is expected (authority discovery cache needs to be
+/// populated). Authority discovery on Kusama takes around 8 minutes, so warning after 10 minutes
+/// should be fine:
+///
+/// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
+///
+const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
+
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
 	keystore: SyncCryptoStorePtr,
@@ -64,6 +74,13 @@ struct State {
 	// at least a third of authorities the last time.
 	// `None` otherwise.
 	last_failure: Option<Instant>,
+
+	/// First time we did not reach our connectivity threshold.
+	///
+	/// This is the time of the first failed attempt to connect to >2/3 of all validators in a
+	/// potential sequence of failed attempts. It will be cleared once we reached >2/3
+	/// connectivity.
+	failure_start: Option<Instant>,
 }
 
 impl GossipSupport {
@@ -313,10 +330,32 @@ impl State {
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved
-		self.last_failure = if failures >= num / 3 {
-			Some(Instant::now())
+		if failures >= num / 3 {
+			let timestamp = Instant::now();
+			match self.failure_start {
+				None => self.failure_start = Some(timestamp),
+				Some(first) if first.elapsed() >= LOW_CONNECTIVITY_WARN_DELAY => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity - authority lookup failed for too many validators."
+					);
+
+				}
+				Some(_) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						connected = ?(num - failures),
+						target = ?num,
+						"Low connectivity (due to authority lookup failures) - expected on startup."
+					);
+				}
+			}
+			self.last_failure = Some(timestamp);
 		} else {
-			None
+			self.last_failure = None;
+			self.failure_start = None;
 		};
 
 		Ok(())

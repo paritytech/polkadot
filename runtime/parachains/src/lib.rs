@@ -52,20 +52,20 @@ pub fn schedule_para_initialize<T: paras::Config>(
 	id: ParaId,
 	genesis: paras::ParaGenesisArgs,
 ) -> Result<(), ()> {
-	<paras::Module<T>>::schedule_para_initialize(id, genesis).map_err(|_| ())
+	<paras::Pallet<T>>::schedule_para_initialize(id, genesis).map_err(|_| ())
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.
 pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) -> Result<(), ()> {
-	<paras::Module<T>>::schedule_para_cleanup(id).map_err(|_| ())
+	<paras::Pallet<T>>::schedule_para_cleanup(id).map_err(|_| ())
 }
 
 /// Schedule a parathread to be upgraded to a parachain.
 pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
-	paras::Module::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
+	paras::Pallet::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
 }
 
 /// Schedule a parachain to be downgraded to a parathread.
 pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
-	paras::Module::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
+	paras::Pallet::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
 }

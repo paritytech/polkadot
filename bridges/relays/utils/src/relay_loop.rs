@@ -38,7 +38,6 @@ pub trait Client: 'static + Clone + Send + Sync {
 pub fn relay_loop<SC, TC>(source_client: SC, target_client: TC) -> Loop<SC, TC, ()> {
 	Loop {
 		reconnect_delay: RECONNECT_DELAY,
-		spawn_loop_task: true,
 		source_client,
 		target_client,
 		loop_metric: None,
@@ -50,7 +49,6 @@ pub fn relay_metrics(prefix: Option<String>, params: MetricsParams) -> LoopMetri
 	LoopMetrics {
 		relay_loop: Loop {
 			reconnect_delay: RECONNECT_DELAY,
-			spawn_loop_task: true,
 			source_client: (),
 			target_client: (),
 			loop_metric: None,
@@ -65,7 +63,6 @@ pub fn relay_metrics(prefix: Option<String>, params: MetricsParams) -> LoopMetri
 /// Generic relay loop.
 pub struct Loop<SC, TC, LM> {
 	reconnect_delay: Duration,
-	spawn_loop_task: bool,
 	source_client: SC,
 	target_client: TC,
 	loop_metric: Option<LM>,
@@ -87,23 +84,11 @@ impl<SC, TC, LM> Loop<SC, TC, LM> {
 		self
 	}
 
-	/// Set spawn-dedicated-loop-task flag.
-	///
-	/// If `true` (default), separate async task is spawned to run relay loop. This is the default
-	/// behavior for all loops. If `false`, then loop is executed as a part of the current
-	/// task. The `false` is used for on-demand tasks, which are cancelled from time to time
-	/// and there's already a dedicated on-demand task for running such loops.
-	pub fn spawn_loop_task(mut self, spawn_loop_task: bool) -> Self {
-		self.spawn_loop_task = spawn_loop_task;
-		self
-	}
-
 	/// Start building loop metrics using given prefix.
 	pub fn with_metrics(self, prefix: Option<String>, params: MetricsParams) -> LoopMetrics<SC, TC, ()> {
 		LoopMetrics {
 			relay_loop: Loop {
 				reconnect_delay: self.reconnect_delay,
-				spawn_loop_task: self.spawn_loop_task,
 				source_client: self.source_client,
 				target_client: self.target_client,
 				loop_metric: None,
@@ -128,7 +113,6 @@ impl<SC, TC, LM> Loop<SC, TC, LM> {
 		TC: 'static + Client,
 		LM: 'static + Send + Clone,
 	{
-		let spawn_loop_task = self.spawn_loop_task;
 		let run_loop_task = async move {
 			crate::initialize::initialize_loop(loop_name);
 
@@ -156,11 +140,7 @@ impl<SC, TC, LM> Loop<SC, TC, LM> {
 			Ok(())
 		};
 
-		if spawn_loop_task {
-			async_std::task::spawn(run_loop_task).await
-		} else {
-			run_loop_task.await
-		}
+		async_std::task::spawn(run_loop_task).await
 	}
 }
 
@@ -236,7 +216,6 @@ impl<SC, TC, LM> LoopMetrics<SC, TC, LM> {
 
 		Ok(Loop {
 			reconnect_delay: self.relay_loop.reconnect_delay,
-			spawn_loop_task: self.relay_loop.spawn_loop_task,
 			source_client: self.relay_loop.source_client,
 			target_client: self.relay_loop.target_client,
 			loop_metric: self.loop_metric,

@@ -51,7 +51,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
-	let parachains = <paras::Module<T>>::parachains();
+	let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -270,7 +270,7 @@ pub fn validation_code<T: initializer::Config>(
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
-		|| <paras::Module<T>>::current_code(&para_id),
+		|| <paras::Pallet<T>>::current_code(&para_id),
 	)
 }
 
@@ -327,5 +327,5 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
-	<paras::Module<T>>::code_by_hash(hash)
+	<paras::Pallet<T>>::code_by_hash(hash)
 }

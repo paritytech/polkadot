@@ -850,6 +850,14 @@ fn import_checked_approval_updates_entries_and_schedules() {
 
 		assert_matches!(
 			actions.get(0).unwrap(),
+			Action::NoteApprovedInChainSelection(h) => {
+				assert_eq!(h, &block_hash);
+			}
+		);
+
+
+		assert_matches!(
+			actions.get(1).unwrap(),
 			Action::WriteBlockEntry(b_entry) => {
 				assert_eq!(b_entry.block_hash(), block_hash);
 				assert!(b_entry.is_fully_approved());
@@ -857,7 +865,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			}
 		);
 		assert_matches!(
-			actions.get_mut(1).unwrap(),
+			actions.get_mut(2).unwrap(),
 			Action::WriteCandidateEntry(c_hash, ref mut c_entry) => {
 				assert_eq!(c_hash, &candidate_hash);
 				assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());
@@ -1391,9 +1399,16 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 		ApprovalSource::Remote(validator_index_b),
 	);
 
-	assert_eq!(actions.len(), 2);
+	assert_eq!(actions.len(), 3);
 	assert_matches!(
 		actions.get(0).unwrap(),
+		Action::NoteApprovedInChainSelection(h) => {
+			assert_eq!(h, &block_hash);
+		}
+	);
+
+	assert_matches!(
+		actions.get(1).unwrap(),
 		Action::WriteBlockEntry(b_entry) => {
 			assert_eq!(b_entry.block_hash(), block_hash);
 			assert!(b_entry.is_fully_approved());
@@ -1403,7 +1418,7 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 	);
 
 	assert_matches!(
-		actions.get(1).unwrap(),
+		actions.get(2).unwrap(),
 		Action::WriteCandidateEntry(c_h, c_entry) => {
 			assert_eq!(c_h, &candidate_hash_2);
 			assert!(c_entry.approval_entry(&block_hash).unwrap().is_approved());

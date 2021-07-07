@@ -60,7 +60,7 @@ As seen in the [Scheduler Module][SCH] of the runtime, validator groups are fixe
   * Determine the group on that core and the next group on that core.
   * Issue a discovery request for the validators of the current group and the next group with[`NetworkBridgeMessage`][NBM]`::ConnectToValidators`.
 
-Once connected to the relevant peers for the current group assigned to the core (transitively, the para), advertise the collation to any of them which advertise the relay-parent in their view (as provided by the [Network Bridge][NB]). If any respond with a request for the full collation, provide it. Upon receiving a view update from any of these peers which includes a relay-parent for which we have a collation that they will find relevant, advertise the collation to them if we haven't already.
+Once connected to the relevant peers for the current group assigned to the core (transitively, the para), advertise the collation to any of them which advertise the relay-parent in their view (as provided by the [Network Bridge][NB]). If any respond with a request for the full collation, provide it. However, we only send one collation at a time per relay parent, other requests need to wait. This is done to reduce the bandwidth requirements of a collator and also increases the chance to fully send the collation to at least one validator. From the point where one validator has received the collation and seconded it, it will also start to share this collation with other validators in its backing group. Upon receiving a view update from any of these peers which includes a relay-parent for which we have a collation that they will find relevant, advertise the collation to them if we haven't already.
 
 ### Validators
 
@@ -104,7 +104,7 @@ The protocol tracks advertisements received and the source of the advertisement.
 
 As a validator, we will handle requests from other subsystems to fetch a collation on a specific `ParaId` and relay-parent. These requests are made with the request response protocol `CollationFetchingRequest` request. To do so, we need to first check if we have already gathered a collation on that `ParaId` and relay-parent. If not, we need to select one of the advertisements and issue a request for it. If we've already issued a request, we shouldn't issue another one until the first has returned.
 
-When acting on an advertisement, we issue a `Requests::CollationFetching`. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.
+When acting on an advertisement, we issue a `Requests::CollationFetching`. However, we only request one collation at a time per relay parent. This reduces the bandwidth requirements and as we can second only one candidate per relay parent, the others are probably not required anyway. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators.
 
 As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator`. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it. If the collation is seconded, we notify the collator and apply a benefit to the `PeerId` associated with the collator.
 

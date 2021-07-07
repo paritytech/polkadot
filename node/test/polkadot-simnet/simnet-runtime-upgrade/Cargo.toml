@@ -1,0 +1,14 @@
+[package]
+name = "simnet-runtime-upgrade"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2"  }
+polkadot-runtime-test = { path = "../../runtime", version = "0.9" }
+polkadot-runtime = { path = "../../../../runtime/polkadot", version = "0.9" }
+polkadot-cli = { path = "../../../../cli", version = "0.9", features = ["cli"] }
+structopt = "0.3.21"

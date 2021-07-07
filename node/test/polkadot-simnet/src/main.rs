@@ -22,23 +22,27 @@
 
 use std::error::Error;
 
-use test_runner::{Node, client_parts, ConfigOrChainSpec};
+use test_runner::{Node, client_parts, ConfigOrChainSpec, task_executor};
 use polkadot_runtime_test::PolkadotChainInfo;
 use polkadot_cli::Cli;
 use structopt::StructOpt;
-use sc_cli::{SubstrateCli, CliConfiguration, print_node_infos};
+use sc_cli::{SubstrateCli, CliConfiguration, print_node_infos, build_runtime};
+use sc_service::TaskType;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let mut tokio_runtime = build_runtime()?;
+    let task_executor = task_executor(tokio_runtime.handle().clone());
+    // parse cli args
     let cmd = <Cli as StructOpt>::from_args();
-    let config = cmd.create_configuration(&cmd.run.base, task_executor).unwrap();
-    let filters = cmd.run.base.log_filters().unwrap();
+    // set up logging
+    let filters = cmd.run.base.log_filters()?;
     let logger = sc_tracing::logging::LoggerBuilder::new(filters);
-    logger.init().unwrap();
-    print_node_infos::<Cli>(&config);
+    logger.init()?;
 
-    let (rpc, mut tokio_runtime, task_manager, client, pool, command_sink, backend) =
-        client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))
-            .unwrap();
+    // set up the test-runner
+    let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+    let (rpc, task_manager, client, pool, command_sink, backend) =
+        client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
     let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
     // wait for ctrl_c signal, then drop node.
