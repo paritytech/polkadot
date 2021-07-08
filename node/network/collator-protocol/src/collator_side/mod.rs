@@ -54,10 +54,10 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 ///
 /// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
 /// the transfer should be possible within 0.1 seconds. 300 milli seconds should therefore be
-/// plenty and should be low enough for other validators to still be able to finish on time.
+/// plenty and should be low enough for later validators to still be able to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
-const TIMEOUT_UPLOAD: Duration = Duration::from_millis(300);
+const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -720,7 +720,7 @@ async fn send_collation(
 	}
 
 	state.active_collation_fetches.push(async move {
-		let r = rx.timeout(TIMEOUT_UPLOAD).await;
+		let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
 		if r.is_none() {
 			tracing::debug!(
 				target: LOG_TARGET,
