@@ -22,7 +22,7 @@
 
 use super::*;
 use std::collections::{HashMap, HashSet, BTreeMap};
-use std::sync::Arc;
+use std::sync::{atomic::{Ordering as AtomicOrdering, AtomicU64}, Arc};
 
 use futures::channel::oneshot;
 use parity_scale_codec::Encode;
@@ -103,6 +103,21 @@ impl TestBackend {
 			}
 		}
 	}
+
+	fn assert_stagnant_at_state(
+		&self,
+		stagnant_at: Vec<(Timestamp, Vec<Hash>)>,
+	) {
+		let inner = self.inner.lock();
+		assert_eq!(inner.stagnant_at.len(), stagnant_at.len());
+		for (at, hashes) in stagnant_at {
+			let stored_hashes = inner.stagnant_at.get(&at).unwrap();
+			assert_eq!(hashes.len(), stored_hashes.len());
+			for hash in hashes {
+				assert!(stored_hashes.contains(&hash));
+			}
+		}
+	}
 }
 
 impl Default for TestBackend {
@@ -173,18 +188,45 @@ impl Backend for TestBackend {
 	}
 }
 
+#[derive(Clone)]
+pub struct TestClock(Arc<AtomicU64>);
+
+impl TestClock {
+	fn new(initial: u64) -> Self {
+		TestClock(Arc::new(AtomicU64::new(initial)))
+	}
+
+	fn inc_by(&self, duration: u64) {
+		self.0.fetch_add(duration, AtomicOrdering::Relaxed);
+	}
+}
+
+impl Clock for TestClock {
+	fn timestamp_now(&self) -> Timestamp {
+		self.0.load(AtomicOrdering::Relaxed)
+	}
+}
+
+const TEST_STAGNANT_INTERVAL: Duration = Duration::from_millis(20);
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ChainSelectionMessage>;
 
 fn test_harness<T: Future<Output=VirtualOverseer>>(
-	test: impl FnOnce(TestBackend, VirtualOverseer) -> T
+	test: impl FnOnce(TestBackend, TestClock, VirtualOverseer) -> T
 ) {
 	let pool = TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 	let backend = TestBackend::default();
-	let subsystem = crate::run(context, backend.clone());
+	let clock = TestClock::new(0);
+	let subsystem = crate::run(
+		context,
+		backend.clone(),
+		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
+		Box::new(clock.clone()),
+	);
 
-	let test_fut = test(backend, virtual_overseer);
+	let test_fut = test(backend, clock, virtual_overseer);
 	let test_and_conclude = async move {
 		let mut virtual_overseer = test_fut.await;
 		virtual_overseer.send(OverseerSignal::Conclude.into()).await;
@@ -582,12 +624,12 @@ async fn approve_block(
 
 #[test]
 fn no_op_subsystem_run() {
-	test_harness(|_, virtual_overseer| async move { virtual_overseer });
+	test_harness(|_, _, virtual_overseer| async move { virtual_overseer });
 }
 
 #[test]
 fn import_direct_child_of_finalized_on_empty() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -614,7 +656,7 @@ fn import_direct_child_of_finalized_on_empty() {
 
 #[test]
 fn import_chain_on_finalized_incrementally() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -643,7 +685,7 @@ fn import_chain_on_finalized_incrementally() {
 
 #[test]
 fn import_two_subtrees_on_finalized() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -687,7 +729,7 @@ fn import_two_subtrees_on_finalized() {
 
 #[test]
 fn import_two_subtrees_on_nonzero_finalized() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 100;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -731,7 +773,7 @@ fn import_two_subtrees_on_nonzero_finalized() {
 
 #[test]
 fn leaves_ordered_by_weight_and_then_number() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -784,7 +826,7 @@ fn leaves_ordered_by_weight_and_then_number() {
 
 #[test]
 fn subtrees_imported_even_with_gaps() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -835,7 +877,7 @@ fn subtrees_imported_even_with_gaps() {
 
 #[test]
 fn reversion_removes_viability_of_chain() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -871,7 +913,7 @@ fn reversion_removes_viability_of_chain() {
 
 #[test]
 fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -905,7 +947,7 @@ fn reversion_removes_viability_and_finds_ancestor_as_leaf() {
 
 #[test]
 fn ancestor_of_unviable_is_not_leaf_if_has_children() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -974,7 +1016,7 @@ fn ancestor_of_unviable_is_not_leaf_if_has_children() {
 
 #[test]
 fn self_and_future_reversions_are_ignored() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1006,7 +1048,7 @@ fn self_and_future_reversions_are_ignored() {
 
 #[test]
 fn revert_finalized_is_ignored() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 10;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1038,7 +1080,7 @@ fn revert_finalized_is_ignored() {
 
 #[test]
 fn reversion_affects_viability_of_all_subtrees() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1096,7 +1138,7 @@ fn reversion_affects_viability_of_all_subtrees() {
 
 #[test]
 fn finalize_viable_prunes_subtrees() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1204,7 +1246,7 @@ fn finalize_viable_prunes_subtrees() {
 
 #[test]
 fn finalization_does_not_clobber_unviability() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1258,7 +1300,7 @@ fn finalization_does_not_clobber_unviability() {
 
 #[test]
 fn finalization_erases_unviable() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1322,7 +1364,7 @@ fn finalization_erases_unviable() {
 
 #[test]
 fn finalize_erases_unviable_but_keeps_later_unviability() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1390,7 +1432,7 @@ fn finalize_erases_unviable_but_keeps_later_unviability() {
 
 #[test]
 fn finalize_erases_unviable_from_one_but_not_all_reverts() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1450,7 +1492,7 @@ fn finalize_erases_unviable_from_one_but_not_all_reverts() {
 
 #[test]
 fn finalize_triggers_viability_search() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1522,7 +1564,7 @@ fn finalize_triggers_viability_search() {
 
 #[test]
 fn best_leaf_none_with_empty_db() {
-	test_harness(|_backend, mut virtual_overseer| async move {
+	test_harness(|_backend, _,  mut virtual_overseer| async move {
 		let required = Hash::repeat_byte(1);
 		let best_leaf = best_leaf_containing(&mut virtual_overseer, required).await;
 		assert!(best_leaf.is_none());
@@ -1533,7 +1575,7 @@ fn best_leaf_none_with_empty_db() {
 
 #[test]
 fn best_leaf_none_with_no_viable_leaves() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1575,7 +1617,7 @@ fn best_leaf_none_with_no_viable_leaves() {
 
 #[test]
 fn best_leaf_none_with_unknown_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1609,7 +1651,7 @@ fn best_leaf_none_with_unknown_required() {
 
 #[test]
 fn best_leaf_none_with_unviable_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1661,7 +1703,7 @@ fn best_leaf_none_with_unviable_required() {
 
 #[test]
 fn best_leaf_with_finalized_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1705,7 +1747,7 @@ fn best_leaf_with_finalized_required() {
 
 #[test]
 fn best_leaf_with_unfinalized_required() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1751,7 +1793,7 @@ fn best_leaf_with_unfinalized_required() {
 
 #[test]
 fn best_leaf_ancestor_of_all_leaves() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1809,7 +1851,7 @@ fn best_leaf_ancestor_of_all_leaves() {
 
 #[test]
 fn approve_message_approves_block_entry() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1859,7 +1901,7 @@ fn approve_message_approves_block_entry() {
 
 #[test]
 fn approve_nonexistent_has_no_effect() {
-	test_harness(|backend, mut virtual_overseer| async move {
+	test_harness(|backend, _, mut virtual_overseer| async move {
 		let finalized_number = 0;
 		let finalized_hash = Hash::repeat_byte(0);
 
@@ -1903,6 +1945,345 @@ fn approve_nonexistent_has_no_effect() {
 			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
 			Approval::Unapproved
 		);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn block_has_correct_stagnant_at() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		backend.assert_stagnant_at_state(vec![
+			(STAGNANT_TIMEOUT, vec![a1_hash]),
+			(STAGNANT_TIMEOUT + 1, vec![a2_hash]),
+		]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn detects_stagnant() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Stagnant
+		);
+
+		assert_leaves(&backend, vec![]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn finalize_stagnant_unlocks_subtree() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT - 1);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![(STAGNANT_TIMEOUT + 1, vec![a2_hash])]);
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Stagnant
+		);
+
+		assert_leaves(&backend, vec![]);
+
+		finalize_block(
+			&mut virtual_overseer,
+			&backend,
+			1,
+			a1_hash,
+		).await;
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn approval_undoes_stagnant_unlocking_subtree() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a1_hash, chain_a) = construct_chain_on_base(
+			vec![1],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (a2_hash, chain_a_ext) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		clock.inc_by(1);
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			None,
+			chain_a_ext.clone(),
+		).await;
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT - 1);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![(STAGNANT_TIMEOUT + 1, vec![a2_hash])]);
+
+		approve_block(
+			&mut virtual_overseer,
+			&backend,
+			a1_hash,
+		).await;
+
+		assert_matches!(
+			backend.load_block_entry(&a1_hash).unwrap().unwrap().viability.approval,
+			Approval::Approved
+		);
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn stagnant_preserves_parents_children() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+		//      A1 <- B2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		let (b2_hash, chain_b) = construct_chain_on_base(
+			vec![1],
+			1,
+			a1_hash,
+			|h| {
+				salt_header(h, b"b");
+			}
+		);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone(), chain_b.clone()],
+		).await;
+
+		approve_block(&mut virtual_overseer, &backend, a1_hash).await;
+		approve_block(&mut virtual_overseer, &backend, b2_hash).await;
+
+		assert_leaves(&backend, vec![a2_hash, b2_hash]);
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+		assert_leaves(&backend, vec![b2_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn stagnant_makes_childless_parent_leaf() {
+	test_harness(|backend, clock, mut virtual_overseer| async move {
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		// F <- A1 <- A2
+
+		let (a2_hash, chain_a) = construct_chain_on_base(
+			vec![1, 2],
+			finalized_number,
+			finalized_hash,
+			|h| {
+				salt_header(h, b"a");
+			}
+		);
+
+		let (_, a1_hash, _) = extract_info_from_chain(0, &chain_a);
+
+		import_chains_into_empty(
+			&mut virtual_overseer,
+			&backend,
+			finalized_number,
+			finalized_hash,
+			vec![chain_a.clone()],
+		).await;
+
+		approve_block(&mut virtual_overseer, &backend, a1_hash).await;
+
+		assert_leaves(&backend, vec![a2_hash]);
+
+		{
+			let (_, write_rx) = backend.await_next_write();
+			clock.inc_by(STAGNANT_TIMEOUT);
+
+			write_rx.await.unwrap();
+		}
+
+		backend.assert_stagnant_at_state(vec![]);
+		assert_leaves(&backend, vec![a1_hash]);
 
 		virtual_overseer
 	})
