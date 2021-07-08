@@ -1,0 +1,14 @@
+error: struct must have at least one generic parameter.
+ --> $DIR/err-01-no-generic.rs:6:8
+  |
+6 | struct AllSubsystems {
+  |        ^^^^^^^^^^^^^
+
+error[E0599]: no method named `replace_a` found for struct `AllSubsystems` in the current scope
+  --> $DIR/err-01-no-generic.rs:16:17
+   |
+6  | struct AllSubsystems {
+   | -------------------- method `replace_a` not found for this
+...
+16 |     let _all = all.replace_a(77u8);
+   |                    ^^^^^^^^^ method not found in `AllSubsystems`

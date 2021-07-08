@@ -40,9 +40,10 @@ use polkadot_node_primitives::{SignedFullStatement, PoV};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 use polkadot_subsystem::{
+	overseer,
 	jaeger,
 	messages::{
-		AllMessages, CollatorProtocolMessage, IfDisconnected,
+		CollatorProtocolMessage, IfDisconnected,
 		NetworkBridgeEvent, NetworkBridgeMessage, CandidateBackingMessage,
 	},
 	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
@@ -627,19 +628,27 @@ fn collator_peer_id(
 		)
 }
 
-async fn disconnect_peer(ctx: &mut impl SubsystemContext, peer_id: PeerId) {
+async fn disconnect_peer<Context>(ctx: &mut Context, peer_id: PeerId)
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	ctx.send_message(
-		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation).into()
+		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation)
 	).await
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
-async fn fetch_collation(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+async fn fetch_collation<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	pc: PendingCollation,
 	id: CollatorId,
-) {
+)
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	let (tx, rx) = oneshot::channel();
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
@@ -678,7 +687,8 @@ async fn note_good_collation<Context>(
 	id: CollatorId,
 )
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, BENEFIT_NOTIFY_GOOD).await;
@@ -686,19 +696,23 @@ where
 }
 
 /// Notify a collator that its collation got seconded.
-async fn notify_collation_seconded(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+async fn notify_collation_seconded<Context>(
+	ctx: &mut Context,
 	peer_id: PeerId,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
-) {
+)
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::SendCollationMessage(
 			vec![peer_id],
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
-	)).await;
+	).await;
 
 	modify_reputation(ctx, peer_id, BENEFIT_NOTIFY_GOOD).await;
 }
@@ -735,7 +749,8 @@ async fn request_collation<Context>(
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
 )
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	if !state.view.contains(&relay_parent) {
 		tracing::debug!(
@@ -788,8 +803,8 @@ where
 		"Requesting collation",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError))
+	ctx.send_message(
+		NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError)
 	).await;
 }
 
@@ -801,7 +816,8 @@ async fn process_incoming_peer_message<Context>(
 	msg: protocol_v1::CollatorProtocolMessage,
 )
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 	use sp_runtime::traits::AppVerify;
@@ -949,12 +965,16 @@ async fn remove_relay_parent(
 }
 
 /// Our view has changed.
-async fn handle_our_view_change(
-	ctx: &mut impl SubsystemContext,
+async fn handle_our_view_change<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	keystore: &SyncCryptoStorePtr,
 	view: OurView,
-) -> Result<()> {
+) -> Result<()>
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	let old_view = std::mem::replace(&mut state.view, view);
 
 	let added: HashMap<Hash, Arc<jaeger::Span>> = state.view
@@ -1008,7 +1028,8 @@ async fn handle_network_msg<Context>(
 	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	use NetworkBridgeEvent::*;
 
@@ -1046,7 +1067,8 @@ async fn process_msg<Context>(
 	state: &mut State,
 )
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	use CollatorProtocolMessage::*;
 
@@ -1149,9 +1171,10 @@ pub(crate) async fn run<Context>(
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> Result<()>
-	where Context: SubsystemContext<Message = CollatorProtocolMessage>
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
-	use FromOverseer::*;
 	use OverseerSignal::*;
 
 	let mut state = State {
@@ -1170,7 +1193,7 @@ pub(crate) async fn run<Context>(
 		select! {
 			res = ctx.recv().fuse() => {
 				match res {
-					Ok(Communication { msg }) => {
+					Ok(FromOverseer::Communication { msg }) => {
 						tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 						process_msg(
 							&mut ctx,
@@ -1179,7 +1202,7 @@ pub(crate) async fn run<Context>(
 							&mut state,
 						).await;
 					}
-					Ok(Signal(Conclude)) => break,
+					Ok(FromOverseer::Signal(Conclude)) => break,
 					_ => {},
 				}
 			}
@@ -1232,11 +1255,15 @@ async fn dequeue_next_collation_fetch(
 }
 
 /// Handle a fetched collation result.
-async fn handle_collation_fetched_result(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+async fn handle_collation_fetched_result<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	(mut collation_event, res): PendingCollationFetch,
-) {
+)
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	// If no prior collation for this relay parent has been seconded, then
 	// memoize the collation_event for that relay_parent, such that we may
 	// notify the collator of their successful second backing
@@ -1279,7 +1306,7 @@ async fn handle_collation_fetched_result(
 				relay_parent.clone(),
 				candidate_receipt,
 				pov,
-			).into()
+			)
 		).await;
 
 		entry.insert(collation_event);
@@ -1296,11 +1323,15 @@ async fn handle_collation_fetched_result(
 // This issues `NetworkBridge` notifications to disconnect from all inactive peers at the
 // earliest possible point. This does not yet clean up any metadata, as that will be done upon
 // receipt of the `PeerDisconnected` event.
-async fn disconnect_inactive_peers(
-	ctx: &mut impl SubsystemContext,
+async fn disconnect_inactive_peers<Context>(
+	ctx: &mut Context,
 	eviction_policy: &crate::CollatorEvictionPolicy,
 	peers: &HashMap<PeerId, PeerData>,
-) {
+)
+where
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext<Message=CollatorProtocolMessage>,
+{
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
 			tracing::trace!("Disconnecting inactive peer");
@@ -1324,7 +1355,8 @@ async fn poll_collation_response<Context>(
 )
 -> bool
 where
-	Context: SubsystemContext
+	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
+	Context: SubsystemContext,
 {
 	if never!(per_req.from_collator.is_terminated()) {
 		tracing::error!(

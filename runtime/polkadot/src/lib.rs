@@ -49,8 +49,6 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
-#[cfg(feature = "runtime-benchmarks")]
-use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
@@ -97,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9080,
+	spec_version: 9090,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1397,8 +1395,12 @@ sp_api::impl_runtime_apis! {
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
-		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
+		) -> Result<
+			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
+			sp_runtime::RuntimeString,
+		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_support::traits::StorageInfoTrait;
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
@@ -1456,7 +1458,8 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			Ok(batches)
+			let storage_info = AllPalletsWithSystem::storage_info();
+			Ok((batches, storage_info))
 		}
 	}
 }

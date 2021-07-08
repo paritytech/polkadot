@@ -26,9 +26,9 @@
 
 use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
-	messages::{AllMessages, ProvisionerMessage}, SubsystemError,
+	overseer::Handle,
+	messages::ProvisionerMessage, errors::SubsystemError,
 };
-use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
 	Block, Hash, InherentData as ParachainsInherentData,
 };
@@ -48,19 +48,17 @@ impl ParachainsInherentDataProvider {
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
-		mut overseer: OverseerHandler,
+		mut overseer: Handle,
 		parent: Hash,
 	) -> Result<Self, Error> {
 		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			overseer.wait_for_activation(parent, sender).await;
-			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)?.map_err(Error::Subsystem)?;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)?.map_err(|e| Error::Subsystem(e))?;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			overseer.send_msg(
-				AllMessages::Provisioner(
-					ProvisionerMessage::RequestInherentData(parent, sender),
-				),
+				ProvisionerMessage::RequestInherentData(parent, sender),
 				std::any::type_name::<Self>(),
 			).await;
 
@@ -127,7 +125,7 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error("Blockchain error")]
-	Blockchain(sp_blockchain::Error),
+	Blockchain(#[from] sp_blockchain::Error),
 	#[error("Timeout: provisioner did not return inherent data after {:?}", PROVISIONER_TIMEOUT)]
 	Timeout,
 	#[error("Could not find the parent header in the blockchain: {:?}", _0)]
@@ -137,5 +135,5 @@ pub enum Error {
 	#[error("Closed channel from provisioner when awaiting inherent data")]
 	ClosedChannelAwaitingInherentData,
 	#[error("Subsystem failed")]
-	Subsystem(SubsystemError),
+	Subsystem(#[from] SubsystemError),
 }
