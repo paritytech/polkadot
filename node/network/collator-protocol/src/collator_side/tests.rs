@@ -560,6 +560,28 @@ fn advertise_and_send_collation() {
 				)
 			)
 		).await;
+		// Second request by same validator should get dropped:
+		{
+			let (tx, rx) = oneshot::channel();
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::CollationFetchingRequest(
+					IncomingRequest::new(
+						peer,
+						CollationFetchingRequest {
+							relay_parent: test_state.relay_parent,
+							para_id: test_state.para_id,
+						},
+						tx,
+					)
+				)
+			).await;
+			assert_matches!(
+				rx.await,
+				Err(_),
+				"Multiple concurrent requests by the same validator should get dropped."
+			);
+		}
 
 		assert_matches!(
 			rx.await,
