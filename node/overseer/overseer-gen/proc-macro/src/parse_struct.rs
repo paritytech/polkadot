@@ -313,8 +313,7 @@ impl OverseerGuts {
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic: bool =
-					if let Some(ident) = field_ty.get_ident() { baggage_generics.contains(ident) } else { false };
+				let generic = field_ty.get_ident().map(|i| baggage_generics.contains(ident)).unwrap_or_default();
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}
