@@ -169,13 +169,9 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *rules-test
   script:
-    - echo $CI_MERGE_REQUEST_TARGET_BRANCH_SHA || exit 0
-    - echo $CI_EXTERNAL_PULL_REQUEST_SOURCE_REPOSITORY || exit 0
-    - echo $CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME || exit 0
-    - echo $CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_SHA || exit 0
-    - echo $CI_DEFAULT_BRANCH || exit 0
+    # should compare with the target branch of the PR, but it's not given by our mirroring
     - cargo spellcheck check -vvv --cfg=.config/spellcheck.toml --checkers hunspell --code 1 
-        -r (git diff-tree --no-commit-id --name-only -r master)
+        -r $(git diff-tree --no-commit-id --name-only -r ${CI_DEFAULT_BRANCH})
   allow_failure:                   true
 
 # build-adder-collator:
