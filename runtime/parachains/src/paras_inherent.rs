@@ -115,7 +115,7 @@ decl_module! {
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
 			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
-			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
@@ -124,7 +124,7 @@ decl_module! {
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
 			let freed_timeout = if let Some(pred) = availability_pred {
-				<inclusion::Module<T>>::collect_pending(pred)
+				<inclusion::Pallet<T>>::collect_pending(pred)
 			} else {
 				Vec::new()
 			};
@@ -144,7 +144,7 @@ decl_module! {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Module<T>>::process_candidates(
+			let occupied = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
 				<scheduler::Module<T>>::scheduled(),
