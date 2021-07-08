@@ -292,11 +292,7 @@ impl OverseerGuts {
 				if variant.consumes.len() != 1 {
 					return Err(Error::new(attr_tokens.span(), "Exactly one message can be consumed per subsystem."));
 				}
-				consumes_paths.extend(variant.consumes.into_iter());
-
-				if consumes_paths.is_empty() {
-					return Err(Error::new(span, "Subsystem must consume at least one message"));
-				}
+				consumes_paths.push(variant.consumes[0].clone());
 
 				let field_ty = try_type_to_path(ty, span)?;
 				let generic = field_ty.get_ident().ok_or_else(|| Error::new(field_ty.span(), "Must be an identifier, not a path."))?.clone();
