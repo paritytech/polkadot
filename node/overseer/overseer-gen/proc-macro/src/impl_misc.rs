@@ -221,22 +221,22 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 				&mut self.to_subsystems
 			}
 
-			async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnJob {
+				self.to_overseer.unbounded_send(::polkadot_overseer_gen::ToOverseer::SpawnJob {
 					name,
 					s,
-				}).await.map_err(Into::into)
+				}).map_err(|_| SubsystemError::TaskSpawn(name))
 			}
 
-			async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.send(::polkadot_overseer_gen::ToOverseer::SpawnBlockingJob {
+				self.to_overseer.unbounded_send(::polkadot_overseer_gen::ToOverseer::SpawnBlockingJob {
 					name,
 					s,
-				}).await.map_err(Into::into)
+				}).map_err(|_| SubsystemError::TaskSpawn(name))
 			}
 		}
 	};

@@ -74,7 +74,7 @@ where
 	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
 		.with_validator_index(from_validator)
 		.with_relay_parent(parent);
-	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed()).await
+	ctx.spawn("pov-fetcher", fetch_pov_job(pov_hash, pending_response.boxed(), span, tx).boxed())
 		.map_err(|e| Fatal::SpawnTask(e))?;
 	Ok(())
 }

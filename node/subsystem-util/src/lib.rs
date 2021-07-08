@@ -748,9 +748,8 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 					// TODO it should only wait for the spawn to complete
 					// TODO but not for anything beyond that
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
-						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
+						FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {

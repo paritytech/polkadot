@@ -414,7 +414,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"failed to send collation result",
 					);
 				}
-			})).await?;
+			}))?;
 		}
 	}
 

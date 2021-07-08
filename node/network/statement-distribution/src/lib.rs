@@ -1241,7 +1241,7 @@ async fn launch_request(
 	)
 	.remote_handle();
 
-	let result = ctx.spawn("large-statement-fetcher", task.boxed()).await;
+	let result = ctx.spawn("large-statement-fetcher", task.boxed());
 	if let Err(err) = result {
 		tracing::error!(target: LOG_TARGET, ?err, "Spawning task failed.");
 		return None
@@ -1951,7 +1951,7 @@ impl StatementDistribution {
 					ctx.spawn(
 						"large-statement-responder",
 						respond(receiver, res_sender.clone()).boxed()
-					).await.map_err(Fatal::SpawnTask)?;
+					).map_err(Fatal::SpawnTask)?;
 				}
 			}
 		}
