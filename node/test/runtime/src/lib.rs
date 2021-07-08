@@ -23,7 +23,6 @@ use grandpa::GrandpaBlockImport;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::generic::Era;
 use sc_consensus_babe::BabeBlockImport;
-use sp_keyring::sr25519::Keyring::Alice;
 use polkadot_runtime_common::claims;
 use sp_runtime::AccountId32;
 use support::{weights::Weight, StorageValue};
@@ -286,6 +285,7 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp_keyring::sr25519::Keyring::Alice;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
     use test_runner::{ConfigOrChainSpec, client_parts, task_executor, build_runtime};
 
