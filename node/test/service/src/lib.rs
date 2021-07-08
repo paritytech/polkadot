@@ -348,11 +348,11 @@ impl PolkadotTestNode {
 		};
 
 		self.overseer_handler
-			.send_msg(CollationGenerationMessage::Initialize(config))
+			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 			.await;
 
 		self.overseer_handler
-			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 			.await;
 	}
 }
