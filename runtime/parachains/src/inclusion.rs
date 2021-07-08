@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The inclusion module is responsible for inclusion and availability of scheduled parachains
+//! The inclusion pallet is responsible for inclusion and availability of scheduled parachains
 //! and parathreads.
 //!
 //! It is responsible for carrying candidates from being backable to being backed, and then from backed
@@ -387,7 +387,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		// TODO: pass available candidates onwards to validity module once implemented.
+		// TODO: pass available candidates onwards to validity pallet once implemented.
 		// https://github.com/paritytech/polkadot/issues/1251
 
 		Ok(freed_cores)
