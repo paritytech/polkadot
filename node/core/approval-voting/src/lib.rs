@@ -52,7 +52,6 @@ use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
 use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
-use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
@@ -718,6 +717,13 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
+	InformDisputeCoordinator {
+		candidate_hash: CandidateHash,
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		dispute_statement: SignedDisputeStatement,
+		validator_index: ValidatorIndex,
+	},
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
 	BecomeActive,
 	Conclude,
@@ -967,6 +973,20 @@ async fn handle_actions(
 					}
 					Some(_) => {},
 				}
+			}
+			Action::InformDisputeCoordinator {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				dispute_statement,
+				validator_index,
+			} => {
+				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt,
+					session,
+					statements: vec![(dispute_statement, validator_index)],
+				}.into()).await;
 			}
 			Action::BecomeActive => {
 				*mode = Mode::Active;
@@ -1650,9 +1670,6 @@ fn check_and_import_approval<T>(
 		))
 	};
 
-	let approval_payload = ApprovalVote(approved_candidate_hash)
-		.signing_payload(block_entry.session());
-
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad(
@@ -1660,13 +1677,20 @@ fn check_and_import_approval<T>(
 		))
 	};
 
-	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
-
-	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad(
+	// Transform the approval vote into the wrapper used to import statements into disputes.
+	// This also does signature checking.
+	let signed_dispute_statement = match SignedDisputeStatement::new_checked(
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+		approved_candidate_hash,
+		block_entry.session(),
+		pubkey.clone(),
+		approval.signature.clone(),
+	) {
+		Err(_) => respond_early!(ApprovalCheckResult::Bad(
 			ApprovalCheckError::InvalidSignature(approval.validator),
-		))
-	}
+		)),
+		Ok(s) => s,
+	};
 
 	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
@@ -1704,7 +1728,23 @@ fn check_and_import_approval<T>(
 		"Importing approval vote",
 	);
 
-	let actions = import_checked_approval(
+	let inform_disputes_action = if !candidate_entry.has_approved(approval.validator) {
+		// The approval voting system requires a separate approval for each assignment
+		// to the candidate. It's possible that there are semi-duplicate approvals,
+		// but we only need to inform the dispute coordinator about the first expressed
+		// opinion by the validator about the candidate.
+		Some(Action::InformDisputeCoordinator {
+			candidate_hash: approved_candidate_hash,
+			candidate_receipt: candidate_entry.candidate_receipt().clone(),
+			session: block_entry.session(),
+			dispute_statement: signed_dispute_statement,
+			validator_index: approval.validator,
+		})
+	} else {
+		None
+	};
+
+	let mut actions = import_checked_approval(
 		state,
 		&metrics,
 		block_entry,
@@ -1712,6 +1752,8 @@ fn check_and_import_approval<T>(
 		candidate_entry,
 		ApprovalSource::Remote(approval.validator),
 	);
+
+	actions.extend(inform_disputes_action);
 
 	Ok((actions, t))
 }
@@ -2435,7 +2477,24 @@ async fn issue_approval(
 	);
 
 	let candidate_receipt = candidate_entry.candidate_receipt().clone();
-	let actions = import_checked_approval(
+
+	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
+		// The approval voting system requires a separate approval for each assignment
+		// to the candidate. It's possible that there are semi-duplicate approvals,
+		// but we only need to inform the dispute coordinator about the first expressed
+		// opinion by the validator about the candidate.
+		Some(Action::InformDisputeCoordinator {
+			candidate_hash,
+			candidate_receipt,
+			session,
+			dispute_statement: signed_dispute_statement,
+			validator_index,
+		})
+	} else {
+		None
+	};
+
+	let mut actions = import_checked_approval(
 		state,
 		metrics,
 		block_entry,
@@ -2456,13 +2515,8 @@ async fn issue_approval(
 		}
 	).into());
 
-	// dispatch to dispute coordintaor.
-	ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-		candidate_hash,
-		candidate_receipt,
-		session,
-		statements: vec![(signed_dispute_statement, validator_index)],
-	}.into()).await;
+	// dispatch to dispute coordinator.
+	actions.extend(inform_disputes_action);
 
 	Ok(actions)
 }

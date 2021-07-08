@@ -15,7 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use polkadot_primitives::v1::{CoreIndex, GroupIndex, ValidatorSignature};
+use polkadot_primitives::v1::{
+	CoreIndex, GroupIndex, ValidatorSignature, DisputeStatement, ValidDisputeStatementKind,
+};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
@@ -694,7 +696,7 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 
-	assert_eq!(actions.len(), 1);
+	assert_eq!(actions.len(), 2);
 	assert_matches!(
 		actions.get(0).unwrap(),
 		Action::WriteCandidateEntry(c_hash, c_entry) => {
@@ -703,10 +705,27 @@ fn accepts_and_imports_approval_after_assignment() {
 			assert!(!c_entry.approval_entry(&block_hash).unwrap().is_approved());
 		}
 	);
+
+	assert_matches!(
+		actions.get(1).unwrap(),
+		Action::InformDisputeCoordinator {
+			dispute_statement,
+			validator_index: v,
+			candidate_hash: c_hash,
+			..
+		} => {
+			assert_eq!(c_hash, &candidate_hash);
+			assert_eq!(v, &validator_index);
+			assert_matches!(
+				dispute_statement.statement(),
+				&DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+			);
+		}
+	);
 }
 
 #[test]
-fn second_approval_import_only_schedules_wakeups() {
+fn duplicate_approval_import_only_schedules_wakeups() {
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = CandidateHash(Hash::repeat_byte(0xCC));
 	let validator_index = ValidatorIndex(0);
@@ -748,6 +767,9 @@ fn second_approval_import_only_schedules_wakeups() {
 		vote.clone(),
 		|r| r
 	).unwrap();
+
+	// We've already marked the validator as approving, so no dispute coordinator message
+	// will be sent.
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 	assert!(actions.is_empty());
