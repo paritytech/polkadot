@@ -39,7 +39,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::BlockData;
 use polkadot_subsystem::{
 	jaeger,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActiveLeavesUpdate, ActivatedLeaf, LeafStatus,
 };
 use polkadot_subsystem_testhelpers as test_helpers;
