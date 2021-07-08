@@ -103,6 +103,10 @@ pub use polkadot_node_network_protocol::WrongVariant;
 
 use std::fmt;
 
+
+#[cfg(test)]
+mod tests;
+
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
 /// Used to launch jobs.
@@ -510,6 +514,3 @@ impl<F> Future for Timeout<F> where F: Future {
 		Poll::Pending
 	}
 }
-
-#[cfg(test)]
-mod tests;

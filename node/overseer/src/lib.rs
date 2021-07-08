@@ -137,6 +137,10 @@ pub use polkadot_overseer_gen as gen;
 /// in the LRU cache. Assumes a 6-second block time.
 const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
+#[cfg(test)]
+mod tests;
+
+
 /// Whether a header supports parachain consensus or not.
 pub trait HeadSupportsParachains {
 	/// Return true if the given header supports parachain consensus. Otherwise, false.
@@ -879,7 +883,3 @@ impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMess
 		From::<AvailabilityRecoveryMessage>::from(From::from(req))
 	}
 }
-
-
-#[cfg(test)]
-mod tests;

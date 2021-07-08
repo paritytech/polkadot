@@ -38,9 +38,13 @@ use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIn
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
 use wasm_timer::{Delay, Instant};
 
+#[cfg(test)]
+mod tests;
+
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
+
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -310,6 +314,3 @@ impl JobTrait for BitfieldSigningJob {
 
 /// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;
-
-#[cfg(test)]
-mod tests;

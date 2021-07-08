@@ -38,6 +38,9 @@ use impl_overseer::*;
 use parse_attr::*;
 use parse_struct::*;
 
+#[cfg(test)]
+mod tests;
+
 #[proc_macro_attribute]
 pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let attr: TokenStream = attr.into();
@@ -86,6 +89,3 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 	Ok(additive)
 }
-
-#[cfg(test)]
-mod tests;
