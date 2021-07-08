@@ -1260,6 +1260,7 @@ fn spread_event_to_subsystems_is_up_to_date() {
 	let mut cnt = 0_usize;
 	for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
 		match msg {
+			AllMessages::Empty => unreachable!("Nobody cares about the dummy"),
 			AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
 			AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),

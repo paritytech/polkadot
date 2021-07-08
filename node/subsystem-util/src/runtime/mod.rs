@@ -26,6 +26,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
 use polkadot_node_subsystem::SubsystemContext;
 
+
 use crate::{
 	request_session_index_for_child, request_session_info,
 	request_availability_cores,
@@ -107,13 +108,11 @@ impl RuntimeInfo {
 	}
 
 	/// Get `ExtendedSessionInfo` by relay parent hash.
-	pub async fn get_session_info<'a, Context>(
+	pub async fn get_session_info<'a>(
 		&'a mut self,
-		ctx: &mut Context,
+		ctx: &mut impl SubsystemContext,
 		parent: Hash,
 	) -> Result<&'a ExtendedSessionInfo>
-	where
-		Context: SubsystemContext,
 	{
 		let session_index = self.get_session_index(ctx, parent).await?;
 
@@ -124,14 +123,12 @@ impl RuntimeInfo {
 	///
 	/// `request_session_info` still requires the parent to be passed in, so we take the parent
 	/// in addition to the `SessionIndex`.
-	pub async fn get_session_info_by_index<'a, Context>(
+	pub async fn get_session_info_by_index<'a>(
 		&'a mut self,
-		ctx: &mut Context,
+		ctx: &mut impl SubsystemContext,
 		parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<&'a ExtendedSessionInfo>
-	where
-		Context: SubsystemContext,
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
@@ -225,7 +222,7 @@ pub fn check_signature<Payload, RealPayload>(
 	session_info: &SessionInfo,
 	relay_parent: Hash,
 	signed: UncheckedSigned<Payload, RealPayload>,
-) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>> 
+) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>
 where
 	Payload: EncodeAs<RealPayload> + Clone,
 	RealPayload: Encode + Clone,
@@ -243,7 +240,7 @@ where
 
 /// Request availability cores from the runtime.
 pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
-	-> Result<Vec<CoreState>> 
+	-> Result<Vec<CoreState>>
 	where
 		Context: SubsystemContext,
 {
@@ -276,8 +273,8 @@ where
 /// Get group rotation info based on the given relay_parent.
 pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<GroupRotationInfo>
-	where
-		Context: SubsystemContext
+where
+	Context: SubsystemContext,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.

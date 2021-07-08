@@ -11,7 +11,7 @@ futures-timer = "3"
 tracing = "0.1.26"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 kvdb = "0.10.0"
 thiserror = "1.0.23"
