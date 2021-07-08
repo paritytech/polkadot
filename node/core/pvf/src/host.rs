@@ -628,7 +628,7 @@ mod tests {
 		}
 	}
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
 		Pvf::from_discriminator(descriminator).as_artifact_id()
 	}
