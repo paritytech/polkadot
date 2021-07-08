@@ -76,16 +76,29 @@ impl From<TrancheEntry> for crate::approval_db::v1::TrancheEntry {
 /// particular block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ApprovalEntry {
-	pub tranches: Vec<TrancheEntry>,
-	pub backing_group: GroupIndex,
-	pub our_assignment: Option<OurAssignment>,
-	pub our_approval_sig: Option<ValidatorSignature>,
+	tranches: Vec<TrancheEntry>,
+	backing_group: GroupIndex,
+	our_assignment: Option<OurAssignment>,
+	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	pub assignments: BitVec<BitOrderLsb0, u8>,
-	pub approved: bool,
+	assignments: BitVec<BitOrderLsb0, u8>,
+	approved: bool,
 }
 
 impl ApprovalEntry {
+	/// Convenience constructor
+	pub fn new(
+		tranches: Vec<TrancheEntry>,
+		backing_group: GroupIndex,
+		our_assignment: Option<OurAssignment>,
+		our_approval_sig: Option<ValidatorSignature>,
+		// `n_validators` bits.
+		assignments: BitVec<BitOrderLsb0, u8>,
+		approved: bool,
+	) -> Self {
+		Self { tranches, backing_group, our_assignment, our_approval_sig, assignments, approved }
+	}
+
 	// Access our assignment for this approval entry.
 	pub fn our_assignment(&self) -> Option<&OurAssignment> {
 		self.our_assignment.as_ref()

@@ -265,14 +265,14 @@ pub fn add_block_entry(
 
 			candidate_entry.block_assignments.insert(
 				entry.block_hash(),
-				ApprovalEntry {
-					tranches: Vec::new(),
+				ApprovalEntry::new(
+					Vec::new(),
 					backing_group,
-					our_assignment: our_assignment.map(|v| v.into()),
-					our_approval_sig: None,
-					assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-					approved: false,
-				}
+					our_assignment.map(|v| v.into()),
+					None,
+					bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					false,
+				)
 			);
 
 			store.write_candidate_entry(candidate_entry.clone());

@@ -14,7 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! An abstraction over storage used by the chain selection subsystem.
 //!
+//! This provides both a [`Backend`] trait and an [`OverlayedBackend`]
+//! struct which allows in-memory changes to be applied on top of a
+//! [`Backend`], maintaining consistency between queries and temporary writes,
+//! before any commit to the underlying storage is made.
 
 use polkadot_node_subsystem::{SubsystemResult};
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, Hash};
