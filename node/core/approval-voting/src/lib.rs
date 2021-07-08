@@ -929,7 +929,7 @@ async fn handle_actions(
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
-				}.into()).await;
+				}).await;
 			}
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
