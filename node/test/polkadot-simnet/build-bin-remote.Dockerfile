@@ -34,7 +34,7 @@ RUN groupadd --gid 10001 nonroot && \
              --uid 10000 nonroot
 WORKDIR /home/nonroot/polkadot-simnet
 # Before running this cmd you need to manually copy polkadot-simnet binary from
-# project root target/reloease here, becasue all files in /target are ignored
+# project root target/release here, because all files in /target are ignored
 # because they are specified in .dockerignore file
 # cp ../../../target/release/polkadot-simnet .
 COPY  polkadot-simnet /usr/local/bin/polkadot-simnet
@@ -47,5 +47,3 @@ USER nonroot
 RUN /usr/local/bin/polkadot-simnet --version
 # Tini allows us to avoid several Docker edge cases, see https://github.com/krallin/tini.
 ENTRYPOINT ["tini", "--", "/usr/local/bin/polkadot-simnet"]
-
-
