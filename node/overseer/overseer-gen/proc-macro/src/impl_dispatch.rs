@@ -44,28 +44,23 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 			impl #message_wrapper {
 				/// Generated dispatch iterator generator.
 				pub fn dispatch_iter(extern_msg: #extern_network_ty) -> impl Iterator<Item=Self> + Send {
-					None
-						.into_iter()
-
+					::std::array::IntoIter::new([
 					#(
-						.chain(
-							::std::iter::once(
-								extern_msg
-									// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
-									// TODO do not require this to be hardcoded, either externalize or ...
-									// https://github.com/paritytech/polkadot/issues/3427
-									.focus()
-									.ok()
-									.map(|event| {
-										#message_wrapper :: #dispatchable_variant (
-											// the inner type of the enum variant
-											#dispatchable_message :: from( event )
-										)
-									})
-							)
-						)
+						extern_msg
+							// focuses on a `NetworkBridgeEvent< protocol_v1::* >`
+							// TODO do not require this to be hardcoded, either externalize or ...
+							// https://github.com/paritytech/polkadot/issues/3427
+							.focus()
+							.ok()
+							.map(|event| {
+								#message_wrapper :: #dispatchable_variant (
+									// the inner type of the enum variant
+									#dispatchable_message :: from( event )
+								)
+							}),
 					)*
-
+					])
+					.into_iter()
 					.filter_map(|x: Option<_>| x)
 				}
 			}
