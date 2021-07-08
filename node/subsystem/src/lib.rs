@@ -223,6 +223,9 @@ pub enum SubsystemError {
 		/// The wrapped error. Marked as source for tracking the error chain.
 		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
 	},
+
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
 }
 
 impl SubsystemError {
