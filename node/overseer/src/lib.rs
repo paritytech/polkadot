@@ -87,7 +87,7 @@ use polkadot_subsystem::messages::{
 	ProvisionerMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage,
 	CollatorProtocolMessage, AvailabilityRecoveryMessage, ApprovalDistributionMessage,
-	ApprovalVotingMessage, GossipSupportMessage, DisputeDistributionMessage,
+	ApprovalVotingMessage, GossipSupportMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemSender, OverseerSignal, FromOverseer, SubsystemError,
@@ -153,7 +153,7 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 pub struct AllSubsystems<
 	CV = (), CB = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
 	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
-	GS = (), DD = (),
+	GS = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -189,12 +189,10 @@ pub struct AllSubsystems<
 	pub approval_voting: ApV,
 	/// A Connection Request Issuer subsystem.
 	pub gossip_support: GS,
-	/// Dispute distribution subsystem.
-	pub dispute_distribution: DD,
 }
 
-impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
-	AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
+impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
+	AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 {
 	/// Create a new instance of [`AllSubsystems`].
 	///
@@ -209,7 +207,6 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 	/// polkadot_overseer::AllSubsystems::<()>::dummy();
 	/// ```
 	pub fn dummy() -> AllSubsystems<
-		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
@@ -246,11 +243,10 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 			approval_distribution: DummySubsystem,
 			approval_voting: DummySubsystem,
 			gossip_support: DummySubsystem,
-			dispute_distribution: DummySubsystem,
 		}
 	}
 
-	fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS, &'_ DD> {
+	fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,
 			candidate_backing: &self.candidate_backing,
@@ -269,7 +265,6 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 			approval_distribution: &self.approval_distribution,
 			approval_voting: &self.approval_voting,
 			gossip_support: &self.gossip_support,
-			dispute_distribution: &self.dispute_distribution,
 		}
 	}
 
@@ -292,7 +287,6 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 			<M as MapSubsystem<ApD>>::Output,
 			<M as MapSubsystem<ApV>>::Output,
 			<M as MapSubsystem<GS>>::Output,
-			<M as MapSubsystem<DD>>::Output,
 		>
 	where
 		M: MapSubsystem<CV>,
@@ -312,7 +306,6 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 		M: MapSubsystem<ApD>,
 		M: MapSubsystem<ApV>,
 		M: MapSubsystem<GS>,
-		M: MapSubsystem<DD>,
 	{
 		AllSubsystems {
 			candidate_validation: m.map_subsystem(self.candidate_validation),
@@ -332,7 +325,6 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>
 			approval_distribution: m.map_subsystem(self.approval_distribution),
 			approval_voting: m.map_subsystem(self.approval_voting),
 			gossip_support: m.map_subsystem(self.gossip_support),
-			dispute_distribution: m.map_subsystem(self.dispute_distribution),
 		}
 	}
 }
@@ -341,7 +333,7 @@ type AllSubsystemsSame<T> = AllSubsystems<
 	T, T, T, T, T,
 	T, T, T, T, T,
 	T, T, T, T, T,
-	T, T, T,
+	T, T,
 >;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
@@ -595,7 +587,6 @@ struct ChannelsOut {
 	approval_distribution: metered::MeteredSender<MessagePacket<ApprovalDistributionMessage>>,
 	approval_voting: metered::MeteredSender<MessagePacket<ApprovalVotingMessage>>,
 	gossip_support: metered::MeteredSender<MessagePacket<GossipSupportMessage>>,
-	dispute_distribution: metered::MeteredSender<MessagePacket<DisputeDistributionMessage>>,
 
 	candidate_validation_unbounded: metered::UnboundedMeteredSender<MessagePacket<CandidateValidationMessage>>,
 	candidate_backing_unbounded: metered::UnboundedMeteredSender<MessagePacket<CandidateBackingMessage>>,
@@ -614,7 +605,6 @@ struct ChannelsOut {
 	approval_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<ApprovalDistributionMessage>>,
 	approval_voting_unbounded: metered::UnboundedMeteredSender<MessagePacket<ApprovalVotingMessage>>,
 	gossip_support_unbounded: metered::UnboundedMeteredSender<MessagePacket<GossipSupportMessage>>,
-	dispute_distribution_unbounded: metered::UnboundedMeteredSender<MessagePacket<DisputeDistributionMessage>>,
 }
 
 impl ChannelsOut {
@@ -675,11 +665,9 @@ impl ChannelsOut {
 			AllMessages::GossipSupport(msg) => {
 				self.gossip_support.send(make_packet(signals_received, msg)).await
 			},
-			AllMessages::DisputeDistribution(msg) => {
-				self.dispute_distribution.send(make_packet(signals_received, msg)).await
-			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::DisputeDistribution(_) => Ok(()),
 			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
@@ -783,13 +771,9 @@ impl ChannelsOut {
 					.unbounded_send(make_packet(signals_received, msg))
 					.map_err(|e| e.into_send_error())
 			},
-			AllMessages::DisputeDistribution(msg) => {
-				self.dispute_distribution_unbounded
-					.unbounded_send(make_packet(signals_received, msg))
-					.map_err(|e| e.into_send_error())
-			},
 			AllMessages::DisputeCoordinator(_) => Ok(()),
 			AllMessages::DisputeParticipation(_) => Ok(()),
+			AllMessages::DisputeDistribution(_) => Ok(()),
 			AllMessages::ChainSelection(_) => Ok(()),
 		};
 
@@ -1130,7 +1114,6 @@ pub struct Overseer<S, SupportsParachains> {
 		OverseenSubsystem<ApprovalDistributionMessage>,
 		OverseenSubsystem<ApprovalVotingMessage>,
 		OverseenSubsystem<GossipSupportMessage>,
-		OverseenSubsystem<DisputeDistributionMessage>,
 	>,
 
 	/// Spawner to spawn tasks to.
@@ -1442,9 +1425,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>(
+	pub fn new<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DD>,
+		all_subsystems: AllSubsystems<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		mut s: S,
@@ -1467,7 +1450,6 @@ where
 		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
 		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
 		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
-		DD: Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>> + Send,
 	{
 		let (events_tx, events_rx) = metered::channel(CHANNEL_CAPACITY);
 
@@ -1515,8 +1497,6 @@ where
 			= metered::channel(CHANNEL_CAPACITY);
 		let (gossip_support_bounded_tx, gossip_support_bounded_rx)
 			= metered::channel(CHANNEL_CAPACITY);
-		let (dispute_distribution_bounded_tx, dispute_distribution_bounded_rx)
-			= metered::channel(CHANNEL_CAPACITY);
 
 		let (candidate_validation_unbounded_tx, candidate_validation_unbounded_rx)
 			= metered::unbounded();
@@ -1552,8 +1532,6 @@ where
 			= metered::unbounded();
 		let (gossip_support_unbounded_tx, gossip_support_unbounded_rx)
 			= metered::unbounded();
-		let (dispute_distribution_unbounded_tx, dispute_distribution_unbounded_rx)
-			= metered::unbounded();
 
 		let channels_out = ChannelsOut {
 			candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -1573,7 +1551,6 @@ where
 			approval_distribution: approval_distribution_bounded_tx.clone(),
 			approval_voting: approval_voting_bounded_tx.clone(),
 			gossip_support: gossip_support_bounded_tx.clone(),
-			dispute_distribution: dispute_distribution_bounded_tx.clone(),
 
 			candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 			candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -1592,7 +1569,6 @@ where
 			approval_distribution_unbounded: approval_distribution_unbounded_tx.clone(),
 			approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
 			gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
-			dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
 		};
 
 		let candidate_validation_subsystem = spawn(
@@ -1816,19 +1792,6 @@ where
 			TaskKind::Regular,
 		)?;
 
-		let dispute_distribution_subsystem = spawn(
-			&mut s,
-			dispute_distribution_bounded_tx,
-			stream::select(dispute_distribution_bounded_rx, dispute_distribution_unbounded_rx),
-			dispute_distribution_unbounded_tx.meter().clone(),
-			channels_out.clone(),
-			to_overseer_tx.clone(),
-			all_subsystems.dispute_distribution,
-			&metrics,
-			&mut running_subsystems,
-			TaskKind::Regular,
-		)?;
-
 		let leaves = leaves
 			.into_iter()
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
@@ -1855,7 +1818,6 @@ where
 			approval_distribution: approval_distribution_subsystem,
 			approval_voting: approval_voting_subsystem,
 			gossip_support: gossip_support_subsystem,
-			dispute_distribution: dispute_distribution_subsystem,
 		};
 
 		{
@@ -2154,12 +2116,10 @@ where
 			AllMessages::GossipSupport(msg) => {
 				self.subsystems.gossip_support.send_message(msg, origin).await?;
 			},
-			AllMessages::DisputeDistribution(msg) => {
-				self.subsystems.dispute_distribution.send_message(msg).await?;
-			},
 			AllMessages::DisputeCoordinator(_) => {}
 			AllMessages::DisputeParticipation(_) => {}
 			AllMessages::ChainSelection(_) => {}
+			AllMessages::DisputeDistribution(_) => {}
 		}
 
 		Ok(())
