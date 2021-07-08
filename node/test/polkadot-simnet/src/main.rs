@@ -37,16 +37,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let filters = cmd.run.base.log_filters()?;
     let logger = sc_tracing::logging::LoggerBuilder::new(filters);
     logger.init()?;
-
     // set up the test-runner
     let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+    print_node_infos::<Cli>(&config);
     let (rpc, task_manager, client, pool, command_sink, backend) =
         client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
     let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
     // wait for ctrl_c signal, then drop node.
     tokio_runtime.block_on(node.until_shutdown());
-    drop(node);
 
     Ok(())
 }

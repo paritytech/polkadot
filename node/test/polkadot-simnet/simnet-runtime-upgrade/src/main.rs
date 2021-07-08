@@ -18,7 +18,7 @@ use std::error::Error;
 
 use test_runner::{Node, client_parts, ConfigOrChainSpec, task_executor};
 use polkadot_runtime_test::{PolkadotChainInfo, dispatch_with_root};
-use sc_cli::{build_runtime, SubstrateCli, CliConfiguration};
+use sc_cli::{build_runtime, SubstrateCli, CliConfiguration, print_node_infos};
 use polkadot_cli::Cli;
 use structopt::StructOpt;
 
@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // set up the test-runner
     let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+    print_node_infos::<Cli>(&config);
     let (rpc, task_manager, client, pool, command_sink, backend) =
         client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
     let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
