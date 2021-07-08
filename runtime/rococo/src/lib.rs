@@ -1226,7 +1226,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::Inclusion(ev) => {
+					Event::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,
