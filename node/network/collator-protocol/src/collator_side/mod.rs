@@ -36,7 +36,11 @@ use polkadot_node_network_protocol::{
 	},
 	v1 as protocol_v1,
 };
-use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}};
+use polkadot_node_subsystem_util::{
+	TimeoutExt,
+	metrics::{self, prometheus},
+	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}
+};
 use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
 use crate::error::{Fatal, NonFatal, log_error};
@@ -53,7 +57,7 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// This is to protect from a single slow validator preventing collations from happening.
 ///
 /// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 300 milli seconds should therefore be
+/// the transfer should be possible within 0.1 seconds. 300 milliseconds should therefore be
 /// plenty and should be low enough for later validators to still be able to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
@@ -216,7 +220,7 @@ struct WaitingCollationFetches {
 	collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
 	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
-	/// All peers that waiting or active uploads.
+	/// All peers that are waiting or actively uploading.
 	///
 	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of
 	/// moving on to the next peer after `MAX_UNSHARED_UPLOAD_TIME` would be pointless.
