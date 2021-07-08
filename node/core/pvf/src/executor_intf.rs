@@ -213,6 +213,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
 		panic!("set_offchain_storage: unsupported feature for parachain validation")
 	}
+
+	fn get_read_and_written_keys(&self) -> Vec<(Vec<u8>, u32, u32, bool)> {
+		panic!("get_read_and_written_keys: unsupported feature for parachain validation")
+	}
 }
 
 impl sp_externalities::ExtensionStore for ValidationExternalities {
