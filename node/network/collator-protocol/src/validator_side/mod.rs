@@ -1240,7 +1240,7 @@ where
 
 /// Dequeue another collation fetch.
 async fn dequeue_next_collation_fetch(
-	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	ctx: &mut (impl SubsystemContext<Message = CollatorProtocolMessage> + overseer::SubsystemContext<Message = CollatorProtocolMessage>),
 	state: &mut State,
 	relay_parent: Hash,
 	// The collator we tried to fetch from last.
