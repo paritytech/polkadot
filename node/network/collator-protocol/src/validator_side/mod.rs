@@ -526,6 +526,11 @@ impl CollationStatus {
 struct CollationsPerRelayParent {
 	/// What is the current status in regards to a collation for this relay parent?
 	status: CollationStatus,
+	/// Collation currently being fetched.
+	///
+	/// This is the currently last started fetch, which did not exceed `MAX_UNSHARED_DOWNLOAD_TIME`
+	/// yet.
+	waiting_collation: Option<CollatorId>,
 	/// Collation that were advertised to us, but we did not yet fetch.
 	unfetched_collations: Vec<(PendingCollation, CollatorId)>,
 }
@@ -535,14 +540,33 @@ impl CollationsPerRelayParent {
 	///
 	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
 	///
-	/// Returns `Some(_)` if there is any collation to fetch and the `status` is not `Seconded`.
-	pub fn get_next_collation_to_fetch(&mut self) -> Option<(PendingCollation, CollatorId)> {
+	/// Returns `Some(_)` if there is any collation to fetch, the `status` is not `Seconded` and
+	/// the passed in `finished_one` is the currently `waiting_collation`.
+	pub fn get_next_collation_to_fetch(
+		&mut self,
+		finished_one: Option<CollatorId>,
+	) -> Option<(PendingCollation, CollatorId)> {
+		// If finished one does not match waiting_collation, then we already dequeued another fetch
+		// to replace it.
+		if self.waiting_collation != finished_one {
+			tracing::trace!(
+				target: LOG_TARGET,
+				waiting_collation = ?self.waiting_collation,
+				?finished_one,
+				"Not proceeding to the next collation - has already been done."
+			);
+			return None
+		}
 		self.status.back_to_waiting();
 
 		match self.status {
 			// We don't need to fetch any other collation when we already have seconded one.
 			CollationStatus::Seconded => None,
-			CollationStatus::Waiting => self.unfetched_collations.pop(),
+			CollationStatus::Waiting => {
+				let next = self.unfetched_collations.pop();
+				self.waiting_collation = next.as_ref().map(|(_, collator_id)| collator_id.clone());
+				next
+			}
 			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
 				unreachable!("We have reset the status above!"),
 		}
@@ -582,7 +606,7 @@ struct State {
 	///
 	/// A triggering timer means that the fetching took too long for our taste and we should give
 	/// another collator the chance to be faster (dequeue next fetch request as well).
-	collation_fetch_timeouts: FuturesUnordered<BoxFuture<'static, Hash>>,
+	collation_fetch_timeouts: FuturesUnordered<BoxFuture<'static, (CollatorId, Hash)>>,
 
 	/// Information about the collations per relay parent.
 	collations_per_relay_parent: HashMap<Hash, CollationsPerRelayParent>,
@@ -620,11 +644,11 @@ async fn fetch_collation(
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
 
-	let timeout = |relay_parent| async move {
+	let timeout = |collator_id, relay_parent| async move {
 		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
-		relay_parent
+		(collator_id, relay_parent)
 	};
-	state.collation_fetch_timeouts.push(timeout(relay_parent.clone()).boxed());
+	state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent.clone()).boxed());
 
 	if state.peer_data.get(&peer_id).map_or(false, |d| d.has_advertised(&relay_parent)) {
 		request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
@@ -826,6 +850,7 @@ where
 				);
 
 				modify_reputation(ctx, origin.clone(), COST_UNNEEDED_COLLATOR).await;
+				tracing::trace!("Disconnecting unneeded collator");
 				disconnect_peer(ctx, origin).await;
 			}
 		}
@@ -874,6 +899,7 @@ where
 							collations.unfetched_collations.push((pending_collation, id)),
 						CollationStatus::Waiting => {
 							collations.status = CollationStatus::Fetching;
+							collations.waiting_collation = Some(id.clone());
 
 							fetch_collation(ctx, state, pending_collation.clone(), id).await;
 						},
@@ -965,6 +991,7 @@ async fn handle_our_view_change(
 		// declare.
 		if let Some(para_id) = peer_data.collating_para() {
 			if !state.active_paras.is_current_or_next(para_id) {
+				tracing::trace!("Disconnecting peer on view change");
 				disconnect_peer(ctx, peer_id.clone()).await;
 			}
 		}
@@ -1096,14 +1123,9 @@ where
 				Entry::Vacant(_) => return,
 			};
 
-			report_collator(ctx, &state.peer_data, id).await;
+			report_collator(ctx, &state.peer_data, id.clone()).await;
 
-			if let Some((next, id)) = state.collations_per_relay_parent
-				.get_mut(&parent)
-				.and_then(|c| c.get_next_collation_to_fetch())
-			{
-				fetch_collation(ctx, state, next, id).await;
-			}
+			dequeue_next_collation_fetch(ctx, state, parent, id).await;
 		}
 	}
 }
@@ -1167,13 +1189,14 @@ pub(crate) async fn run<Context>(
 			res = state.collation_fetches.select_next_some() => {
 				handle_collation_fetched_result(&mut ctx, &mut state, res).await;
 			}
-			relay_parent = state.collation_fetch_timeouts.select_next_some() => {
+			res = state.collation_fetch_timeouts.select_next_some() => {
+				let (collator_id, relay_parent) = res;
 				tracing::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					"Fetch for collation took too long, starting parallel download for next collator as well."
 				);
-				dequeue_next_collation_fetch(&mut ctx, &mut state, relay_parent).await;
+				dequeue_next_collation_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
 		}
 
@@ -1196,11 +1219,13 @@ pub(crate) async fn run<Context>(
 async fn dequeue_next_collation_fetch(
 	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
 	state: &mut State,
-	relay_parent: Hash
+	relay_parent: Hash,
+	// The collator we tried to fetch from last.
+	previous_fetch: CollatorId,
 ) {
 	if let Some((next, id)) = state.collations_per_relay_parent
 		.get_mut(&relay_parent)
-		.and_then(|c| c.get_next_collation_to_fetch())
+		.and_then(|c| c.get_next_collation_to_fetch(Some(previous_fetch)))
 	{
 		fetch_collation(ctx, state, next, id).await;
 	}
@@ -1230,7 +1255,7 @@ async fn handle_collation_fetched_result(
 				"Failed to fetch collation.",
 			);
 
-			dequeue_next_collation_fetch(ctx, state, relay_parent).await;
+			dequeue_next_collation_fetch(ctx, state, relay_parent, collation_event.0).await;
 			return
 		},
 	};
@@ -1278,6 +1303,7 @@ async fn disconnect_inactive_peers(
 ) {
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
+			tracing::trace!("Disconnecting inactive peer");
 			disconnect_peer(ctx, peer.clone()).await;
 		}
 	}

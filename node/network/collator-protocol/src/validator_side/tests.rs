@@ -564,7 +564,7 @@ fn fetch_collations_works() {
 
 		assert!(
 			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30)).await.is_none(),
-			"There should not be sent any other PoV request while the first one wasn't finished",
+			"There should not be sent any other PoV request while the first one wasn't finished or timed out.",
 		);
 
 		let pov = PoV { block_data: BlockData(vec![]) };
