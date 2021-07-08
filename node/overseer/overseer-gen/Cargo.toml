@@ -17,7 +17,6 @@ polkadot-node-network-protocol = { path = "../../network/protocol"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
 pin-project = "1.0"
-futures-util = "0.3"
 
 [dev-dependencies]
 trybuild = "1.0.41"

@@ -6524,7 +6524,6 @@ dependencies = [
  "async-trait",
  "futures 0.3.15",
  "futures-timer 3.0.2",
- "futures-util",
  "metered-channel",
  "pin-project 1.0.7",
  "polkadot-node-network-protocol",
