@@ -931,7 +931,7 @@ mod tests {
 	use keyring::Sr25519Keyring;
 	use sc_keystore::LocalKeystore;
 	use crate::mock::{
-		new_test_ext, Configuration, Paras, System, Inclusion,
+		new_test_ext, Configuration, Paras, System, ParaInclusion,
 		MockGenesisConfig, Test, Shared,
 	};
 	use crate::initializer::SessionChangeNotification;
@@ -1059,7 +1059,7 @@ mod tests {
 		while System::block_number() < to {
 			let b = System::block_number();
 
-			Inclusion::initializer_finalize();
+			ParaInclusion::initializer_finalize();
 			Paras::initializer_finalize();
 			Shared::initializer_finalize();
 
@@ -1071,7 +1071,7 @@ mod tests {
 					notification.validators.clone(),
 				);
 				Paras::initializer_on_new_session(&notification);
-				Inclusion::initializer_on_new_session(&notification);
+				ParaInclusion::initializer_on_new_session(&notification);
 			}
 
 			System::on_finalize(b);
@@ -1081,7 +1081,7 @@ mod tests {
 
 			Shared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
-			Inclusion::initializer_initialize(b + 1);
+			ParaInclusion::initializer_initialize(b + 1);
 		}
 	}
 
@@ -1215,7 +1215,7 @@ mod tests {
 			assert!(<PendingAvailabilityCommitments<Test>>::get(&chain_a).is_some());
 			assert!(<PendingAvailabilityCommitments<Test>>::get(&chain_b).is_some());
 
-			Inclusion::collect_pending(|core, _since| core == CoreIndex::from(0));
+			ParaInclusion::collect_pending(|core, _since| core == CoreIndex::from(0));
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
@@ -1273,7 +1273,7 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
 					&core_lookup,
@@ -1291,7 +1291,7 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits() + 1,
 					vec![signed.into()],
 					&core_lookup,
@@ -1310,7 +1310,7 @@ mod tests {
 						&signing_context,
 				)).into();
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.clone(), signed],
 					&core_lookup,
@@ -1336,7 +1336,7 @@ mod tests {
 					&signing_context,
 				)).into();
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed_1, signed_0],
 					&core_lookup,
@@ -1355,7 +1355,7 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
 					&core_lookup,
@@ -1373,7 +1373,7 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
 					&core_lookup,
@@ -1408,7 +1408,7 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(Inclusion::process_bitfields(
+				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
 					&core_lookup,
@@ -1447,7 +1447,7 @@ mod tests {
 
 				// no core is freed
 				assert_eq!(
-					Inclusion::process_bitfields(
+					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
@@ -1571,7 +1571,7 @@ mod tests {
 				)).into())
 			}).collect();
 
-			assert!(Inclusion::process_bitfields(
+			assert!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				signed_bitfields,
 				&core_lookup,
@@ -1709,7 +1709,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
@@ -1768,7 +1768,7 @@ mod tests {
 
 				// out-of-order manifests as unscheduled.
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
@@ -1803,7 +1803,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -1840,7 +1840,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -1877,7 +1877,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![
@@ -1921,7 +1921,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
@@ -1970,7 +1970,7 @@ mod tests {
 				<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments);
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2012,7 +2012,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2059,7 +2059,7 @@ mod tests {
 				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(10));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2095,7 +2095,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2132,7 +2132,7 @@ mod tests {
 				));
 
 				assert_eq!(
-					Inclusion::process_candidates(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2274,7 +2274,7 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = Inclusion::process_candidates(
+			let occupied_cores = ParaInclusion::process_candidates(
 				Default::default(),
 				vec![backed_a, backed_b, backed_c],
 				vec![
@@ -2410,7 +2410,7 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = Inclusion::process_candidates(
+			let occupied_cores = ParaInclusion::process_candidates(
 				Default::default(),
 				vec![backed_a],
 				vec![
