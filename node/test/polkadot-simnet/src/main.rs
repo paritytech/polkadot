@@ -16,9 +16,9 @@
 
 //! Binary used for simnet nodes, supports all runtimes, although only polkadot is implemented currently.
 //! This binary accepts all the cli args the polkadot binary does, Only difference is it uses
-//! manual-seal™ and babe for block authorship, it has a no-op verifier, so all blocks recieved over the network
-//! are imported and executed straight away. Block authorship/Finalization maybe done by calling the `engine_createBlock` &
-//! `engine_FinalizeBlock` rpc methods respectively.
+//! manual-seal™ and babe for block authorship, it has a no-op verifier, so all blocks received over the network
+//! are imported and executed straight away. Block authorship/Finalization maybe done by calling the
+//!  `engine_createBlock` & `engine_FinalizeBlock` rpc methods respectively.
 
 use std::error::Error;
 
