@@ -46,6 +46,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 	let error_ty = &info.extern_error_ty;
 
+	let support_crate = info.support_crate_name();
+
 	let blocking = &info
 		.subsystems()
 		.iter()
@@ -63,7 +65,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 	};
 	let where_clause = quote! {
 		where
-			S: ::polkadot_overseer_gen::SpawnNamed,
+			S: #support_crate ::SpawnNamed,
 	};
 
 	let builder_generics = quote! {
@@ -82,7 +84,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 	let builder_where_clause = quote! {
 		where
-			S: ::polkadot_overseer_gen::SpawnNamed,
+			S: #support_crate ::SpawnNamed,
 		#(
 			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>,
 		)*
@@ -101,7 +103,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 		}
 
 		/// Handler for an overseer.
-		pub type #handler = ::polkadot_overseer_gen::metered::MeteredSender< #event >;
+		pub type #handler = #support_crate ::metered::MeteredSender< #event >;
 
 		#[allow(missing_docs)]
 		pub struct #builder #builder_generics {
@@ -118,7 +120,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			fn default() -> Self {
 				// explicitly assure the required traits are implemented
 				fn trait_from_must_be_implemented<E>()
-				where E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::OverseerError>
+				where E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
@@ -137,7 +139,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 		impl #builder_generics #builder #builder_generics #builder_where_clause {
 			/// The spawner to use for spawning tasks.
-			pub fn spawner(mut self, spawner: S) -> Self where S: ::polkadot_overseer_gen::SpawnNamed + Send {
+			pub fn spawner(mut self, spawner: S) -> Self where S: #support_crate ::SpawnNamed + Send {
 				self.spawner = Some(spawner);
 				self
 			}
@@ -161,27 +163,27 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			/// Complete the construction and create the overseer type.
 			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handler), #error_ty>
 			{
-				let (events_tx, events_rx) = ::polkadot_overseer_gen::metered::channel::<
+				let (events_tx, events_rx) = #support_crate ::metered::channel::<
 					#event
 				>(SIGNAL_CHANNEL_CAPACITY);
 
 				let handler: #handler = events_tx.clone();
 
-				let (to_overseer_tx, to_overseer_rx) = ::polkadot_overseer_gen::metered::unbounded::<
+				let (to_overseer_tx, to_overseer_rx) = #support_crate ::metered::unbounded::<
 					ToOverseer
 				>();
 
 				#(
 					let (#channel_name_tx, #channel_name_rx)
 					=
-						::polkadot_overseer_gen::metered::channel::<
+						#support_crate ::metered::channel::<
 							MessagePacket< #consumes >
 						>(CHANNEL_CAPACITY);
 				)*
 
 				#(
 					let (#channel_name_unbounded_tx, #channel_name_unbounded_rx) =
-						::polkadot_overseer_gen::metered::unbounded::<
+						#support_crate ::metered::unbounded::<
 							MessagePacket< #consumes >
 						>();
 				)*
@@ -198,7 +200,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 				let mut spawner = self.spawner.expect("Spawner is set. qed");
 
-				let mut running_subsystems = ::polkadot_overseer_gen::FuturesUnordered::<
+				let mut running_subsystems = #support_crate ::FuturesUnordered::<
 						BoxFuture<'static, ::std::result::Result<(), #error_ty > >
 					>::new();
 
@@ -209,10 +211,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
 
-					let message_rx: SubsystemIncomingMessages< #consumes > = ::polkadot_overseer_gen::select(
+					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select(
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
-					let (signal_tx, signal_rx) = ::polkadot_overseer_gen::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 					let ctx = #subsyste_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
@@ -237,7 +239,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 					let #baggage_name = self. #baggage_name .expect(&format!("Baggage variable `{1}` of `{0}` ", stringify!(#overseer_name), stringify!( #baggage_name )));
 				)*
 
-				use ::polkadot_overseer_gen::StreamExt;
+				use #support_crate ::StreamExt;
 
 				let to_overseer_rx = to_overseer_rx.fuse();
 				let overseer = #overseer_name {
@@ -266,10 +268,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
+	let support_crate = info.support_crate_name();
 
 	let ts = quote! {
 
-		use ::polkadot_overseer_gen::FutureExt as _;
+		use #support_crate ::FutureExt as _;
 
 		/// Task kind to launch.
 		pub trait TaskKind {
@@ -296,33 +299,33 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 		/// Spawn task of kind `self` using spawner `S`.
 		pub fn spawn<S, M, TK, Ctx, E, SubSys>(
 			spawner: &mut S,
-			message_tx: ::polkadot_overseer_gen::metered::MeteredSender<MessagePacket<M>>,
-			signal_tx: ::polkadot_overseer_gen::metered::MeteredSender< #signal >,
+			message_tx: #support_crate ::metered::MeteredSender<MessagePacket<M>>,
+			signal_tx: #support_crate ::metered::MeteredSender< #signal >,
 			// meter for the unbounded channel
-			unbounded_meter: ::polkadot_overseer_gen::metered::Meter,
+			unbounded_meter: #support_crate ::metered::Meter,
 			// connection to the subsystems
 			channels_out: ChannelsOut,
 			ctx: Ctx,
 			s: SubSys,
-			futures: &mut ::polkadot_overseer_gen::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
+			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
 		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
 		where
-			S: ::polkadot_overseer_gen::SpawnNamed,
+			S: #support_crate ::SpawnNamed,
 			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
-			Ctx: ::polkadot_overseer_gen::SubsystemContext<Message=M>,
-			E: std::error::Error + Send + Sync + 'static + From<::polkadot_overseer_gen::OverseerError>,
-			SubSys: ::polkadot_overseer_gen::Subsystem<Ctx, E>,
+			Ctx: #support_crate ::SubsystemContext<Message=M>,
+			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>,
+			SubSys: #support_crate ::Subsystem<Ctx, E>,
 		{
-			let ::polkadot_overseer_gen::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
+			let #support_crate ::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
 
-			let (tx, rx) = ::polkadot_overseer_gen::oneshot::channel();
+			let (tx, rx) = #support_crate ::oneshot::channel();
 
 			let fut = Box::pin(async move {
 				if let Err(e) = future.await {
-					::polkadot_overseer_gen::tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
+					#support_crate ::tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
 				} else {
-					::polkadot_overseer_gen::tracing::debug!(subsystem=name, "subsystem exited without an error");
+					#support_crate ::tracing::debug!(subsystem=name, "subsystem exited without an error");
 				}
 				let _ = tx.send(());
 			});
@@ -337,7 +340,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 			));
 
 			let instance = Some(SubsystemInstance {
-				meters: ::polkadot_overseer_gen::SubsystemMeters {
+				meters: #support_crate ::SubsystemMeters {
 					unbounded: unbounded_meter,
 					bounded: message_tx.meter().clone(),
 					signals: signal_tx.meter().clone(),

@@ -6540,6 +6540,7 @@ name = "polkadot-overseer-gen-proc-macro"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote",
  "syn",

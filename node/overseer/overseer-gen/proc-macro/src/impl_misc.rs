@@ -29,6 +29,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 	let signal = &info.extern_signal_ty;
 	let wrapper_message = &info.message_wrapper;
 	let error_ty = &info.extern_error_ty;
+	let support_crate = info.support_crate_name();
 
 	let ts = quote! {
 		/// Connector to send messages towards all subsystems,
@@ -42,7 +43,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		}
 
 		/// impl for wrapping message type...
-		#[::polkadot_overseer_gen::async_trait]
+		#[#support_crate ::async_trait]
 		impl SubsystemSender< #wrapper_message > for #subsystem_sender_name {
 			async fn send_message(&mut self, msg: #wrapper_message) {
 				self.channels.send_and_log_error(self.signals_received.load(), msg).await;
@@ -68,7 +69,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		// the necessity for manual wrapping, and do the conversion
 		// based on the generated `From::from` impl for the individual variants.
 		#(
-		#[::polkadot_overseer_gen::async_trait]
+		#[#support_crate ::async_trait]
 		impl SubsystemSender< #consumes > for #subsystem_sender_name {
 			async fn send_message(&mut self, msg: #consumes) {
 				self.channels.send_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg )).await;
@@ -101,11 +102,11 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		#[derive(Debug)]
 		#[allow(missing_docs)]
 		pub struct #subsystem_ctx_name<M>{
-			signals: ::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
+			signals: #support_crate ::metered::MeteredReceiver< #signal >,
 			messages: SubsystemIncomingMessages<M>,
 			to_subsystems: #subsystem_sender_name,
-			to_overseer: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<
-				::polkadot_overseer_gen::ToOverseer
+			to_overseer: #support_crate ::metered::UnboundedMeteredSender<
+				#support_crate ::ToOverseer
 				>,
 			signals_received: SignalsReceived,
 			pending_incoming: Option<(usize, M)>,
@@ -114,10 +115,10 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		impl<M> #subsystem_ctx_name<M> {
 			/// Create a new context.
 			fn new(
-				signals: ::polkadot_overseer_gen::metered::MeteredReceiver< #signal >,
+				signals: #support_crate ::metered::MeteredReceiver< #signal >,
 				messages: SubsystemIncomingMessages<M>,
 				to_subsystems: ChannelsOut,
-				to_overseer: ::polkadot_overseer_gen::metered::UnboundedMeteredSender<ToOverseer>,
+				to_overseer: #support_crate ::metered::UnboundedMeteredSender<ToOverseer>,
 			) -> Self {
 				let signals_received = SignalsReceived::default();
 				#subsystem_ctx_name {
@@ -134,10 +135,10 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			}
 		}
 
-		#[::polkadot_overseer_gen::async_trait]
+		#[#support_crate ::async_trait]
 		impl<M: std::fmt::Debug + Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
 		where
-			#subsystem_sender_name: ::polkadot_overseer_gen::SubsystemSender< #wrapper_message >,
+			#subsystem_sender_name: #support_crate ::SubsystemSender< #wrapper_message >,
 			#wrapper_message: From<M>,
 		{
 			type Message = M;
@@ -147,9 +148,9 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			type Error = #error_ty;
 
 			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, #signal>>, ()> {
-				match ::polkadot_overseer_gen::poll!(self.recv()) {
-					::polkadot_overseer_gen::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
-					::polkadot_overseer_gen::Poll::Pending => Ok(None),
+				match #support_crate ::poll!(self.recv()) {
+					#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
+					#support_crate ::Poll::Pending => Ok(None),
 				}
 			}
 
@@ -159,19 +160,19 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 					// in the meantime.
 					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
 						if needs_signals_received <= self.signals_received.load() {
-							return Ok(::polkadot_overseer_gen::FromOverseer::Communication { msg });
+							return Ok(#support_crate ::FromOverseer::Communication { msg });
 						} else {
 							self.pending_incoming = Some((needs_signals_received, msg));
 
 							// wait for next signal.
 							let signal = self.signals.next().await
-								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
+								.ok_or(#support_crate ::OverseerError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
 
 							self.signals_received.inc();
-							return Ok(::polkadot_overseer_gen::FromOverseer::Signal(signal))
+							return Ok(#support_crate ::FromOverseer::Signal(signal))
 						}
 					}
 
@@ -181,19 +182,19 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 					let pending_incoming = &mut self.pending_incoming;
 
 					// Otherwise, wait for the next signal or incoming message.
-					let from_overseer = ::polkadot_overseer_gen::futures::select_biased! {
+					let from_overseer = #support_crate ::futures::select_biased! {
 						signal = await_signal => {
 							let signal = signal
-								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
+								.ok_or(#support_crate ::OverseerError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
 
-							::polkadot_overseer_gen::FromOverseer::Signal(signal)
+							#support_crate ::FromOverseer::Signal(signal)
 						}
 						msg = await_message => {
 							let packet = msg
-								.ok_or(::polkadot_overseer_gen::OverseerError::Context(
+								.ok_or(#support_crate ::OverseerError::Context(
 									"Message channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -204,12 +205,12 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 								continue;
 							} else {
 								// we know enough to return this message.
-								::polkadot_overseer_gen::FromOverseer::Communication { msg: packet.message}
+								#support_crate ::FromOverseer::Communication { msg: packet.message}
 							}
 						}
 					};
 
-					if let ::polkadot_overseer_gen::FromOverseer::Signal(_) = from_overseer {
+					if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
 						self.signals_received.inc();
 					}
 
@@ -224,7 +225,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(::polkadot_overseer_gen::ToOverseer::SpawnJob {
+				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
 					name,
 					s,
 				}).map_err(|_| SubsystemError::TaskSpawn(name))
@@ -233,7 +234,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(::polkadot_overseer_gen::ToOverseer::SpawnBlockingJob {
+				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
 					name,
 					s,
 				}).map_err(|_| SubsystemError::TaskSpawn(name))

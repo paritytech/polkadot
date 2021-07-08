@@ -31,6 +31,8 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 	let consumes_variant = &info.variant_names_without_wip();
 	let unconsumes_variant = &info.variant_names_only_wip();
 
+	let support_crate = info.support_crate_name();
+
 	let ts = quote! {
 		/// Collection of channels to the individual subsystems.
 		///
@@ -40,7 +42,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 			#(
 				/// Bounded channel sender, connected to a subsystem.
 				pub #channel_name:
-					::polkadot_overseer_gen::metered::MeteredSender<
+					#support_crate ::metered::MeteredSender<
 						MessagePacket< #consumes >
 					>,
 			)*
@@ -48,7 +50,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 			#(
 				/// Unbounded channel sender, connected to a subsystem.
 				pub #channel_name_unbounded:
-					::polkadot_overseer_gen::metered::UnboundedMeteredSender<
+					#support_crate ::metered::UnboundedMeteredSender<
 						MessagePacket< #consumes >
 					>,
 			)*
@@ -65,7 +67,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				#(
 					#message_wrapper :: #consumes_variant ( inner ) => {
 						self. #channel_name .send(
-							::polkadot_overseer_gen::make_packet(signals_received, inner)
+							#support_crate ::make_packet(signals_received, inner)
 						).await
 					}
 				)*
@@ -78,7 +80,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				};
 
 				if res.is_err() {
-					::polkadot_overseer_gen::tracing::debug!(
+					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
 						"Failed to send a message to another subsystem",
 					);
@@ -97,7 +99,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				#(
 					#message_wrapper :: #consumes_variant (inner) => {
 						self. #channel_name_unbounded .unbounded_send(
-							::polkadot_overseer_gen::make_packet(signals_received, inner)
+							#support_crate ::make_packet(signals_received, inner)
 						)
 						.map_err(|e| e.into_send_error())
 					},
@@ -111,7 +113,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				};
 
 				if res.is_err() {
-					::polkadot_overseer_gen::tracing::debug!(
+					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
 						"Failed to send a message to another subsystem",
 					);

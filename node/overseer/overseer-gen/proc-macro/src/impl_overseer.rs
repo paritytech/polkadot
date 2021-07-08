@@ -23,6 +23,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 	let message_wrapper = &info.message_wrapper.clone();
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names_without_wip();
+	let support_crate = info.support_crate_name();
 
 	let baggage_decl = &info.baggage_decl();
 
@@ -34,7 +35,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 	let where_clause = quote! {
 		where
-			S: ::polkadot_overseer_gen::SpawnNamed,
+			S: #support_crate ::SpawnNamed,
 	};
 	// TODO add `where ..` clauses for baggage types
 	// TODO https://github.com/paritytech/polkadot/issues/3427
@@ -84,17 +85,17 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 			spawner: S,
 
 			/// The set of running subsystems.
-			running_subsystems: ::polkadot_overseer_gen::FuturesUnordered<
+			running_subsystems: #support_crate ::FuturesUnordered<
 				BoxFuture<'static, ::std::result::Result<(), #error_ty>>
 			>,
 
 			/// Gather running subsystems' outbound streams into one.
-			to_overseer_rx: ::polkadot_overseer_gen::stream::Fuse<
-				::polkadot_overseer_gen::metered::UnboundedMeteredReceiver< ToOverseer >
+			to_overseer_rx: #support_crate ::stream::Fuse<
+				#support_crate ::metered::UnboundedMeteredReceiver< ToOverseer >
 			>,
 
 			/// Events that are sent to the overseer from the outside world.
-			events_rx: ::polkadot_overseer_gen::metered::MeteredReceiver< #event_ty >,
+			events_rx: #support_crate ::metered::MeteredReceiver< #event_ty >,
 		}
 
 		impl #generics #overseer_name #generics #where_clause {
@@ -109,7 +110,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 				)*
 				let _ = signal;
 
-				let mut timeout_fut = ::polkadot_overseer_gen::Delay::new(
+				let mut timeout_fut = #support_crate ::Delay::new(
 						timeout
 					).fuse();
 
@@ -183,10 +184,11 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
+	let support_crate = info.support_crate_name();
 
 	let ts = quote::quote! {
 
-		use ::polkadot_overseer_gen::futures::SinkExt as _;
+		use #support_crate ::futures::SinkExt as _;
 
 		/// A subsystem that the overseer oversees.
 		///
@@ -198,7 +200,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 		pub struct OverseenSubsystem<M> {
 			/// The instance.
 			pub instance: std::option::Option<
-				::polkadot_overseer_gen::SubsystemInstance<M, #signal>
+				#support_crate ::SubsystemInstance<M, #signal>
 			>,
 		}
 
@@ -216,14 +218,14 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							::polkadot_overseer_gen::tracing::error!(
+							#support_crate ::tracing::error!(
 								target: LOG_TARGET,
 								%origin,
 								"Subsystem {} appears unresponsive.",
 								instance.name,
 							);
 							Err(#error_ty :: from(
-								::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name)
+								#support_crate ::OverseerError::SubsystemStalled(instance.name)
 							))
 						}
 						Some(res) => res.map_err(Into::into),
@@ -243,7 +245,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 					match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 						None => {
 							Err(#error_ty :: from(
-								::polkadot_overseer_gen::OverseerError::SubsystemStalled(instance.name)
+								#support_crate ::OverseerError::SubsystemStalled(instance.name)
 							))
 						}
 						Some(res) => {
