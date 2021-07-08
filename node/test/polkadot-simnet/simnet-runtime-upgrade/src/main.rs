@@ -17,7 +17,7 @@
 use std::error::Error;
 
 use test_runner::{Node, client_parts, ConfigOrChainSpec, task_executor};
-use polkadot_runtime_test::{PolkadotChainInfo, dispatch_with_pallet_democracy};
+use polkadot_runtime_test::{PolkadotChainInfo, dispatch_with_root};
 use sc_cli::{build_runtime, SubstrateCli, CliConfiguration};
 use polkadot_cli::Cli;
 use structopt::StructOpt;
@@ -40,9 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // start runtime upgrade
     let wasm_binary = polkadot_runtime::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
-    tokio_runtime.block_on(
-        dispatch_with_pallet_democracy(frame_system::Call::set_code(wasm_binary).into(), &node)
-    )?;
+    tokio_runtime.block_on(dispatch_with_root(system::Call::set_code(wasm_binary).into(), &node))?;
 
     // done upgrading runtime, drop node.
     drop(node);

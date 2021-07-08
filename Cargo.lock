@@ -10009,6 +10009,7 @@ dependencies = [
 name = "simnet-runtime-upgrade"
 version = "0.1.0"
 dependencies = [
+ "frame-system 3.0.0 (git+https://github.com/paritytech/substrate?branch=test-runner-2)",
  "polkadot-cli",
  "polkadot-runtime",
  "polkadot-runtime-test",

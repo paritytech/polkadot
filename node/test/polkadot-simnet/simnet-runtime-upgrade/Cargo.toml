@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 test-runner = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2"  }
 polkadot-runtime-test = { path = "../../runtime", version = "0.9" }

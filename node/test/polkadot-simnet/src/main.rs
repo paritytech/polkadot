@@ -27,7 +27,6 @@ use polkadot_runtime_test::PolkadotChainInfo;
 use polkadot_cli::Cli;
 use structopt::StructOpt;
 use sc_cli::{SubstrateCli, CliConfiguration, print_node_infos, build_runtime};
-use sc_service::TaskType;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut tokio_runtime = build_runtime()?;

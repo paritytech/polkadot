@@ -8,13 +8,13 @@ edition = "2018"
 
 test-runner = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
-pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
+democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "test-runner-2" }
 
 polkadot-primitives = { version = "0.9", path = "../../../primitives" }
 

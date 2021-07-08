@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![deny(unused_extern_crates, missing_docs)]
+
 //! End to end runtime tests
 
 use test_runner::{Node, ChainInfo, SignatureVerificationOverride, default_config};
@@ -28,8 +30,8 @@ use polkadot_runtime_common::claims;
 use sp_consensus_babe::AuthorityId;
 use sc_consensus_manual_seal::{ConsensusDataProvider, consensus::babe::BabeConsensusDataProvider};
 use sp_runtime::AccountId32;
-use frame_support::{weights::Weight, StorageValue};
-use pallet_democracy::{AccountVote, Conviction, Vote};
+use support::{weights::Weight, StorageValue};
+use democracy::{AccountVote, Conviction, Vote};
 use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, TechnicalCollective, CouncilCollective};
 use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
@@ -48,7 +50,7 @@ sc_executor::native_executor_instance!(
 	pub Executor,
 	polkadot_runtime::api::dispatch,
 	polkadot_runtime::native_version,
-	(frame_benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
+	(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
 );
 
 /// ChainInfo implementation.
@@ -69,22 +71,22 @@ impl ChainInfo for PolkadotChainInfo {
     type SignedExtras = polkadot_runtime::SignedExtra;
     type InherentDataProviders = (SlotTimestampProvider, sp_consensus_babe::inherents::InherentDataProvider);
 
-    fn signed_extras(from: <Runtime as frame_system::Config>::AccountId) -> Self::SignedExtras {
+    fn signed_extras(from: <Runtime as system::Config>::AccountId) -> Self::SignedExtras {
         (
-            frame_system::CheckSpecVersion::<Runtime>::new(),
-            frame_system::CheckTxVersion::<Runtime>::new(),
-            frame_system::CheckGenesis::<Runtime>::new(),
-            frame_system::CheckMortality::<Runtime>::from(Era::Immortal),
-            frame_system::CheckNonce::<Runtime>::from(frame_system::Pallet::<Runtime>::account_nonce(from)),
-            frame_system::CheckWeight::<Runtime>::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+            system::CheckSpecVersion::<Runtime>::new(),
+            system::CheckTxVersion::<Runtime>::new(),
+            system::CheckGenesis::<Runtime>::new(),
+            system::CheckMortality::<Runtime>::from(Era::Immortal),
+            system::CheckNonce::<Runtime>::from(system::Pallet::<Runtime>::account_nonce(from)),
+            system::CheckWeight::<Runtime>::new(),
+            transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
             claims::PrevalidateAttests::<Runtime>::new(),
         )
     }
 }
 
-/// Dispatch with pallet_democracy
-pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system::Config>::Call, node: &Node<T>)
+/// Dispatch with root origin, via pallet-democracy
+pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, node: &Node<T>)
     -> Result<(), sc_transaction_pool::error::Error>
     where
         T: ChainInfo<
@@ -102,11 +104,11 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
             SignedExtras = polkadot_runtime::SignedExtra
         >
 {
-    type DemocracyCall = pallet_democracy::Call<Runtime>;
-    type TechnicalCollectiveCall = pallet_collective::Call<Runtime, TechnicalCollective>;
-    type CouncilCollectiveCall = pallet_collective::Call<Runtime, CouncilCollective>;
-    type CouncilEvent = pallet_collective::Event::<Runtime, CouncilCollective>;
-    type TechnicalCommitteeEvent = pallet_collective::Event::<Runtime, TechnicalCollective>;
+    type DemocracyCall = democracy::Call<Runtime>;
+    type CouncilCollectiveEvent = collective::Event::<Runtime, CouncilCollective>;
+    type CouncilCollectiveCall = collective::Call<Runtime, CouncilCollective>;
+    type TechnicalCollectiveCall = collective::Call<Runtime, TechnicalCollective>;
+    type TechnicalCollectiveEvent = collective::Event::<Runtime, TechnicalCollective>;
 
     // here lies a black mirror esque copy of on chain whales.
     let whales = vec![
@@ -119,8 +121,8 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
 
     // and these
     let (technical_collective, council_collective) = node.with_state(|| (
-        pallet_collective::Members::<Runtime, TechnicalCollective>::get(),
-        pallet_collective::Members::<Runtime, CouncilCollective>::get()
+        collective::Members::<Runtime, TechnicalCollective>::get(),
+        collective::Members::<Runtime, CouncilCollective>::get()
     ));
 
     // note the call (pre-image?) of the call.
@@ -131,9 +133,7 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
     let events = node.events();
     let proposal_hash = events.into_iter()
         .filter_map(|event| match event.event {
-            Event::Democracy(
-                pallet_democracy::Event::PreimageNoted(proposal_hash, _, _)
-            ) => Some(proposal_hash),
+            Event::Democracy(democracy::Event::PreimageNoted(proposal_hash, _, _)) => Some(proposal_hash),
             _ => None
         })
         .next()
@@ -154,10 +154,10 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
 
     // fetch proposal index from event emitted by the runtime
     let events = node.events();
-    let (council_proposal_index, council_proposal_hash): (u32, H256) = events.into_iter()
+    let (proposal_index, proposal_hash): (u32, H256) = events.into_iter()
         .filter_map(|event| {
             match event.event {
-                Event::Council(CouncilEvent::Proposed(_, index, proposal_hash, _)) => Some((index, proposal_hash)),
+                Event::Council(CouncilCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
                 _ => None
             }
         })
@@ -166,13 +166,13 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
 
     // vote
     for member in &council_collective[1..] {
-        let call = CouncilCollectiveCall::vote(council_proposal_hash.clone(), council_proposal_index, true);
+        let call = CouncilCollectiveCall::vote(proposal_hash.clone(), proposal_index, true);
         node.submit_extrinsic(call, member.clone()).await?;
     }
     node.seal_blocks(1).await;
 
     // close vote
-    let call = CouncilCollectiveCall::close(council_proposal_hash, council_proposal_index, proposal_weight, proposal_length);
+    let call = CouncilCollectiveCall::close(proposal_hash, proposal_index, proposal_weight, proposal_length);
     node.submit_extrinsic(call, council_collective[0].clone()).await?;
     node.seal_blocks(1).await;
 
@@ -181,9 +181,9 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::Council(CouncilEvent::Closed(_, _, _)) |
-                Event::Council(CouncilEvent::Approved(_,)) |
-                Event::Council(CouncilEvent::Executed(_, Ok(()))) => true,
+                Event::Council(CouncilCollectiveEvent::Closed(_, _, _)) |
+                Event::Council(CouncilCollectiveEvent::Approved(_,)) |
+                Event::Council(CouncilCollectiveEvent::Executed(_, Ok(()))) => true,
                 _ => false,
             }
         })
@@ -205,13 +205,11 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
     node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
     node.seal_blocks(1).await;
 
-    let (technical_proposal_index, technical_proposal_hash) = node.events()
+    let (proposal_index, proposal_hash) = node.events()
         .into_iter()
         .filter_map(|event| {
             match event.event {
-                Event::TechnicalCommittee(
-                    TechnicalCommitteeEvent::Proposed(_, index, hash, _)
-                ) => Some((index, hash)),
+                Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
                 _ => None
             }
         })
@@ -220,15 +218,15 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
 
     // vote
     for member in &technical_collective[1..] {
-        let call = TechnicalCollectiveCall::vote(technical_proposal_hash.clone(), technical_proposal_index, true);
+        let call = TechnicalCollectiveCall::vote(proposal_hash.clone(), proposal_index, true);
         node.submit_extrinsic(call, member.clone()).await?;
     }
     node.seal_blocks(1).await;
 
     // close vote
     let call = TechnicalCollectiveCall::close(
-        technical_proposal_hash,
-        technical_proposal_index,
+        proposal_hash,
+        proposal_index,
         proposal_weight,
         fast_track_length,
     );
@@ -240,9 +238,9 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::TechnicalCommittee(TechnicalCommitteeEvent::Closed(_, _, _)) |
-                Event::TechnicalCommittee(TechnicalCommitteeEvent::Approved(_)) |
-                Event::TechnicalCommittee(TechnicalCommitteeEvent::Executed(_, Ok(()))) => true,
+                Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_, _, _)) |
+                Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_)) |
+                Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_, Ok(()))) => true,
                 _ => false,
             }
         })
@@ -254,7 +252,7 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
     // now runtime upgrade proposal is a fast-tracked referendum we can vote for.
     let referendum_index = events.into_iter()
         .filter_map(|event| match event.event {
-            Event::Democracy(pallet_democracy::Event::<Runtime>::Started(index, _)) => Some(index),
+            Event::Democracy(democracy::Event::<Runtime>::Started(index, _)) => Some(index),
             _ => None,
         })
         .next()
@@ -279,9 +277,9 @@ pub async fn dispatch_with_pallet_democracy<T>(call: <T::Runtime as frame_system
         .into_iter()
         .filter(|event| {
             match event.event {
-                Event::Democracy(pallet_democracy::Event::Passed(_)) |
-                Event::Democracy(pallet_democracy::Event::PreimageUsed(_, _, _)) |
-                Event::Democracy(pallet_democracy::Event::Executed(_, true)) => true,
+                Event::Democracy(democracy::Event::Passed(_)) |
+                Event::Democracy(democracy::Event::PreimageUsed(_, _, _)) |
+                Event::Democracy(democracy::Event::Executed(_, true)) => true,
                 _ => false,
             }
         })
@@ -313,12 +311,12 @@ mod tests {
            node.seal_blocks(1).await;
            // submit extrinsics
            let alice = MultiSigner::from(Alice.public()).into_account();
-           node.submit_extrinsic(frame_system::Call::remark((b"hello world").to_vec()), alice)
+           node.submit_extrinsic(system::Call::remark((b"hello world").to_vec()), alice)
                .await
                .unwrap();
 
            // look ma, I can read state.
-           let _events = node.with_state(|| frame_system::Pallet::<Runtime>::events());
+           let _events = node.with_state(|| system::Pallet::<Runtime>::events());
            // get access to the underlying client.
            let _client = node.client();
        });
