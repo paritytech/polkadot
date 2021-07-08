@@ -29,7 +29,7 @@ use sc_network::PeerId;
 use polkadot_node_network_protocol::request_response::{
 	request::IncomingRequest, v1, Protocol, RequestResponseConfig,
 };
-use polkadot_subsystem::messages::AllMessages;
+use polkadot_overseer::AllMessages;
 
 /// Multiplex incoming network requests.
 ///
@@ -151,28 +151,28 @@ fn multiplex_single(
 	}: network::IncomingRequest,
 ) -> Result<AllMessages, RequestMultiplexError> {
 	let r = match p {
-		Protocol::ChunkFetching => From::from(IncomingRequest::new(
+		Protocol::ChunkFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::ChunkFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::CollationFetching => From::from(IncomingRequest::new(
+		Protocol::CollationFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::CollationFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::PoVFetching => From::from(IncomingRequest::new(
+		Protocol::PoVFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::PoVFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::AvailableDataFetching => From::from(IncomingRequest::new(
+		Protocol::AvailableDataFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::AvailableDataFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
 		Protocol::StatementFetching => {
-			panic!("Statement fetching requests are handled directly. qed.");
+			unreachable!("Statement fetching requests are handled directly. qed.");
 		}
 	};
 	Ok(r)

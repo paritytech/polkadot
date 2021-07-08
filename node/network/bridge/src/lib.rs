@@ -27,14 +27,23 @@ use futures::stream::BoxStream;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
-use polkadot_subsystem::{
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SubsystemSender,
-	messages::StatementDistributionMessage
+use polkadot_overseer::gen::{
+	Subsystem,
+	OverseerError,
 };
-use polkadot_subsystem::messages::{
-	NetworkBridgeMessage, AllMessages,
-	CollatorProtocolMessage, NetworkBridgeEvent,
+use polkadot_subsystem::{
+	overseer,
+	OverseerSignal,
+	FromOverseer,
+	SpawnedSubsystem,
+	SubsystemContext,
+	SubsystemSender,
+	errors::{SubsystemError, SubsystemResult},
+	ActivatedLeaf, ActiveLeavesUpdate,
+	messages::{
+		AllMessages, StatementDistributionMessage,
+		NetworkBridgeMessage, CollatorProtocolMessage, NetworkBridgeEvent,
+	},
 };
 use polkadot_primitives::v1::{Hash, BlockNumber};
 use polkadot_node_network_protocol::{
@@ -292,11 +301,11 @@ impl<N, AD> NetworkBridge<N, AD> {
 	}
 }
 
-impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
+impl<Net, AD, Context> Subsystem<Context, SubsystemError> for NetworkBridge<Net, AD>
 	where
 		Net: Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery,
-		Context: SubsystemContext<Message=NetworkBridgeMessage>,
+		Context: SubsystemContext<Message = NetworkBridgeMessage> + overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the
@@ -325,7 +334,7 @@ struct PeerData {
 #[derive(Debug)]
 enum UnexpectedAbort {
 	/// Received error from overseer:
-	SubsystemError(polkadot_subsystem::SubsystemError),
+	SubsystemError(SubsystemError),
 	/// The stream of incoming events concluded.
 	EventStreamConcluded,
 	/// The stream of incoming requests concluded.
@@ -335,6 +344,12 @@ enum UnexpectedAbort {
 impl From<SubsystemError> for UnexpectedAbort {
 	fn from(e: SubsystemError) -> Self {
 		UnexpectedAbort::SubsystemError(e)
+	}
+}
+
+impl From<OverseerError> for UnexpectedAbort {
+	fn from(e: OverseerError) -> Self {
+		UnexpectedAbort::SubsystemError(SubsystemError::from(e))
 	}
 }
 
@@ -363,6 +378,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 ) -> Result<(), UnexpectedAbort>
 where
 	Context: SubsystemContext<Message = NetworkBridgeMessage>,
+	Context: overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
 {
@@ -854,14 +870,15 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-async fn run_network<N, AD>(
+async fn run_network<N, AD, Context>(
 	bridge: NetworkBridge<N, AD>,
-	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> SubsystemResult<()>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery,
+	Context: SubsystemContext<Message=NetworkBridgeMessage> + overseer::SubsystemContext<Message=NetworkBridgeMessage>,
 {
 	let shared = Shared::default();
 
@@ -877,7 +894,7 @@ where
 		.get_statement_fetching()
 		.expect("Gets initialized, must be `Some` on startup. qed.");
 
-	let (remote, network_event_handler) = handle_network_messages(
+	let (remote, network_event_handler) = handle_network_messages::<>(
 		ctx.sender().clone(),
 		network_service.clone(),
 		network_stream,
@@ -889,9 +906,9 @@ where
 
 	ctx.spawn("network-bridge-network-worker", Box::pin(remote))?;
 
-	ctx.send_message(AllMessages::StatementDistribution(
+	ctx.send_message(
 		StatementDistributionMessage::StatementFetchingReceiver(statement_receiver)
-	)).await;
+	).await;
 
 	let subsystem_event_handler = handle_subsystem_messages(
 		ctx,
@@ -952,7 +969,7 @@ fn construct_view(live_heads: impl DoubleEndedIterator<Item = Hash>, finalized_n
 
 fn update_our_view(
 	net: &mut impl Network,
-	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage, AllMessages=AllMessages>,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
