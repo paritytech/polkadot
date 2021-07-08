@@ -73,6 +73,8 @@ pub use sp_core::traits::SpawnNamed;
 pub use futures::{
 	self,
 	select,
+	StreamExt,
+	FutureExt,
 	poll,
 	future::{
 		Fuse, Future, BoxFuture
@@ -92,17 +94,14 @@ pub use async_trait::async_trait;
 
 #[doc(hidden)]
 pub use std::time::Duration;
-use std::sync{Arc, atomic::{self, AtomicUsize}};
+use std::sync::{Arc, atomic::{self, AtomicUsize}};
 
 #[doc(hidden)]
 pub use futures_timer::Delay;
-#[doc(hidden)]
-pub use futures_util::stream::StreamExt;
-#[doc(hidden)]
-pub use futures_util::future::FutureExt;
-
 
 pub use polkadot_node_network_protocol::WrongVariant;
+
+use std::fmt;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -127,8 +126,6 @@ pub enum ToOverseer {
 		s: BoxFuture<'static, ()>,
 	},
 }
-
-use std::fmt;
 
 impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
