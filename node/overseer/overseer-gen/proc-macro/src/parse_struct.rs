@@ -312,7 +312,7 @@ impl OverseerGuts {
 					blocking: variant.blocking,
 				});
 			} else {
-				let field_ty: Path = try_type_to_path(ty, ident.span())?;
+				let field_ty = try_type_to_path(ty, ident.span())?;
 				let generic: bool =
 					if let Some(ident) = field_ty.get_ident() { baggage_generics.contains(ident) } else { false };
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
