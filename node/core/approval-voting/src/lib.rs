@@ -2310,8 +2310,6 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				// REVIEW: should timeouts and internal execution errors lead to dispute?
-				// only some execution errors?
 				sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
 					session_index,
 					candidate_hash,
