@@ -26,7 +26,7 @@
 
 use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
-	overseer::Handler,
+	overseer::Handle,
 	messages::ProvisionerMessage, errors::SubsystemError,
 };
 use polkadot_primitives::v1::{
@@ -48,7 +48,7 @@ impl ParachainsInherentDataProvider {
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
-		mut overseer: Handler,
+		mut overseer: Handle,
 		parent: Hash,
 	) -> Result<Self, Error> {
 		let pid = async {

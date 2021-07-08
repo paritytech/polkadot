@@ -26,7 +26,7 @@ use super::*;
 pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
 	let overseer_name = info.overseer_name.clone();
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
-	let handler = Ident::new(&(overseer_name.to_string() + "Handler"), overseer_name.span());
+	let handle = Ident::new(&(overseer_name.to_string() + "Handle"), overseer_name.span());
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let builder_generic_ty = &info.builder_generic_types();
@@ -105,8 +105,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			}
 		}
 
-		/// Handler for an overseer.
-		pub type #handler = #support_crate ::metered::MeteredSender< #event >;
+		/// Handle for an overseer.
+		pub type #handle = #support_crate ::metered::MeteredSender< #event >;
 
 		#[allow(missing_docs)]
 		pub struct #builder #builder_generics {
@@ -168,13 +168,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			)*
 
 			/// Complete the construction and create the overseer type.
-			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handler), #error_ty>
+			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
 			{
 				let (events_tx, events_rx) = #support_crate ::metered::channel::<
 					#event
 				>(SIGNAL_CHANNEL_CAPACITY);
 
-				let handler: #handler = events_tx.clone();
+				let handle: #handle = events_tx.clone();
 
 				let (to_overseer_tx, to_overseer_rx) = #support_crate ::metered::unbounded::<
 					ToOverseer
@@ -269,7 +269,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 					to_overseer_rx,
 				};
 
-				Ok((overseer, handler))
+				Ok((overseer, handle))
 			}
 		}
 	};

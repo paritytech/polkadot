@@ -162,9 +162,9 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub struct Handler(pub OverseerHandler);
+pub struct Handle(pub OverseerHandle);
 
-impl Handler {
+impl Handle {
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockImported(block)).await
@@ -223,7 +223,7 @@ impl Handler {
 
 	/// Using this handler, connect another handler to the same
 	/// overseer, if any.
-	pub fn connect_other(&self, other: &mut Handler) {
+	pub fn connect_other(&self, other: &mut Handle) {
 		*other = self.clone();
 	}
 }
@@ -297,10 +297,10 @@ pub enum ExternalRequest {
 }
 
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
-/// import and finality notifications into the [`OverseerHandler`].
+/// import and finality notifications into the [`OverseerHandle`].
 pub async fn forward_events<P: BlockchainEvents<Block>>(
 	client: Arc<P>,
-	mut handler: Handler,
+	mut handler: Handle,
 ) {
 	let mut finality = client.finality_notification_stream();
 	let mut imports = client.import_notification_stream();
@@ -429,7 +429,7 @@ where
 {
 	/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
 	///
-	/// This returns the overseer along with an [`OverseerHandler`] which can
+	/// This returns the overseer along with an [`OverseerHandle`] which can
 	/// be used to send messages from external parts of the codebase.
 	///
 	/// The [`OverseerHandler`] returned from this function is connected to
@@ -551,7 +551,7 @@ where
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
-	) -> SubsystemResult<(Self, Handler)>
+	) -> SubsystemResult<(Self, Handle)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
 		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
@@ -643,7 +643,7 @@ where
 			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
 		}
 
-		Ok((overseer, Handler(handler)))
+		Ok((overseer, Handle(handler)))
 	}
 
 	/// Stop the overseer.
