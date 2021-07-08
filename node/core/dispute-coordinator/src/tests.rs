@@ -326,13 +326,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer.send(FromOverseer::Communication {
 				msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-					session,
-					candidate_hash,
+					vec![(session, candidate_hash)],
 					tx,
 				),
 			}).await;
 
-			let votes = rx.await.unwrap().unwrap();
+			let votes = rx.await.unwrap().get(0).unwrap().clone();
 			assert_eq!(votes.valid.len(), 1);
 			assert_eq!(votes.invalid.len(), 1);
 		}
@@ -352,13 +351,12 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer.send(FromOverseer::Communication {
 				msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-					session,
-					candidate_hash,
+					vec![(session, candidate_hash)],
 					tx,
 				),
 			}).await;
 
-			let votes = rx.await.unwrap().unwrap();
+			let votes = rx.await.unwrap().get(0).unwrap().clone();
 			assert_eq!(votes.valid.len(), 1);
 			assert_eq!(votes.invalid.len(), 2);
 		}
@@ -420,13 +418,12 @@ fn positive_votes_dont_trigger_participation() {
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer.send(FromOverseer::Communication {
 				msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-					session,
-					candidate_hash,
+					vec![(session, candidate_hash)],
 					tx,
 				),
 			}).await;
 
-			let votes = rx.await.unwrap().unwrap();
+			let votes = rx.await.unwrap().get(0).unwrap().clone();
 			assert_eq!(votes.valid.len(), 1);
 			assert!(votes.invalid.is_empty());
 		}
@@ -453,13 +450,12 @@ fn positive_votes_dont_trigger_participation() {
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer.send(FromOverseer::Communication {
 				msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-					session,
-					candidate_hash,
+					vec![(session, candidate_hash)],
 					tx,
 				),
 			}).await;
 
-			let votes = rx.await.unwrap().unwrap();
+			let votes = rx.await.unwrap().get(0).unwrap().clone();
 			assert_eq!(votes.valid.len(), 2);
 			assert!(votes.invalid.is_empty());
 		}
@@ -522,13 +518,12 @@ fn wrong_validator_index_is_ignored() {
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer.send(FromOverseer::Communication {
 				msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-					session,
-					candidate_hash,
+					vec![(session, candidate_hash)],
 					tx,
 				),
 			}).await;
 
-			let votes = rx.await.unwrap().unwrap();
+			let votes = rx.await.unwrap().get(0).unwrap().clone();
 			assert!(votes.valid.is_empty());
 			assert!(votes.invalid.is_empty());
 		}
