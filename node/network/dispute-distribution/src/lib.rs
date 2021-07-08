@@ -15,7 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 
-/// Sending and receiving of `DisputeRequest`s.
+//! # Sending and receiving of `DisputeRequest`s.
+//!
+//! This subsystem essentially consists of two parts:
+//!
+//! - a sender
+//! - and a receiver
+//!
+//! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
+//! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
 use futures::channel::{mpsc};
 use futures::{FutureExt, StreamExt, TryFutureExt};
@@ -33,17 +41,46 @@ use polkadot_node_subsystem_util::{
 	runtime::RuntimeInfo,
 };
 
-/// `DisputeSender` manages the sending side of all initiated disputes.
+/// ## The sender [`DisputeSender`]
 ///
-/// See the implementers guide for more detail on the general protocol, but in general
-/// `DisputeSender` takes care of getting our vote out to all other relevant validators.
+/// The sender (`DisputeSender`) keeps track of live disputes and makes sure our vote gets out for
+/// each one of those. The sender is responsible for sending our vote to each validator
+/// participating in the dispute and to each authority currently authoring blocks. The sending can
+/// be initiated by sending `DisputeDistributionMessage::SendDispute` message to this subsystem.
+///
+/// In addition the `DisputeSender` will query the coordinator for active disputes on each
+/// [`DisputeSender::update_leaves`] call and will initiate sending (start a `SendTask`) for every,
+/// to this subsystem, unknown dispute. This is to make sure, we get our vote out, even on
+/// restarts.
+///
+///	The actual work of sending and keeping track of transmission attempts to each validator for a
+///	particular dispute are done by [`SendTask`].  The purpose of the `DisputeSender` is to keep
+///	track of all ongoing disputes and start and clean up `SendTask`s accordingly.
 mod sender;
 use self::sender::{DisputeSender, TaskFinish};
 
-/// Handle receipt of dispute requests.
+///	## The receiver [`DisputesReceiver`]
 ///
-/// - Spam/Flood handling
-/// - Trigger import of statements
+///	The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
+///	this subsystem ([`DisputesReceiver::run`]).
+///
+///	Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
+///	via a dedicated channel and forwarding them to the dispute coordinator via
+///	`DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
+///	nodes, the reality is not that simple of course. Before importing statements the receiver will
+///	make sure as good as it can to filter out malicious/unwanted/spammy requests. For this it does
+///	the following:
+///
+///	- Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
+///	service.
+///	- Drop messages from a node, if we are already importing a message from that node (flood).
+///	- Drop messages from nodes, that provided us messages where the statement import failed.
+///	- Drop any obviously invalid votes (invalid signatures for example).
+///	- Ban peers whose votes were deemed invalid.
+///
+/// For successfully imported votes, we will confirm the receipt of the message back to the sender.
+/// This way a received confirmation guarantees, that the vote has been stored to disk by the
+/// receiver.
 mod receiver;
 use self::receiver::DisputesReceiver;
 
@@ -148,7 +185,7 @@ where
 	async fn handle_signals<Context: SubsystemContext> (
 		&mut self,
 		ctx: &mut Context,
-		signal: OverseerSignal
+		signal: OverseerSignal,
 	) -> Result<SignalResult>
 	{
 		match signal {
