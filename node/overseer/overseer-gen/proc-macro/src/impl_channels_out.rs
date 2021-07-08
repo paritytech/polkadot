@@ -82,7 +82,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				if let Err(subsystem_name) = res {
 					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
-						"Failed to send a message to {} subsystem",
+						"Failed to send (bounded) a message to {} subsystem",
 						subsystem_name
 					);
 				}
@@ -102,7 +102,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 						self. #channel_name_unbounded .unbounded_send(
 							#support_crate ::make_packet(signals_received, inner)
 						)
-						.map_err(|e| e.into_send_error())
+						.map_err(|_| stringify!( #channel_name ))
 					},
 				)*
 					// subsystems that are wip
@@ -113,10 +113,11 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 					#message_wrapper :: Empty => Ok(())
 				};
 
-				if res.is_err() {
+				if let Err(subsystem_name) = res {
 					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
-						"Failed to send a message to another subsystem",
+						"Failed to send_unbounded a message to {} subsystem",
+						subsystem_name
 					);
 				}
 			}
