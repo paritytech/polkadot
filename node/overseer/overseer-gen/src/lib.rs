@@ -92,8 +92,7 @@ pub use async_trait::async_trait;
 
 #[doc(hidden)]
 pub use std::time::Duration;
-use std::sync::atomic::{self, AtomicUsize};
-use std::sync::Arc;
+use std::sync{Arc, atomic::{self, AtomicUsize}};
 
 #[doc(hidden)]
 pub use futures_timer::Delay;
