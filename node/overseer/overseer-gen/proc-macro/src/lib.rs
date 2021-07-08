@@ -54,7 +54,7 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 	let of: OverseerGuts = parse2(orig)?;
 
-	let support_crate_name =  if cfg!(test) {
+	let support_crate_name = if cfg!(test) {
 		quote!{crate}
 	} else {
 		use proc_macro_crate::{crate_name, FoundCrate};
