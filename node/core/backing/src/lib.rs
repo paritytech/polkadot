@@ -541,6 +541,8 @@ async fn validate_and_make_available(
 	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
+struct ValidatorIndexOutOfBounds;
+
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(
@@ -777,59 +779,20 @@ impl CandidateBackingJob {
 			self.get_unbacked_statement_child(root_span, candidate_hash, statement.validator_index())
 		};
 
-		// Dispatch the statement to the dispute coordinator.
-		{
-			let validator_index = statement.validator_index();
-			let signing_context = SigningContext {
-				parent_hash: self.parent,
-				session_index: self.session_index,
-			};
+		if let Err(ValidatorIndexOutOfBounds) = self.dispatch_new_statement_to_dispute_coordinator(
+			sender,
+			candidate_hash,
+			&statement,
+		).await {
+			tracing::warn!(
+				target: LOG_TARGET,
+				session_index = ?self.session_index,
+				relay_parent = ?self.parent,
+				validator_index = statement.validator_index().0,
+				"Supposedly 'Signed' statement has validator index out of bounds."
+			);
 
-			let validator_public = match self.table_context
-				.validators
-				.get(validator_index.0 as usize)
-			{
-				None => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						session_index = ?self.session_index,
-						relay_parent = ?self.parent,
-						?validator_index,
-						"Supposedly 'Signed' statement has validator index out of bounds."
-					);
-
-					return Ok(None);
-				}
-				Some(v) => v,
-			};
-
-			let maybe_candidate_receipt = match statement.payload() {
-				Statement::Seconded(receipt) => Some(receipt.to_plain()),
-				Statement::Valid(candidate_hash) => {
-					// Valid statements are only supposed to be imported
-					// once we've seen at least one `Seconded` statement.
-					self.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
-				}
-			};
-
-			let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
-				statement.as_unchecked(),
-				signing_context,
-				validator_public.clone(),
-			).ok();
-
-			if let (Some(candidate_receipt), Some(dispute_statement))
-				= (maybe_candidate_receipt, maybe_signed_dispute_statement)
-			{
-				sender.send_message(
-					DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
-						candidate_receipt,
-						session: self.session_index,
-						statements: vec![(dispute_statement, validator_index)],
-					}.into()
-				).await;
-			}
+			return Ok(None);
 		}
 
 		let stmt = primitive_statement_to_table(statement);
@@ -880,6 +843,72 @@ impl CandidateBackingJob {
 		drop(unbacked_span);
 
 		Ok(summary)
+	}
+
+	/// The dispute coordinator keeps track of all statements by validators about every recent
+	/// candidate.
+	///
+	/// When importing a statement, this should be called access the candidate receipt either
+	/// from the statement itself or from the underlying statement table in order to craft
+	/// and dispatch the notification to the dispute coordinator.
+	///
+	/// This also does bounds-checking on the validator index and will return an error if the
+	/// validator index is out of bounds for the current validator set. It's expected that
+	/// this should never happen due to the interface of the candidate backing subsystem -
+	/// the networking component repsonsible for feeding statements to the backing subsystem
+	/// is meant to check the signature and provenance of all statements before submission.
+	async fn dispatch_new_statement_to_dispute_coordinator(
+		&self,
+		sender: &mut JobSender<impl SubsystemSender>,
+		candidate_hash: CandidateHash,
+		statement: &SignedFullStatement,
+	) -> Result<(), ValidatorIndexOutOfBounds> {
+		// Dispatch the statement to the dispute coordinator.
+		let validator_index = statement.validator_index();
+		let signing_context = SigningContext {
+			parent_hash: self.parent,
+			session_index: self.session_index,
+		};
+
+		let validator_public = match self.table_context
+			.validators
+			.get(validator_index.0 as usize)
+		{
+			None => {
+				return Err(ValidatorIndexOutOfBounds);
+			}
+			Some(v) => v,
+		};
+
+		let maybe_candidate_receipt = match statement.payload() {
+			Statement::Seconded(receipt) => Some(receipt.to_plain()),
+			Statement::Valid(candidate_hash) => {
+				// Valid statements are only supposed to be imported
+				// once we've seen at least one `Seconded` statement.
+				self.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
+			}
+		};
+
+		let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
+			statement.as_unchecked(),
+			signing_context,
+			validator_public.clone(),
+		).ok();
+
+		if let (Some(candidate_receipt), Some(dispute_statement))
+			= (maybe_candidate_receipt, maybe_signed_dispute_statement)
+		{
+			sender.send_message(
+				DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt,
+					session: self.session_index,
+					statements: vec![(dispute_statement, validator_index)],
+				}.into()
+			).await;
+		}
+
+		Ok(())
 	}
 
 	async fn process_msg(
