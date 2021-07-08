@@ -16,23 +16,44 @@
 
 use std::sync::atomic;
 use std::collections::HashMap;
-use futures::{executor, pin_mut, select, FutureExt, pending};
+use std::task::{Poll};
+use futures::{executor, pin_mut, select, FutureExt, pending, poll, stream};
 
 use polkadot_primitives::v1::{CollatorPair, CandidateHash};
-use polkadot_subsystem::{messages::RuntimeApiRequest, messages::NetworkBridgeEvent, jaeger};
 use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, BlockData};
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
-use polkadot_node_subsystem_util::metered;
+use polkadot_node_subsystem_types::{
+	ActivatedLeaf, LeafStatus,
+	messages::{
+		RuntimeApiRequest,
+		NetworkBridgeEvent,
+	},
+	jaeger,
+};
+
+use crate::{
+	self as overseer,
+	Overseer,
+	HeadSupportsParachains,
+	gen::Delay,
+
+};
+use metered_channel as metered;
 
 use sp_core::crypto::Pair as _;
 use assert_matches::assert_matches;
 
 use super::*;
 
+
+type SpawnedSubsystem = crate::gen::SpawnedSubsystem<SubsystemError>;
+
 struct TestSubsystem1(metered::MeteredSender<usize>);
 
-impl<C> Subsystem<C> for TestSubsystem1
-	where C: SubsystemContext<Message=CandidateValidationMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem1
+where
+	C: overseer::SubsystemContext<Message=CandidateValidationMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
+
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0;
@@ -59,8 +80,9 @@ impl<C> Subsystem<C> for TestSubsystem1
 
 struct TestSubsystem2(metered::MeteredSender<usize>);
 
-impl<C> Subsystem<C> for TestSubsystem2
-	where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
+where
+	C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let sender = self.0.clone();
@@ -73,14 +95,12 @@ impl<C> Subsystem<C> for TestSubsystem2
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(
-							AllMessages::CandidateValidation(
-								CandidateValidationMessage::ValidateFromChainState(
-									Default::default(),
-									PoV {
-										block_data: BlockData(Vec::new()),
-									}.into(),
-									tx,
-								)
+							CandidateValidationMessage::ValidateFromChainState(
+								Default::default(),
+								PoV {
+									block_data: BlockData(Vec::new()),
+								}.into(),
+								tx,
 							)
 						).await;
 						c += 1;
@@ -107,8 +127,9 @@ impl<C> Subsystem<C> for TestSubsystem2
 
 struct ReturnOnStart;
 
-impl<C> Subsystem<C> for ReturnOnStart
-	where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for ReturnOnStart
+where
+	C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
 	fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -283,8 +304,9 @@ fn overseer_ends_on_subsystem_exit() {
 
 struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
-impl<C> Subsystem<C> for TestSubsystem5
-	where C: SubsystemContext<Message=CandidateValidationMessage>
+impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem5
+where
+	C: overseer::SubsystemContext<Message=CandidateValidationMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -314,8 +336,9 @@ impl<C> Subsystem<C> for TestSubsystem5
 
 struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
-impl<C> Subsystem<C> for TestSubsystem6
-	where C: SubsystemContext<Message=CandidateBackingMessage>
+impl<C> Subsystem<C, SubsystemError> for TestSubsystem6
+where
+	C: overseer::SubsystemContext<Message=CandidateBackingMessage,Signal=OverseerSignal,AllMessages=AllMessages>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -396,15 +419,15 @@ fn overseer_start_stop_works() {
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: first_block_hash,
 				number: 1,
-				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
 			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: [ActivatedLeaf {
 					hash: second_block_hash,
 					number: 2,
-					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
+					status: LeafStatus::Fresh,
 				}].as_ref().into(),
 				deactivated: [first_block_hash].as_ref().into(),
 			}),
@@ -412,8 +435,8 @@ fn overseer_start_stop_works() {
 				activated: [ActivatedLeaf {
 					hash: third_block_hash,
 					number: 3,
-					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
+					status: LeafStatus::Fresh,
 				}].as_ref().into(),
 				deactivated: [second_block_hash].as_ref().into(),
 			}),
@@ -507,14 +530,14 @@ fn overseer_finalize_works() {
 					ActivatedLeaf {
 						hash: first_block_hash,
 						number: 1,
-						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
+						status: LeafStatus::Fresh,
 					},
 					ActivatedLeaf {
 						hash: second_block_hash,
 						number: 2,
-						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
+						status: LeafStatus::Fresh,
 					},
 				].as_ref().into(),
 				..Default::default()
@@ -606,8 +629,8 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 					ActivatedLeaf {
 						hash: imported_block.hash,
 						number: imported_block.number,
+						span: Arc::new(jaeger::Span::Disabled),
 						status: LeafStatus::Fresh,
-						span: Arc::new(jaeger::Span::Disabled)
 					}
 				].as_ref().into(),
 				..Default::default()
@@ -641,146 +664,6 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 	});
 }
 
-// Tests that duplicate leaves have an attached 'Stale' status.
-#[test]
-fn overseer_stale_detection() {
-	let spawner = sp_core::testing::TaskExecutor::new();
-
-	executor::block_on(async move {
-		let a1_hash = [1; 32].into();
-		let b1_hash = [2; 32].into();
-
-		let a2_hash = [3; 32].into();
-		let b2_hash = [4; 32].into();
-
-		let first_block = BlockInfo {
-			hash: a1_hash,
-			parent_hash: [0; 32].into(),
-			number: 1,
-		};
-		let second_block = BlockInfo {
-			hash: b1_hash,
-			parent_hash: [0; 32].into(),
-			number: 1,
-		};
-
-		let third_block = BlockInfo {
-			hash: a2_hash,
-			parent_hash: a1_hash,
-			number: 2,
-		};
-
-		let fourth_block = BlockInfo {
-			hash: b2_hash,
-			parent_hash: b1_hash,
-			number: 2,
-		};
-
-		let (tx_5, mut rx_5) = metered::channel(64);
-		let (tx_6, mut rx_6) = metered::channel(64);
-		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(TestSubsystem5(tx_5))
-			.replace_candidate_backing(TestSubsystem6(tx_6));
-
-		let (overseer, mut handler) = Overseer::new(
-			vec![first_block.clone()],
-			all_subsystems,
-			None,
-			MockSupportsParachains,
-			spawner,
-		).unwrap();
-
-		let overseer_fut = overseer.run().fuse();
-		pin_mut!(overseer_fut);
-
-		let mut ss5_results = Vec::new();
-		let mut ss6_results = Vec::new();
-
-		handler.block_imported(second_block.clone()).await;
-
-		// import the second block of each chain to deactivate the heads.
-		handler.block_imported(third_block).await;
-		handler.block_imported(fourth_block).await;
-
-		// import the first blocks again (emulating a revert)
-		handler.block_imported(first_block).await;
-		handler.block_imported(second_block).await;
-
-		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: a1_hash,
-				number: 1,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: b1_hash,
-				number: 1,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [ActivatedLeaf {
-					hash: a2_hash,
-					number: 2,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}].as_ref().into(),
-				deactivated: [a1_hash].as_ref().into(),
-			}),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: [ActivatedLeaf {
-					hash: b2_hash,
-					number: 2,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}].as_ref().into(),
-				deactivated: [b1_hash].as_ref().into(),
-			}),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: a1_hash,
-				number: 1,
-				status: LeafStatus::Stale,
-				span: Arc::new(jaeger::Span::Disabled),
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: b1_hash,
-				number: 1,
-				status: LeafStatus::Stale,
-				span: Arc::new(jaeger::Span::Disabled),
-			})),
-		];
-
-		loop {
-			select! {
-				res = overseer_fut => {
-					assert!(res.is_ok());
-					break;
-				},
-				res = rx_5.next() => {
-					if let Some(res) = res {
-						ss5_results.push(res);
-					}
-				}
-				res = rx_6.next() => {
-					if let Some(res) = res {
-						ss6_results.push(res);
-					}
-				}
-				complete => break,
-			}
-
-			if ss5_results.len() == expected_heartbeats.len() &&
-				ss6_results.len() == expected_heartbeats.len() {
-					handler.stop().await;
-			}
-		}
-
-		assert_eq!(ss5_results, expected_heartbeats);
-		assert_eq!(ss6_results, expected_heartbeats);
-	});
-}
-
 #[derive(Clone)]
 struct CounterSubsystem {
 	stop_signals_received: Arc<atomic::AtomicUsize>,
@@ -802,10 +685,10 @@ impl CounterSubsystem {
 	}
 }
 
-impl<C, M> Subsystem<C> for CounterSubsystem
-	where
-		C: SubsystemContext<Message=M>,
-		M: Send,
+impl<C, M> Subsystem<C, SubsystemError> for CounterSubsystem
+where
+	C: overseer::SubsystemContext<Message=M,Signal=OverseerSignal,AllMessages=AllMessages>,
+	M: Send,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -1112,7 +995,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (unbounded_tx, unbounded_rx) = metered::unbounded();
 	let (to_overseer_tx, _to_overseer_rx) = metered::unbounded();
 
-	let mut ctx = OverseerSubsystemContext::<()>::new_unmetered(
+	let mut ctx = OverseerSubsystemContext::new(
 		signal_rx,
 		stream::select(bounded_rx, unbounded_rx),
 		channels_out,

@@ -30,12 +30,13 @@ use std::sync::Arc;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement, DisputeMessageCheckError};
 use polkadot_node_subsystem::{
-	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
+	overseer, SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		AllMessages, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult
-	}};
+	}
+};
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
@@ -96,8 +97,10 @@ impl DisputeCoordinatorSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for DisputeCoordinatorSubsystem
-	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
+impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
+where
+	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
@@ -158,7 +161,9 @@ impl Error {
 }
 
 async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
-	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
+where
+	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+	Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	loop {
 		let res = run_iteration(&mut ctx, &subsystem).await;
@@ -185,7 +190,9 @@ async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
 // lead to another call to this function.
 async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinatorSubsystem)
 	-> Result<(), Error>
-	where Context: SubsystemContext<Message = DisputeCoordinatorMessage>
+where
+	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+	Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	let DisputeCoordinatorSubsystem { ref store, ref keystore, ref config } = *subsystem;
 	let mut state = State {
@@ -223,7 +230,7 @@ async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinato
 }
 
 async fn handle_new_activations(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage> + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 	store: &dyn KeyValueDB,
 	state: &mut State,
 	config: &Config,
@@ -234,7 +241,7 @@ async fn handle_new_activations(
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(
-				ChainApiMessage::BlockHeader(new_leaf, tx).into()
+				ChainApiMessage::BlockHeader(new_leaf, tx)
 			).await;
 
 			match rx.await?? {
@@ -489,7 +496,7 @@ async fn handle_import_statements(
 				session,
 				n_validators: n_validators as u32,
 				report_availability,
-			}.into()).await;
+			}).await;
 
 			if !receive_availability.await.map_err(Error::Oneshot)? {
 				pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
@@ -635,11 +642,7 @@ async fn issue_local_statement(
 			Ok(dispute_message) => dispute_message,
 		};
 
-		ctx.send_message(
-			AllMessages::DisputeDistribution(
-				DisputeDistributionMessage::SendDispute(dispute_message)
-			)
-		).await;
+		ctx.send_message(DisputeDistributionMessage::SendDispute(dispute_message)).await;
 	}
 
 

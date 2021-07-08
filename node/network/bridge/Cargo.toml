@@ -13,6 +13,7 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-overseer = { path = "../../overseer" }
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 strum = "0.20.0"

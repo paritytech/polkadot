@@ -28,6 +28,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use polkadot_primitives::v1::{CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
 use polkadot_node_subsystem::{SubsystemSender, SubsystemContext};
 
+
 use crate::{
 	request_session_index_for_child, request_session_info,
 	request_availability_cores,
@@ -254,7 +255,7 @@ pub fn check_signature<Payload, RealPayload>(
 	session_info: &SessionInfo,
 	relay_parent: Hash,
 	signed: UncheckedSigned<Payload, RealPayload>,
-) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>> 
+) -> std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>
 where
 	Payload: EncodeAs<RealPayload> + Clone,
 	RealPayload: Encode + Clone,
@@ -272,7 +273,7 @@ where
 
 /// Request availability cores from the runtime.
 pub async fn get_availability_cores<Context>(ctx: &mut Context, relay_parent: Hash)
-	-> Result<Vec<CoreState>> 
+	-> Result<Vec<CoreState>>
 	where
 		Context: SubsystemContext,
 {
@@ -305,8 +306,8 @@ where
 /// Get group rotation info based on the given relay_parent.
 pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<GroupRotationInfo>
-	where
-		Context: SubsystemContext
+where
+	Context: SubsystemContext,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.

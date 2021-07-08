@@ -17,7 +17,10 @@
 //! A utility for fetching all unknown blocks based on a new chain-head hash.
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, SubsystemSender,
+	messages::ChainApiMessage,
+};
+use polkadot_node_subsystem::{
+	SubsystemSender,
 };
 use polkadot_primitives::v1::{Hash, Header, BlockNumber};
 use futures::prelude::*;
@@ -34,13 +37,15 @@ use futures::channel::oneshot;
 /// then the returned list will be empty.
 ///
 /// This may be somewhat expensive when first recovering from major sync.
-pub async fn determine_new_blocks<E>(
-	ctx: &mut impl SubsystemSender,
+pub async fn determine_new_blocks<E, Sender>(
+	sender: &mut Sender,
 	is_known: impl Fn(&Hash) -> Result<bool, E>,
 	head: Hash,
 	header: &Header,
 	lower_bound_number: BlockNumber,
-) -> Result<Vec<(Hash, Header)>, E> {
+) -> Result<Vec<(Hash, Header)>, E> where
+	Sender: SubsystemSender,
+{
 	const ANCESTRY_STEP: usize = 4;
 
 	let min_block_needed = lower_bound_number + 1;
@@ -87,7 +92,7 @@ pub async fn determine_new_blocks<E>(
 		let batch_hashes = if ancestry_step == 1 {
 			vec![last_header.parent_hash]
 		} else {
-			ctx.send_message(ChainApiMessage::Ancestors {
+			sender.send_message(ChainApiMessage::Ancestors {
 				hash: *last_hash,
 				k: ancestry_step,
 				response_channel: tx,
@@ -105,8 +110,8 @@ pub async fn determine_new_blocks<E>(
 				.map(|_| oneshot::channel())
 				.unzip::<_, _, Vec<_>, Vec<_>>();
 
-			for (hash, sender) in batch_hashes.iter().cloned().zip(batch_senders) {
-				ctx.send_message(ChainApiMessage::BlockHeader(hash, sender).into()).await;
+			for (hash, batched_sender) in batch_hashes.iter().cloned().zip(batch_senders) {
+				sender.send_message(ChainApiMessage::BlockHeader(hash, batched_sender).into()).await;
 			}
 
 			let mut requests = futures::stream::FuturesOrdered::new();
@@ -156,7 +161,7 @@ mod tests {
 	use super::*;
 	use std::collections::{HashSet, HashMap};
 	use sp_core::testing::TaskExecutor;
-	use polkadot_node_subsystem::{messages::AllMessages, SubsystemContext};
+	use polkadot_overseer::{AllMessages, SubsystemContext};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use assert_matches::assert_matches;
 
@@ -606,7 +611,7 @@ mod tests {
 				}
 			);
 
-			for _ in 0..2 {
+			for _ in 0_u8..2 {
 				assert_matches!(
 					handle.recv().await,
 					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {

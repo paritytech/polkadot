@@ -33,8 +33,8 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_subsystem::{
-	messages::DisputeDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError,
+	overseer, messages::DisputeDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	runtime,
@@ -116,9 +116,11 @@ pub struct DisputeDistributionSubsystem<AD> {
 	metrics: Metrics,
 }
 
-impl<Context, AD> Subsystem<Context> for DisputeDistributionSubsystem<AD>
+impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
 where
-	Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
+	Context: SubsystemContext<Message = DisputeDistributionMessage>
+		+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
+		+ Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -152,7 +154,9 @@ where
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
 	where
-		Context: SubsystemContext<Message = DisputeDistributionMessage> + Sync + Send,
+		Context: SubsystemContext<Message = DisputeDistributionMessage>
+			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
+			+ Sync + Send,
 	{
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
@@ -244,7 +248,7 @@ enum MuxedMessage {
 
 impl MuxedMessage {
 	async fn receive(
-		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
+		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage> + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

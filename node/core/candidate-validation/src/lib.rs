@@ -23,16 +23,17 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
+use polkadot_node_subsystem::{
+	overseer,
+	SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,
 	messages::{
-		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
+		CandidateValidationMessage, RuntimeApiMessage,
 		ValidationFailed, RuntimeApiRequest,
 	},
+	errors::RuntimeApiError,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{
 	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
 };
@@ -84,10 +85,12 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-impl<C> Subsystem<C> for CandidateValidationSubsystem where
-	C: SubsystemContext<Message = CandidateValidationMessage>,
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx, self.metrics, self.config.artifacts_cache_path, self.config.program_path)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
 			.boxed();
@@ -98,12 +101,16 @@ impl<C> Subsystem<C> for CandidateValidationSubsystem where
 	}
 }
 
-async fn run(
-	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn run<Context>(
+	mut ctx: Context,
 	metrics: Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 	);
@@ -174,17 +181,21 @@ async fn run(
 	}
 }
 
-async fn runtime_api_request<T>(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn runtime_api_request<T, Context>(
+	ctx: &mut Context,
 	relay_parent: Hash,
 	request: RuntimeApiRequest,
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
-) -> SubsystemResult<Result<T, RuntimeApiError>> {
+) -> SubsystemResult<Result<T, RuntimeApiError>>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	ctx.send_message(
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		RuntimeApiMessage::Request(
 			relay_parent,
 			request,
-		))
+		)
 	).await;
 
 	receiver.await.map_err(Into::into)
@@ -197,11 +208,15 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
-async fn check_assumption_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn check_assumption_validation_data<Context>(
+	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
 	assumption: OccupiedCoreAssumption,
-) -> SubsystemResult<AssumptionCheckOutcome> {
+) -> SubsystemResult<AssumptionCheckOutcome>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let validation_data = {
 		let (tx, rx) = oneshot::channel();
 		let d = runtime_api_request(
@@ -247,10 +262,14 @@ async fn check_assumption_validation_data(
 	})
 }
 
-async fn find_assumed_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn find_assumed_validation_data<Context>(
+	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
-) -> SubsystemResult<AssumptionCheckOutcome> {
+) -> SubsystemResult<AssumptionCheckOutcome>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
 	// relay-parent. We can fetch these values by getting the persisted validation data
@@ -278,13 +297,17 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-async fn spawn_validate_from_chain_state(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn spawn_validate_from_chain_state<Context>(
+	ctx: &mut Context,
 	validation_host: &mut ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
-) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
+) -> SubsystemResult<Result<ValidationResult, ValidationFailed>>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
 			AssumptionCheckOutcome::Matches(validation_data, validation_code) => {

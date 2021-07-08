@@ -26,12 +26,13 @@ use futures::prelude::*;
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	errors::{RecoveryError, RuntimeApiError},
+	overseer,
 	messages::{
-		AllMessages, AvailabilityRecoveryMessage, AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage, AvailabilityStoreMessage,
 		CandidateValidationMessage, DisputeCoordinatorMessage, DisputeParticipationMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
 };
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
@@ -55,9 +56,10 @@ impl DisputeParticipationSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for DisputeParticipationSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeParticipationSubsystem
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx).map(|_| Ok(())).boxed();
@@ -114,6 +116,7 @@ impl Error {
 async fn run<Context>(mut ctx: Context)
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	let mut state = State { recent_block: None };
 
@@ -202,7 +205,6 @@ async fn participate(
 			None,
 			recover_available_data_tx,
 		)
-		.into(),
 	)
 	.await;
 
@@ -236,7 +238,6 @@ async fn participate(
 				code_tx,
 			),
 		)
-		.into(),
 	)
 	.await;
 
@@ -265,7 +266,6 @@ async fn participate(
 			available_data.clone(),
 			store_available_data_tx,
 		)
-		.into(),
 	)
 	.await;
 
@@ -290,7 +290,6 @@ async fn participate(
 			available_data.pov,
 			validation_tx,
 		)
-		.into(),
 	)
 	.await;
 
@@ -373,13 +372,13 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 ) {
-	ctx.send_message(AllMessages::DisputeCoordinator(
+	ctx.send_message(
 		DisputeCoordinatorMessage::IssueLocalStatement(
 			session,
 			candidate_hash,
 			candidate_receipt,
 			valid,
 		),
-	))
+	)
 	.await
 }

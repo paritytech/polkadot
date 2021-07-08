@@ -19,7 +19,7 @@
 use super::*;
 use polkadot_node_subsystem::{
 	jaeger, ActivatedLeaf, LeafStatus,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
