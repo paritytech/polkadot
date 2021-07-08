@@ -115,9 +115,6 @@ pub enum Error {
 	#[error("failed to get backed candidates")]
 	CanceledBackedCandidates(#[source] oneshot::Canceled),
 
-	#[error("failed to get recent disputes")]
-	CanceledRecentDisputes(#[source] oneshot::Canceled),
-
 	#[error("failed to get votes on dispute")]
 	CanceledCandidateVotes(#[source] oneshot::Canceled),
 
@@ -557,7 +554,17 @@ async fn select_disputes(
 	// 2. Disputes are expected to be rare because they come with heavy slashing.
 	sender.send_message(DisputeCoordinatorMessage::RecentDisputes(tx).into()).await;
 
-	let recent_disputes = rx.await.map_err(Error::CanceledRecentDisputes)?;
+	let recent_disputes = match rx.await {
+		Ok(r) => r,
+		Err(oneshot::Canceled) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Unable to gather recent disputes - subsystem disconnected?",
+			);
+
+			Vec::new()
+		}
+	};
 
 	// Load all votes for all disputes from the coordinator.
 	let dispute_candidate_votes = {
