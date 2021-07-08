@@ -38,7 +38,6 @@ pub mod messages {
 	pub use polkadot_node_subsystem_types::messages::*;
 }
 
-
 /// A `Result` type that wraps [`SubsystemError`].
 ///
 /// [`SubsystemError`]: struct.SubsystemError.html
