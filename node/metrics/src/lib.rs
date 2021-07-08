@@ -94,8 +94,7 @@ impl Metronome {
 	}
 }
 
-impl futures::Stream for Metronome
-{
+impl futures::Stream for Metronome {
 	type Item = ();
 	fn poll_next(
 		mut self: Pin<&mut Self>,
