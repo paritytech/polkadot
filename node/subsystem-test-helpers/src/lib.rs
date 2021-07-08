@@ -232,7 +232,7 @@ where
 			.ok_or_else(|| SubsystemError::Context("Receiving end closed".to_owned()))
 	}
 
-	async fn spawn(
+	fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
@@ -241,7 +241,7 @@ where
 		Ok(())
 	}
 
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 		-> SubsystemResult<()>
 	{
 		self.spawn.spawn_blocking(name, s);
