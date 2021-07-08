@@ -80,7 +80,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 	let consumes = &info.consumes();
 
-	let subsyste_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
+	let subsyste_ctx_name = Ident::new(
+		&(overseer_name.to_string() + "SubsystemContext"),
+		overseer_name.span()
+	);
 
 	let builder_where_clause = quote! {
 		where
@@ -120,7 +123,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			fn default() -> Self {
 				// explicitly assure the required traits are implemented
 				fn trait_from_must_be_implemented<E>()
-				where E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
+				where
+					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
@@ -139,7 +143,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 
 		impl #builder_generics #builder #builder_generics #builder_where_clause {
 			/// The spawner to use for spawning tasks.
-			pub fn spawner(mut self, spawner: S) -> Self where S: #support_crate ::SpawnNamed + Send {
+			pub fn spawner(mut self, spawner: S) -> Self
+			where
+				S: #support_crate ::SpawnNamed + Send
+			{
 				self.spawner = Some(spawner);
 				self
 			}
@@ -236,7 +243,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 				)*
 
 				#(
-					let #baggage_name = self. #baggage_name .expect(&format!("Baggage variable `{1}` of `{0}` ", stringify!(#overseer_name), stringify!( #baggage_name )));
+					let #baggage_name = self. #baggage_name .expect(
+						&format!("Baggage variable `{1}` of `{0}` ",
+							stringify!(#overseer_name),
+							stringify!( #baggage_name )
+						)
+					);
 				)*
 
 				use #support_crate ::StreamExt;
