@@ -228,7 +228,8 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
 					name,
 					s,
-				}).map_err(|_| SubsystemError::TaskSpawn(name))
+				}).map_err(|_| OverseerError::TaskSpawn(name))?;
+				Ok(())
 			}
 
 			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
@@ -237,7 +238,8 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
 					name,
 					s,
-				}).map_err(|_| SubsystemError::TaskSpawn(name))
+				}).map_err(|_| OverseerError::TaskSpawn(name))?;
+				Ok(())
 			}
 		}
 	};

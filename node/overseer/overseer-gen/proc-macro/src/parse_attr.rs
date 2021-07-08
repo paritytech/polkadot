@@ -35,7 +35,7 @@ mod kw {
 
 
 #[derive(Clone, Debug)]
-enum AttrItem {
+enum OverseerAttrItem {
 	ExternEventType {
 		tag: kw::event,
 		eq_token: Token![=],
@@ -78,7 +78,7 @@ enum AttrItem {
 	},
 }
 
-impl ToTokens for AttrItem {
+impl ToTokens for OverseerAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
 			Self::ExternEventType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
@@ -94,53 +94,53 @@ impl ToTokens for AttrItem {
 	}
 }
 
-impl Parse for AttrItem {
+impl Parse for OverseerAttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let lookahead = input.lookahead1();
 		if lookahead.peek(kw::event) {
-			Ok(AttrItem::ExternEventType {
+			Ok(OverseerAttrItem::ExternEventType {
 				tag: input.parse::<kw::event>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::signal) {
-			Ok(AttrItem::ExternOverseerSignalType {
+			Ok(OverseerAttrItem::ExternOverseerSignalType {
 				tag: input.parse::<kw::signal>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::error) {
-			Ok(AttrItem::ExternErrorType {
+			Ok(OverseerAttrItem::ExternErrorType {
 				tag: input.parse::<kw::error>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::network) {
-			Ok(AttrItem::ExternNetworkType {
+			Ok(OverseerAttrItem::ExternNetworkType {
 				tag: input.parse::<kw::network>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::outgoing) {
-			Ok(AttrItem::OutgoingType {
+			Ok(OverseerAttrItem::OutgoingType {
 				tag: input.parse::<kw::outgoing>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::gen) {
-			Ok(AttrItem::MessageWrapperName {
+			Ok(OverseerAttrItem::MessageWrapperName {
 				tag: input.parse::<kw::gen>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::signal_capacity) {
-			Ok(AttrItem::SignalChannelCapacity {
+			Ok(OverseerAttrItem::SignalChannelCapacity {
 				tag: input.parse::<kw::signal_capacity>()?,
 				eq_token: input.parse()?,
 				value: input.parse::<LitInt>()?.base10_parse::<usize>()?
 			})
 		} else if lookahead.peek(kw::message_capacity) {
-			Ok(AttrItem::MessageChannelCapacity {
+			Ok(OverseerAttrItem::MessageChannelCapacity {
 				tag: input.parse::<kw::message_capacity>()?,
 				eq_token: input.parse()?,
 				value: input.parse::<LitInt>()?.base10_parse::<usize>()?,
@@ -181,7 +181,7 @@ macro_rules! extract_variant {
 	($unique:expr, $variant:ident) => {
 		$unique.values()
 			.find_map(|item| {
-				if let AttrItem:: $variant { value, ..} = item {
+				if let OverseerAttrItem:: $variant { value, ..} = item {
 					Some(value.clone())
 				} else {
 					None
@@ -192,12 +192,12 @@ macro_rules! extract_variant {
 
 impl Parse for AttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
-		let items: Punctuated<AttrItem, Token![,]> = input.parse_terminated(AttrItem::parse)?;
+		let items: Punctuated<OverseerAttrItem, Token![,]> = input.parse_terminated(OverseerAttrItem::parse)?;
 
-		let mut unique = HashMap::<std::mem::Discriminant<AttrItem>, AttrItem, RandomState>::default();
+		let mut unique = HashMap::<std::mem::Discriminant<OverseerAttrItem>, OverseerAttrItem, RandomState>::default();
 		for item in items {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
-				let mut e = Error::new(item.span(), format!("Duplicate definition of subsystem attribute found"));
+				let mut e = Error::new(item.span(), format!("Duplicate definition of overseer generation type found"));
 				e.combine(Error::new(first.span(), "previously defined here."));
 				return Err(e);
 			}
@@ -206,11 +206,10 @@ impl Parse for AttrArgs {
 		let signal_channel_capacity = extract_variant!(unique, SignalChannelCapacity; default = 64_usize);
 		let message_channel_capacity = extract_variant!(unique, MessageChannelCapacity; default = 1024_usize);
 
-		dbg!(quote!{kw::error(span)}.to_string());
-		let error = extract_variant!(unique, ExternErrorType; err = format!("Must declare the overseer error type via `{}=..`.", quote!{kw::error(span)}))?;
-		let event = extract_variant!(unique, ExternEventType; err = format!("Must declare the overseer event type via `{}=..`.", quote!{kw::event(span)}))?;
-		let signal = extract_variant!(unique, ExternOverseerSignalType; err = format!("Must declare the overseer signal type via `{}=..`.", quote!{kw::signal(span)}))?;
-		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = format!("Must declare the overseer generated wrapping message type via `{}=..`.", quote!{kw::gen(span)}))?;
+		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
+		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;
+		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `span=..`.")?;
+		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the overseer generated wrapping message type via `gen=..`.")?;
 		let network = extract_variant!(unique, ExternNetworkType);
 		let outgoing = extract_variant!(unique, OutgoingType);
 

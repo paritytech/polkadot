@@ -15,15 +15,63 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
-use std::collections::{hash_map::RandomState, HashSet};
-use syn::parse::{Parse, ParseStream};
+use std::collections::{hash_map::RandomState, HashSet, HashMap};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+use syn::parse::{Parse, ParseStream};
 use syn::{
 	Attribute, Field, FieldsNamed, Ident, Token, Type, AttrStyle, Path,
 	Error, GenericParam, ItemStruct, Result, Visibility
 };
+
+use quote::{quote, ToTokens};
+
+mod kw {
+	syn::custom_keyword!(wip);
+	syn::custom_keyword!(no_dispatch);
+	syn::custom_keyword!(blocking);
+}
+
+
+#[derive(Clone, Debug)]
+enum SubSysAttrItem {
+	/// The subsystem is still a work in progress
+	/// and should not be communicated with.
+	Wip(kw::wip),
+	/// The subsystem is blocking and requires to be
+	/// spawned on an exclusive thread.
+	Blocking(kw::blocking),
+	/// External messages should not be - after being converted -
+	/// be dispatched to the annotated subsystem.
+	NoDispatch(kw::no_dispatch),
+}
+
+impl Parse for SubSysAttrItem {
+	fn parse(input: ParseStream) -> Result<Self> {
+		let lookahead = input.lookahead1();
+		Ok(if lookahead.peek(kw::wip) {
+			Self::Wip(input.parse::<kw::wip>()?)
+		} else if lookahead.peek(kw::blocking) {
+			Self::Blocking(input.parse::<kw::blocking>()?)
+		} else if lookahead.peek(kw::no_dispatch) {
+			Self::NoDispatch(input.parse::<kw::no_dispatch>()?)
+		} else {
+			return Err(lookahead.error())
+		})
+	}
+}
+
+impl ToTokens for SubSysAttrItem {
+	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+		let ts = match self {
+			Self::Wip(wip) => { quote!{ #wip } }
+			Self::Blocking(blocking) => { quote!{ #blocking } }
+			Self::NoDispatch(no_dispatch) => { quote!{ #no_dispatch } }
+		};
+		tokens.extend(ts.into_iter());
+	}
+}
+
 
 /// A field of the struct annotated with
 /// `#[subsystem(no_dispatch, , A | B | C)]`
@@ -56,7 +104,31 @@ fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 	}
 }
 
-pub(crate) struct SubSystemTag {
+macro_rules! extract_variant {
+	($unique:expr, $variant:ident ; default = $fallback:expr) => {
+		extract_variant!($unique, $variant)
+			.unwrap_or_else(|| { $fallback })
+	};
+	($unique:expr, $variant:ident ; err = $err:expr) => {
+		extract_variant!($unique, $variant)
+			.ok_or_else(|| {
+				Error::new(Span::call_site(), $err)
+			})
+	};
+	($unique:expr, $variant:ident) => {
+		$unique.values()
+			.find_map(|item| {
+				if let SubSysAttrItem:: $variant ( _ ) = item {
+					Some(true)
+				} else {
+					None
+				}
+			})
+	};
+}
+
+
+pub(crate) struct SubSystemTags {
 	#[allow(dead_code)]
 	pub(crate) attrs: Vec<Attribute>,
 	#[allow(dead_code)]
@@ -65,42 +137,41 @@ pub(crate) struct SubSystemTag {
 	/// and also not include the subsystem in the list of subsystems.
 	pub(crate) wip: bool,
 	pub(crate) blocking: bool,
-	pub(crate) consumes: Punctuated<Path, Token![|]>,
+	pub(crate) consumes: Path,
 }
 
-impl Parse for SubSystemTag {
+impl Parse for SubSystemTags {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
 		let attrs = Attribute::parse_outer(input)?;
 
 		let input = input;
 		let content;
 		let _ = syn::parenthesized!(content in input);
-		let parse_tags = || -> Result<Option<Ident>> {
-			if content.peek(Ident) && content.peek2(Token![,]) {
-				let ident = content.parse::<Ident>()?;
-				let _ = content.parse::<Token![,]>()?;
-				Ok(Some(ident))
-			} else {
-				Ok(None)
-			}
-		};
 
-		let mut unique = HashSet::<_, RandomState>::default();
-		while let Some(ident) = parse_tags()? {
-			if ident != "no_dispatch" && ident != "blocking" && ident != "wip" {
-				return Err(Error::new(ident.span(), "Allowed tags are only `no_dispatch` or `blocking`."));
-			}
-			if !unique.insert(ident.to_string()) {
-				return Err(Error::new(ident.span(), "Found duplicate tag."));
+		let mut items = Punctuated::new();
+		while let Ok(tag) = content.call(SubSysAttrItem::parse) {
+			items.push_value(tag);
+			items.push_punct(content.call(<Token![,]>::parse)?);
+		}
+
+		assert!(items.empty_or_trailing(), "Always followed by the message type to consume. qed");
+
+		let consumes = content.parse::<Path>()?;
+
+		let mut unique = HashMap::<std::mem::Discriminant<SubSysAttrItem>, SubSysAttrItem, RandomState>::default();
+		for item in items {
+			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
+				let mut e = Error::new(item.span(), format!("Duplicate definition of subsystem attribute found"));
+				e.combine(Error::new(first.span(), "previously defined here."));
+				return Err(e);
 			}
 		}
-		let no_dispatch = unique.take("no_dispatch").is_some();
-		let blocking = unique.take("blocking").is_some();
-		let wip = unique.take("wip").is_some();
 
-		let consumes = content.parse_terminated(Path::parse)?;
+		let no_dispatch = extract_variant!(unique, NoDispatch; default = false);
+		let blocking = extract_variant!(unique, Blocking; default = false);
+		let wip = extract_variant!(unique, Wip; default = false);
 
-		Ok(Self { attrs, no_dispatch, blocking, consumes, wip})
+		Ok(Self { attrs, no_dispatch, blocking, consumes, wip })
 	}
 }
 
@@ -288,11 +359,8 @@ impl OverseerGuts {
 				}
 				let mut consumes_paths = Vec::with_capacity(attrs.len());
 				let attr_tokens = attr_tokens.clone();
-				let variant: SubSystemTag = syn::parse2(attr_tokens.clone())?;
-				if variant.consumes.len() != 1 {
-					return Err(Error::new(attr_tokens.span(), "Exactly one message can be consumed per subsystem."));
-				}
-				consumes_paths.push(variant.consumes[0].clone());
+				let variant: SubSystemTags = syn::parse2(attr_tokens.clone())?;
+				consumes_paths.push(variant.consumes);
 
 				let field_ty = try_type_to_path(ty, span)?;
 				let generic = field_ty.get_ident().ok_or_else(|| Error::new(field_ty.span(), "Must be an identifier, not a path."))?.clone();
@@ -313,7 +381,7 @@ impl OverseerGuts {
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic = field_ty.get_ident().map(|i| baggage_generics.contains(ident)).unwrap_or_default();
+				let generic = field_ty.get_ident().map(|ident| baggage_generics.contains(ident)).unwrap_or_default();
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}
