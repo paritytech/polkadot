@@ -39,7 +39,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
     // start runtime upgrade
-    let wasm_binary = polkadot_runtime::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
+    let wasm_binary = polkadot_runtime::WASM_BINARY
+        .ok_or("Polkadot development wasm not available")?
+        .to_vec();
     tokio_runtime.block_on(dispatch_with_root(system::Call::set_code(wasm_binary).into(), &node))?;
 
     // done upgrading runtime, drop node.
