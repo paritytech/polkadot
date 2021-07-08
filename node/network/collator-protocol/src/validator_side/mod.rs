@@ -65,6 +65,19 @@ const COST_WRONG_PARA: Rep = Rep::Malicious("A collator provided a collation for
 const COST_UNNEEDED_COLLATOR: Rep = Rep::CostMinor("An unneeded collator connected");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
+/// Time after starting a collation download from a collator we will start another one from the
+/// next collator.
+/// even if the upthe next validator,load was not finished yet.
+///
+/// This is to protect from a single slow collator preventing collations from happening.
+///
+/// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
+/// the transfer should be possible within 0.1 seconds. 300 milliseconds should therefore be
+/// plenty and should be low enough for later collators to still be able to finish on time.
+///
+/// There is debug logging output, so we can adjust this value based on production results.
+const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(300);
+
 // How often to check all peers with activity.
 #[cfg(not(test))]
 const ACTIVITY_POLL: Duration = Duration::from_secs(1);
@@ -564,6 +577,13 @@ struct State {
 	/// Keep track of all fetch collation requests
 	collation_fetches: FuturesUnordered<BoxFuture<'static, PendingCollationFetch>>,
 
+	/// When a timer in this `FuturesUnordered` triggers, we should dequeue the next request
+	/// attempt in the corresponding `collations_per_relay_parent`.
+	///
+	/// A triggering timer means that the fetching took too long for our taste and we should give
+	/// another collator the chance to be faster (dequeue next fetch request as well).
+	collation_fetch_timeouts: FuturesUnordered<BoxFuture<'static, Hash>>,
+
 	/// Information about the collations per relay parent.
 	collations_per_relay_parent: HashMap<Hash, CollationsPerRelayParent>,
 
@@ -599,6 +619,13 @@ async fn fetch_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
+
+	let timeout = |relay_parent| async move {
+		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
+		relay_parent
+	};
+	state.collation_fetch_timeouts.push(timeout(relay_parent.clone()).boxed());
+
 	if state.peer_data.get(&peer_id).map_or(false, |d| d.has_advertised(&relay_parent)) {
 		request_collation(ctx, state, relay_parent, para_id, peer_id, tx).await;
 	}
@@ -847,7 +874,6 @@ where
 							collations.unfetched_collations.push((pending_collation, id)),
 						CollationStatus::Waiting => {
 							collations.status = CollationStatus::Fetching;
-							drop(collations);
 
 							fetch_collation(ctx, state, pending_collation.clone(), id).await;
 						},
@@ -1141,6 +1167,14 @@ pub(crate) async fn run<Context>(
 			res = state.collation_fetches.select_next_some() => {
 				handle_collation_fetched_result(&mut ctx, &mut state, res).await;
 			}
+			relay_parent = state.collation_fetch_timeouts.select_next_some() => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					"Fetch for collation took too long, starting parallel download for next collator as well."
+				);
+				dequeue_next_collation_fetch(&mut ctx, &mut state, relay_parent).await;
+			}
 		}
 
 		let mut retained_requested = HashSet::new();
@@ -1156,6 +1190,20 @@ pub(crate) async fn run<Context>(
 		state.requested_collations.retain(|k, _| retained_requested.contains(k));
 	}
 	Ok(())
+}
+
+/// Dequeue another collation fetch.
+async fn dequeue_next_collation_fetch(
+	ctx: &mut impl SubsystemContext<Message = CollatorProtocolMessage>,
+	state: &mut State,
+	relay_parent: Hash
+) {
+	if let Some((next, id)) = state.collations_per_relay_parent
+		.get_mut(&relay_parent)
+		.and_then(|c| c.get_next_collation_to_fetch())
+	{
+		fetch_collation(ctx, state, next, id).await;
+	}
 }
 
 /// Handle a fetched collation result.
@@ -1182,18 +1230,20 @@ async fn handle_collation_fetched_result(
 				"Failed to fetch collation.",
 			);
 
-			if let Some((next, id)) = state.collations_per_relay_parent
-				.get_mut(&relay_parent)
-				.and_then(|c| c.get_next_collation_to_fetch())
-			{
-				fetch_collation(ctx, state, next, id).await;
-			}
-
+			dequeue_next_collation_fetch(ctx, state, relay_parent).await;
 			return
 		},
 	};
 
 	if let Some(collations) = state.collations_per_relay_parent.get_mut(&relay_parent) {
+		if let CollationStatus::Seconded = collations.status {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Already seconded - no longer interested in collation fetch result."
+			);
+			return
+		}
 		collations.status = CollationStatus::WaitingOnValidation;
 	}
 
@@ -1209,11 +1259,11 @@ async fn handle_collation_fetched_result(
 
 		entry.insert(collation_event);
 	} else {
-		tracing::error!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			candidate = ?candidate_receipt.hash(),
-			"Trying to insert a pending candidate failed, because there is already one!",
+			"Trying to insert a pending candidate failed, because there is already one.",
 		)
 	}
 }
