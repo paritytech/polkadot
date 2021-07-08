@@ -82,8 +82,7 @@ pub struct Metronome {
 	state: MetronomeState,
 }
 
-impl Metronome
-{
+impl Metronome {
 	/// Create a new metronome source with a defined cycle duration.
 	pub fn new(cycle: Duration) -> Self {
 		let period = cycle.into();
