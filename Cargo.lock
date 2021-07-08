@@ -6389,16 +6389,11 @@ dependencies = [
 name = "polkadot-node-subsystem"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "futures 0.3.15",
  "polkadot-node-jaeger",
- "polkadot-node-metrics",
- "polkadot-node-primitives",
  "polkadot-node-subsystem-types",
  "polkadot-overseer",
- "polkadot-overseer-gen",
- "polkadot-primitives",
- "smallvec 1.6.1",
- "thiserror",
 ]
 
 [[package]]

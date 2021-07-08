@@ -18,7 +18,8 @@
 //!
 //! Node-side types and generated overseer.
 
-#![warn(missing_docs)]
+#![deny(missing_docs)]
+#![deny(unused_crate_dependencies)]
 
 pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
