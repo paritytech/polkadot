@@ -85,9 +85,13 @@ use crate::backend::{Backend, OverlayedBackend};
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod old_tests;
+
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
+const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
@@ -1420,9 +1424,8 @@ fn check_and_import_assignment(
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
-	const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
-
 	let tick_now = state.clock.tick_now();
+
 	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
 		None => return Ok((AssignmentCheckResult::Bad(

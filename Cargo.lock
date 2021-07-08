@@ -6044,6 +6044,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "rand 0.8.4",
  "rand_core 0.5.1",
  "sc-client-api",
  "sc-keystore",
