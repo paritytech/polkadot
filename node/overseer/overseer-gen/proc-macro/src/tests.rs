@@ -22,7 +22,11 @@ use syn::parse_quote;
 #[test]
 fn print() {
 	let attr = quote! {
-		gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
+		gen=AllMessage,
+		event=::some::why::ExternEvent,
+		signal=SigSigSig,
+		signal_capacity=111,
+		message_capacity=222,
 		error=OverseerError,
 	};
 
