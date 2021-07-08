@@ -141,7 +141,7 @@ impl Parse for AttrArgs {
 			if let AttrItem::SignalChannelCapacity(lit) = item {
 				lit.base10_parse::<usize>()?
 			} else {
-				unreachable!()
+				unreachable!("Parsing guarantees the correct AttrItem::SignalChannelCapacity variant. qed")
 			}
 		} else {
 			64_usize
@@ -151,7 +151,7 @@ impl Parse for AttrArgs {
 			if let AttrItem::MessageChannelCapacity(lit) = item {
 				lit.base10_parse::<usize>()?
 			} else {
-				unreachable!()
+				unreachable!("Parsing guarantees the correct AttrItem::MessageChannelCapacity variant. qed")
 			}
 		} else {
 			1024_usize
