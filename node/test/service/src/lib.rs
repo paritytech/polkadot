@@ -22,7 +22,7 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
+use polkadot_overseer::Handle;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
@@ -290,7 +290,7 @@ pub struct PolkadotTestNode {
 	/// Client's instance.
 	pub client: Arc<Client>,
 	/// The overseer handler.
-	pub overseer_handler: OverseerHandler,
+	pub overseer_handler: Handle,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.

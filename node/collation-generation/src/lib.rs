@@ -30,8 +30,11 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, AvailableData, PoV,
 };
 use polkadot_node_subsystem::{
+	ActiveLeavesUpdate,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+	SpawnedSubsystem, SubsystemContext, SubsystemResult,
+	SubsystemError, FromOverseer, OverseerSignal,
+	overseer,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data,
@@ -83,6 +86,7 @@ impl CollationGenerationSubsystem {
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
@@ -114,19 +118,16 @@ impl CollationGenerationSubsystem {
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
 	async fn handle_incoming<Context>(
 		&mut self,
-		incoming: SubsystemResult<FromOverseer<Context::Message>>,
+		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
 		sender: &mpsc::Sender<AllMessages>,
 	) -> bool
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 	{
-		use polkadot_node_subsystem::ActiveLeavesUpdate;
-		use polkadot_node_subsystem::FromOverseer::{Communication, Signal};
-		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
-
 		match incoming {
-			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
+			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
 				// follow the procedure from the guide
 				if let Some(config) = &self.config {
 					let metrics = self.metrics.clone();
@@ -143,8 +144,8 @@ impl CollationGenerationSubsystem {
 
 				false
 			}
-			Ok(Signal(Conclude)) => true,
-			Ok(Communication {
+			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
+			Ok(FromOverseer::Communication {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
@@ -154,7 +155,7 @@ impl CollationGenerationSubsystem {
 				}
 				false
 			}
-			Ok(Signal(BlockFinalized(..))) => false,
+			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -168,9 +169,10 @@ impl CollationGenerationSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for CollationGenerationSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
+	Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
