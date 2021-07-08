@@ -305,7 +305,7 @@ pub fn make_subsystem_context<M, S>(
 ///
 /// Pass in two async closures: one mocks the overseer, the other runs the test from the perspective of a subsystem.
 ///
-/// Times out in two seconds.
+/// Times out in 5 seconds.
 pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	overseer_factory: OverseerFactory,
 	test_factory: TestFactory,
@@ -324,7 +324,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 
 	futures::executor::block_on(async move {
 		future::join(overseer, test)
-			.timeout(Duration::from_secs(8))
+			.timeout(Duration::from_secs(5))
 			.await
 			.expect("test timed out instead of completing")
 	});

@@ -40,7 +40,7 @@ use polkadot_node_subsystem_util::{
 mod sender;
 use self::sender::{DisputeSender, TaskFinish};
 
-/// Handle receival of dispute requests.
+/// Handle receipt of dispute requests.
 ///
 /// - Spam/Flood handling
 /// - Trigger import of statements

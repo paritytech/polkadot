@@ -208,9 +208,18 @@ pub enum DisputeCoordinatorMessage {
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		/// Inform the requester once we finished importing.
 		///
-		/// This is, we either discarded the votes, just record them because we
-		/// casted our vote already or recovered availability for the candidate
-		/// successfully.
+		/// This is:
+		/// - we discarded the votes because
+		///		- they were ancient or otherwise invalid (result: `InvalidImport`)
+		///		- or we were not able to recover availability for an unknown candidate (result:
+		///		`InvalidImport`)
+		///		- or were known already (in that case the result will still be `ValidImport`)
+		/// - or we recorded them because (`ValidImport`)
+		///		- we casted our own vote already on that dispute
+		///		- or we have approval votes on that candidate
+		///		- or other explicit votes on that candidate already recorded
+		///		- or recovered availability for the candidate
+		///		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
 	/// Fetch a list of all active disputes that the coordinator is aware of.
