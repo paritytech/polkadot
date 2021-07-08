@@ -433,7 +433,7 @@ impl claims::Config for Runtime {
 }
 
 parameter_types! {
-	pub storage MinVestedTransfer: Balance = 100 * DOLLARS;
+	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
 	pub const MaxVestingSchedules: u32 = 28;
 }
 
