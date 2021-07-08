@@ -18,17 +18,13 @@
 
 //! End to end runtime tests
 
-use test_runner::{Node, ChainInfo, SignatureVerificationOverride, default_config};
+use test_runner::{Node, ChainInfo, SignatureVerificationOverride};
 use grandpa::GrandpaBlockImport;
-use sc_service::{TFullBackend, TFullClient, Configuration, TaskManager, new_full_parts, TaskExecutor};
+use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::generic::Era;
-use std::sync::Arc;
 use sc_consensus_babe::BabeBlockImport;
-use sp_keystore::SyncCryptoStorePtr;
 use sp_keyring::sr25519::Keyring::Alice;
 use polkadot_runtime_common::claims;
-use sp_consensus_babe::AuthorityId;
-use sc_consensus_manual_seal::{ConsensusDataProvider, consensus::babe::BabeConsensusDataProvider};
 use sp_runtime::AccountId32;
 use support::{weights::Weight, StorageValue};
 use democracy::{AccountVote, Conviction, Vote};
@@ -36,15 +32,12 @@ use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, Techni
 use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
 use codec::Encode;
-use sc_consensus_manual_seal::consensus::babe::{SlotTimestampProvider, BabeVerifier};
-use sp_consensus::import_queue::BasicQueue;
-use sp_inherents::CreateInherentDataProviders;
+use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
 use sp_runtime::app_crypto::sp_core::H256;
-use sp_api::TransactionFor;
 
-pub type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
-pub type Block = polkadot_primitives::v1::Block;
-pub type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
+type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
+type Block = polkadot_primitives::v1::Block;
+type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
 sc_executor::native_executor_instance!(
 	pub Executor,
@@ -302,8 +295,8 @@ mod tests {
         let task_executor = task_executor(runtime.handle().clone());
         let (rpc,task_manager, client, pool, command_sink, backend) =
             client_parts::<PolkadotChainInfo>(
-                ConfigOrChainSpec::ChainSpec(Box::new(polkadot_development_config()), task_executor)
-            )?;
+                ConfigOrChainSpec::ChainSpec(Box::new(polkadot_development_config().unwrap()), task_executor)
+            ).unwrap();
         let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
 
         runtime.block_on(async {
