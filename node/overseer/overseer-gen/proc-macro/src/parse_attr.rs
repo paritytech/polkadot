@@ -20,90 +20,134 @@ use syn::parse::{Parse, ParseBuffer};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Error, Ident, LitInt, Path, Result, Token};
+use quote::{quote, ToTokens};
+
+mod kw {
+	syn::custom_keyword!(event);
+	syn::custom_keyword!(signal);
+	syn::custom_keyword!(error);
+	syn::custom_keyword!(network);
+	syn::custom_keyword!(outgoing);
+	syn::custom_keyword!(gen);
+	syn::custom_keyword!(signal_capacity);
+	syn::custom_keyword!(message_capacity);
+}
+
 
 #[derive(Clone, Debug)]
 enum AttrItem {
-	ExternEventType(Path),
-	ExternNetworkType(Path),
-	ExternOverseerSignalType(Path),
-	ExternErrorType(Path),
-	OutgoingType(Path),
-	MessageWrapperName(Ident),
-	SignalChannelCapacity(LitInt),
-	MessageChannelCapacity(LitInt),
+	ExternEventType {
+		tag: kw::event,
+		eq_token: Token![=],
+		value: Path
+	},
+	ExternNetworkType {
+		tag: kw::network,
+		eq_token: Token![=],
+		value: Path
+	},
+	ExternOverseerSignalType {
+		tag: kw::signal,
+		eq_token: Token![=],
+		value: Path
+	},
+	ExternErrorType {
+		tag: kw::error,
+		eq_token: Token![=],
+		value: Path
+	},
+	OutgoingType {
+		tag: kw::outgoing,
+		eq_token: Token![=],
+		value: Path
+	},
+	MessageWrapperName {
+		tag: kw::gen,
+		eq_token: Token![=],
+		value: Ident
+	},
+	SignalChannelCapacity {
+		tag: kw::signal_capacity,
+		eq_token: Token![=],
+		value: usize
+	},
+	MessageChannelCapacity {
+		tag: kw::message_capacity,
+		eq_token: Token![=],
+		value: usize
+	},
 }
 
-impl Spanned for AttrItem {
-	fn span(&self) -> Span {
-		match self {
-			AttrItem::ExternEventType(x) => x.span(),
-			AttrItem::ExternNetworkType(x) => x.span(),
-			AttrItem::ExternOverseerSignalType(x) => x.span(),
-			AttrItem::ExternErrorType(x) => x.span(),
-			AttrItem::OutgoingType(x) => x.span(),
-			AttrItem::MessageWrapperName(x) => x.span(),
-			AttrItem::SignalChannelCapacity(x) => x.span(),
-			AttrItem::MessageChannelCapacity(x) => x.span(),
-		}
-	}
-}
-
-const TAG_EXT_EVENT_TY: &str = "event";
-const TAG_EXT_SIGNAL_TY: &str = "signal";
-const TAG_EXT_ERROR_TY: &str = "error";
-const TAG_EXT_NETWORK_TY: &str = "network";
-const TAG_OUTGOING_TY: &str = "outgoing";
-const TAG_GEN_TY: &str = "gen";
-const TAG_SIGNAL_CAPACITY: &str = "signal_capacity";
-const TAG_MESSAGE_CAPACITY: &str = "message_capacity";
-
-impl AttrItem {
-	fn key(&self) -> &'static str {
-		match self {
-			AttrItem::ExternEventType(_) => TAG_EXT_EVENT_TY,
-			AttrItem::ExternOverseerSignalType(_) => TAG_EXT_SIGNAL_TY,
-			AttrItem::ExternErrorType(_) => TAG_EXT_ERROR_TY,
-			AttrItem::ExternNetworkType(_) => TAG_EXT_NETWORK_TY,
-			AttrItem::OutgoingType(_) => TAG_OUTGOING_TY,
-			AttrItem::MessageWrapperName(_) => TAG_GEN_TY,
-			AttrItem::SignalChannelCapacity(_) => TAG_SIGNAL_CAPACITY,
-			AttrItem::MessageChannelCapacity(_) => TAG_MESSAGE_CAPACITY,
-		}
+impl ToTokens for AttrItem {
+	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+		let ts = match self {
+			Self::ExternEventType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::ExternNetworkType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::ExternOverseerSignalType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::ExternErrorType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::OutgoingType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::MessageWrapperName { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::SignalChannelCapacity { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::MessageChannelCapacity { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+		};
+		tokens.extend(ts.into_iter());
 	}
 }
 
 impl Parse for AttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
-		let key = input.parse::<Ident>()?;
-		let span = key.span();
-		let _ = input.parse::<Token![=]>()?;
-		Ok(if key == TAG_EXT_SIGNAL_TY {
-			let path = input.parse::<Path>()?;
-			AttrItem::ExternOverseerSignalType(path)
-		} else if key == TAG_EXT_NETWORK_TY {
-			let path = input.parse::<Path>()?;
-			AttrItem::ExternNetworkType(path)
-		} else if key == TAG_OUTGOING_TY {
-			let path = input.parse::<Path>()?;
-			AttrItem::OutgoingType(path)
-		} else if key == TAG_EXT_EVENT_TY {
-			let path = input.parse::<Path>()?;
-			AttrItem::ExternEventType(path)
-		} else if key == TAG_EXT_ERROR_TY {
-			let path = input.parse::<Path>()?;
-			AttrItem::ExternErrorType(path)
-		} else if key == TAG_GEN_TY {
-			let wrapper_message = input.parse::<Ident>()?;
-			AttrItem::MessageWrapperName(wrapper_message)
-		} else if key == TAG_SIGNAL_CAPACITY {
-			let value = input.parse::<LitInt>()?;
-			AttrItem::SignalChannelCapacity(value)
-		} else if key == TAG_MESSAGE_CAPACITY {
-			let value = input.parse::<LitInt>()?;
-			AttrItem::MessageChannelCapacity(value)
+		let lookahead = input.lookahead1();
+		if lookahead.peek(kw::event) {
+			Ok(AttrItem::ExternEventType {
+				tag: input.parse::<kw::event>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::signal) {
+			Ok(AttrItem::ExternOverseerSignalType {
+				tag: input.parse::<kw::signal>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::error) {
+			Ok(AttrItem::ExternErrorType {
+				tag: input.parse::<kw::error>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::network) {
+			Ok(AttrItem::ExternNetworkType {
+				tag: input.parse::<kw::network>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::outgoing) {
+			Ok(AttrItem::OutgoingType {
+				tag: input.parse::<kw::outgoing>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::gen) {
+			Ok(AttrItem::MessageWrapperName {
+				tag: input.parse::<kw::gen>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::signal_capacity) {
+			Ok(AttrItem::SignalChannelCapacity {
+				tag: input.parse::<kw::signal_capacity>()?,
+				eq_token: input.parse()?,
+				value: input.parse::<LitInt>()?.base10_parse::<usize>()?
+			})
+		} else if lookahead.peek(kw::message_capacity) {
+			Ok(AttrItem::MessageChannelCapacity {
+				tag: input.parse::<kw::message_capacity>()?,
+				eq_token: input.parse()?,
+				value: input.parse::<LitInt>()?.base10_parse::<usize>()?,
+			})
 		} else {
-			return Err(Error::new(span, "Expected one of `gen`, `signal_capacity`, or `message_capacity`."));
-		})
+			Err(lookahead.error())
+		}
 	}
 }
 
@@ -123,88 +167,61 @@ pub(crate) struct AttrArgs {
 	pub(crate) message_channel_capacity: usize,
 }
 
+macro_rules! extract_variant {
+	($unique:expr, $variant:ident ; default = $fallback:expr) => {
+		extract_variant!($unique, $variant)
+			.unwrap_or_else(|| { $fallback })
+	};
+	($unique:expr, $variant:ident ; err = $err:expr) => {
+		extract_variant!($unique, $variant)
+			.ok_or_else(|| {
+				Error::new(Span::call_site(), $err)
+			})
+	};
+	($unique:expr, $variant:ident) => {
+		$unique.values()
+			.find_map(|item| {
+				if let AttrItem:: $variant { value, ..} = item {
+					Some(value.clone())
+				} else {
+					None
+				}
+			})
+	};
+}
+
 impl Parse for AttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
-		let span = input.span();
 		let items: Punctuated<AttrItem, Token![,]> = input.parse_terminated(AttrItem::parse)?;
 
-		let mut unique = HashMap::<&str, AttrItem, RandomState>::default();
+		let mut unique = HashMap::<std::mem::Discriminant<AttrItem>, AttrItem, RandomState>::default();
 		for item in items {
-			if let Some(first) = unique.insert(item.key(), item.clone()) {
-				let mut e = Error::new(item.span(), format!("Duplicate definition of `{}` found", item.key()));
+			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
+				let mut e = Error::new(item.span(), format!("Duplicate definition of subsystem attribute found"));
 				e.combine(Error::new(first.span(), "previously defined here."));
 				return Err(e);
 			}
 		}
 
-		let signal_channel_capacity = if let Some(item) = unique.remove(TAG_SIGNAL_CAPACITY) {
-			if let AttrItem::SignalChannelCapacity(lit) = item {
-				lit.base10_parse::<usize>()?
-			} else {
-				unreachable!("Parsing guarantees the correct AttrItem::SignalChannelCapacity variant. qed")
-			}
-		} else {
-			64_usize
-		};
+		let signal_channel_capacity = extract_variant!(unique, SignalChannelCapacity; default = 64_usize);
+		let message_channel_capacity = extract_variant!(unique, MessageChannelCapacity; default = 1024_usize);
 
-		let message_channel_capacity = if let Some(item) = unique.remove(TAG_MESSAGE_CAPACITY) {
-			if let AttrItem::MessageChannelCapacity(lit) = item {
-				lit.base10_parse::<usize>()?
-			} else {
-				unreachable!("Parsing guarantees the correct AttrItem::MessageChannelCapacity variant. qed")
-			}
-		} else {
-			1024_usize
-		};
-		let extern_error_ty = unique
-			.remove(TAG_EXT_ERROR_TY)
-			.map(|x| if let AttrItem::ExternErrorType(x) = x { x.clone() } else { unreachable!() })
-			.ok_or_else(|| {
-				Error::new(span, format!("Must declare the overseer error type via `{}=..`.", TAG_EXT_ERROR_TY))
-			})?;
-
-		let extern_signal_ty = unique
-			.remove(TAG_EXT_SIGNAL_TY)
-			.map(|x| if let AttrItem::ExternOverseerSignalType(x) = x { x.clone() } else { unreachable!() })
-			.ok_or_else(|| {
-				Error::new(span, format!("Must declare the overseer signals type via `{}=..`.", TAG_EXT_SIGNAL_TY))
-			})?;
-
-		let extern_event_ty = unique
-			.remove(TAG_EXT_EVENT_TY)
-			.map(|x| if let AttrItem::ExternEventType(x) = x { x.clone() } else { unreachable!() })
-			.ok_or_else(|| {
-				Error::new(span, format!("Must declare the external network type via `{}=..`.", TAG_EXT_NETWORK_TY))
-			})?;
-
-		let extern_network_ty = unique
-			.remove(TAG_EXT_NETWORK_TY)
-			.map(|x| if let AttrItem::ExternNetworkType(x) = x { x.clone() } else { unreachable!() });
-
-		let outgoing_ty = unique
-			.remove(TAG_OUTGOING_TY)
-			.map(|x| if let AttrItem::OutgoingType(x) = x { x.clone() } else { unreachable!() });
-
-		let message_wrapper = unique
-			.remove(TAG_GEN_TY)
-			.map(|x| if let AttrItem::MessageWrapperName(x) = x { x.clone() } else { unreachable!() })
-			.ok_or_else(|| Error::new(span, format!("Must declare the generated type via `{}=..`.", TAG_GEN_TY)))?;
-
-		if !unique.is_empty() {
-			let v = unique.into_iter().map(|(tag, _attr)| -> String { format!("`{}`", tag) }).collect::<Vec<_>>();
-			let s = v.join(", ");
-
-			return Err(Error::new(span, format!("Found unknown arguments to the overseer macro {}.", s)));
-		}
+		dbg!(quote!{kw::error(span)}.to_string());
+		let error = extract_variant!(unique, ExternErrorType; err = format!("Must declare the overseer error type via `{}=..`.", quote!{kw::error(span)}))?;
+		let event = extract_variant!(unique, ExternEventType; err = format!("Must declare the overseer event type via `{}=..`.", quote!{kw::event(span)}))?;
+		let signal = extract_variant!(unique, ExternOverseerSignalType; err = format!("Must declare the overseer signal type via `{}=..`.", quote!{kw::signal(span)}))?;
+		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = format!("Must declare the overseer generated wrapping message type via `{}=..`.", quote!{kw::gen(span)}))?;
+		let network = extract_variant!(unique, ExternNetworkType);
+		let outgoing = extract_variant!(unique, OutgoingType);
 
 		Ok(AttrArgs {
 			signal_channel_capacity,
 			message_channel_capacity,
-			extern_event_ty,
-			extern_signal_ty,
-			extern_error_ty,
-			extern_network_ty,
-			outgoing_ty,
+			extern_event_ty: event,
+			extern_signal_ty: signal,
+			extern_error_ty: error,
+			extern_network_ty: network,
+			outgoing_ty: outgoing,
 			message_wrapper,
 		})
 	}
