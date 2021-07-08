@@ -22,8 +22,9 @@ use crate::cli::{
 	TargetSigningParams,
 };
 use bp_message_dispatch::{CallOrigin, MessagePayload};
+use bp_runtime::messages::DispatchFeePayment;
 use codec::Encode;
-use frame_support::{dispatch::GetDispatchInfo, weights::Weight};
+use frame_support::weights::Weight;
 use relay_substrate_client::{Chain, TransactionSignScheme};
 use sp_core::{Bytes, Pair};
 use sp_runtime::{traits::IdentifyAccount, AccountId32, MultiSignature, MultiSigner};
@@ -40,9 +41,12 @@ pub struct SendMessage {
 	source: SourceConnectionParams,
 	#[structopt(flatten)]
 	source_sign: SourceSigningParams,
-	// TODO [#885] Move TargetSign to origins
-	#[structopt(flatten)]
-	target_sign: TargetSigningParams,
+	/// The SURI of secret key to use when transactions are submitted to the Target node.
+	#[structopt(long, required_if("origin", "Target"))]
+	target_signer: Option<String>,
+	/// The password for the SURI of secret key to use when transactions are submitted to the Target node.
+	#[structopt(long)]
+	target_signer_password: Option<String>,
 	/// Hex-encoded lane id. Defaults to `00000000`.
 	#[structopt(long, default_value = "00000000")]
 	lane: HexLaneId,
@@ -68,7 +72,8 @@ impl SendMessage {
 		crate::select_full_bridge!(self.bridge, {
 			let SendMessage {
 				source_sign,
-				target_sign,
+				target_signer,
+				target_signer_password,
 				ref mut message,
 				dispatch_weight,
 				origin,
@@ -77,15 +82,14 @@ impl SendMessage {
 			} = self;
 
 			let source_sign = source_sign.to_keypair::<Source>()?;
-			let target_sign = target_sign.to_keypair::<Target>()?;
 
 			encode_call::preprocess_call::<Source, Target>(message, bridge.bridge_instance_index());
-			let target_call = Target::encode_call(&message)?;
+			let target_call = Target::encode_call(message)?;
 
 			let payload = {
 				let target_call_weight = prepare_call_dispatch_weight(
 					dispatch_weight,
-					ExplicitOrMaximal::Explicit(target_call.get_dispatch_info().weight),
+					ExplicitOrMaximal::Explicit(Target::get_dispatch_info(&target_call)?.weight),
 					compute_maximal_message_dispatch_weight(Target::max_extrinsic_weight()),
 				);
 				let source_sender_public: MultiSigner = source_sign.public().into();
@@ -97,6 +101,13 @@ impl SendMessage {
 					match origin {
 						Origins::Source => CallOrigin::SourceAccount(source_account_id),
 						Origins::Target => {
+							let target_sign = TargetSigningParams {
+								target_signer: target_signer.clone().ok_or_else(|| {
+									anyhow::format_err!("The argument target_signer is not available")
+								})?,
+								target_signer_password: target_signer_password.clone(),
+							};
+							let target_sign = target_sign.to_keypair::<Target>()?;
 							let digest = account_ownership_digest(
 								&target_call,
 								source_account_id.clone(),
@@ -130,11 +141,12 @@ impl SendMessage {
 			let fee = match self.fee {
 				Some(fee) => fee,
 				None => Balance(
-					estimate_message_delivery_and_dispatch_fee::<
-						<Source as relay_substrate_client::ChainWithBalances>::NativeBalance,
-						_,
-						_,
-					>(&source_client, ESTIMATE_MESSAGE_FEE_METHOD, lane, payload.clone())
+					estimate_message_delivery_and_dispatch_fee::<<Source as Chain>::Balance, _, _>(
+						&source_client,
+						ESTIMATE_MESSAGE_FEE_METHOD,
+						lane,
+						payload.clone(),
+					)
 					.await? as _,
 				),
 			};
@@ -210,6 +222,7 @@ where
 		spec_version,
 		weight,
 		origin,
+		dispatch_fee_payment: DispatchFeePayment::AtSourceChain,
 		call: HexBytes::encode(call),
 	};
 
@@ -221,12 +234,14 @@ where
 		spec_version,
 		weight,
 		origin,
+		dispatch_fee_payment,
 		call,
 	} = payload;
 	MessagePayload {
 		spec_version,
 		weight,
 		origin,
+		dispatch_fee_payment,
 		call: call.0,
 	}
 }
@@ -250,8 +265,6 @@ mod tests {
 			"1234",
 			"--source-signer",
 			"//Alice",
-			"--target-signer",
-			"//Bob",
 			"remark",
 			"--remark-payload",
 			"1234",
@@ -265,8 +278,9 @@ mod tests {
 			payload,
 			MessagePayload {
 				spec_version: relay_millau_client::Millau::RUNTIME_VERSION.spec_version,
-				weight: 1345000,
+				weight: 1038000,
 				origin: CallOrigin::SourceAccount(sp_keyring::AccountKeyring::Alice.to_account_id()),
+				dispatch_fee_payment: DispatchFeePayment::AtSourceChain,
 				call: hex!("0401081234").to_vec(),
 			}
 		);
@@ -304,14 +318,35 @@ mod tests {
 			payload,
 			MessagePayload {
 				spec_version: relay_millau_client::Millau::RUNTIME_VERSION.spec_version,
-				weight: 1345000,
+				weight: 1038000,
 				origin: CallOrigin::TargetAccount(
 					sp_keyring::AccountKeyring::Alice.to_account_id(),
 					sp_keyring::AccountKeyring::Bob.into(),
 					signature,
 				),
+				dispatch_fee_payment: DispatchFeePayment::AtSourceChain,
 				call: hex!("0701081234").to_vec(),
 			}
 		);
+	}
+
+	#[test]
+	fn target_signer_must_exist_if_origin_is_target() {
+		// given
+		let send_message = SendMessage::from_iter_safe(vec![
+			"send-message",
+			"MillauToRialto",
+			"--source-port",
+			"1234",
+			"--source-signer",
+			"//Alice",
+			"--origin",
+			"Target",
+			"remark",
+			"--remark-payload",
+			"1234",
+		]);
+
+		assert!(send_message.is_err());
 	}
 }

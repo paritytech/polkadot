@@ -1,0 +1,52 @@
+{
+	"--1": "Millau Types",
+	"MillauBalance": "u64",
+	"MillauBlockHash": "H512",
+	"MillauBlockNumber": "u64",
+	"MillauHeader": {
+		"parent_Hash": "MillauBlockHash",
+		"number": "Compact<MillauBlockNumber>",
+		"state_root": "MillauBlockHash",
+		"extrinsics_root": "MillauBlockHash",
+		"digest": "MillauDigest"
+	},
+	"MillauDigest": {
+		"logs": "Vec<MillauDigestItem>"
+	},
+	"MillauDigestItem": {
+		"_enum": {
+			"Other": "Vec<u8>",
+			"AuthoritiesChange": "Vec<AuthorityId>",
+			"ChangesTrieRoot": "MillauBlockHash",
+			"SealV0": "SealV0",
+			"Consensus": "Consensus",
+			"Seal": "Seal",
+			"PreRuntime": "PreRuntime"
+		}
+	},
+	"--2": "Rialto Types",
+	"RialtoBalance": "u128",
+	"RialtoBlockHash": "H256",
+	"RialtoBlockNumber": "u32",
+	"RialtoHeader": {
+		"parent_Hash": "RialtoBlockHash",
+		"number": "Compact<RialtoBlockNumber>",
+		"state_root": "RialtoBlockHash",
+		"extrinsics_root": "RialtoBlockHash",
+		"digest": "RialtoDigest"
+	},
+	"RialtoDigest": {
+		"logs": "Vec<RialtoDigestItem>"
+	},
+	"RialtoDigestItem": {
+		"_enum": {
+			"Other": "Vec<u8>",
+			"AuthoritiesChange": "Vec<AuthorityId>",
+			"ChangesTrieRoot": "RialtoBlockHash",
+			"SealV0": "SealV0",
+			"Consensus": "Consensus",
+			"Seal": "Seal",
+			"PreRuntime": "PreRuntime"
+		}
+	}
+}

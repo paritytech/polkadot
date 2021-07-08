@@ -1,54 +1,4 @@
 {
-	"--1": "Millau Types",
-	"MillauBalance": "u64",
-	"MillauBlockHash": "H512",
-	"MillauBlockNumber": "u64",
-	"MillauHeader": {
-		"parent_Hash": "MillauBlockHash",
-		"number": "Compact<MillauBlockNumber>",
-		"state_root": "MillauBlockHash",
-		"extrinsics_root": "MillauBlockHash",
-		"digest": "MillauDigest"
-	},
-	"MillauDigest": {
-		"logs": "Vec<MillauDigestItem>"
-	},
-	"MillauDigestItem": {
-		"_enum": {
-			"Other": "Vec<u8>",
-			"AuthoritiesChange": "Vec<AuthorityId>",
-			"ChangesTrieRoot": "MillauBlockHash",
-			"SealV0": "SealV0",
-			"Consensus": "Consensus",
-			"Seal": "Seal",
-			"PreRuntime": "PreRuntime"
-		}
-	},
-	"--2": "Rialto Types",
-	"RialtoBalance": "u128",
-	"RialtoBlockHash": "H256",
-	"RialtoBlockNumber": "u32",
-	"RialtoHeader": {
-		"parent_Hash": "RialtoBlockHash",
-		"number": "Compact<RialtoBlockNumber>",
-		"state_root": "RialtoBlockHash",
-		"extrinsics_root": "RialtoBlockHash",
-		"digest": "RialtoDigest"
-	},
-	"RialtoDigest": {
-		"logs": "Vec<RialtoDigestItem>"
-	},
-	"RialtoDigestItem": {
-		"_enum": {
-			"Other": "Vec<u8>",
-			"AuthoritiesChange": "Vec<AuthorityId>",
-			"ChangesTrieRoot": "RialtoBlockHash",
-			"SealV0": "SealV0",
-			"Consensus": "Consensus",
-			"Seal": "Seal",
-			"PreRuntime": "PreRuntime"
-		}
-	},
 	"--3": "Common types",
 	"Address": "AccountId",
 	"LookupSource": "AccountId",
@@ -67,7 +17,7 @@
 		"set_id": "SetId"
 	},
 	"Id": "[u8; 4]",
-	"InstanceId": "Id",
+	"ChainId": "Id",
 	"LaneId": "Id",
 	"MessageNonce": "u64",
 	"MessageId": "(Id, u64)",
@@ -77,8 +27,17 @@
 	},
 	"InboundRelayer": "AccountId",
 	"InboundLaneData": {
-		"relayers": "Vec<(MessageNonce, MessageNonce, RelayerId)>",
+		"relayers": "Vec<UnrewardedRelayer>",
 		"last_confirmed_nonce": "MessageNonce"
+	},
+	"UnrewardedRelayer": {
+		"relayer": "RelayerId",
+		"messages": "DeliveredMessages"
+	},
+	"DeliveredMessages": {
+		"begin": "MessageNonce",
+		"end": "MessageNonce",
+		"dispatch_results": "BitVec"
 	},
 	"OutboundLaneData": {
 		"latest_generated_nonce": "MessageNonce",
@@ -96,6 +55,7 @@
 		"spec_version": "SpecVersion",
 		"weight": "Weight",
 		"origin": "CallOrigin",
+		"dispatch_fee_payment": "DispatchFeePayment",
 		"call": "BridgedOpaqueCall"
 	},
 	"CallOrigin": {
@@ -103,6 +63,12 @@
 			"SourceRoot": "()",
 			"TargetAccount": "(SourceAccountId, MultiSigner, MultiSignature)",
 			"SourceAccount": "SourceAccountId"
+		}
+	},
+	"DispatchFeePayment": {
+		"_enum": {
+			"AtSourceChain": "()",
+			"AtTargetChain": "()"
 		}
 	},
 	"MultiSigner": {

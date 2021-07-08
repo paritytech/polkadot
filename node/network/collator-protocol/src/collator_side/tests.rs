@@ -20,6 +20,7 @@ use std::{sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
+use futures_timer::Delay;
 
 use sp_core::{crypto::Pair, Decode};
 use sp_keyring::Sr25519Keyring;
@@ -31,7 +32,10 @@ use polkadot_node_network_protocol::{
 	request_response::request::IncomingRequest,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex};
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
+	SessionInfo, ValidatorId, ValidatorIndex,
+};
 use polkadot_node_primitives::BlockData;
 use polkadot_subsystem::{
 	jaeger,
@@ -196,6 +200,18 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	collator_pair: CollatorPair,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
+	let _ = env_logger::builder()
+		.is_test(true)
+		.filter(
+			Some("polkadot_collator_protocol"),
+			log::LevelFilter::Trace,
+		)
+		.filter(
+			Some(LOG_TARGET),
+			log::LevelFilter::Trace,
+		)
+		.try_init();
+
 	let pool = sp_core::testing::TaskExecutor::new();
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
@@ -580,10 +596,7 @@ fn advertise_and_send_collation() {
 			)
 		).await;
 		// Re-requesting collation should fail:
-		assert_matches!(
-			rx.await,
-			Err(_) => {}
-		);
+		rx.await.unwrap_err();
 
 		assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 
@@ -601,6 +614,126 @@ fn advertise_and_send_collation() {
 		).await;
 
 		expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
+		virtual_overseer
+	});
+}
+
+#[test]
+fn send_only_one_collation_per_relay_parent_at_a_time() {
+	let test_state = TestState::default();
+	let local_peer_id = test_state.local_peer_id.clone();
+	let collator_pair = test_state.collator_pair.clone();
+
+	test_harness(local_peer_id, collator_pair, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		setup_system(&mut virtual_overseer, &test_state).await;
+
+		let DistributeCollation { candidate, pov_block } =
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
+
+		for (val, peer) in test_state.current_group_validator_authority_ids()
+			.into_iter()
+			.zip(test_state.current_group_validator_peer_ids())
+		{
+			connect_peer(&mut virtual_overseer, peer.clone(), Some(val.clone())).await;
+		}
+
+		// We declare to the connected validators that we are a collator.
+		// We need to catch all `Declare` messages to the validators we've
+		// previosly connected to.
+		for peer_id in test_state.current_group_validator_peer_ids() {
+			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
+		}
+
+		let validator_0 = test_state.current_group_validator_peer_ids()[0].clone();
+		let validator_1 = test_state.current_group_validator_peer_ids()[1].clone();
+
+		// Send info about peer's view.
+		send_peer_view_change(&mut virtual_overseer, &validator_0, vec![test_state.relay_parent]).await;
+		send_peer_view_change(&mut virtual_overseer, &validator_1, vec![test_state.relay_parent]).await;
+
+		// The peer is interested in a leaf that we have a collation for;
+		// advertise it.
+		expect_advertise_collation_msg(&mut virtual_overseer, &validator_0, test_state.relay_parent).await;
+		expect_advertise_collation_msg(&mut virtual_overseer, &validator_1, test_state.relay_parent).await;
+
+		// Request a collation.
+		let (tx, rx) = oneshot::channel();
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::CollationFetchingRequest(
+				IncomingRequest::new(
+					validator_0,
+					CollationFetchingRequest {
+						relay_parent: test_state.relay_parent,
+						para_id: test_state.para_id,
+					},
+					tx,
+				)
+			)
+		).await;
+
+		// Keep the feedback channel alive because we need to use it to inform about the finished transfer.
+		let feedback_tx = assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
+					= CollationFetchingResponse::decode(
+						&mut full_response.result
+						.expect("We should have a proper answer").as_ref()
+				)
+				.expect("Decoding should work");
+				assert_eq!(receipt, candidate);
+				assert_eq!(pov, pov_block);
+
+				full_response.sent_feedback.expect("Feedback channel is always set")
+			}
+		);
+
+		// Let the second validator request the collation.
+		let (tx, mut rx) = oneshot::channel();
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::CollationFetchingRequest(
+				IncomingRequest::new(
+					validator_1,
+					CollationFetchingRequest {
+						relay_parent: test_state.relay_parent,
+						para_id: test_state.para_id,
+					},
+					tx,
+				)
+			)
+		).await;
+
+		Delay::new(Duration::from_millis(500)).await;
+
+		assert!(
+			rx.try_recv().unwrap().is_none(),
+			"We should not have send the collation yet to the second validator",
+		);
+
+		// Signal that the collation fetch is finished
+		feedback_tx.send(()).expect("Sending collation fetch finished");
+
+		// Now we should send it to the second validator
+		assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
+					= CollationFetchingResponse::decode(
+						&mut full_response.result
+						.expect("We should have a proper answer").as_ref()
+				)
+				.expect("Decoding should work");
+				assert_eq!(receipt, candidate);
+				assert_eq!(pov, pov_block);
+
+				full_response.sent_feedback.expect("Feedback channel is always set")
+			}
+		);
+
 		virtual_overseer
 	});
 }

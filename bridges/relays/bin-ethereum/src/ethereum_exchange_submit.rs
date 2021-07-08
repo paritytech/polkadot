@@ -52,7 +52,7 @@ pub async fn run(params: EthereumExchangeSubmitParams) {
 	} = params;
 
 	let result: Result<_, String> = async move {
-		let eth_client = EthereumClient::new(eth_params)
+		let eth_client = EthereumClient::try_connect(eth_params)
 			.await
 			.map_err(|err| format!("error connecting to Ethereum node: {:?}", err))?;
 

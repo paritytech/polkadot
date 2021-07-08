@@ -534,7 +534,7 @@ fn force_approve_works() {
 		).unwrap();
 	}
 
-	force_approve(&store, TEST_CONFIG,  block_hash_d, 2).unwrap();
+	let approved_hashes = force_approve(&store, TEST_CONFIG,  block_hash_d, 2).unwrap();
 
 	assert!(load_block_entry(
 		&store,
@@ -556,6 +556,10 @@ fn force_approve_works() {
 		&TEST_CONFIG,
 		&block_hash_d,
 	).unwrap().unwrap().approved_bitfield.not_any());
+	assert_eq!(
+		approved_hashes,
+		vec![block_hash_b, block_hash_a],
+	);
 }
 
 #[test]
