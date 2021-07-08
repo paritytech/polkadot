@@ -292,6 +292,7 @@ pub fn add_block_entry(
 
 	Ok(candidate_entries)
 }
+
 /// Forcibly approve all candidates included at up to the given relay-chain height in the indicated
 /// chain.
 pub fn force_approve(
