@@ -18,10 +18,11 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
-	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
-	SpawnedSubsystem, OverseerSignal, SubsystemSender,
+	messages::AllMessages,
+	overseer,
+	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult,
+	SpawnedSubsystem, OverseerSignal,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -172,7 +173,7 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender for TestSubsystemSender {
+impl overseer::SubsystemSender<AllMessages> for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.tx
 			.send(msg)
@@ -205,11 +206,18 @@ pub struct TestSubsystemContext<M, S> {
 }
 
 #[async_trait::async_trait]
-impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
+impl<M, S> overseer::SubsystemContext
 	for TestSubsystemContext<M, S>
+where
+	M: std::fmt::Debug + Send + 'static,
+	AllMessages: From<M>,
+	S: SpawnNamed + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
+	type Signal = OverseerSignal;
+	type AllMessages = AllMessages;
+	type Error = SubsystemError;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
@@ -333,10 +341,14 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 /// channel.
 ///
 /// This subsystem is useful for testing functionality that interacts with the overseer.
-pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
+pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 
-impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
-	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
+impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
+where
+	M: std::fmt::Debug + Send + 'static,
+	Context: SubsystemContext<Message = M> + overseer::SubsystemContext<Message = M>,
+{
+	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {

@@ -18,8 +18,8 @@
 
 use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_node_primitives::BlockWeight;
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
+use polkadot_node_subsystem::{
+	overseer, SubsystemContext, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
 	messages::{ChainSelectionMessage, ChainApiMessage},
 	errors::ChainApiError,
@@ -306,8 +306,10 @@ impl ChainSelectionSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for ChainSelectionSubsystem
-	where Context: SubsystemContext<Message = ChainSelectionMessage>
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
+where
+	Context: SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = crate::db_backend::v1::DbBackend::new(
@@ -337,6 +339,7 @@ async fn run<Context, B>(
 )
 	where
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 		B: Backend,
 {
 	loop {
@@ -376,6 +379,7 @@ async fn run_iteration<Context, B>(
 	-> Result<(), Error>
 	where
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 		B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
@@ -439,11 +443,11 @@ async fn fetch_finalized(
 	let (number_tx, number_rx) = oneshot::channel();
 	let (hash_tx, hash_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx).into()).await;
+	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
 	let number = number_rx.await??;
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx).into()).await;
+	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
 	match hash_rx.await?? {
 		None => {
@@ -464,7 +468,7 @@ async fn fetch_header(
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
 	let (h_tx, h_rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx).into()).await;
+	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx)).await;
 
 	h_rx.await?.map_err(Into::into)
 }
@@ -474,7 +478,7 @@ async fn fetch_block_weight(
 	hash: Hash,
 ) -> Result<Option<BlockWeight>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx).into()).await;
+	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
 	rx.await?.map_err(Into::into)
 }

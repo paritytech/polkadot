@@ -5993,6 +5993,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
+ "polkadot-overseer",
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
@@ -6236,7 +6237,6 @@ dependencies = [
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "polkadot-node-subsystem",
- "polkadot-overseer",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-inherents",
@@ -6332,6 +6332,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-metrics"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures 0.3.15",
+ "futures-timer 3.0.2",
+ "metered-channel",
+ "sc-network",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "substrate-prometheus-endpoint",
+]
+
+[[package]]
 name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
@@ -6371,31 +6386,9 @@ dependencies = [
 name = "polkadot-node-subsystem"
 version = "0.1.0"
 dependencies = [
- "assert_matches",
- "async-std",
- "async-trait",
- "derive_more",
- "futures 0.3.15",
- "futures-timer 3.0.2",
- "lazy_static",
- "log",
- "mick-jaeger",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "pin-project 1.0.7",
  "polkadot-node-jaeger",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem-test-helpers",
- "polkadot-primitives",
- "polkadot-procmacro-subsystem-dispatch-gen",
- "polkadot-statement-table",
- "sc-network",
- "smallvec 1.6.1",
- "sp-core",
- "substrate-prometheus-endpoint",
- "thiserror",
- "tracing",
+ "polkadot-node-subsystem-types",
+ "polkadot-overseer",
 ]
 
 [[package]]
@@ -6421,6 +6414,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-subsystem-types"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "async-std",
+ "async-trait",
+ "derive_more",
+ "futures 0.3.15",
+ "futures-timer 3.0.2",
+ "lazy_static",
+ "log",
+ "mick-jaeger",
+ "parity-scale-codec",
+ "parking_lot 0.11.1",
+ "pin-project 1.0.7",
+ "polkadot-node-jaeger",
+ "polkadot-node-network-protocol",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-overseer-gen",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sc-network",
+ "smallvec 1.6.1",
+ "sp-core",
+ "substrate-prometheus-endpoint",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-subsystem-util"
 version = "0.1.0"
 dependencies = [
@@ -6437,10 +6461,12 @@ dependencies = [
  "parking_lot 0.11.1",
  "pin-project 1.0.7",
  "polkadot-node-jaeger",
+ "polkadot-node-metrics",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-overseer",
  "polkadot-primitives",
  "rand 0.8.4",
  "sc-network",
@@ -6463,16 +6489,57 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "lru",
+ "metered-channel",
+ "polkadot-node-metrics",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
+ "polkadot-node-subsystem-types",
+ "polkadot-overseer-all-subsystems-gen",
+ "polkadot-overseer-gen",
  "polkadot-primitives",
- "polkadot-procmacro-overseer-subsystems-gen",
  "sc-client-api",
  "sp-api",
  "sp-core",
  "tracing",
+]
+
+[[package]]
+name = "polkadot-overseer-all-subsystems-gen"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "trybuild",
+]
+
+[[package]]
+name = "polkadot-overseer-gen"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures 0.3.15",
+ "futures-timer 3.0.2",
+ "metered-channel",
+ "pin-project 1.0.7",
+ "polkadot-node-network-protocol",
+ "polkadot-overseer-gen-proc-macro",
+ "sp-core",
+ "thiserror",
+ "tracing",
+ "trybuild",
+]
+
+[[package]]
+name = "polkadot-overseer-gen-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -6518,28 +6585,6 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "thiserror",
-]
-
-[[package]]
-name = "polkadot-procmacro-overseer-subsystems-gen"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
-]
-
-[[package]]
-name = "polkadot-procmacro-subsystem-dispatch-gen"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
 ]
 
 [[package]]
@@ -7202,9 +7247,9 @@ checksum = "eba180dafb9038b050a4c280019bbedf9f2467b61e5d892dcad585bb57aadc5a"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.24"
+version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+checksum = "f0d8caf72986c1a598726adc988bb5984792ef84f5ee5aa50209145ee8077038"
 dependencies = [
  "unicode-xid",
 ]

@@ -30,7 +30,6 @@ use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_network_protocol::request_response::v1;
 use polkadot_node_network_protocol::request_response::Recipient;
-use polkadot_subsystem::messages::AllMessages;
 
 use crate::metrics::Metrics;
 use crate::tests::mock::get_valid_chunk_data;
@@ -300,4 +299,3 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 		rx
 	)
 }
-

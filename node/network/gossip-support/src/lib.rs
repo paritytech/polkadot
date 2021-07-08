@@ -29,12 +29,16 @@ use futures::{channel::oneshot, FutureExt as _};
 use rand::{SeedableRng, seq::SliceRandom as _};
 use rand_chacha::ChaCha20Rng;
 use polkadot_node_subsystem::{
+	overseer,
+	SubsystemError,
+	FromOverseer, SpawnedSubsystem, SubsystemContext,
 	messages::{
-		AllMessages, GossipSupportMessage, NetworkBridgeMessage,
-		RuntimeApiMessage, RuntimeApiRequest,
+		GossipSupportMessage,
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		RuntimeApiRequest,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-	Subsystem, SpawnedSubsystem, SubsystemContext,
+	ActiveLeavesUpdate, OverseerSignal,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{
@@ -94,6 +98,7 @@ impl GossipSupport {
 	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let mut state = State::default();
 		self.run_inner(ctx, &mut state).await;
@@ -102,6 +107,7 @@ impl GossipSupport {
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let Self { keystore } = self;
 		loop {
@@ -138,10 +144,14 @@ impl GossipSupport {
 	}
 }
 
-async fn determine_relevant_authorities(
-	ctx: &mut impl SubsystemContext,
+async fn determine_relevant_authorities<Context>(
+	ctx: &mut Context,
 	relay_parent: Hash,
-) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
 	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -169,19 +179,23 @@ async fn ensure_i_am_an_authority(
 }
 
 /// A helper function for making a `ConnectToValidators` request.
-async fn connect_to_authorities(
-	ctx: &mut impl SubsystemContext,
+async fn connect_to_authorities<Context>(
+	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 	peer_set: PeerSet,
-) -> oneshot::Receiver<usize> {
+) -> oneshot::Receiver<usize>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
 	let (failed, failed_rx) = oneshot::channel();
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::ConnectToValidators {
 			validator_ids,
 			peer_set,
 			failed,
 		}
-	)).await;
+	).await;
 	failed_rx
 }
 
@@ -193,12 +207,16 @@ async fn connect_to_authorities(
 /// This limits the amount of gossip peers to 2 * sqrt(len) and ensures the diameter of 2.
 ///
 /// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
-async fn update_gossip_topology(
-	ctx: &mut impl SubsystemContext,
+async fn update_gossip_topology<Context>(
+	ctx: &mut Context,
 	our_index: usize,
 	authorities: Vec<AuthorityDiscoveryId>,
 	relay_parent: Hash,
-) -> Result<(), util::Error> {
+) -> Result<(), util::Error>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
 	// retrieve BABE randomness
 	let random_seed = {
 		let (tx, rx) = oneshot::channel();
@@ -206,7 +224,7 @@ async fn update_gossip_topology(
 		ctx.send_message(RuntimeApiMessage::Request(
 			relay_parent,
 			RuntimeApiRequest::CurrentBabeEpoch(tx),
-		).into()).await;
+		)).await;
 
 		let randomness = rx.await??.randomness;
 		let mut subject = [0u8; 40];
@@ -227,11 +245,11 @@ async fn update_gossip_topology(
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
 	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::NewGossipTopology {
 			our_neighbors,
 		}
-	)).await;
+	).await;
 
 	Ok(())
 }
@@ -262,12 +280,16 @@ impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
 	///    and issue a connection request.
-	async fn handle_active_leaves(
+	async fn handle_active_leaves<Context>(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut Context,
 		keystore: &SyncCryptoStorePtr,
 		leaves: impl Iterator<Item = Hash>,
-	) -> Result<(), util::Error> {
+	) -> Result<(), util::Error>
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+	{
 		for leaf in leaves {
 			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
 			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
@@ -310,11 +332,15 @@ impl State {
 		Ok(())
 	}
 
-	async fn issue_connection_request(
+	async fn issue_connection_request<Context>(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut Context,
 		authorities: Vec<AuthorityDiscoveryId>,
-	) -> Result<(), util::Error> {
+	) -> Result<(), util::Error>
+	where
+		Context: SubsystemContext<Message = GossipSupportMessage>,
+		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+	{
 		let num = authorities.len();
 		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
@@ -362,9 +388,10 @@ impl State {
 	}
 }
 
-impl<Context> Subsystem<Context> for GossipSupport
+impl<Context> overseer::Subsystem<Context, SubsystemError> for GossipSupport
 where
-	Context: SubsystemContext<Message = GossipSupportMessage> + Sync + Send,
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)

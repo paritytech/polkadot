@@ -18,7 +18,7 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_subsystem::SubsystemError;
+use polkadot_subsystem::errors::SubsystemError;
 use thiserror::Error;
 
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
