@@ -216,9 +216,14 @@ struct WaitingCollationFetches {
 	collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
 	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
+	/// All peers that waiting or active uploads.
+	///
+	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of
+	/// moving on to the next peer after `MAX_UNSHARED_UPLOAD_TIME` would be pointless.
+	waiting_peers: HashSet<PeerId>,
 }
 
-type ActiveCollationFetches = FuturesUnordered<Pin<Box<dyn Future<Output = Hash> + Send + 'static>>>;
+type ActiveCollationFetches = FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
 
 struct State {
 	/// Our network peer id.
@@ -664,6 +669,14 @@ async fn process_msg(
 
 						let waiting = state.waiting_collation_fetches.entry(incoming.payload.relay_parent).or_default();
 
+						if !waiting.waiting_peers.insert(incoming.peer) {
+							tracing::debug!(
+								target: LOG_TARGET,
+								"Dropping incoming request as peer has a request in flight already."
+							);
+							return Ok(())
+						}
+
 						if waiting.collation_fetch_active {
 							waiting.waiting.push_back(incoming);
 						} else {
@@ -729,7 +742,7 @@ async fn send_collation(
 				"Sending collation to validator timed out, carrying on with next validator."
 			);
 		}
-		relay_parent
+		(relay_parent, peer_id)
 	}.boxed());
 
 	state.metrics.on_collation_sent();
@@ -960,8 +973,10 @@ pub(crate) async fn run(
 				Signal(BlockFinalized(..)) => {}
 				Signal(Conclude) => return Ok(()),
 			},
-			relay_parent = state.active_collation_fetches.select_next_some() => {
+			res = state.active_collation_fetches.select_next_some() => {
+				let (relay_parent, peer_id) = res;
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
+					waiting.waiting_peers.remove(&peer_id);
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
 					} else {
