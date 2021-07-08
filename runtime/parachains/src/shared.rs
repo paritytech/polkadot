@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A module for any shared state that other pallets may want access to.
+//! A pallet for any shared state that other pallets may want access to.
 //!
-//! To avoid cyclic dependencies, it is important that this module is not
-//! dependent on any of the other modules.
+//! To avoid cyclic dependencies, it is important that this pallet is not
+//! dependent on any of the other pallets.
 
 use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
 use frame_support::pallet_prelude::*;
@@ -68,12 +68,12 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initializer to initialize the configuration module.
+	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the configuration module.
+	/// Called by the initializer to finalize the configuration pallet.
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
