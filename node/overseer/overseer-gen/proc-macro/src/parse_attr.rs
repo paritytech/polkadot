@@ -16,16 +16,10 @@
 
 use proc_macro2::Span;
 use std::collections::{hash_map::RandomState, HashMap};
-use syn::parse::Parse;
-use syn::parse::ParseBuffer;
+use syn::parse::{Parse, ParseBuffer};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::Error;
-use syn::Ident;
-use syn::LitInt;
-use syn::Path;
-use syn::Result;
-use syn::Token;
+use syn::{Error, Ident, LitInt, Path, Result, Token};
 
 #[derive(Clone, Debug)]
 enum AttrItem {

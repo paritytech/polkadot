@@ -77,15 +77,15 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 		outgoing_ty: args.outgoing_ty,
 	};
 
-	let mut additive = impl_overseer_struct(&info)?;
-	additive.extend(impl_builder(&info)?);
+	let mut additive = impl_overseer_struct(&info);
+	additive.extend(impl_builder(&info));
 
-	additive.extend(impl_overseen_subsystem(&info)?);
-	additive.extend(impl_channels_out_struct(&info)?);
-	additive.extend(impl_misc(&info)?);
+	additive.extend(impl_overseen_subsystem(&info));
+	additive.extend(impl_channels_out_struct(&info));
+	additive.extend(impl_misc(&info));
 
 	additive.extend(impl_message_wrapper_enum(&info)?);
-	additive.extend(impl_dispatch(&info)?);
+	additive.extend(impl_dispatch(&info));
 
 	Ok(additive)
 }

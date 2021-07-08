@@ -15,11 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::quote;
-use syn::Result;
 
 use super::*;
 
-pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let message_wrapper = &info.message_wrapper.clone();
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names_without_wip();
@@ -178,10 +177,10 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> Result<proc_macro2::T
 
 	};
 
-	Ok(ts)
+	ts
 }
 
-pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
@@ -262,5 +261,5 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> Result<proc_macro2
 			}
 		}
 	};
-	Ok(ts)
+	ts
 }

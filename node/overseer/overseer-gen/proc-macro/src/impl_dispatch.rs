@@ -17,9 +17,9 @@
 use super::*;
 use proc_macro2::{TokenStream, Ident};
 use quote::quote;
-use syn::{Path, Result};
+use syn::Path;
 
-pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
+pub(crate) fn impl_dispatch(info: &OverseerInfo) -> TokenStream {
 	let message_wrapper = &info.message_wrapper;
 
 	let dispatchable_variant = info
@@ -71,5 +71,5 @@ pub(crate) fn impl_dispatch(info: &OverseerInfo) -> Result<TokenStream> {
 			}
 		});
 	}
-	Ok(ts)
+	ts
 }

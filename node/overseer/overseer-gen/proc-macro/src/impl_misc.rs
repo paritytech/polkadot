@@ -15,13 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::quote;
-use syn::{Ident, Result};
+use syn::Ident;
 
 use super::*;
 
 /// Implement a builder pattern for the `Overseer`-type,
 /// which acts as the gateway to constructing the overseer.
-pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_sender_name = Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
 	let subsystem_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
@@ -242,5 +242,5 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> Result<proc_macro2::TokenStream>
 		}
 	};
 
-	Ok(ts)
+	ts
 }

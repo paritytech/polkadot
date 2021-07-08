@@ -16,20 +16,14 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use syn::Visibility;
 use std::collections::{hash_map::RandomState, HashSet};
-use syn::parse::Parse;
-use syn::parse::ParseStream;
+use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::Attribute;
-use syn::Field;
-use syn::FieldsNamed;
-use syn::Ident;
-use syn::Token;
-use syn::Type;
-use syn::{AttrStyle, Path};
-use syn::{Error, GenericParam, ItemStruct, Result};
+use syn::{
+	Attribute, Field, FieldsNamed, Ident, Token, Type, AttrStyle, Path,
+	Error, GenericParam, ItemStruct, Result, Visibility
+};
 
 /// A field of the struct annotated with
 /// `#[subsystem(no_dispatch, , A | B | C)]`

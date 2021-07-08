@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::quote;
-use syn::{Ident, Result};
+use syn::Ident;
 
 use super::*;
 
@@ -23,7 +23,7 @@ use super::*;
 /// which acts as the gateway to constructing the overseer.
 ///
 /// Elements tagged with `wip` are not covered here.
-pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
 	let handle = Ident::new(&(overseer_name.to_string() + "Handle"), overseer_name.span());
@@ -273,11 +273,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> Result<proc_macro2::TokenStre
 			}
 		}
 	};
-	ts.extend(impl_task_kind(info)?);
-	Ok(ts)
+	ts.extend(impl_task_kind(info));
+	ts
 }
 
-pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
@@ -369,5 +369,5 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> Result<proc_macro2::TokenSt
 		}
 	};
 
-	Ok(ts)
+	ts
 }
