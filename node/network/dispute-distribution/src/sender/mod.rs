@@ -235,17 +235,17 @@ impl DisputeSender
 				let invalid_vote = votes
 					.invalid
 					.get(0)
-					.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+					.ok_or(NonFatal::MissingVotesFromCoordinator)?;
 				(our_valid_vote, invalid_vote)
 			} else if let Some(our_invalid_vote) = our_invalid_vote {
 				// Get some valid vote as well:
 				let valid_vote = votes
 					.valid
 					.get(0)
-					.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+					.ok_or(NonFatal::MissingVotesFromCoordinator)?;
 				(valid_vote, our_invalid_vote)
 			} else {
-				return Err(From::from(NonFatal::InvalidDisputeFromCoordinator))
+				return Err(From::from(NonFatal::MissingVotesFromCoordinator))
 			}
 		;
 		let (kind, valid_index, signature) = valid_vote;
@@ -253,7 +253,7 @@ impl DisputeSender
 			.session_info
 			.validators
 			.get(valid_index.0 as usize)
-			.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+			.ok_or(NonFatal::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Valid(kind.clone()),
 			candidate_hash,
@@ -261,14 +261,14 @@ impl DisputeSender
 			valid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+		.map_err(|()| NonFatal::InvalidStatementFromCoordinator)?;
 
 		let (kind, invalid_index, signature) = invalid_vote;
 		let invalid_public = info
 			.session_info
 			.validators
 			.get(invalid_index.0 as usize)
-			.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+			.ok_or(NonFatal::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Invalid(kind.clone()),
 			candidate_hash,
@@ -276,7 +276,7 @@ impl DisputeSender
 			invalid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidDisputeFromCoordinator)?;
+		.map_err(|()| NonFatal::InvalidValidatorIndexFromCoordinator)?;
 
 		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
 		// but I don't want to enable a bypass for the below smart constructor and this code path
@@ -292,7 +292,7 @@ impl DisputeSender
 			votes.candidate_receipt,
 			&info.session_info
 		)
-		.ok_or(NonFatal::InvalidDisputeFromCoordinator)?;
+		.map_err(NonFatal::InvalidDisputeFromCoordinator)?;
 
 		// Finally, get the party started:
 		self.start_sender(ctx, runtime, message).await

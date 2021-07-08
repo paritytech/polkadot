@@ -209,7 +209,7 @@ impl MuxedMessage {
 	async fn receive(
 		ctx: &mut impl SubsystemContext<Message = DisputeDistributionMessage>,
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
-	) -> MuxedMessage {
+	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();

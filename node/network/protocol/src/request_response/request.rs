@@ -286,6 +286,8 @@ where
 /// Responses to `IncomingRequest`s.
 pub struct OutgoingResponse<Response> {
 	/// The payload of the response.
+	///
+	/// `Err(())` if none is available e.g. due an error while handling the request.
 	pub result: Result<Response, ()>,
 
 	/// Reputation changes accrued while handling the request. To be applied to the reputation of

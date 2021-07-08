@@ -28,7 +28,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement, DisputeMessageCheckError};
 use polkadot_node_subsystem::{
 	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
@@ -670,8 +670,8 @@ enum MakeDisputeMessageError {
 	InvalidValidatorIndex,
 	#[error("Statement found in votes had invalid signature.")]
 	InvalidStoredStatement,
-	#[error("DisputeMessage could not be built.")]
-	InvalidStatementCombination,
+	#[error(transparent)]
+	InvalidStatementCombination(DisputeMessageCheckError),
 }
 
 fn make_dispute_message(
@@ -713,7 +713,7 @@ fn make_dispute_message(
 		invalid_statement, invalid_index,
 		votes.candidate_receipt.clone(),
 		info,
-	).ok_or(MakeDisputeMessageError::InvalidStatementCombination)
+	).map_err(MakeDisputeMessageError::InvalidStatementCombination)
 }
 
 fn determine_undisputed_chain(

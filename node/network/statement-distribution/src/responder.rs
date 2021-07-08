@@ -86,7 +86,7 @@ pub async fn respond(
 		let req =
 			match IncomingRequest::<StatementFetchingRequest>::try_from_raw(
 				raw,
-				vec![COST_INVALID_REQUEST]
+				vec![COST_INVALID_REQUEST],
 			) {
 			Err(err) => {
 				tracing::debug!(

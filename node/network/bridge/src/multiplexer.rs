@@ -78,7 +78,7 @@ impl RequestMultiplexer {
 			} else {
 				None
 			}
-		).expect("Statement fetching must be registered.");
+		).expect("Statement fetching must be registered. qed.");
 		let statement_fetching = Some(receivers.remove(index).1);
 
 		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
@@ -87,7 +87,7 @@ impl RequestMultiplexer {
 			} else {
 				None
 			}
-		).expect("Dispute sending must be registered.");
+		).expect("Dispute sending must be registered. qed.");
 		let dispute_sending = Some(receivers.remove(index).1);
 
 		(

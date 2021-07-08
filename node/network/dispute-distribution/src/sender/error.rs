@@ -22,6 +22,7 @@ use thiserror::Error;
 
 use polkadot_node_subsystem_util::{Fault, runtime};
 use polkadot_subsystem::SubsystemError;
+use polkadot_node_primitives::disputes::DisputeMessageCheckError;
 
 
 #[derive(Debug, Error)]
@@ -75,9 +76,27 @@ pub enum NonFatal {
 
 	/// This error does indicate a bug in the coordinator.
 	///
+	/// We were not able to successfully construct a `DisputeMessage` from disputes votes.
+	#[error("Invalid dispute encountered")]
+	InvalidDisputeFromCoordinator(#[source] DisputeMessageCheckError),
+
+	/// This error does indicate a bug in the coordinator.
+	///
 	/// We did not receive votes on both sides for `CandidateVotes` received from the coordinator.
-	#[error("Invalid dispute encountered.")]
-	InvalidDisputeFromCoordinator,
+	#[error("Missing votes for valid dispute")]
+	MissingVotesFromCoordinator,
+
+	/// This error does indicate a bug in the coordinator.
+	///
+	/// `SignedDisputeStatement` could not be reconstructed from recorded statements.
+	#[error("Invalid statements from coordinator")]
+	InvalidStatementFromCoordinator,
+
+	/// This error does indicate a bug in the coordinator.
+	///
+	/// A statement's `ValidatorIndex` could not be looked up.
+	#[error("ValidatorIndex of statement could not be found")]
+	InvalidValidatorIndexFromCoordinator,
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
