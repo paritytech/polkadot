@@ -67,7 +67,7 @@ struct TestNetwork {
 	_req_configs: Vec<RequestResponseConfig>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TestAuthorityDiscovery;
 
 // The test's view of the network. This receives updates from the subsystem in the form
@@ -690,6 +690,12 @@ fn peer_view_updates_sent_via_overseer() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::StatementFetchingReceiver(_)
 			)
@@ -740,6 +746,12 @@ fn peer_messages_sent_via_overseer() {
 			ObservedRole::Full,
 		).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -812,6 +824,12 @@ fn peer_disconnect_from_just_one_peerset() {
 		network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 		network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -894,6 +912,12 @@ fn relays_collation_protocol_messages() {
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -992,6 +1016,12 @@ fn different_views_on_different_peer_sets() {
 		network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 		network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -1155,6 +1185,12 @@ fn send_messages_to_peers() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::StatementFetchingReceiver(_)
 			)
@@ -1279,7 +1315,8 @@ fn spread_event_to_subsystems_is_up_to_date() {
 			AllMessages::ApprovalDistribution(_) => { cnt += 1; }
 			AllMessages::GossipSupport(_) => unreachable!("Not interested in network events"),
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
-			AllMessages::DisputeParticipation(_) => unreachable!("Not interetsed in network events"),
+			AllMessages::DisputeParticipation(_) => unreachable!("Not interested in network events"),
+			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 			// notified, `unreachable!()` for those that should not.
@@ -1325,6 +1362,12 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 			0,
 		);
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(

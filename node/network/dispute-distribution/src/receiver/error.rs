@@ -17,21 +17,14 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_subsystem::errors::SubsystemError;
 use thiserror::Error;
 
+use polkadot_node_network_protocol::PeerId;
+use polkadot_node_network_protocol::request_response::request::ReceiveError;
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
 
 use crate::LOG_TARGET;
 
-/// General result.
-pub type Result<T> = std::result::Result<T, Error>;
-
-/// Result for fatal only failures.
-pub type FatalResult<T> = std::result::Result<T, Fatal>;
-
-/// Errors for statement distribution.
 #[derive(Debug, Error)]
 #[error(transparent)]
 pub struct Error(pub Fault<NonFatal, Fatal>);
@@ -54,39 +47,64 @@ impl From<runtime::Error> for Error {
 	}
 }
 
-/// Fatal runtime errors.
+/// Fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Fatal {
-	/// Receiving subsystem message from overseer failed.
-	#[error("Receiving message from overseer failed")]
-	SubsystemReceive(#[source] SubsystemError),
+	/// Request channel returned `None`. Likely a system shutdown.
+	#[error("Request channel stream finished.")]
+	RequestChannelFinished,
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::Fatal),
 }
 
-/// Errors for fetching of runtime information.
+/// Non-fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum NonFatal {
-	/// Signature was invalid on received statement.
-	#[error("CollationSeconded contained statement with invalid signature.")]
-	InvalidStatementSignature(UncheckedSignedFullStatement),
+	/// Answering request failed.
+	#[error("Sending back response to peer {0} failed.")]
+	SendResponse(PeerId),
+
+	/// Getting request from raw request failed.
+	#[error("Decoding request failed.")]
+	FromRawRequest(#[source] ReceiveError),
+
+	/// Setting reputation for peer failed.
+	#[error("Changing peer's ({0}) reputation failed.")]
+	SetPeerReputation(PeerId),
+
+	/// Peer sent us request with invalid signature.
+	#[error("Dispute request with invalid signatures, from peer {0}.")]
+	InvalidSignature(PeerId),
+
+	/// Import oneshot got canceled.
+	#[error("Import of dispute got canceled for peer {0} - import failed for some reason.")]
+	ImportCanceled(PeerId),
+
+	/// Non validator tried to participate in dispute.
+	#[error("Peer {0} is not a validator.")]
+	NotAValidator(PeerId),
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::NonFatal),
 }
 
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub type FatalResult<T> = std::result::Result<T, Fatal>;
+pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
+
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
-/// consume top-level errors by simply logging them.
-pub fn log_error(result: Result<()>, ctx: &'static str)
-	-> FatalResult<()>
+/// consume top-level errors by simply logging them
+pub fn log_error(result: Result<()>)
+	-> std::result::Result<(), Fatal>
 {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error, ctx)
+		tracing::warn!(target: LOG_TARGET, error = ?error);
 	}
 	Ok(())
 }

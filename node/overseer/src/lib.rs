@@ -91,6 +91,7 @@ use polkadot_node_subsystem_types::messages::{
 	ApprovalVotingMessage, GossipSupportMessage,
 	NetworkBridgeEvent,
 	DisputeParticipationMessage, DisputeCoordinatorMessage, ChainSelectionMessage,
+	DisputeDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	OverseerSignal,
@@ -394,6 +395,9 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(no_dispatch, wip, DisputeParticipationMessage)]
 	dispute_participation: DisputeParticipation,
+
+	#[subsystem(no_dispatch, wip, DisputeDistributionMessage)]
+	dipute_distribution: DisputeDistribution,
 
 	#[subsystem(no_dispatch, wip, ChainSelectionMessage)]
 	chain_selection: ChainSelection,

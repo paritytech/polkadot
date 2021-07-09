@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::pin::Pin;
+use std::unreachable;
 
 use futures::channel::mpsc;
 use futures::stream::{FusedStream, Stream};
@@ -42,6 +43,7 @@ use polkadot_overseer::AllMessages;
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
 	statement_fetching: Option<mpsc::Receiver<network::IncomingRequest>>,
+	dispute_sending: Option<mpsc::Receiver<network::IncomingRequest>>,
 	next_poll: usize,
 }
 
@@ -68,6 +70,8 @@ impl RequestMultiplexer {
 			})
 			.unzip();
 
+		// Ok this code is ugly as hell, it is also a hack, see https://github.com/paritytech/polkadot/issues/2842.
+		// But it works and is executed on startup so, if anything is wrong here it will be noticed immediately.
 		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
 			if let Protocol::StatementFetching = p {
 				Some(i)
@@ -77,10 +81,20 @@ impl RequestMultiplexer {
 		).expect("Statement fetching must be registered. qed.");
 		let statement_fetching = Some(receivers.remove(index).1);
 
+		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
+			if let Protocol::DisputeSending = p {
+				Some(i)
+			} else {
+				None
+			}
+		).expect("Dispute sending must be registered. qed.");
+		let dispute_sending = Some(receivers.remove(index).1);
+
 		(
 			Self {
 				receivers,
 				statement_fetching,
+                dispute_sending,
 				next_poll: 0,
 			},
 			cfgs,
@@ -92,6 +106,13 @@ impl RequestMultiplexer {
 	/// This function will only return `Some` once.
 	pub fn get_statement_fetching(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
 		std::mem::take(&mut self.statement_fetching)
+	}
+
+	/// Get the receiver for handling dispute sending requests.
+	///
+	/// This function will only return `Some` once.
+	pub fn get_dispute_sending(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
+		std::mem::take(&mut self.dispute_sending)
 	}
 }
 
@@ -173,6 +194,9 @@ fn multiplex_single(
 		)),
 		Protocol::StatementFetching => {
 			unreachable!("Statement fetching requests are handled directly. qed.");
+		}
+		Protocol::DisputeSending => {
+			unreachable!("Dispute sending request are handled directly. qed.");
 		}
 	};
 	Ok(r)
