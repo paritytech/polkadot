@@ -1050,6 +1050,7 @@ pub struct AbridgedHrmpChannel {
 pub enum UpgradeRestriction {
 	/// There is an upgrade restriction and there are no details about its specifics nor how long
 	/// it could last.
+	#[codec(index = 0)]
 	Present,
 }
 
@@ -1067,10 +1068,12 @@ pub enum UpgradeGoAhead {
 	/// The expected reaction on this variant is that the parachain will admit this message and
 	/// remove all the data about the pending upgrade. Depending on the nature of the problem (to
 	/// be examined offchain for now), it can try to send another validation code or just retry later.
+	#[codec(index = 0)]
 	Abort,
 	/// Apply the pending code change. The parablock that is built on a relay-parent that is descendant
 	/// of the relay-parent where the parachain observed this signal must use the upgraded validation
 	/// code.
+	#[codec(index = 1)]
 	GoAhead,
 }
 
