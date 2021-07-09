@@ -9388,11 +9388,13 @@ name = "simnet-runtime-upgrade"
 version = "0.1.0"
 dependencies = [
  "frame-system",
+ "pallet-balances",
  "polkadot-cli",
  "polkadot-runtime",
  "polkadot-runtime-test",
  "sc-cli",
  "sc-tracing",
+ "sp-core",
  "structopt",
  "test-runner",
 ]
@@ -10644,7 +10646,6 @@ dependencies = [
  "sc-rpc",
  "sc-rpc-server",
  "sc-service",
- "sc-transaction-graph",
  "sc-transaction-pool",
  "sp-api",
  "sp-block-builder",
