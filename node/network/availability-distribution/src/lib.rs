@@ -20,7 +20,8 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
 	messages::AvailabilityDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError,
+	SubsystemContext, SubsystemError,
+	overseer,
 };
 
 /// Error and [`Result`] type for this subsystem.
@@ -58,9 +59,10 @@ pub struct AvailabilityDistributionSubsystem {
 	metrics: Metrics,
 }
 
-impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
 where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -86,7 +88,8 @@ impl AvailabilityDistributionSubsystem {
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
 	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		let mut requester = Requester::new(self.metrics.clone()).fuse();
 		loop {

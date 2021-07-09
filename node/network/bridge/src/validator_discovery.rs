@@ -21,36 +21,15 @@ use crate::Network;
 use core::marker::PhantomData;
 use std::collections::HashSet;
 
-use async_trait::async_trait;
 use futures::channel::oneshot;
 
 use sc_network::multiaddr::Multiaddr;
-use sc_authority_discovery::Service as AuthorityDiscoveryService;
-use polkadot_node_network_protocol::PeerId;
+
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
+pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
-
-/// An abstraction over the authority discovery service.
-#[async_trait]
-pub trait AuthorityDiscovery: Send + Clone + 'static {
-	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
-	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
-	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
-	async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId>;
-}
-
-#[async_trait]
-impl AuthorityDiscovery for AuthorityDiscoveryService {
-	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
-		AuthorityDiscoveryService::get_addresses_by_authority_id(self, authority).await
-	}
-
-	async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
-		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
-	}
-}
 
 pub(super) struct Service<N, AD> {
 	state: PerPeerSet<StatePerPeerSet>,
@@ -147,9 +126,10 @@ mod tests {
 
 	use std::{borrow::Cow, collections::HashMap};
 	use futures::stream::BoxStream;
+	use async_trait::async_trait;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_node_network_protocol::request_response::request::Requests;
+	use polkadot_node_network_protocol::{PeerId, request_response::request::Requests};
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
 		Service::new()
@@ -164,7 +144,7 @@ mod tests {
 		peers_set: HashSet<Multiaddr>,
 	}
 
-	#[derive(Default, Clone)]
+	#[derive(Default, Clone, Debug)]
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,

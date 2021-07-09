@@ -46,9 +46,9 @@ use polkadot_node_network_protocol::{
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;
-use test_helpers::SingleItemSink;
+use test_helpers::{SingleItemSink, mock::make_ferdie_keystore};
 
-use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
+use super::mock::{make_session_info, OccupiedCoreBuilder};
 use crate::LOG_TARGET;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>;
