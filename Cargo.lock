@@ -6841,39 +6841,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-runtime-test"
-version = "0.9.0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "pallet-collective",
- "pallet-democracy",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "polkadot-service",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-consensus-manual-seal",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-service",
- "sc-transaction-pool",
- "sp-api",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-inherents",
- "sp-keyring",
- "sp-keystore",
- "sp-runtime",
- "test-runner",
-]
-
-[[package]]
 name = "polkadot-service"
 version = "0.9.8"
 dependencies = [
@@ -6969,14 +6936,57 @@ dependencies = [
 
 [[package]]
 name = "polkadot-simnet"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-collective",
+ "pallet-democracy",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
  "polkadot-cli",
- "polkadot-runtime-test",
+ "polkadot-primitives",
+ "polkadot-runtime",
+ "polkadot-runtime-common",
+ "polkadot-service",
  "sc-cli",
+ "sc-consensus",
+ "sc-consensus-babe",
+ "sc-consensus-manual-seal",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-service",
  "sc-tracing",
+ "sc-transaction-pool",
+ "sp-api",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-inherents",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-runtime",
  "structopt",
  "test-runner",
+]
+
+[[package]]
+name = "polkadot-simnet-node"
+version = "0.1.0"
+dependencies = [
+ "polkadot-simnet",
+]
+
+[[package]]
+name = "polkadot-simnet-test"
+version = "0.1.0"
+dependencies = [
+ "frame-system",
+ "pallet-balances",
+ "polkadot-runtime",
+ "polkadot-simnet",
+ "sp-core",
 ]
 
 [[package]]
@@ -9033,6 +9043,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-transaction-graph"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=master#9235309a7c651fc23bdbe653834c102dc2db9c9b"
+dependencies = [
+ "derive_more",
+ "futures 0.3.15",
+ "linked-hash-map",
+ "log",
+ "parity-util-mem",
+ "parking_lot 0.11.1",
+ "retain_mut",
+ "serde",
+ "sp-blockchain",
+ "sp-core",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "sp-utils",
+ "thiserror",
+ "wasm-timer",
+]
+
+[[package]]
 name = "sc-transaction-pool"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#d3db3c1d1011983ba7565e342910a6d2095625c8"
@@ -9381,22 +9413,6 @@ dependencies = [
  "num-complex",
  "num-traits",
  "paste",
-]
-
-[[package]]
-name = "simnet-runtime-upgrade"
-version = "0.1.0"
-dependencies = [
- "frame-system",
- "pallet-balances",
- "polkadot-cli",
- "polkadot-runtime",
- "polkadot-runtime-test",
- "sc-cli",
- "sc-tracing",
- "sp-core",
- "structopt",
- "test-runner",
 ]
 
 [[package]]
@@ -10299,9 +10315,9 @@ checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "structopt"
-version = "0.3.21"
+version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5277acd7ee46e63e5168a80734c9f6ee81b1367a7d8772a2d765df2a3705d28c"
+checksum = "69b041cdcb67226aca307e6e7be44c8806423d83e018bd662360a93dabce4d71"
 dependencies = [
  "clap",
  "lazy_static",
@@ -10310,9 +10326,9 @@ dependencies = [
 
 [[package]]
 name = "structopt-derive"
-version = "0.4.14"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ba9cdfda491b814720b6b06e0cac513d922fc407582032e8706e9f137976f90"
+checksum = "7813934aecf5f51a54775e00068c237de98489463968231a51746bbbc03f9c10"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -10646,6 +10662,7 @@ dependencies = [
  "sc-rpc",
  "sc-rpc-server",
  "sc-service",
+ "sc-transaction-graph",
  "sc-transaction-pool",
  "sp-api",
  "sp-block-builder",

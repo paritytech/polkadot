@@ -16,9 +16,12 @@
 
 #![deny(unused_extern_crates, missing_docs)]
 
-//! End to end runtime tests
+//! Utilities for End to end runtime tests
 
-use test_runner::{Node, ChainInfo, SignatureVerificationOverride};
+use test_runner::{
+    Node, ChainInfo, SignatureVerificationOverride, task_executor,
+    build_runtime, client_parts, ConfigOrChainSpec,
+};
 use grandpa::GrandpaBlockImport;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::generic::Era;
@@ -28,7 +31,7 @@ use sp_runtime::AccountId32;
 use support::{weights::Weight, StorageValue};
 use democracy::{AccountVote, Conviction, Vote};
 use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, TechnicalCollective, CouncilCollective};
-use std::str::FromStr;
+use std::{str::FromStr, future::Future, error::Error};
 use codec::Encode;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
 use sp_runtime::app_crypto::sp_core::H256;
@@ -281,12 +284,42 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
     Ok(())
 }
 
+/// Runs the test-runner as a binary.
+pub fn run<F, Fut>(callback: F) -> Result<(), Box<dyn Error>>
+    where
+        F: FnOnce(Node<PolkadotChainInfo>) -> Fut,
+        Fut: Future<Output = Result<(), Box<dyn Error>>>,
+{
+    use structopt::StructOpt;
+    use sc_cli::{CliConfiguration, SubstrateCli};
+
+    let mut tokio_runtime = build_runtime()?;
+    let task_executor = task_executor(tokio_runtime.handle().clone());
+    // parse cli args
+    let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
+    // set up logging
+    let filters = cmd.run.base.log_filters()?;
+    let logger = sc_tracing::logging::LoggerBuilder::new(filters);
+    logger.init()?;
+
+    // set up the test-runner
+    let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+    sc_cli::print_node_infos::<polkadot_cli::Cli>(&config);
+    let (rpc, task_manager, client, pool, command_sink, backend) =
+        client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
+    let node = Node::<PolkadotChainInfo>::new(rpc, task_manager, client, pool, command_sink, backend);
+
+    // hand off node.
+    tokio_runtime.block_on(callback(node))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sp_keyring::sr25519::Keyring::Alice;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
-    use test_runner::{ConfigOrChainSpec, client_parts, task_executor, build_runtime};
     use polkadot_service::chain_spec::polkadot_development_config;
 
     #[test]
