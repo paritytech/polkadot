@@ -125,6 +125,7 @@ pub use gen::{
 	SubsystemMeterReadouts,
 	SubsystemMeters,
 	SubsystemIncomingMessages,
+	SubsystemSender,
 	overlord,
 	MessagePacket,
 	SignalsReceived,

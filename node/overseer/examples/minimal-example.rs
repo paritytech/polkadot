@@ -83,7 +83,7 @@ impl Subsystem1 {
 				}.into(),
 				tx,
 			);
-			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg)).await;
+			ctx.send_message(msg).await;
 		}
 		()
 	}

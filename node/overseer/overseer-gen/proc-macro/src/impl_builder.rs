@@ -89,7 +89,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		where
 			S: #support_crate ::SpawnNamed,
 		#(
-			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>,
+			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >>,
 		)*
 	};
 
@@ -327,7 +327,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			TK: TaskKind,
 			Ctx: SubsystemContext<Message=M>,
 			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>,
-			SubSys: Subsystem<Ctx, E>,
+			SubSys: Subsystem<Ctx>,
 		{
 			let SpawnedSubsystem { future, name } = subsystem.start(ctx);
 
