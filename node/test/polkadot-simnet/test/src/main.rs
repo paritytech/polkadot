@@ -17,26 +17,57 @@
 use std::{error::Error, str::FromStr};
 
 use polkadot_simnet::{run, dispatch_with_root};
+use polkadot_runtime::{Event, Runtime};
 use sp_core::crypto::AccountId32;
 
 fn main() -> Result<(), Box<dyn Error>> {
     run(|node| async {
+        let old_runtime_version = node.with_state(|| system::Pallet::<Runtime>::runtime_version().spec_version);
          let wasm_binary = polkadot_runtime::WASM_BINARY
              .ok_or("Polkadot development wasm not available")?
              .to_vec();
          // start runtime upgrade
          dispatch_with_root(system::Call::set_code(wasm_binary).into(), &node).await?;
 
-         let (from, dest, balance) = (
-             AccountId32::from_str("15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK")?,
-             AccountId32::from_str("1rvXMZpAj9nKLQkPFCymyH7Fg3ZyKJhJbrc7UtHbTVhJm1A")?,
-             10_000_000_000_000 // 10 dots
-         );
+        // assert that the runtime has been updated by looking at events
+        let events = node.events()
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::System(system::Event::CodeUpdated) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
 
-         // post upgrade tests, a simple balance transfer
-         node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), from).await?;
+        // make sure all events were emitted
+        assert_eq!(events.len(), 1);
+        let new_runtime_version = node.with_state(|| system::Pallet::<Runtime>::runtime_version().spec_version);
+        assert!(new_runtime_version > old_runtime_version);
 
-         // done upgrading runtime, drop node.
+        let (from, dest, balance) = (
+            AccountId32::from_str("15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK")?,
+            AccountId32::from_str("1rvXMZpAj9nKLQkPFCymyH7Fg3ZyKJhJbrc7UtHbTVhJm1A")?,
+            10_000_000_000_000 // 10 dots
+        );
+
+        // post upgrade tests, a simple balance transfer
+        node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), from).await?;
+        node.seal_blocks(1).await;
+
+        let events = node.events()
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::Balances(balances::Event::Transfer(_, _, _)) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+        // make sure transfer went through
+        assert_eq!(events.len(), 1);
+
+         // we're done, drop node.
          drop(node);
 
          Ok(())

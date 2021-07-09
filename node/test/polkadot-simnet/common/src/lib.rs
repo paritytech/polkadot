@@ -81,7 +81,7 @@ impl ChainInfo for PolkadotChainInfo {
 
 /// Dispatch with root origin, via pallet-democracy
 pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, node: &Node<T>)
-    -> Result<(), sc_transaction_pool::error::Error>
+    -> Result<(), Box<dyn Error>>
     where
         T: ChainInfo<
             Block = Block,
@@ -119,138 +119,140 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
         collective::Members::<Runtime, CouncilCollective>::get()
     ));
 
-    // note the call (pre-image?) of the call.
-    node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone()).await?;
-    node.seal_blocks(1).await;
+    // hash of the proposal in democracy
+    let proposal_hash = {
+        // note the call (pre-image?) of the call.
+        node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone()).await?;
+        node.seal_blocks(1).await;
 
-    // fetch proposal hash from event emitted by the runtime
-    let events = node.events();
-    let proposal_hash = events.into_iter()
-        .filter_map(|event| match event.event {
-            Event::Democracy(democracy::Event::PreimageNoted(proposal_hash, _, _)) => Some(proposal_hash),
-            _ => None
-        })
-        .next()
-        .unwrap();
-
-    // submit external_propose call through council
-    let external_propose = DemocracyCall::external_propose_majority(proposal_hash.clone().into());
-    let proposal_length = external_propose.using_encoded(|x| x.len()) as u32 + 1;
-    let proposal_weight = Weight::MAX / 100_000_000;
-    let proposal = CouncilCollectiveCall::propose(
-        council_collective.len() as u32,
-        Box::new(external_propose.clone().into()),
-        proposal_length
-    );
-
-    node.submit_extrinsic(proposal.clone(), council_collective[0].clone()).await?;
-    node.seal_blocks(1).await;
-
-    // fetch proposal index from event emitted by the runtime
-    let events = node.events();
-    let (proposal_index, proposal_hash): (u32, H256) = events.into_iter()
-        .filter_map(|event| {
-            match event.event {
-                Event::Council(CouncilCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
+        // fetch proposal hash from event emitted by the runtime
+        let events = node.events();
+        events.into_iter()
+            .filter_map(|event| match event.event {
+                Event::Democracy(democracy::Event::PreimageNoted(proposal_hash, _, _)) => Some(proposal_hash),
                 _ => None
-            }
-        })
-        .next()
-        .unwrap();
+            })
+            .next()
+            .ok_or_else(|| "failed to note pre-image")?
+    };
 
-    // vote
-    for member in &council_collective[1..] {
-        let call = CouncilCollectiveCall::vote(proposal_hash.clone(), proposal_index, true);
-        node.submit_extrinsic(call, member.clone()).await?;
+    // submit external_propose call through council collective
+    {
+        let external_propose = DemocracyCall::external_propose_majority(proposal_hash.clone().into());
+        let length = external_propose.using_encoded(|x| x.len()) as u32 + 1;
+        let weight = Weight::MAX / 100_000_000;
+        let proposal = CouncilCollectiveCall::propose(
+            council_collective.len() as u32,
+            Box::new(external_propose.clone().into()),
+            length
+        );
+
+        node.submit_extrinsic(proposal.clone(), council_collective[0].clone()).await?;
+        node.seal_blocks(1).await;
+
+        // fetch proposal index from event emitted by the runtime
+        let events = node.events();
+        let (index, hash): (u32, H256) = events.into_iter()
+            .filter_map(|event| {
+                match event.event {
+                    Event::Council(CouncilCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
+                    _ => None
+                }
+            })
+            .next()
+            .ok_or_else(|| "failed to execute council::Call::propose(democracy::Call::external_propose_majority)")?;
+
+        // vote
+        for member in &council_collective[1..] {
+            let call = CouncilCollectiveCall::vote(hash.clone(), index, true);
+            node.submit_extrinsic(call, member.clone()).await?;
+        }
+        node.seal_blocks(1).await;
+
+        // close vote
+        let call = CouncilCollectiveCall::close(hash, index, weight, length);
+        node.submit_extrinsic(call, council_collective[0].clone()).await?;
+        node.seal_blocks(1).await;
+
+        // assert that proposal has been passed on chain
+        let events = node.events()
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::Council(CouncilCollectiveEvent::Closed(_, _, _)) |
+                    Event::Council(CouncilCollectiveEvent::Approved(_,)) |
+                    Event::Council(CouncilCollectiveEvent::Executed(_, Ok(()))) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make sure all 3 events are in state
+        assert_eq!(events.len(), 3);
     }
-    node.seal_blocks(1).await;
-
-    // close vote
-    let call = CouncilCollectiveCall::close(proposal_hash, proposal_index, proposal_weight, proposal_length);
-    node.submit_extrinsic(call, council_collective[0].clone()).await?;
-    node.seal_blocks(1).await;
-
-    // assert that proposal has been passed on chain
-    let events = node.events()
-        .into_iter()
-        .filter(|event| {
-            match event.event {
-                Event::Council(CouncilCollectiveEvent::Closed(_, _, _)) |
-                Event::Council(CouncilCollectiveEvent::Approved(_,)) |
-                Event::Council(CouncilCollectiveEvent::Executed(_, Ok(()))) => true,
-                _ => false,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    // make sure all 3 events are in state
-    assert_eq!(events.len(), 3);
 
     // next technical collective must fast track the proposal.
-    let fast_track = DemocracyCall::fast_track(proposal_hash.into(), FastTrackVotingPeriod::get(), 0);
-    let proposal_weight = Weight::MAX / 100_000_000;
-    let fast_track_length = fast_track.using_encoded(|x| x.len()) as u32 + 1;
-    let proposal = TechnicalCollectiveCall::propose(
-        technical_collective.len() as u32,
-        Box::new(fast_track.into()),
-        fast_track_length
-    );
+    {
+        let fast_track = DemocracyCall::fast_track(proposal_hash.into(), FastTrackVotingPeriod::get(), 0);
+        let weight = Weight::MAX / 100_000_000;
+        let length = fast_track.using_encoded(|x| x.len()) as u32 + 1;
+        let proposal = TechnicalCollectiveCall::propose(
+            technical_collective.len() as u32,
+            Box::new(fast_track.into()),
+            length
+        );
 
-    node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
-    node.seal_blocks(1).await;
+        node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
+        node.seal_blocks(1).await;
 
-    let (proposal_index, proposal_hash) = node.events()
-        .into_iter()
-        .filter_map(|event| {
-            match event.event {
-                Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
-                _ => None
-            }
-        })
-        .next()
-        .unwrap();
+        let (index, hash) = node.events()
+            .into_iter()
+            .filter_map(|event| {
+                match event.event {
+                    Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
+                    _ => None
+                }
+            })
+            .next()
+            .ok_or_else(|| "failed to execute council::Call::propose(democracy::Call::fast_track))")?;
 
-    // vote
-    for member in &technical_collective[1..] {
-        let call = TechnicalCollectiveCall::vote(proposal_hash.clone(), proposal_index, true);
-        node.submit_extrinsic(call, member.clone()).await?;
+        // vote
+        for member in &technical_collective[1..] {
+            let call = TechnicalCollectiveCall::vote(hash.clone(), index, true);
+            node.submit_extrinsic(call, member.clone()).await?;
+        }
+        node.seal_blocks(1).await;
+
+        // close vote
+        let call = TechnicalCollectiveCall::close(hash, index, weight, length);
+        node.submit_extrinsic(call, technical_collective[0].clone()).await?;
+        node.seal_blocks(1).await;
+
+        // assert that fast-track proposal has been passed on chain
+        let collective_events = node.events()
+            .into_iter()
+            .filter(|event| {
+                match event.event {
+                    Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_, _, _)) |
+                    Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_)) |
+                    Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_, Ok(()))) => true,
+                    _ => false,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // make sure all 3 events are in state
+        assert_eq!(collective_events.len(), 3);
     }
-    node.seal_blocks(1).await;
-
-    // close vote
-    let call = TechnicalCollectiveCall::close(
-        proposal_hash,
-        proposal_index,
-        proposal_weight,
-        fast_track_length,
-    );
-    node.submit_extrinsic(call, technical_collective[0].clone()).await?;
-    node.seal_blocks(1).await;
-
-    // assert that fast-track proposal has been passed on chain
-    let collective_events = node.events()
-        .into_iter()
-        .filter(|event| {
-            match event.event {
-                Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_, _, _)) |
-                Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_)) |
-                Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_, Ok(()))) => true,
-                _ => false,
-            }
-        })
-        .collect::<Vec<_>>();
-
-    // make sure all 3 events are in state
-    assert_eq!(collective_events.len(), 3);
 
     // now runtime upgrade proposal is a fast-tracked referendum we can vote for.
-    let referendum_index = events.into_iter()
+    let referendum_index = node.events().into_iter()
         .filter_map(|event| match event.event {
             Event::Democracy(democracy::Event::<Runtime>::Started(index, _)) => Some(index),
             _ => None,
         })
         .next()
-        .unwrap();
+        .ok_or_else(|| "failed to execute council::Call::close")?;
     let call = DemocracyCall::vote(
         referendum_index,
         AccountVote::Standard {
