@@ -280,6 +280,7 @@ async fn test_dispute_coordinator_notifications(
 					candidate_receipt: c_receipt,
 					session: s,
 					statements,
+					pending_confirmation,
 				}
 			) => {
 				assert_eq!(c_hash, candidate_hash);
@@ -287,6 +288,7 @@ async fn test_dispute_coordinator_notifications(
 				assert_eq!(s, session);
 				assert_eq!(statements.len(), 1);
 				assert_eq!(statements[0].1, validator_index);
+				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
 			}
 		)
 	}

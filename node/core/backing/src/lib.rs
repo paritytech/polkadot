@@ -44,6 +44,7 @@ use polkadot_subsystem::{
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
 		StatementDistributionMessage, ValidationFailed, DisputeCoordinatorMessage,
+		ImportStatementsResult,
 	}
 };
 use polkadot_node_subsystem_util::{
@@ -898,14 +899,28 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement))
 			= (maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			sender.send_message(
 				DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session: self.session_index,
 					statements: vec![(dispute_statement, validator_index)],
+					pending_confirmation,
 				}
 			).await;
+
+			match confirmation_rx.await {
+				Err(oneshot::Canceled) => tracing::warn!(
+					target: LOG_TARGET,
+					"Dispute coordinator confirmation lost",
+				),
+				Ok(ImportStatementsResult::ValidImport) => {}
+				Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
+					target: LOG_TARGET,
+					"Failed to import statements of validity",
+				),
+			}
 		}
 
 		Ok(())

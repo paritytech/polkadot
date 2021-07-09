@@ -27,6 +27,7 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
 		AvailabilityRecoveryMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
+		ImportStatementsResult,
 	},
 	errors::RecoveryError,
 	overseer::{self, SubsystemSender as _}, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -924,12 +925,26 @@ async fn handle_actions(
 				dispute_statement,
 				validator_index,
 			} => {
+				let (pending_confirmation, confirmation_rx) = oneshot::channel();
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
+					pending_confirmation,
 				}).await;
+
+				match confirmation_rx.await {
+					Err(oneshot::Canceled) => tracing::warn!(
+						target: LOG_TARGET,
+						"Dispute coordinator confirmation lost",
+					),
+					Ok(ImportStatementsResult::ValidImport) => {}
+					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
+						target: LOG_TARGET,
+						"Failed to import statements of validity",
+					),
+				}
 			}
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
