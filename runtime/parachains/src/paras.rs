@@ -664,15 +664,24 @@ impl<T: Config> Pallet<T> {
 		}
 
 		if !outgoing.is_empty() {
-			// Filter offboarded parachains from the upcoming upgrades list.
+			// Filter offboarded parachains from the upcoming upgrades and upgrade cooldowns list.
 			//
-			// We do it after the offboarding to get away with only a single read/write.
+			// We do it after the offboarding to get away with only a single read/write per list.
+			//
+			// NOTE both of those iterates over the list and the outgoing. We do not expect either
+			//      of these to be large. Thus should be fine.
 			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
 				*upcoming_upgrades = sp_std::mem::take(upcoming_upgrades)
 					.into_iter()
 					.filter(|&(ref para, _)| {
-						// NOTE this iterates over upcoming upgrades and outgoing. We do not expect
-						//      either of these to be large. Thus should be fine.
+						!outgoing.contains(para)
+					})
+					.collect();
+			});
+			<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+				*upgrade_cooldowns = sp_std::mem::take(upgrade_cooldowns)
+					.into_iter()
+					.filter(|&(ref para, _)| {
 						!outgoing.contains(para)
 					})
 					.collect();
