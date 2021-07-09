@@ -18,10 +18,11 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
-	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
-	SpawnedSubsystem, OverseerSignal, SubsystemSender,
+	messages::AllMessages,
+	overseer,
+	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult,
+	SpawnedSubsystem, OverseerSignal,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -36,6 +37,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
+
+/// Generally useful mock data providers for unit tests.
+pub mod mock;
 
 enum SinkState<T> {
 	Empty {
@@ -172,7 +176,7 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender for TestSubsystemSender {
+impl overseer::SubsystemSender<AllMessages> for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
 		self.tx
 			.send(msg)
@@ -205,11 +209,18 @@ pub struct TestSubsystemContext<M, S> {
 }
 
 #[async_trait::async_trait]
-impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
+impl<M, S> overseer::SubsystemContext
 	for TestSubsystemContext<M, S>
+where
+	M: std::fmt::Debug + Send + 'static,
+	AllMessages: From<M>,
+	S: SpawnNamed + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
+	type Signal = OverseerSignal;
+	type AllMessages = AllMessages;
+	type Error = SubsystemError;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
@@ -302,7 +313,7 @@ pub fn make_subsystem_context<M, S>(
 ///
 /// Pass in two async closures: one mocks the overseer, the other runs the test from the perspective of a subsystem.
 ///
-/// Times out in two seconds.
+/// Times out in 5 seconds.
 pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	overseer_factory: OverseerFactory,
 	test_factory: TestFactory,
@@ -321,7 +332,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 
 	futures::executor::block_on(async move {
 		future::join(overseer, test)
-			.timeout(Duration::from_secs(2))
+			.timeout(Duration::from_secs(5))
 			.await
 			.expect("test timed out instead of completing")
 	});
@@ -333,10 +344,14 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 /// channel.
 ///
 /// This subsystem is useful for testing functionality that interacts with the overseer.
-pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
+pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 
-impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
-	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
+impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
+where
+	M: std::fmt::Debug + Send + 'static,
+	Context: SubsystemContext<Message = M> + overseer::SubsystemContext<Message = M>,
+{
+	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {

@@ -37,6 +37,7 @@ use polkadot_node_primitives::{
 use polkadot_subsystem::{
 	PerLeafSpan, Stage, SubsystemSender,
 	jaeger,
+	overseer,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
@@ -308,7 +309,7 @@ async fn store_available_data(
 		n_validators,
 		available_data,
 		tx,
-	).into()).await;
+	)).await;
 
 	let _ = rx.await.map_err(Error::StoreAvailableData)?;
 
@@ -384,7 +385,7 @@ async fn request_pov(
 		candidate_hash,
 		pov_hash,
 		tx,
-	}.into()).await;
+	}).await;
 
 	let pov = rx.await.map_err(|_| Error::FetchPoV)?;
 	Ok(Arc::new(pov))
@@ -397,13 +398,12 @@ async fn request_candidate_validation(
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
-	sender.send_message(AllMessages::CandidateValidation(
-			CandidateValidationMessage::ValidateFromChainState(
-				candidate,
-				pov,
-				tx,
-			)
-		).into()
+	sender.send_message(
+		CandidateValidationMessage::ValidateFromChainState(
+			candidate,
+			pov,
+			tx,
+		)
 	).await;
 
 	match rx.await {
@@ -415,7 +415,7 @@ async fn request_candidate_validation(
 
 type BackgroundValidationResult = Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
 
-struct BackgroundValidationParams<S, F> {
+struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> {
 	sender: JobSender<S>,
 	tx_command: mpsc::Sender<ValidatedCandidateCommand>,
 	candidate: CandidateReceipt,
@@ -600,14 +600,14 @@ impl CandidateBackingJob {
 								root_span,
 							).await? {
 								sender.send_message(
-									CollatorProtocolMessage::Seconded(self.parent, stmt).into()
+									CollatorProtocolMessage::Seconded(self.parent, stmt)
 								).await;
 							}
 						}
 					}
 					Err(candidate) => {
 						sender.send_message(
-							CollatorProtocolMessage::Invalid(self.parent, candidate).into()
+							CollatorProtocolMessage::Invalid(self.parent, candidate)
 						).await;
 					}
 				}
@@ -683,7 +683,7 @@ impl CandidateBackingJob {
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
 			sender.send_message(
-				CollatorProtocolMessage::Invalid(self.parent, candidate.clone()).into()
+				CollatorProtocolMessage::Invalid(self.parent, candidate.clone())
 			).await;
 			return Ok(());
 		}
@@ -732,7 +732,7 @@ impl CandidateBackingJob {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
 			self.import_statement(sender, &signed_statement, root_span).await?;
 			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
-			sender.send_unbounded_message(smsg.into());
+			sender.send_unbounded_message(smsg);
 
 			Ok(Some(signed_statement))
 		} else {
@@ -749,7 +749,7 @@ impl CandidateBackingJob {
 				ProvisionerMessage::ProvisionableData(
 					self.parent,
 					ProvisionableData::MisbehaviorReport(self.parent, validator_id, report)
-				).into()
+				)
 			).await;
 		}
 	}
@@ -801,7 +801,7 @@ impl CandidateBackingJob {
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
 					);
-					sender.send_message(message.into()).await;
+					sender.send_message(message).await;
 
 					span.as_ref().map(|s| s.child("backed"));
 					span

@@ -88,13 +88,16 @@ westend-runtime = { path = "../../runtime/westend", optional = true }
 rococo-runtime = { path = "../../runtime/rococo", optional = true }
 
 # Polkadot Subsystems
+polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
 polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
 polkadot-availability-recovery = { path = "../network/availability-recovery", optional = true }
 polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
+polkadot-dispute-distribution = { path = "../network/dispute-distribution", optional = true }
 polkadot-gossip-support = { path = "../network/gossip-support", optional = true }
 polkadot-network-bridge = { path = "../network/bridge", optional = true }
 polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
+polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
 polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
 polkadot-node-core-backing = { path = "../core/backing", optional = true }
 polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
@@ -103,8 +106,6 @@ polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
-polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
-polkadot-node-core-approval-voting = { path = "../core/approval-voting", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
@@ -124,6 +125,7 @@ full-node = [
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
 	"polkadot-collator-protocol",
+	"polkadot-dispute-distribution",
 	"polkadot-gossip-support",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",

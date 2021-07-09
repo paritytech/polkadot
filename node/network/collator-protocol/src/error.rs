@@ -18,7 +18,7 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_subsystem::SubsystemError;
+use polkadot_subsystem::errors::SubsystemError;
 use thiserror::Error;
 
 use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
@@ -63,7 +63,7 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::Fatal),
+	Runtime(#[from] runtime::Fatal),
 }
 
 /// Errors for fetching of runtime information.
@@ -75,7 +75,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::NonFatal),
+	Runtime(#[from] runtime::NonFatal),
 }
 
 /// Utility for eating top level errors and log them.
