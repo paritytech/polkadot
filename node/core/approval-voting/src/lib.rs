@@ -673,7 +673,7 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 	where
-		Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+		Context: overseer::SubsystemContext,
 		B: Backend,
 {
 	let mut state = State {
@@ -799,7 +799,7 @@ async fn run<B, Context>(
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+	ctx: &mut overseer::SubsystemContext,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1996,7 +1996,7 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+	ctx: &mut overseer::SubsystemContext,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,
