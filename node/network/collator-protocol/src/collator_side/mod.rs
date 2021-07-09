@@ -709,7 +709,7 @@ where
 								"Dropping incoming request as peer has a request in flight already."
 							);
 							ctx.send_message(
-								NetworkBridgeMessage::ReportPeer(origin.clone(), COST_APPARENT_FLOOD)
+								NetworkBridgeMessage::ReportPeer(incoming.peer, COST_APPARENT_FLOOD)
 							).await;
 							return Ok(())
 						}

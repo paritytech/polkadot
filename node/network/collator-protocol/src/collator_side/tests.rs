@@ -560,7 +560,7 @@ fn advertise_and_send_collation() {
 				)
 			)
 		).await;
-		// Second request by same validator should get dropped:
+		// Second request by same validator should get dropped and peer reported:
 		{
 			let (tx, rx) = oneshot::channel();
 			overseer_send(
@@ -576,6 +576,12 @@ fn advertise_and_send_collation() {
 					)
 				)
 			).await;
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
+					assert_eq!(bad_peer, peer); 
+				}
+			);
 			assert_matches!(
 				rx.await,
 				Err(_),
