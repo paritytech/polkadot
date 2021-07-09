@@ -56,7 +56,7 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::Fatal),
+	Runtime(#[from] runtime::Fatal),
 }
 
 /// Non-fatal errors of this subsystem.
@@ -88,7 +88,7 @@ pub enum NonFatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::NonFatal),
+	Runtime(#[from] runtime::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
