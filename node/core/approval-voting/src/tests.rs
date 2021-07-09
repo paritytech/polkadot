@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+#![allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
