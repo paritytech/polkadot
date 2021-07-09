@@ -590,7 +590,7 @@ enum MuxedMessage {
 
 impl MuxedMessage {
 	async fn receive(
-		ctx: &mut (overseer::SubsystemContext<Message = StatementDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = StatementDistributionMessage>,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> MuxedMessage {

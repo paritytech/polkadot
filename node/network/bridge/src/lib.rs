@@ -308,7 +308,7 @@ impl<Net, AD, Context> overseer::Subsystem<Context> for NetworkBridge<Net, AD>
 	where
 		Net: Network + Sync,
 		AD: validator_discovery::AuthorityDiscovery + Clone,
-		overseer::SubsystemContext<Message = NetworkBridgeMessage>,
+		Context: overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the

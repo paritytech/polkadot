@@ -189,7 +189,7 @@ enum PendingMessage {
 impl State {
 	async fn handle_network_msg(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
@@ -259,7 +259,7 @@ impl State {
 
 	async fn handle_new_blocks(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
@@ -362,7 +362,7 @@ impl State {
 
 	async fn process_incoming_peer_message(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
@@ -450,7 +450,7 @@ impl State {
 
 	async fn handle_peer_view_change(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
@@ -514,7 +514,7 @@ impl State {
 
 	async fn import_and_circulate_assignment(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
@@ -751,7 +751,7 @@ impl State {
 
 	async fn import_and_circulate_approval(
 		&mut self,
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
@@ -996,7 +996,7 @@ impl State {
 	}
 
 	async fn unify_with_peer(
-		ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		gossip_peers: &HashSet<PeerId>,
+		ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
@@ -1156,7 +1156,7 @@ impl State {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
-	ctx: &mut (overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+	ctx: &mut impl overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	peer_id: PeerId,
 	rep: Rep,
 ) {

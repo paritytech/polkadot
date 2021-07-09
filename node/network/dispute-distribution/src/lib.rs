@@ -246,7 +246,7 @@ enum MuxedMessage {
 
 impl MuxedMessage {
 	async fn receive(
-		ctx: &mut (overseer::SubsystemContext<Message = DisputeDistributionMessage>),
+		ctx: &mut impl overseer::SubsystemContext<Message = DisputeDistributionMessage>,
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

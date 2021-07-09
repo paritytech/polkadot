@@ -142,7 +142,7 @@ impl Subsystem2 {
 	}
 }
 
-impl<Context> overseer::overseer::Subsystem<Context> for Subsystem2
+impl<Context> overseer::Subsystem<Context> for Subsystem2
 where
 	Context: overseer::SubsystemContext<Message=CandidateValidationMessage,AllMessages=AllMessages,Signal=OverseerSignal>,
 {
