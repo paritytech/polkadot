@@ -93,7 +93,7 @@ pub(crate) struct SubSysField {
 	pub(crate) blocking: bool,
 	/// The subsystem is a work in progress.
 	/// Avoids dispatching `Wrapper` type messages, but generates the variants.
-	/// Does not require the subsystem to be instanciated with the builder pattern.
+	/// Does not require the subsystem to be instantiated with the builder pattern.
 	pub(crate) wip: bool,
 }
 

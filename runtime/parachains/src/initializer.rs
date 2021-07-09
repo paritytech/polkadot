@@ -35,7 +35,7 @@ pub use pallet::*;
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
-	/// The qeueud validators for the following session.
+	/// The queued validators for the following session.
 	pub queued: Vec<ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,

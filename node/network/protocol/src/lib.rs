@@ -291,7 +291,7 @@ impl View {
 	}
 }
 
-/// v1 protocol types.
+/// `v1` protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;
@@ -325,7 +325,7 @@ pub mod v1 {
 		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
-		/// via req/response.
+		/// via request/response.
 		#[codec(index = 1)]
 		LargeStatement(StatementMetadata),
 	}

@@ -18,7 +18,7 @@ pub mod generic;
 
 pub use generic::{Table, Context};
 
-/// Concrete instantiations suitable for v1 primitives.
+/// Concrete instantiations suitable for `v1` primitives.
 pub mod v1 {
 	use crate::generic;
 	use primitives::v1::{

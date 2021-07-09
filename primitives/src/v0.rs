@@ -561,7 +561,7 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of components of this receipt:
-	/// The para ID, the relay parent, and the pov_hash.
+	/// The para ID, the relay parent, and the `pov_hash`.
 	pub signature: CollatorSignature,
 	/// The hash of the pov-block.
 	pub pov_hash: H,

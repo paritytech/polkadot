@@ -1166,7 +1166,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot GenesisConfig for testing
+/// Helper function to create polkadot `GenesisConfig` for testing
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(
@@ -1264,7 +1264,7 @@ pub fn polkadot_testnet_genesis(
 	}
 }
 
-/// Helper function to create kusama GenesisConfig for testing
+/// Helper function to create kusama `GenesisConfig` for testing
 #[cfg(feature = "kusama-native")]
 pub fn kusama_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1368,7 +1368,7 @@ pub fn kusama_testnet_genesis(
 	}
 }
 
-/// Helper function to create westend GenesisConfig for testing
+/// Helper function to create westend `GenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1456,7 +1456,7 @@ pub fn westend_testnet_genesis(
 	}
 }
 
-/// Helper function to create rococo GenesisConfig for testing
+/// Helper function to create rococo `GenesisConfig` for testing
 #[cfg(feature = "rococo-native")]
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],

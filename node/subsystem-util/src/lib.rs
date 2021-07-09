@@ -126,7 +126,7 @@ pub enum Error {
 	/// The type system wants this even though it doesn't make sense
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
-	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	/// Attempted to convert from an `AllMessages` to a `FromJob`, and failed.
 	#[error("AllMessage not relevant to Job")]
 	SenderConversion(String),
 	/// The local node is not a validator.
@@ -372,7 +372,7 @@ impl Drop for AbortOnDrop {
 	}
 }
 
-/// A JobHandle manages a particular job for a subsystem.
+/// A `JobHandle` manages a particular job for a subsystem.
 struct JobHandle<ToJob> {
 	_abort_handle: AbortOnDrop,
 	to_job: mpsc::Sender<ToJob>,

@@ -26,7 +26,7 @@ pub enum AssetId {
 }
 
 impl AssetId {
-	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
+	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
 	pub fn prepend_location(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
@@ -165,7 +165,7 @@ impl Assets {
 		}
 	}
 
-	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
+	/// Consumes `self` and returns its original value excluding `asset` IFF it contains at least `asset`.
 	///
 	/// Wildcard assets in `self` will result in an error.
 	///
@@ -180,7 +180,7 @@ impl Assets {
 		}
 	}
 
-	/// Mutates `self` to its original value less `asset` and returns `true` iff it contains at least `asset`.
+	/// Mutates `self` to its original value less `asset` and returns `true` if it contains at least `asset`.
 	///
 	/// Wildcard assets in `self` will result in an error.
 	///

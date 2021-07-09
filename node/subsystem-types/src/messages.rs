@@ -482,7 +482,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 impl AvailabilityStoreMessage {
-	/// In fact, none of the AvailabilityStore messages assume a particular relay parent.
+	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			_ => None,
@@ -689,8 +689,8 @@ pub enum ProvisionerMessage {
 	/// This message allows external subsystems to request the set of bitfields and backed candidates
 	/// associated with a particular potential block hash.
 	///
-	/// This is expected to be used by a proposer, to inject that information into the InherentData
-	/// where it can be assembled into the ParaInherent.
+	/// This is expected to be used by a proposer, to inject that information into the `InherentData`
+	/// where it can be assembled into the `ParaInherent`.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),

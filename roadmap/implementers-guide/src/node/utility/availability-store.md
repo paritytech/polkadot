@@ -109,7 +109,7 @@ On `OverseerSignal::BlockFinalized(finalized)` events:
         - Register a `"prune_by_time"` entry for the candidate based on the current time + 1 day + 1 hour.
       - For each candidate that we encounter under `f` which is not under the finalized block hash,
         - Remove all entries under `f` in the `Unfinalized` state.
-        - If the `CandidateMeta` has state `Unfinalized` with an empty list of blocks, downgrade to `Unavailable` and re-schedule pruning under the timestamp + 1 hour. We do not prune here as the candidate still may be included in a descendent of the finalized chain.
+        - If the `CandidateMeta` has state `Unfinalized` with an empty list of blocks, downgrade to `Unavailable` and re-schedule pruning under the timestamp + 1 hour. We do not prune here as the candidate still may be included in a descendant of the finalized chain.
       - Remove all `"unfinalized"` keys under `f`.
   - Update last_finalized = finalized.
 

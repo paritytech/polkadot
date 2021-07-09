@@ -11,10 +11,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v1
+//! A module exporting runtime API implementation functions for all runtime APIs using `v1`
 //! primitives.
 //!
-//! Runtimes implementing the v1 runtime API are recommended to forward directly to these
+//! Runtimes implementing the `v1` runtime API are recommended to forward directly to these
 //! functions.
 
 use sp_std::prelude::*;
@@ -236,7 +236,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets next, current and some historical authority ids using session_info module.
+/// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();

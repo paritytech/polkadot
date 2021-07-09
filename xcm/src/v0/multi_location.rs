@@ -66,7 +66,7 @@ pub enum MultiLocation {
 	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
-/// Maximum number of junctions a multilocation can contain.
+/// Maximum number of junctions a `MultiLocation` can contain.
 pub const MAX_MULTILOCATION_LENGTH: usize = 8;
 
 impl From<Junction> for MultiLocation {
@@ -657,7 +657,7 @@ impl MultiLocation {
 		Ok(())
 	}
 
-	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s
+	/// Returns true IFF `self` is an interior location. For this it may not contain any `Junction`s
 	/// for which `Junction::is_interior` returns `false`. This is generally true, except for the
 	/// `Parent` item.
 	///

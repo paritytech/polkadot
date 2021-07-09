@@ -245,7 +245,7 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		self.block_header(best_leaf)
 	}
 
-	/// Get the best descendent of `target_hash` that we should attempt to
+	/// Get the best descendant of `target_hash` that we should attempt to
 	/// finalize next, if any. It is valid to return the `target_hash` if
 	/// no better block exists.
 	///

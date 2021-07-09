@@ -318,7 +318,7 @@ impl DisputeSender
 
 /// Retrieve the currently active sessions.
 ///
-/// List is all indeces of all active sessions together with the head that was used for the query.
+/// List is all indices of all active sessions together with the head that was used for the query.
 async fn get_active_session_indeces<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,

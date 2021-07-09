@@ -59,7 +59,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, frame_system::MaximumBlockWeight]
+	///   - [0, `frame_system::MaximumBlockWeight`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:

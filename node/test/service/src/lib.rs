@@ -285,7 +285,7 @@ pub fn run_collator_node(
 
 /// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode {
-	/// TaskManager's instance.
+	/// `TaskManager`'s instance.
 	pub task_manager: TaskManager,
 	/// Client's instance.
 	pub client: Arc<Client>,

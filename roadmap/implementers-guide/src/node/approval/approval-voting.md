@@ -85,7 +85,7 @@ struct BlockEntry {
     // leaving. Sorted ascending by core index.
     candidates: Vec<(CoreIndex, Hash)>,
     // A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
-    // The i'th bit is `true` iff the candidate has been approved in the context of
+    // The i'th bit is `true` IFF the candidate has been approved in the context of
     // this block. The block can be considered approved has all bits set to 1
     approved_bitfield: Bitfield,
     children: Vec<Hash>,
@@ -164,7 +164,7 @@ Main loop:
 
 #### `OverseerSignal::BlockFinalized`
 
-On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`. We also update each of the `BlockNumber -> Vec<Hash>` keys in the database to reflect the blocks at that height, clearing if empty.
+On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendants of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`. We also update each of the `BlockNumber -> Vec<Hash>` keys in the database to reflect the blocks at that height, clearing if empty.
 
 
 #### `OverseerSignal::ActiveLeavesUpdate`
