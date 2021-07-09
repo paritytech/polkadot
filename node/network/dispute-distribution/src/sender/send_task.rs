@@ -59,7 +59,7 @@ pub struct SendTask {
 	/// dispute happened and the authorities of the current sessions as determined by active heads.
 	deliveries: HashMap<AuthorityDiscoveryId, DeliveryStatus>,
 
-	/// Whether or not we have any tasks failed since the last refresh.
+	/// Whether we have any tasks failed since the last refresh.
 	has_failed_sends: bool,
 
 	/// Sender to be cloned for tasks.
@@ -162,7 +162,7 @@ impl SendTask
 		Ok(())
 	}
 
-	/// Whether or not any sends have failed since the last refreshed.
+	/// Whether any sends have failed since the last refreshed.
 	pub fn has_failed_sends(&self) -> bool {
 		self.has_failed_sends
 	}
@@ -247,7 +247,7 @@ impl SendTask
 }
 
 
-/// Start sending of the given msg to all given authorities.
+/// Start sending of the given message to all given authorities.
 ///
 /// And spawn tasks for handling the response.
 async fn send_requests<Context: SubsystemContext>(
