@@ -8,7 +8,7 @@ use polkadot_node_network_protocol::WrongVariant;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
+impl Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for  AwesomeSubSys {
 	fn start(self, _ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("starting yay!")
 	}
@@ -17,7 +17,7 @@ impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> f
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
+impl Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
 	fn start(self, _ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem < Yikes > {
 		unimplemented!("welcum")
 	}

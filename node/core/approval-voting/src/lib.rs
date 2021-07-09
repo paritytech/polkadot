@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 		AvailabilityRecoveryMessage, ChainSelectionMessage,
 	},
 	errors::RecoveryError,
-	overseer::{self, SubsystemSender as _}, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
+	overseer::{self, SubsystemSender as _}, SubsystemError, SubsystemResult, SpawnedSubsystem,
 	FromOverseer, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
@@ -333,9 +333,8 @@ impl ApprovalVotingSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
+impl<Context> overseer::overseer::Subsystem<Context> for ApprovalVotingSubsystem
 where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
 	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 {
 
@@ -674,7 +673,6 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 	where
-		Context: SubsystemContext<Message = ApprovalVotingMessage>,
 		Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 		B: Backend,
 {
@@ -801,7 +799,7 @@ async fn run<B, Context>(
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1021,7 +1019,7 @@ fn distribution_messages_for_activation(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1134,7 +1132,7 @@ async fn handle_from_overseer(
 }
 
 async fn handle_approved_ancestor(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut overseer::SubsystemContext,
 	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1998,7 +1996,7 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,

@@ -21,19 +21,21 @@ use syn::{parse2, Result};
 use quote::{quote, ToTokens};
 
 mod impl_builder;
-mod impl_misc;
+mod impl_subsystem_ctx;
 mod impl_overseer;
-mod parse_attr;
-mod parse_struct;
 mod impl_channels_out;
 mod impl_dispatch;
 mod impl_message_wrapper;
+mod impl_trait;
+mod parse_attr;
+mod parse_struct;
 
 use impl_builder::*;
 use impl_channels_out::*;
 use impl_dispatch::*;
 use impl_message_wrapper::*;
-use impl_misc::*;
+use impl_subsystem_ctx::*;
+use impl_trait::*;
 use impl_overseer::*;
 use parse_attr::*;
 use parse_struct::*;
@@ -85,10 +87,11 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 	additive.extend(impl_overseen_subsystem(&info));
 	additive.extend(impl_channels_out_struct(&info));
-	additive.extend(impl_misc(&info));
+	additive.extend(impl_subsystem_ctx(&info));
 
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
 
+	additive.extend(impl_trait(&info));
 	Ok(additive)
 }

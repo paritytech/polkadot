@@ -33,6 +33,7 @@ use polkadot_node_subsystem_types::{
 
 use crate::{
 	self as overseer,
+	SpawnedSubsystem,
 	Overseer,
 	HeadSupportsParachains,
 	gen::Delay,
@@ -44,9 +45,6 @@ use sp_core::crypto::Pair as _;
 use assert_matches::assert_matches;
 
 use super::*;
-
-
-type SpawnedSubsystem = crate::gen::SpawnedSubsystem<SubsystemError>;
 
 struct TestSubsystem1(metered::MeteredSender<usize>);
 

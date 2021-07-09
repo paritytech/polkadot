@@ -587,7 +587,6 @@ fn collator_peer_id(
 async fn disconnect_peer<Context>(ctx: &mut Context, peer_id: PeerId)
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	ctx.send_message(
 		NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation)
@@ -603,7 +602,6 @@ async fn fetch_collation<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -637,8 +635,7 @@ async fn note_good_collation<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, BENEFIT_NOTIFY_GOOD).await;
 	}
@@ -653,8 +650,7 @@ async fn notify_collation_seconded<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	let wire_message = protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 	ctx.send_message(
 		NetworkBridgeMessage::SendCollationMessage(
@@ -699,8 +695,7 @@ async fn request_collation<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	if !state.view.contains(&relay_parent) {
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -766,8 +761,7 @@ async fn process_incoming_peer_message<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	use protocol_v1::CollatorProtocolMessage::*;
 	use sp_runtime::traits::AppVerify;
 	match msg {
@@ -921,8 +915,7 @@ async fn handle_our_view_change<Context>(
 ) -> Result<()>
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	let old_view = std::mem::replace(&mut state.view, view);
 
 	let added: HashMap<Hash, Arc<jaeger::Span>> = state.view
@@ -976,8 +969,7 @@ async fn handle_network_msg<Context>(
 ) -> Result<()>
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
@@ -1015,8 +1007,7 @@ async fn process_msg<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	use CollatorProtocolMessage::*;
 
 	let _timer = state.metrics.time_process_msg();
@@ -1125,8 +1116,7 @@ pub(crate) async fn run<Context>(
 ) -> Result<()>
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	use OverseerSignal::*;
 
 	let mut state = State {
@@ -1189,8 +1179,7 @@ async fn handle_collation_fetched_result<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	// If no prior collation for this relay parent has been seconded, then
 	// memoize the collation_event for that relay_parent, such that we may
 	// notify the collator of their successful second backing
@@ -1255,8 +1244,7 @@ async fn disconnect_inactive_peers<Context>(
 )
 where
 	Context: overseer::SubsystemContext<Message=CollatorProtocolMessage>,
-	Context: SubsystemContext<Message=CollatorProtocolMessage>,
-{
+	{
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
 			disconnect_peer(ctx, peer.clone()).await;
