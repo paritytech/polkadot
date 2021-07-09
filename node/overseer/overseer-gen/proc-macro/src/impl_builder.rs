@@ -351,7 +351,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				})
 			));
 
-			let instance = Some(SubsystemInstance:: < M > {
+			let instance = Some(#support_crate ::SubsystemInstance:: < M, #signal > {
 				meters: #support_crate ::SubsystemMeters {
 					unbounded: unbounded_meter,
 					bounded: message_tx.meter().clone(),

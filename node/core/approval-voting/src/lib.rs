@@ -29,8 +29,8 @@ use polkadot_node_subsystem::{
 		AvailabilityRecoveryMessage, ChainSelectionMessage,
 	},
 	errors::RecoveryError,
-	overseer::{self, SubsystemSender as _}, SubsystemError, SubsystemResult, SpawnedSubsystem,
-	FromOverseer, OverseerSignal, SubsystemSender,
+	overseer::{self, SubsystemSender}, SubsystemError, SubsystemResult, SpawnedSubsystem,
+	FromOverseer, OverseerSignal,
 };
 use polkadot_node_subsystem_util::{
 	TimeoutExt,

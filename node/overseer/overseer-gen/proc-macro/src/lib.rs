@@ -56,17 +56,14 @@ pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<
 
 	let of: OverseerGuts = parse2(orig)?;
 
-	let support_crate_name = if cfg!(test) {
-		quote!{crate}
-	} else {
-		use proc_macro_crate::{crate_name, FoundCrate};
-		let crate_name = crate_name("polkadot-overseer-gen")
-			.expect("Support crate polkadot-overseer-gen is present in `Cargo.toml`. qed");
-		match crate_name {
-		   FoundCrate::Itself => quote!{crate},
-		   FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),
-	   	}
+	use proc_macro_crate::{crate_name, FoundCrate};
+	let crate_name = crate_name("polkadot-overseer-gen")
+		.expect("Support crate polkadot-overseer-gen is present in `Cargo.toml`. qed");
+	let support_crate_name = match crate_name {
+		FoundCrate::Itself => quote!{crate},
+		FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),
 	};
+
 	let info = OverseerInfo {
 		support_crate_name,
 		subsystems: of.subsystems,
