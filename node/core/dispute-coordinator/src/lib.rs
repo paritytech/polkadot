@@ -28,22 +28,21 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement, DisputeMessageCheckError};
 use polkadot_node_subsystem::{
-	overseer,
-	messages::{
-		DisputeCoordinatorMessage, ChainApiMessage, DisputeParticipationMessage,
-	},
-	SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemError,
+	overseer, SubsystemContext, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	errors::{ChainApiError, RuntimeApiError},
+	messages::{
+		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		DisputeParticipationMessage, ImportStatementsResult
+	}
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	SessionIndex, CandidateHash, Hash, CandidateReceipt, DisputeStatement, ValidatorIndex,
-	ValidatorSignature, BlockNumber, ValidatorPair,
+	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash,
+	SessionIndex, SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature
 };
 
 use futures::prelude::*;
@@ -60,10 +59,6 @@ mod db;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
-
-// It would be nice to draw this from the chain state, but we have no tools for it right now.
-// On Polkadot this is 1 day, and on Kusama it's 6 hours.
-const DISPUTE_WINDOW: SessionIndex = 6;
 
 struct State {
 	keystore: Arc<LocalKeystore>,
@@ -133,6 +128,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
+	#[error("Oneshot send failed")]
+	OneshotSend,
 
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
@@ -308,6 +306,7 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			statements,
+			pending_confirmation,
 		} => {
 			handle_import_statements(
 				ctx,
@@ -318,6 +317,7 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				statements,
+				pending_confirmation,
 			).await?;
 		}
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
@@ -400,8 +400,13 @@ async fn handle_import_statements(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
+
+		// It is not valid to participate in an ancient dispute (spam?).
+		pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
+
 		return Ok(());
 	}
 
@@ -479,37 +484,54 @@ async fn handle_import_statements(
 	let already_disputed = is_disputed && !was_undisputed;
 	let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
-	let mut tx = db::v1::Transaction::default();
+	{ // Scope so we will only confirm valid import after the import got actually persisted.
+		let mut tx = db::v1::Transaction::default();
 
-	if freshly_disputed && !concluded_valid {
-		// add to active disputes and begin local participation.
-		update_active_disputes(
-			store,
-			config,
-			&mut tx,
-			|active| active.insert(session, candidate_hash),
-		)?;
+		if freshly_disputed && !concluded_valid {
 
-		ctx.send_message(DisputeParticipationMessage::Participate {
-			candidate_hash,
-			candidate_receipt,
-			session,
-			n_validators: n_validators as u32,
-		}).await;
+			let (report_availability, receive_availability) = oneshot::channel();
+			ctx.send_message(DisputeParticipationMessage::Participate {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				n_validators: n_validators as u32,
+				report_availability,
+			}).await;
+
+			if !receive_availability.await.map_err(Error::Oneshot)? {
+				pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Recovering availability failed - invalid import."
+				);
+				return Ok(())
+			}
+
+			// add to active disputes and begin local participation.
+			update_active_disputes(
+				store,
+				config,
+				&mut tx,
+				|active| active.insert(session, candidate_hash),
+			)?;
+
+		}
+
+		if concluded_valid && already_disputed {
+			// remove from active disputes.
+			update_active_disputes(
+				store,
+				config,
+				&mut tx,
+				|active| active.delete(session, candidate_hash),
+			)?;
+		}
+
+		tx.put_candidate_votes(session, candidate_hash, votes.into());
+		tx.write(store, &config.column_config())?;
 	}
 
-	if concluded_valid && already_disputed {
-		// remove from active disputes.
-		update_active_disputes(
-			store,
-			config,
-			&mut tx,
-			|active| active.delete(session, candidate_hash),
-		)?;
-	}
-
-	tx.put_candidate_votes(session, candidate_hash, votes.into());
-	tx.write(store, &config.column_config())?;
+	pending_confirmation.send(ImportStatementsResult::ValidImport).map_err(|_| Error::OneshotSend)?;
 
 	Ok(())
 }
@@ -541,7 +563,7 @@ async fn issue_local_statement(
 	valid: bool,
 ) -> Result<(), Error> {
 	// Load session info.
-	let validators = match state.rolling_session_window.session_info(session) {
+	let info = match state.rolling_session_window.session_info(session) {
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -551,8 +573,10 @@ async fn issue_local_statement(
 
 			return Ok(())
 		}
-		Some(info) => info.validators.clone(),
+		Some(info) => info,
 	};
+
+	let validators = info.validators.clone();
 
 	let votes = db::v1::load_candidate_votes(
 		store,
@@ -604,8 +628,27 @@ async fn issue_local_statement(
 		}
 	}
 
+	// Get our message out:
+	for (statement, index) in &statements {
+		let dispute_message = match make_dispute_message(info, &votes, statement.clone(), *index) {
+			Err(err) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?err,
+					"Creating dispute message failed."
+				);
+				continue
+			}
+			Ok(dispute_message) => dispute_message,
+		};
+
+		ctx.send_message(DisputeDistributionMessage::SendDispute(dispute_message)).await;
+	}
+
+
 	// Do import
 	if !statements.is_empty() {
+		let (pending_confirmation, _rx) = oneshot::channel();
 		handle_import_statements(
 			ctx,
 			store,
@@ -615,10 +658,65 @@ async fn issue_local_statement(
 			candidate_receipt,
 			session,
 			statements,
+			pending_confirmation,
 		).await?;
 	}
 
 	Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum MakeDisputeMessageError {
+	#[error("There was no opposite vote available")]
+	NoOppositeVote,
+	#[error("Found vote had an invalid validator index that could not be found")]
+	InvalidValidatorIndex,
+	#[error("Statement found in votes had invalid signature.")]
+	InvalidStoredStatement,
+	#[error(transparent)]
+	InvalidStatementCombination(DisputeMessageCheckError),
+}
+
+fn make_dispute_message(
+	info: &SessionInfo,
+	votes: &CandidateVotes,
+	our_vote: SignedDisputeStatement,
+	our_index: ValidatorIndex
+) -> Result<DisputeMessage, MakeDisputeMessageError> {
+
+	let validators = &info.validators;
+
+	let (valid_statement, valid_index, invalid_statement, invalid_index) =
+		if let DisputeStatement::Valid(_) = our_vote.statement() {
+			let (statement_kind, validator_index, validator_signature)
+				= votes.invalid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+			let other_vote = SignedDisputeStatement::new_checked(
+				DisputeStatement::Invalid(statement_kind),
+				our_vote.candidate_hash().clone(),
+				our_vote.session_index(),
+				validators.get(validator_index.0 as usize).ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?.clone(),
+				validator_signature,
+			).map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+			(our_vote, our_index, other_vote, validator_index)
+	} else {
+		let (statement_kind, validator_index, validator_signature)
+			= votes.valid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+		let other_vote = SignedDisputeStatement::new_checked(
+			DisputeStatement::Valid(statement_kind),
+			our_vote.candidate_hash().clone(),
+			our_vote.session_index(),
+			validators.get(validator_index.0 as usize).ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?.clone(),
+			validator_signature,
+		).map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+		(other_vote, validator_index, our_vote, our_index)
+	};
+
+	DisputeMessage::from_signed_statements(
+		valid_statement, valid_index,
+		invalid_statement, invalid_index,
+		votes.candidate_receipt.clone(),
+		info,
+	).map_err(MakeDisputeMessageError::InvalidStatementCombination)
 }
 
 fn determine_undisputed_chain(

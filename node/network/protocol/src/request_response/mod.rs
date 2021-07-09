@@ -66,6 +66,8 @@ pub enum Protocol {
 	AvailableDataFetching,
 	/// Fetching of statements that are too large for gossip.
 	StatementFetching,
+	/// Sending of dispute statements with application level confirmations.
+	DisputeSending,
 }
 
 
@@ -98,7 +100,7 @@ const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
 /// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
-/// to have 3 slow noded connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
+/// to have 3 slow nodes connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
 pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 
 impl Protocol {
@@ -106,9 +108,6 @@ impl Protocol {
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	///
-	/// See also `dispatcher::RequestDispatcher`,  which makes use of this function and provides a more
-	/// high-level interface.
 	pub fn get_config(
 		self,
 	) -> (
@@ -167,6 +166,17 @@ impl Protocol {
 				request_timeout: Duration::from_secs(1),
 				inbound_queue: Some(tx),
 			},
+			Protocol::DisputeSending => RequestResponseConfig {
+				name: p_name,
+				max_request_size: 1_000,
+				/// Responses are just confirmation, in essence not even a bit. So 100 seems
+				/// plenty.
+				max_response_size: 100,
+				/// We can have relative large timeouts here, there is no value of hitting a
+				/// timeout as we want to get statements through to each node in any case.
+				request_timeout: Duration::from_secs(12),
+				inbound_queue: Some(tx),
+			},
 		};
 		(rx, cfg)
 	}
@@ -195,7 +205,7 @@ impl Protocol {
 				// This is just a guess/estimate, with the following considerations: If we are
 				// faster than that, queue size will stay low anyway, even if not - requesters will
 				// get an immediate error, but if we are slower, requesters will run in a timeout -
-				// waisting precious time.
+				// wasting precious time.
 				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
 					STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth / (1000 * MAX_CODE_SIZE as u64),
@@ -207,6 +217,10 @@ impl Protocol {
 				);
 				size as usize
 			}
+			// Incoming requests can get bursty, we should also be able to handle them fast on
+			// average, so something in the ballpark of 100 should be fine. Nodes will retry on
+			// failure, so having a good value here is mostly about performance tuning.
+			Protocol::DisputeSending => 100,
 		}
 	}
 
@@ -223,6 +237,7 @@ impl Protocol {
 			Protocol::PoVFetching => "/polkadot/req_pov/1",
 			Protocol::AvailableDataFetching => "/polkadot/req_available_data/1",
 			Protocol::StatementFetching => "/polkadot/req_statement/1",
+			Protocol::DisputeSending => "/polkadot/send_dispute/1",
 		}
 	}
 }
