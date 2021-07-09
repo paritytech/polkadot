@@ -60,11 +60,11 @@ impl From<runtime::Error> for Error {
 #[derive(Debug, Error)]
 pub enum Fatal {
 	/// Requester channel is never closed.
-	#[error("Requester receiver stream finished.")]
+	#[error("Requester receiver stream finished")]
 	RequesterReceiverFinished,
 
 	/// Responder channel is never closed.
-	#[error("Responder receiver stream finished.")]
+	#[error("Responder receiver stream finished")]
 	ResponderReceiverFinished,
 
 	/// Spawning a running task failed.

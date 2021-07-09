@@ -23,12 +23,11 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use sc_keystore::LocalKeystore;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::SyncCryptoStore;
 use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
 };
+use test_helpers::mock::make_ferdie_keystore;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -96,17 +95,6 @@ async fn overseer_recv(
 		.expect("msg recv timeout");
 
 	msg
-}
-
-fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		AuthorityDiscoveryId::ID,
-		Some(&Sr25519Keyring::Ferdie.to_seed()),
-	)
-	.expect("Insert key into keystore");
-	keystore
 }
 
 fn authorities() -> Vec<AuthorityDiscoveryId> {

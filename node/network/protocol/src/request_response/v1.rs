@@ -20,7 +20,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, PoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, DisputeMessage, ErasureChunk, PoV, UncheckedDisputeMessage};
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -191,4 +191,29 @@ pub enum StatementFetchingResponse {
 impl IsRequest for StatementFetchingRequest {
 	type Response = StatementFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::StatementFetching;
+}
+
+/// A dispute request.
+///
+/// Contains an invalid vote a valid one for a particular candidate in a given session.
+#[derive(Clone, Encode, Decode, Debug)]
+pub struct DisputeRequest(pub UncheckedDisputeMessage);
+
+impl From<DisputeMessage> for DisputeRequest {
+	fn from(msg: DisputeMessage) -> Self {
+		Self(msg.into())
+	}
+}
+
+/// Possible responses to a `DisputeRequest`.
+#[derive(Encode, Decode, Debug, PartialEq, Eq)]
+pub enum DisputeResponse {
+	/// Recipient successfully processed the dispute request.
+	#[codec(index = 0)]
+	Confirmed
+}
+
+impl IsRequest for DisputeRequest {
+	type Response = DisputeResponse;
+	const PROTOCOL: Protocol = Protocol::DisputeSending;
 }

@@ -80,7 +80,7 @@ async fn activate_leaf(virtual_overseer: &mut VirtualOverseer, block_number: Blo
 		.await;
 }
 
-async fn participate(virtual_overseer: &mut VirtualOverseer) {
+async fn participate(virtual_overseer: &mut VirtualOverseer) -> oneshot::Receiver<bool> {
 	let commitments = CandidateCommitments::default();
 	let candidate_receipt = {
 		let mut receipt = CandidateReceipt::default();
@@ -91,6 +91,8 @@ async fn participate(virtual_overseer: &mut VirtualOverseer) {
 	let session = 1;
 	let n_validators = 10;
 
+	let (report_availability, receive_availability) = oneshot::channel();
+
 	virtual_overseer
 		.send(FromOverseer::Communication {
 			msg: DisputeParticipationMessage::Participate {
@@ -98,12 +100,14 @@ async fn participate(virtual_overseer: &mut VirtualOverseer) {
 				candidate_receipt: candidate_receipt.clone(),
 				session,
 				n_validators,
+				report_availability,
 			},
-		})
-		.await;
+	})
+	.await;
+	receive_availability
 }
 
-async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
+async fn recover_available_data(virtual_overseer: &mut VirtualOverseer, receive_availability: oneshot::Receiver<bool>) {
 	let pov_block = PoV {
 		block_data: BlockData(Vec::new()),
 	};
@@ -122,6 +126,8 @@ async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
 		},
 		"overseer did not receive recover available data message",
 	);
+
+	assert_eq!(receive_availability.await.expect("Availability should get reported"), true);
 }
 
 async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) {
@@ -166,7 +172,7 @@ async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: b
 fn cannot_participate_when_recent_block_state_is_missing() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
-			participate(&mut virtual_overseer).await;
+			let _ = participate(&mut virtual_overseer).await;
 
 			virtual_overseer
 		})
@@ -175,7 +181,7 @@ fn cannot_participate_when_recent_block_state_is_missing() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
+			let _ = participate(&mut virtual_overseer).await;
 
 			// after activating at least one leaf the recent block
 			// state should be available which should lead to trying
@@ -199,7 +205,7 @@ fn cannot_participate_if_cannot_recover_available_data() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -211,6 +217,8 @@ fn cannot_participate_if_cannot_recover_available_data() {
 				"overseer did not receive recover available data message",
 			);
 
+			assert_eq!(receive_availability.await.expect("Availability should get reported"), false);
+
 			virtual_overseer
 		})
 	});
@@ -221,8 +229,8 @@ fn cannot_participate_if_cannot_recover_validation_code() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
-			recover_available_data(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
+			recover_available_data(&mut virtual_overseer, receive_availability).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -248,7 +256,7 @@ fn cast_invalid_vote_if_available_data_is_invalid() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -259,6 +267,8 @@ fn cast_invalid_vote_if_available_data_is_invalid() {
 				},
 				"overseer did not receive recover available data message",
 			);
+
+			assert_eq!(receive_availability.await.expect("Availability should get reported"), true);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -281,8 +291,8 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
-			recover_available_data(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
+			recover_available_data(&mut virtual_overseer, receive_availability).await;
 			fetch_validation_code(&mut virtual_overseer).await;
 			store_available_data(&mut virtual_overseer, true).await;
 
@@ -317,8 +327,8 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
-			recover_available_data(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
+			recover_available_data(&mut virtual_overseer, receive_availability).await;
 			fetch_validation_code(&mut virtual_overseer).await;
 			store_available_data(&mut virtual_overseer, true).await;
 
@@ -357,8 +367,8 @@ fn cast_valid_vote_if_validation_passes() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
-			recover_available_data(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
+			recover_available_data(&mut virtual_overseer, receive_availability).await;
 			fetch_validation_code(&mut virtual_overseer).await;
 			store_available_data(&mut virtual_overseer, true).await;
 
@@ -393,8 +403,8 @@ fn failure_to_store_available_data_does_not_preclude_participation() {
 	test_harness(|mut virtual_overseer| {
 		Box::pin(async move {
 			activate_leaf(&mut virtual_overseer, 10).await;
-			participate(&mut virtual_overseer).await;
-			recover_available_data(&mut virtual_overseer).await;
+			let receive_availability = participate(&mut virtual_overseer).await;
+			recover_available_data(&mut virtual_overseer, receive_availability).await;
 			fetch_validation_code(&mut virtual_overseer).await;
 			// the store available data request should fail
 			store_available_data(&mut virtual_overseer, false).await;
