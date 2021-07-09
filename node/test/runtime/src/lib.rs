@@ -28,7 +28,6 @@ use sp_runtime::AccountId32;
 use support::{weights::Weight, StorageValue};
 use democracy::{AccountVote, Conviction, Vote};
 use polkadot_runtime::{FastTrackVotingPeriod, Runtime, RuntimeApi, Event, TechnicalCollective, CouncilCollective};
-use polkadot_service::chain_spec::polkadot_development_config;
 use std::str::FromStr;
 use codec::Encode;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
@@ -288,6 +287,7 @@ mod tests {
     use sp_keyring::sr25519::Keyring::Alice;
     use sp_runtime::{MultiSigner, traits::IdentifyAccount};
     use test_runner::{ConfigOrChainSpec, client_parts, task_executor, build_runtime};
+    use polkadot_service::chain_spec::polkadot_development_config;
 
     #[test]
     fn test_runner() {
