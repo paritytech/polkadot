@@ -39,10 +39,10 @@ pub(crate) fn impl_subsystem_ctx(info: &OverseerInfo) -> proc_macro2::TokenStrea
         pub type SubsystemResult<T> = ::std::result::Result<T, #error>;
 
         /// Specialized message type originating from the overseer.
-        pub type FromOverseer<M> = #support_crate ::FromOverseer<M, #signal>;
+        pub type FromOverseer<M0> = #support_crate ::FromOverseer<M0, #signal>;
 
         /// Specialized subsystem instance type of subsystems consuming a particular message type.
-        pub type SubsystemInstance<M> = #support_crate ::SubsystemInstance<M, #signal>;
+        pub type SubsystemInstance<M1> = #support_crate ::SubsystemInstance<M1, #signal>;
 
         /// Spawned subsystem.
         pub type SpawnedSubsystem = #support_crate ::SpawnedSubsystem< #error >;
@@ -57,30 +57,30 @@ pub(crate) fn impl_subsystem_ctx(info: &OverseerInfo) -> proc_macro2::TokenStrea
             /// `AllMessages`.
             type Message: std::fmt::Debug + Send + 'static;
             /// The sender type as provided by `sender()` and underlying.
-            type Sender: #support_crate ::SubsystemSender<#message_wrapper>;
+            type Sender: #support_crate ::SubsystemSender< #message_wrapper >;
 
             /// Try to asynchronously receive a message.
             ///
             /// This has to be used with caution, if you loop over this without
             /// using `pending!()` macro you will end up with a busy loop!
-            async fn try_recv(&mut self) -> Result<Option<#support_crate ::FromOverseer<Self::Message, #signal>>, ()>;
+            async fn try_recv(&mut self) -> ::std::result::Result<Option<#support_crate ::FromOverseer<Self::Message, #signal>>, ()>;
 
             /// Receive a message.
-            async fn recv(&mut self) -> Result<#support_crate ::FromOverseer<Self::Message, #signal>, #error>;
+            async fn recv(&mut self) -> ::std::result::Result<#support_crate ::FromOverseer<Self::Message, #signal>, #error>;
 
             /// Spawn a child task on the executor.
             fn spawn(
                 &mut self,
                 name: &'static str,
                 s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>
-            ) -> Result<(), #error>;
+            ) -> ::std::result::Result<(), #error>;
 
             /// Spawn a blocking child task on the executor's dedicated thread pool.
             fn spawn_blocking(
                 &mut self,
                 name: &'static str,
                 s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>,
-            ) -> Result<(), #error>;
+            ) -> ::std::result::Result<(), #error>;
 
             /// Send a direct message to some other `Subsystem`, routed based on message type.
             async fn send_message<X>(&mut self, msg: X)
