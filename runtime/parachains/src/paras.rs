@@ -383,7 +383,7 @@ pub mod pallet {
 
 	/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
 	///
-	/// This value is abscent when there are no upgrades scheduled or during the time the relay chain
+	/// This value is absent when there are no upgrades scheduled or during the time the relay chain
 	/// performs the checks. It is set at the first relay-chain block when the corresponding parachain
 	/// can switch its upgrade function. As soon as the parachain's block is included, the value
 	/// gets reset to `None`.
