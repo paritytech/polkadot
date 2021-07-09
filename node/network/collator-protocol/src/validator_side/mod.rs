@@ -67,17 +67,17 @@ const COST_UNNEEDED_COLLATOR: Rep = Rep::CostMinor("An unneeded collator connect
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by another subsystem");
 
 /// Time after starting a collation download from a collator we will start another one from the
-/// next collator.
-/// even if the upthe next validator,load was not finished yet.
+/// next collator even if the upload was not finished yet.
 ///
 /// This is to protect from a single slow collator preventing collations from happening.
 ///
 /// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 300 milliseconds should therefore be
-/// plenty and should be low enough for later collators to still be able to finish on time.
+/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
+/// plenty, even with multiple heads and should be low enough for later collators to still be able
+/// to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
-const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(300);
+const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(400);
 
 // How often to check all peers with activity.
 #[cfg(not(test))]
@@ -191,7 +191,7 @@ struct CollatingPeerState {
 enum PeerState {
 	// The peer has connected at the given instant.
 	Connected(Instant),
-	// Thepe
+	// Peer is collating.
 	Collating(CollatingPeerState),
 }
 
@@ -1147,7 +1147,7 @@ where
 
 			report_collator(ctx, &state.peer_data, id.clone()).await;
 
-			dequeue_next_collation_fetch(ctx, state, parent, id).await;
+			dequeue_next_collation_and_fetch(ctx, state, parent, id).await;
 		}
 	}
 }
@@ -1219,7 +1219,7 @@ where
 					?relay_parent,
 					"Fetch for collation took too long, starting parallel download for next collator as well."
 				);
-				dequeue_next_collation_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
+				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
 		}
 
@@ -1238,8 +1238,8 @@ where
 	Ok(())
 }
 
-/// Dequeue another collation fetch.
-async fn dequeue_next_collation_fetch(
+/// Dequeue another collation and fetch.
+async fn dequeue_next_collation_and_fetch(
 	ctx: &mut (impl SubsystemContext<Message = CollatorProtocolMessage> + overseer::SubsystemContext<Message = CollatorProtocolMessage>),
 	state: &mut State,
 	relay_parent: Hash,
@@ -1282,7 +1282,7 @@ where
 				"Failed to fetch collation.",
 			);
 
-			dequeue_next_collation_fetch(ctx, state, relay_parent, collation_event.0).await;
+			dequeue_next_collation_and_fetch(ctx, state, relay_parent, collation_event.0).await;
 			return
 		},
 	};
@@ -1311,7 +1311,7 @@ where
 
 		entry.insert(collation_event);
 	} else {
-		tracing::debug!(
+		tracing::trace!(
 			target: LOG_TARGET,
 			?relay_parent,
 			candidate = ?candidate_receipt.hash(),
@@ -1400,9 +1400,9 @@ where
 					"Fetching collation failed due to network error"
 				);
 				// A minor decrease in reputation for any network failure seems
-				// sensbile. In theory this could be exploited, by DoSing this node,
+				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
-				// same can happen for penalities on timeouts, which we also have.
+				// same can happen for penalties on timeouts, which we also have.
 				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_NETWORK_ERROR).await;
 			}
 			Err(RequestError::Canceled(_)) => {
@@ -1414,9 +1414,9 @@ where
 					"Request timed out"
 				);
 				// A minor decrease in reputation for any network failure seems
-				// sensbile. In theory this could be exploited, by DoSing this node,
+				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
-				// same can happen for penalities on timeouts, which we also have.
+				// same can happen for penalties on timeouts, which we also have.
 				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_REQUEST_TIMED_OUT).await;
 			}
 			Ok(CollationFetchingResponse::Collation(receipt, _))

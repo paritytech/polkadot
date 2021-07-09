@@ -51,6 +51,7 @@ use super::{LOG_TARGET,  Result};
 mod tests;
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
+const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Message received when previous one was still being processed");
 
 /// Time after starting an upload to a validator we will start another one to the next validator,
 /// even if the upload was not finished yet.
@@ -58,11 +59,11 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 /// This is to protect from a single slow validator preventing collations from happening.
 ///
 /// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 300 milliseconds should therefore be
+/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
 /// plenty and should be low enough for later validators to still be able to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
-const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(300);
+const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(400);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -707,6 +708,9 @@ where
 								target: LOG_TARGET,
 								"Dropping incoming request as peer has a request in flight already."
 							);
+							ctx.send_message(
+								NetworkBridgeMessage::ReportPeer(origin.clone(), COST_APPARENT_FLOOD)
+							).await;
 							return Ok(())
 						}
 
@@ -1021,8 +1025,7 @@ where
 				FromOverseer::Signal(BlockFinalized(..)) => {}
 				FromOverseer::Signal(Conclude) => return Ok(()),
 			},
-			res = state.active_collation_fetches.select_next_some() => {
-				let (relay_parent, peer_id) = res;
+			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
 					waiting.waiting_peers.remove(&peer_id);
 					if let Some(next) = waiting.waiting.pop_front() {
