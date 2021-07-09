@@ -28,16 +28,8 @@ use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{
-	peer_set::PeerSet,
-	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange,
-};
-use polkadot_node_primitives::{
-	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	AvailableData, BabeEpoch, CandidateVotes, CollationGenerationConfig, ErasureChunk, PoV,
-	SignedDisputeStatement, SignedFullStatement, ValidationResult, BlockWeight,
-};
+use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
+use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
@@ -144,7 +136,6 @@ impl CandidateValidationMessage {
 	}
 }
 
-
 /// Messages received by the Collator Protocol subsystem.
 #[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
@@ -217,6 +208,21 @@ pub enum DisputeCoordinatorMessage {
 		/// The validator index passed alongside each statement should correspond to the index
 		/// of the validator in the set.
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+		/// Inform the requester once we finished importing.
+		///
+		/// This is:
+		/// - we discarded the votes because
+		///		- they were ancient or otherwise invalid (result: `InvalidImport`)
+		///		- or we were not able to recover availability for an unknown candidate (result:
+		///		`InvalidImport`)
+		///		- or were known already (in that case the result will still be `ValidImport`)
+		/// - or we recorded them because (`ValidImport`)
+		///		- we casted our own vote already on that dispute
+		///		- or we have approval votes on that candidate
+		///		- or other explicit votes on that candidate already recorded
+		///		- or recovered availability for the candidate
+		///		- or the imported statements are backing/approval votes, which are always accepted.
+		pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
@@ -241,6 +247,15 @@ pub enum DisputeCoordinatorMessage {
 	}
 }
 
+/// The result of `DisputeCoordinatorMessage::ImportStatements`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ImportStatementsResult {
+	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
+	InvalidImport,
+	/// Import was valid and can be confirmed to peer.
+	ValidImport
+}
+
 /// Messages received by the dispute participation subsystem.
 #[derive(Debug)]
 pub enum DisputeParticipationMessage {
@@ -254,7 +269,22 @@ pub enum DisputeParticipationMessage {
 		session: SessionIndex,
 		/// The number of validators in the session.
 		n_validators: u32,
+		/// Give immediate feedback on whether the candidate was available or
+		/// not.
+		report_availability: oneshot::Sender<bool>,
 	},
+}
+
+/// Messages going to the dispute distribution subsystem.
+#[derive(Debug)]
+pub enum DisputeDistributionMessage {
+
+	/// Tell dispute distribution to distribute an explicit dispute statement to
+	/// validators.
+	SendDispute(DisputeMessage),
+
+	/// Get receiver for receiving incoming network requests for dispute sending.
+	DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
