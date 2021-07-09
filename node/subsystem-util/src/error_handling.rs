@@ -86,7 +86,7 @@ use thiserror::Error;
 ///		SomeFatalError,
 ///		/// Errors coming from runtime::Runtime.
 ///		#[error("Error while accessing runtime information")]
-///		Runtime(#[from] #[source] runtime::Fatal),
+///		Runtime(#[from] runtime::Fatal),
 /// }
 ///
 /// #[derive(Debug, Error)]
@@ -98,7 +98,7 @@ use thiserror::Error;
 ///
 ///		/// Errors coming from runtime::Runtime.
 ///		#[error("Error while accessing runtime information")]
-///		Runtime(#[from] #[source] runtime::NonFatal),
+///		Runtime(#[from] runtime::NonFatal),
 /// }
 /// ```
 /// Then mostly use `Error` in functions, you may also use `NonFatal` and `Fatal` directly in
