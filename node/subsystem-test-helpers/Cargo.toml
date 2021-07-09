@@ -21,6 +21,10 @@ polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.6.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master"}
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }

@@ -10,17 +10,21 @@ client = { package = "sc-client-api", git = "https://github.com/paritytech/subst
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.15"
 futures-timer = "3.0.2"
-polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
-polkadot-node-subsystem-util = { path = "../subsystem-util" }
-polkadot-procmacro-overseer-subsystems-gen = { path = "./subsystems-gen" }
+polkadot-node-network-protocol = { path = "../network/protocol" }
+polkadot-node-primitives = { path = "../primitives" }
+polkadot-node-subsystem-types = { path = "../subsystem-types" }
+polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-overseer-gen = { path = "./overseer-gen" }
+polkadot-overseer-all-subsystems-gen = { path = "./all-subsystems-gen" }
 tracing = "0.1.26"
 lru = "0.6"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
+polkadot-node-metrics = { path = "../metrics" }
+metered-channel = { path = "../metered-channel" }
 futures = { version = "0.3.15", features = ["thread-pool"] }
 femme = "2.1.1"
 kv-log-macro = "1.0.7"

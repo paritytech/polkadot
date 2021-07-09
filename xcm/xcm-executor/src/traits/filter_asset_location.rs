@@ -30,6 +30,12 @@ impl FilterAssetLocation for Tuple {
 		for_tuples!( #(
 			if Tuple::filter_asset_location(what, origin) { return true }
 		)* );
+		log::trace!(
+			target: "xcm::filter_asset_location",
+			"got filtered: what: {:?}, origin: {:?}",
+			what,
+			origin,
+		);
 		false
 	}
 }
