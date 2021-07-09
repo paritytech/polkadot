@@ -16,6 +16,10 @@
 
 
 //! Make the set of voting bag thresholds to be used in `voter_bags.rs`.
+//!
+//! Generally speaking this script can be run once per runtime and never
+//! touched again. It can be reused to regenerate a wholly different 
+//! quantity of bags, or if the existential deposit changes, etc. 
 
 use pallet_staking::voter_bags::make_bags::generate_thresholds_module;
 use std::path::{Path, PathBuf};
