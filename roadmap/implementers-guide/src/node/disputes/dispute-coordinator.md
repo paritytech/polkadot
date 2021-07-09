@@ -59,6 +59,13 @@ struct State {
 }
 ```
 
+### On startup
+
+Check DB for recorded votes for non concluded disputes we have not yet
+recorded a local statement for.
+For all of those send `DisputeParticipationMessage::Participate` message to
+dispute participation subsystem.
+
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
 For each leaf in the leaves update:
@@ -80,18 +87,39 @@ Do nothing.
 
 ### On `DisputeCoordinatorMessage::ImportStatement`
 
-* Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
-* If the session is earlier than `state.highest_session - DISPUTE_WINDOW`, return.
-* Load from underlying DB by querying `("candidate-votes", session, candidate_hash). If that does not exist, create fresh with the given candidate receipt.
-* If candidate votes is empty and the statements only contain dispute-specific votes, return.
-* Otherwise, if there is already an entry from the validator in the respective `valid` or `invalid` field of the `CandidateVotes`, return.
-* Add an entry to the respective `valid` or `invalid` list of the `CandidateVotes` for each statement in `statements`.
-* Write the `CandidateVotes` to the underyling DB.
-* If the both `valid` and `invalid` lists now have non-zero length where previously one or both had zero length, the candidate is now freshly disputed.
-* If freshly disputed, load `"active-disputes"` and add the candidate hash and session index. Also issue a [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
-* If the dispute now has supermajority votes in the "valid" direction, according to the `SessionInfo` of the dispute candidate's session, remove from `"active-disputes"`.
-* If the dispute now has supermajority votes in the "invalid" direction, there is no need to do anything explicitly. The actual rollback will be handled during the active leaves update by observing digests from the runtime.
-* Write `"active-disputes"`
+1. Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
+2. If the session is earlier than `state.highest_session - DISPUTE_WINDOW`,
+   respond with `ImportStatementsResult::InvalidImport` and return.
+3. Load from underlying DB by querying `("candidate-votes", session,
+   candidate_hash)`.  If that does not exist, create fresh with the given
+   candidate receipt.
+4. If candidate votes is empty and the statements only contain dispute-specific
+   votes, respond with `ImportStatementsResult::InvalidImport` and return.
+5. Otherwise, if there is already an entry from the validator in the respective
+  `valid` or `invalid` field of the `CandidateVotes`,  respond with
+  `ImportStatementsResult::ValidImport` and return.
+6. Add an entry to the respective `valid` or `invalid` list of the
+   `CandidateVotes` for each statement in `statements`.
+7. If the both `valid` and `invalid` lists now became non-zero length where
+   previously one or both had zero length, the candidate is now freshly
+   disputed.
+8. If the candidate is not freshly disputed as determined by 7, continue with
+   10. If it is freshly disputed now, load `"active-disputes"` and add the
+   candidate hash and session index. Then, if we have local statements with
+   regards to that candidate,  also continue with 10. Otherwise proceed with 9.
+9. Issue a
+   [`DisputeParticipationMessage::Participate`][DisputeParticipationMessage].
+   Wait for response on the `report_availability` oneshot. If available, continue
+   with 10. If not send back `ImportStatementsResult::InvalidImport` and return.
+10. Write the `CandidateVotes` to the underyling DB.
+11. Send back `ImportStatementsResult::ValidImport`.
+12. If the dispute now has supermajority votes in the "valid" direction,
+    according to the `SessionInfo` of the dispute candidate's session, remove
+    from `"active-disputes"`.
+13. If the dispute now has supermajority votes in the "invalid" direction, there
+    is no need to do anything explicitly. The actual rollback will be handled
+    during the active leaves update by observing digests from the runtime.
+14. Write `"active-disputes"`
 
 ### On `DisputeCoordinatorMessage::ActiveDisputes`
 

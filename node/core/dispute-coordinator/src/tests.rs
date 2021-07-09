@@ -25,7 +25,10 @@ use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystem
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-use futures::future::{self, BoxFuture};
+use futures::{
+	channel::oneshot,
+	future::{self, BoxFuture},
+};
 use parity_scale_codec::Encode;
 use assert_matches::assert_matches;
 
@@ -261,6 +264,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			false,
 		).await;
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -270,9 +274,9 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					(valid_vote, ValidatorIndex(0)),
 					(invalid_vote, ValidatorIndex(1)),
 				],
+				pending_confirmation,
 			},
 		}).await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::DisputeParticipation(DisputeParticipationMessage::Participate {
@@ -280,11 +284,13 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				candidate_receipt: c_receipt,
 				session: s,
 				n_validators,
+				report_availability,
 			}) => {
 				assert_eq!(c_hash, candidate_hash);
 				assert_eq!(c_receipt, candidate_receipt);
 				assert_eq!(s, session);
 				assert_eq!(n_validators, test_state.validators.len() as u32);
+				report_availability.send(true).unwrap();
 			}
 		);
 
@@ -310,6 +316,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			assert_eq!(votes.invalid.len(), 1);
 		}
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -318,6 +325,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				statements: vec![
 					(invalid_vote_2, ValidatorIndex(2)),
 				],
+				pending_confirmation,
 			},
 		}).await;
 
@@ -371,6 +379,7 @@ fn positive_votes_dont_trigger_participation() {
 			true,
 		).await;
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -379,6 +388,7 @@ fn positive_votes_dont_trigger_participation() {
 				statements: vec![
 					(valid_vote, ValidatorIndex(0)),
 				],
+				pending_confirmation,
 			},
 		}).await;
 
@@ -404,6 +414,7 @@ fn positive_votes_dont_trigger_participation() {
 			assert!(votes.invalid.is_empty());
 		}
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -412,6 +423,7 @@ fn positive_votes_dont_trigger_participation() {
 				statements: vec![
 					(valid_vote_2, ValidatorIndex(1)),
 				],
+				pending_confirmation,
 			},
 		}).await;
 
@@ -472,6 +484,7 @@ fn wrong_validator_index_is_ignored() {
 			false,
 		).await;
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -481,6 +494,7 @@ fn wrong_validator_index_is_ignored() {
 					(valid_vote, ValidatorIndex(1)),
 					(invalid_vote, ValidatorIndex(0)),
 				],
+				pending_confirmation,
 			},
 		}).await;
 
@@ -541,6 +555,7 @@ fn finality_votes_ignore_disputed_candidates() {
 			false,
 		).await;
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -550,9 +565,21 @@ fn finality_votes_ignore_disputed_candidates() {
 					(valid_vote, ValidatorIndex(0)),
 					(invalid_vote, ValidatorIndex(1)),
 				],
+				pending_confirmation,
 			},
 		}).await;
-		let _ = virtual_overseer.recv().await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					report_availability,
+					..
+				}
+			) => {
+				report_availability.send(true).unwrap();
+			}
+		);
 
 		{
 			let (tx, rx) = oneshot::channel();
@@ -624,6 +651,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			false,
 		).await;
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -633,6 +661,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 					(valid_vote, ValidatorIndex(0)),
 					(invalid_vote, ValidatorIndex(1)),
 				],
+				pending_confirmation,
 			},
 		}).await;
 
@@ -650,12 +679,14 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			statements.push((vote, ValidatorIndex(i as _)));
 		};
 
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
 				candidate_receipt: candidate_receipt.clone(),
 				session,
 				statements,
+				pending_confirmation,
 			},
 		}).await;
 

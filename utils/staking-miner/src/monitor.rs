@@ -23,7 +23,7 @@ use codec::Encode;
 use jsonrpsee_ws_client::{
 	traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription, WsClient,
 };
-use sp_transaction_pool::TransactionStatus;
+use sc_transaction_pool_api::TransactionStatus;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(

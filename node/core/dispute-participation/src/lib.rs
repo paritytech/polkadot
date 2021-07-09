@@ -26,12 +26,13 @@ use futures::prelude::*;
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	errors::{RecoveryError, RuntimeApiError},
+	overseer,
 	messages::{
-		AllMessages, AvailabilityRecoveryMessage, AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage, AvailabilityStoreMessage,
 		CandidateValidationMessage, DisputeCoordinatorMessage, DisputeParticipationMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
 };
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
@@ -55,9 +56,10 @@ impl DisputeParticipationSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for DisputeParticipationSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeParticipationSubsystem
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx).map(|_| Ok(())).boxed();
@@ -80,6 +82,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
+	#[error("Oneshot receiver died")]
+	OneshotSendFailed,
 
 	#[error(transparent)]
 	Participation(#[from] ParticipationError),
@@ -111,6 +116,7 @@ impl Error {
 async fn run<Context>(mut ctx: Context)
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	let mut state = State { recent_block: None };
 
@@ -156,6 +162,7 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			n_validators,
+			report_availability,
 		} => {
 			if let Some((_, block_hash)) = state.recent_block {
 				participate(
@@ -165,6 +172,7 @@ async fn handle_incoming(
 					candidate_receipt,
 					session,
 					n_validators,
+					report_availability,
 				)
 				.await
 			} else {
@@ -181,6 +189,7 @@ async fn participate(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	n_validators: u32,
+	report_availability: oneshot::Sender<bool>,
 ) -> Result<(), Error> {
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -196,19 +205,25 @@ async fn participate(
 			None,
 			recover_available_data_tx,
 		)
-		.into(),
 	)
 	.await;
 
 	let available_data = match recover_available_data_rx.await? {
-		Ok(data) => data,
+		Ok(data) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+			data
+		}
 		Err(RecoveryError::Invalid) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			return Ok(());
 		}
 		Err(RecoveryError::Unavailable) => {
+			report_availability.send(false).map_err(|_| Error::OneshotSendFailed)?;
+
 			return Err(ParticipationError::MissingAvailableData(candidate_hash).into());
 		}
 	};
@@ -223,7 +238,6 @@ async fn participate(
 				code_tx,
 			),
 		)
-		.into(),
 	)
 	.await;
 
@@ -252,7 +266,6 @@ async fn participate(
 			available_data.clone(),
 			store_available_data_tx,
 		)
-		.into(),
 	)
 	.await;
 
@@ -277,7 +290,6 @@ async fn participate(
 			available_data.pov,
 			validation_tx,
 		)
-		.into(),
 	)
 	.await;
 
@@ -360,13 +372,13 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 ) {
-	ctx.send_message(AllMessages::DisputeCoordinator(
+	ctx.send_message(
 		DisputeCoordinatorMessage::IssueLocalStatement(
 			session,
 			candidate_hash,
 			candidate_receipt,
 			valid,
 		),
-	))
+	)
 	.await
 }

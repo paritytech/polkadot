@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers as test_helpers;
-use polkadot_subsystem::messages::{RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_node_network_protocol::{
 	our_view, ObservedRole, request_response::{Requests, ResponseSender},
 };
