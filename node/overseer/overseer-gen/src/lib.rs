@@ -67,7 +67,7 @@ pub use tracing;
 #[doc(hidden)]
 pub use metered;
 #[doc(hidden)]
-pub use sp_core::traits::SpawnNamed;
+pub use polkadot_node_primitives::SpawnNamed;
 
 #[doc(hidden)]
 pub use futures::{
