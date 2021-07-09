@@ -40,7 +40,7 @@ struct MetricsInner {
 
 	/// Number of requests for which `ImportStatements` returned.
 	///
-	/// We both have success full imports and failed imports here.
+	/// We both have successful imports and failed imports here.
 	imported_requests: CounterVec<U64>,
 }
 

@@ -23,7 +23,8 @@ debian/M
 decodable/MS
 dispatchable/SM
 DMP/SM
-DOT/S
+DOTs
+DOT/SM
 ed25519
 enum/MS
 ERC-20
@@ -72,6 +73,7 @@ PoV/MS
 promethius
 promethius'
 provisioner/MS
+PVF/S
 redhat/M
 repo/MS
 RPC/MS
@@ -94,7 +96,7 @@ tuple/SM
 ubuntu/M
 UDP
 UI
-unfinalize/B
+unfinalize/BD
 union/MSG
 unservable/B
 validator/SM
