@@ -299,7 +299,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	with_staking: bool,
 ) -> Result<Ext, Error> {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
-	let system_block_hash_key = <frame_system::BlockHash<T>>::prefix_hash();
+	use sp_core::hashing::twox_128;
 
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
@@ -322,7 +322,8 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 			},
 			..Default::default()
 		}))
-		.inject_hashed_prefix(&system_block_hash_key)
+		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
+		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
 		.await
 		.map_err(|why| Error::RemoteExternalities(why))
