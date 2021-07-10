@@ -17,6 +17,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
