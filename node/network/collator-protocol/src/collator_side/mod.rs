@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet, VecDeque}, pin::Pin};
+use std::{collections::{HashMap, HashSet, VecDeque}, pin::Pin, time::Duration};
 
 use futures::{FutureExt, StreamExt, channel::oneshot, stream::FuturesUnordered, select, Future};
 use sp_core::Pair;
@@ -38,6 +38,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1,
 };
 use polkadot_node_subsystem_util::{
+	TimeoutExt,
 	metrics::{self, prometheus},
 	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}
 };
@@ -50,6 +51,19 @@ use super::{LOG_TARGET,  Result};
 mod tests;
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
+const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Message received when previous one was still being processed");
+
+/// Time after starting an upload to a validator we will start another one to the next validator,
+/// even if the upload was not finished yet.
+///
+/// This is to protect from a single slow validator preventing collations from happening.
+///
+/// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
+/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
+/// plenty and should be low enough for later validators to still be able to finish on time.
+///
+/// There is debug logging output, so we can adjust this value based on production results.
+const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(400);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -208,9 +222,14 @@ struct WaitingCollationFetches {
 	collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
 	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
+	/// All peers that are waiting or actively uploading.
+	///
+	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of
+	/// moving on to the next peer after `MAX_UNSHARED_UPLOAD_TIME` would be pointless.
+	waiting_peers: HashSet<PeerId>,
 }
 
-type ActiveCollationFetches = FuturesUnordered<Pin<Box<dyn Future<Output = Hash> + Send + 'static>>>;
+type ActiveCollationFetches = FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
 
 struct State {
 	/// Our network peer id.
@@ -684,6 +703,17 @@ where
 
 						let waiting = state.waiting_collation_fetches.entry(incoming.payload.relay_parent).or_default();
 
+						if !waiting.waiting_peers.insert(incoming.peer) {
+							tracing::debug!(
+								target: LOG_TARGET,
+								"Dropping incoming request as peer has a request in flight already."
+							);
+							ctx.send_message(
+								NetworkBridgeMessage::ReportPeer(incoming.peer, COST_APPARENT_FLOOD)
+							).await;
+							return Ok(())
+						}
+
 						if waiting.collation_fetch_active {
 							waiting.waiting.push_back(incoming);
 						} else {
@@ -724,6 +754,7 @@ async fn send_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let relay_parent = request.payload.relay_parent;
+	let peer_id = request.peer;
 
 	let response = OutgoingResponse {
 		result: Ok(CollationFetchingResponse::Collation(receipt, pov)),
@@ -739,8 +770,16 @@ async fn send_collation(
 	}
 
 	state.active_collation_fetches.push(async move {
-		let _ = rx.await;
-		relay_parent
+		let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
+		if r.is_none() {
+			tracing::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?peer_id,
+				"Sending collation to validator timed out, carrying on with next validator."
+			);
+		}
+		(relay_parent, peer_id)
 	}.boxed());
 
 	state.metrics.on_collation_sent();
@@ -986,8 +1025,9 @@ where
 				FromOverseer::Signal(BlockFinalized(..)) => {}
 				FromOverseer::Signal(Conclude) => return Ok(()),
 			},
-			relay_parent = state.active_collation_fetches.select_next_some() => {
+			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
+					waiting.waiting_peers.remove(&peer_id);
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
 					} else {

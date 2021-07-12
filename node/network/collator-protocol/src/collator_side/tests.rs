@@ -560,6 +560,34 @@ fn advertise_and_send_collation() {
 				)
 			)
 		).await;
+		// Second request by same validator should get dropped and peer reported:
+		{
+			let (tx, rx) = oneshot::channel();
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::CollationFetchingRequest(
+					IncomingRequest::new(
+						peer,
+						CollationFetchingRequest {
+							relay_parent: test_state.relay_parent,
+							para_id: test_state.para_id,
+						},
+						tx,
+					)
+				)
+			).await;
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
+					assert_eq!(bad_peer, peer); 
+				}
+			);
+			assert_matches!(
+				rx.await,
+				Err(_),
+				"Multiple concurrent requests by the same validator should get dropped."
+			);
+		}
 
 		assert_matches!(
 			rx.await,
@@ -620,123 +648,29 @@ fn advertise_and_send_collation() {
 
 #[test]
 fn send_only_one_collation_per_relay_parent_at_a_time() {
-	let test_state = TestState::default();
-	let local_peer_id = test_state.local_peer_id.clone();
-	let collator_pair = test_state.collator_pair.clone();
+	test_validator_send_sequence(|mut second_response_receiver, feedback_first_tx| async move {
+			Delay::new(Duration::from_millis(100)).await;
+			assert!(
+				second_response_receiver.try_recv().unwrap().is_none(),
+				"We should not have send the collation yet to the second validator",
+			);
 
-	test_harness(local_peer_id, collator_pair, |test_harness| async move {
-		let mut virtual_overseer = test_harness.virtual_overseer;
-
-		setup_system(&mut virtual_overseer, &test_state).await;
-
-		let DistributeCollation { candidate, pov_block } =
-			distribute_collation(&mut virtual_overseer, &test_state, true).await;
-
-		for (val, peer) in test_state.current_group_validator_authority_ids()
-			.into_iter()
-			.zip(test_state.current_group_validator_peer_ids())
-		{
-			connect_peer(&mut virtual_overseer, peer.clone(), Some(val.clone())).await;
+			// Signal that the collation fetch is finished
+			feedback_first_tx.send(()).expect("Sending collation fetch finished");
+			second_response_receiver
 		}
-
-		// We declare to the connected validators that we are a collator.
-		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
-		for peer_id in test_state.current_group_validator_peer_ids() {
-			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
-		}
-
-		let validator_0 = test_state.current_group_validator_peer_ids()[0].clone();
-		let validator_1 = test_state.current_group_validator_peer_ids()[1].clone();
-
-		// Send info about peer's view.
-		send_peer_view_change(&mut virtual_overseer, &validator_0, vec![test_state.relay_parent]).await;
-		send_peer_view_change(&mut virtual_overseer, &validator_1, vec![test_state.relay_parent]).await;
-
-		// The peer is interested in a leaf that we have a collation for;
-		// advertise it.
-		expect_advertise_collation_msg(&mut virtual_overseer, &validator_0, test_state.relay_parent).await;
-		expect_advertise_collation_msg(&mut virtual_overseer, &validator_1, test_state.relay_parent).await;
-
-		// Request a collation.
-		let (tx, rx) = oneshot::channel();
-		overseer_send(
-			&mut virtual_overseer,
-			CollatorProtocolMessage::CollationFetchingRequest(
-				IncomingRequest::new(
-					validator_0,
-					CollationFetchingRequest {
-						relay_parent: test_state.relay_parent,
-						para_id: test_state.para_id,
-					},
-					tx,
-				)
-			)
-		).await;
-
-		// Keep the feedback channel alive because we need to use it to inform about the finished transfer.
-		let feedback_tx = assert_matches!(
-			rx.await,
-			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
-						&mut full_response.result
-						.expect("We should have a proper answer").as_ref()
-				)
-				.expect("Decoding should work");
-				assert_eq!(receipt, candidate);
-				assert_eq!(pov, pov_block);
-
-				full_response.sent_feedback.expect("Feedback channel is always set")
-			}
-		);
-
-		// Let the second validator request the collation.
-		let (tx, mut rx) = oneshot::channel();
-		overseer_send(
-			&mut virtual_overseer,
-			CollatorProtocolMessage::CollationFetchingRequest(
-				IncomingRequest::new(
-					validator_1,
-					CollationFetchingRequest {
-						relay_parent: test_state.relay_parent,
-						para_id: test_state.para_id,
-					},
-					tx,
-				)
-			)
-		).await;
-
-		Delay::new(Duration::from_millis(500)).await;
-
-		assert!(
-			rx.try_recv().unwrap().is_none(),
-			"We should not have send the collation yet to the second validator",
-		);
-
-		// Signal that the collation fetch is finished
-		feedback_tx.send(()).expect("Sending collation fetch finished");
-
-		// Now we should send it to the second validator
-		assert_matches!(
-			rx.await,
-			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
-						&mut full_response.result
-						.expect("We should have a proper answer").as_ref()
-				)
-				.expect("Decoding should work");
-				assert_eq!(receipt, candidate);
-				assert_eq!(pov, pov_block);
-
-				full_response.sent_feedback.expect("Feedback channel is always set")
-			}
-		);
-
-		virtual_overseer
-	});
+	);
 }
+
+#[test]
+fn send_next_collation_after_max_unshared_upload_time() {
+	test_validator_send_sequence(|second_response_receiver, _| async move {
+			Delay::new(MAX_UNSHARED_UPLOAD_TIME + Duration::from_millis(50)).await;
+			second_response_receiver
+		}
+	);
+}
+
 
 #[test]
 fn collators_declare_to_connected_peers() {
@@ -923,4 +857,128 @@ fn collators_reject_declare_messages() {
 		);
 		virtual_overseer
 	})
+}
+
+/// Run tests on validator response sequence.
+///
+/// After the first response is done, the passed in lambda will be called with the receiver for the
+/// next response and a sender for giving feedback on the response of the first transmission. After
+/// the lamda has passed it is assumed that the second response is sent, which is checked by this
+/// function.
+///
+/// The lambda can trigger occasions on which the second response should be sent, like timeouts,
+/// successful completion.
+fn test_validator_send_sequence<T, F>(handle_first_response: T)
+where
+	T: FnOnce(oneshot::Receiver<sc_network::config::OutgoingResponse>, oneshot::Sender<()>) -> F,
+	F: Future<Output=oneshot::Receiver<sc_network::config::OutgoingResponse>>
+{
+	let test_state = TestState::default();
+	let local_peer_id = test_state.local_peer_id.clone();
+	let collator_pair = test_state.collator_pair.clone();
+
+	test_harness(local_peer_id, collator_pair, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+
+		setup_system(&mut virtual_overseer, &test_state).await;
+
+		let DistributeCollation { candidate, pov_block } =
+			distribute_collation(&mut virtual_overseer, &test_state, true).await;
+
+		for (val, peer) in test_state.current_group_validator_authority_ids()
+			.into_iter()
+			.zip(test_state.current_group_validator_peer_ids())
+		{
+			connect_peer(&mut virtual_overseer, peer.clone(), Some(val.clone())).await;
+		}
+
+		// We declare to the connected validators that we are a collator.
+		// We need to catch all `Declare` messages to the validators we've
+		// previosly connected to.
+		for peer_id in test_state.current_group_validator_peer_ids() {
+			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
+		}
+
+		let validator_0 = test_state.current_group_validator_peer_ids()[0].clone();
+		let validator_1 = test_state.current_group_validator_peer_ids()[1].clone();
+
+		// Send info about peer's view.
+		send_peer_view_change(&mut virtual_overseer, &validator_0, vec![test_state.relay_parent]).await;
+		send_peer_view_change(&mut virtual_overseer, &validator_1, vec![test_state.relay_parent]).await;
+
+		// The peer is interested in a leaf that we have a collation for;
+		// advertise it.
+		expect_advertise_collation_msg(&mut virtual_overseer, &validator_0, test_state.relay_parent).await;
+		expect_advertise_collation_msg(&mut virtual_overseer, &validator_1, test_state.relay_parent).await;
+
+		// Request a collation.
+		let (tx, rx) = oneshot::channel();
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::CollationFetchingRequest(
+				IncomingRequest::new(
+					validator_0,
+					CollationFetchingRequest {
+						relay_parent: test_state.relay_parent,
+						para_id: test_state.para_id,
+					},
+					tx,
+				)
+			)
+		).await;
+
+		// Keep the feedback channel alive because we need to use it to inform about the finished transfer.
+		let feedback_tx = assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
+					= CollationFetchingResponse::decode(
+						&mut full_response.result
+						.expect("We should have a proper answer").as_ref()
+				)
+				.expect("Decoding should work");
+				assert_eq!(receipt, candidate);
+				assert_eq!(pov, pov_block);
+
+				full_response.sent_feedback.expect("Feedback channel is always set")
+			}
+		);
+
+		// Let the second validator request the collation.
+		let (tx, rx) = oneshot::channel();
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::CollationFetchingRequest(
+				IncomingRequest::new(
+					validator_1,
+					CollationFetchingRequest {
+						relay_parent: test_state.relay_parent,
+						para_id: test_state.para_id,
+					},
+					tx,
+				)
+			)
+		).await;
+
+		let rx = handle_first_response(rx, feedback_tx).await;
+
+		// Now we should send it to the second validator
+		assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
+					= CollationFetchingResponse::decode(
+						&mut full_response.result
+						.expect("We should have a proper answer").as_ref()
+				)
+				.expect("Decoding should work");
+				assert_eq!(receipt, candidate);
+				assert_eq!(pov, pov_block);
+
+				full_response.sent_feedback.expect("Feedback channel is always set")
+			}
+		);
+
+		virtual_overseer
+	});
 }
