@@ -128,11 +128,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			{
 				Ok(sub) => sub,
 				Err(why) => {
-				// This usually happens when we've been busy with mining for a few blocks, and now we're receiving the subscriptions of blocks in which we were busy. 
-				// In these blocks, we still don't have a solution, so we re-compite a new solution
-				// and submit it with an outdated `Nonce`, which yields most often `Stale` error.
-				// NOTE: to improve this overall, and to be able to intoroduce an array of other fancy features, 
-				//  we should make this multi-threaded and do the computation outside of this callback.
+				// This usually happens when we've been busy with mining for a few blocks, and now we're receiving the
+				// subscriptions of blocks in which we were busy. In these blocks, we still don't have a solution, so we
+				// re-compute a new solution and submit it with an outdated `Nonce`, which yields most often `Stale`
+				// error. NOTE: to improve this overall, and to be able to introduce an array of other fancy features,
+				// we should make this multi-threaded and do the computation outside of this callback.
 					log::warn!(target: LOG_TARGET, "failing to submit a transaction {:?}. continuing...", why);
 					continue
 				}
