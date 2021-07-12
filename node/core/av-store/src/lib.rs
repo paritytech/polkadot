@@ -37,7 +37,9 @@ use polkadot_node_primitives::{
 	ErasureChunk, AvailableData,
 };
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+	FromOverseer, OverseerSignal, SubsystemError,
+	SubsystemContext, SpawnedSubsystem,
+	overseer,
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };
@@ -46,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
-	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AvailabilityStoreMessage, ChainApiMessage,
 };
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
@@ -522,9 +524,10 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
 where
 	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
@@ -540,7 +543,8 @@ where
 
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
@@ -570,7 +574,8 @@ async fn run_iteration<Context>(
 )
 	-> Result<bool, Error>
 where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
@@ -615,18 +620,22 @@ where
 	Ok(false)
 }
 
-async fn process_block_activated(
-	ctx: &mut impl SubsystemContext,
+async fn process_block_activated<Context>(
+	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 	let now = subsystem.clock.now()?;
 
 	let block_header = {
 		let (tx, rx) = oneshot::channel();
 
 		ctx.send_message(
-			ChainApiMessage::BlockHeader(activated, tx).into()
+			ChainApiMessage::BlockHeader(activated, tx)
 		).await;
 
 		match rx.await?? {
@@ -646,9 +655,11 @@ async fn process_block_activated(
 		subsystem.finalized_number.unwrap_or(block_number.saturating_sub(1)),
 	).await?;
 
-	let mut tx = DBTransaction::new();
 	// determine_new_blocks is descending in block height
 	for (hash, header) in new_blocks.into_iter().rev() {
+		// it's important to commit the db transactions for a head before the next one is processed
+		// alternatively, we could utilize the OverlayBackend from approval-voting
+		let mut tx = DBTransaction::new();
 		process_new_head(
 			ctx,
 			&subsystem.db,
@@ -660,14 +671,14 @@ async fn process_block_activated(
 			header,
 		).await?;
 		subsystem.known_blocks.insert(hash, block_number);
+		subsystem.db.write(tx)?;
 	}
-	subsystem.db.write(tx)?;
 
 	Ok(())
 }
 
-async fn process_new_head(
-	ctx: &mut impl SubsystemContext,
+async fn process_new_head<Context>(
+	ctx: &mut Context,
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
@@ -675,27 +686,23 @@ async fn process_new_head(
 	now: Duration,
 	hash: Hash,
 	header: Header,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 
-	let candidate_events = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(tx)).into()
-		).await;
-
-		rx.await??
-	};
+	let candidate_events = util::request_candidate_events(
+		hash,
+		ctx.sender(),
+	).await.await??;
 
 	// We need to request the number of validators based on the parent state,
 	// as that is the number of validators used to create this block.
-	let n_validators = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx)).into()
-		).await;
-
-		rx.await??.len()
-	};
+	let n_validators = util::request_validators(
+		header.parent_hash,
+		ctx.sender(),
+	).await.await??.len();
 
 	for event in candidate_events {
 		match event {
@@ -835,12 +842,16 @@ macro_rules! peek_num {
 	}
 }
 
-async fn process_block_finalized(
-	ctx: &mut impl SubsystemContext,
+async fn process_block_finalized<Context>(
+	ctx: &mut Context,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
+{
 	let now = subsystem.clock.now()?;
 
 	let mut next_possible_batch = 0;
@@ -869,7 +880,7 @@ async fn process_block_finalized(
 			finalized_hash
 		} else {
 			let (tx, rx) = oneshot::channel();
-			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx).into()).await;
+			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx)).await;
 
 			match rx.await?? {
 				None => {

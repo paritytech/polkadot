@@ -143,7 +143,6 @@ impl std::ops::Deref for PerLeafSpan {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum Stage {
-	CandidateSelection = 1,
 	CandidateBacking = 2,
 	StatementDistribution = 3,
 	PoVDistribution = 4,

@@ -41,7 +41,7 @@ use {
 	},
 	polkadot_subsystem::messages::{ApprovalVotingMessage, ChainSelectionMessage},
 	polkadot_node_subsystem_util::metrics::{self, prometheus},
-	polkadot_overseer::OverseerHandler,
+	polkadot_overseer::Handle,
 	futures::channel::oneshot,
 	consensus_common::{Error as ConsensusError, SelectChain},
 	sp_blockchain::HeaderBackend,
@@ -111,7 +111,7 @@ impl Metrics {
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B> {
 	backend: Arc<B>,
-	overseer: OverseerHandler,
+	overseer: Handle,
 	// A fallback to use in case the overseer is disconnected.
 	//
 	// This is used on relay chains which have not yet enabled
@@ -126,7 +126,7 @@ impl<B> SelectRelayChain<B>
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	#[allow(unused)]
-	pub fn new(backend: Arc<B>, overseer: OverseerHandler, metrics: Metrics) -> Self {
+	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			fallback: sc_consensus::LongestChain::new(backend.clone()),
 			backend,
@@ -172,7 +172,7 @@ impl<B> SelectRelayChain<B> {
 	#[allow(unused)]
 	pub fn connect_overseer_handler(
 		&mut self,
-		other_handler: &OverseerHandler,
+		other_handler: &Handle,
 	) {
 		other_handler.connect_other(&mut self.overseer);
 	}

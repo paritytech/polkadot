@@ -28,5 +28,6 @@ assert_matches = "1.4.0"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
