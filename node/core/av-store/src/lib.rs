@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
-	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AvailabilityStoreMessage, ChainApiMessage,
 };
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
