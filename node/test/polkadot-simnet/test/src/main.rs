@@ -81,6 +81,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         // we're done, drop node.
         drop(node);
 
-         Ok(())
+        Ok(())
     })
 }
