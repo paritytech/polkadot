@@ -17,17 +17,24 @@
 use std::{error::Error, str::FromStr};
 
 use polkadot_simnet::{run, dispatch_with_root};
-use polkadot_runtime::{Event, Runtime};
+use polkadot_runtime::Event;
+use sp_runtime::generic::BlockId;
+use sc_client_api::{ExecutorProvider, CallExecutor};
 use sp_core::crypto::AccountId32;
+use sp_blockchain::HeaderBackend;
 
 fn main() -> Result<(), Box<dyn Error>> {
     run(|node| async {
-        let old_runtime_version = node.with_state(|| system::Pallet::<Runtime>::runtime_version().spec_version);
-         let wasm_binary = polkadot_runtime::WASM_BINARY
+        let old_runtime_version = node.client()
+            .executor()
+            .runtime_version(&BlockId::Hash(node.client().info().best_hash))?
+            .spec_version;
+
+        let wasm_binary = polkadot_runtime::WASM_BINARY
              .ok_or("Polkadot development wasm not available")?
              .to_vec();
-         // start runtime upgrade
-         dispatch_with_root(system::Call::set_code(wasm_binary).into(), &node).await?;
+         // upgrade runtime.
+         dispatch_with_root(system::Call::set_code(wasm_binary), &node).await?;
 
         // assert that the runtime has been updated by looking at events
         let events = node.events()
@@ -40,9 +47,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             })
             .collect::<Vec<_>>();
 
-        // make sure all events were emitted
+        // make sure event was emitted
         assert_eq!(events.len(), 1);
-        let new_runtime_version = node.with_state(|| system::Pallet::<Runtime>::runtime_version().spec_version);
+        let new_runtime_version = node.client()
+            .executor()
+            .runtime_version(&BlockId::Hash(node.client().info().best_hash))?
+            .spec_version;
+        // just confirming
         assert!(new_runtime_version > old_runtime_version);
 
         let (from, dest, balance) = (
@@ -67,8 +78,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         // make sure transfer went through
         assert_eq!(events.len(), 1);
 
-         // we're done, drop node.
-         drop(node);
+        // we're done, drop node.
+        drop(node);
 
          Ok(())
     })?;

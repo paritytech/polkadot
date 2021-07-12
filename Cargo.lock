@@ -6968,7 +6968,10 @@ dependencies = [
  "pallet-balances",
  "polkadot-runtime",
  "polkadot-simnet",
+ "sc-client-api",
+ "sp-blockchain",
  "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]

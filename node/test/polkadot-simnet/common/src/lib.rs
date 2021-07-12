@@ -80,7 +80,7 @@ impl ChainInfo for PolkadotChainInfo {
 }
 
 /// Dispatch with root origin, via pallet-democracy
-pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, node: &Node<T>)
+pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config>::Call>, node: &Node<T>)
     -> Result<(), Box<dyn Error>>
     where
         T: ChainInfo<
@@ -122,12 +122,12 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
     // hash of the proposal in democracy
     let proposal_hash = {
         // note the call (pre-image?) of the call.
-        node.submit_extrinsic(DemocracyCall::note_preimage(call.encode()), whales[0].clone()).await?;
+        node.submit_extrinsic(DemocracyCall::note_preimage(call.into().encode()), whales[0].clone()).await?;
         node.seal_blocks(1).await;
 
         // fetch proposal hash from event emitted by the runtime
-        let events = node.events();
-        events.into_iter()
+        node.events()
+            .into_iter()
             .filter_map(|event| match event.event {
                 Event::Democracy(democracy::Event::PreimageNoted(proposal_hash, _, _)) => Some(proposal_hash),
                 _ => None
@@ -151,8 +151,8 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
         node.seal_blocks(1).await;
 
         // fetch proposal index from event emitted by the runtime
-        let events = node.events();
-        let (index, hash): (u32, H256) = events.into_iter()
+        let (index, hash): (u32, H256) = node.events()
+            .into_iter()
             .filter_map(|event| {
                 match event.event {
                     Event::Council(CouncilCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
@@ -229,7 +229,7 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
         node.seal_blocks(1).await;
 
         // assert that fast-track proposal has been passed on chain
-        let collective_events = node.events()
+        let events = node.events()
             .into_iter()
             .filter(|event| {
                 match event.event {
@@ -242,11 +242,12 @@ pub async fn dispatch_with_root<T>(call: <T::Runtime as system::Config>::Call, n
             .collect::<Vec<_>>();
 
         // make sure all 3 events are in state
-        assert_eq!(collective_events.len(), 3);
+        assert_eq!(events.len(), 3);
     }
 
     // now runtime upgrade proposal is a fast-tracked referendum we can vote for.
-    let referendum_index = node.events().into_iter()
+    let referendum_index = node.events()
+        .into_iter()
         .filter_map(|event| match event.event {
             Event::Democracy(democracy::Event::<Runtime>::Started(index, _)) => Some(index),
             _ => None,
