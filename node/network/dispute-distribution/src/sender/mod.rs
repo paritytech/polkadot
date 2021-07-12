@@ -358,6 +358,6 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	))
 	.await;
 	rx.await
-		.map(|v| v.get(0).map(|inner| inner.to_owned()))
+		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
 		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
 }

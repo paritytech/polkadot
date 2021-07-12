@@ -266,7 +266,7 @@ fn disputes_are_recovered_at_startup() {
 					assert_eq!(session_index, MOCK_SESSION_INDEX);
 					assert_eq!(candidate_hash, candidate.hash());
 					let unchecked: UncheckedDisputeMessage = message.into();
-					tx.send(vec![CandidateVotes {
+					tx.send(vec![(session_index, candidate_hash, CandidateVotes {
 						candidate_receipt: candidate,
 						valid: vec![(
 							unchecked.valid_vote.kind,
@@ -278,7 +278,7 @@ fn disputes_are_recovered_at_startup() {
 							unchecked.invalid_vote.validator_index,
 							unchecked.invalid_vote.signature
 						)],
-					}])
+					})])
 					.expect("Receiver should stay alive.");
 				}
 			);

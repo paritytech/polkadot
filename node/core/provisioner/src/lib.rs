@@ -38,9 +38,8 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex, MultiDisputeStatementSet, DisputeStatementSet,
-	DisputeStatement, SessionIndex, CandidateHash,
+	DisputeStatement,
 };
-use polkadot_node_primitives::CandidateVotes;
 use std::{pin::Pin, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 use futures_timer::Delay;
@@ -567,17 +566,15 @@ async fn select_disputes(
 	};
 
 	// Load all votes for all disputes from the coordinator.
-	let dispute_candidate_votes: Vec<_> = {
+	let dispute_candidate_votes = {
 		let (tx, rx) = oneshot::channel();
 		sender.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(
-			recent_disputes.clone(),
+			recent_disputes,
 			tx,
 		).into()).await;
 
 		match rx.await {
-			Ok(v) => v.into_iter().zip(recent_disputes.into_iter())
-						.map(|(vote, (session_index, candidate_hash))| (session_index, candidate_hash, vote))
-						.collect::<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>(),
+			Ok(v) => v,
 			Err(oneshot::Canceled) => {
 				tracing::debug!(
 					target: LOG_TARGET,

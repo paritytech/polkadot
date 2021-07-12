@@ -455,12 +455,12 @@ async fn handle_incoming(
 					session_index,
 					&candidate_hash,
 				)? {
-					query_output.push(v.into());
+					query_output.push((session_index, candidate_hash, v.into()));
 				} else {
-					return Err(
-						Error::Io(
-							std::io::Error::new(std::io::ErrorKind::NotFound, "Candidate Votes not found")
-						)
+					tracing::debug!(
+						target: LOG_TARGET,
+						session_index,
+						"No votes found for candidate",
 					);
 				}
 			}
