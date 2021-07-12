@@ -699,14 +699,10 @@ where
 
 	// We need to request the number of validators based on the parent state,
 	// as that is the number of validators used to create this block.
-	let n_validators = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx))
-		).await;
-
-		rx.await??.len()
-	};
+	let n_validators = util::request_validators(
+		header.parent_hash,
+		ctx.sender(),
+	).await.await??.len();
 
 	for event in candidate_events {
 		match event {
