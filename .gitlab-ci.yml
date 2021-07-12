@@ -170,7 +170,7 @@ spellcheck:
   <<:                              *rules-test
   script:
     # should compare with the target branch of the PR, but it's not given by our mirroring
-    - cargo spellcheck check -vvv --cfg=.config/spellcheck.toml --checkers hunspell --code 1 
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
         -r $(git diff-tree --no-commit-id --name-only -r ${CI_DEFAULT_BRANCH})
   allow_failure:                   true
 

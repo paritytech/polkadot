@@ -67,6 +67,7 @@ encodable
 stateful
 accessors
 activations
+sdf
 MB/M
 DoS
 DDoS
