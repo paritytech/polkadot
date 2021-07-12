@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! V1 database for the dispute coordinator.
+//! `V1` database for the dispute coordinator.
 
 use polkadot_primitives::v1::{
 	CandidateReceipt, ValidDisputeStatementKind, InvalidDisputeStatementKind, ValidatorIndex,

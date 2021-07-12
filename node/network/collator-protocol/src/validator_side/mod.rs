@@ -687,7 +687,7 @@ async fn handle_peer_view_change(
 /// This function will
 ///  - Check for duplicate requests.
 ///  - Check if the requested collation is in our view.
-///  - Update PerRequest records with the `result` field if necessary.
+///  - Update `PerRequest` records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
 async fn request_collation<Context>(
 	ctx: &mut Context,

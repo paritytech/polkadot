@@ -112,7 +112,7 @@ async fn get_core_availability(
 	}
 }
 
-/// delegates to the v1 runtime API
+/// delegates to the `v1` runtime API
 async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,
@@ -312,5 +312,5 @@ impl JobTrait for BitfieldSigningJob {
 	}
 }
 
-/// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
+/// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;

@@ -1,6 +1,6 @@
 # Polkadot
 
-Implementation of a https://polkadot.network node in Rust based on the Substrate framework.
+Implementation of a <https://polkadot.network> node in Rust based on the Substrate framework.
 
 > **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework
 > "Substrate". See the [Substrate][substrate-repo] repo for git history prior to 2018.
@@ -207,7 +207,7 @@ You can run a simple single-node development "network" on your machine by runnin
 polkadot --dev
 ```
 
-You can muck around by heading to https://polkadot.js.org/apps and choose "Local Node" from the
+You can muck around by heading to <https://polkadot.js.org/apps> and choose "Local Node" from the
 Settings menu.
 
 ### Local Two-node Testnet
@@ -249,4 +249,4 @@ Polkadot is [GPL 3.0 licensed](LICENSE).
 
 ## Important Notice
 
-https://polkadot.network/testnetdisclaimer
+<https://polkadot.network/testnetdisclaimer>

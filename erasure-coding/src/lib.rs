@@ -20,7 +20,7 @@
 //! The way we accomplish this is by erasure coding the data into n pieces
 //! and constructing a merkle root of the data.
 //!
-//! Each of n validators stores their piece of data. We assume n=3f+k, 0 < k ≤ 3.
+//! Each of n validators stores their piece of data. We assume `n = 3f + k`, `0 < k ≤ 3`.
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
@@ -58,7 +58,7 @@ pub enum Error {
 	/// Chunks not of uniform length or the chunks are empty.
 	#[error("Chunks are not unform, mismatch in length or are zero sized")]
 	NonUniformChunks,
-	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
+	/// An uneven byte-length of a shard is not valid for `GF(2^16)` encoding.
 	#[error("Uneven length is not valid for field GF(2^16)")]
 	UnevenLength,
 	/// Chunk index out of bounds.
@@ -119,7 +119,7 @@ pub fn obtain_chunks_v0(n_validators: usize, data: &v0::AvailableData)
 	obtain_chunks(n_validators, data)
 }
 
-/// Obtain erasure-coded chunks for v1 `AvailableData`, one for each validator.
+/// Obtain erasure-coded chunks for `v1` `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn obtain_chunks_v1(n_validators: usize, data: &AvailableData)
@@ -147,7 +147,7 @@ fn obtain_chunks<T: Encode>(n_validators: usize, data: &T)
 	Ok(shards.into_iter().map(|w: WrappedShard| w.into_inner()).collect())
 }
 
-/// Reconstruct the v0 available data from a set of chunks.
+/// Reconstruct the `v0` available data from a set of chunks.
 ///
 /// Provide an iterator containing chunk data and the corresponding index.
 /// The indices of the present chunks must be indicated. If too few chunks
@@ -161,7 +161,7 @@ pub fn reconstruct_v0<'a, I: 'a>(n_validators: usize, chunks: I)
 	reconstruct(n_validators, chunks)
 }
 
-/// Reconstruct the v1 available data from a set of chunks.
+/// Reconstruct the `v1` available data from a set of chunks.
 ///
 /// Provide an iterator containing chunk data and the corresponding index.
 /// The indices of the present chunks must be indicated. If too few chunks
