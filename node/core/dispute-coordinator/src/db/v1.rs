@@ -20,6 +20,7 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, ValidDisputeStatementKind, InvalidDisputeStatementKind, ValidatorIndex,
 	ValidatorSignature, SessionIndex, CandidateHash, Hash,
 };
+use polkadot_node_subsystem::{SubsystemResult, SubsystemError};
 
 use kvdb::{KeyValueDB, DBTransaction};
 use parity_scale_codec::{Encode, Decode};
@@ -134,24 +135,27 @@ pub(crate) fn load_candidate_votes(
 	config: &ColumnConfiguration,
 	session: SessionIndex,
 	candidate_hash: &CandidateHash,
-) -> Result<Option<CandidateVotes>> {
+) -> SubsystemResult<Option<CandidateVotes>> {
 	load_decode(db, config.col_data, &candidate_votes_key(session, candidate_hash))
+		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
 /// Load the earliest session, if any.
 pub(crate) fn load_earliest_session(
 	db: &dyn KeyValueDB,
 	config: &ColumnConfiguration,
-) -> Result<Option<SessionIndex>> {
+) -> SubsystemResult<Option<SessionIndex>> {
 	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
+		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
 /// Load the recent disputes, if any.
 pub(crate) fn load_recent_disputes(
 	db: &dyn KeyValueDB,
 	config: &ColumnConfiguration,
-) -> Result<Option<RecentDisputes>> {
+) -> SubsystemResult<Option<RecentDisputes>> {
 	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
+		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
 /// An atomic transaction to be commited to the underlying DB.
@@ -203,7 +207,7 @@ impl Transaction {
 	}
 
 	/// Write the transaction atomically to the DB.
-	pub(crate) fn write(self, db: &dyn KeyValueDB, config: &ColumnConfiguration) -> Result<()> {
+	pub(crate) fn write(self, db: &dyn KeyValueDB, config: &ColumnConfiguration) -> SubsystemResult<()> {
 		let mut tx = DBTransaction::new();
 
 		if let Some(s) = self.earliest_session {
@@ -238,7 +242,7 @@ pub(crate) fn note_current_session(
 	store: &dyn KeyValueDB,
 	config: &ColumnConfiguration,
 	current_session: SessionIndex,
-) -> Result<()> {
+) -> SubsystemResult<()> {
 	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW);
 	let mut tx = Transaction::default();
 
