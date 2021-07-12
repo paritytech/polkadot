@@ -71,7 +71,7 @@ pub enum Protocol {
 }
 
 
-/// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
+/// Minimum bandwidth we expect for validators - 500 Mbit/s is the recommendation, so approximately
 /// 50 MB per second:
 const MIN_BANDWIDTH_BYTES: u64  = 50 * 1024 * 1024;
 

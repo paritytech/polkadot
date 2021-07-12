@@ -112,7 +112,7 @@ async fn get_core_availability(
 	}
 }
 
-/// delegates to the `v1` runtime API
+/// delegates to the v1 runtime API
 async fn get_availability_cores(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,

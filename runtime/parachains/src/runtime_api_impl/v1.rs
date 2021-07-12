@@ -11,10 +11,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using `v1`
+//! A module exporting runtime API implementation functions for all runtime APIs using v1
 //! primitives.
 //!
-//! Runtimes implementing the `v1` runtime API are recommended to forward directly to these
+//! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
 use sp_std::prelude::*;

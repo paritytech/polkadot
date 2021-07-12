@@ -344,7 +344,7 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	// Register a Para ID under control of `manager`.
 	//
-	// Note this is a backend registration api, so verification of ParaId
+	// Note this is a backend registration API, so verification of ParaId
 	// is not done here to prevent.
 	fn register(
 		manager: T::AccountId,
