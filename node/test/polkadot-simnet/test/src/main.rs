@@ -82,7 +82,5 @@ fn main() -> Result<(), Box<dyn Error>> {
         drop(node);
 
          Ok(())
-    })?;
-
-    Ok(())
+    })
 }
