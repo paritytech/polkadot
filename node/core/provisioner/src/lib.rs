@@ -23,7 +23,6 @@ use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
-	stream::FuturesOrdered,
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, SubsystemSender, jaeger,
@@ -575,9 +574,18 @@ async fn select_disputes(
 			tx,
 		).into()).await;
 
-		rx.await.unwrap_or_default().into_iter().zip(recent_disputes.into_iter())
-			.map(|(vote, (session_index, candidate_hash))| (session_index, candidate_hash, vote))
-			.collect::<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>()
+		match rx.await {
+			Ok(v) => v.into_iter().zip(recent_disputes.into_iter())
+						.map(|(vote, (session_index, candidate_hash))| (session_index, candidate_hash, vote))
+						.collect::<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>(),
+			Err(oneshot::Canceled) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Unable to query candidate votes - subsystem disconnected?",
+				);
+				Vec::new()
+			}
+		}
 	};
 
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.

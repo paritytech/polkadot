@@ -456,6 +456,12 @@ async fn handle_incoming(
 					&candidate_hash,
 				)? {
 					query_output.push(v.into());
+				} else {
+					return Err(
+						Error::Io(
+							std::io::Error::new(std::io::ErrorKind::NotFound, "Candidate Votes not found")
+						)
+					);
 				}
 			}
 			let _ = rx.send(query_output);
