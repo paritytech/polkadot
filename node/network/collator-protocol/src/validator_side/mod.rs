@@ -866,7 +866,7 @@ where
 				);
 
 				modify_reputation(ctx, origin.clone(), COST_UNNEEDED_COLLATOR).await;
-				tracing::trace!("Disconnecting unneeded collator");
+				tracing::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx, origin).await;
 			}
 		}
@@ -1011,7 +1011,7 @@ where
 		// declare.
 		if let Some(para_id) = peer_data.collating_para() {
 			if !state.active_paras.is_current_or_next(para_id) {
-				tracing::trace!("Disconnecting peer on view change");
+				tracing::trace!(target: LOG_TARGET, "Disconnecting peer on view change");
 				disconnect_peer(ctx, peer_id.clone()).await;
 			}
 		}
@@ -1334,7 +1334,7 @@ where
 {
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
-			tracing::trace!("Disconnecting inactive peer");
+			tracing::trace!(target: LOG_TARGET, "Disconnecting inactive peer");
 			disconnect_peer(ctx, peer.clone()).await;
 		}
 	}
