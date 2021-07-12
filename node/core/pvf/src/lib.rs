@@ -30,7 +30,7 @@
 //! (b) Heads up. This request allows to signal that the given PVF may be needed soon and that it
 //!     should be prepared for execution.
 //!
-//! The preparation results are cached for some time after they either used or was signalled in heads up.
+//! The preparation results are cached for some time after they either used or was signaled in heads up.
 //! All requests that depends on preparation of the same PVF are bundled together and will be executed
 //! as soon as the artifact is prepared.
 //!
@@ -70,7 +70,7 @@
 //!
 //! The execute workers will be fed by the requests from the execution queue, which is basically a
 //! combination of a path to the compiled artifact and the
-//! [params][`polkadot_parachain::primitives::ValidationParams`].
+//! [`params`][`polkadot_parachain::primitives::ValidationParams`].
 //!
 //! Each fixed interval of time a pruning task will run. This task will remove all artifacts that
 //! weren't used or received a heads up signal for a while.

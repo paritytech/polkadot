@@ -293,7 +293,7 @@ pub struct PolkadotTestNode {
 	pub overseer_handler: Handle,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
-	/// RPCHandlers to make RPC queries.
+	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
 }
 

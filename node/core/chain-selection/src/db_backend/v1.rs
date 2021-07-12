@@ -26,7 +26,7 @@
 //! ```
 //!
 //! The big-endian encoding is used for creating iterators over the key-value DB which are
-//! accessible by prefix, to find the earlist block number stored as well as the all stagnant
+//! accessible by prefix, to find the earliest block number stored as well as the all stagnant
 //! blocks.
 //!
 //! The `Vec`s stored are always non-empty. Empty `Vec`s are not stored on disk so there is no

@@ -106,7 +106,7 @@ pub struct Config {
 	pub cache_path: PathBuf,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
-	/// The time alloted for a prepare worker to spawn and report to the host.
+	/// The time allotted for a prepare worker to spawn and report to the host.
 	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
 	/// priority below critical.
@@ -115,7 +115,7 @@ pub struct Config {
 	pub prepare_workers_hard_max_num: usize,
 	/// The path to the program that can be used to spawn the execute workers.
 	pub execute_worker_program_path: PathBuf,
-	/// The time alloted for an execute worker to spawn and report to the host.
+	/// The time allotted for an execute worker to spawn and report to the host.
 	pub execute_worker_spawn_timeout: Duration,
 	/// The maximum number of execute workers that can run at the same time.
 	pub execute_workers_max_num: usize,
@@ -220,7 +220,7 @@ struct PendingExecutionRequest {
 }
 
 /// A mapping from an artifact ID which is in preparation state to the list of pending execution
-/// requests that should be executed once the artifact's prepration is finished.
+/// requests that should be executed once the artifact's preparation is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 

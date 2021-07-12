@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # Parachain Crowdloaning pallet
+//! # Parachain `Crowdloaning` pallet
 //!
 //! The point of this pallet is to allow parachain projects to offer the ability to help fund a
 //! deposit for the parachain. When the crowdloan has ended, the funds are returned.

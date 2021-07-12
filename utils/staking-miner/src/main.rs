@@ -239,7 +239,7 @@ enum Command {
 	Monitor(MonitorConfig),
 	/// Just compute a solution now, and don't submit it.
 	DryRun(DryRunConfig),
-	/// Provide a solution that can be submitted to the chian as an emergency response.
+	/// Provide a solution that can be submitted to the chain as an emergency response.
 	EmergencySolution,
 }
 

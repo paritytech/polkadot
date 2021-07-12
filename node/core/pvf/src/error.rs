@@ -46,7 +46,7 @@ pub enum InvalidCandidate {
 	/// We attribute such an event to an invalid candidate in either case.
 	///
 	/// The rationale for this is that a glitch may lead to unfair rejecting candidate by a single
-	/// validator. If the glitch is somewhat more persistant the validator will reject all candidate
+	/// validator. If the glitch is somewhat more persistent the validator will reject all candidate
 	/// thrown at it and hopefully the operator notices it by decreased reward performance of the
 	/// validator. On the other hand, if the worker died because of (b) we would have better chances
 	/// to stop the attack.
