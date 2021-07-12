@@ -144,7 +144,7 @@ Do nothing.
 ### On `DisputeCoordinatorMessage::QueryCandidateVotes`
 
 * Load `"candidate-votes"` for every `(SessionIndex, CandidateHash)` in the query and return data within each `CandidateVote`.
-  If a particular `candidate-vote` is missing, the request is dropped.
+  If a particular `candidate-vote` is missing, that particular request is ommitted from the response.
 
 ### On `DisputeCoordinatorMessage::IssueLocalStatement`
 
