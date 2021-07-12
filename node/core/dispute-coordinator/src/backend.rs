@@ -1,3 +1,26 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! An abstraction over storage used by the chain selection subsystem.
+//!
+//! This provides both a [`Backend`] trait and an [`OverlayedBackend`]
+//! struct which allows in-memory changes to be applied on top of a
+//! [`Backend`], maintaining consistency between queries and temporary writes,
+//! before any commit to the underlying storage is made.
+
 use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 use polkadot_node_subsystem::SubsystemResult;
 
