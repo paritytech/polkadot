@@ -250,7 +250,8 @@ fn test_harness<F>(test: F)
 		state.subsystem_keystore.clone(),
 	);
 
-	let subsystem_task = run(subsystem, ctx, Box::new(state.clock.clone()));
+	let backend = DbBackend::new(state.db.clone(), state.config.column_config());
+	let subsystem_task = run(subsystem, ctx, backend, Box::new(state.clock.clone()));
 	let test_task = test(state, ctx_handle);
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
