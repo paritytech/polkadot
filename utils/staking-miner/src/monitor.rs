@@ -122,10 +122,16 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let mut tx_subscription: Subscription<
 				TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
-			> = client
+			> = match client
 				.subscribe(&"author_submitAndWatchExtrinsic", params! { bytes }, "author_unwatchExtrinsic")
 				.await
-				.unwrap();
+			{
+				Ok(sub) => sub,
+				Err(why) => {
+					log::warn!(target: LOG_TARGET, "failing to submit a transaction {:?}. continuing...", why);
+					continue
+				}
+			};
 
 			let _success = while let Some(status_update) = tx_subscription.next().await? {
 				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
