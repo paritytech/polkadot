@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
-	AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+	AvailabilityStoreMessage, ChainApiMessage,
 };
 use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
 
@@ -655,9 +655,11 @@ where
 		subsystem.finalized_number.unwrap_or(block_number.saturating_sub(1)),
 	).await?;
 
-	let mut tx = DBTransaction::new();
 	// determine_new_blocks is descending in block height
 	for (hash, header) in new_blocks.into_iter().rev() {
+		// it's important to commit the db transactions for a head before the next one is processed
+		// alternatively, we could utilize the OverlayBackend from approval-voting
+		let mut tx = DBTransaction::new();
 		process_new_head(
 			ctx,
 			&subsystem.db,
@@ -669,8 +671,8 @@ where
 			header,
 		).await?;
 		subsystem.known_blocks.insert(hash, block_number);
+		subsystem.db.write(tx)?;
 	}
-	subsystem.db.write(tx)?;
 
 	Ok(())
 }
@@ -690,25 +692,17 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 
-	let candidate_events = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(hash, RuntimeApiRequest::CandidateEvents(tx))
-		).await;
-
-		rx.await??
-	};
+	let candidate_events = util::request_candidate_events(
+		hash,
+		ctx.sender(),
+	).await.await??;
 
 	// We need to request the number of validators based on the parent state,
 	// as that is the number of validators used to create this block.
-	let n_validators = {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(
-			RuntimeApiMessage::Request(header.parent_hash, RuntimeApiRequest::Validators(tx))
-		).await;
-
-		rx.await??.len()
-	};
+	let n_validators = util::request_validators(
+		header.parent_hash,
+		ctx.sender(),
+	).await.await??.len();
 
 	for event in candidate_events {
 		match event {
