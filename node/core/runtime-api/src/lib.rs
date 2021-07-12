@@ -125,14 +125,14 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_session_index_for_child(relay_parent, session_index),
 			ValidationCode(relay_parent, para_id, assumption, code) =>
 				self.requests_cache.cache_validation_code((relay_parent, para_id, assumption), code),
-			ValidationCodeByHash(relay_parent, validation_code_hash, code) =>
-				self.requests_cache.cache_validation_code_by_hash((relay_parent, validation_code_hash), code),
+			ValidationCodeByHash(_relay_parent, validation_code_hash, code) =>
+				self.requests_cache.cache_validation_code_by_hash(validation_code_hash, code),
 			CandidatePendingAvailability(relay_parent, para_id, candidate) =>
 				self.requests_cache.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
-			SessionInfo(relay_parent, session_index, info) =>
-				self.requests_cache.cache_session_info((relay_parent, session_index), info),
+			SessionInfo(_relay_parent, session_index, info) =>
+				self.requests_cache.cache_session_info(session_index, info),
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) =>
