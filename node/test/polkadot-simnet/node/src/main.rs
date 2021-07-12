@@ -23,8 +23,8 @@
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    polkadot_simnet::run(|node| async {
-        node.until_shutdown().await;
-        Ok(())
-    })
+	polkadot_simnet::run(|node| async {
+		node.until_shutdown().await;
+		Ok(())
+	})
 }
