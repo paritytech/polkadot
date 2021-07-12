@@ -114,7 +114,7 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// The hrmp channel for the given identifier.
+	/// The HRMP channel for the given identifier.
 	///
 	/// The storage entry should be accessed as an `AbridgedHrmpChannel` encoded value.
 	pub fn hrmp_channels(channel: HrmpChannelId) -> Vec<u8> {
@@ -1012,7 +1012,7 @@ pub struct AbridgedHrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
-/// Consensus engine id for polkadot `v1` consensus engine.
+/// Consensus engine id for polkadot v1 consensus engine.
 pub const POLKADOT_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 
 /// A consensus log item for polkadot validation. To be used with [`POLKADOT_ENGINE_ID`].

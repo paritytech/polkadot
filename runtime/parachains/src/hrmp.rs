@@ -468,7 +468,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Force process hrmp open channel requests.
+		/// Force process HRMP open channel requests.
 		///
 		/// If there are pending HRMP open channel requests, you can use this
 		/// function process all of those requests immediately.
@@ -480,7 +480,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Force process hrmp close channel requests.
+		/// Force process HRMP close channel requests.
 		///
 		/// If there are pending HRMP close channel requests, you can use this
 		/// function process all of those requests immediately.

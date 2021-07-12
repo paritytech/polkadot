@@ -291,7 +291,7 @@ impl View {
 	}
 }
 
-/// `v1` protocol types.
+/// v1 protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Encode, Decode};
 	use std::convert::TryFrom;

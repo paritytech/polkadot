@@ -81,7 +81,7 @@ impl sp_std::fmt::Debug for CandidateHash {
 pub type Nonce = u32;
 
 /// The balance of an account.
-/// 128-bits (or 38 significant decimal figures) will allow for 10m currency (`10^7`) at a resolution
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a resolution
 /// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
 /// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
 /// for an eventual total of `10^27` units (27 significant decimal figures).

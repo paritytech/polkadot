@@ -119,7 +119,7 @@ pub fn obtain_chunks_v0(n_validators: usize, data: &v0::AvailableData)
 	obtain_chunks(n_validators, data)
 }
 
-/// Obtain erasure-coded chunks for `v1` `AvailableData`, one for each validator.
+/// Obtain erasure-coded chunks for v1 `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
 pub fn obtain_chunks_v1(n_validators: usize, data: &AvailableData)
@@ -147,7 +147,7 @@ fn obtain_chunks<T: Encode>(n_validators: usize, data: &T)
 	Ok(shards.into_iter().map(|w: WrappedShard| w.into_inner()).collect())
 }
 
-/// Reconstruct the `v0` available data from a set of chunks.
+/// Reconstruct the v0 available data from a set of chunks.
 ///
 /// Provide an iterator containing chunk data and the corresponding index.
 /// The indices of the present chunks must be indicated. If too few chunks
@@ -161,7 +161,7 @@ pub fn reconstruct_v0<'a, I: 'a>(n_validators: usize, chunks: I)
 	reconstruct(n_validators, chunks)
 }
 
-/// Reconstruct the `v1` available data from a set of chunks.
+/// Reconstruct the v1 available data from a set of chunks.
 ///
 /// Provide an iterator containing chunk data and the corresponding index.
 /// The indices of the present chunks must be indicated. If too few chunks
