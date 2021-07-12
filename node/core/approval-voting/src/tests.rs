@@ -534,6 +534,7 @@ fn ss_rejects_approval_if_no_block_entry() {
 			validator,
 			candidate_hash,
 			session_index,
+			false,
 		).await;
 
 		assert_matches!(
@@ -582,6 +583,7 @@ fn ss_rejects_approval_before_assignment() {
 			validator,
 			candidate_hash,
 			session_index,
+			false,
 		).await;
 
 		assert_matches!(
@@ -763,6 +765,7 @@ fn ss_accepts_and_imports_approval_after_assignment() {
 			validator,
 			candidate_hash,
 			session_index,
+			true,
 		).await;
 
 		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
@@ -820,6 +823,7 @@ async fn cai_approval(
 	validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
+	expect_coordinator: bool,
 ) -> oneshot::Receiver<ApprovalCheckResult> {
 	let signature = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
 	let (tx, rx) = oneshot::channel();
@@ -837,6 +841,18 @@ async fn cai_approval(
 			),
 		}
 	).await;
+
+	if expect_coordinator {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
+				pending_confirmation,
+				..
+			}) => {
+				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
+			}
+		);
+	}
 	rx
 }
 

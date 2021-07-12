@@ -273,9 +273,14 @@ impl CandidateEntry {
 
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
-		let prev = self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
+		let prev = self.has_approved(validator);
 		self.approvals.set(validator.0 as usize, true);
 		prev
+	}
+
+	/// Query whether a given validator has approved the candidate.
+	pub fn has_approved(&self, validator: ValidatorIndex) -> bool {
+		self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false)
 	}
 
 	/// Get the candidate receipt.

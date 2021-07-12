@@ -18,15 +18,15 @@
 
 use polkadot_primitives::v1::{
 	CandidateReceipt, ValidDisputeStatementKind, InvalidDisputeStatementKind, ValidatorIndex,
-	ValidatorSignature, SessionIndex, CandidateHash,
+	ValidatorSignature, SessionIndex, CandidateHash, Hash,
 };
 
 use kvdb::{KeyValueDB, DBTransaction};
 use parity_scale_codec::{Encode, Decode};
 
-use crate::DISPUTE_WINDOW;
+use crate::{DISPUTE_WINDOW, DisputeStatus};
 
-const ACTIVE_DISPUTES_KEY: &[u8; 15] = b"active-disputes";
+const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
 const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
 
@@ -102,61 +102,8 @@ impl From<polkadot_node_primitives::CandidateVotes> for CandidateVotes {
 	}
 }
 
-/// Meta-key for tracking active disputes.
-#[derive(Debug, Default, Clone, Encode, Decode, PartialEq)]
-pub struct ActiveDisputes {
-	/// All disputed candidates, sorted by session index and then by candidate hash.
-	pub disputed: Vec<(SessionIndex, CandidateHash)>,
-}
-
-impl ActiveDisputes {
-	/// Whether the set of active disputes contains the given candidate.
-	pub(crate) fn contains(
-		&self,
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		self.disputed.contains(&(session, candidate_hash))
-	}
-
-	/// Insert the session and candidate hash from the set of active disputes.
-	/// Returns 'true' if the entry was not already in the set.
-	pub(crate) fn insert(
-		&mut self,
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		let new_entry = (session, candidate_hash);
-
-		let pos = self.disputed.iter()
-			.take_while(|&e| &new_entry < e)
-			.count();
-		if self.disputed.get(pos).map_or(false, |&e| new_entry == e) {
-			false
-		} else {
-			self.disputed.insert(pos, new_entry);
-			true
-		}
-	}
-
-	/// Delete the session and candidate hash from the set of active disputes.
-	/// Returns 'true' if the entry was present.
-	pub(crate) fn delete(
-		&mut self,
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		let new_entry = (session, candidate_hash);
-
-		match self.disputed.iter().position(|e| &new_entry == e) {
-			None => false,
-			Some(pos) => {
-				self.disputed.remove(pos);
-				true
-			}
-		}
-	}
-}
+/// The mapping for recent disputes; any which have not yet been pruned for being ancient.
+pub type RecentDisputes = std::collections::BTreeMap<(SessionIndex, CandidateHash), DisputeStatus>;
 
 /// Errors while accessing things from the DB.
 #[derive(Debug, thiserror::Error)]
@@ -199,19 +146,19 @@ pub(crate) fn load_earliest_session(
 	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
 }
 
-/// Load the active disputes, if any.
-pub(crate) fn load_active_disputes(
+/// Load the recent disputes, if any.
+pub(crate) fn load_recent_disputes(
 	db: &dyn KeyValueDB,
 	config: &ColumnConfiguration,
-) -> Result<Option<ActiveDisputes>> {
-	load_decode(db, config.col_data, ACTIVE_DISPUTES_KEY)
+) -> Result<Option<RecentDisputes>> {
+	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
 }
 
 /// An atomic transaction to be commited to the underlying DB.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Transaction {
 	earliest_session: Option<SessionIndex>,
-	active_disputes: Option<ActiveDisputes>,
+	recent_disputes: Option<RecentDisputes>,
 	write_candidate_votes: Vec<(SessionIndex, CandidateHash, CandidateVotes)>,
 	delete_candidate_votes: Vec<(SessionIndex, CandidateHash)>,
 }
@@ -224,13 +171,12 @@ impl Transaction {
 		self.earliest_session = Some(session);
 	}
 
-	/// Prepare a write to the active disputes stored in the DB.
+	/// Prepare a write to the recent disputes stored in the DB.
 	///
 	/// Later calls to this function will override earlier ones.
-	pub(crate) fn put_active_disputes(&mut self, active: ActiveDisputes) {
-		self.active_disputes = Some(active);
+	pub(crate) fn put_recent_disputes(&mut self, recent_disputes: RecentDisputes) {
+		self.recent_disputes = Some(recent_disputes);
 	}
-
 
 	/// Prepare a write of the candidate votes under the indicated candidate.
 	///
@@ -264,8 +210,8 @@ impl Transaction {
 			tx.put_vec(config.col_data, EARLIEST_SESSION_KEY, s.encode());
 		}
 
-		if let Some(a) = self.active_disputes {
-			tx.put_vec(config.col_data, ACTIVE_DISPUTES_KEY, a.encode());
+		if let Some(a) = self.recent_disputes {
+			tx.put_vec(config.col_data, RECENT_DISPUTES_KEY, a.encode());
 		}
 
 		for (session, candidate_hash, votes) in self.write_candidate_votes {
@@ -305,16 +251,20 @@ pub(crate) fn note_current_session(
 			// Prune all data in the outdated sessions.
 			tx.put_earliest_session(new_earliest);
 
-			// Clear active disputes metadata.
+			// Clear recent disputes metadata.
 			{
-				let mut active_disputes = load_active_disputes(store, config)?.unwrap_or_default();
-				let prune_up_to = active_disputes.disputed.iter()
-					.take_while(|s| s.0 < new_earliest)
-					.count();
+				let mut recent_disputes = load_recent_disputes(store, config)?.unwrap_or_default();
 
-				if prune_up_to > 0 {
-					let _ = active_disputes.disputed.drain(..prune_up_to);
-					tx.put_active_disputes(active_disputes);
+				let lower_bound = (
+					new_earliest,
+					CandidateHash(Hash::repeat_byte(0x00)),
+				);
+
+				let prev_len = recent_disputes.len();
+				recent_disputes = recent_disputes.split_off(&lower_bound);
+
+				if recent_disputes.len() != prev_len {
+					tx.put_recent_disputes(recent_disputes);
 				}
 			}
 
@@ -371,17 +321,13 @@ mod tests {
 			tx.put_earliest_session(0);
 			tx.put_earliest_session(1);
 
-			tx.put_active_disputes(ActiveDisputes {
-				disputed: vec![
-					(0, CandidateHash(Hash::repeat_byte(0))),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((0, CandidateHash(Hash::repeat_byte(0))), DisputeStatus::Active),
+			].into_iter().collect());
 
-			tx.put_active_disputes(ActiveDisputes {
-				disputed: vec![
-					(1, CandidateHash(Hash::repeat_byte(1))),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
+			].into_iter().collect());
 
 			tx.put_candidate_votes(
 				1,
@@ -418,12 +364,10 @@ mod tests {
 			);
 
 			assert_eq!(
-				load_active_disputes(&store, &config).unwrap().unwrap(),
-				ActiveDisputes {
-					disputed: vec![
-						(1, CandidateHash(Hash::repeat_byte(1))),
-					],
-				},
+				load_recent_disputes(&store, &config).unwrap().unwrap(),
+				vec![
+					((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
+				].into_iter().collect()
 			);
 
 			assert_eq!(
@@ -527,14 +471,12 @@ mod tests {
 		{
 			let mut tx = Transaction::default();
 			tx.put_earliest_session(prev_earliest_session);
-			tx.put_active_disputes(ActiveDisputes {
-				disputed: vec![
-					(very_old, hash_a),
-					(slightly_old, hash_b),
-					(new_earliest_session, hash_c),
-					(very_recent, hash_d),
-				],
-			});
+			tx.put_recent_disputes(vec![
+				((very_old, hash_a), DisputeStatus::Active),
+				((slightly_old, hash_b), DisputeStatus::Active),
+				((new_earliest_session, hash_c), DisputeStatus::Active),
+				((very_recent, hash_d), DisputeStatus::Active),
+			].into_iter().collect());
 
 			tx.put_candidate_votes(
 				very_old,
@@ -571,10 +513,11 @@ mod tests {
 		);
 
 		assert_eq!(
-			load_active_disputes(&store, &config).unwrap().unwrap(),
-			ActiveDisputes {
-				disputed: vec![(new_earliest_session, hash_c), (very_recent, hash_d)],
-			},
+			load_recent_disputes(&store, &config).unwrap().unwrap(),
+			vec![
+				((new_earliest_session, hash_c), DisputeStatus::Active),
+				((very_recent, hash_d), DisputeStatus::Active),
+			].into_iter().collect(),
 		);
 
 		assert!(load_candidate_votes(&store, &config, very_old, &hash_a).unwrap().is_none());

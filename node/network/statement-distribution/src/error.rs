@@ -77,7 +77,7 @@ pub enum Fatal {
 
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::Fatal),
+	Runtime(#[from] runtime::Fatal),
 }
 
 /// Errors for fetching of runtime information.
@@ -85,7 +85,7 @@ pub enum Fatal {
 pub enum NonFatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::NonFatal),
+	Runtime(#[from] runtime::NonFatal),
 
 	/// Relay parent was not present in active heads.
 	#[error("Relay parent could not be found in active heads")]

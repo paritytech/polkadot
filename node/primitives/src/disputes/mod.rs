@@ -21,7 +21,12 @@ use parity_scale_codec::{Decode, Encode};
 use sp_application_crypto::AppKey;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature};
+use polkadot_primitives::v1::{
+	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind,
+	SessionIndex, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	ValidatorSignature, SigningContext,
+};
+use super::{UncheckedSignedFullStatement, Statement};
 
 /// `DisputeMessage` and related types.
 mod message;
@@ -145,6 +150,39 @@ impl SignedDisputeStatement {
 	/// Access the underlying session index.
 	pub fn session_index(&self) -> SessionIndex {
 		self.session_index
+	}
+
+	/// Convert a [`SignedFullStatement`] to a [`SignedDisputeStatement`]
+	///
+	/// As [`SignedFullStatement`] contains only the validator index and
+	/// not the validator public key, the public key must be passed as well,
+	/// along with the signing context.
+	///
+	/// This does signature checks again with the data provided.
+	pub fn from_backing_statement(
+		backing_statement: &UncheckedSignedFullStatement,
+		signing_context: SigningContext,
+		validator_public: ValidatorId,
+	) -> Result<Self, ()> {
+		let (statement_kind, candidate_hash) = match backing_statement.unchecked_payload() {
+			Statement::Seconded(candidate) => (
+				ValidDisputeStatementKind::BackingSeconded(signing_context.parent_hash),
+				candidate.hash(),
+			),
+			Statement::Valid(candidate_hash) => (
+				ValidDisputeStatementKind::BackingValid(signing_context.parent_hash),
+				*candidate_hash,
+			),
+		};
+
+		let dispute_statement = DisputeStatement::Valid(statement_kind);
+		Self::new_checked(
+			dispute_statement,
+			candidate_hash,
+			signing_context.session_index,
+			validator_public,
+			backing_statement.unchecked_signature().clone(),
+		)
 	}
 }
 

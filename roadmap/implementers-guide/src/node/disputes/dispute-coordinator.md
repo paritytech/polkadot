@@ -15,7 +15,7 @@ We use this database to encode the following schema:
 
 ```rust
 ("candidate-votes", SessionIndex, CandidateHash) -> Option<CandidateVotes>
-"active-disputes" -> ActiveDisputes
+"recent-disputes" -> RecentDisputes
 "earliest-session" -> Option<SessionIndex>
 ```
 
@@ -32,9 +32,21 @@ struct CandidateVotes {
     invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
 }
 
-struct ActiveDisputes {
+// The status of the dispute.
+enum DisputeStatus {
+  // Dispute is still active.
+  Active,
+  // Dispute concluded positive (2/3 supermajority) along with what
+  // timestamp it concluded at.
+  ConcludedPositive(Timestamp),
+  // Dispute concluded negative (2/3 supermajority, takes precedence over
+  // positive in the case of many double-votes).
+  ConcludedNegative(Timestamp),
+}
+
+struct RecentDisputes {
     // sorted by session index and then by candidate hash.
-    disputed: Vec<(SessionIndex, CandidateHash)>,
+    disputed: Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
 }
 ```
 
@@ -72,7 +84,7 @@ For each leaf in the leaves update:
   * Fetch the session index for the child of the block with a [`RuntimeApiMessage::SessionIndexForChild`][RuntimeApiMessage].
   * If the session index is higher than `state.highest_session`:
     * update `state.highest_session`
-    * remove everything with session index less than `state.highest_session - DISPUTE_WINDOW` from the `"active-disputes"` in the DB.
+    * remove everything with session index less than `state.highest_session - DISPUTE_WINDOW` from the `"recent-disputes"` in the DB.
     * Use `iter_with_prefix` to remove everything from `"earliest-session"` up to `state.highest_session - DISPUTE_WINDOW` from the DB under `"candidate-votes"`.
     * Update `"earliest-session"` to be equal to `state.highest_session - DISPUTE_WINDOW`.
   * For each new block, explicitly or implicitly, under the new leaf, scan for a dispute digest which indicates a rollback. If a rollback is detected, use the ChainApi subsystem to blacklist the chain.
@@ -104,7 +116,7 @@ Do nothing.
    previously one or both had zero length, the candidate is now freshly
    disputed.
 8. If the candidate is not freshly disputed as determined by 7, continue with
-   10. If it is freshly disputed now, load `"active-disputes"` and add the
+   10. If it is freshly disputed now, load `"recent-disputes"` and add the
    candidate hash and session index. Then, if we have local statements with
    regards to that candidate,  also continue with 10. Otherwise proceed with 9.
 9. Issue a
@@ -114,16 +126,20 @@ Do nothing.
 10. Write the `CandidateVotes` to the underyling DB.
 11. Send back `ImportStatementsResult::ValidImport`.
 12. If the dispute now has supermajority votes in the "valid" direction,
-    according to the `SessionInfo` of the dispute candidate's session, remove
-    from `"active-disputes"`.
-13. If the dispute now has supermajority votes in the "invalid" direction, there
-    is no need to do anything explicitly. The actual rollback will be handled
-    during the active leaves update by observing digests from the runtime.
-14. Write `"active-disputes"`
+    according to the `SessionInfo` of the dispute candidate's session, the
+    `DisputeStatus` should be set to `ConcludedPositive(now)` unless it was
+    already `ConcludedNegative`.
+13. If the dispute now has supermajority votes in the "invalid" direction, 
+    the `DisputeStatus` should be set to `ConcludedNegative(now)`. If it
+    was `ConcludedPositive` before, the timestamp `now` should be copied
+    from the previous status. It will be pruned after some time and all chains
+    containing the disputed block will be reverted by the runtime and
+    chain-selection subsystem.
+14. Write `"recent-disputes"`
 
 ### On `DisputeCoordinatorMessage::ActiveDisputes`
 
-* Load `"active-disputes"` and return the data contained within.
+* Load `"recent-disputes"` and filter out any disputes which have been concluded for over 5 minutes. Return the filtered data
 
 ### On `DisputeCoordinatorMessage::QueryCandidateVotes`
 
@@ -140,11 +156,11 @@ Do nothing.
 
 ### On `DisputeCoordinatorMessage::DetermineUndisputedChain`
 
-* Load `"active-disputes"`.
+* Load `"recent-disputes"`.
 * Deconstruct into parts `{ base_number, block_descriptions, rx }`
 * Starting from the beginning of `block_descriptions`:
-  1. Check the `ActiveDisputes` for a dispute of each candidate in the block description.
-  1. If there is a dispute, exit the loop.
+  1. Check the `RecentDisputes` for a dispute of each candidate in the block description.
+  1. If there is a dispute which is active or concluded negative, exit the loop.
 * For the highest index `i` reached in the `block_descriptions`, send `(base_number + i + 1, block_hash)` on the channel, unless `i` is 0, in which case `None` should be sent. The `block_hash` is determined by inspecting `block_descriptions[i]`.
 
 [DisputeTypes]: ../../types/disputes.md

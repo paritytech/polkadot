@@ -224,7 +224,12 @@ pub enum DisputeCoordinatorMessage {
 		///		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
+	/// Fetch a list of all recent disputes the co-ordinator is aware of.
+	/// These are disputes which have occurred any time in recent sessions,
+	/// and which may have already concluded.
+	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
+	/// These disputes are either unconcluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),

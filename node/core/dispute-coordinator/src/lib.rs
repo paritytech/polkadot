@@ -27,6 +27,7 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW, DisputeMessage, SignedDisputeStatement, DisputeMessageCheckError};
 use polkadot_node_subsystem::{
@@ -48,10 +49,10 @@ use polkadot_primitives::v1::{
 use futures::prelude::*;
 use futures::channel::oneshot;
 use kvdb::KeyValueDB;
-use parity_scale_codec::Error as CodecError;
+use parity_scale_codec::{Encode, Decode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
-use db::v1::ActiveDisputes;
+use db::v1::RecentDisputes;
 
 mod db;
 
@@ -59,6 +60,14 @@ mod db;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
+
+// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
+// is not worth considering anymore. Changing this value has little to no bearing on consensus,
+// and really only affects the work that the node might do on startup during periods of many disputes.
+const ACTIVE_DURATION_SECS: Timestamp = 180;
+
+/// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
+type Timestamp = u64;
 
 struct State {
 	keystore: Arc<LocalKeystore>,
@@ -103,13 +112,42 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx)
+		let future = run(self, ctx, Box::new(SystemClock))
 			.map(|_| Ok(()))
 			.boxed();
 
 		SpawnedSubsystem {
 			name: "dispute-coordinator-subsystem",
 			future,
+		}
+	}
+}
+
+trait Clock: Send + Sync {
+	fn now(&self) -> Timestamp;
+}
+
+struct SystemClock;
+
+impl Clock for SystemClock {
+	fn now(&self) -> Timestamp {
+		// `SystemTime` is notoriously non-monotonic, so our timers might not work
+		// exactly as expected.
+		//
+		// Regardless, disputes are considered active based on an order of minutes,
+		// so a few seconds of slippage in either direction shouldn't affect the
+		// amount of work the node is doing significantly.
+		match SystemTime::now().duration_since(UNIX_EPOCH) {
+			Ok(d) => d.as_secs(),
+			Err(e) => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Current time is before unix epoch. Validation will not work correctly."
+				);
+
+				0
+			}
 		}
 	}
 }
@@ -160,13 +198,81 @@ impl Error {
 	}
 }
 
-async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
+/// The status of dispute. This is a state machine which can be altered by the
+/// helper methods.
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq)]
+pub enum DisputeStatus {
+	/// The dispute is active and unconcluded.
+	#[codec(index = 0)]
+	Active,
+	/// The dispute has been concluded in favor of the candidate
+	/// since the given timestamp.
+	#[codec(index = 1)]
+	ConcludedFor(Timestamp),
+	/// The dispute has been concluded agains the candidate
+	/// since the given timestamp.
+	///
+	/// This takes precedence over `ConcludedFor` in the case that
+	/// both are true, which is impossible unless a large amount of
+	/// validators are participating on both sides.
+	#[codec(index = 2)]
+	ConcludedAgainst(Timestamp),
+}
+
+impl DisputeStatus {
+	/// Initialize the status to the active state.
+	pub fn active() -> DisputeStatus {
+		DisputeStatus::Active
+	}
+
+	/// Transition the status to a new status after observing the dispute has concluded for the candidate.
+	/// This may be a no-op if the status was already concluded.
+	pub fn concluded_for(self, now: Timestamp) -> DisputeStatus {
+		match self {
+			DisputeStatus::Active => DisputeStatus::ConcludedFor(now),
+			DisputeStatus::ConcludedFor(at) => DisputeStatus::ConcludedFor(std::cmp::min(at, now)),
+			against => against,
+		}
+	}
+
+	/// Transition the status to a new status after observing the dispute has concluded against the candidate.
+	/// This may be a no-op if the status was already concluded.
+	pub fn concluded_against(self, now: Timestamp) -> DisputeStatus {
+		match self {
+			DisputeStatus::Active => DisputeStatus::ConcludedAgainst(now),
+			DisputeStatus::ConcludedFor(at) => DisputeStatus::ConcludedAgainst(std::cmp::min(at, now)),
+			DisputeStatus::ConcludedAgainst(at) => DisputeStatus::ConcludedAgainst(std::cmp::min(at, now)),
+		}
+	}
+
+	/// Whether the disputed candidate is possibly invalid.
+	pub fn is_possibly_invalid(&self) -> bool {
+		match self {
+			DisputeStatus::Active | DisputeStatus::ConcludedAgainst(_) => true,
+			DisputeStatus::ConcludedFor(_) => false,
+		}
+	}
+
+	/// Yields the timestamp this dispute concluded at, if any.
+	pub fn concluded_at(&self) -> Option<Timestamp> {
+		match self {
+			DisputeStatus::Active => None,
+			DisputeStatus::ConcludedFor(at) | DisputeStatus::ConcludedAgainst(at) => Some(*at),
+		}
+	}
+}
+
+async fn run<Context>(
+	subsystem: DisputeCoordinatorSubsystem,
+	mut ctx: Context,
+	clock: Box<dyn Clock>,
+)
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>
 {
 	loop {
-		let res = run_iteration(&mut ctx, &subsystem).await;
+		let res = run_iteration(&mut ctx, &subsystem, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -188,7 +294,11 @@ where
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
-async fn run_iteration<Context>(ctx: &mut Context, subsystem: &DisputeCoordinatorSubsystem)
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	subsystem: &DisputeCoordinatorSubsystem,
+	clock: &dyn Clock,
+)
 	-> Result<(), Error>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -223,6 +333,7 @@ where
 					&mut state,
 					config,
 					msg,
+					clock.now(),
 				).await?
 			}
 		}
@@ -286,8 +397,6 @@ async fn handle_new_activations(
 			}
 			_ => {}
 		}
-
-		// TODO [after https://github.com/paritytech/polkadot/issues/3160]: chain rollbacks
 	}
 
 	Ok(())
@@ -299,6 +408,7 @@ async fn handle_incoming(
 	state: &mut State,
 	config: &Config,
 	message: DisputeCoordinatorMessage,
+	now: Timestamp,
 ) -> Result<(), Error> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
@@ -317,15 +427,21 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				statements,
+				now,
 				pending_confirmation,
 			).await?;
 		}
-		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
-			let active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
-				.map(|d| d.disputed)
+		DisputeCoordinatorMessage::RecentDisputes(rx) => {
+			let recent_disputes = db::v1::load_recent_disputes(store, &config.column_config())?
 				.unwrap_or_default();
 
-			let _ = rx.send(active_disputes);
+			let _ = rx.send(recent_disputes.keys().cloned().collect());
+		}
+		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
+			let recent_disputes = db::v1::load_recent_disputes(store, &config.column_config())?
+				.unwrap_or_default();
+
+			let _ = rx.send(collect_active(recent_disputes, now));
 		}
 		DisputeCoordinatorMessage::QueryCandidateVotes(
 			session,
@@ -356,6 +472,7 @@ async fn handle_incoming(
 				candidate_receipt,
 				session,
 				valid,
+				now,
 			).await?;
 		}
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
@@ -375,6 +492,15 @@ async fn handle_incoming(
 	}
 
 	Ok(())
+}
+
+fn collect_active(recent_disputes: RecentDisputes, now: Timestamp) -> Vec<(SessionIndex, CandidateHash)> {
+	recent_disputes.iter().filter_map(|(disputed, status)|
+		status.concluded_at().filter(|at| at + ACTIVE_DURATION_SECS < now).map_or(
+			Some(*disputed),
+			|_| None,
+		)
+	).collect()
 }
 
 fn insert_into_statement_vec<T>(
@@ -400,6 +526,7 @@ async fn handle_import_statements(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	now: Timestamp,
 	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
@@ -440,8 +567,6 @@ async fn handle_import_statements(
 			invalid: Vec::new(),
 		});
 
-	let was_undisputed = votes.valid.is_empty() || votes.invalid.is_empty();
-
 	// Update candidate votes.
 	for (statement, val_index) in statements {
 		if validators.get(val_index.0 as usize)
@@ -480,73 +605,79 @@ async fn handle_import_statements(
 
 	// Check if newly disputed.
 	let is_disputed = !votes.valid.is_empty() && !votes.invalid.is_empty();
-	let freshly_disputed = is_disputed && was_undisputed;
-	let already_disputed = is_disputed && !was_undisputed;
 	let concluded_valid = votes.valid.len() >= supermajority_threshold;
+	let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
+
+	let mut recent_disputes = db::v1::load_recent_disputes(store, &config.column_config())?
+		.unwrap_or_default();
 
 	{ // Scope so we will only confirm valid import after the import got actually persisted.
 		let mut tx = db::v1::Transaction::default();
 
-		if freshly_disputed && !concluded_valid {
+		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
-			let (report_availability, receive_availability) = oneshot::channel();
-			ctx.send_message(DisputeParticipationMessage::Participate {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				n_validators: n_validators as u32,
-				report_availability,
-			}).await;
+		let status = if is_disputed {
+			let status = recent_disputes
+				.entry((session, candidate_hash))
+				.or_insert(DisputeStatus::active());
 
-			if !receive_availability.await.map_err(Error::Oneshot)? {
-				pending_confirmation.send(ImportStatementsResult::InvalidImport).map_err(|_| Error::OneshotSend)?;
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Recovering availability failed - invalid import."
-				);
-				return Ok(())
+			// Note: concluded-invalid overwrites concluded-valid,
+			// so we do this check first. Dispute state machine is
+			// non-commutative.
+			if concluded_valid {
+				*status = status.concluded_for(now);
 			}
 
-			// add to active disputes and begin local participation.
-			update_active_disputes(
-				store,
-				config,
-				&mut tx,
-				|active| active.insert(session, candidate_hash),
-			)?;
+			if concluded_invalid {
+				*status = status.concluded_against(now);
+			}
 
-		}
+			Some(*status)
+		} else {
+			None
+		};
 
-		if concluded_valid && already_disputed {
-			// remove from active disputes.
-			update_active_disputes(
-				store,
-				config,
-				&mut tx,
-				|active| active.delete(session, candidate_hash),
-			)?;
+		if status != prev_status {
+			// Only write when updated.
+			tx.put_recent_disputes(recent_disputes);
+
+			// This branch is only hit when the candidate is freshly disputed -
+			// status was previously `None`, and now is not.
+			if prev_status.is_none() {
+				// No matter what, if the dispute is new, we participate.
+				//
+				// We also block the coordinator while awaiting our determination
+				// of whether the vote is available.
+				let (report_availability, receive_availability) = oneshot::channel();
+				ctx.send_message(DisputeParticipationMessage::Participate {
+					candidate_hash,
+					candidate_receipt,
+					session,
+					n_validators: n_validators as u32,
+					report_availability,
+				}).await;
+
+				if !receive_availability.await.map_err(Error::Oneshot)? {
+					// If the data is not available, we disregard the dispute votes.
+					// This is an indication that the dispute does not correspond to any included
+					// candidate and that it should be ignored.
+					//
+					// We expect that if the candidate is truly disputed that the higher-level network
+					// code will retry.
+					pending_confirmation.send(ImportStatementsResult::InvalidImport)
+						.map_err(|_| Error::OneshotSend)?;
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Recovering availability failed - invalid import."
+					);
+					return Ok(())
+				}
+			}
 		}
 
 		tx.put_candidate_votes(session, candidate_hash, votes.into());
 		tx.write(store, &config.column_config())?;
-	}
-
-	pending_confirmation.send(ImportStatementsResult::ValidImport).map_err(|_| Error::OneshotSend)?;
-
-	Ok(())
-}
-
-fn update_active_disputes(
-	store: &dyn KeyValueDB,
-	config: &Config,
-	tx: &mut db::v1::Transaction,
-	with_active: impl FnOnce(&mut ActiveDisputes) -> bool,
-) -> Result<(), Error> {
-	let mut active_disputes = db::v1::load_active_disputes(store, &config.column_config())?
-		.unwrap_or_default();
-
-	if with_active(&mut active_disputes) {
-		tx.put_active_disputes(active_disputes);
 	}
 
 	Ok(())
@@ -561,6 +692,7 @@ async fn issue_local_statement(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	valid: bool,
+	now: Timestamp,
 ) -> Result<(), Error> {
 	// Load session info.
 	let info = match state.rolling_session_window.session_info(session) {
@@ -658,6 +790,7 @@ async fn issue_local_statement(
 			candidate_receipt,
 			session,
 			statements,
+			now,
 			pending_confirmation,
 		).await?;
 	}
@@ -729,14 +862,21 @@ fn determine_undisputed_chain(
 		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.0));
 
 	// Fast path for no disputes.
-	let active_disputes = match db::v1::load_active_disputes(store, &config.column_config())? {
+	let recent_disputes = match db::v1::load_recent_disputes(store, &config.column_config())? {
 		None => return Ok(last),
-		Some(a) if a.disputed.is_empty() => return Ok(last),
+		Some(a) if a.is_empty() => return Ok(last),
 		Some(a) => a,
 	};
 
+	let is_possibly_invalid = |session, candidate_hash| {
+		recent_disputes.get(&(session, candidate_hash)).map_or(
+			false,
+			|status| status.is_possibly_invalid(),
+		)
+	};
+
 	for (i, (_, session, candidates)) in block_descriptions.iter().enumerate() {
-		if candidates.iter().any(|c| active_disputes.contains(*session, *c)) {
+		if candidates.iter().any(|c| is_possibly_invalid(*session, *c)) {
 			if i == 0 {
 				return Ok(None);
 			} else {

@@ -437,7 +437,7 @@ impl std::error::Error for InvalidAssignment { }
 ///   * Validator is present in backing group.
 ///
 /// This function does not check whether the core is actually a valid assignment or not. That should be done
-/// outside of the scope of this function.
+/// outside the scope of this function.
 pub(crate) fn check_assignment_cert(
 	claimed_core_index: CoreIndex,
 	validator_index: ValidatorIndex,

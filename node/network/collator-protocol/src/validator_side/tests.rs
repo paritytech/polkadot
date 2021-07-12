@@ -60,7 +60,7 @@ impl Default for TestState {
 		let relay_parent = Hash::repeat_byte(0x05);
 		let collators = iter::repeat(())
 			.map(|_| CollatorPair::generate().0)
-			.take(4)
+			.take(5)
 			.collect();
 
 		let validators = vec![
@@ -512,9 +512,10 @@ fn collator_authentication_verification_works() {
 //	our view.
 //	- Collation protocol should request one PoV.
 //	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators connect again and send povs for a different relay parent.
+//	- The same collators plus an additional collator connect again and send povs for a different relay parent.
 //	- Collation protocol will request one PoV, but we will cancel it.
-//	- Collation protocol should request the second PoV.
+//	- Collation protocol should request the second PoV which does not succeed in time.
+//	- Collation protocol should request third PoV.
 #[test]
 fn fetch_collations_works() {
 	let test_state = TestState::default();
@@ -564,7 +565,7 @@ fn fetch_collations_works() {
 
 		assert!(
 			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30)).await.is_none(),
-			"There should not be sent any other PoV request while the first one wasn't finished",
+			"There should not be sent any other PoV request while the first one wasn't finished or timed out.",
 		);
 
 		let pov = PoV { block_data: BlockData(vec![]) };
@@ -597,6 +598,7 @@ fn fetch_collations_works() {
 
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
+		let peer_d = PeerId::random();
 
 		connect_and_declare_collator(
 			&mut virtual_overseer,
@@ -612,8 +614,16 @@ fn fetch_collations_works() {
 			test_state.chain_ids[0].clone(),
 		).await;
 
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_d.clone(),
+			test_state.collators[4].clone(),
+			test_state.chain_ids[0].clone(),
+		).await;
+
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), second).await;
 		advertise_collation(&mut virtual_overseer, peer_c.clone(), second).await;
+		advertise_collation(&mut virtual_overseer, peer_d.clone(), second).await;
 
 		// Dropping the response channel should lead to fetching the second collation.
 		assert_fetch_collation_request(
@@ -633,6 +643,15 @@ fn fetch_collations_works() {
 			}
 		);
 
+		let response_channel_non_exclusive = assert_fetch_collation_request(
+			&mut virtual_overseer,
+			second,
+			test_state.chain_ids[0],
+		).await;
+
+		// Third collator should receive response after that timeout:
+		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME + Duration::from_millis(50)).await;
+
 		let response_channel = assert_fetch_collation_request(
 			&mut virtual_overseer,
 			second,
@@ -643,6 +662,15 @@ fn fetch_collations_works() {
 		let mut candidate_a = CandidateReceipt::default();
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = second;
+
+		// First request finishes now:
+		response_channel_non_exclusive.send(Ok(
+			CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			).encode()
+		)).expect("Sending response should succeed");
+
 		response_channel.send(Ok(
 			CollationFetchingResponse::Collation(
 				candidate_a.clone(),
