@@ -354,7 +354,7 @@ impl Span {
 		}
 	}
 
-	/// Add a PoV hash meta tag with lazy hash eval, without consuming the span.
+	/// Add a PoV hash meta tag with lazy hash evaluation, without consuming the span.
 	#[inline(always)]
 	pub fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
