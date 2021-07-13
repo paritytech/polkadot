@@ -55,6 +55,7 @@ ECDSA
 ed25519
 encodable
 enqueue/D
+enqueue/DMSG
 entrypoint/MS
 ERC-20
 ETH/S
@@ -107,7 +108,10 @@ KYC/M
 lib
 libp2p
 lifecycle/MS
+lookahead/MS
+lookup/MS
 LRU
+mainnet/MS
 malus
 MB/M
 Mbit
@@ -163,6 +167,7 @@ preverify/G
 programmatically
 prometheus/MS
 provisioner/MS
+proxy/DMSG
 proxy/G
 PVF/S
 README/MS
@@ -234,6 +239,7 @@ verifier
 verify/R
 versa
 version/DMSG
+versioned
 VMP/SM
 VRF/SM
 w3f/MS

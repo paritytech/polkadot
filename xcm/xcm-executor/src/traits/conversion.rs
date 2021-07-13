@@ -19,7 +19,7 @@ use parity_scale_codec::{Encode, Decode};
 use xcm::v0::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
-/// impls of `From` and `Into` for the types you wish to convert between.
+/// implementations of `From` and `Into` for the types you wish to convert between.
 ///
 /// One of `convert`/`convert_ref` and `reverse`/`reverse_ref` MUST be implemented. If possible, implement
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
