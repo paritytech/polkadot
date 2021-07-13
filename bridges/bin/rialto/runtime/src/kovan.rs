@@ -35,7 +35,7 @@ frame_support::parameter_types! {
 }
 
 /// Max number of finalized headers to keep. It is equivalent of approximately
-/// 4 hours of finalized blocks on current Kovan chain.
+/// 24 hours of finalized blocks on current Kovan chain.
 const FINALIZED_HEADERS_TO_KEEP: u64 = 20_000;
 
 /// Aura engine configuration for Kovan chain.
