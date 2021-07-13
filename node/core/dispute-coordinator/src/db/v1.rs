@@ -154,7 +154,7 @@ pub(crate) fn load_recent_disputes(
 	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
 }
 
-/// An atomic transaction to be commited to the underlying DB.
+/// An atomic transaction to be committed to the underlying DB.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct Transaction {
 	earliest_session: Option<SessionIndex>,

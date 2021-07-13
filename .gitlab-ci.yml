@@ -169,6 +169,7 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *rules-pr-only
   script:
+    - cargo spellcheck --version
     # should compare with the target branch of the PR, but it's not given by our mirroring
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
         -r $(git diff-tree --no-commit-id --name-only -r ${CI_DEFAULT_BRANCH})

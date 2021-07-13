@@ -718,7 +718,7 @@ where
 }
 
 /// A peer's view has changed. A number of things should be done:
-///  - Ongoing collation requests have to be cancelled.
+///  - Ongoing collation requests have to be canceled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
 async fn handle_peer_view_change(
 	state: &mut State,

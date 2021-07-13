@@ -135,7 +135,7 @@ decl_module! {
 			}
 		}
 
-		/// Just a hotwire into the `lease_out` call, in case Root wants to force some lease to happen
+		/// Just a connect to the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
 		///
 		/// Can only be called by the Root origin.

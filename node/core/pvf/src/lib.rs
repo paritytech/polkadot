@@ -23,9 +23,9 @@
 //!
 //! Then using the handle the client can send two types of requests:
 //!
-//! (a) PVF execution. This accepts the PVF [params][`polkadot_parachain::primitives::ValidationParams`]
+//! (a) PVF execution. This accepts the PVF [`params`][`polkadot_parachain::primitives::ValidationParams`]
 //!     and the PVF [code][`Pvf`], prepares (verifies and compiles) the code, and then executes PVF
-//!     with the params.
+//!     with the `params`.
 //!
 //! (b) Heads up. This request allows to signal that the given PVF may be needed soon and that it
 //!     should be prepared for execution.

@@ -104,7 +104,7 @@ pub enum Error {
 
 /// PoV data to validate.
 enum PoVData {
-	/// Allready available (from candidate selection).
+	/// Already available (from candidate selection).
 	Ready(Arc<PoV>),
 	/// Needs to be fetched from validator (we are checking a signed statement).
 	FetchFromValidator {

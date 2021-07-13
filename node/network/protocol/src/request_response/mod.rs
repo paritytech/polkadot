@@ -16,18 +16,18 @@
 
 //! Overview over request/responses as used in `Polkadot`.
 //!
-//! enum  Protocol .... List of all supported protocols.
+//! `enum Protocol` .... List of all supported protocols.
 //!
-//! enum  Requests  .... List of all supported requests, each entry matches one in protocols, but
+//! `enum Requests`  .... List of all supported requests, each entry matches one in protocols, but
 //! has the actual request as payload.
 //!
-//! struct `IncomingRequest` .... wrapper for incoming requests, containing a sender for sending
+//! `struct IncomingRequest` .... wrapper for incoming requests, containing a sender for sending
 //! responses.
 //!
-//! struct `OutgoingRequest` .... wrapper for outgoing requests, containing a sender used by the
+//! `struct OutgoingRequest` .... wrapper for outgoing requests, containing a sender used by the
 //! networking code for delivering responses/delivery errors.
 //!
-//! trait `IsRequest` .... A trait describing a particular request. It is used for gathering meta
+//! `trait IsRequest` .... A trait describing a particular request. It is used for gathering meta
 //! data, like what is the corresponding response type.
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.

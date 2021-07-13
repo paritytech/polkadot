@@ -121,7 +121,7 @@ mutex
 NFA
 NFT/SM
 NTB
-offboarding
+offboard/DMSG
 onboard/DMSG
 oneshot/MS
 onwards
@@ -185,6 +185,7 @@ teleport/D
 teleport/RG
 teleportation/SM
 teleporter/SM
+middleware/MS
 teleporters
 testnet/MS
 timestamp/MS
@@ -192,7 +193,6 @@ transitionary
 trie/MS
 trustless/Y
 tuple/SM
-tx
 typesystem
 ubuntu/M
 UDP
