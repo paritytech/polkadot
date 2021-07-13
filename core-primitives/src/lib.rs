@@ -85,7 +85,7 @@ pub type Nonce = u32;
 /// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
 /// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
 /// for an eventual total of `10^27` units (27 significant decimal figures).
-/// We round denomination to `10^12` (12 sdf), and leave the other redundancy at the upper end so
+/// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 

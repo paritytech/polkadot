@@ -293,7 +293,7 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// relay-chain state which may vary based on bitfields included before the candidate.
 	/// Thus it cannot be derived entirely from the relay-parent.
 	pub persisted_validation_data_hash: Hash,
-	/// The blake2-256 hash of the `pov`.
+	/// The blake2-256 hash of the PoV.
 	pub pov_hash: Hash,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,

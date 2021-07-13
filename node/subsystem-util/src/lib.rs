@@ -276,7 +276,7 @@ pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(is_priority: F, mut v: Vec<
 	v
 }
 
-/// Returns a bool with a probability of `a / b` of being true.
+/// Returns a `bool` with a probability of `a / b` of being true.
 pub fn gen_ratio(a: usize, b: usize) -> bool {
 	use rand::Rng as _;
 	let mut rng = rand::thread_rng();

@@ -269,7 +269,7 @@ struct DryRunConfig {
 
 #[derive(Debug, Clone, StructOpt)]
 struct SharedConfig {
-	/// The ws node to connect to.
+	/// The `ws` node to connect to.
 	#[structopt(long, default_value = DEFAULT_URI)]
 	uri: String,
 
@@ -283,7 +283,7 @@ struct SharedConfig {
 
 #[derive(Debug, Clone, StructOpt)]
 struct Opt {
-	/// The ws node to connect to.
+	/// The `ws` node to connect to.
 	#[structopt(flatten)]
 	shared: SharedConfig,
 

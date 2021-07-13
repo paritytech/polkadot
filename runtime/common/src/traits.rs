@@ -109,9 +109,9 @@ pub trait Leaser {
 
 	/// Lease a new parachain slot for `para`.
 	///
-	/// `leaser` shall have a total of `amount` balance reserved by the implementor of this trait.
+	/// `leaser` shall have a total of `amount` balance reserved by the implementer of this trait.
 	///
-	/// Note: The implementor of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
+	/// Note: The implementer of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
 	/// caller of this trait *SHOULD NOT* pre-reserve the deposit (though should ensure that it is reservable).
 	///
 	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if the `para`

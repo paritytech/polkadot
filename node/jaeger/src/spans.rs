@@ -354,11 +354,11 @@ impl Span {
 		}
 	}
 
-	/// Add a pov hash meta tag with lazy hash eval, without consuming the span.
+	/// Add a PoV hash meta tag with lazy hash eval, without consuming the span.
 	#[inline(always)]
 	pub fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
-			// avoid computing the pov hash if jaeger is not enabled
+			// avoid computing the PoV hash if jaeger is not enabled
 			self.add_string_fmt_debug_tag("pov", pov.hash());
 		}
 	}

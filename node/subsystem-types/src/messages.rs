@@ -217,7 +217,7 @@ pub enum DisputeCoordinatorMessage {
 		///		`InvalidImport`)
 		///		- or were known already (in that case the result will still be `ValidImport`)
 		/// - or we recorded them because (`ValidImport`)
-		///		- we casted our own vote already on that dispute
+		///		- we cast our own vote already on that dispute
 		///		- or we have approval votes on that candidate
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate

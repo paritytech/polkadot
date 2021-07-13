@@ -29,7 +29,7 @@ impl FilterAssetLocation for NativeAsset {
 	}
 }
 
-/// Accepts an asset if it is contained in the given `T`'s `Get` impl.
+/// Accepts an asset if it is contained in the given `T`'s `Get` implementation.
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {

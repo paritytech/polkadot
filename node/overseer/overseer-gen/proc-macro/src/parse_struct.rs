@@ -133,7 +133,7 @@ pub(crate) struct SubSystemTags {
 	pub(crate) attrs: Vec<Attribute>,
 	#[allow(dead_code)]
 	pub(crate) no_dispatch: bool,
-	/// The subsystem is WIP, only generate the `Wrapper` variant, but do not forward messages
+	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
 	/// and also not include the subsystem in the list of subsystems.
 	pub(crate) wip: bool,
 	pub(crate) blocking: bool,

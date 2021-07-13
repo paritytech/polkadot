@@ -52,7 +52,7 @@ pub enum LeafStatus {
 }
 
 impl LeafStatus {
-	/// Returns a bool indicating fresh status.
+	/// Returns a `bool` indicating fresh status.
 	pub fn is_fresh(&self) -> bool {
 		match *self {
 			LeafStatus::Fresh => true,
@@ -60,7 +60,7 @@ impl LeafStatus {
 		}
 	}
 
-	/// Returns a bool indicating stale status.
+	/// Returns a `bool` indicating stale status.
 	pub fn is_stale(&self) -> bool {
 		match *self {
 			LeafStatus::Fresh => false,

@@ -3,7 +3,6 @@
 <
 =
 >
-10k
 accessor/MS
 activations
 adversary/SM
@@ -12,7 +11,6 @@ annualised
 Apache-2.0/M
 API
 APIs
-aren
 arg/MS
 assignee/SM
 async
@@ -25,12 +23,9 @@ BFT/M
 bitfield/MS
 blake2/MS
 blockchain/MS
-bool
 borked
 BTC/S
-cancelled
 canonicalize/D
-casted
 CentOS
 CLI/MS
 codebase/SM
@@ -39,7 +34,6 @@ commit/D
 computable
 conclude/UD
 config/MS
-couldn
 crowdfund
 crowdloan/MSG
 crt
@@ -53,12 +47,10 @@ deinitializing
 dequeue/SD
 deregister
 deserialize/G
-didn
 disincentivize/D
 dispatchable/SM
 DMP/SM
 DMQ
-doesn
 DoS
 DOT
 DOTs
@@ -77,7 +69,6 @@ extrinsic
 extrinsics
 fd
 fedora/M
-fn
 FRAME/MS
 getter/MS
 GiB/S
@@ -89,14 +80,11 @@ HMP/SM
 HRMP
 https
 IFF
-impl
 implementer/MS
-implementor/SM
 includable
 include/BG
 inherent
 inherents
-init/S
 initialize/CRG
 initializer
 instantiate/B
@@ -162,8 +150,6 @@ permission/D
 phragmen
 picosecond/SM
 polkadot/MS
-pov
-pov-block/MS
 PoV/MS
 preconfigured
 preopen
@@ -190,9 +176,8 @@ runtime/MS
 rustc/MS
 SAFT
 scalability
-sdf
+SDF
 sending/S
-smth
 spawn/SR
 sr25519
 startup/MS
@@ -211,9 +196,7 @@ teleportation/SM
 teleporter/SM
 teleporters
 testnet/MS
-th
 timestamp/MS
-TODO/MS
 transitionary
 trie/MS
 trustless/Y
@@ -232,9 +215,7 @@ unreserve
 unreserving
 unservable/B
 unvested
-uri
 URI
-utilise
 utilize
 v0
 v1
@@ -253,13 +234,9 @@ wakeups
 warming/S
 wasm/M
 wasmtime
-wasn
-weren
 Westend/M
 wildcard/MS
-WIP
 WND/S
 Wococo
-ws
 XCM/S
 XCMP/M

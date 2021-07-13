@@ -53,7 +53,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
 		/// Whether the paras inherent was included within this block.
 		///
-		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
+		/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
 		/// due to the guarantees of FRAME's storage APIs.
 		///
 		/// If this is `None` at the end of the block, we panic and render the block invalid.
