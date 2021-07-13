@@ -447,9 +447,7 @@ async fn handle_incoming(
 		) => {
 			let mut query_output = Vec::new();
 			for (session_index, candidate_hash) in query.into_iter() {
-				if let Some(v) = db::v1::load_candidate_votes(
-					store,
-					&config.column_config(),
+				if let Some(v) = overlay_db.load_candidate_votes(
 					session_index,
 					&candidate_hash,
 				)? {
