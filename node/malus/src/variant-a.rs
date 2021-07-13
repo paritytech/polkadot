@@ -27,7 +27,7 @@ use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandler, ParachainHost, ProvideRuntimeApi,
+		OverseerGen, OverseerGenArgs, Handle, ParachainHost, ProvideRuntimeApi,
 		SpawnNamed,
 	},
 	Cli,
@@ -73,7 +73,7 @@ impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, Handle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

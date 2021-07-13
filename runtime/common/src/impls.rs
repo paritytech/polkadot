@@ -107,7 +107,7 @@ mod tests {
 	}
 
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;

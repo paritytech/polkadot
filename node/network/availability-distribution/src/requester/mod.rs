@@ -33,7 +33,8 @@ use futures::{
 use polkadot_node_subsystem_util::runtime::{RuntimeInfo, get_occupied_cores};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::AllMessages,
+	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
 use super::{LOG_TARGET, Metrics};
@@ -229,4 +230,3 @@ impl Stream for Requester {
 		}
 	}
 }
-

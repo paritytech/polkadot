@@ -62,7 +62,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn elect_queued() -> Weight {
+	fn elect_queued(_v: u32, _t: u32, _a: u32, _d: u32, ) -> Weight {
 		(5_408_539_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
@@ -91,5 +91,22 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			// Standard Error: 52_000
 			.saturating_add((3_606_000 as Weight).saturating_mul(d as Weight))
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+	}
+	fn finalize_signed_phase_accept_solution() -> Weight {
+		(47_783_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
+	fn finalize_signed_phase_reject_solution() -> Weight {
+		(21_277_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	fn submit(c: u32) -> Weight {
+		(78_972_000 as Weight)
+			// Standard Error: 16_000
+			.saturating_add((308_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 }

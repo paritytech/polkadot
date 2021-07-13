@@ -24,6 +24,9 @@ pub struct RelayHeaders {
 	/// A bridge instance to relay headers for.
 	#[structopt(possible_values = &RelayHeadersBridge::variants(), case_insensitive = true)]
 	bridge: RelayHeadersBridge,
+	/// If passed, only mandatory headers (headers that are changing the GRANDPA authorities set) are relayed.
+	#[structopt(long)]
+	only_mandatory_headers: bool,
 	#[structopt(flatten)]
 	source: SourceConnectionParams,
 	#[structopt(flatten)]
@@ -97,12 +100,14 @@ impl RelayHeaders {
 			let target_client = self.target.to_client::<Target>().await?;
 			let target_sign = self.target_sign.to_keypair::<Target>()?;
 			let metrics_params = Finality::customize_metrics(self.prometheus_params.into())?;
+			let finality = Finality::new(target_client.clone(), target_sign);
+			finality.start_relay_guards();
 
 			crate::finality_pipeline::run(
-				Finality::new(target_client.clone(), target_sign),
+				finality,
 				source_client,
 				target_client,
-				false,
+				self.only_mandatory_headers,
 				metrics_params,
 			)
 			.await

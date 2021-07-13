@@ -72,7 +72,7 @@ mod tests {
 	#[test]
 	fn should_encode_raw_message() {
 		// given
-		let msg = "01000000e88514000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d3c040130000000000000000000000000";
+		let msg = "01000000e88514000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c040130000000000000000000000000";
 		let encode_message = EncodeMessage::from_iter(vec!["encode-message", "MillauToRialto", "raw", msg]);
 
 		// when
@@ -101,6 +101,6 @@ mod tests {
 		let hex = encode_message.encode().unwrap();
 
 		// then
-		assert_eq!(format!("{:?}", hex), "0x01000000e88514000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d3c040130000000000000000000000000");
+		assert_eq!(format!("{:?}", hex), "0x01000000b0d60f000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c040130000000000000000000000000");
 	}
 }

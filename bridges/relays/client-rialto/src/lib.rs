@@ -44,11 +44,10 @@ impl Chain for Rialto {
 	type Index = rialto_runtime::Index;
 	type SignedBlock = rialto_runtime::SignedBlock;
 	type Call = rialto_runtime::Call;
+	type Balance = rialto_runtime::Balance;
 }
 
 impl ChainWithBalances for Rialto {
-	type NativeBalance = rialto_runtime::Balance;
-
 	fn account_info_storage_key(account_id: &Self::AccountId) -> StorageKey {
 		use frame_support::storage::generator::StorageMap;
 		StorageKey(frame_system::Account::<rialto_runtime::Runtime>::storage_map_final_key(

@@ -1381,15 +1381,12 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_works_for_best_finalized_header() {
 		run_test_with_genesis(example_header(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header().compute_hash(),
-					0,
-					&[(example_tx(), example_tx_receipt(true))],
-				),
-				true,
-			);
+			assert!(verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				0,
+				&[(example_tx(), example_tx_receipt(true))],
+			));
 		});
 	}
 
@@ -1400,15 +1397,12 @@ pub(crate) mod tests {
 			insert_header(&mut storage, example_header_parent());
 			insert_header(&mut storage, example_header());
 			storage.finalize_and_prune_headers(Some(example_header().compute_id()), 0);
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header_parent().compute_hash(),
-					0,
-					&[(example_tx(), example_tx_receipt(true))],
-				),
-				true,
-			);
+			assert!(verify_transaction_finalized(
+				&storage,
+				example_header_parent().compute_hash(),
+				0,
+				&[(example_tx(), example_tx_receipt(true))],
+			));
 		});
 	}
 
@@ -1416,10 +1410,12 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_rejects_proof_with_missing_tx() {
 		run_test_with_genesis(example_header(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(&storage, example_header().compute_hash(), 1, &[],),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				1,
+				&[],
+			),);
 		});
 	}
 
@@ -1427,10 +1423,12 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_rejects_unknown_header() {
 		run_test(TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(&storage, example_header().compute_hash(), 1, &[],),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				1,
+				&[],
+			));
 		});
 	}
 
@@ -1440,15 +1438,12 @@ pub(crate) mod tests {
 			let mut storage = BridgeStorage::<TestRuntime>::new();
 			insert_header(&mut storage, example_header_parent());
 			insert_header(&mut storage, example_header());
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header().compute_hash(),
-					0,
-					&[(example_tx(), example_tx_receipt(true))],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				0,
+				&[(example_tx(), example_tx_receipt(true))],
+			));
 		});
 	}
 
@@ -1464,15 +1459,12 @@ pub(crate) mod tests {
 			insert_header(&mut storage, example_header());
 			insert_header(&mut storage, finalized_header_sibling);
 			storage.finalize_and_prune_headers(Some(example_header().compute_id()), 0);
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					finalized_header_sibling_hash,
-					0,
-					&[(example_tx(), example_tx_receipt(true))],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				finalized_header_sibling_hash,
+				0,
+				&[(example_tx(), example_tx_receipt(true))],
+			));
 		});
 	}
 
@@ -1488,15 +1480,12 @@ pub(crate) mod tests {
 			insert_header(&mut storage, finalized_header_uncle);
 			insert_header(&mut storage, example_header());
 			storage.finalize_and_prune_headers(Some(example_header().compute_id()), 0);
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					finalized_header_uncle_hash,
-					0,
-					&[(example_tx(), example_tx_receipt(true))],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				finalized_header_uncle_hash,
+				0,
+				&[(example_tx(), example_tx_receipt(true))],
+			));
 		});
 	}
 
@@ -1504,18 +1493,15 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_rejects_invalid_transactions_in_proof() {
 		run_test_with_genesis(example_header(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header().compute_hash(),
-					0,
-					&[
-						(example_tx(), example_tx_receipt(true)),
-						(example_tx(), example_tx_receipt(true))
-					],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				0,
+				&[
+					(example_tx(), example_tx_receipt(true)),
+					(example_tx(), example_tx_receipt(true))
+				],
+			));
 		});
 	}
 
@@ -1523,15 +1509,12 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_rejects_invalid_receipts_in_proof() {
 		run_test_with_genesis(example_header(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header().compute_hash(),
-					0,
-					&[(example_tx(), vec![42])],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header().compute_hash(),
+				0,
+				&[(example_tx(), vec![42])],
+			));
 		});
 	}
 
@@ -1539,15 +1522,12 @@ pub(crate) mod tests {
 	fn verify_transaction_finalized_rejects_failed_transaction() {
 		run_test_with_genesis(example_header_with_failed_receipt(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			assert_eq!(
-				verify_transaction_finalized(
-					&storage,
-					example_header_with_failed_receipt().compute_hash(),
-					0,
-					&[(example_tx(), example_tx_receipt(false))],
-				),
-				false,
-			);
+			assert!(!verify_transaction_finalized(
+				&storage,
+				example_header_with_failed_receipt().compute_hash(),
+				0,
+				&[(example_tx(), example_tx_receipt(false))],
+			));
 		});
 	}
 }
