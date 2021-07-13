@@ -197,7 +197,7 @@ Basically we need to test the correctness of data flow through state FSMs descri
   - Wait until the data should have been pruned.
   - The data is no longer available.
 
-- Forkfulness of the relay chain is taken into account
+- Fork-awareness of the relay chain is taken into account
   - Block `B1` is added to the store.
   - Block `B2` is added to the store.
   - Notify the subsystem that both `B1` and `B2` were included in different leafs of relay chain.
