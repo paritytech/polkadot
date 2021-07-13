@@ -180,7 +180,7 @@ impl Assets {
 		}
 	}
 
-	/// Mutates `self` to its original value less `asset` and returns `true` if it contains at least `asset`.
+	/// Mutates `self` to its original value less `asset` and returns `true` iff it contains at least `asset`.
 	///
 	/// Wildcard assets in `self` will result in an error.
 	///
