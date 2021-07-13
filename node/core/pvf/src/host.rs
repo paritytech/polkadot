@@ -49,7 +49,7 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Execute PVF with the given code, params and priority. The result of execution will be sent
+	/// Execute PVF with the given code, parameters and priority. The result of execution will be sent
 	/// to the provided result sender.
 	///
 	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of

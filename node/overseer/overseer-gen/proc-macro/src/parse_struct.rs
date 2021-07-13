@@ -86,7 +86,7 @@ pub(crate) struct SubSysField {
 	/// Type to be consumed by the subsystem.
 	pub(crate) consumes: Path,
 	/// If `no_dispatch` is present, if the message is incoming via
-	/// an extern `Event`, it will not be dispatched to all subsystems.
+	/// an `extern` `Event`, it will not be dispatched to all subsystems.
 	pub(crate) no_dispatch: bool,
 	/// If the subsystem implementation is blocking execution and hence
 	/// has to be spawned on a separate thread or thread pool.
