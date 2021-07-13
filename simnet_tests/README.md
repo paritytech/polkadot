@@ -18,9 +18,9 @@ Under the hood there are assertions that specific metrics should have specific
 values. 
 
 At the moment we have only one test for parachains: `/parachains.features`
-This test uses a JS script that we added to simnet image and it's launched
+This test uses a JS script that we added to Simnet image and it's launched
 by this step in the cucumber file:
-` Then launch 'node' with parameters '--unhandled-rejections=strict /usr/local/bin/simnet_scripts test_parachain ./configs/adder.json ws://localhost:11222 100 10'`
+`Then launch 'node' with parameters '--unhandled-rejections=strict /usr/local/bin/simnet_scripts test_parachain ./configs/adder.json ws://localhost:11222 100 10'`
 
 `run_test.sh` is an entry point for running all tests in the folder. 
 Any setup required for tests (but cannot be done in configs) is performed 
@@ -35,5 +35,6 @@ Kubernetes cluster can be local, spawned with
 or an instance living in the 
 [cloud](https://github.com/paritytech/gurke/blob/main/docs/How-to-setup-access-to-gke-k8s-cluster.md) 
 
-### [Here is link to barcamp presenation of simnet](https://www.crowdcast.io/e/ph49xu01)
-### [Here is link to the simnet repo, hosted on private gitlab](https://gitlab.parity.io/parity/simnet/-/tree/master)
+### [Here is link to barcamp presenation of Simnet](https://www.crowdcast.io/e/ph49xu01)
+
+### [Here is link to the Simnet repo, hosted on private gitlab](https://gitlab.parity.io/parity/simnet/-/tree/master)

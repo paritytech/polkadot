@@ -395,9 +395,9 @@ trigger-simnet:
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # simnet project ID
+    # Simnet project ID
     DWNSTRM_ID:                    332
   script:
-    # API trigger for a simnet job, argument value is set in the project variables
+    # API trigger for a Simnet job, argument value is set in the project variables
     - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
   allow_failure:                   true

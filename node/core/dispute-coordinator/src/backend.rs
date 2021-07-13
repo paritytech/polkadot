@@ -57,7 +57,7 @@ pub trait Backend {
 		where I: IntoIterator<Item = BackendWriteOp>;
 }
 
-/// An in-memory overllay for the backend.
+/// An in-memory overlay for the backend.
 ///
 /// This maintains read-only access to the underlying backend, but can be converted into a set of
 /// write operations which will, when written to the underlying backend, give the same view as the

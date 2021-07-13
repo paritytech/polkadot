@@ -13,7 +13,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
-//! Attempts to upgrade the polkadot runtime, in a simnet environment
+//! Attempts to upgrade the polkadot runtime, in a Simnet environment
 use std::{error::Error, str::FromStr};
 
 use polkadot_simnet::{run, dispatch_with_root};

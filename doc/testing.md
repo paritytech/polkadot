@@ -246,7 +246,7 @@ a side-channel, that is out of scope for this document.
 The individual node configurations are done as targets with a particular
 builder configuration.
 
-#### Behavior tests w/o simnet
+#### Behavior tests w/o Simnet
 
 Commonly this will require multiple nodes, and most machines are limited to
 running two or three nodes concurrently.

@@ -110,6 +110,7 @@ libp2p
 lifecycle/MS
 lookahead/MS
 lookup/MS
+Simnet/MS
 LRU
 mainnet/MS
 malus
