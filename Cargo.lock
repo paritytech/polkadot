@@ -3235,12 +3235,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonrpsee"
-version = "0.2.0-alpha.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4e48ecdd757b22fae87e87aad2dbadf11c56499c6509763c8ef20db16ffb0e9"
-
-[[package]]
 name = "jsonrpsee-proc-macros"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3272,6 +3266,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpsee-types"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d67724d368c59e08b557a516cf8fcc51100e7a708850f502e1044b151fe89788"
+dependencies = [
+ "async-trait",
+ "beef",
+ "futures-channel",
+ "futures-util",
+ "hyper 0.14.5",
+ "log",
+ "serde",
+ "serde_json",
+ "soketto 0.6.0",
+ "thiserror",
+]
+
+[[package]]
 name = "jsonrpsee-ws-client"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3280,7 +3292,7 @@ dependencies = [
  "async-trait",
  "fnv",
  "futures 0.3.15",
- "jsonrpsee-types",
+ "jsonrpsee-types 0.2.0",
  "log",
  "pin-project 1.0.7",
  "rustls 0.19.1",
@@ -3288,6 +3300,30 @@ dependencies = [
  "serde",
  "serde_json",
  "soketto 0.5.0",
+ "thiserror",
+ "tokio 0.2.21",
+ "tokio-rustls 0.15.0",
+ "tokio-util",
+ "url 2.2.0",
+]
+
+[[package]]
+name = "jsonrpsee-ws-client"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e2834b6e7f57ce9a4412ed4d6dc95125d2c8612e68f86b9d9a07369164e4198"
+dependencies = [
+ "async-trait",
+ "fnv",
+ "futures 0.3.15",
+ "jsonrpsee-types 0.3.0",
+ "log",
+ "pin-project 1.0.7",
+ "rustls 0.19.1",
+ "rustls-native-certs 0.5.0",
+ "serde",
+ "serde_json",
+ "soketto 0.6.0",
  "thiserror",
  "tokio 0.2.21",
  "tokio-rustls 0.15.0",
@@ -7782,7 +7818,7 @@ dependencies = [
  "env_logger 0.8.4",
  "hex",
  "jsonrpsee-proc-macros",
- "jsonrpsee-ws-client",
+ "jsonrpsee-ws-client 0.2.0",
  "log",
  "parity-scale-codec",
  "serde",
@@ -9519,6 +9555,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "soketto"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a74e48087dbeed4833785c2f3352b59140095dc192dce966a3bfc155020a439f"
+dependencies = [
+ "base64 0.13.0",
+ "bytes 1.0.1",
+ "futures 0.3.15",
+ "httparse",
+ "log",
+ "rand 0.8.4",
+ "sha-1 0.9.6",
+]
+
+[[package]]
 name = "sp-api"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#bfca1a91f7607d7395591f7341335fd4a27064da"
@@ -10198,9 +10249,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
- "jsonrpsee",
- "jsonrpsee-types",
- "jsonrpsee-ws-client",
+ "jsonrpsee-ws-client 0.3.0",
  "kusama-runtime",
  "lazy_static",
  "log",
