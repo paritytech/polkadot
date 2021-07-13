@@ -246,7 +246,3 @@ Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of 
 ## License
 
 Polkadot is [GPL 3.0 licensed](LICENSE).
-
-## Important Notice
-
-<https://polkadot.network/testnetdisclaimer>

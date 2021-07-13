@@ -657,7 +657,7 @@ impl MultiLocation {
 		Ok(())
 	}
 
-	/// Returns true IFF `self` is an interior location. For this it may not contain any `Junction`s
+	/// Returns true iff `self` is an interior location. For this it may not contain any `Junction`s
 	/// for which `Junction::is_interior` returns `false`. This is generally true, except for the
 	/// `Parent` item.
 	///

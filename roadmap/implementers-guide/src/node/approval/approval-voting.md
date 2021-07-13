@@ -85,7 +85,7 @@ struct BlockEntry {
     // leaving. Sorted ascending by core index.
     candidates: Vec<(CoreIndex, Hash)>,
     // A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
-    // The i'th bit is `true` IFF the candidate has been approved in the context of
+    // The i'th bit is `true` iff the candidate has been approved in the context of
     // this block. The block can be considered approved has all bits set to 1
     approved_bitfield: Bitfield,
     children: Vec<Hash>,

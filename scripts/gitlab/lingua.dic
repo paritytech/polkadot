@@ -79,7 +79,7 @@ Handler/MS
 HMP/SM
 HRMP
 https
-IFF
+iff
 implementer/MS
 includable
 include/BG
@@ -126,6 +126,7 @@ middleware/MS
 Millau
 misbehavior/SM
 misbehaviors
+misvalidate/D
 MIT/M
 MMR
 modularity
@@ -165,7 +166,6 @@ PoA/MS
 polkadot/MS
 PoV/MS
 PR
-PRs
 preconfigured
 preopen
 prepend/G
@@ -176,6 +176,7 @@ prometheus/MS
 provisioner/MS
 proxy/DMSG
 proxy/G
+PRs
 PVF/S
 README/MS
 redhat/M

@@ -323,7 +323,7 @@ async fn store_available_data(
 // Make a `PoV` available.
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
-// This returns `Err()` IFF there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 async fn make_pov_available(
 	sender: &mut JobSender<impl SubsystemSender>,
 	validator_index: Option<ValidatorIndex>,

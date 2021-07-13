@@ -344,7 +344,7 @@ pub struct BlockEntry {
 	// leaving. Sorted ascending by core index.
 	candidates: Vec<(CoreIndex, CandidateHash)>,
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
-	// The i'th bit is `true` IFF the candidate has been approved in the context of this
+	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
 	pub approved_bitfield: BitVec<BitOrderLsb0, u8>,
 	pub children: Vec<Hash>,

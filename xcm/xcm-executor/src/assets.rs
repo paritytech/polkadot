@@ -165,7 +165,7 @@ impl Assets {
 		}
 	}
 
-	/// Consumes `self` and returns its original value excluding `asset` IFF it contains at least `asset`.
+	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
 	///
 	/// Wildcard assets in `self` will result in an error.
 	///
