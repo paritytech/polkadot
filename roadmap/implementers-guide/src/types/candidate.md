@@ -92,7 +92,7 @@ struct CandidateDescriptor {
 }
 ```
 
-## PersistedValidationData
+## `PersistedValidationData`
 
 The validation data provides information about how to create the inputs for validation of a candidate. This information is derived from the chain state and will vary from para to para, although some of the fields may be the same for every para.
 
@@ -102,7 +102,7 @@ Furthermore, the validation data acts as a way to authorize the additional data 
 
 Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system.
 
-The `PersistedValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate and therefore lies on the critical path of inclusion.
+The `PersistedValidationData` should be relatively lightweight primarily because it is constructed during inclusion for each candidate and therefore lies on the critical path of inclusion.
 
 ```rust
 struct PersistedValidationData {
@@ -124,7 +124,7 @@ struct PersistedValidationData {
 }
 ```
 
-## HeadData
+## `HeadData`
 
 Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes of representing heads of parachains or parathreads.
 

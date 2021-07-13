@@ -21,9 +21,9 @@ We will split the logic of the runtime up into these modules:
 * Scheduler: manages parachain and parathread scheduling as well as validator assignments.
 * Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
 * Validity: handles secondary checks and dispute resolution for included, available parablocks.
-* Hrmp: handles horizontal messages between paras.
-* Ump: Handles upward messages from a para to the relay chain.
-* Dmp: Handles downward messages from the relay chain to the para.
+* HRMP: handles horizontal messages between paras.
+* UMP: Handles upward messages from a para to the relay chain.
+* DMP: Handles downward messages from the relay chain to the para.
 
 The [Initializer module](initializer.md) is special - it's responsible for handling the initialization logic of the other modules to ensure that the correct initialization order and related invariants are maintained. The other modules won't specify a on-initialize logic, but will instead expose a special semi-private routine that the initialization module will call. The other modules are relatively straightforward and perform the roles described above.
 

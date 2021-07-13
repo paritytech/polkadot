@@ -16,9 +16,11 @@ backend/MS
 benchmark/DSMG
 BFT/M
 bitfield/MS
+bitwise
 blake2/MS
 blockchain/MS
 borked
+broadcast/UDSMG
 BTC/S
 canonicalize/D
 CentOS
@@ -32,6 +34,7 @@ config/MS
 crowdfund
 crowdloan/MSG
 crypto/MS
+CSM
 customizable/B
 DDoS
 debian/M
@@ -61,6 +64,8 @@ extrinsic
 extrinsics
 fedora/M
 FRAME/MS
+FSMs
+gameable
 getter/MS
 GiB/S
 GPL/M
@@ -73,6 +78,7 @@ IFF
 implementer/MS
 includable
 include/BG
+increment/DSMG
 inherent
 inherents
 initialize/CRG
@@ -94,6 +100,7 @@ js
 keccak256/M
 keypair/MS
 keystore/MS
+Kovan
 KSM/S
 kusama/S
 KYC/M
@@ -107,10 +114,12 @@ Mbit
 merkle/MS
 metadata/M
 middleware/MS
+Millau
 misbehavior/SM
 misbehaviors
 MIT/M
 MMR
+modularity
 mpsc
 MPSC
 MQC/SM
@@ -118,8 +127,10 @@ msg
 multisig/S
 multivalidator/SM
 mutex
+natively
 NFA
 NFT/SM
+nonces
 NTB
 offboard/DMSG
 onboard/DMSG
@@ -132,6 +143,7 @@ overseer/MS
 ownerless
 parablock/MS
 parachain/MS
+parameterization
 parameterize/D
 parathread/MS
 passthrough
@@ -140,6 +152,7 @@ peerset/MS
 permission/D
 phragmen
 picosecond/SM
+PoA/MS
 polkadot/MS
 PoV/MS
 preconfigured
@@ -171,15 +184,18 @@ SDF
 sending/S
 shareable
 spawn/SR
+spawner
 sr25519
 startup/MS
 stateful
 str
 struct/MS
 subcommand/SM
+substream
 subsystem/MS
 subsystems'
 supermajority
+systemwide
 taskmanager/MS
 TCP
 teleport/D

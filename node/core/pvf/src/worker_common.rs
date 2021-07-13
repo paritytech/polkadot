@@ -177,7 +177,7 @@ pub enum SpawnErr {
 	Accept,
 	/// An error happened during spawning the process.
 	ProcessSpawn,
-	/// The deadline alloted for the worker spawning and connecting to the socket has elapsed.
+	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
 }
 

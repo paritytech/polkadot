@@ -118,7 +118,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
 }
 
-/// A convertor trait for origin types.
+/// A converter `trait` for origin types.
 ///
 /// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
 /// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`

@@ -79,7 +79,7 @@ impl Requests {
 	///
 	/// Note: `Requests` is just an enum collecting all supported requests supported by network
 	/// bridge, it is never sent over the wire. This function just encodes the individual requests
-	/// contained in the enum.
+	/// contained in the `enum`.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
 			Self::ChunkFetching(r) => r.encode_request(),

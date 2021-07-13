@@ -147,7 +147,7 @@ impl Config {
 /// must be polled in order for validation host to function.
 ///
 /// The future should not return normally but if it does then that indicates an unrecoverable error.
-/// In that case all pending requests will be cancelled, dropping the result senders and new ones
+/// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);

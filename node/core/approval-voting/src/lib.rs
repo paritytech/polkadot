@@ -145,7 +145,7 @@ struct MetricsInner {
 	time_recover_and_approve: prometheus::Histogram,
 }
 
-/// Aproval Voting metrics.
+/// Approval Voting metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 

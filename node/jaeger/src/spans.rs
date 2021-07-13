@@ -326,7 +326,7 @@ impl Span {
 
 	/// Add an additional int tag to the span without consuming.
 	///
-	/// Should be used sparingly, introduction of new types is prefered.
+	/// Should be used sparingly, introduction of new types is preferred.
 	#[inline(always)]
 	pub fn with_int_tag(mut self, tag: &'static str, i: i64) -> Self {
 		self.add_int_tag(tag, i);
