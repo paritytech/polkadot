@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! # Sending and receiving of `DisputeRequest`s.
 //!
 //! This subsystem essentially consists of two parts:
@@ -136,7 +135,7 @@ where
 	}
 }
 
-impl<AD> DisputeDistributionSubsystem<AD> 
+impl<AD> DisputeDistributionSubsystem<AD>
 where
 	AD: AuthorityDiscovery + Clone,
 {

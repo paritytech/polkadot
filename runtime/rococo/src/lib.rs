@@ -873,7 +873,7 @@ impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = ();
+	type CallFilter = frame_support::traits::AllowAll;
 	type EncodedCall = bridge_messages::FromRococoEncodedCall;
 	type SourceChainAccountId = bp_wococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;
@@ -887,7 +887,7 @@ impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = ();
+	type CallFilter = frame_support::traits::AllowAll;
 	type EncodedCall = bridge_messages::FromWococoEncodedCall;
 	type SourceChainAccountId = bp_rococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;

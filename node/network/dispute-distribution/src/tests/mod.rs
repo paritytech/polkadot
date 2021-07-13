@@ -151,9 +151,9 @@ fn received_request_triggers_import() {
 				message.clone().into(),
 				ImportStatementsResult::InvalidImport,
 				true,
-				move |handle, req_tx, message| 
+				move |handle, req_tx, message|
 					nested_network_dispute_request(
-						handle, 
+						handle,
 						req_tx,
 						MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
 						message.clone().into(),
@@ -226,8 +226,8 @@ fn received_request_triggers_import() {
 
 			// But should work fine for Bob:
 			nested_network_dispute_request(
-				&mut handle, 
-				&mut req_tx, 
+				&mut handle,
+				&mut req_tx,
 				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
 				message.clone().into(),
 				ImportStatementsResult::ValidImport,
@@ -258,15 +258,15 @@ fn disputes_are_recovered_at_startup() {
 				handle.recv().await,
 				AllMessages::DisputeCoordinator(
 					DisputeCoordinatorMessage::QueryCandidateVotes(
-						session_index,
-						candidate_hash,
+						query,
 						tx,
 					)
 				) => {
+					let (session_index, candidate_hash) = query.get(0).unwrap().clone();
 					assert_eq!(session_index, MOCK_SESSION_INDEX);
 					assert_eq!(candidate_hash, candidate.hash());
 					let unchecked: UncheckedDisputeMessage = message.into();
-					tx.send(Some(CandidateVotes {
+					tx.send(vec![(session_index, candidate_hash, CandidateVotes {
 						candidate_receipt: candidate,
 						valid: vec![(
 							unchecked.valid_vote.kind,
@@ -278,7 +278,7 @@ fn disputes_are_recovered_at_startup() {
 							unchecked.invalid_vote.validator_index,
 							unchecked.invalid_vote.signature
 						)],
-					}))
+					})])
 					.expect("Receiver should stay alive.");
 				}
 			);
@@ -473,7 +473,7 @@ async fn send_network_dispute_request(
 ) -> oneshot::Receiver<sc_network::config::OutgoingResponse> {
 	let (pending_response, rx_response) = oneshot::channel();
 	let req = sc_network::config::IncomingRequest {
-		peer, 
+		peer,
 		payload: message.encode(),
 		pending_response,
 	};
@@ -492,7 +492,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 	import_result: ImportStatementsResult,
 	need_session_info: bool,
 	inner: F,
-) 
+)
 	where
 		F: FnOnce(
 				&'a mut TestSubsystemContextHandle<DisputeDistributionMessage>,
@@ -539,7 +539,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 			pending_confirmation
 		}
 	);
-	
+
 	// Do the inner thing:
 	inner(handle, req_tx, message).await;
 
@@ -558,7 +558,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 			match import_result {
 				ImportStatementsResult::ValidImport => {
 					let result = result.unwrap();
-					let decoded = 
+					let decoded =
 						<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
 
 					assert!(decoded == DisputeResponse::Confirmed);
