@@ -444,18 +444,27 @@ async fn handle_incoming(
 			let _ = rx.send(collect_active(recent_disputes, now));
 		}
 		DisputeCoordinatorMessage::QueryCandidateVotes(
-			session,
-			candidate_hash,
+			query,
 			rx
 		) => {
-			let candidate_votes = db::v1::load_candidate_votes(
-				store,
-				&config.column_config(),
-				session,
-				&candidate_hash,
-			)?;
-
-			let _ = rx.send(candidate_votes.map(Into::into));
+			let mut query_output = Vec::new();
+			for (session_index, candidate_hash) in query.into_iter() {
+				if let Some(v) = db::v1::load_candidate_votes(
+					store,
+					&config.column_config(),
+					session_index,
+					&candidate_hash,
+				)? {
+					query_output.push((session_index, candidate_hash, v.into()));
+				} else {
+					tracing::debug!(
+						target: LOG_TARGET,
+						session_index,
+						"No votes found for candidate",
+					);
+				}
+			}
+			let _ = rx.send(query_output);
 		}
 		DisputeCoordinatorMessage::IssueLocalStatement(
 			session,
