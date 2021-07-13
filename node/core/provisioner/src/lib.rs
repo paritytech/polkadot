@@ -23,7 +23,6 @@ use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
-	stream::FuturesOrdered,
 };
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, SubsystemSender, jaeger,
@@ -568,37 +567,22 @@ async fn select_disputes(
 
 	// Load all votes for all disputes from the coordinator.
 	let dispute_candidate_votes = {
-		let mut awaited_votes = FuturesOrdered::new();
+		let (tx, rx) = oneshot::channel();
+		sender.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+			recent_disputes,
+			tx,
+		).into()).await;
 
-		let n_disputes = recent_disputes.len();
-		for (session_index, candidate_hash) in recent_disputes {
-			let (tx, rx) = oneshot::channel();
-			sender.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(
-				session_index,
-				candidate_hash,
-				tx,
-			).into()).await;
-
-			awaited_votes.push(async move {
-				rx.await
-					.map_err(Error::CanceledCandidateVotes)
-					.map(|maybe_votes| maybe_votes.map(|v| (session_index, candidate_hash, v)))
-			});
-		}
-
-		// Sadly `StreamExt::collect` requires `Default`, so we have to do this more
-		// manually.
-		let mut vote_sets = Vec::with_capacity(n_disputes);
-		while let Some(res) = awaited_votes.next().await {
-			// sanity check - anything present in recent disputes should have
-			// candidate votes. but we might race with block import on
-			// session boundaries.
-			if let Some(vote_set) = res? {
-				vote_sets.push(vote_set);
+		match rx.await {
+			Ok(v) => v,
+			Err(oneshot::Canceled) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Unable to query candidate votes - subsystem disconnected?",
+				);
+				Vec::new()
 			}
 		}
-
-		vote_sets
 	};
 
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.

@@ -232,7 +232,10 @@ pub enum DisputeCoordinatorMessage {
 	/// These disputes are either unconcluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
-	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),
+	QueryCandidateVotes(
+		Vec<(SessionIndex, CandidateHash)>,
+		oneshot::Sender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
+	),
 	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
 	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
 	/// Determine the highest undisputed block within the given chain, based on where candidates

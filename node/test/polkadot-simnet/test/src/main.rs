@@ -24,63 +24,63 @@ use sp_core::crypto::AccountId32;
 use sp_blockchain::HeaderBackend;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    run(|node| async {
-        let old_runtime_version = node.client()
-            .executor()
-            .runtime_version(&BlockId::Hash(node.client().info().best_hash))?
-            .spec_version;
+	run(|node| async {
+		let old_runtime_version = node.client()
+			.executor()
+			.runtime_version(&BlockId::Hash(node.client().info().best_hash))?
+			.spec_version;
 
-        let wasm_binary = polkadot_runtime::WASM_BINARY
-             .ok_or("Polkadot development wasm not available")?
-             .to_vec();
-         // upgrade runtime.
-         dispatch_with_root(system::Call::set_code(wasm_binary), &node).await?;
+		let wasm_binary = polkadot_runtime::WASM_BINARY
+			 .ok_or("Polkadot development wasm not available")?
+			 .to_vec();
+		 // upgrade runtime.
+		 dispatch_with_root(system::Call::set_code(wasm_binary), &node).await?;
 
-        // assert that the runtime has been updated by looking at events
-        let events = node.events()
-            .into_iter()
-            .filter(|event| {
-                match event.event {
-                    Event::System(system::Event::CodeUpdated) => true,
-                    _ => false,
-                }
-            })
-            .collect::<Vec<_>>();
+		// assert that the runtime has been updated by looking at events
+		let events = node.events()
+			.into_iter()
+			.filter(|event| {
+				match event.event {
+					Event::System(system::Event::CodeUpdated) => true,
+					_ => false,
+				}
+			})
+			.collect::<Vec<_>>();
 
-        // make sure event was emitted
-        assert_eq!(events.len(), 1);
-        let new_runtime_version = node.client()
-            .executor()
-            .runtime_version(&BlockId::Hash(node.client().info().best_hash))?
-            .spec_version;
-        // just confirming
-        assert!(new_runtime_version > old_runtime_version);
+		// make sure event was emitted
+		assert_eq!(events.len(), 1);
+		let new_runtime_version = node.client()
+			.executor()
+			.runtime_version(&BlockId::Hash(node.client().info().best_hash))?
+			.spec_version;
+		// just confirming
+		assert!(new_runtime_version > old_runtime_version);
 
-        let (from, dest, balance) = (
-            AccountId32::from_str("15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK")?,
-            AccountId32::from_str("1rvXMZpAj9nKLQkPFCymyH7Fg3ZyKJhJbrc7UtHbTVhJm1A")?,
-            10_000_000_000_000 // 10 dots
-        );
+		let (from, dest, balance) = (
+			AccountId32::from_str("15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK")?,
+			AccountId32::from_str("1rvXMZpAj9nKLQkPFCymyH7Fg3ZyKJhJbrc7UtHbTVhJm1A")?,
+			10_000_000_000_000 // 10 dots
+		);
 
-        // post upgrade tests, a simple balance transfer
-        node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), from).await?;
-        node.seal_blocks(1).await;
+		// post upgrade tests, a simple balance transfer
+		node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), from).await?;
+		node.seal_blocks(1).await;
 
-        let events = node.events()
-            .into_iter()
-            .filter(|event| {
-                match event.event {
-                    Event::Balances(balances::Event::Transfer(_, _, _)) => true,
-                    _ => false,
-                }
-            })
-            .collect::<Vec<_>>();
-        // make sure transfer went through
-        assert_eq!(events.len(), 1);
+		let events = node.events()
+			.into_iter()
+			.filter(|event| {
+				match event.event {
+					Event::Balances(balances::Event::Transfer(_, _, _)) => true,
+					_ => false,
+				}
+			})
+			.collect::<Vec<_>>();
+		// make sure transfer went through
+		assert_eq!(events.len(), 1);
 
-        // we're done, drop node.
-        drop(node);
+		// we're done, drop node.
+		drop(node);
 
-        Ok(())
-    })
+		Ok(())
+	})
 }
