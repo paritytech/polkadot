@@ -17,7 +17,7 @@
 //! The Statement Distribution Subsystem.
 //!
 //! This is responsible for distributing signed statements about candidate
-//! validity amongst validators.
+//! validity among validators.
 
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
