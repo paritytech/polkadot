@@ -31,7 +31,6 @@ conclude/UD
 config/MS
 crowdfund
 crowdloan/MSG
-crt
 crypto/MS
 customizable/B
 DDoS
@@ -107,6 +106,7 @@ MB/M
 Mbit
 merkle/MS
 metadata/M
+middleware/MS
 misbehavior/SM
 misbehaviors
 MIT/M
@@ -185,7 +185,6 @@ teleport/D
 teleport/RG
 teleportation/SM
 teleporter/SM
-middleware/MS
 teleporters
 testnet/MS
 timestamp/MS

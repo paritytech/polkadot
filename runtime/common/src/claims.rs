@@ -167,7 +167,7 @@ pub mod pallet {
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
 		SignerHasNoClaim,
-		/// Account ID sending tx has no claim.
+		/// Account ID sending transaction has no claim.
 		SenderHasNoClaim,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
