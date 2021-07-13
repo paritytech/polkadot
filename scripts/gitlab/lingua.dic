@@ -31,13 +31,15 @@ commit/D
 computable
 conclude/UD
 config/MS
+could've
 crowdfund
 crowdloan/MSG
 crypto/MS
 CSM
+Cucumber/MS
 customizable/B
 DDoS
-debian/M
+Debian/M
 decodable/MS
 deduplicated
 deinitializing
@@ -71,6 +73,8 @@ getter/MS
 GiB/S
 GPL/M
 GPLv3/M
+Grafana/MS
+Gurke/MS
 Handler/MS
 HMP/SM
 HRMP
@@ -103,6 +107,7 @@ keypair/MS
 keystore/MS
 Kovan
 KSM/S
+Kubernetes/MS
 kusama/S
 KYC/M
 lib
@@ -110,7 +115,6 @@ libp2p
 lifecycle/MS
 lookahead/MS
 lookup/MS
-Simnet/MS
 LRU
 mainnet/MS
 malus
@@ -160,6 +164,7 @@ picosecond/SM
 PoA/MS
 polkadot/MS
 PoV/MS
+PR/MS
 preconfigured
 preopen
 prepend/G
@@ -189,6 +194,7 @@ scalability
 SDF
 sending/S
 shareable
+Simnet/MS
 spawn/SR
 spawner
 sr25519

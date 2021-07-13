@@ -17,7 +17,7 @@
 //! # Polkadot Staking Miner.
 //!
 //! Simple bot capable of monitoring a polkadot (and cousins) chain and submitting solutions to the
-//! 'pallet-election-provider-multi-phase'. See `--help` for more details.
+//! `pallet-election-provider-multi-phase`. See `--help` for more details.
 //!
 //! # Implementation Notes:
 //!

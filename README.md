@@ -19,7 +19,7 @@ either run the latest binary from our
 [releases](https://github.com/paritytech/polkadot/releases) page, or install
 Polkadot from one of our package repositories.
 
-Installation from the debian or rpm repositories will create a `systemd`
+Installation from the Debian or rpm repositories will create a `systemd`
 service that can be used to run a Polkadot node. This is disabled by default,
 and can be started by running `systemctl start polkadot` on demand (use
 `systemctl enable polkadot` to make it auto-start after reboot). By default, it

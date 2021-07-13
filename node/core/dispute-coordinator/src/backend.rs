@@ -121,7 +121,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_candidate_votes(session, candidate_hash)
 	}
 
-	/// Prepare a write to the 'earliest session' field of the DB.
+	/// Prepare a write to the "earliest session" field of the DB.
 	///
 	/// Later calls to this function will override earlier ones.
 	pub fn write_earliest_session(&mut self, session: SessionIndex) {
