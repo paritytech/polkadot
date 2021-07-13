@@ -169,6 +169,8 @@ spellcheck:
   <<:                              *docker-env
   <<:                              *rules-pr-only
   script:
+    - echo $CI_EXTERNAL_PULL_REQUEST_SOURCE_BRANCH_NAME || exit 0
+    - echo $CI_EXTERNAL_PULL_REQUEST_TARGET_BRANCH_NAME || exit 0
     - cargo spellcheck --version
     # should compare with the target branch of the PR, but it's not given by our mirroring
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
