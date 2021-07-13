@@ -352,11 +352,12 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
 		DisputeCoordinatorMessage::QueryCandidateVotes(
-			session_index,
-			candidate_hash,
+			vec![(session_index, candidate_hash)],
 			tx
 		)
 	))
 	.await;
-	rx.await.map_err(|_| NonFatal::AskCandidateVotesCanceled)
+	rx.await
+		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
+		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
 }
