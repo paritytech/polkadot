@@ -91,7 +91,7 @@ miniserve -r ./coverage
 grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
 ```
 
-The test coverage in `lcov` can the be published to <codecov.io>.
+The test coverage in `lcov` can the be published to <https://codecov.io>.
 
 ```sh
 bash <(curl -s https://codecov.io/bash) -f lcov.info
@@ -171,7 +171,7 @@ and replace the subsystems as needed.
 #### Full `proc-macro` implementation
 
 `Overseer` is a common pattern.
-It could be extracted as proc macro and generative proc-macro.
+It could be extracted as `proc` macro and generative `proc-macro`.
 This would replace the `AllSubsystems` type as well as implicitly create
 the `AllMessages` enum as  `AllSubsystemsGen` does today.
 
