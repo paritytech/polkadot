@@ -129,7 +129,7 @@ Do nothing.
     according to the `SessionInfo` of the dispute candidate's session, the
     `DisputeStatus` should be set to `ConcludedPositive(now)` unless it was
     already `ConcludedNegative`.
-13. If the dispute now has supermajority votes in the "invalid" direction, 
+13. If the dispute now has supermajority votes in the "invalid" direction,
     the `DisputeStatus` should be set to `ConcludedNegative(now)`. If it
     was `ConcludedPositive` before, the timestamp `now` should be copied
     from the previous status. It will be pruned after some time and all chains
@@ -143,7 +143,8 @@ Do nothing.
 
 ### On `DisputeCoordinatorMessage::QueryCandidateVotes`
 
-* Load `"candidate-votes"` and return the data within or `None` if missing.
+* Load `"candidate-votes"` for every `(SessionIndex, CandidateHash)` in the query and return data within each `CandidateVote`.
+  If a particular `candidate-vote` is missing, that particular request is ommitted from the response.
 
 ### On `DisputeCoordinatorMessage::IssueLocalStatement`
 
