@@ -47,7 +47,7 @@ sc_executor::native_executor_instance!(
 	(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
 );
 
-/// ChainInfo implementation.
+/// `ChainInfo` implementation.
 pub struct PolkadotChainInfo;
 
 impl ChainInfo for PolkadotChainInfo {

@@ -17,7 +17,7 @@
 //! The scheduler module for parachains and parathreads.
 //!
 //! This module is responsible for two main tasks:
-//!   - Paritioning validators into groups and assigning groups to parachains and parathreads
+//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
 //!   - Scheduling parachains and parathreads
 //!
 //! It aims to achieve these tasks with these goals in mind:
@@ -183,7 +183,7 @@ decl_storage! {
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 		///
-		/// Note that in the context of parachains modules the session change is signalled during
+		/// Note that in the context of parachains modules the session change is signaled during
 		/// the block and enacted at the end of the block (at the finalization stage, to be exact).
 		/// Thus for all intents and purposes the effect of the session change is observed at the
 		/// block following the session change, block number of which we save in this storage value.
@@ -644,7 +644,7 @@ impl<T: Config> Module<T> {
 	/// occupied and the candidate occupying it became available.
 	///
 	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
 		let parachains = <paras::Pallet<T>>::parachains();
@@ -667,7 +667,7 @@ impl<T: Config> Module<T> {
 	/// occupied and the candidate occupying it became available.
 	///
 	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {

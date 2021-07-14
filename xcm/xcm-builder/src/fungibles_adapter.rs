@@ -21,7 +21,7 @@ use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
 use frame_support::traits::{Get, tokens::fungibles, Contains};
 use xcm_executor::traits::{TransactAsset, Convert, MatchesFungibles, Error as MatchError};
 
-/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be TryFrom/TryInto<u128>) into
+/// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
 /// `PalletInstance` junction.
 pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(PhantomData<(Prefix, AssetId, ConvertAssetId)>);

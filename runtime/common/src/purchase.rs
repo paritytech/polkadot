@@ -140,7 +140,7 @@ pub mod pallet {
 		PaymentAccountSet(T::AccountId),
 		/// A new statement was set.
 		StatementUpdated,
-		/// A new statement was set. [block_number]
+		/// A new statement was set. `[block_number]`
 		UnlockBlockUpdated(T::BlockNumber),
 	}
 
@@ -226,7 +226,7 @@ pub mod pallet {
 		/// Update the validity status of an existing account. If set to completed, the account
 		/// will no longer be able to continue through the crowdfund process.
 		///
-		/// We check tht the account exists at this stage, but has not completed the process.
+		/// We check that the account exists at this stage, but has not completed the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
@@ -248,7 +248,7 @@ pub mod pallet {
 
 		/// Update the balance of a valid account.
 		///
-		/// We check tht the account is valid for a balance transfer at this point.
+		/// We check that the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]

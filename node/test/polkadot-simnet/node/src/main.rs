@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Binary used for simnet nodes, supports all runtimes, although only polkadot is implemented currently.
-//! This binary accepts all the cli args the polkadot binary does, Only difference is it uses
+//! Binary used for Simnet nodes, supports all runtimes, although only polkadot is implemented currently.
+//! This binary accepts all the CLI args the polkadot binary does, Only difference is it uses
 //! manual-seal™ and babe for block authorship, it has a no-op verifier, so all blocks received over the network
 //! are imported and executed straight away. Block authorship/Finalization maybe done by calling the
 //!  `engine_createBlock` & `engine_FinalizeBlock` rpc methods respectively.

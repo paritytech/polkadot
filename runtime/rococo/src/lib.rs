@@ -146,9 +146,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -867,7 +867,7 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
 }
 
-// Instance that is 'deployed' at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
+// Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
 pub type AtWococoFromRococoMessagesDispatch = pallet_bridge_dispatch::DefaultInstance;
 impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runtime {
 	type Event = Event;
@@ -881,7 +881,7 @@ impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runt
 	type AccountIdConverter = bp_rococo::AccountIdConverter;
 }
 
-// Instance that is 'deployed' at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
+// Instance that is "deployed" at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
 pub type AtRococoFromWococoMessagesDispatch = pallet_bridge_dispatch::Instance1;
 impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runtime {
 	type Event = Event;
@@ -904,7 +904,7 @@ parameter_types! {
 	pub const RootAccountForPayments: Option<AccountId> = None;
 }
 
-// Instance that is 'deployed' at Wococo chain. Responsible for sending Wococo -> Rococo messages
+// Instance that is "deployed" at Wococo chain. Responsible for sending Wococo -> Rococo messages
 // and receiving Rococo -> Wococo messages.
 pub type AtWococoWithRococoMessagesInstance = pallet_bridge_messages::DefaultInstance;
 impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
@@ -938,7 +938,7 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 	type MessageDispatch = crate::bridge_messages::FromRococoMessageDispatch;
 }
 
-// Instance that is 'deployed' at Rococo chain. Responsible for sending Rococo -> Wococo messages
+// Instance that is "deployed" at Rococo chain. Responsible for sending Rococo -> Wococo messages
 // and receiving Wococo -> Rococo messages.
 pub type AtRococoWithWococoMessagesInstance = pallet_bridge_messages::Instance1;
 impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runtime {

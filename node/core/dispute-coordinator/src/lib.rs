@@ -212,7 +212,7 @@ pub enum DisputeStatus {
 	/// since the given timestamp.
 	#[codec(index = 1)]
 	ConcludedFor(Timestamp),
-	/// The dispute has been concluded agains the candidate
+	/// The dispute has been concluded against the candidate
 	/// since the given timestamp.
 	///
 	/// This takes precedence over `ConcludedFor` in the case that

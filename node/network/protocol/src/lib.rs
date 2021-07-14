@@ -284,7 +284,7 @@ impl View {
 
 	/// Check if two views have the same heads.
 	///
-	/// Equivalent to the `PartialEq` fn,
+	/// Equivalent to the `PartialEq` function,
 	/// but ignores the `finalized_number` field.
 	pub fn check_heads_eq(&self, other: &Self) -> bool {
 		self.heads == other.heads
@@ -325,7 +325,7 @@ pub mod v1 {
 		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
-		/// via req/response.
+		/// via request/response.
 		#[codec(index = 1)]
 		LargeStatement(StatementMetadata),
 	}

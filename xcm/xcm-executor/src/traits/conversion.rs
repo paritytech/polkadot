@@ -19,7 +19,7 @@ use parity_scale_codec::{Encode, Decode};
 use xcm::v0::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
-/// impls of `From` and `Into` for the types you wish to convert between.
+/// implementations of `From` and `Into` for the types you wish to convert between.
 ///
 /// One of `convert`/`convert_ref` and `reverse`/`reverse_ref` MUST be implemented. If possible, implement
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
@@ -118,7 +118,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
 }
 
-/// A convertor trait for origin types.
+/// A converter `trait` for origin types.
 ///
 /// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
 /// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`

@@ -59,7 +59,7 @@ impl UmpSink for () {
 /// if the message content is unique.
 pub type MessageId = [u8; 32];
 
-/// A specific implementation of a UmpSink where messages are in the XCM format
+/// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
@@ -181,7 +181,7 @@ decl_storage! {
 		/// First item in the tuple is the count of messages and second
 		/// is the total length (in bytes) of the message payloads.
 		///
-		/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
+		/// Note that this is an auxiliary mapping: it's possible to tell the byte size and the number of
 		/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
 		/// loading the whole message queue if only the total size and count are required.
 		///
@@ -430,7 +430,7 @@ impl<T: Config> Module<T> {
 /// thus increasing the peak memory consumption of the wasm runtime. Under such conditions persisting
 /// queues might play better since it's unlikely that they are going to be requested once more.
 ///
-/// On the other hand, the situation when deep queues exist and it takes more than one dipsatcher
+/// On the other hand, the situation when deep queues exist and it takes more than one dispatcher
 /// cycle to traverse the queues is already sub-optimal and better be avoided.
 ///
 /// This struct is not supposed to be dropped but rather to be consumed by [`flush`].

@@ -18,7 +18,7 @@
 //!
 //! An example on how to use the `OverseerGen` pattern to
 //! instantiate a modified subsystem implementation
-//! for usage with simnet/gurke.
+//! for usage with `simnet`/Gurke.
 
 #![allow(missing_docs)]
 

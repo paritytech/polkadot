@@ -121,7 +121,7 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 
 /// The type used for currency conversion.
 ///
-/// This must only be used as long as the balance type is u128.
+/// This must only be used as long as the balance type is `u128`.
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 

@@ -57,7 +57,7 @@ pub trait Backend {
 		where I: IntoIterator<Item = BackendWriteOp>;
 }
 
-/// An in-memory overllay for the backend.
+/// An in-memory overlay for the backend.
 ///
 /// This maintains read-only access to the underlying backend, but can be converted into a set of
 /// write operations which will, when written to the underlying backend, give the same view as the
@@ -121,7 +121,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_candidate_votes(session, candidate_hash)
 	}
 
-	/// Prepare a write to the 'earliest session' field of the DB.
+	/// Prepare a write to the "earliest session" field of the DB.
 	///
 	/// Later calls to this function will override earlier ones.
 	pub fn write_earliest_session(&mut self, session: SessionIndex) {

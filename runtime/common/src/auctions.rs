@@ -89,7 +89,7 @@ pub mod pallet {
 
 		/// The length of each sample to take during the ending period.
 		///
-		/// EndingPeriod / SampleLength = Total # of Samples
+		/// `EndingPeriod` / `SampleLength` = Total # of Samples
 		#[pallet::constant]
 		type SampleLength: Get<Self::BlockNumber>;
 
@@ -114,24 +114,24 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
-		/// [auction_index, lease_period, ending]
+		/// `[auction_index, lease_period, ending]`
 		AuctionStarted(AuctionIndex, LeasePeriodOf<T>, T::BlockNumber),
-		/// An auction ended. All funds become unreserved. [auction_index]
+		/// An auction ended. All funds become unreserved. `[auction_index]`
 		AuctionClosed(AuctionIndex),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
-		/// Second is the total. [bidder, extra_reserved, total_amount]
+		/// Second is the total. `[bidder, extra_reserved, total_amount]`
 		Reserved(T::AccountId, BalanceOf<T>, BalanceOf<T>),
-		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
+		/// Funds were unreserved since bidder is no longer active. `[bidder, amount]`
 		Unreserved(T::AccountId, BalanceOf<T>),
 		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
 		/// but no parachain slot has been leased.
-		/// \[parachain_id, leaser, amount\]
+		/// `[parachain_id, leaser, amount]`
 		ReserveConfiscated(ParaId, T::AccountId, BalanceOf<T>),
 		/// A new bid has been accepted as the current winner.
-		/// \[who, para_id, amount, first_slot, last_slot\]
+		/// `[who, para_id, amount, first_slot, last_slot]`
 		BidAccepted(T::AccountId, ParaId, BalanceOf<T>, LeasePeriodOf<T>, LeasePeriodOf<T>),
 		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
-		/// \[auction_index, block_number\]
+		/// `[auction_index, block_number]`
 		WinningOffset(AuctionIndex, T::BlockNumber),
 	}
 
@@ -565,7 +565,7 @@ impl<T: Config> Pallet<T> {
 	/// Calculate the final winners from the winning slots.
 	///
 	/// This is a simple dynamic programming algorithm designed by Al, the original code is at:
-	/// https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py
+	/// `https://github.com/w3f/consensus/blob/master/NPoS/auctiondynamicthing.py`
 	fn calculate_winners(
 		mut winning: WinningData<T>
 	) -> WinnersData<T> {

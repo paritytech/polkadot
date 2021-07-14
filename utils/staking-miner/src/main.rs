@@ -17,7 +17,7 @@
 //! # Polkadot Staking Miner.
 //!
 //! Simple bot capable of monitoring a polkadot (and cousins) chain and submitting solutions to the
-//! 'pallet-election-provider-multi-phase'. See `--help` for more details.
+//! `pallet-election-provider-multi-phase`. See `--help` for more details.
 //!
 //! # Implementation Notes:
 //!
@@ -239,7 +239,7 @@ enum Command {
 	Monitor(MonitorConfig),
 	/// Just compute a solution now, and don't submit it.
 	DryRun(DryRunConfig),
-	/// Provide a solution that can be submitted to the chian as an emergency response.
+	/// Provide a solution that can be submitted to the chain as an emergency response.
 	EmergencySolution,
 }
 
@@ -269,7 +269,7 @@ struct DryRunConfig {
 
 #[derive(Debug, Clone, StructOpt)]
 struct SharedConfig {
-	/// The ws node to connect to.
+	/// The `ws` node to connect to.
 	#[structopt(long, default_value = DEFAULT_URI)]
 	uri: String,
 
@@ -283,7 +283,7 @@ struct SharedConfig {
 
 #[derive(Debug, Clone, StructOpt)]
 struct Opt {
-	/// The ws node to connect to.
+	/// The `ws` node to connect to.
 	#[structopt(flatten)]
 	shared: SharedConfig,
 
