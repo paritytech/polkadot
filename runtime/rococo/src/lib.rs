@@ -235,7 +235,7 @@ construct_runtime! {
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage},
+		Mmr: pallet_mmr::{Pallet, Storage},
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
 		MmrLeaf: mmr_common::{Pallet, Storage},
 
