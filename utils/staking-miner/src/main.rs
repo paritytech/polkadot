@@ -191,7 +191,7 @@ macro_rules! any_runtime {
 #[derive(Debug, thiserror::Error)]
 enum Error {
 	Io(#[from] std::io::Error),
-	Jsonrpsee(#[from] jsonrpsee_ws_client::Error),
+	Jsonrpsee(#[from] jsonrpsee_ws_client::types::Error),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
 	RemoteExternalities(&'static str),
