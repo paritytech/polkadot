@@ -242,7 +242,7 @@ decl_storage! {
 		HrmpOpenChannelRequests: map hasher(twox_64_concat) HrmpChannelId => Option<HrmpOpenChannelRequest>;
 		HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
 
-		/// This mapping tracks how many open channel requests are inititated by a given sender para.
+		/// This mapping tracks how many open channel requests are initiated by a given sender para.
 		/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 		/// as the number of `HrmpOpenChannelRequestCount` for `X`.
 		HrmpOpenChannelRequestCount: map hasher(twox_64_concat) ParaId => u32;
@@ -291,7 +291,7 @@ decl_storage! {
 		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
 		/// Maintains a mapping that can be used to answer the question:
-		/// What paras sent a message at the given block number for a given reciever.
+		/// What paras sent a message at the given block number for a given receiver.
 		/// Invariants:
 		/// - The inner `Vec<ParaId>` is never empty.
 		/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
@@ -384,11 +384,11 @@ decl_error! {
 decl_event! {
 	pub enum Event {
 		/// Open HRMP channel requested.
-		/// \[sender, recipient, proposed_max_capacity, proposed_max_message_size\]
+		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
 		OpenChannelRequested(ParaId, ParaId, u32, u32),
-		/// Open HRMP channel accepted. \[sender, recipient\]
+		/// Open HRMP channel accepted. `[sender, recipient]`
 		OpenChannelAccepted(ParaId, ParaId),
-		/// HRMP channel closed. \[by_parachain, channel_id\]
+		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
 	}
 }
@@ -468,7 +468,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Force process hrmp open channel requests.
+		/// Force process HRMP open channel requests.
 		///
 		/// If there are pending HRMP open channel requests, you can use this
 		/// function process all of those requests immediately.
@@ -480,7 +480,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Force process hrmp close channel requests.
+		/// Force process HRMP close channel requests.
 		///
 		/// If there are pending HRMP close channel requests, you can use this
 		/// function process all of those requests immediately.
@@ -667,7 +667,7 @@ impl<T: Config> Module<T> {
 	///
 	/// This includes returning the deposits.
 	///
-	/// This function is indempotent, meaning that after the first application it should have no
+	/// This function is idempotent, meaning that after the first application it should have no
 	/// effect (i.e. it won't return the deposits twice).
 	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
 		if let Some(HrmpChannel {

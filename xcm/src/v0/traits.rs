@@ -171,7 +171,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
 /// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
-/// might alter the destination and the xcm message for to the next router.
+/// might alter the destination and the XCM message for to the next router.
 ///
 ///
 /// # Example

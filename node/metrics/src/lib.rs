@@ -49,7 +49,7 @@ pub mod metrics {
 		/// Try to register metrics in the Prometheus registry.
 		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-		/// Convenience method to register metrics in the optional Promethius registry.
+		/// Convenience method to register metrics in the optional Prometheus registry.
 		///
 		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
 		/// thing that `try_register` does.

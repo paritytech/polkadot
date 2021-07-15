@@ -20,7 +20,7 @@ One particular subsystem (subsystem under test) interacts with a
 mocked overseer that is made to assert incoming and outgoing messages
 of the subsystem under test.
 This is largely present today, but has some fragmentation in the evolved
-integration test implementation. A proc-macro/macro_rules would allow
+integration test implementation. A `proc-macro`/`macro_rules` would allow
 for more consistent implementation and structure.
 
 #### Behavior tests (3)
@@ -29,26 +29,24 @@ Launching small scale networks, with multiple adversarial nodes without any furt
 This should include tests around the thresholds in order to evaluate the error handling once certain
 assumed invariants fail.
 
-For this purpose based on `AllSubsystems` and proc-macro `AllSubsystemsGen`.
+For this purpose based on `AllSubsystems` and `proc-macro` `AllSubsystemsGen`.
 
 This assumes a simplistic test runtime.
 
 #### Testing at scale (4)
 
 Launching many nodes with configurable network speed and node features in a cluster of nodes.
-At this scale the [`simnet`][simnet] comes into play which launches a full cluster of nodes.
+At this scale the [Simnet][simnet] comes into play which launches a full cluster of nodes.
 The scale is handled by spawning a kubernetes cluster and the meta description
-is covered by [`gurke`][gurke].
-Asserts are made using grafana rules, based on the existing prometheus metrics. This can
+is covered by [Gurke][Gurke].
+Asserts are made using Grafana rules, based on the existing prometheus metrics. This can
 be extended by adding an additional service translating `jaeger` spans into addition
 prometheus avoiding additional polkadot source changes.
-
 
 _Behavior tests_ and _testing at scale_ have naturally soft boundary.
 The most significant difference is the presence of a real network and
 the number of nodes, since a single host often not capable to run
 multiple nodes at once.
-
 
 ---
 
@@ -93,15 +91,15 @@ miniserve -r ./coverage
 grcov . --binary-path ./target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore "/*" -o lcov.info
 ```
 
-The test coverage in `lcov` can the be published to <codecov.io>.
+The test coverage in `lcov` can the be published to <https://codecov.io>.
 
 ```sh
 bash <(curl -s https://codecov.io/bash) -f lcov.info
 ```
 
-or just printed as part of the PR using a github action i.e. [jest-lcov-reporter](https://github.com/marketplace/actions/jest-lcov-reporter).
+or just printed as part of the PR using a github action i.e. [`jest-lcov-reporter`](https://github.com/marketplace/actions/jest-lcov-reporter).
 
-For full examples on how to use [grcov /w polkadot specifics see the github repo](https://github.com/mozilla/grcov#coverallscodecov-output).
+For full examples on how to use [`grcov` /w polkadot specifics see the github repo](https://github.com/mozilla/grcov#coverallscodecov-output).
 
 ## Fuzzing
 
@@ -146,13 +144,12 @@ Requirements:
 
 * spawn nodes with preconfigured behaviors
 * allow multiple types of configuration to be specified
-* allow extensability via external crates
+* allow extendability via external crates
 * ...
 
 ---
 
-
-## Implementation of different behavior strain nodes.
+## Implementation of different behavior strain nodes
 
 ### Goals
 
@@ -166,21 +163,21 @@ well as shorting the block time and epoch times down to a few `100ms` and a few 
 
 #### MVP
 
-A simple small scale builder pattern would suffice for stage one impl of allowing to
+A simple small scale builder pattern would suffice for stage one implementation of allowing to
 replace individual subsystems.
 An alternative would be to harness the existing `AllSubsystems` type
 and replace the subsystems as needed.
 
-#### Full proc-macro impl
+#### Full `proc-macro` implementation
 
 `Overseer` is a common pattern.
-It could be extracted as proc macro and generative proc-macro.
+It could be extracted as `proc` macro and generative `proc-macro`.
 This would replace the `AllSubsystems` type as well as implicitly create
 the `AllMessages` enum as  `AllSubsystemsGen` does today.
 
 The implementation is yet to be completed, see the [implementation PR](https://github.com/paritytech/polkadot/pull/2962) for details.
 
-##### Declare an overseer impl
+##### Declare an overseer implementation
 
 ```rust
 struct BehaveMaleficient;
@@ -237,8 +234,8 @@ fn main() -> eyre::Result<()> {
 
 #### Simnet
 
-Spawn a kubernetes cluster based on a meta description using [gurke] with the
-[simnet] scripts.
+Spawn a kubernetes cluster based on a meta description using [Gurke] with the
+[Simnet] scripts.
 
 Coordinated attacks of multiple nodes or subsystems must be made possible via
 a side-channel, that is out of scope for this document.
@@ -246,11 +243,11 @@ a side-channel, that is out of scope for this document.
 The individual node configurations are done as targets with a particular
 builder configuration.
 
-#### Behavior tests w/o simnet
+#### Behavior tests w/o Simnet
 
 Commonly this will require multiple nodes, and most machines are limited to
 running two or three nodes concurrently.
-Hence, this is not the common case and is just an impl _idea_.
+Hence, this is not the common case and is just an implementation _idea_.
 
 ```rust
 behavior_testcase!{
@@ -263,5 +260,5 @@ behavior_testcase!{
 }
 ```
 
-[gurke]: https://github.com/paritytech/gurke
+[Gurke]: https://github.com/paritytech/gurke
 [simnet]: https://github.com/paritytech/simnet_scripts

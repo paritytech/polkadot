@@ -285,7 +285,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 			}
 		);
 
-		// runtime api call fails
+		// runtime API call fails
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(

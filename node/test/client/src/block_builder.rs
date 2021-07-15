@@ -24,7 +24,7 @@ use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
 use sp_state_machine::BasicExternalities;
 use parity_scale_codec::{Encode, Decode};
 
-/// An extension for the test client to init a Polkadot specific block builder.
+/// An extension for the test client to initialize a Polkadot specific block builder.
 pub trait InitPolkadotBlockBuilder {
 	/// Init a Polkadot specific block builder that works for the test runtime.
 	///

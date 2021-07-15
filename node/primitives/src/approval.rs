@@ -86,7 +86,7 @@ pub struct AssignmentCert {
 	pub vrf: (VRFOutput, VRFProof),
 }
 
-/// An assignment crt which refers to the candidate under which the assignment is
+/// An assignment criterion which refers to the candidate under which the assignment is
 /// relevant by block hash.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectAssignmentCert {

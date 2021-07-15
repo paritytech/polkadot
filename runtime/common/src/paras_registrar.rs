@@ -202,7 +202,7 @@ pub mod pallet {
 		///
 		/// This function must be called by a Root origin.
 		///
-		/// The deposit taken can be specified for this registration. Any ParaId
+		/// The deposit taken can be specified for this registration. Any `ParaId`
 		/// can be registered, including sub-1000 IDs which are System Parachains.
 		#[pallet::weight(T::WeightInfo::force_register())]
 		pub fn force_register(
@@ -344,7 +344,7 @@ impl<T: Config> Registrar for Pallet<T> {
 
 	// Register a Para ID under control of `manager`.
 	//
-	// Note this is a backend registration api, so verification of ParaId
+	// Note this is a backend registration API, so verification of ParaId
 	// is not done here to prevent.
 	fn register(
 		manager: T::AccountId,

@@ -534,7 +534,7 @@ async fn handle_active_leaf(
 				);
 
 				// If we don't know the weight, we can't import the block.
-				// And none of its descendents either.
+				// And none of its descendants either.
 				break;
 			}
 			Some(w) => w,
