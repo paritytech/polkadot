@@ -18,15 +18,14 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	SessionIndex, CandidateHash,
-	DisputeState, DisputeStatementSet, MultiDisputeStatementSet, ValidatorId, ValidatorSignature,
-	DisputeStatement, ValidDisputeStatementKind, InvalidDisputeStatementKind,
-	ExplicitDisputeStatement, CompactStatement, SigningContext, ApprovalVote, ValidatorIndex,
-	byzantine_threshold, supermajority_threshold
+	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
+	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
+	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::{
 	traits::{One, Zero, Saturating, AppVerify},
-	DispatchError, RuntimeDebug,
+	DispatchError, RuntimeDebug, SaturatedConversion,
 };
 use frame_support::{ensure, traits::Get, weights::Weight};
 use parity_scale_codec::{Encode, Decode};
@@ -90,6 +89,127 @@ impl PunishValidators for () {
 	}
 }
 
+/// Hook into disputes handling.
+///
+/// Allows decoupling parachains handling from disputes so that it can
+/// potentially be disabled when instantiating a specific runtime.
+pub trait DisputesHandler<BlockNumber> {
+	/// Whether the chain is frozen, if the chain is frozen it will not accept
+	/// any new parachain blocks for backing or inclusion.
+	fn is_frozen() -> bool;
+
+	/// Handler for filtering any dispute statements before including them as part
+	/// of inherent data. This can be useful to filter out ancient and duplicate
+	/// dispute statements.
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet);
+
+	/// Handle sets of dispute statements corresponding to 0 or more candidates.
+	/// Returns a vector of freshly created disputes.
+	fn provide_multi_dispute_data(
+		statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
+
+	/// Note that the given candidate has been included.
+	fn note_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		included_in: BlockNumber,
+	);
+
+	/// Whether the given candidate could be invalid, i.e. there is an ongoing
+	/// or concluded dispute with supermajority-against.
+	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
+
+	/// Called by the initializer to initialize the configuration module.
+	fn initializer_initialize(now: BlockNumber) -> Weight;
+
+	/// Called by the initializer to finalize the configuration module.
+	fn initializer_finalize();
+
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
+}
+
+impl<BlockNumber> DisputesHandler<BlockNumber> for () {
+	fn is_frozen() -> bool {
+		false
+	}
+
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		statement_sets.clear()
+	}
+
+	fn provide_multi_dispute_data(
+		_statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
+		Ok(Vec::new())
+	}
+
+	fn note_included(
+		_session: SessionIndex,
+		_candidate_hash: CandidateHash,
+		_included_in: BlockNumber,
+	) {
+
+	}
+
+	fn could_be_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
+		false
+	}
+
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		0
+	}
+
+	fn initializer_finalize() {
+
+	}
+
+	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {
+
+	}
+}
+
+impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
+	fn is_frozen() -> bool {
+		pallet::Pallet::<T>::is_frozen()
+	}
+
+	fn filter_multi_dispute_data(_statement_sets: &mut MultiDisputeStatementSet) {
+		// TODO: filter duplicate and ancient dispute statements
+	}
+
+	fn provide_multi_dispute_data(
+		statement_sets: MultiDisputeStatementSet,
+	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
+		pallet::Pallet::<T>::provide_multi_dispute_data(statement_sets)
+	}
+
+	fn note_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		included_in: T::BlockNumber,
+	) {
+		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
+	}
+
+	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+		pallet::Pallet::<T>::could_be_invalid(session, candidate_hash)
+	}
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		pallet::Pallet::<T>::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		pallet::Pallet::<T>::initializer_finalize()
+	}
+
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		pallet::Pallet::<T>::initializer_on_new_session(notification)
+	}
+}
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
@@ -103,7 +223,7 @@ pub mod pallet {
 		configuration::Config +
 		session_info::Config
 	{
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type RewardValidators: RewardValidators;
 		type PunishValidators: PunishValidators;
 	}
@@ -153,7 +273,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
-	pub enum Event {
+	pub enum Event<T: Config> {
 		/// A dispute has been initiated. \[candidate hash, dispute location\]
 		DisputeInitiated(CandidateHash, DisputeLocation),
 		/// A dispute has concluded for or against a candidate.
@@ -162,6 +282,11 @@ pub mod pallet {
 		/// A dispute has timed out due to insufficient participation.
 		/// \[para_id, candidate hash\]
 		DisputeTimedOut(CandidateHash),
+		/// A dispute has concluded with supermajority against a candidate.
+		/// Block authors should no longer build on top of this head and should
+		/// instead revert to the block at the given height which is the last
+		/// known valid block in this chain.
+		Revert(T::BlockNumber),
 	}
 
 	#[pallet::hooks]
@@ -716,6 +841,10 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
+			Self::deposit_event(Event::Revert(revert_to));
+			frame_system::Pallet::<T>::deposit_log(
+				ConsensusLog::Revert(revert_to.saturated_into()).into(),
+			);
 		}
 	}
 }
@@ -1739,6 +1868,9 @@ mod tests {
 	#[test]
 	fn test_revert_and_freeze() {
 		new_test_ext(Default::default()).execute_with(|| {
+			// events are ignored for genesis block
+			System::set_block_number(1);
+
 			Frozen::<Test>::put(Some(0));
 			assert_noop!(
 				{
@@ -1750,7 +1882,10 @@ mod tests {
 
 			Frozen::<Test>::kill();
 			Pallet::<Test>::revert_and_freeze(0);
+
 			assert_eq!(Frozen::<Test>::get(), Some(0));
+			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(0).into());
+			System::assert_has_event(Event::Revert(0).into());
 		})
 	}
 

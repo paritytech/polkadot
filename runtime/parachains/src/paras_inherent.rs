@@ -35,7 +35,7 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
-	disputes,
+	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
 	shared,
@@ -49,7 +49,7 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: disputes::Config + inclusion::Config + scheduler::Config {}
+pub trait Config: inclusion::Config + scheduler::Config {}
 
 decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
@@ -119,8 +119,8 @@ decl_module! {
 			// Handle disputes logic.
 			let current_session = <shared::Module<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = <disputes::Pallet<T>>::provide_multi_dispute_data(disputes)?;
-				if <disputes::Pallet<T>>::is_frozen() {
+				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::set(Some(()));
 					return Ok(Some(
@@ -158,7 +158,7 @@ decl_module! {
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
 			for (_, candidate_hash) in &freed_concluded {
-				<disputes::Pallet<T>>::note_included(current_session, *candidate_hash, now);
+				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
 			// Handle timeouts for any availability core work.
@@ -189,7 +189,7 @@ decl_module! {
 			// Refuse to back any candidates that are disputed or invalid.
 			for candidate in &backed_candidates {
 				ensure!(
-					!<disputes::Pallet<T>>::could_be_invalid(
+					!T::DisputesHandler::could_be_invalid(
 						current_session,
 						candidate.candidate.hash(),
 					),
@@ -271,7 +271,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let inherent_data: ParachainsInherentData<T::Header>
+		let mut inherent_data: ParachainsInherentData<T::Header>
 			= match data.get_data(&Self::INHERENT_IDENTIFIER)
 		{
 			Ok(Some(d)) => d,
@@ -285,6 +285,9 @@ impl<T: Config> ProvideInherent for Module<T> {
 				return None;
 			}
 		};
+
+		// filter out any unneeded dispute statements
+		T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
 
 		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 		// See github.com/paritytech/polkadot/issues/1327

@@ -35,7 +35,7 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
+use crate::{configuration, disputes, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -118,6 +118,7 @@ pub trait Config:
 	+ configuration::Config
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 	type RewardValidators: RewardValidators;
 }
 
