@@ -917,8 +917,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			if enable_approval_checking_voting_rule {
 				builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
 					overseer.clone(),
-					prometheus_registry.as_ref(),
-				)?)
+				))
 			} else {
 				builder
 			}
