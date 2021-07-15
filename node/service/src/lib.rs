@@ -486,7 +486,7 @@ impl IsCollator {
 /// Returns the active leaves the overseer should start with.
 #[cfg(feature = "full-node")]
 async fn active_leaves<RuntimeApi, Executor>(
-	select_chain: & impl SelectChain<Block>,
+	select_chain: &impl SelectChain<Block>,
 	client: &FullClient<RuntimeApi, Executor>,
 ) -> Result<Vec<BlockInfo>, Error>
 where
