@@ -18,6 +18,7 @@ use std::sync::atomic;
 use std::collections::HashMap;
 use std::task::{Poll};
 use futures::{executor, pin_mut, select, FutureExt, pending, poll, stream};
+use futures::channel::mpsc;
 
 use polkadot_primitives::v1::{CollatorPair, CandidateHash};
 use polkadot_node_primitives::{CollationResult, CollationGenerationConfig, PoV, BlockData};
@@ -809,10 +810,35 @@ fn test_approval_voting_msg() -> ApprovalVotingMessage {
 	ApprovalVotingMessage::ApprovedAncestor(Default::default(), 0, sender)
 }
 
+fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
+	let (sender, _) = oneshot::channel();
+	DisputeCoordinatorMessage::RecentDisputes(sender)
+}
+
+fn test_dispute_participation_msg() -> DisputeParticipationMessage {
+	let (sender, _) = oneshot::channel();
+	DisputeParticipationMessage::Participate {
+		candidate_hash: Default::default(),
+		candidate_receipt: Default::default(),
+		session: 0,
+		n_validators: 0,
+		report_availability: sender,
+	}
+}
+
+fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
+	let (_, receiver) = mpsc::channel(1);
+	DisputeDistributionMessage::DisputeSendingReceiver(receiver)
+}
+
+fn test_chain_selection_msg() -> ChainSelectionMessage {
+	ChainSelectionMessage::Approved(Default::default())
+}
+
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
-	const NUM_SUBSYSTEMS: usize = 17;
+	const NUM_SUBSYSTEMS: usize = 21;
 	// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
 	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
 
@@ -887,6 +913,10 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 		handler.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
 		handler.send_msg_anon(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
 		handler.send_msg_anon(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
+		handler.send_msg_anon(AllMessages::DisputeCoordinator(test_dispute_coordinator_msg())).await;
+		handler.send_msg_anon(AllMessages::DisputeParticipation(test_dispute_participation_msg())).await;
+		handler.send_msg_anon(AllMessages::DisputeDistribution(test_dispute_distribution_msg())).await;
+		handler.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
 		// the conclude signal.
