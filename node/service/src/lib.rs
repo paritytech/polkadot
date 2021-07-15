@@ -42,6 +42,8 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
+	polkadot_node_core_chain_selection::Config as ChainSelectionConfig,
+	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_overseer::BlockInfo,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
@@ -655,6 +657,15 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		},
 	};
 
+	let chain_selection_config = ChainSelectionConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		stagnant_check_interval: Default::default(),
+	};
+
+	let dispute_coordinator_config = DisputeCoordinatorConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+	};
+
 	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
@@ -734,15 +745,17 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 				keystore,
 				runtime_client: overseer_client.clone(),
 				parachains_db,
-				availability_config,
-				approval_voting_config,
 				network_service: network.clone(),
 				authority_discovery_service,
 				request_multiplexer,
 				registry: prometheus_registry.as_ref(),
 				spawner,
 				is_collator,
+				approval_voting_config,
+				availability_config,
 				candidate_validation_config,
+				chain_selection_config,
+				dispute_coordinator_config,
 			}
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();

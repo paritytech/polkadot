@@ -27,7 +27,7 @@ type Version = u32;
 const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 
 /// Current db version.
-const CURRENT_VERSION: Version = 0;
+const CURRENT_VERSION: Version = 1;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -56,6 +56,7 @@ pub fn try_upgrade_db(db_path: &Path) -> Result<(), Error> {
 	let is_empty = db_path.read_dir().map_or(true, |mut d| d.next().is_none());
 	if !is_empty {
 		match current_version(db_path)? {
+			0 => migrate_from_version_0_to_1(db_path)?,
 			CURRENT_VERSION => (),
 			v => return Err(Error::FutureVersion {
 				current: CURRENT_VERSION,
@@ -89,4 +90,21 @@ fn version_file_path(path: &Path) -> PathBuf {
 	let mut file_path = path.to_owned();
 	file_path.push(VERSION_FILE_NAME);
 	file_path
+}
+
+
+/// Migration from version 0 to version 1:
+/// * the number of columns has changed from 3 to 5;
+fn migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
+	use kvdb_rocksdb::{Database, DatabaseConfig};
+
+	let db_path = path.to_str()
+		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v0::NUM_COLUMNS);
+	let db = Database::open(&db_cfg, db_path)?;
+
+	db.add_column()?;
+	db.add_column()?;
+
+	Ok(())
 }
