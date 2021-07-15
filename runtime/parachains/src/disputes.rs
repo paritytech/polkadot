@@ -175,8 +175,12 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::is_frozen()
 	}
 
-	fn filter_multi_dispute_data(_statement_sets: &mut MultiDisputeStatementSet) {
-		// TODO: filter duplicate and ancient dispute statements
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		// TODO: filter duplicate and ancient dispute statements. For now, don't import anything
+		// because there will be redundancies.
+		//
+		// https://github.com/paritytech/polkadot/issues/3472
+		statement_sets.clear();
 	}
 
 	fn provide_multi_dispute_data(
