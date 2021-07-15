@@ -1487,8 +1487,8 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 58,
-		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 59,
-		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
+		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event<T>} = 59,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 60,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 61,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
