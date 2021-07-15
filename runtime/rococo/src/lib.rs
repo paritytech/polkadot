@@ -855,7 +855,7 @@ parameter_types! {
 	/// encoding does not prevent old leafs from being decoded.
 	///
 	/// Hence we expect `major` to be changed really rarely (think never).
-	/// See [MmrLeafVersion] type documentation for more details.
+	/// See [`MmrLeafVersion`] type documentation for more details.
 	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
