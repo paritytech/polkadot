@@ -16,7 +16,7 @@
 
 //! Primitives of messages module, that are used on the source chain.
 
-use crate::{InboundLaneData, LaneId, MessageNonce, OutboundLaneData};
+use crate::{DeliveredMessages, InboundLaneData, LaneId, MessageNonce, OutboundLaneData};
 
 use bp_runtime::Size;
 use frame_support::{Parameter, RuntimeDebug};
@@ -133,6 +133,15 @@ pub trait MessageDeliveryAndDispatchPayment<AccountId, Balance> {
 	fn initialize(_relayer_fund_account: &AccountId) -> usize {
 		0
 	}
+}
+
+/// Handler for messages delivery confirmation.
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+pub trait OnDeliveryConfirmed {
+	/// Called when we receive confirmation that our messages have been delivered to the
+	/// target chain. The confirmation also has single bit dispatch result for every
+	/// confirmed message (see `DeliveredMessages` for details).
+	fn on_messages_delivered(_lane: &LaneId, _messages: &DeliveredMessages) {}
 }
 
 /// Structure that may be used in place of `TargetHeaderChain`, `LaneMessageVerifier` and

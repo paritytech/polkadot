@@ -471,8 +471,8 @@ impl<T: Config> Pallet<T> {
 			};
 
 			for to_prune in to_prune {
-				<Disputes<T>>::remove_prefix(to_prune);
-				<Included<T>>::remove_prefix(to_prune);
+				<Disputes<T>>::remove_prefix(to_prune, None);
+				<Included<T>>::remove_prefix(to_prune, None);
 				SpamSlots::<T>::remove(to_prune);
 			}
 

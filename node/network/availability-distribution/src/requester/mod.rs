@@ -33,7 +33,8 @@ use futures::{
 use polkadot_node_subsystem_util::runtime::{RuntimeInfo, get_occupied_cores};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::AllMessages,
+	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
 use super::{LOG_TARGET, Metrics};
@@ -78,7 +79,6 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
-	#[tracing::instrument(level = "trace", skip(metrics), fields(subsystem = LOG_TARGET))]
 	pub fn new(metrics: Metrics) -> Self {
 		let (tx, rx) = mpsc::channel(1);
 		Requester {
@@ -92,7 +92,6 @@ impl Requester {
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunks for availability distribution.
-	#[tracing::instrument(level = "trace", skip(self, ctx, runtime, update), fields(subsystem = LOG_TARGET))]
 	pub async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -154,8 +153,8 @@ impl Requester {
 	///
 	/// Starting requests where necessary.
 	///
-	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
-	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
+	/// Note: The passed in `leaf` is not the same as `CandidateDescriptor::relay_parent` in the
+	/// given cores. The latter is the `relay_parent` this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
@@ -231,4 +230,3 @@ impl Stream for Requester {
 		}
 	}
 }
-

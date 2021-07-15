@@ -55,8 +55,8 @@ pub struct EthereumTransactionInclusionProof {
 ///
 /// The assumption is that this pair will never appear more than once in
 /// transactions included into finalized blocks. This is obviously true
-/// for any existing eth-like chain (that keep current tx format), because
-/// otherwise transaction can be replayed over and over.
+/// for any existing eth-like chain (that keep current transaction format),
+/// because otherwise transaction can be replayed over and over.
 #[derive(Encode, Decode, PartialEq, RuntimeDebug)]
 pub struct EthereumTransactionTag {
 	/// Account that has locked funds.
@@ -250,7 +250,7 @@ mod tests {
 		assert_eq!(
 			EthTransaction::parse(
 				&prepare_ethereum_transaction(&ferdie(), |tx| {
-					tx.value = sp_core::U256::from(u128::max_value()) + sp_core::U256::from(1);
+					tx.value = sp_core::U256::from(u128::MAX) + sp_core::U256::from(1);
 				})
 				.0
 			),

@@ -140,7 +140,7 @@ pub mod pallet {
 		PaymentAccountSet(T::AccountId),
 		/// A new statement was set.
 		StatementUpdated,
-		/// A new statement was set. [block_number]
+		/// A new statement was set. `[block_number]`
 		UnlockBlockUpdated(T::BlockNumber),
 	}
 
@@ -196,7 +196,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(200_000_000 + T::DbWeight::get().reads_writes(4, 1))]
-		pub(super) fn create_account(
+		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			signature: Vec<u8>
@@ -226,11 +226,11 @@ pub mod pallet {
 		/// Update the validity status of an existing account. If set to completed, the account
 		/// will no longer be able to continue through the crowdfund process.
 		///
-		/// We check tht the account exists at this stage, but has not completed the process.
+		/// We check that the account exists at this stage, but has not completed the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub(super) fn update_validity_status(
+		pub fn update_validity_status(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			validity: AccountValidity
@@ -248,11 +248,11 @@ pub mod pallet {
 
 		/// Update the balance of a valid account.
 		///
-		/// We check tht the account is valid for a balance transfer at this point.
+		/// We check that the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
-		pub(super) fn update_balance(
+		pub fn update_balance(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			free_balance: BalanceOf<T>,
@@ -281,7 +281,7 @@ pub mod pallet {
 		///
 		/// Origin must match the configured `PaymentAccount`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(4, 2))]
-		pub(super) fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
+		pub fn payout(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			// Payments must be made directly by the `PaymentAccount`.
 			let payment_account = ensure_signed(origin)?;
 			ensure!(payment_account == PaymentAccount::<T>::get(), DispatchError::BadOrigin);
@@ -334,7 +334,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
+		pub fn set_payment_account(origin: OriginFor<T>, who: T::AccountId) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
 			PaymentAccount::<T>::set(who.clone());
@@ -346,7 +346,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
+		pub fn set_statement(origin: OriginFor<T>, statement: Vec<u8>) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!((statement.len() as u32) < T::MaxStatementLength::get(), Error::<T>::InvalidStatement);
 			// Possibly this is worse than having the caller account be the payment account?
@@ -359,7 +359,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ConfigurationOrigin`
 		#[pallet::weight(T::DbWeight::get().writes(1))]
-		pub(super) fn set_unlock_block(origin: OriginFor<T>, unlock_block: T::BlockNumber) -> DispatchResult {
+		pub fn set_unlock_block(origin: OriginFor<T>, unlock_block: T::BlockNumber) -> DispatchResult {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(unlock_block > frame_system::Pallet::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
 			// Possibly this is worse than having the caller account be the payment account?
@@ -457,7 +457,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -898,8 +898,8 @@ mod tests {
 			assert_noop!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
-				u64::max_value(),
-				u64::max_value(),
+				u64::MAX,
+				u64::MAX,
 				Permill::zero(),
 			), Error::<Test>::InvalidAccount);
 		});

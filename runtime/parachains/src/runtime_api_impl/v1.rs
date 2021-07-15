@@ -21,11 +21,11 @@ use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_runtime::traits::One;
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState,
-	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
-	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData, SessionInfo,
-	InboundDownwardMessage, InboundHrmpMessage, AuthorityDiscoveryId, Hash
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
 
@@ -51,7 +51,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
-	let parachains = <paras::Module<T>>::parachains();
+	let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -236,7 +236,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets next, current and some historical authority ids using session_info module.
+/// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
@@ -270,16 +270,8 @@ pub fn validation_code<T: initializer::Config>(
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
-		|| <paras::Module<T>>::current_code(&para_id),
+		|| <paras::Pallet<T>>::current_code(&para_id),
 	)
-}
-
-/// Implementation for the `historical_validation_code` function of the runtime API.
-pub fn historical_validation_code<T: initializer::Config>(
-	para_id: ParaId,
-	context_height: T::BlockNumber,
-) -> Option<ValidationCode> {
-	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
@@ -333,7 +325,7 @@ pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 
 /// Implementation for the `validation_code_by_hash` function of the runtime API.
 pub fn validation_code_by_hash<T: paras::Config>(
-	hash: Hash,
+	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
-	<paras::Module<T>>::code_by_hash(hash)
+	<paras::Pallet<T>>::code_by_hash(hash)
 }

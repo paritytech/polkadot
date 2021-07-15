@@ -38,9 +38,13 @@ use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIn
 use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
 use wasm_timer::{Delay, Instant};
 
+#[cfg(test)]
+mod tests;
+
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
+
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -70,7 +74,6 @@ pub enum Error {
 
 /// If there is a candidate pending availability, query the Availability Store
 /// for whether we have the availability chunk for our validator index.
-#[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn get_core_availability(
 	core: &CoreState,
 	validator_idx: ValidatorIndex,
@@ -132,7 +135,6 @@ async fn get_availability_cores(
 /// - for each core, concurrently determine chunk availability (see `get_core_availability`)
 /// - return the bitfield if there were no errors at any point in this process
 ///   (otherwise, it's prone to false negatives)
-#[tracing::instrument(level = "trace", skip(sender, span), fields(subsystem = LOG_TARGET))]
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	span: &jaeger::Span,
@@ -226,7 +228,6 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
-	#[tracing::instrument(skip(span, keystore, metrics, _receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
@@ -302,7 +303,7 @@ impl JobTrait for BitfieldSigningJob {
 				.send_message(BitfieldDistributionMessage::DistributeBitfield(
 					relay_parent,
 					signed_bitfield,
-				).into())
+				))
 				.await;
 
 			Ok(())
@@ -311,76 +312,5 @@ impl JobTrait for BitfieldSigningJob {
 	}
 }
 
-/// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
+/// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
-	use polkadot_node_subsystem::messages::AllMessages;
-
-	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
-		CoreState::Occupied(OccupiedCore {
-			group_responsible: para_id.into(),
-			next_up_on_available: None,
-			occupied_since: 100_u32,
-			time_out_at: 200_u32,
-			next_up_on_time_out: None,
-			availability: Default::default(),
-			candidate_hash,
-			candidate_descriptor: Default::default(),
-		})
-	}
-
-	#[test]
-	fn construct_availability_bitfield_works() {
-		block_on(async move {
-			let relay_parent = Hash::default();
-			let validator_index = ValidatorIndex(1u32);
-
-			let (mut sender, mut receiver) = polkadot_node_subsystem_test_helpers::sender_receiver();
-			let future = construct_availability_bitfield(
-				relay_parent,
-				&jaeger::Span::Disabled,
-				validator_index,
-				&mut sender,
-			).fuse();
-			pin_mut!(future);
-
-			let hash_a = CandidateHash(Hash::repeat_byte(1));
-			let hash_b = CandidateHash(Hash::repeat_byte(2));
-
-			loop {
-				futures::select! {
-					m = receiver.next() => match m.unwrap() {
-						AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx)),
-						) => {
-							assert_eq!(relay_parent, rp);
-							tx.send(Ok(vec![CoreState::Free, occupied_core(1, hash_a), occupied_core(2, hash_b)])).unwrap();
-						}
-						AllMessages::AvailabilityStore(
-							AvailabilityStoreMessage::QueryChunkAvailability(c_hash, vidx, tx),
-						) => {
-							assert_eq!(validator_index, vidx);
-
-							tx.send(c_hash == hash_a).unwrap();
-						},
-						o => panic!("Unknown message: {:?}", o),
-					},
-					r = future => match r {
-						Ok(r) => {
-							assert!(!r.0.get(0).unwrap());
-							assert!(r.0.get(1).unwrap());
-							assert!(!r.0.get(2).unwrap());
-							break
-						},
-						Err(e) => panic!("Failed: {:?}", e),
-					},
-				}
-			}
-		});
-	}
-}

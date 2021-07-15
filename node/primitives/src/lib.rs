@@ -22,6 +22,7 @@
 
 #![deny(missing_docs)]
 
+
 use std::pin::Pin;
 
 use serde::{Serialize, Deserialize};
@@ -33,19 +34,38 @@ pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode, ValidatorIndex};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
+	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
+	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
 
-/// The bomb limit for decompressing code blobs.
-pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
+/// Disputes related types.
+pub mod disputes;
+pub use disputes::{
+	SignedDisputeStatement, UncheckedDisputeMessage, DisputeMessage, CandidateVotes, InvalidDisputeVote, ValidDisputeVote,
+	DisputeMessageCheckError,
+};
 
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
+/// The bomb limit for decompressing code blobs.
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
+
+/// It would be nice to draw this from the chain state, but we have no tools for it right now.
+/// On Polkadot this is 1 day, and on Kusama it's 6 hours.
+///
+/// Number of sessions we want to consider in disputes.
+pub const DISPUTE_WINDOW: SessionIndex = 6;
+
+/// The cumulative weight of a block in a fork-choice rule.
+pub type BlockWeight = u32;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///

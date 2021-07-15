@@ -22,7 +22,7 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
+use polkadot_overseer::Handle;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
@@ -78,7 +78,7 @@ pub fn new_full(
 	NewFull<Arc<Client>>,
 	Error,
 > {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
 		config,
 		is_collator,
 		None,
@@ -86,6 +86,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		polkadot_service::RealOverseerGen,
 	)
 }
 
@@ -180,9 +181,11 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
+		rpc_http_threads: None,
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
+		rpc_max_payload: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
@@ -282,15 +285,15 @@ pub fn run_collator_node(
 
 /// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode {
-	/// TaskManager's instance.
+	/// `TaskManager`'s instance.
 	pub task_manager: TaskManager,
 	/// Client's instance.
 	pub client: Arc<Client>,
 	/// The overseer handler.
-	pub overseer_handler: OverseerHandler,
+	pub overseer_handler: Handle,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
-	/// RPCHandlers to make RPC queries.
+	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
 }
 
@@ -345,11 +348,11 @@ impl PolkadotTestNode {
 		};
 
 		self.overseer_handler
-			.send_msg(CollationGenerationMessage::Initialize(config))
+			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 			.await;
 
 		self.overseer_handler
-			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 			.await;
 	}
 }

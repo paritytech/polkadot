@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError}, PerLeafSpan, SubsystemSender, jaeger,
 	messages::{
 		CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
-		ProvisionerMessage,
+		ProvisionerMessage, DisputeCoordinatorMessage,
 	},
 };
 use polkadot_node_subsystem_util::{
@@ -37,11 +37,15 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
-	SignedAvailabilityBitfield, ValidatorIndex,
+	SignedAvailabilityBitfield, ValidatorIndex, MultiDisputeStatementSet, DisputeStatementSet,
+	DisputeStatement,
 };
 use std::{pin::Pin, collections::BTreeMap, sync::Arc};
 use thiserror::Error;
 use futures_timer::Delay;
+
+#[cfg(test)]
+mod tests;
 
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
@@ -110,6 +114,9 @@ pub enum Error {
 	#[error("failed to get backed candidates")]
 	CanceledBackedCandidates(#[source] oneshot::Canceled),
 
+	#[error("failed to get votes on dispute")]
+	CanceledCandidateVotes(#[source] oneshot::Canceled),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
@@ -140,7 +147,6 @@ impl JobTrait for ProvisioningJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	#[tracing::instrument(skip(span, _run_args, metrics, receiver, sender), fields(subsystem = LOG_TARGET))]
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
@@ -189,7 +195,7 @@ impl ProvisioningJob {
 		};
 		loop {
 			futures::select! {
-				msg = self.receiver.next().fuse() => match msg {
+				msg = self.receiver.next() => match msg {
 					Some(RequestInherentData(_, return_sender)) => {
 						let _span = span.child("req-inherent-data");
 						let _timer = self.metrics.time_request_inherent_data();
@@ -242,7 +248,6 @@ impl ProvisioningJob {
 		}
 	}
 
-	#[tracing::instrument(level = "trace", skip(self), fields(subsystem = LOG_TARGET))]
 	fn note_provisionable_data(&mut self, span: &jaeger::Span, provisionable_data: ProvisionableData) {
 		match provisionable_data {
 			ProvisionableData::Bitfield(_, signed_bitfield) => {
@@ -277,7 +282,6 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 /// When we're choosing bitfields to include, the rule should be simple:
 /// maximize availability. So basically, include all bitfields. And then
 /// choose a coherent set of candidates along with that.
-#[tracing::instrument(level = "trace", skip(return_senders, from_job), fields(subsystem = LOG_TARGET))]
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -298,10 +302,12 @@ async fn send_inherent_data(
 		from_job,
 	).await?;
 
+	let disputes = select_disputes(from_job).await?;
+
 	let inherent_data = ProvisionerInherentData {
 		bitfields,
 		backed_candidates: candidates,
-		disputes: Vec::new(), // until disputes are implemented.
+		disputes,
 	};
 
 	for return_sender in return_senders {
@@ -321,7 +327,6 @@ async fn send_inherent_data(
 ///
 /// Note: This does not enforce any sorting precondition on the output; the ordering there will be unrelated
 /// to the sorting of the input.
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -353,7 +358,6 @@ fn select_availability_bitfields(
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -475,7 +479,6 @@ async fn select_candidates(
 
 /// Produces a block number 1 higher than that of the relay parent
 /// in the event of an invalid `relay_parent`, returns `Ok(0)`
-#[tracing::instrument(level = "trace", skip(sender), fields(subsystem = LOG_TARGET))]
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,
@@ -501,7 +504,6 @@ async fn get_block_number_under_construction(
 /// - construct a transverse slice along `core_idx`
 /// - bitwise-or it with the availability slice
 /// - count the 1 bits, compare to the total length; true on 2/3+
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn bitfields_indicate_availability(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -533,6 +535,70 @@ fn bitfields_indicate_availability(
 	}
 
 	3 * availability.count_ones() >= 2 * availability.len()
+}
+
+async fn select_disputes(
+	sender: &mut impl SubsystemSender,
+) -> Result<MultiDisputeStatementSet, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
+	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
+	// window gets on-chain, unlike `ActiveDisputes`.
+	//
+	// This should have no meaningful impact on performance on production networks for
+	// two reasons:
+	// 1. In large validator sets, a node might be a block author 1% or less of the time.
+	//    this code-path only triggers in the case of being a block author.
+	// 2. Disputes are expected to be rare because they come with heavy slashing.
+	sender.send_message(DisputeCoordinatorMessage::RecentDisputes(tx).into()).await;
+
+	let recent_disputes = match rx.await {
+		Ok(r) => r,
+		Err(oneshot::Canceled) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Unable to gather recent disputes - subsystem disconnected?",
+			);
+
+			Vec::new()
+		}
+	};
+
+	// Load all votes for all disputes from the coordinator.
+	let dispute_candidate_votes = {
+		let (tx, rx) = oneshot::channel();
+		sender.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+			recent_disputes,
+			tx,
+		).into()).await;
+
+		match rx.await {
+			Ok(v) => v,
+			Err(oneshot::Canceled) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Unable to query candidate votes - subsystem disconnected?",
+				);
+				Vec::new()
+			}
+		}
+	};
+
+	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
+	Ok(dispute_candidate_votes.into_iter().map(|(session_index, candidate_hash, votes)| {
+		let valid_statements = votes.valid.into_iter()
+			.map(|(s, i, sig)| (DisputeStatement::Valid(s), i, sig));
+
+		let invalid_statements = votes.invalid.into_iter()
+			.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
+
+		DisputeStatementSet {
+			candidate_hash,
+			session: session_index,
+			statements: valid_statements.chain(invalid_statements).collect(),
+		}
+	}).collect())
 }
 
 #[derive(Clone)]
@@ -606,6 +672,3 @@ impl metrics::Metrics for Metrics {
 
 /// The provisioning subsystem.
 pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
-
-#[cfg(test)]
-mod tests;

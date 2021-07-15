@@ -25,6 +25,7 @@ use primitives::v1::{
 	AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex, SessionIndex,
 };
 use frame_support::parameter_types;
+use frame_support::traits::GenesisBuild;
 use frame_support_test::TestRandomness;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -44,7 +45,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: shared::{Pallet, Call, Storage},
 		Inclusion: inclusion::{Pallet, Call, Storage, Event<T>},
@@ -67,7 +68,7 @@ parameter_types! {
 pub type AccountId = u64;
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
@@ -261,7 +262,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
-	state.paras.assimilate_storage(&mut t).unwrap();
+	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	t.into()
 }
@@ -270,5 +271,5 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
-	pub paras: crate::paras::GenesisConfig<Test>,
+	pub paras: crate::paras::GenesisConfig,
 }

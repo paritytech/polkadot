@@ -53,23 +53,23 @@ impl BridgeInstance for RialtoPoA {
 				.into_iter()
 				.map(|header| {
 					(
-						into_substrate_ethereum_header(&header.header()),
+						into_substrate_ethereum_header(header.header()),
 						into_substrate_ethereum_receipts(header.extra()),
 					)
 				})
 				.collect(),
 		);
 
-		rialto_runtime::Call::BridgeRialtoPoA(pallet_call)
+		rialto_runtime::Call::BridgeRialtoPoa(pallet_call)
 	}
 
 	fn build_unsigned_header_call(&self, header: QueuedEthereumHeader) -> Call {
 		let pallet_call = rialto_runtime::BridgeEthPoACall::import_unsigned_header(
-			into_substrate_ethereum_header(&header.header()),
+			into_substrate_ethereum_header(header.header()),
 			into_substrate_ethereum_receipts(header.extra()),
 		);
 
-		rialto_runtime::Call::BridgeRialtoPoA(pallet_call)
+		rialto_runtime::Call::BridgeRialtoPoa(pallet_call)
 	}
 
 	fn build_currency_exchange_call(&self, proof: Proof) -> Call {

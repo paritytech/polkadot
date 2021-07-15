@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::artifacts::ArtifactId;
-use polkadot_core_primitives::Hash;
+use polkadot_parachain::primitives::ValidationCodeHash;
 use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 
@@ -25,7 +25,7 @@ use std::{fmt, sync::Arc};
 #[derive(Clone)]
 pub struct Pvf {
 	pub(crate) code: Arc<Vec<u8>>,
-	pub(crate) code_hash: Hash,
+	pub(crate) code_hash: ValidationCodeHash,
 }
 
 impl fmt::Debug for Pvf {
@@ -42,7 +42,7 @@ impl Pvf {
 		Self { code, code_hash }
 	}
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	#[cfg(test)]
 	pub(crate) fn from_discriminator(num: u32) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();

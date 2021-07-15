@@ -21,7 +21,7 @@ use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, Semantics};
+use sc_executor_wasmtime::{Config, Semantics, DeterministicStackLimit};
 use sp_core::{
 	storage::{ChildInfo, TrackedStorageKey},
 };
@@ -29,16 +29,32 @@ use sp_wasm_interface::HostFunctions as _;
 
 const CONFIG: Config = Config {
 	// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
-	heap_pages: 1024,
+	heap_pages: 2048,
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
 		fast_instance_reuse: false,
-		stack_depth_metering: false,
+		// Enable determinstic stack limit to pin down the exact number of items the wasmtime stack
+		// can contain before it traps with stack overflow.
+		//
+		// Here is how the values below were chosen.
+		//
+		// At the moment of writing, the default native stack size limit is 1 MiB. Assuming a logical item
+		// (see the docs about the field and the instrumentation algorithm) is 8 bytes, 1 MiB can
+		// fit 2x 65536 logical items.
+		//
+		// Since reaching the native stack limit is undesirable, we halven the logical item limit and
+		// also increase the native 256x. This hopefully should preclude wasm code from reaching
+		// the stack limit set by the wasmtime.
+		deterministic_stack_limit: Some(DeterministicStackLimit {
+			logical_max: 65536,
+			native_stack_max: 256 * 1024 * 1024,
+		}),
+		canonicalize_nans: true,
 	},
 };
 
-/// Runs the prevaldation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
+/// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
 pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
 	let blob = RuntimeBlob::new(code)?;
 	// It's assumed this function will take care of any prevalidation logic
@@ -118,11 +134,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8]) {
+	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8]) {
+	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
@@ -196,6 +212,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
 		panic!("set_offchain_storage: unsupported feature for parachain validation")
+	}
+
+	fn get_read_and_written_keys(&self) -> Vec<(Vec<u8>, u32, u32, bool)> {
+		panic!("get_read_and_written_keys: unsupported feature for parachain validation")
 	}
 }
 

@@ -46,11 +46,6 @@ pub mod time {
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
-/// Size restrictions.
-pub mod size {
-	pub use primitives::v1::MAX_CODE_SIZE;
-}
-
 /// Fee-related.
 pub mod fee {
 	pub use sp_runtime::Perbill;
@@ -68,7 +63,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, frame_system::MaximumBlockWeight]
+	///   - [0, `frame_system::MaximumBlockWeight`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:

@@ -31,7 +31,9 @@ pub fn validate_candidate(
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
 	use crate::executor_intf::{prevalidate, prepare, execute, TaskExecutor};
 
-	let blob = prevalidate(code)?;
+	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024).expect("Decompressing code failed");
+
+	let blob = prevalidate(&*code)?;
 	let artifact = prepare(blob)?;
 	let executor = TaskExecutor::new()?;
 	let result = unsafe {
@@ -48,6 +50,8 @@ pub fn validate_candidate(
 macro_rules! decl_puppet_worker_main {
 	() => {
 		fn main() {
+			$crate::sp_tracing::try_init_simple();
+
 			let args = std::env::args().collect::<Vec<_>>();
 			if args.len() < 2 {
 				panic!("wrong number of arguments");

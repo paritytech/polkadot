@@ -92,7 +92,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		self.hash
 	}
 
-	/// Get the canddiate descriptor.
+	/// Get the candidate descriptor.
 	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
 	}
@@ -131,7 +131,7 @@ decl_storage! {
 		PendingAvailability: map hasher(twox_64_concat) ParaId
 			=> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
 
-		/// The commitments of candidates pending availability, by ParaId.
+		/// The commitments of candidates pending availability, by `ParaId`.
 		PendingAvailabilityCommitments: map hasher(twox_64_concat) ParaId
 			=> Option<CandidateCommitments>;
 	}
@@ -192,11 +192,11 @@ decl_error! {
 
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Config>::Hash {
-		/// A candidate was backed. [candidate, head_data]
+		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate was included. [candidate, head_data]
+		/// A candidate was included. `[candidate, head_data]`
 		CandidateIncluded(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate timed out. [candidate, head_data]
+		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<Hash>, HeadData, CoreIndex),
 	}
 }
@@ -232,7 +232,7 @@ impl<T: Config> Module<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 	}
 
-	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
+	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
 	/// becoming available.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
@@ -449,7 +449,7 @@ impl<T: Config> Module<T> {
 				);
 
 				let validation_code_hash =
-					<paras::Module<T>>::validation_code_hash_at(para_id, now, None)
+					<paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
 					// A candidate for a parachain without current validation code is not scheduled.
 					.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
 				ensure!(
@@ -675,7 +675,7 @@ impl<T: Config> Module<T> {
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
-			weight += <paras::Module<T>>::schedule_code_upgrade(
+			weight += <paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
 				new_code,
 				relay_parent_number + config.validation_upgrade_delay,
@@ -704,7 +704,7 @@ impl<T: Config> Module<T> {
 			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone(), core_index, backing_group)
 		);
 
-		weight + <paras::Module<T>>::note_new_head(
+		weight + <paras::Pallet<T>>::note_new_head(
 			receipt.descriptor.para_id,
 			commitments.head_data,
 			relay_parent_number,
@@ -799,7 +799,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Returns the CommittedCandidateReceipt pending availability for the para provided, if any.
+	/// Returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 	pub(crate) fn candidate_pending_availability(para: ParaId)
 		-> Option<CommittedCandidateReceipt<T::Hash>>
 	{
@@ -887,7 +887,7 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		// if any, the code upgrade attempt is allowed.
 		if let Some(new_validation_code) = new_validation_code {
-			let valid_upgrade_attempt = <paras::Module<T>>::last_code_upgrade(para_id, true)
+			let valid_upgrade_attempt = <paras::Pallet<T>>::last_code_upgrade(para_id, true)
 				.map_or(true, |last| {
 					last <= self.relay_parent_number
 						&& self.relay_parent_number.saturating_sub(last)

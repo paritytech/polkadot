@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::marker::PhantomData;
+
 use futures::channel::oneshot;
 use futures::prelude::Future;
 
@@ -28,6 +30,9 @@ use polkadot_primitives::v1::AuthorityDiscoveryId;
 use crate::UnifiedReputationChange;
 
 use super::{v1, Protocol};
+
+/// Used by the network to send us a response to a request.
+pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>;
 
 /// Common properties of any `Request`.
 pub trait IsRequest {
@@ -51,6 +56,8 @@ pub enum Requests {
 	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
 	/// Requests for fetching large statements as part of statement distribution.
 	StatementFetching(OutgoingRequest<v1::StatementFetchingRequest>),
+	/// Requests for notifying about an ongoing dispute.
+	DisputeSending(OutgoingRequest<v1::DisputeRequest>),
 }
 
 impl Requests {
@@ -62,6 +69,7 @@ impl Requests {
 			Self::PoVFetching(_) => Protocol::PoVFetching,
 			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
 			Self::StatementFetching(_) => Protocol::StatementFetching,
+			Self::DisputeSending(_) => Protocol::DisputeSending,
 		}
 	}
 
@@ -71,7 +79,7 @@ impl Requests {
 	///
 	/// Note: `Requests` is just an enum collecting all supported requests supported by network
 	/// bridge, it is never sent over the wire. This function just encodes the individual requests
-	/// contained in the enum.
+	/// contained in the `enum`.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
 			Self::ChunkFetching(r) => r.encode_request(),
@@ -79,12 +87,13 @@ impl Requests {
 			Self::PoVFetching(r) => r.encode_request(),
 			Self::AvailableDataFetching(r) => r.encode_request(),
 			Self::StatementFetching(r) => r.encode_request(),
+			Self::DisputeSending(r) => r.encode_request(),
 		}
 	}
 }
 
 /// Potential recipients of an outgoing request.
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub enum Recipient {
 	/// Recipient is a regular peer and we know its peer id.
 	Peer(PeerId),
@@ -109,7 +118,7 @@ pub struct OutgoingRequest<Req> {
 	/// The actual request to send over the wire.
 	pub payload: Req,
 	/// Sender which is used by networking to get us back a response.
-	pub pending_response: oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>,
+	pub pending_response: ResponseSender,
 }
 
 /// Any error that can occur when sending a request.
@@ -126,6 +135,18 @@ pub enum RequestError {
 	/// Response got canceled by networking.
 	#[error("Response channel got canceled")]
 	Canceled(#[source] oneshot::Canceled),
+}
+
+/// Things that can go wrong when decoding an incoming request.
+#[derive(Debug, Error)]
+pub enum ReceiveError {
+	/// Decoding failed, we were able to change the peer's reputation accordingly.
+	#[error("Decoding request failed for peer {0}.")]
+	DecodingError(PeerId, #[source] DecodingError),
+
+	/// Decoding failed, but sending reputation change failed.
+	#[error("Decoding request failed for peer {0}, and changing reputation failed.")]
+	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
 }
 
 /// Responses received for an `OutgoingRequest`.
@@ -198,52 +219,31 @@ impl From<oneshot::Canceled> for RequestError {
 /// `IncomingRequest`s are produced by `RequestMultiplexer` on behalf of the network bridge.
 #[derive(Debug)]
 pub struct IncomingRequest<Req> {
-	/// PeerId of sending peer.
+	/// `PeerId` of sending peer.
 	pub peer: PeerId,
 	/// The sent request.
 	pub payload: Req,
+	/// Sender for sending response back.
+	pub pending_response: OutgoingResponseSender<Req>,
+}
+
+/// Sender for sending back responses on an `IncomingRequest`.
+#[derive(Debug)]
+pub struct OutgoingResponseSender<Req>{
 	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
+	phantom: PhantomData<Req>,
 }
 
-/// Typed variant of [`netconfig::OutgoingResponse`].
-///
-/// Responses to `IncomingRequest`s.
-pub struct OutgoingResponse<Response> {
-	/// The payload of the response.
-	pub result: Result<Response, ()>,
-
-	/// Reputation changes accrued while handling the request. To be applied to the reputation of
-	/// the peer sending the request.
-	pub reputation_changes: Vec<UnifiedReputationChange>,
-
-	/// If provided, the `oneshot::Sender` will be notified when the request has been sent to the
-	/// peer.
-	pub sent_feedback: Option<oneshot::Sender<()>>,
-}
-
-impl<Req> IncomingRequest<Req>
+impl<Req> OutgoingResponseSender<Req> 
 where
-	Req: IsRequest,
+	Req: IsRequest + Decode,
 	Req::Response: Encode,
 {
-	/// Create new `IncomingRequest`.
-	pub fn new(
-		peer: PeerId,
-		payload: Req,
-		pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
-	) -> Self {
-		Self {
-			peer,
-			payload,
-			pending_response,
-		}
-	}
-
 	/// Send the response back.
 	///
-	/// On success we return Ok(()), on error we return the not sent `Response`.
+	/// On success we return `Ok(())`, on error we return the not sent `Response`.
 	///
-	/// netconfig::OutgoingResponse exposes a way of modifying the peer's reputation. If needed we
+	/// `netconfig::OutgoingResponse` exposes a way of modifying the peer's reputation. If needed we
 	/// can change this function to expose this feature as well.
 	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
 		self.pending_response
@@ -281,7 +281,101 @@ where
 	}
 }
 
-/// Future for actually receiving a typed response for an OutgoingRequest.
+/// Typed variant of [`netconfig::OutgoingResponse`].
+///
+/// Responses to `IncomingRequest`s.
+pub struct OutgoingResponse<Response> {
+	/// The payload of the response.
+	///
+	/// `Err(())` if none is available e.g. due an error while handling the request.
+	pub result: Result<Response, ()>,
+
+	/// Reputation changes accrued while handling the request. To be applied to the reputation of
+	/// the peer sending the request.
+	pub reputation_changes: Vec<UnifiedReputationChange>,
+
+	/// If provided, the `oneshot::Sender` will be notified when the request has been sent to the
+	/// peer.
+	pub sent_feedback: Option<oneshot::Sender<()>>,
+}
+
+impl<Req> IncomingRequest<Req>
+where
+	Req: IsRequest + Decode,
+	Req::Response: Encode,
+{
+	/// Create new `IncomingRequest`.
+	pub fn new(
+		peer: PeerId,
+		payload: Req,
+		pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
+	) -> Self {
+		Self {
+			peer,
+			payload,
+			pending_response: OutgoingResponseSender {
+				pending_response,
+				phantom: PhantomData {},
+			},
+		}
+	}
+
+	/// Try building from raw substrate request.
+	///
+	/// This function will fail if the request cannot be decoded and will apply passed in
+	/// reputation changes in that case.
+	///
+	/// Params:
+	///		- The raw request to decode
+	///		- Reputation changes to apply for the peer in case decoding fails.
+	pub fn try_from_raw(
+		raw: sc_network::config::IncomingRequest,
+		reputation_changes: Vec<UnifiedReputationChange>
+	) -> Result<Self, ReceiveError> {
+		let sc_network::config::IncomingRequest {
+			payload,
+			peer,
+			pending_response,
+		} = raw;
+		let payload = match Req::decode(&mut payload.as_ref()) {
+			Ok(payload) => payload,
+			Err(err) => {
+				let reputation_changes = reputation_changes
+					.into_iter()
+					.map(|r| r.into_base_rep())
+					.collect();
+				let response = sc_network::config::OutgoingResponse {
+					result: Err(()),
+					reputation_changes,
+					sent_feedback: None,
+				};
+
+				if let Err(_) = pending_response.send(response) {
+					return Err(ReceiveError::DecodingErrorNoReputationChange(peer, err))
+				}
+				return Err(ReceiveError::DecodingError(peer, err))
+			}
+		};
+		Ok(Self::new(peer, payload, pending_response))
+	}
+
+	/// Send the response back.
+	///
+	/// Calls [`OutgoingResponseSender::send_response`].
+	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
+		self.pending_response.send_response(resp)
+	}
+
+	/// Send response with additional options.
+	///
+	/// Calls [`OutgoingResponseSender::send_outgoing_response`].
+	pub fn send_outgoing_response(self, resp: OutgoingResponse<<Req as IsRequest>::Response>)
+		-> Result<(), ()> {
+		self.pending_response.send_outgoing_response(resp)
+	}
+}
+
+/// Future for actually receiving a typed response for an `OutgoingRequest`.
 async fn receive_response<Req>(
 	rec: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
 ) -> OutgoingResult<Req::Response>
