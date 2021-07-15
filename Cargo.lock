@@ -6094,6 +6094,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "async-std",
  "bitvec",
  "derive_more",
  "futures 0.3.15",
