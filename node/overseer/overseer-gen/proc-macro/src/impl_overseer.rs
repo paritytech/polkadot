@@ -72,7 +72,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			#(
 				/// A subsystem instance.
-				#subsystem_name: OverseenSubsystem< #consumes >,
+				#subsystem_name: crate::OverseenSubsystem< #consumes >,
 			)*
 
 			#(
@@ -143,7 +143,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 				match message {
 					#(
 						#message_wrapper :: #consumes_variant ( inner ) =>
-							OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
+							crate::OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
 					)*
 					// subsystems that are still work in progress
 					#(

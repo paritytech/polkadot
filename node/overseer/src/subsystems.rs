@@ -19,16 +19,8 @@
 //! In the future, everything should be set up using the generated
 //! overeseer builder pattern instead.
 
-use crate::{
-	SubsystemContext,
-	Subsystem,
-	OverseerSignal,
-	SpawnedSubsystem,
-	FromOverseer,
-	gen::{
-		MapSubsystem,
-	},
-};
+use super::*;
+
 // TODO remove legacy code
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
 

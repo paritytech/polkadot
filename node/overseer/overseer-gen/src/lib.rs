@@ -60,6 +60,10 @@
 #![deny(missing_docs)]
 #![deny(unused_crate_dependencies)]
 
+
+/// Prelude.
+pub mod prelude {
+
 pub use polkadot_overseer_gen_proc_macro::overlord;
 
 #[doc(hidden)]
@@ -94,49 +98,35 @@ pub use async_trait::async_trait;
 
 #[doc(hidden)]
 pub use std::time::Duration;
-use std::sync::{Arc, atomic::{self, AtomicUsize}};
 
 #[doc(hidden)]
 pub use futures_timer::Delay;
 
 pub use polkadot_node_network_protocol::WrongVariant;
 
-use std::fmt;
 
-/// Import just the right amount of types.
-pub mod prelude {
-	pub use crate::{
-		overlord,
-		async_trait,
-		ToOverseer,
-		Timeout,
-		TimeoutExt,
-		MapSubsystem,
-		MessagePacket,
-		SubsystemIncomingMessages,
-		OverseerError,
-		SubsystemMeters,
-		SubsystemMeterReadouts,
-		SpawnNamed,
-		Future,
-		Pin,
-		Duration,
-		make_packet,
-		Delay,
-		BoxFuture,
-		select,
-		StreamExt,
-		poll,
-		Poll,
-		stream,
-		SignalsReceived,
-		FutureExt,
-		metered,
-		futures,
-		oneshot,
-		FuturesUnordered,
-	};
+pub use crate::{
+	ToOverseer,
+	Timeout,
+	TimeoutExt,
+	MapSubsystem,
+	MessagePacket,
+	SubsystemIncomingMessages,
+	OverseerError,
+	SubsystemMeters,
+	SubsystemMeterReadouts,
+	SignalsReceived,
+	SubsystemSender,
+	SubsystemInstance,
+	make_packet,
+};
 }
+
+
+use std::fmt;
+use std::sync::{Arc, atomic::{self, AtomicUsize}};
+
+pub use prelude::*;
 
 #[cfg(test)]
 mod tests;

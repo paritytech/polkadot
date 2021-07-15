@@ -1,6 +1,6 @@
 //! A dummy to be used with cargo expand
 
-use polkadot_overseer_gen::prelude::*;
+pub use polkadot_overseer_gen::prelude::*;
 use polkadot_node_network_protocol::WrongVariant;
 
 

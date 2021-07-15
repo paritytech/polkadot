@@ -229,7 +229,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						to_overseer_tx.clone(),
 					);
 
-					let #subsystem_name: OverseenSubsystem< #consumes > =
+					let #subsystem_name: crate::OverseenSubsystem< #consumes > =
 						spawn::<_,_, #blocking, _, _, _>(
 							&mut spawner,
 							#channel_name_tx,
@@ -320,7 +320,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			ctx: Ctx,
 			subsystem: SubSys,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
-		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
+		) -> ::std::result::Result<crate ::OverseenSubsystem<M>, #error_ty >
 		where
 			S: #support_crate ::SpawnNamed,
 			M: std::fmt::Debug + Send + 'static,
@@ -351,7 +351,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				})
 			));
 
-			let instance = Some(#support_crate ::SubsystemInstance:: < M, #signal > {
+			let instance = Some(#support_crate ::SubsystemInstance {
 				meters: #support_crate ::SubsystemMeters {
 					unbounded: unbounded_meter,
 					bounded: message_tx.meter().clone(),
@@ -363,7 +363,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				name,
 			});
 
-			Ok(OverseenSubsystem {
+			Ok(crate::OverseenSubsystem {
 				instance,
 			})
 		}
