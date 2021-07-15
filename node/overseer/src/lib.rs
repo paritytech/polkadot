@@ -163,9 +163,14 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub struct Handle(pub OverseerHandle);
+pub struct Handle(pub Option<OverseerHandle>);
 
 impl Handle {
+	/// Create a new disconnected [`Handle`].
+	pub fn new_disconnected() -> Self {
+		Self(None)
+	}
+
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self, block: BlockInfo) {
 		self.send_and_log_error(Event::BlockImported(block)).await
@@ -207,19 +212,18 @@ impl Handle {
 
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
-		if self.0.send(event).await.is_err() {
-			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+		if let Some(handle) = self.0.as_mut() {
+			if handle.send(event).await.is_err() {
+				tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+			}
+		} else {
+			tracing::warn!(target: LOG_TARGET, "Using a disconnected Handle to send to Overseer");
 		}
-	}
-
-	/// Whether the overseer handler is connected to an overseer.
-	pub fn is_connected(&self) -> bool {
-		true
 	}
 
 	/// Whether the handler is disconnected.
 	pub fn is_disconnected(&self) -> bool {
-		false
+		self.0.is_none()
 	}
 
 	/// Using this handler, connect another handler to the same
@@ -654,7 +658,7 @@ where
 			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
 		}
 
-		Ok((overseer, Handle(handler)))
+		Ok((overseer, Handle(Some(handler))))
 	}
 
 	/// Stop the overseer.

@@ -216,7 +216,7 @@ fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configu
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
 #[cfg(feature = "full-node")]
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
@@ -300,7 +300,11 @@ fn new_partial<RuntimeApi, Executor>(
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
+	let select_chain = relay_chain_selection::SelectRelayChain::new(
+		backend.clone(),
+		Handle::new_disconnected(),
+		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
+	);
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
@@ -482,7 +486,7 @@ impl IsCollator {
 /// Returns the active leaves the overseer should start with.
 #[cfg(feature = "full-node")]
 async fn active_leaves<RuntimeApi, Executor>(
-	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
+	select_chain: & impl SelectChain<Block>,
 	client: &FullClient<RuntimeApi, Executor>,
 ) -> Result<Vec<BlockInfo>, Error>
 where
@@ -575,7 +579,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		backend,
 		mut task_manager,
 		keystore_container,
-		select_chain,
+		mut select_chain,
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry)
@@ -778,6 +782,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			}
 		}));
 
+		select_chain.connect_overseer_handler(&overseer_handler);
 		Some(overseer_handler)
 	} else {
 		None
