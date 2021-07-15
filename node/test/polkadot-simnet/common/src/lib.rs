@@ -276,7 +276,7 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 			match event.event {
 				Event::Democracy(democracy::Event::Passed(_)) |
 				Event::Democracy(democracy::Event::PreimageUsed(_, _, _)) |
-				Event::Democracy(democracy::Event::Executed(_, true)) => true,
+				Event::Democracy(democracy::Event::Executed(_, Ok(()))) => true,
 				_ => false,
 			}
 		})
