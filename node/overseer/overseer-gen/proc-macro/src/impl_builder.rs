@@ -318,7 +318,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			// connection to the subsystems
 			channels_out: ChannelsOut,
 			ctx: Ctx,
-			subsystem: SubSys,
+			s: SubSys,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
 		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
 		where

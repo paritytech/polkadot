@@ -25,11 +25,16 @@ pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
 
 pub use polkadot_overseer::{
+	self as overseer,
 	OverseerSignal,
 	ActiveLeavesUpdate,
-	self as overseer,
-	// FromOverseer,
-	// SubsystemInstance,
+	SubsystemContext,
+	FromOverseer,
+	SubsystemInstance,
+	SubsystemSender,
+	SpawnedSubsystem,
+	SubsystemError,
+	SubsystemResult,
 };
 
 pub use polkadot_node_subsystem_types::{
