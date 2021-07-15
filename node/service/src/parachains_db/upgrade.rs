@@ -69,10 +69,10 @@ pub fn try_upgrade_db(db_path: &Path) -> Result<(), Error> {
 }
 
 /// Reads current database version from the file at given path.
-/// If the file does not exist, assumes version 0.
+/// If the file does not exist, assumes the current version.
 fn current_version(path: &Path) -> Result<Version, Error> {
 	match fs::read_to_string(version_file_path(path)) {
-		Err(ref err) if err.kind() == io::ErrorKind::NotFound => Ok(0),
+		Err(ref err) if err.kind() == io::ErrorKind::NotFound => Ok(CURRENT_VERSION),
 		Err(err) => Err(err.into()),
 		Ok(content) => u32::from_str(&content).map_err(|_| Error::CorruptedVersionFile),
 	}
