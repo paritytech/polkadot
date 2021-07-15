@@ -846,6 +846,10 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			approval_distribution: subsystem.clone(),
 			approval_voting: subsystem.clone(),
 			gossip_support: subsystem.clone(),
+			dispute_coordinator: subsystem.clone(),
+			dispute_participation: subsystem.clone(),
+			dispute_distribution: subsystem.clone(),
+			chain_selection: subsystem.clone(),
 		};
 		let (overseer, mut handler) = Overseer::new(
 			vec![],
@@ -933,6 +937,10 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (approval_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (approval_voting_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (gossip_support_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (dispute_coordinator_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (dispute_participation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (dispute_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (chain_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 
 	let (candidate_validation_unbounded_tx, _) = metered::unbounded();
 	let (candidate_backing_unbounded_tx, _) = metered::unbounded();
@@ -951,6 +959,10 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (approval_distribution_unbounded_tx, _) = metered::unbounded();
 	let (approval_voting_unbounded_tx, _) = metered::unbounded();
 	let (gossip_support_unbounded_tx, _) = metered::unbounded();
+	let (dispute_coordinator_unbounded_tx, _) = metered::unbounded();
+	let (dispute_participation_unbounded_tx, _) = metered::unbounded();
+	let (dispute_distribution_unbounded_tx, _) = metered::unbounded();
+	let (chain_selection_unbounded_tx, _) = metered::unbounded();
 
 	let channels_out = ChannelsOut {
 		candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -970,6 +982,10 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		approval_distribution: approval_distribution_bounded_tx.clone(),
 		approval_voting: approval_voting_bounded_tx.clone(),
 		gossip_support: gossip_support_bounded_tx.clone(),
+		dispute_coordinator: dispute_coordinator_bounded_tx.clone(),
+		dispute_participation: dispute_participation_bounded_tx.clone(),
+		dispute_distribution: dispute_distribution_bounded_tx.clone(),
+		chain_selection: chain_selection_bounded_tx.clone(),
 
 		candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 		candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -988,6 +1004,10 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		approval_distribution_unbounded: approval_distribution_unbounded_tx.clone(),
 		approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
 		gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
+		dispute_coordinator_unbounded: dispute_coordinator_unbounded_tx.clone(),
+		dispute_participation_unbounded: dispute_participation_unbounded_tx.clone(),
+		dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
+		chain_selection_unbounded: chain_selection_unbounded_tx.clone(),
 	};
 
 	let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
