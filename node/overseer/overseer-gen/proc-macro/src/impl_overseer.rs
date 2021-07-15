@@ -72,7 +72,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			#(
 				/// A subsystem instance.
-				#subsystem_name: crate::OverseenSubsystem< #consumes >,
+				#subsystem_name: OverseenSubsystem< #consumes >,
 			)*
 
 			#(
@@ -90,7 +90,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			/// Gather running subsystems' outbound streams into one.
 			to_overseer_rx: #support_crate ::stream::Fuse<
-				#support_crate ::metered::UnboundedMeteredReceiver< ToOverseer >
+				#support_crate ::metered::UnboundedMeteredReceiver< #support_crate ::ToOverseer >
 			>,
 
 			/// Events that are sent to the overseer from the outside world.
@@ -143,7 +143,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 				match message {
 					#(
 						#message_wrapper :: #consumes_variant ( inner ) =>
-							crate::OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
+							OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
 					)*
 					// subsystems that are still work in progress
 					#(

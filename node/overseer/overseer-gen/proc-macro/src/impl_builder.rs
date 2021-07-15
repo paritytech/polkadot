@@ -89,7 +89,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		where
 			S: #support_crate ::SpawnNamed,
 		#(
-			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >>,
+			#builder_generic_ty : Subsystem<#subsyste_ctx_name< #consumes >, #error_ty>,
 		)*
 	};
 
@@ -229,7 +229,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						to_overseer_tx.clone(),
 					);
 
-					let #subsystem_name: crate::OverseenSubsystem< #consumes > =
+					let #subsystem_name: OverseenSubsystem< #consumes > =
 						spawn::<_,_, #blocking, _, _, _>(
 							&mut spawner,
 							#channel_name_tx,
@@ -320,16 +320,16 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			ctx: Ctx,
 			subsystem: SubSys,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
-		) -> ::std::result::Result<crate ::OverseenSubsystem<M>, #error_ty >
+		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
 		where
 			S: #support_crate ::SpawnNamed,
 			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
-			Ctx: SubsystemContext<Message=M>,
+			Ctx: #support_crate ::SubsystemContext<Message=M>,
 			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>,
-			SubSys: Subsystem<Ctx>,
+			SubSys: #support_crate ::Subsystem<Ctx, E>,
 		{
-			let SpawnedSubsystem { future, name } = subsystem.start(ctx);
+			let #support_crate ::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
 
 			let (tx, rx) = #support_crate ::oneshot::channel();
 
@@ -363,7 +363,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				name,
 			});
 
-			Ok(crate::OverseenSubsystem {
+			Ok(OverseenSubsystem {
 				instance,
 			})
 		}
