@@ -215,7 +215,7 @@ pub(crate) fn impl_trait(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				}
 			}
 
-			fn sender(&mut self) -> &mut <Self as >::Sender {
+			fn sender(&mut self) -> &mut Self::Sender {
 				&mut self.to_subsystems
 			}
 

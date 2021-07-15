@@ -19,22 +19,21 @@
 //! In the future, everything should be set up using the generated
 //! overeseer builder pattern instead.
 
-use polkadot_node_subsystem_types::errors::SubsystemError;
+use super::*;
+
+// TODO remove legacy code
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
-use crate::OverseerSignal;
-use crate::AllMessages;
-use crate::gen::*;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
 #[derive(Clone, Copy, Debug)]
 pub struct DummySubsystem;
 
-impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
+impl<Context> Subsystem<Context> for DummySubsystem
 where
 	Context: SubsystemContext,
 {
-	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
+	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {

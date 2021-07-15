@@ -58,7 +58,7 @@
 // unused dependencies can not work for test and examples at the same time
 // yielding false positives
 #![warn(missing_docs)]
-// #![deny(unused_crate_dependencies)]
+#![deny(unused_crate_dependencies)]
 
 use std::fmt::{self, Debug};
 use std::pin::Pin;
@@ -101,7 +101,6 @@ pub use polkadot_node_subsystem_types::{
 	jaeger,
 };
 
-
 // TODO legacy, to be deleted, left for easier integration
 // TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
@@ -110,9 +109,6 @@ pub use self::subsystems::AllSubsystems;
 mod metrics;
 use self::metrics::Metrics;
 
-pub mod convenience;
-pub use convenience::{SubsystemResult};
-
 use polkadot_node_metrics::{
 	metrics::{
 		prometheus,
@@ -120,11 +116,12 @@ use polkadot_node_metrics::{
 	},
 	Metronome,
 };
-pub use polkadot_overseer_gen::{
-	self as gen,
+
+pub use polkadot_overseer_gen as gen;
+
+pub use gen::{
 	TimeoutExt,
 	SpawnNamed,
-	Subsystem,
 	SubsystemMeterReadouts,
 	SubsystemMeters,
 	SubsystemIncomingMessages,
@@ -134,7 +131,9 @@ pub use polkadot_overseer_gen::{
 	SignalsReceived,
 	ToOverseer,
 	MapSubsystem,
+	OverseerError,
 };
+
 
 
 /// Store 2 days worth of blocks, not accounting for forks,
@@ -478,16 +477,15 @@ where
 	/// # use polkadot_overseer::{
 	/// # 	self as overseer,
 	/// #   OverseerSignal,
-	/// # 	SubsystemSender as _,
 	/// # 	AllMessages,
 	/// # 	AllSubsystems,
 	/// # 	HeadSupportsParachains,
 	/// # 	Overseer,
+	/// # 	SubsystemSender,
 	/// # 	SubsystemError,
+	/// # 	SpawnedSubsystem,
 	/// # 	gen::{
-	/// # 		SubsystemContext,
 	/// # 		FromOverseer,
-	/// # 		SpawnedSubsystem,
 	/// # 	},
 	/// # };
 	/// # use polkadot_node_subsystem_types::messages::{
@@ -497,19 +495,16 @@ where
 	///
 	/// struct ValidationSubsystem;
 	///
-	/// impl<Ctx> overseer::gen::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
+	/// impl<Ctx> overseer::Subsystem<Ctx> for ValidationSubsystem
 	/// where
-	///     Ctx: overseer::gen::SubsystemContext<
+	///     Ctx: overseer::SubsystemContext<
 	///				Message=CandidateValidationMessage,
-	///				AllMessages=AllMessages,
-	///				Signal=OverseerSignal,
-	///				Error=SubsystemError,
 	///			>,
 	/// {
 	///     fn start(
 	///         self,
 	///         mut ctx: Ctx,
-	///     ) -> SpawnedSubsystem<SubsystemError> {
+	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem {
 	///             name: "validation-subsystem",
 	///             future: Box::pin(async move {
@@ -560,23 +555,23 @@ where
 		s: S,
 	) -> SubsystemResult<(Self, Handle)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError> + Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError> + Send,
-		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError> + Send,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
+		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
+		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
+		ApD: Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>> + Send,
+		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>> + Send,
+		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>> + Send,
 		S: SpawnNamed,
 	{
 		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
@@ -708,6 +703,9 @@ where
 					match msg {
 						ToOverseer::SpawnJob { name, s } => {
 							self.spawn_job(name, s);
+						}
+						ToOverseer::SpawnBlockingJob { name, s } => {
+							self.spawn_blocking_job(name, s);
 						}
 					}
 				},
