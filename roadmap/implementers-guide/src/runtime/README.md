@@ -21,9 +21,9 @@ We will split the logic of the runtime up into these modules:
 * Scheduler: manages parachain and parathread scheduling as well as validator assignments.
 * Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
 * Validity: handles secondary checks and dispute resolution for included, available parablocks.
-* Hrmp: handles horizontal messages between paras.
-* Ump: Handles upward messages from a para to the relay chain.
-* Dmp: Handles downward messages from the relay chain to the para.
+* HRMP: handles horizontal messages between paras.
+* UMP: Handles upward messages from a para to the relay chain.
+* DMP: Handles downward messages from the relay chain to the para.
 
 The [Initializer module](initializer.md) is special - it's responsible for handling the initialization logic of the other modules to ensure that the correct initialization order and related invariants are maintained. The other modules won't specify a on-initialize logic, but will instead expose a special semi-private routine that the initialization module will call. The other modules are relatively straightforward and perform the roles described above.
 
@@ -31,7 +31,7 @@ The Parachain Host operates under a changing set of validators. Time is split up
 
 The relay chain is intended to use BABE or SASSAFRAS, which both have the property that a session changing at a block is determined not by the number of the block but instead by the time the block is authored. In some sense, sessions change in-between blocks, not at blocks. This has the side effect that the session of a child block cannot be determined solely by the parent block's identifier. Being able to unilaterally determine the validator-set at a specific block based on its parent hash would make a lot of Node-side logic much simpler.
 
-In order to regain the property that the validator set of a block is predictable by its parent block, we delay session changes' application to Parachains by 1 block. This means that if there is a session change at block X, that session change will be stored and applied during initialization of direct descendents of X. This principal side effect of this change is that the Parachains runtime can disagree with session or consensus modules about which session it currently is. Misbehavior reporting routines in particular will be affected by this, although not severely. The parachains runtime might believe it is the last block of the session while the system is really in the first block of the next session. In such cases, a historical validator-set membership proof will need to accompany any misbehavior report, although they typically do not need to during current-session misbehavior reports.
+In order to regain the property that the validator set of a block is predictable by its parent block, we delay session changes' application to Parachains by 1 block. This means that if there is a session change at block X, that session change will be stored and applied during initialization of direct descendants of X. This principal side effect of this change is that the Parachains runtime can disagree with session or consensus modules about which session it currently is. Misbehavior reporting routines in particular will be affected by this, although not severely. The parachains runtime might believe it is the last block of the session while the system is really in the first block of the next session. In such cases, a historical validator-set membership proof will need to accompany any misbehavior report, although they typically do not need to during current-session misbehavior reports.
 
 So the other role of the initializer module is to forward session change notifications to modules in the initialization order. Session change is also the point at which the [Configuration Module](configuration.md) updates the configuration. Most of the other modules will handle changes in the configuration during their session change operation, so the initializer should provide both the old and new configuration to all the other
 modules alongside the session change notification. This means that a session change notification should consist of the following data:

@@ -236,7 +236,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets next, current and some historical authority ids using session_info module.
+/// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();

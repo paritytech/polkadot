@@ -44,7 +44,7 @@ impl<T> pallet_mmr::primitives::OnNewRoot<beefy_primitives::MmrRootHash> for Dep
 	}
 }
 
-/// Convert BEEFY secp256k1 public keys into uncompressed form
+/// Convert BEEFY `secp256k1` public keys into uncompressed form
 pub struct UncompressBeefyEcdsaKeys;
 impl Convert<beefy_primitives::crypto::AuthorityId, Vec<u8>> for UncompressBeefyEcdsaKeys {
 	fn convert(a: beefy_primitives::crypto::AuthorityId) -> Vec<u8> {
@@ -60,7 +60,7 @@ impl Convert<beefy_primitives::crypto::AuthorityId, Vec<u8>> for UncompressBeefy
 	}
 }
 
-/// A leaf that gets added every block to the MMR constructed by [pallet_mmr].
+/// A leaf that gets added every block to the MMR constructed by `[pallet_mmr]`.
 #[derive(RuntimeDebug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct MmrLeaf<BlockNumber, Hash, MerkleRoot> {
 	/// Current block parent number and hash.
@@ -86,7 +86,7 @@ pub struct BeefyNextAuthoritySet<MerkleRoot> {
 	/// of signatures. We put set length here, so that these clients can verify the minimal
 	/// number of required signatures.
 	pub len: u32,
-	/// Merkle Root Hash build from BEEFY AuthorityIds.
+	/// Merkle Root Hash build from BEEFY `AuthorityIds`.
 	///
 	/// This is used by Light Clients to confirm that the commitments are signed by the correct
 	/// validator set. Light Clients using interactive protocol, might verify only subset of
@@ -132,9 +132,9 @@ pub mod pallet {
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: pallet_mmr::Config + pallet_beefy::Config {
-		/// Convert BEEFY AuthorityId to a form that would end up in the Merkle Tree.
+		/// Convert BEEFY `AuthorityId` to a form that would end up in the Merkle Tree.
 		///
-		/// For instance for ECDSA (secp256k1) we want to store uncompressed public keys (65 bytes)
+		/// For instance for ECDSA (`secp256k1`) we want to store uncompressed public keys (65 bytes)
 		/// to simplify using them on Ethereum chain, but the rest of the Substrate codebase
 		/// is storing them compressed (33 bytes) for efficiency reasons.
 		type BeefyAuthorityToMerkleLeaf: Convert<<Self as pallet_beefy::Config>::BeefyId, Vec<u8>>;
@@ -186,7 +186,7 @@ impl<T: Config> Pallet<T> where
 	/// NOTE this does not include parathreads - only parachains are part of the merkle tree.
 	///
 	/// NOTE This is an initial and inefficient implementation, which re-constructs
-	/// the merkle tree every block. Instead we should update the merkle root in [Self::on_initialize]
+	/// the merkle tree every block. Instead we should update the merkle root in `[Self::on_initialize]`
 	/// call of this pallet and update the merkle tree efficiently (use on-chain storage to persist inner nodes).
 	fn parachain_heads_merkle_root() -> MerkleRootOf<T> {
 		let para_heads = T::ParachainHeads::encoded_heads();
@@ -196,7 +196,7 @@ impl<T: Config> Pallet<T> where
 	/// Returns details of the next BEEFY authority set.
 	///
 	/// Details contain authority set id, authority set length and a merkle root,
-	/// constructed from uncompressed secp256k1 public keys of the next BEEFY authority set.
+	/// constructed from uncompressed `secp256k1` public keys of the next BEEFY authority set.
 	///
 	/// This function will use a storage-cached entry in case the set didn't change, or compute and cache
 	/// new one in case it did.

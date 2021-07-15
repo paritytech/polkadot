@@ -42,7 +42,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			signals_received: SignalsReceived,
 		}
 
-		/// impl for wrapping message type...
+		/// implementation for wrapping message type...
 		#[#support_crate ::async_trait]
 		impl SubsystemSender< #wrapper_message > for #subsystem_sender_name {
 			async fn send_message(&mut self, msg: #wrapper_message) {

@@ -80,7 +80,7 @@ pub enum FromPool {
 	Spawned(Worker),
 
 	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The bool says whether the worker ripped.
+	/// artifact file has been written. The `bool` says whether the worker ripped.
 	Concluded(Worker, bool),
 
 	/// The given worker ceased to exist.

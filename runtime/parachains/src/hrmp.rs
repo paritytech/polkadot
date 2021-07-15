@@ -245,11 +245,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Open HRMP channel requested.
-		/// \[sender, recipient, proposed_max_capacity, proposed_max_message_size\]
+		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
 		OpenChannelRequested(ParaId, ParaId, u32, u32),
-		/// Open HRMP channel accepted. \[sender, recipient\]
+		/// Open HRMP channel accepted. `[sender, recipient]`
 		OpenChannelAccepted(ParaId, ParaId),
-		/// HRMP channel closed. \[by_parachain, channel_id\]
+		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
 	}
 
@@ -304,7 +304,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestsList<T: Config> = StorageValue<_, Vec<HrmpChannelId>, ValueQuery>;
 
-	/// This mapping tracks how many open channel requests are inititated by a given sender para.
+	/// This mapping tracks how many open channel requests are initiated by a given sender para.
 	/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 	/// as the number of `HrmpOpenChannelRequestCount` for `X`.
 	#[pallet::storage]
@@ -398,7 +398,7 @@ pub mod pallet {
 	>;
 
 	/// Maintains a mapping that can be used to answer the question:
-	/// What paras sent a message at the given block number for a given reciever.
+	/// What paras sent a message at the given block number for a given receiver.
 	/// Invariants:
 	/// - The inner `Vec<ParaId>` is never empty.
 	/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
@@ -515,7 +515,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force process hrmp open channel requests.
+		/// Force process HRMP open channel requests.
 		///
 		/// If there are pending HRMP open channel requests, you can use this
 		/// function process all of those requests immediately.
@@ -527,7 +527,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force process hrmp close channel requests.
+		/// Force process HRMP close channel requests.
 		///
 		/// If there are pending HRMP close channel requests, you can use this
 		/// function process all of those requests immediately.
@@ -742,7 +742,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This includes returning the deposits.
 	///
-	/// This function is indempotent, meaning that after the first application it should have no
+	/// This function is idempotent, meaning that after the first application it should have no
 	/// effect (i.e. it won't return the deposits twice).
 	fn close_hrmp_channel(channel_id: &HrmpChannelId) {
 		if let Some(HrmpChannel {

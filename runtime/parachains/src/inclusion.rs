@@ -92,7 +92,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		self.hash
 	}
 
-	/// Get the canddiate descriptor.
+	/// Get the candidate descriptor.
 	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
 	}
@@ -131,7 +131,7 @@ decl_storage! {
 		PendingAvailability: map hasher(twox_64_concat) ParaId
 			=> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
 
-		/// The commitments of candidates pending availability, by ParaId.
+		/// The commitments of candidates pending availability, by `ParaId`.
 		PendingAvailabilityCommitments: map hasher(twox_64_concat) ParaId
 			=> Option<CandidateCommitments>;
 	}
@@ -192,11 +192,11 @@ decl_error! {
 
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Config>::Hash {
-		/// A candidate was backed. [candidate, head_data]
+		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate was included. [candidate, head_data]
+		/// A candidate was included. `[candidate, head_data]`
 		CandidateIncluded(CandidateReceipt<Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate timed out. [candidate, head_data]
+		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<Hash>, HeadData, CoreIndex),
 	}
 }
@@ -232,7 +232,7 @@ impl<T: Config> Module<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 	}
 
-	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
+	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
 	/// becoming available.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
@@ -781,7 +781,7 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	/// Returns the CommittedCandidateReceipt pending availability for the para provided, if any.
+	/// Returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 	pub(crate) fn candidate_pending_availability(para: ParaId)
 		-> Option<CommittedCandidateReceipt<T::Hash>>
 	{

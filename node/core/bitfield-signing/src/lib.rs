@@ -312,5 +312,5 @@ impl JobTrait for BitfieldSigningJob {
 	}
 }
 
-/// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
+/// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;

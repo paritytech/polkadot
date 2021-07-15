@@ -65,7 +65,7 @@ pub enum Subcommand {
 	#[cfg(not(feature = "try-runtime"))]
 	TryRuntime,
 
-	/// Key management cli utilities
+	/// Key management CLI utilities
 	Key(sc_cli::KeySubcommand),
 }
 

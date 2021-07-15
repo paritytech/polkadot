@@ -83,6 +83,9 @@ pub enum Error {
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
 
+	#[error("Oneshot receiver died")]
+	OneshotSendFailed,
+
 	#[error(transparent)]
 	Participation(#[from] ParticipationError),
 }
@@ -159,6 +162,7 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			n_validators,
+			report_availability,
 		} => {
 			if let Some((_, block_hash)) = state.recent_block {
 				participate(
@@ -168,6 +172,7 @@ async fn handle_incoming(
 					candidate_receipt,
 					session,
 					n_validators,
+					report_availability,
 				)
 				.await
 			} else {
@@ -184,6 +189,7 @@ async fn participate(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	n_validators: u32,
+	report_availability: oneshot::Sender<bool>,
 ) -> Result<(), Error> {
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -203,14 +209,21 @@ async fn participate(
 	.await;
 
 	let available_data = match recover_available_data_rx.await? {
-		Ok(data) => data,
+		Ok(data) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+			data
+		}
 		Err(RecoveryError::Invalid) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			return Ok(());
 		}
 		Err(RecoveryError::Unavailable) => {
+			report_availability.send(false).map_err(|_| Error::OneshotSendFailed)?;
+
 			return Err(ParticipationError::MissingAvailableData(candidate_hash).into());
 		}
 	};

@@ -35,7 +35,7 @@ pub use pallet::*;
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
-	/// The qeueud validators for the following session.
+	/// The queued validators for the following session.
 	pub queued: Vec<ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,
@@ -99,10 +99,10 @@ pub mod pallet {
 
 	/// Whether the parachains modules have been initialized within this block.
 	///
-	/// Semantically a bool, but this guarantees it should never hit the trie,
+	/// Semantically a `bool`, but this guarantees it should never hit the trie,
 	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
 	///
-	/// As a bool, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
 	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
 	/// the semantics of this variable.
 	#[pallet::storage]
