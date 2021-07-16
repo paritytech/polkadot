@@ -139,7 +139,7 @@ pub mod pallet {
 				session_info::Module::<T>::initializer_initialize(now) +
 				dmp::Module::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
-				hrmp::Module::<T>::initializer_initialize(now);
+				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
 
@@ -148,7 +148,7 @@ pub mod pallet {
 
 		fn on_finalize(_: T::BlockNumber) {
 			// reverse initialization order.
-			hrmp::Module::<T>::initializer_finalize();
+			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
@@ -236,7 +236,7 @@ impl<T: Config> Pallet<T> {
 		session_info::Module::<T>::initializer_on_new_session(&notification);
 		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
