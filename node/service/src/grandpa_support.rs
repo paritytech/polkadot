@@ -139,7 +139,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 					std::any::type_name::<Self>(),
 				).await;
 
-				rx.await.ok().and_then(|v| v)
+				rx.await.ok().and_then(|v| v).map(|(block_hash, block_number, _)| (block_hash, block_number))
 			};
 
 			let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(

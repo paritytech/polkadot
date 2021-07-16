@@ -343,22 +343,22 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			}
 		};
 
-		let lag = initial_leaf_number.saturating_sub(subchain_number);
-		self.metrics.note_approval_checking_finality_lag(lag);
-
 		// 3. Constrain according to disputes:
-		// TODO: https://github.com/paritytech/polkadot/issues/3164
 		let (tx, rx) = oneshot::channel();
 		overseer.send_msg(DisputeCoordinatorMessage::DetermineUndisputedChain{
-			base_number: subchain_number,
-			block_descriptions: subchain_block_descriptions,
-			tx,
-		}).await;
-		let (subchain_numbner, subchain_head) = rx.await
+				base_number: subchain_number,
+				block_descriptions: subchain_block_descriptions,
+				tx,
+			},
+			std::any::type_name::<Self>(),
+		).await;
+		let (subchain_number, subchain_head) = rx.await
 			.map_err(Error::OverseerDisconnected)
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			.unwrap_or_else(|| (subchain_number, subchain_head));
 
+		let lag = initial_leaf_number.saturating_sub(subchain_number);
+		self.metrics.note_approval_checking_finality_lag(lag);
 		self.metrics.note_disputes_finality_lag(0);
 
 		// 4. Apply the maximum safeguard to the finality lag.
