@@ -194,7 +194,7 @@ where
 		},
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service.clone(),
-			authority_discovery_service,
+			authority_discovery_service.clone(),
 			request_multiplexer,
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,

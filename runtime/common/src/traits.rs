@@ -31,18 +31,18 @@ pub trait Registrar {
 	/// Report the manager (permissioned owner) of a parachain, if there is one.
 	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
 
-	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	fn parachains() -> Vec<ParaId>;
 
-	/// Return if a ParaId is a Parachain.
+	/// Return if a `ParaId` is a Parachain.
 	fn is_parachain(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 	}
 
-	/// Return if a ParaId is a Parathread.
+	/// Return if a `ParaId` is a Parathread.
 	fn is_parathread(id: ParaId) -> bool;
 
-	/// Return if a ParaId is registered in the system.
+	/// Return if a `ParaId` is registered in the system.
 	fn is_registered(id: ParaId) -> bool {
 		Self::is_parathread(id) || Self::is_parachain(id)
 	}
@@ -109,9 +109,9 @@ pub trait Leaser {
 
 	/// Lease a new parachain slot for `para`.
 	///
-	/// `leaser` shall have a total of `amount` balance reserved by the implementor of this trait.
+	/// `leaser` shall have a total of `amount` balance reserved by the implementer of this trait.
 	///
-	/// Note: The implementor of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
+	/// Note: The implementer of the trait (the leasing system) is expected to do all reserve/unreserve calls. The
 	/// caller of this trait *SHOULD NOT* pre-reserve the deposit (though should ensure that it is reservable).
 	///
 	/// The lease will last from `period_begin` for `period_count` lease periods. It is undefined if the `para`

@@ -85,7 +85,7 @@ where
 
 /// Answer an incoming PoV fetch request by querying the av store.
 ///
-/// Returns: Ok(true) if chunk was found and served.
+/// Returns: `Ok(true)` if chunk was found and served.
 pub async fn answer_pov_request<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::PoVFetchingRequest>,
@@ -113,7 +113,7 @@ where
 
 /// Answer an incoming chunk request by querying the av store.
 ///
-/// Returns: Ok(true) if chunk was found and served.
+/// Returns: `Ok(true)` if chunk was found and served.
 pub async fn answer_chunk_request<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::ChunkFetchingRequest>,

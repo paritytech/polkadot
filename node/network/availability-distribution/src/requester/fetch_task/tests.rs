@@ -199,7 +199,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 
 struct TestRun {
 	/// Response to deliver for a given validator index.
-	/// None means, answer with NetworkError.
+	/// None means, answer with `NetworkError`.
 	chunk_responses: HashMap<Recipient, ChunkFetchingResponse>,
 	/// Set of chunks that should be considered valid:
 	valid_chunks: HashSet<Vec<u8>>,
@@ -238,7 +238,7 @@ impl TestRun {
 		});
 	}
 
-	/// Returns true, if after processing of the given message it would be ok for the stream to
+	/// Returns true, if after processing of the given message it would be OK for the stream to
 	/// end.
 	async fn handle_message(&self, msg: AllMessages) -> bool {
 		match msg {

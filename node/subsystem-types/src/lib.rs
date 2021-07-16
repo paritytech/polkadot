@@ -52,7 +52,7 @@ pub enum LeafStatus {
 }
 
 impl LeafStatus {
-	/// Returns a bool indicating fresh status.
+	/// Returns a `bool` indicating fresh status.
 	pub fn is_fresh(&self) -> bool {
 		match *self {
 			LeafStatus::Fresh => true,
@@ -60,7 +60,7 @@ impl LeafStatus {
 		}
 	}
 
-	/// Returns a bool indicating stale status.
+	/// Returns a `bool` indicating stale status.
 	pub fn is_stale(&self) -> bool {
 		match *self {
 			LeafStatus::Fresh => false,
@@ -97,12 +97,12 @@ pub struct ActiveLeavesUpdate {
 }
 
 impl ActiveLeavesUpdate {
-	/// Create a ActiveLeavesUpdate with a single activated hash
+	/// Create a `ActiveLeavesUpdate` with a single activated hash
 	pub fn start_work(activated: ActivatedLeaf) -> Self {
 		Self { activated: [activated][..].into(), ..Default::default() }
 	}
 
-	/// Create a ActiveLeavesUpdate with a single deactivated hash
+	/// Create a `ActiveLeavesUpdate` with a single deactivated hash
 	pub fn stop_work(hash: Hash) -> Self {
 		Self { deactivated: [hash][..].into(), ..Default::default() }
 	}
@@ -114,7 +114,7 @@ impl ActiveLeavesUpdate {
 }
 
 impl PartialEq for ActiveLeavesUpdate {
-	/// Equality for `ActiveLeavesUpdate` doesnt imply bitwise equality.
+	/// Equality for `ActiveLeavesUpdate` doesn't imply bitwise equality.
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {

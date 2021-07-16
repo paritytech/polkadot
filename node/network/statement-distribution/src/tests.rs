@@ -18,6 +18,7 @@ use std::time::Duration;
 use std::sync::Arc;
 use std::iter::FromIterator as _;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use super::*;
 use sp_keyring::Sr25519Keyring;
 use sp_application_crypto::{AppKey, sr25519::Pair, Pair as TraitPair};
@@ -1703,15 +1704,4 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		no_show_slots: 0,
 		needed_approvals: 0,
 	}
-}
-
-pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		ValidatorId::ID,
-		Some(&Sr25519Keyring::Ferdie.to_seed()),
-		)
-		.expect("Insert key into keystore");
-	keystore
 }

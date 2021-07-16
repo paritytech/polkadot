@@ -91,7 +91,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		self.hash
 	}
 
-	/// Get the canddiate descriptor.
+	/// Get the candidate descriptor.
 	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
 	}
@@ -133,12 +133,13 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::Hash = "Hash")]
 	pub enum Event<T: Config> {
-		/// A candidate was backed. [candidate, head_data]
+		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate was included. [candidate, head_data]
+		/// A candidate was included. `[candidate, head_data]`
 		CandidateIncluded(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate timed out. [candidate, head_data]
+		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
+		/// The commitments of candidates pending availability, by `ParaId`.
 	}
 
 	#[pallet::error]
@@ -211,7 +212,7 @@ pub mod pallet {
 		CandidatePendingAvailability<T::Hash, T::BlockNumber>
 	>;
 
-	/// The commitments of candidates pending availability, by ParaId.
+	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]
 	pub type PendingAvailabilityCommitments<T: Config> = StorageMap<
 		_,
@@ -245,7 +246,7 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 	}
 
-	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
+	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
 	/// becoming available.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
@@ -794,7 +795,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Returns the CommittedCandidateReceipt pending availability for the para provided, if any.
+	/// Returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
 	pub(crate) fn candidate_pending_availability(para: ParaId)
 		-> Option<CommittedCandidateReceipt<T::Hash>>
 	{
