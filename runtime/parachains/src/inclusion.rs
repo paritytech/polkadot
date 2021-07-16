@@ -139,7 +139,6 @@ pub mod pallet {
 		CandidateIncluded(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
-		/// The commitments of candidates pending availability, by `ParaId`.
 	}
 
 	#[pallet::error]
