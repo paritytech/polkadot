@@ -39,7 +39,7 @@ use {
 	polkadot_primitives::v1::{
 		Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
 	},
-	polkadot_subsystem::messages::{ApprovalVotingMessage, ChainSelectionMessage},
+	polkadot_subsystem::messages::{ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage},
 	polkadot_node_subsystem_util::metrics::{self, prometheus},
 	polkadot_overseer::Handle,
 	futures::channel::oneshot,
@@ -321,7 +321,7 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		let initial_leaf_number = self.block_number(initial_leaf)?;
 
 		// 2. Constrain according to `ApprovedAncestor`.
-		let (subchain_head, subchain_number) = {
+		let (subchain_head, subchain_number, subchain_block_descriptions) = {
 
 			let (tx, rx) = oneshot::channel();
 			overseer.send_msg(
@@ -338,8 +338,8 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
-				None => (target_hash, target_number),
-				Some((s_h, s_n)) => (s_h, s_n),
+				None => (target_hash, target_number, Vec::new()),
+				Some((s_h, s_n, s_bd)) => (s_h, s_n, s_bd),
 			}
 		};
 
@@ -348,6 +348,17 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 		// 3. Constrain according to disputes:
 		// TODO: https://github.com/paritytech/polkadot/issues/3164
+		let (tx, rx) = oneshot::channel();
+		overseer.send_msg(DisputeCoordinatorMessage::DetermineUndisputedChain{
+			base_number: subchain_number,
+			block_descriptions: subchain_block_descriptions,
+			tx,
+		}).await;
+		let (subchain_numbner, subchain_head) = rx.await
+			.map_err(Error::OverseerDisconnected)
+			.map_err(|e| ConsensusError::Other(Box::new(e)))?
+			.unwrap_or_else(|| (subchain_number, subchain_head));
+
 		self.metrics.note_disputes_finality_lag(0);
 
 		// 4. Apply the maximum safeguard to the finality lag.
