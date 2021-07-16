@@ -1180,7 +1180,7 @@ async fn handle_approved_ancestor(
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
-) -> SubsystemResult<Option<(Hash, BlockNumber)>> {
+) -> SubsystemResult<Option<(Hash, BlockNumber, Vec<(Hash, SessionIndex, Vec<CandidateHash>)>)>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
@@ -1228,6 +1228,8 @@ async fn handle_approved_ancestor(
 		Vec::new()
 	};
 
+	let mut candidates: Vec<_> = Vec::new();
+
 	let mut bits: BitVec<Lsb0, u8> = Default::default();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
 		// Block entries should be present as the assumption is that
@@ -1247,6 +1249,8 @@ async fn handle_approved_ancestor(
 			}
 			Some(b) => b,
 		};
+
+		candidates.push((block_hash, entry.session(), entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect::<Vec<_>>()));
 
 		// even if traversing millions of blocks this is fairly cheap and always dwarfed by the
 		// disk lookups.
@@ -1366,8 +1370,11 @@ async fn handle_approved_ancestor(
 		},
 	);
 
+	let all_approved_max = all_approved_max.map(|(hash, block_number)| {
+		(hash, block_number, candidates)
+	});
 	match all_approved_max {
-		Some((ref hash, ref number)) => {
+		Some((ref hash, ref number, _)) => {
 			span.add_uint_tag("approved-number", *number as u64);
 			span.add_string_fmt_debug_tag("approved-hash", hash);
 		}
