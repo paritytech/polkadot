@@ -35,6 +35,7 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -104,6 +105,7 @@ std = [
 	"pallet-bridge-messages/std",
 	"pallet-collective/std",
 	"pallet-beefy/std",
+	"pallet-beefy-mmr/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-membership/std",

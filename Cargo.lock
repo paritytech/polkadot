@@ -540,6 +540,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "beefy-merkle-tree"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+
+[[package]]
 name = "beefy-primitives"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
@@ -4726,6 +4731,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-beefy-mmr"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+dependencies = [
+ "beefy-merkle-tree",
+ "beefy-primitives",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "libsecp256k1",
+ "log",
+ "pallet-beefy",
+ "pallet-mmr",
+ "pallet-mmr-primitives",
+ "pallet-session",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#bfca1a91f7607d7395591f7341335fd4a27064da"
@@ -6778,7 +6807,6 @@ dependencies = [
 name = "polkadot-runtime-common"
 version = "0.9.8"
 dependencies = [
- "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-support",
@@ -6791,9 +6819,8 @@ dependencies = [
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
- "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase",
- "pallet-mmr",
  "pallet-offences",
  "pallet-session",
  "pallet-staking",
@@ -7909,6 +7936,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
