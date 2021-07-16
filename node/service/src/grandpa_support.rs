@@ -26,7 +26,6 @@ use sp_runtime::traits::Header as _;
 use {
 	polkadot_primitives::v1::{Hash, Block as PolkadotBlock, Header as PolkadotHeader},
 	polkadot_subsystem::messages::ApprovalVotingMessage,
-	prometheus_endpoint::{self, Registry},
 	polkadot_overseer::Handle,
 	futures::channel::oneshot,
 };
@@ -35,37 +34,20 @@ use {
 /// voting subsystem's desired votes.
 ///
 /// The practical effect of this voting rule is to implement a fixed delay of
-/// blocks and to issue a prometheus metric on the lag behind the head that
-/// approval checking would indicate.
+/// blocks.
 #[cfg(feature = "full-node")]
 #[derive(Clone)]
 pub(crate) struct ApprovalCheckingVotingRule {
-	checking_lag: Option<prometheus_endpoint::Gauge<prometheus_endpoint::U64>>,
 	overseer: Handle,
 }
 
 #[cfg(feature = "full-node")]
 impl ApprovalCheckingVotingRule {
 	/// Create a new approval checking diagnostic voting rule.
-	pub fn new(overseer: Handle, registry: Option<&Registry>)
-		-> Result<Self, prometheus_endpoint::PrometheusError>
-	{
-		Ok(ApprovalCheckingVotingRule {
-			checking_lag: if let Some(registry) = registry {
-				Some(prometheus_endpoint::register(
-					prometheus_endpoint::Gauge::with_opts(
-						prometheus_endpoint::Opts::new(
-							"parachain_approval_checking_finality_lag",
-							"How far behind the head of the chain the Approval Checking protocol wants to vote",
-						)
-					)?,
-					registry,
-				)?)
-			} else {
-				None
-			},
+	pub fn new(overseer: Handle) -> Self {
+		Self {
 			overseer,
-		})
+		}
 	}
 }
 
@@ -115,7 +97,6 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 	) -> grandpa::VotingRuleResult<PolkadotBlock> {
 		// Query approval checking and issue metrics.
 		let mut overseer = self.overseer.clone();
-		let checking_lag = self.checking_lag.clone();
 
 		let best_hash = best_target.hash();
 		let best_number = best_target.number.clone();
@@ -146,10 +127,6 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 				best_number - base_number,
 				|(_h, n)| best_number - n,
 			);
-
-			if let Some(ref checking_lag) = checking_lag {
-				checking_lag.set(approval_checking_subsystem_lag as _);
-			}
 
 			let min_vote = {
 				let diff = best_number.saturating_sub(base_number);
