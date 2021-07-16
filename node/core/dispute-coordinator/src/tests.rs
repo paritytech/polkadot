@@ -1122,3 +1122,107 @@ fn fresh_dispute_ignored_if_unavailable() {
 		test_state
 	}));
 }
+
+#[test]
+fn resume_dispute_without_local_statement() {
+	let session = 1;
+
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+		let candidate_receipt = CandidateReceipt::default();
+		let candidate_hash = candidate_receipt.hash();
+
+		test_state.activate_leaf_at_session(
+			&mut virtual_overseer,
+			session,
+			1,
+		).await;
+
+		let valid_vote = test_state.issue_statement_with_index(
+			1,
+			candidate_hash,
+			session,
+			true,
+		).await;
+
+		let invalid_vote = test_state.issue_statement_with_index(
+			2,
+			candidate_hash,
+			session,
+			false,
+		).await;
+
+		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+		virtual_overseer.send(FromOverseer::Communication {
+			msg: DisputeCoordinatorMessage::ImportStatements {
+				candidate_hash,
+				candidate_receipt: candidate_receipt.clone(),
+				session,
+				statements: vec![
+					(valid_vote, ValidatorIndex(1)),
+					(invalid_vote, ValidatorIndex(2)),
+				],
+				pending_confirmation,
+			},
+		}).await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					report_availability,
+					..
+				}
+			) => {
+				report_availability.send(true).unwrap();
+			}
+		);
+
+		{
+			let (tx, rx) = oneshot::channel();
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().len(), 1);
+		}
+
+		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
+	}))
+	// Alice should send a DisputeParticiationMessage::Participate on restart since she has no
+	// local statement for the active dispute.
+	.resume(|test_state, mut virtual_overseer| Box::pin(async move {
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+		let candidate_receipt = CandidateReceipt::default();
+		let candidate_hash = candidate_receipt.hash();
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					candidate_hash: c_hash,
+					candidate_receipt: c_receipt,
+					session: s,
+					report_availability,
+					..
+				}
+			) => {
+				assert_eq!(candidate_hash, c_hash);
+				assert_eq!(candidate_receipt, c_receipt);
+				assert_eq!(session, s);
+				report_availability.send(true).unwrap();
+			}
+		);
+
+		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
+	}));
+}

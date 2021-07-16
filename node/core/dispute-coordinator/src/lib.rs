@@ -354,6 +354,10 @@ where
 // Restores the subsystem's state before proceeding with the main event loop. Primarily, this
 // repopulates the rolling session window the relevant session information to handle incoming
 // import statement requests.
+//
+// This method also retransmits a DisputeParticiationMessage::Participate for any non-concluded
+// disputes for which the subsystem doesn't have a local statement, ensuring it eventually makes an
+// arbitration on the disupte.
 async fn resume<B, Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -376,6 +380,70 @@ where
 	handle_new_activations(ctx, &mut overlay_db, state, leaves).await.unwrap();
 	let write_ops = overlay_db.into_write_ops();
 	backend.write(write_ops)?;
+
+	let recent_disputes = match backend.load_recent_disputes() {
+		Ok(Some(disputes)) => disputes,
+		Ok(None) => return Ok(()),
+		Err(e) => {
+			tracing::error!(target: LOG_TARGET, "failed initial load of recent disputes: {:?}", e);
+			return Err(e.into());
+		},
+	};
+
+	// Filter out disputes that have already concluded.
+	let active_disputes = recent_disputes.into_iter()
+		.filter(|((_, _), status)| status.concluded_at().is_none())
+		.collect::<RecentDisputes>();
+
+	for ((session, ref candidate_hash), _) in active_disputes.into_iter() {
+		let votes: CandidateVotes = match backend.load_candidate_votes(session, candidate_hash) {
+			Ok(Some(votes)) => votes.into(),
+			Ok(None) => continue,
+			Err(e) => {
+				tracing::error!(target: LOG_TARGET, "failed initial load of candidate votes: {:?}", e);
+				continue;
+			},
+		};
+
+		let validators = match state.rolling_session_window.session_info(session) {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing info for session which has an active dispute",
+				);
+
+				continue;
+			}
+			Some(info) => info.validators.clone(),
+		};
+
+		let n_validators = validators.len();
+		let voted_indices: HashSet<_> = votes.voted_indices().into_iter().collect();
+		for (index, validator) in validators.iter().enumerate() {
+			let index = ValidatorIndex(index as _);
+			if voted_indices.contains(&index) { continue }
+
+			// Skip non-local validators.
+			if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+				continue
+			}
+
+			// Send a DisputeParticipationMessage for all non-concluded disputes that for which
+			// we have not recorded a local statement.
+			let (report_availability, receive_availability) = oneshot::channel();
+			ctx.send_message(DisputeParticipationMessage::Participate {
+				candidate_hash: *candidate_hash,
+				candidate_receipt: votes.candidate_receipt.clone(),
+				session,
+				n_validators: n_validators as u32,
+				report_availability,
+			}).await;
+
+			// TODO(ladi): do we care about the response here?
+			let _ = receive_availability.await;
+		}
+	}
 
 	Ok(())
 }
@@ -701,6 +769,9 @@ async fn handle_import_statements(
 	}
 
 	overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
+
+	// TODO(ladi): should we respond with ImportStatementsResult::ValidImport?
+	//pending_confirmation.send(ImportStatementsResult::ValidImport) .map_err(|_| Error::OneshotSend)?;
 
 	Ok(())
 }
