@@ -267,25 +267,29 @@ impl TestState {
 			public,
 		).await.unwrap().unwrap()
 	}
+
+	fn resume<F>(self, test: F) -> Self
+		where F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>
+	{
+		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let subsystem = DisputeCoordinatorSubsystem::new(
+			self.db.clone(),
+			self.config.clone(),
+			self.subsystem_keystore.clone(),
+		);
+		let backend = DbBackend::new(self.db.clone(), self.config.column_config());
+		let subsystem_task = run(subsystem, ctx, backend, Box::new(self.clock.clone()));
+		let test_task = test(self, ctx_handle);
+
+		let (_, state) = futures::executor::block_on(future::join(subsystem_task, test_task));
+		state
+	}
 }
 
-fn test_harness<F>(test: F)
-	where F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, ()>
+fn test_harness<F>(test: F) -> TestState
+	where F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>
 {
-	let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
-
-	let state = TestState::default();
-	let subsystem = DisputeCoordinatorSubsystem::new(
-		state.db.clone(),
-		state.config.clone(),
-		state.subsystem_keystore.clone(),
-	);
-
-	let backend = DbBackend::new(state.db.clone(), state.config.column_config());
-	let subsystem_task = run(subsystem, ctx, backend, Box::new(state.clock.clone()));
-	let test_task = test(state, ctx_handle);
-
-	futures::executor::block_on(future::join(subsystem_task, test_task));
+	TestState::default().resume(test)
 }
 
 #[test]
@@ -407,6 +411,8 @@ fn conflicting_votes_lead_to_dispute_participation() {
 
 		// This confirms that the second vote doesn't lead to participation again.
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -512,6 +518,8 @@ fn positive_votes_dont_trigger_participation() {
 
 		// This confirms that no participation request is made.
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -584,6 +592,8 @@ fn wrong_validator_index_is_ignored() {
 
 		// This confirms that no participation request is made.
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -678,6 +688,8 @@ fn finality_votes_ignore_disputed_candidates() {
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -805,6 +817,8 @@ fn supermajority_valid_dispute_may_be_finalized() {
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -913,6 +927,8 @@ fn concluded_supermajority_for_non_active_after_time() {
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -1021,6 +1037,8 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
 
@@ -1100,5 +1118,7 @@ fn fresh_dispute_ignored_if_unavailable() {
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
 	}));
 }
