@@ -35,7 +35,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		DisputeParticipationMessage, ImportStatementsResult
+		DisputeParticipationMessage, ImportStatementsResult, ChainSelectionMessage,
 	}
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
@@ -316,6 +316,8 @@ where
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
 	};
 
+	resume(ctx, &mut state, backend).await?;
+
 	loop {
 		let mut overlay_db = OverlayedBackend::new(backend);
 		match ctx.recv().await? {
@@ -347,6 +349,35 @@ where
 			backend.write(ops)?;
 		}
 	}
+}
+
+// Restores the subsystem's state before proceeding with the main event loop. Primarily, this
+// repopulates the rolling session window the relevant session information to handle incoming
+// import statement requests.
+async fn resume<B, Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	backend: &mut B,
+) -> Result<(), Error>
+where
+	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+	B: Backend,
+{
+
+	// Query for the set of active leaves to reconstruct our rolling session window.
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(ChainSelectionMessage::Leaves(tx)).await;
+	let leaves = rx.await?;
+
+	// Process the leaves as we would during normal operation. Any writes are committed
+	// immediately so that they are made available to the primary event loop.
+	let mut overlay_db = OverlayedBackend::new(backend);
+	handle_new_activations(ctx, &mut overlay_db, state, leaves).await.unwrap();
+	let write_ops = overlay_db.into_write_ops();
+	backend.write(write_ops)?;
+
+	Ok(())
 }
 
 async fn handle_new_activations(

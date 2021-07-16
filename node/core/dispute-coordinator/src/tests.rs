@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::HashMap;
 
 use super::*;
 use polkadot_primitives::v1::{BlakeTwo256, HashT, ValidatorId, Header, SessionInfo};
@@ -86,6 +87,7 @@ struct TestState {
 	db: Arc<dyn KeyValueDB>,
 	config: Config,
 	clock: MockClock,
+	headers: HashMap<Hash, Header>,
 }
 
 impl Default for TestState {
@@ -126,13 +128,14 @@ impl Default for TestState {
 			db,
 			config,
 			clock: MockClock::default(),
+			headers: HashMap::new(),
 		}
 	}
 }
 
 impl TestState {
 	async fn activate_leaf_at_session(
-		&self,
+		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		session: SessionIndex,
 		block_number: BlockNumber,
@@ -149,6 +152,8 @@ impl TestState {
 		};
 		let block_hash = block_header.hash();
 
+		let _ = self.headers.insert(block_hash, block_header.clone());
+
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 			ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: block_hash,
@@ -158,6 +163,16 @@ impl TestState {
 			})
 		))).await;
 
+		self.handle_sync_queries(virtual_overseer, block_hash, block_header, session).await;
+	}
+
+	async fn handle_sync_queries(
+		&self,
+		virtual_overseer: &mut VirtualOverseer,
+		block_hash: Hash,
+		block_header: Header,
+		session: SessionIndex,
+	) {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
@@ -172,6 +187,7 @@ impl TestState {
 				h,
 				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
+				let parent_hash = session_to_hash(session, b"parent");
 				assert_eq!(h, parent_hash);
 				let _ = tx.send(Ok(session));
 			}
@@ -191,6 +207,21 @@ impl TestState {
 					if session_index == session { break }
 				}
 			)
+		}
+	}
+
+	async fn handle_resume_sync(&self, virtual_overseer: &mut VirtualOverseer, session: SessionIndex) {
+		let leaves: Vec<Hash> = self.headers.keys().cloned().collect();
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainSelection(ChainSelectionMessage::Leaves(tx)) => {
+				tx.send(leaves.clone()).unwrap();
+			}
+		);
+
+		for leaf in leaves {
+			let header = self.headers.get(&leaf).unwrap().clone();
+			self.handle_sync_queries(virtual_overseer, leaf, header, session).await;
 		}
 	}
 
@@ -259,8 +290,10 @@ fn test_harness<F>(test: F)
 
 #[test]
 fn conflicting_votes_lead_to_dispute_participation() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -379,8 +412,10 @@ fn conflicting_votes_lead_to_dispute_participation() {
 
 #[test]
 fn positive_votes_dont_trigger_participation() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -482,8 +517,10 @@ fn positive_votes_dont_trigger_participation() {
 
 #[test]
 fn wrong_validator_index_is_ignored() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -552,8 +589,10 @@ fn wrong_validator_index_is_ignored() {
 
 #[test]
 fn finality_votes_ignore_disputed_candidates() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -644,8 +683,10 @@ fn finality_votes_ignore_disputed_candidates() {
 
 #[test]
 fn supermajority_valid_dispute_may_be_finalized() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -688,7 +729,23 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			},
 		}).await;
 
-		let _ = virtual_overseer.recv().await;
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					candidate_hash: c_hash,
+					candidate_receipt: c_receipt,
+					session: s,
+					report_availability,
+					..
+				}
+			) => {
+				assert_eq!(candidate_hash, c_hash);
+				assert_eq!(candidate_receipt, c_receipt);
+				assert_eq!(session, s);
+				report_availability.send(true).unwrap();
+			}
+		);
 
 		let mut statements = Vec::new();
 		for i in (0..supermajority_threshold - 1).map(|i| i + 2) {
@@ -753,8 +810,10 @@ fn supermajority_valid_dispute_may_be_finalized() {
 
 #[test]
 fn concluded_supermajority_for_non_active_after_time() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -859,8 +918,10 @@ fn concluded_supermajority_for_non_active_after_time() {
 
 #[test]
 fn concluded_supermajority_against_non_active_after_time() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
@@ -965,8 +1026,10 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 #[test]
 fn fresh_dispute_ignored_if_unavailable() {
-	test_harness(|test_state, mut virtual_overseer| Box::pin(async move {
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
 		let session = 1;
+
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 		let candidate_receipt = CandidateReceipt::default();
 		let candidate_hash = candidate_receipt.hash();
