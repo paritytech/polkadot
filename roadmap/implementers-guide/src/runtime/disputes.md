@@ -6,7 +6,7 @@ However, this isn't the end of the story. We are working in a forkful blockchain
 
 1. For security, validators that misbehave shouldn't only be slashed on one fork, but on all possible forks. Validators that misbehave shouldn't be able to create a new fork of the chain when caught and get away with their misbehavior.
 1. It is possible (and likely) that the parablock being contested has not appeared on all forks.
-1. If a block author believes that there is a disputed parablock on a specific fork that will resolve to a reversion of the fork, that block author is better incentivized to build on a different fork which does not include that parablock.
+1. If a block author believes that there is a disputed parablock on a specific fork that will resolve to a reversion of the fork, that block author has more incentive to build on a different fork which does not include that parablock.
 
 This means that in all likelihood, there is the possibility of disputes that are started on one fork of the relay chain, and as soon as the dispute resolution process starts to indicate that the parablock is indeed invalid, that fork of the relay chain will be abandoned and the dispute will never be fully resolved on that chain.
 
