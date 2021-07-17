@@ -8147,6 +8147,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "runtime-tests"
+version = "0.9.8"
+dependencies = [
+ "pallet-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "polkadot-runtime",
+ "remote-externalities",
+ "tokio 0.2.21",
+]
+
+[[package]]
 name = "rust-argon2"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
