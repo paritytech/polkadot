@@ -55,7 +55,8 @@ Frozen: Option<BlockNumber>,
 ## Session Change
 
 1. If the current session is not greater than `config.dispute_period + 1`, nothing to do here.
-1. Set `pruning_target = current_session - config.dispute_period - 1`. We add the extra `1` because we want to keep things for `config.dispute_period` _full_ sessions. The stuff at the end of the most recent session has been around for ~0 sessions, not ~1.
+1. Set `pruning_target = current_session - config.dispute_period - 1`. We add the extra `1` because we want to keep things for `config.dispute_period` _full_ sessions. 
+   The stuff at the end of the most recent session has been around for a little over 0 sessions, not a little over 1.
 1. If `LastPrunedSession` is `None`, then set `LastPrunedSession` to `Some(pruning_target)` and return.
 1. Otherwise, clear out all disputes, included candidates, and `SpamSlots` entries in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
 
@@ -77,7 +78,7 @@ Frozen: Option<BlockNumber>,
   1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is fewer in number than `byzantine_threshold + 1` and the candidate is not present in the `Included` map
       1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary. do not increment `SpamSlots` if the candidate is local.
       1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.
-  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is at least `byzantine_threshold + 1`, the `DisputeState` has fewer than `byzantine_threshold + 1` validators, and the candidate is not present in the `Included` map, decrement `SpamSlots` for each validator in the `DisputeState`.
+  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is at least `byzantine_threshold + 1`, the `DisputeState` has fewer than `byzantine_threshold + 1` validators, and the candidate is not present in the `Included` map, then decrease `SpamSlots` by 1 for each validator in the `DisputeState`.
   1. Import all statements into the dispute. This should fail if any statements are duplicate or if the corresponding bit for the corresponding validator is set in the dispute already.
   1. If `concluded_at` is `None`, reward all statements.
   1. If `concluded_at` is `Some`, reward all statements slightly less.
@@ -90,7 +91,7 @@ Frozen: Option<BlockNumber>,
 
 * `note_included(SessionIndex, CandidateHash, included_in: BlockNumber)`:
   1. Add `(SessionIndex, CandidateHash)` to the `Included` map with `included_in - 1` as the value.
-  1. If there is a dispute under `(Sessionindex, CandidateHash)` with fewer than `byzantine_threshold + 1` participating validators, decrement `SpamSlots` for each validator in the `DisputeState`.
+  1. If there is a dispute under `(Sessionindex, CandidateHash)` with fewer than `byzantine_threshold + 1` participating validators, decrease `SpamSlots` by 1 for each validator in the `DisputeState`.
   1. If there is a dispute under `(SessionIndex, CandidateHash)` that has concluded against the candidate, invoke `revert_and_freeze` with the stored block number.
 
 * `could_be_invalid(SessionIndex, CandidateHash) -> bool`: Returns whether a candidate has a live dispute ongoing or a dispute which has already concluded in the negative.

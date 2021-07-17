@@ -280,10 +280,10 @@ pub mod pallet {
 		/// A dispute has been initiated. \[candidate hash, dispute location\]
 		DisputeInitiated(CandidateHash, DisputeLocation),
 		/// A dispute has concluded for or against a candidate.
-		/// \[para_id, candidate hash, dispute result\]
+		/// \[para id, candidate hash, dispute result\]
 		DisputeConcluded(CandidateHash, DisputeResult),
 		/// A dispute has timed out due to insufficient participation.
-		/// \[para_id, candidate hash\]
+		/// \[para id, candidate hash\]
 		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
@@ -517,7 +517,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Called by the initalizer to initialize the disputes module.
+	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let config = <configuration::Module<T>>::config();
 
@@ -572,10 +572,10 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Called by the initalizer to finalize the disputes module.
+	/// Called by the initializer to finalize the disputes module.
 	pub(crate) fn initializer_finalize() { }
 
-	/// Called by the initalizer to note a new session in the disputes module.
+	/// Called by the initializer to note a new session in the disputes module.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -646,7 +646,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle a set of dispute statements corresponding to a single candidate.
 	///
-	/// Fails if the dispute data is invalid. Returns a bool indicating whether the
+	/// Fails if the dispute data is invalid. Returns a boolean indicating whether the
 	/// dispute is fresh.
 	fn provide_dispute_data(config: &HostConfiguration<T::BlockNumber>, set: DisputeStatementSet)
 		-> Result<bool, DispatchError>
