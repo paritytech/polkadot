@@ -280,10 +280,10 @@ pub mod pallet {
 		/// A dispute has been initiated. \[candidate hash, dispute location\]
 		DisputeInitiated(CandidateHash, DisputeLocation),
 		/// A dispute has concluded for or against a candidate.
-		/// \[para id, candidate hash, dispute result\]
+		/// `\[para id, candidate hash, dispute result\]`
 		DisputeConcluded(CandidateHash, DisputeResult),
 		/// A dispute has timed out due to insufficient participation.
-		/// \[para id, candidate hash\]
+		/// `\[para id, candidate hash\]`
 		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
