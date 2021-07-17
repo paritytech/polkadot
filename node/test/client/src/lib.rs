@@ -38,7 +38,7 @@ pub type Executor = client::LocalCallExecutor<Block, FullBackend, sc_executor::N
 /// Test client builder for Polkadot.
 pub type TestClientBuilder = substrate_test_client::TestClientBuilder<Block, Executor, FullBackend, GenesisParameters>;
 
-/// LongestChain type for the test runtime/client.
+/// `LongestChain` type for the test runtime/client.
 pub type LongestChain = sc_consensus::LongestChain<FullBackend, Block>;
 
 /// Parameters of test-client builder with test-runtime.

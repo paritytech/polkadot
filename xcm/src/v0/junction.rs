@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Support datastructures for `MultiLocation`, primarily the `Junction` datatype.
+//! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
@@ -138,6 +138,14 @@ pub enum Junction {
 }
 
 impl Junction {
+	/// Returns true if this junction is a `Parent` item.
+	pub fn is_parent(&self) -> bool {
+		match self {
+			Junction::Parent => true,
+			_ => false,
+		}
+	}
+
 	/// Returns true if this junction can be considered an interior part of its context. This is generally `true`,
 	/// except for the `Parent` item.
 	pub fn is_interior(&self) -> bool {

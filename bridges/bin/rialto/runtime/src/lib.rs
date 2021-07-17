@@ -164,7 +164,7 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
 	/// The basic call filter to use in dispatchable.
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	/// The identifier used to distinguish between accounts.
 	type AccountId = AccountId;
 	/// The aggregated dispatch type that is available for extrinsics.
@@ -206,7 +206,7 @@ impl frame_system::Config for Runtime {
 	type BlockLength = bp_rialto::BlockLength;
 	/// The weight of database operations that the runtime can invoke.
 	type DbWeight = DbWeight;
-	/// The designated SS58 prefix of this chain.
+	/// The designated `SS58` prefix of this chain.
 	type SS58Prefix = SS58Prefix;
 	/// The set code logic, just the default since we're not a parachain.
 	type OnSetCode = ();
@@ -264,7 +264,7 @@ impl pallet_bridge_dispatch::Config for Runtime {
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = ();
+	type CallFilter = frame_support::traits::AllowAll;
 	type EncodedCall = crate::millau_messages::FromMillauEncodedCall;
 	type SourceChainAccountId = bp_millau::AccountId;
 	type TargetChainAccountPublic = MultiSigner;
@@ -346,7 +346,7 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Runtime {
-	/// A timestamp: milliseconds since the unix epoch.
+	/// A timestamp: milliseconds since the Unix epoch.
 	type Moment = u64;
 	type OnTimestampSet = Aura;
 	type MinimumPeriod = MinimumPeriod;
@@ -531,9 +531,9 @@ pub type Header = generic::Header<BlockNumber, Hashing>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -668,8 +668,9 @@ impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
@@ -803,8 +804,12 @@ impl_runtime_apis! {
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig,
-		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, add_benchmark};
+		) -> Result<
+			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
+			sp_runtime::RuntimeString,
+		> {
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_support::traits::StorageInfoTrait;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1046,7 +1051,8 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_bridge_grandpa, BridgeMillauGrandpa);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			Ok(batches)
+			let storage_info = AllPalletsWithSystem::storage_info();
+			Ok((batches, storage_info))
 		}
 	}
 }
@@ -1054,7 +1060,7 @@ impl_runtime_apis! {
 /// Millau account ownership digest from Rialto.
 ///
 /// The byte vector returned by this function should be signed with a Millau account private key.
-/// This way, the owner of `rialto_account_id` on Rialto proves that the 'millau' account private key
+/// This way, the owner of `rialto_account_id` on Rialto proves that the Millau account private key
 /// is also under his control.
 pub fn rialto_to_millau_account_ownership_digest<Call, AccountId, SpecVersion>(
 	millau_call: &Call,

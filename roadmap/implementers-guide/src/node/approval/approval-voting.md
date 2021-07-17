@@ -4,9 +4,9 @@ Reading the [section on the approval protocol](../../protocol-approval.md) will 
 
 Approval votes are split into two parts: Assignments and Approvals. Validators first broadcast their assignment to indicate intent to check a candidate. Upon successfully checking, they broadcast an approval vote. If a validator doesn't broadcast their approval vote shortly after issuing an assignment, this is an indication that they are being prevented from recovering or validating the block data and that more validators should self-select to check the candidate. This is known as a "no-show".
 
-The core of this subsystem is a Tick-based timer loop, where Ticks are 500ms. We also reason about time in terms of DelayTranches, which measure the number of ticks elapsed since a block was produced. We track metadata for all un-finalized but included candidates. We compute our local assignments to check each candidate, as well as which DelayTranche those assignments may be minimally triggered at. As the same candidate may appear in more than one block, we must produce our potential assignments for each (Block, Candidate) pair. The timing loop is based on waiting for assignments to become no-shows or waiting to broadcast and begin our own assignment to check.
+The core of this subsystem is a Tick-based timer loop, where Ticks are 500ms. We also reason about time in terms of `DelayTranche`s, which measure the number of ticks elapsed since a block was produced. We track metadata for all un-finalized but included candidates. We compute our local assignments to check each candidate, as well as which `DelayTranche` those assignments may be minimally triggered at. As the same candidate may appear in more than one block, we must produce our potential assignments for each (Block, Candidate) pair. The timing loop is based on waiting for assignments to become no-shows or waiting to broadcast and begin our own assignment to check.
 
-Another main component of this subsystem is the logic for determining when a (Block, Candidate) pair has been approved and when to broadcast and trigger our own assignment. Once a (Block, Candidate) pair has been approved, we mark a corresponding bit in the BlockEntry that indicates the candidate has been approved under the block. When we trigger our own assignment, we broadcast it via Approval Distribution, begin fetching the data from Availability Recovery, and then pass it through to the Candidate Validation. Once these steps are successful, we issue our approval vote. If any of these steps fail, we don't issue any vote and will "no-show" from the perspective of other validators. In the future we will initiate disputes as well.
+Another main component of this subsystem is the logic for determining when a (Block, Candidate) pair has been approved and when to broadcast and trigger our own assignment. Once a (Block, Candidate) pair has been approved, we mark a corresponding bit in the `BlockEntry` that indicates the candidate has been approved under the block. When we trigger our own assignment, we broadcast it via Approval Distribution, begin fetching the data from Availability Recovery, and then pass it through to the Candidate Validation. Once these steps are successful, we issue our approval vote. If any of these steps fail, we don't issue any vote and will "no-show" from the perspective of other validators. In the future we will initiate disputes as well.
 
 Where this all fits into Polkadot is via block finality. Our goal is to not finalize any block containing a candidate that is not approved. We provide a hook for a custom GRANDPA voting rule - GRANDPA makes requests of the form (target, minimum) consisting of a target block (i.e. longest chain) that it would like to finalize, and a minimum block which, due to the rules of GRANDPA, must be voted on. The minimum is typically the last finalized block, but may be beyond it, in the case of having a last-round-estimate beyond the last finalized. Thus, our goal is to inform GRANDPA of some block between target and minimum which we believe can be finalized safely. We do this by iterating backwards from the target to the minimum and finding the longest continuous chain from minimum where all candidates included by those blocks have been approved.
 
@@ -164,23 +164,23 @@ Main loop:
 
 #### `OverseerSignal::BlockFinalized`
 
-On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`. We also update each of the `BlockNumber -> Vec<Hash>` keys in the database to reflect the blocks at that height, clearing if empty.
+On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the `ChainApi` subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendants of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`. We also update each of the `BlockNumber -> Vec<Hash>` keys in the database to reflect the blocks at that height, clearing if empty.
 
 
 #### `OverseerSignal::ActiveLeavesUpdate`
 
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
-  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. Stale leaves in the update can be ignored.
+  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the `ChainApi` subsystem. Stale leaves in the update can be ignored.
   * We update the `StoredBlockRange` and the `BlockNumber` maps.
-  * We use the RuntimeApiSubsystem to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
+  * We use the `RuntimeApiSubsystem` to determine information about these blocks. It is generally safe to assume that runtime state is available for recent, unfinalized blocks. In the case that it isn't, it means that we are catching up to the head of the chain and needn't worry about assignments to those blocks anyway, as the security assumption of the protocol tolerates nodes being temporarily offline or out-of-date.
     * We fetch the set of candidates included by each block by dispatching a `RuntimeApiRequest::CandidateEvents` and checking the `CandidateIncluded` events.
     * We fetch the session of the block by dispatching a `session_index_for_child` request with the parent-hash of the block.
     * If the `session index - APPROVAL_SESSIONS > state.earliest_session`, then bump `state.earliest_sessions` to that amount and prune earlier sessions.
     * If the session isn't in our `state.session_info`, load the session info for it and for all sessions since the earliest-session, including the earliest-session, if that is missing. And it can be, just after pruning, if we've done a big jump forward, as is the case when we've just finished chain synchronization.
     * If any of the runtime API calls fail, we just warn and skip the block.
-  * We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks.
+  * We use the `RuntimeApiSubsystem` to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks.
   * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate obtained from `CandidateIncluded` events after making a `RuntimeApiRequest::CandidateEvents` request.
-  * For each candidate, if the amount of needed approvals is more than the validators remaining after the backing group of the candidate is subtracted, then the candidate is insta-approved as approval would be impossible otherwise. If all candidates in the block are insta-approved, or there are no candidates in the block, then the block is insta-approved. If the block is insta-approved, a [`ChainSelectionMessage::Approvedl][CSM] should be sent for the block.
+  * For each candidate, if the amount of needed approvals is more than the validators remaining after the backing group of the candidate is subtracted, then the candidate is insta-approved as approval would be impossible otherwise. If all candidates in the block are insta-approved, or there are no candidates in the block, then the block is insta-approved. If the block is insta-approved, a [`ChainSelectionMessage::Approved`][CSM] should be sent for the block.
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
@@ -262,25 +262,27 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * [Schedule a new wakeup](#schedule-wakeup) of the candidate.
 
 #### Schedule Wakeup
+
   * Requires `(approval_entry, candidate_entry)` which effectively denotes a `(Block Hash, Candidate Hash)` pair - the candidate, along with the block it appears in.
   * Also requires `RequiredTranches`
   * If the `approval_entry` is approved, this doesn't need to be woken up again.
   * If `RequiredTranches::All` - no wakeup. We assume other incoming votes will trigger wakeup and potentially re-schedule.
   * If `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }` - schedule at the lesser of the next no-show tick, or the tick, offset positively by `clock_drift` of the next non-empty tranche we are aware of after `considered`, including any tranche containing our own unbroadcast assignment. This can lead to no wakeup in the case that we have already broadcast our assignment and there are no pending no-shows; that is, we have approval votes for every assignment we've received that is not already a no-show. In this case, we will be re-triggered by other validators broadcasting their assignments.
-  * If `RequiredTranches::Exact { next_no_show, .. } - set a wakeup for the next no-show tick.
+  * If `RequiredTranches::Exact { next_no_show, .. }` - set a wakeup for the next no-show tick.
 
 #### Launch Approval Work
-  * Requires `(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, backing_group, block_hash, candidate_index)`
-  * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
-  * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, Some(backing_group), response_sender)`
-  * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::ValidationCodeByHash(`descriptor.validation_code_hash`)` against the state of `block_hash`.
-  * Spawn a background task with a clone of `background_tx`
-    * Wait for the available data
-    * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
-    * Wait for the result of validation
-    * Check that the result of validation, if valid, matches the commitments in the receipt.
-    * If valid, issue a message on `background_tx` detailing the request.
-    * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with `valid = false` to initiate a dispute.
+
+* Requires `(SessionIndex, SessionInfo, CandidateReceipt, ValidatorIndex, backing_group, block_hash, candidate_index)`
+* Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
+* Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, Some(backing_group), response_sender)`
+* Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::ValidationCodeByHash(descriptor.validation_code_hash)` against the state of `block_hash`.
+* Spawn a background task with a clone of `background_tx`
+  * Wait for the available data
+  * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
+  * Wait for the result of validation
+  * Check that the result of validation, if valid, matches the commitments in the receipt.
+  * If valid, issue a message on `background_tx` detailing the request.
+  * If any of the data, the candidate, or the commitments are invalid, issue on `background_tx` a [`DisputeCoordinatorMessage::IssueLocalStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with `valid = false` to initiate a dispute.
 
 #### Issue Approval Vote
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.

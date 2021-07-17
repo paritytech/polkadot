@@ -92,7 +92,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot GenesisConfig for testing
+/// Helper function to create polkadot `GenesisConfig` for testing
 fn polkadot_testnet_genesis(
 	initial_authorities: Vec<(
 		AccountId,

@@ -19,10 +19,12 @@ tracing = "0.1.26"
 lru = "0.6.5"
 
 polkadot-node-primitives = { path = "../primitives" }
-polkadot-node-subsystem = { path = "../subsystem" }
+polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
+polkadot-node-metrics = { path = "../metrics" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel"}
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

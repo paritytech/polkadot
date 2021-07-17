@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
@@ -65,7 +65,7 @@ use xcm_builder::{
 };
 
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	create_runtime_str, generic, impl_opaque_keys, FixedPointNumber,
 	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
@@ -73,8 +73,6 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
-#[cfg(feature = "runtime-benchmarks")]
-use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
@@ -83,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All, MaxEncodedLen},
+	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All},
 	weights::Weight,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -100,6 +98,7 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_election_provider_multi_phase::Call as EPMCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -120,7 +119,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9070,
+	spec_version: 9090,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -305,7 +304,7 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParasInitializer,
+		pub para_validator: Initializer,
 		pub para_assignment: ParasSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
@@ -333,6 +332,7 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+use pallet_election_provider_multi_phase::WeightInfo;
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
 	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
@@ -345,11 +345,14 @@ parameter_types! {
 	// This formula is currently adjusted such that a typical solution will spend an amount equal
 	// to the base deposit for every 50 kb.
 	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
-	pub SignedRewardBase: Balance = fee_for_submit_call::<
-		Runtime,
-		crate::constants::fee::WeightToFee,
-		crate::weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>,
-	>(Perbill::from_perthousand(1500));
+	pub SignedRewardBase: Balance = fee_for_submit_call::<Runtime>(
+		// give 20% threshold.
+		sp_runtime::FixedU128::saturating_from_rational(12, 10),
+		// maximum weight possible.
+		weights::pallet_election_provider_multi_phase::WeightInfo::<Runtime>::submit(SignedMaxSubmissions::get()),
+		// assume a solution of 100kb length.
+		100 * 1024
+	);
 
 	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
@@ -394,7 +397,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
-	type BenchmarkingConfig = ();
+	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
@@ -1072,8 +1075,8 @@ construct_runtime! {
 		ParasInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage} = 46,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>} = 47,
-		ParasInitializer: parachains_initializer::{Pallet, Call, Storage} = 48,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
+		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 51,
@@ -1099,9 +1102,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -1182,8 +1185,9 @@ sp_api::impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
@@ -1431,8 +1435,12 @@ sp_api::impl_runtime_apis! {
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig,
-		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
+		) -> Result<
+			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
+			sp_runtime::RuntimeString,
+		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_support::traits::StorageInfoTrait;
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
@@ -1487,7 +1495,8 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			Ok(batches)
+			let storage_info = AllPalletsWithSystem::storage_info();
+			Ok((batches, storage_info))
 		}
 	}
 }
