@@ -212,16 +212,24 @@ impl TestState {
 
 	async fn handle_resume_sync(&self, virtual_overseer: &mut VirtualOverseer, session: SessionIndex) {
 		let leaves: Vec<Hash> = self.headers.keys().cloned().collect();
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ChainSelection(ChainSelectionMessage::Leaves(tx)) => {
-				tx.send(leaves.clone()).unwrap();
-			}
-		);
+		for leaf in leaves.iter() {
+			virtual_overseer.send(
+				FromOverseer::Signal(
+					OverseerSignal::ActiveLeaves(
+						ActiveLeavesUpdate::start_work(
+							ActivatedLeaf {
+								hash: *leaf,
+								number: 1,
+								span: Arc::new(jaeger::Span::Disabled),
+								status: LeafStatus::Fresh,
+							}
+						)
+					)
+				)
+			).await;
 
-		for leaf in leaves {
-			let header = self.headers.get(&leaf).unwrap().clone();
-			self.handle_sync_queries(virtual_overseer, leaf, header, session).await;
+			let header = self.headers.get(leaf).unwrap().clone();
+			self.handle_sync_queries(virtual_overseer, *leaf, header, session).await;
 		}
 	}
 
@@ -1153,7 +1161,7 @@ fn resume_dispute_without_local_statement() {
 			false,
 		).await;
 
-		let (pending_confirmation, _confirmation_rx) = oneshot::channel();
+		let (pending_confirmation, confirmation_rx) = oneshot::channel();
 		virtual_overseer.send(FromOverseer::Communication {
 			msg: DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -1178,6 +1186,8 @@ fn resume_dispute_without_local_statement() {
 				report_availability.send(true).unwrap();
 			}
 		);
+
+		assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 		{
 			let (tx, rx) = oneshot::channel();
