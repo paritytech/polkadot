@@ -17,6 +17,7 @@
 
 use super::*;
 use std::time::Duration;
+use bitvec::{order::Lsb0 as BitOrderLsb0};
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
 	CoreIndex, GroupIndex, ValidatorSignature, Header, CandidateEvent,
@@ -1544,17 +1545,6 @@ async fn import_block(
 			}
 		);
 	} else {
-		if session_info_opt.is_some() {
-			assert_matches!(
-				overseer_recv(overseer).await,
-				AllMessages::ChainSelection(
-					ChainSelectionMessage::Approved(block_hash)
-				) => {
-					let hash = &hashes[number as usize];
-					assert_eq!(hash.0.clone(), block_hash);
-				}
-			);
-		}
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalDistribution(
@@ -1688,6 +1678,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			clock,
 			..
 		} = test_harness;
 
@@ -1695,10 +1686,20 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		let validator_index_a = ValidatorIndex(0);
 		let validator_index_b = ValidatorIndex(1);
 
-		let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
 		let session_info = SessionInfo {
 			validators: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
+			validator_groups: vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2)],
+				vec![ValidatorIndex(3), ValidatorIndex(4)],
+			],
 			needed_approvals: 2,
 			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
 			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
@@ -1746,6 +1747,10 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Ok(AssignmentCheckResult::Accepted),
 		);
 
+		// Clear any wake ups from the assignment imports.
+		assert!(clock.inner.lock().has_wakeup(20));
+		clock.inner.lock().wakeup_all(20);
+
 		let session_index = 1;
 		let sig_a = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
 
@@ -1766,11 +1771,17 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Ok(ApprovalCheckResult::Accepted),
 		);
 
-		assert!(store.load_block_entry(&block_hash).unwrap().is_some());
-		let mut candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+		// Sleep to ensure we get a consistent read on the database.
+		async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+
+		// The candidate should not yet be approved and a wakeup should be scheduled on the first
+		// approval.
+		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		assert!(!candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
-		// TODO Why are we not able to validate that the approval has already been issued
-		assert!(!candidate_entry.mark_approval(validator_index_a));
+		assert!(clock.inner.lock().has_wakeup(20));
+
+		// Clear the wake ups to assert that later approval also schedule wakeups.
+		clock.inner.lock().wakeup_all(20);
 
 		let sig_b = sign_approval(Sr25519Keyring::Bob, candidate_hash, session_index);
 		let rx = check_and_import_approval(
@@ -1780,7 +1791,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			validator_index_b,
 			candidate_hash,
 			session_index,
-			false,
+			true,
 			true,
 			Some(sig_b),
 		).await;
@@ -1790,10 +1801,23 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Ok(ApprovalCheckResult::Accepted),
 		);
 
-		let mut candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
-		assert!(!candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
-		// TODO Why are we not able to validate that the approval has already been issued
-		assert!(!candidate_entry.mark_approval(validator_index_b));
+		// Sleep to ensure we get a consistent read on the database.
+		//
+		// NOTE: Since the response above occurs before writing to the database, we are somewhat
+		// breaking the external consistency of the API by reaching into the database directly.
+		// Under normal operation, this wouldn't be necessary, since all requests are serialized by
+		// the event loop and we write at the end of each pass. However, if the database write were
+		// to fail, a downstream subsystem may expect for this candidate to be approved, and
+		// possibly take further actions on the assumption that the candidate is approved, when
+		// that may not be the reality from the database's perspective. This could be avoided
+		// entirely by having replies processed after database writes, but that would constitute a
+		// larger refactor and incur a performance penalty.
+		async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+
+		// The candidate should now be approved.
+		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+		assert!(candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
+		assert!(clock.inner.lock().has_wakeup(20));
 
 		virtual_overseer
 	});
