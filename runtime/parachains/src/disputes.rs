@@ -176,11 +176,7 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 	}
 
 	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		// TODO: filter duplicate and ancient dispute statements. For now, don't import anything
-		// because there will be redundancies.
-		//
-		// https://github.com/paritytech/polkadot/issues/3472
-		statement_sets.clear();
+		pallet::Pallet::<T>::filter_multi_dispute_data(statement_sets)
 	}
 
 	fn provide_multi_dispute_data(
@@ -516,6 +512,45 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 	}
 }
 
+// A filter on a dispute statement set.
+enum StatementSetFilter {
+	// Remove the entire dispute statement set.
+	RemoveAll,
+	// Remove the votes with given index from the statement set.
+	RemoveIndices(Vec<usize>),
+}
+
+impl StatementSetFilter {
+	fn filter_statement_set(self, mut statement_set: DisputeStatementSet)
+		-> Option<DisputeStatementSet>
+	{
+		match self {
+			StatementSetFilter::RemoveAll => None,
+			StatementSetFilter::RemoveIndices(mut indices) => {
+				indices.sort();
+				indices.dedup();
+
+				// reverse order ensures correctness
+				for index in indices.into_iter().rev() {
+					statement_set.statements.remove(index);
+				}
+
+				if statement_set.statements.is_empty() {
+					None
+				} else {
+					Some(statement_set)
+				}
+			}
+		}
+	}
+
+	fn remove_index(&mut self, i: usize) {
+		if let StatementSetFilter::RemoveIndices(ref mut indices) = *self {
+			indices.push(i)
+		}
+	}
+}
+
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -642,6 +677,173 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Ok(fresh)
+	}
+
+	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
+		let config = <configuration::Pallet<T>>::config();
+
+		let old_statement_sets = std::mem::replace(statement_sets, Vec::new());
+
+		// Deduplicate.
+		let dedup_iter = {
+			let mut targets = Vec::new();
+			old_statement_sets.into_iter().filter(move |set| {
+				let target = (set.candidate_hash, set.session);
+				let dup = targets.contains(&target);
+				if !dup {
+					targets.push(target);
+				}
+
+				!dup
+			})
+		};
+
+		*statement_sets = dedup_iter.filter_map(|set| {
+			let filter = Self::filter_dispute_data(&config, &set);
+			filter.filter_statement_set(set)
+		}).collect();
+	}
+
+	// Given a statement set, this produces a filter to be applied to the statement set.
+	// It either removes the entire dispute statement set or some specific votes from it.
+	//
+	// Votes which are duplicate or already known by the chain are filtered out.
+	// The entire set is removed if the dispute is ancient or concluded.
+	fn filter_dispute_data(config: &HostConfiguration<T::BlockNumber>, set: &DisputeStatementSet)
+		-> StatementSetFilter
+	{
+		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
+
+		// Dispute statement sets on any dispute which concluded
+		// before this point are to be rejected.
+		let now = <frame_system::Pallet<T>>::block_number();
+		let oldest_accepted = now.saturating_sub(config.dispute_post_conclusion_acceptance_period);
+
+		// Load session info to access validators
+		let session_info = match <session_info::Pallet<T>>::session_info(set.session) {
+			Some(s) => s,
+			None => return StatementSetFilter::RemoveAll,
+		};
+
+		let n_validators = session_info.validators.len();
+
+		// Check for ancient.
+		let dispute_state = {
+			if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
+				if dispute_state.concluded_at.as_ref().map_or(true, |c| c < &oldest_accepted) {
+					return StatementSetFilter::RemoveAll;
+				}
+
+				dispute_state
+			} else {
+				DisputeState {
+					validators_for: bitvec![BitOrderLsb0, u8; 0; n_validators],
+					validators_against: bitvec![BitOrderLsb0, u8; 0; n_validators],
+					start: now,
+					concluded_at: None,
+				}
+			}
+		};
+
+		// Check and import all votes.
+		let summary = {
+			let mut importer = DisputeStateImporter::new(dispute_state, now);
+			for (i, (statement, validator_index, signature))
+				in set.statements.iter().enumerate()
+			{
+				let validator_public = match session_info
+					.validators.get(validator_index.0 as usize)
+				{
+					None => {
+						filter.remove_index(i);
+						continue
+					}
+					Some(v) => v,
+				};
+
+				let valid = match statement {
+					DisputeStatement::Valid(_) => true,
+					DisputeStatement::Invalid(_) => false,
+				};
+
+				if let Err(_) = importer.import(*validator_index, valid) {
+					filter.remove_index(i);
+					continue
+				}
+
+				// Check signature after attempting import.
+				//
+				// Since we expect that this filter will be applied to
+				// disputes long after they're concluded, 99% of the time,
+				// the duplicate filter above will catch them before needing
+				// to do a heavy signature check.
+				//
+				// This is only really important until the post-conclusion acceptance threshold
+				// is reached, and then no part of this loop will be hit.
+				if let Err(()) = check_signature(
+					&validator_public,
+					set.candidate_hash,
+					set.session,
+					statement,
+					signature,
+				) {
+					filter.remove_index(i);
+					continue
+				}
+			}
+
+			importer.finish()
+		};
+
+		// Apply spam slot changes. Bail early if too many occupied.
+		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
+		if !is_local {
+			let mut spam_slots: Vec<u32> = SpamSlots::<T>::get(&set.session)
+				.unwrap_or_else(|| vec![0; n_validators]);
+
+			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
+				let spam_slot = spam_slots.get_mut(validator_index.0 as usize)
+					.expect("index is in-bounds, as checked above; qed");
+
+				if let SpamSlotChange::Inc = spam_slot_change {
+					if *spam_slot < config.dispute_max_spam_slots {
+						// Find the vote by this validator and filter it out.
+						let first_index_in_set = set.statements
+							.iter()
+							.position(|(_, v_i, _)| &validator_index == v_i)
+							.expect("spam slots are only incremented when a new statement \
+									from a validator is included; qed");
+
+						// Note that there may be many votes by the validator in the statement
+						// set. There are not supposed to be, but the purpose of this function
+						// is to filter out invalid submissions, after all.
+						//
+						// This is fine - we only need to handle the first one, because all
+						// subsequent votes' indices have been added to the filter already
+						// by the duplicate checks above. It's only the first one which
+						// may not already have been filtered out.
+						filter.remove_index(first_index_in_set);
+					}
+
+					*spam_slot += 1;
+				} else {
+					*spam_slot = spam_slot.saturating_sub(1);
+				}
+			}
+
+			// We write the spam slots here because sequential calls to
+			// `filter_dispute_data` have a dependency on each other.
+			//
+			// For example, if a validator V occupies 1 spam slot and
+			// max is 2, then 2 sequential calls incrementing spam slot
+			// cannot be allowed.
+			//
+			// However, 3 sequential calls, where the first increments,
+			// the second decrements, and the third increments would be allowed.
+			SpamSlots::<T>::insert(&set.session, spam_slots);
+		}
+
+		filter
 	}
 
 	/// Handle a set of dispute statements corresponding to a single candidate.
