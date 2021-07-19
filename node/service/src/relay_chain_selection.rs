@@ -39,7 +39,7 @@ use {
 	polkadot_primitives::v1::{
 		Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
 	},
-	polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestor, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage},
+	polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock, ChainSelectionMessage, DisputeCoordinatorMessage},
 	polkadot_node_subsystem_util::metrics::{self, prometheus},
 	polkadot_overseer::Handle,
 	futures::channel::oneshot,
@@ -339,9 +339,9 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			{
 				// No approved ancestors means target hash is maximal vote.
 				None => (target_hash, target_number, Vec::new()),
-				Some(HighestApprovedAncestor {
-					block_number, block_hash, block_descriptions
-				}) => (block_number, block_hash, block_descriptions),
+				Some(HighestApprovedAncestorBlock {
+					number, hash, descriptions
+				}) => (hash, number, descriptions),
 			}
 		};
 

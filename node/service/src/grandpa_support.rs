@@ -25,7 +25,7 @@ use sp_runtime::traits::Header as _;
 #[cfg(feature = "full-node")]
 use {
 	polkadot_primitives::v1::{Hash, Block as PolkadotBlock, Header as PolkadotHeader},
-	polkadot_subsystem::messages::ApprovalVotingMessage,
+	polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock},
 	prometheus_endpoint::{self, Registry},
 	polkadot_overseer::Handle,
 	futures::channel::oneshot,
@@ -139,7 +139,10 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 					std::any::type_name::<Self>(),
 				).await;
 
-				rx.await.ok().and_then(|v| v).map(|(block_hash, block_number, _)| (block_hash, block_number))
+				rx.await
+					.ok()
+					.and_then(|v| v)
+					.map(|HighestApprovedAncestorBlock { hash, number, .. }| (hash, number))
 			};
 
 			let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(

@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
 		ApprovalDistributionMessage, CandidateValidationMessage,
 		AvailabilityRecoveryMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
-		ImportStatementsResult,
+		ImportStatementsResult, HighestApprovedAncestorBlock, BlockDescription,
 	},
 	errors::RecoveryError,
 	overseer::{self, SubsystemSender as _}, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
@@ -1180,7 +1180,7 @@ async fn handle_approved_ancestor(
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
-) -> SubsystemResult<Option<HighestApprovedAncestor>> {
+) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
@@ -1342,7 +1342,11 @@ async fn handle_approved_ancestor(
 				}
 			}
 		}
-		candidates.push((block_hash, entry.session(), entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect::<Vec<_>>()));
+		candidates.push(BlockDescription {
+			block_hash,
+			session: entry.session(),
+			candidates: entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect(),
+		});
 	}
 
 	tracing::trace!(
@@ -1376,10 +1380,14 @@ async fn handle_approved_ancestor(
 	candidates.reverse();
 
 	let all_approved_max = all_approved_max.map(|(hash, block_number)| {
-		(hash, block_number, candidates)
+		HighestApprovedAncestorBlock{
+			hash,
+			number: block_number,
+			descriptions: candidates,
+		}
 	});
 	match all_approved_max {
-		Some((ref hash, ref number, _)) => {
+		Some(HighestApprovedAncestorBlock { ref hash, ref number, .. }) => {
 			span.add_uint_tag("approved-number", *number as u64);
 			span.add_string_fmt_debug_tag("approved-hash", hash);
 		}
