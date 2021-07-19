@@ -1180,7 +1180,7 @@ async fn handle_approved_ancestor(
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
-) -> SubsystemResult<Option<(Hash, BlockNumber, Vec<(Hash, SessionIndex, Vec<CandidateHash>)>)>> {
+) -> SubsystemResult<Option<HighestApprovedAncestor>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
@@ -1250,8 +1250,6 @@ async fn handle_approved_ancestor(
 			Some(b) => b,
 		};
 
-		candidates.push((block_hash, entry.session(), entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect::<Vec<_>>()));
-
 		// even if traversing millions of blocks this is fairly cheap and always dwarfed by the
 		// disk lookups.
 		bits.push(entry.is_fully_approved());
@@ -1263,8 +1261,10 @@ async fn handle_approved_ancestor(
 			}
 		} else if bits.len() <= ABNORMAL_DEPTH_THRESHOLD {
 			all_approved_max = None;
+			candidates.clear();
 		} else {
 			all_approved_max = None;
+			candidates.clear();
 
 			let unapproved: Vec<_> = entry.unapproved_candidates().collect();
 			tracing::debug!(
@@ -1342,6 +1342,7 @@ async fn handle_approved_ancestor(
 				}
 			}
 		}
+		candidates.push((block_hash, entry.session(), entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect::<Vec<_>>()));
 	}
 
 	tracing::trace!(
@@ -1369,6 +1370,10 @@ async fn handle_approved_ancestor(
 			format!("{}", lower_bound + 1)
 		},
 	);
+
+	// `reverse()` to obtain the ascending order from highest to lowest
+	// block within the canddidates, which is the expected order
+	candidates.reverse();
 
 	let all_approved_max = all_approved_max.map(|(hash, block_number)| {
 		(hash, block_number, candidates)

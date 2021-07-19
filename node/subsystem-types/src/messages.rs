@@ -789,6 +789,30 @@ pub enum ApprovalCheckError {
 	Internal(Hash, CandidateHash),
 }
 
+
+/// Describes a relay-chain block by the para-chain candidates
+/// it includes.
+pub struct BlockDescription {
+	/// The relay-chain block hash.
+	pub block_hash: Hash,
+	/// The session index of this block.
+	pub session: SessionIndex,
+	/// The set of para-chain candidates.
+	pub candidates: Vec<CandidateHash>,
+}
+
+/// Response type to `ApprovalVotingMessage::ApprovedAncestor`.
+pub struct HighestApprovedAncestor {
+	/// The block hash of the highest viable ancestor.
+	pub block_hash: Hash,
+	/// The block number of the highest viable ancestor.
+	pub block_number: BlockNumber,
+	/// Block descriptions in the direct path between the
+	/// initially provided hash and the highest viable ancestor.
+	/// Primarily for use with `DetermineUndisputedChain`.
+	pub block_descriptions: Vec<BlockDescription>,
+}
+
 /// Message to the Approval Voting subsystem.
 #[derive(Debug)]
 pub enum ApprovalVotingMessage {
@@ -814,7 +838,7 @@ pub enum ApprovalVotingMessage {
 	///
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
-	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<(Hash, BlockNumber, Vec<(Hash, SessionIndex, Vec<CandidateHash>)>)>>),
+	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<HighestApprovedAncestor>>),
 }
 
 /// Message to the Approval Distribution subsystem.

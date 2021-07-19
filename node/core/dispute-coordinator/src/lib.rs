@@ -836,10 +836,13 @@ fn make_dispute_message(
 	).map_err(MakeDisputeMessageError::InvalidStatementCombination)
 }
 
+/// Determine the the best block and its block number.
+/// Assumes `block_descriptions` are sorted from the one
+/// with the lowest `BlockNumber` to the highest.
 fn determine_undisputed_chain(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	base_number: BlockNumber,
-	block_descriptions: Vec<(Hash, SessionIndex, Vec<CandidateHash>)>,
+	block_descriptions: Vec<BlockDescription>,
 ) -> Result<Option<(BlockNumber, Hash)>, Error> {
 	let last = block_descriptions.last()
 
@@ -859,7 +862,7 @@ fn determine_undisputed_chain(
 		)
 	};
 
-	for (i, (_, session, candidates)) in block_descriptions.iter().enumerate() {
+	for (i, BlockDescription { session, candidates, .. }) in block_descriptions.iter().enumerate() {
 		if candidates.iter().any(|c| is_possibly_invalid(*session, *c)) {
 			if i == 0 {
 				return Ok(None);
