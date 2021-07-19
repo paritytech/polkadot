@@ -36,7 +36,7 @@ members = [
 	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
-  "runtime/tests",
+	"runtime/tests",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",

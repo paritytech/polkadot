@@ -12,7 +12,6 @@ pub (crate) async fn test_voter_bags_migration<
 		Block: BlockT
 	>() {
 	use std::env;
-	sp_tracing::try_init_simple(); // TODO this isn't working
 
 	let ws_url = match env::var("WS_RPC") {
 		Ok(ws_url) => ws_url,
