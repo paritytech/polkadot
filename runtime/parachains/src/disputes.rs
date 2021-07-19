@@ -513,6 +513,8 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 }
 
 // A filter on a dispute statement set.
+#[derive(PartialEq)]
+#[cfg_attr(test, derive(Debug))]
 enum StatementSetFilter {
 	// Remove the entire dispute statement set.
 	RemoveAll,
@@ -700,6 +702,7 @@ impl<T: Config> Pallet<T> {
 
 		*statement_sets = dedup_iter.filter_map(|set| {
 			let filter = Self::filter_dispute_data(&config, &set);
+
 			filter.filter_statement_set(set)
 		}).collect();
 	}
@@ -730,7 +733,7 @@ impl<T: Config> Pallet<T> {
 		// Check for ancient.
 		let dispute_state = {
 			if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
-				if dispute_state.concluded_at.as_ref().map_or(true, |c| c < &oldest_accepted) {
+				if dispute_state.concluded_at.as_ref().map_or(false, |c| c < &oldest_accepted) {
 					return StatementSetFilter::RemoveAll;
 				}
 
@@ -806,7 +809,7 @@ impl<T: Config> Pallet<T> {
 					.expect("index is in-bounds, as checked above; qed");
 
 				if let SpamSlotChange::Inc = spam_slot_change {
-					if *spam_slot < config.dispute_max_spam_slots {
+					if *spam_slot >= config.dispute_max_spam_slots {
 						// Find the vote by this validator and filter it out.
 						let first_index_in_set = set.statements
 							.iter()
@@ -825,6 +828,13 @@ impl<T: Config> Pallet<T> {
 						filter.remove_index(first_index_in_set);
 					}
 
+					// It's also worth noting that the `DisputeStateImporter`
+					// which produces these spam slot updates only produces
+					// one spam slot update per validator because it rejects
+					// duplicate votes.
+					//
+					// So we don't need to worry about spam slots being
+					// updated incorrectly after receiving duplicates.
 					*spam_slot += 1;
 				} else {
 					*spam_slot = spam_slot.saturating_sub(1);
@@ -2279,5 +2289,430 @@ mod tests {
 		assert!(check_signature(&validator_id.public(), candidate_hash, session, &statement_2, &signed_5).is_err());
 		assert!(check_signature(&validator_id.public(), candidate_hash, session, &statement_3, &signed_5).is_err());
 		assert!(check_signature(&validator_id.public(), candidate_hash, session, &statement_4, &signed_5).is_err());
+	}
+
+	#[test]
+	fn filter_removes_duplicates_within_set() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(
+				3,
+				|b| {
+					// a new session at each block
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public())],
+						Some(vec![(&0, v0.public())]),
+					))
+				}
+			);
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+
+			let payload = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let sig_a = v0.sign(&payload);
+			let sig_b = v0.sign(&payload);
+			let sig_c = v0.sign(&payload);
+
+			let mut statements = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_a.clone(),
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_b,
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_c,
+						),
+					]
+				}
+			];
+
+			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+
+			assert_eq!(
+				statements,
+				vec![
+					DisputeStatementSet {
+						candidate_hash: candidate_hash.clone(),
+						session: 1,
+						statements: vec![
+							(
+								DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+								ValidatorIndex(0),
+								sig_a,
+							),
+						]
+					}
+				]
+			)
+		})
+	}
+
+	#[test]
+	fn filter_correctly_accounts_spam_slots() {
+		let dispute_max_spam_slots = 2;
+
+		let mock_genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					dispute_max_spam_slots,
+					.. Default::default()
+				},
+				.. Default::default()
+			},
+			.. Default::default()
+		};
+
+		new_test_ext(mock_genesis_config).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+			let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(
+				3,
+				|b| {
+					// a new session at each block
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public()), (&1, v1.public()), (&2, v2.public()), (&3, v3.public())],
+						Some(vec![(&0, v0.public()), (&1, v1.public()), (&2, v2.public()), (&3, v3.public())]),
+					))
+				}
+			);
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
+			let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
+
+			let payload_a = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let payload_b = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_b.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let payload_c = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_c.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let sig_0a = v0.sign(&payload_a);
+			let sig_0b = v0.sign(&payload_b);
+			let sig_0c = v0.sign(&payload_c);
+
+			let sig_1b = v1.sign(&payload_b);
+
+			let mut statements = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_0a.clone(),
+						),
+					]
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_0b.clone(),
+						),
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(3),
+							sig_1b.clone(),
+						),
+					]
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_c.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_0c.clone(),
+						),
+					]
+				},
+			];
+
+			let old_statements = statements.clone();
+			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+
+			assert_eq!(statements, old_statements);
+		})
+	}
+
+	#[test]
+	fn filter_removes_session_out_of_bounds() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(
+				3,
+				|b| {
+					// a new session at each block
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public())],
+						Some(vec![(&0, v0.public())]),
+					))
+				}
+			);
+
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+
+			let payload = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let sig_a = v0.sign(&payload);
+
+			let mut statements = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session: 100,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_a,
+						),
+					]
+				}
+			];
+
+			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+
+			assert!(statements.is_empty());
+		})
+	}
+
+	#[test]
+	fn filter_removes_concluded_ancient() {
+		let dispute_post_conclusion_acceptance_period = 2;
+
+		let mock_genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					dispute_post_conclusion_acceptance_period,
+					.. Default::default()
+				},
+				.. Default::default()
+			},
+			.. Default::default()
+		};
+
+		new_test_ext(mock_genesis_config).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(
+				3,
+				|b| {
+					// a new session at each block
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public())],
+						Some(vec![(&0, v0.public())]),
+					))
+				}
+			);
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
+
+			<Disputes<Test>>::insert(
+				&1,
+				&candidate_hash_a,
+				DisputeState {
+					validators_for: bitvec![BitOrderLsb0, u8; 0; 4],
+					validators_against: bitvec![BitOrderLsb0, u8; 0; 4],
+					start: 0,
+					concluded_at: Some(0),
+				},
+			);
+
+			<Disputes<Test>>::insert(
+				&1,
+				&candidate_hash_b,
+				DisputeState {
+					validators_for: bitvec![BitOrderLsb0, u8; 0; 4],
+					validators_against: bitvec![BitOrderLsb0, u8; 0; 4],
+					start: 0,
+					concluded_at: Some(1),
+				},
+			);
+
+			let payload_a = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let payload_b = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_b.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let sig_a = v0.sign(&payload_a);
+			let sig_b = v0.sign(&payload_b);
+
+			let mut statements = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_a,
+						),
+					]
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_b.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_b.clone(),
+						),
+					]
+				},
+			];
+
+			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+
+			assert_eq!(
+				statements,
+				vec![
+					DisputeStatementSet {
+						candidate_hash: candidate_hash_b.clone(),
+						session: 1,
+						statements: vec![
+							(
+								DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+								ValidatorIndex(0),
+								sig_b,
+							),
+						]
+					}
+				]
+			);
+		})
+	}
+
+	#[test]
+	fn filter_removes_duplicate_statements_sets() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+			run_to_block(
+				3,
+				|b| {
+					// a new session at each block
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public())],
+						Some(vec![(&0, v0.public())]),
+					))
+				}
+			);
+
+			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
+
+			let payload = ExplicitDisputeStatement {
+				valid: true,
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+			}.signing_payload();
+
+			let sig_a = v0.sign(&payload);
+			let sig_b = v0.sign(&payload);
+
+			let mut statements = vec![
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_a.clone(),
+						),
+					]
+				},
+				DisputeStatementSet {
+					candidate_hash: candidate_hash_a.clone(),
+					session: 1,
+					statements: vec![
+						(
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+							ValidatorIndex(0),
+							sig_b.clone(),
+						),
+					]
+				},
+			];
+
+			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+
+			assert_eq!(
+				statements,
+				vec![
+					DisputeStatementSet {
+						candidate_hash: candidate_hash_a.clone(),
+						session: 1,
+						statements: vec![
+							(
+								DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+								ValidatorIndex(0),
+								sig_a,
+							),
+						]
+					}
+				]
+			);
+		})
 	}
 }
