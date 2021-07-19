@@ -17,7 +17,6 @@
 
 use super::*;
 use std::time::Duration;
-use bitvec::{order::Lsb0 as BitOrderLsb0};
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
 	CoreIndex, GroupIndex, ValidatorSignature, Header, CandidateEvent,
@@ -545,8 +544,12 @@ fn subsystem_rejects_bad_assignment_ok_criteria() {
 		let head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
 		let slot = Slot::from(1 as u64);
-		builder.add_block(block_hash, head, slot, 1);
-		builder.build(&mut virtual_overseer, None, None).await;
+		builder.add_block(block_hash, head, 1, BlockConfig {
+			slot,
+			candidates: None,
+			session_info: None,
+		});
+		builder.build(&mut virtual_overseer).await;
 
 		let rx = check_and_import_assignment(
 			&mut virtual_overseer,
@@ -601,8 +604,12 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 		let head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
 		let slot = Slot::from(1 as u64);
-		builder.add_block(block_hash, head, slot, 1);
-		builder.build(&mut virtual_overseer, None, None).await;
+		builder.add_block(block_hash, head, 1, BlockConfig {
+			slot,
+			candidates: None,
+			session_info: None,
+		});
+		builder.build(&mut virtual_overseer).await;
 
 		let rx = check_and_import_assignment(
 			&mut virtual_overseer,
@@ -687,10 +694,12 @@ fn subsystem_rejects_approval_if_no_candidate_entry() {
 		let head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
 		let slot = Slot::from(1 as u64);
-		builder.add_block(block_hash, head, slot, 1);
-		builder.build(&mut virtual_overseer, Some(
-			vec![(candidate_descriptor, CoreIndex(1), GroupIndex(1))]
-		), None).await;
+		builder.add_block(block_hash, head, 1, BlockConfig {
+			slot,
+			candidates: Some(vec![(candidate_descriptor, CoreIndex(1), GroupIndex(1))]),
+			session_info: None,
+		});
+		builder.build(&mut virtual_overseer).await;
 
 		overlay_txn(&mut store.clone(), |overlay_db| overlay_db.delete_candidate_entry(&candidate_hash));
 
@@ -782,8 +791,12 @@ fn subsystem_rejects_approval_before_assignment() {
 
 		// Add block hash 00.
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_approval(
@@ -830,8 +843,12 @@ fn subsystem_rejects_assignment_in_future() {
 
 		// Add block hash 00.
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(0), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(0),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -875,8 +892,12 @@ fn subsystem_accepts_duplicate_assignment() {
 
 		// Add block hash 00.
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -917,8 +938,12 @@ fn subsystem_rejects_assignment_with_unknown_candidate() {
 
 		// Add block hash 00.
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -962,8 +987,12 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 
 		// Add block hash 0x01...
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -1019,8 +1048,12 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 
 		// Add block hash 0x01...
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(0), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(0),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -1090,8 +1123,12 @@ fn subsystem_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 
 		// Add block hash 0x01...
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -1127,8 +1164,12 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 
 		// Add block hash 0x01...
 		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer, None, None)
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(1),
+				candidates: None,
+				session_info: None,
+			})
+			.build(&mut virtual_overseer)
 			.await;
 
 		let rx = check_and_import_assignment(
@@ -1236,6 +1277,8 @@ async fn check_and_import_assignment(
 
 struct BlockConfig {
 	slot: Slot,
+	candidates: Option<Vec<(CandidateReceipt, CoreIndex, GroupIndex)>>,
+	session_info: Option<SessionInfo>,
 }
 
 fn overlay_txn<T, F>(db: &mut T, mut f: F)
@@ -1270,7 +1313,11 @@ impl ChainBuilder {
 			blocks_by_hash: HashMap::new(),
 			blocks_at_height: BTreeMap::new(),
 		};
-		builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
+		builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, 0, BlockConfig {
+			slot: Slot::from(0),
+			candidates: None,
+			session_info: None,
+		});
 		builder
 	}
 
@@ -1278,26 +1325,26 @@ impl ChainBuilder {
 		&'a mut self,
 		hash: Hash,
 		parent_hash: Hash,
-		slot: Slot,
 		number: u32,
+		config: BlockConfig,
 	) -> &'a mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(parent_hash != Self::GENESIS_PARENT_HASH, "cannot add block with genesis parent hash");
 		assert!(self.blocks_by_hash.len() < u8::MAX.into());
-		self.add_block_inner(hash, parent_hash, slot, number)
+		self.add_block_inner(hash, parent_hash, number, config)
 	}
 
 	fn add_block_inner<'a>(
 		&'a mut self,
 		hash: Hash,
 		parent_hash: Hash,
-		slot: Slot,
 		number: u32,
+		config: BlockConfig,
 	) -> &'a mut Self {
-		let header = ChainBuilder::make_header(parent_hash, slot, number);
+		let header = ChainBuilder::make_header(parent_hash, config.slot, number);
 		assert!(
-			self.blocks_by_hash.insert(hash, (header, BlockConfig { slot })).is_none(),
+			self.blocks_by_hash.insert(hash, (header, config)).is_none(),
 			"block with hash {:?} already exists", hash,
 		);
 		self.blocks_at_height.entry(number).or_insert_with(Vec::new).push(hash);
@@ -1307,8 +1354,6 @@ impl ChainBuilder {
 	pub async fn build(
 		&self,
 		overseer: &mut VirtualOverseer,
-		candidates_opt: Option<Vec<(CandidateReceipt, CoreIndex, GroupIndex)>>,
-		session_info: Option<SessionInfo>,
 	) {
 		for (number, blocks) in self.blocks_at_height.iter() {
 			for (i, hash) in blocks.iter().enumerate() {
@@ -1322,19 +1367,13 @@ impl ChainBuilder {
 				}
 				ancestry.reverse();
 
-				let candidates = candidates_opt.clone().unwrap_or(vec![
-					(make_candidate(0.into(), &hash), CoreIndex(0), GroupIndex(0)),
-				]);
-
 				import_block(
 					overseer,
 					ancestry.as_ref(),
 					*number,
-					block_config.slot,
+					block_config,
 					false,
 					i > 0,
-					candidates,
-					session_info.clone(),
 				).await;
 				let _: Option<()> = future::pending().timeout(Duration::from_millis(100)).await;
 			}
@@ -1374,13 +1413,16 @@ async fn import_block(
 	overseer: &mut VirtualOverseer,
 	hashes: &[(Hash, Header)],
 	number: u32,
-	slot: Slot,
+	config: &BlockConfig,
 	gap: bool,
 	fork: bool,
-	candidates: Vec<(CandidateReceipt, CoreIndex, GroupIndex)>,
-	session_info_opt: Option<SessionInfo>,
 ) {
-	let session_info = session_info_opt.clone().unwrap_or({
+	let (new_head, new_header) = &hashes[hashes.len() - 1];
+	let candidates = config.candidates.clone().unwrap_or(vec![
+		(make_candidate(0.into(), &new_head), CoreIndex(0), GroupIndex(0)),
+	]);
+
+	let session_info = config.session_info.clone().unwrap_or({
 		let validators = vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob];
 		SessionInfo {
 			validators: validators.iter().map(|v| v.public().into()).collect(),
@@ -1396,7 +1438,6 @@ async fn import_block(
 		}
 	});
 
-	let (new_head, new_header) = &hashes[hashes.len() - 1];
 	overseer_send(
 		overseer,
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
@@ -1556,7 +1597,7 @@ async fn import_block(
 				let parent_hash = &hashes[(number - 1) as usize];
 				assert_eq!(metadata.hash, hash.0.clone());
 				assert_eq!(metadata.parent_hash, parent_hash.0.clone());
-				assert_eq!(metadata.slot, slot);
+				assert_eq!(metadata.slot, config.slot);
 			}
 		);
 	}
@@ -1580,11 +1621,15 @@ fn linear_import_act_on_leaf() {
 			let slot = Slot::from(i as u64);
 
 			let hash = Hash::repeat_byte(i as u8);
-			builder.add_block(hash, head, slot, i);
+			builder.add_block(hash, head, i, BlockConfig {
+				slot,
+				candidates: None,
+				session_info: None,
+			});
 			head = hash;
  		}
 
-		builder.build(&mut virtual_overseer, None, None).await;
+		builder.build(&mut virtual_overseer).await;
 
 		let (tx, rx) = oneshot::channel();
 
@@ -1628,7 +1673,11 @@ fn forkful_import_at_same_height_act_on_leaf() {
 		for i in 1..session {
 			let slot = Slot::from(i as u64);
 			let hash = Hash::repeat_byte(i as u8);
-			builder.add_block(hash, head, slot, i);
+			builder.add_block(hash, head, i, BlockConfig {
+				slot,
+				candidates: None,
+				session_info: None,
+			});
 			head = hash;
 		}
 		let num_forks = 3;
@@ -1637,9 +1686,13 @@ fn forkful_import_at_same_height_act_on_leaf() {
 		for i in 0..num_forks {
 			let slot = Slot::from(session as u64);
 			let hash = Hash::repeat_byte(session as u8 + i);
-			builder.add_block(hash, head, slot, session);
+			builder.add_block(hash, head, session, BlockConfig {
+				slot,
+				candidates: None,
+				session_info: None,
+			});
  		}
-		builder.build(&mut virtual_overseer, None, None).await;
+		builder.build(&mut virtual_overseer).await;
 
 		for head in forks.into_iter() {
 			let (tx, rx) = oneshot::channel();
@@ -1716,10 +1769,12 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		let head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
 		let slot = Slot::from(1 as u64);
-		builder.add_block(block_hash, head, slot, 1);
-		builder.build(&mut virtual_overseer, Some(
-			vec![(candidate_descriptor, CoreIndex(0), GroupIndex(0))]
-		), Some(session_info)).await;
+		builder.add_block(block_hash, head, 1, BlockConfig {
+			slot,
+			candidates: Some(vec![(candidate_descriptor, CoreIndex(0), GroupIndex(0))]),
+			session_info: Some(session_info),
+		});
+		builder.build(&mut virtual_overseer).await;
 
 		let candidate_index = 0;
 
@@ -1818,6 +1873,264 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		assert!(candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
 		assert!(clock.inner.lock().has_wakeup(20));
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
+	let (oracle, _handle) = make_sync_oracle(false);
+	let (mock_clock, assignment_criteria) = make_harness_input();
+	let store = SharedTestStore::new(TestStore::default());
+	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+
+		let candidate_receipt1 = {
+			let mut receipt = CandidateReceipt::<Hash>::default();
+			receipt.descriptor.para_id = 1.into();
+			receipt
+		};
+		let candidate_receipt2 = {
+			let mut receipt = CandidateReceipt::<Hash>::default();
+			receipt.descriptor.para_id = 2.into();
+			receipt
+		};
+		let candidate_hash1 = candidate_receipt1.hash();
+		let candidate_hash2 = candidate_receipt2.hash();
+		let candidate_index1 = 0;
+		let candidate_index2 = 1;
+
+		let validator1 = ValidatorIndex(0);
+		let validator2 = ValidatorIndex(1);
+		let session_index = 1;
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+		];
+		let session_info = SessionInfo {
+			validators: validators.iter().map(|v| v.public().into()).collect(),
+			validator_groups: vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2)],
+				vec![ValidatorIndex(3), ValidatorIndex(4)],
+			],
+			needed_approvals: 2,
+			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
+			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
+			n_cores: validators.len() as _,
+			zeroth_delay_tranche_width: 5,
+			relay_vrf_modulo_samples: 3,
+			n_delay_tranches: 50,
+			no_show_slots: 2,
+		};
+
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot: Slot::from(0),
+				candidates: Some(vec![
+					(candidate_receipt1, CoreIndex(1), GroupIndex(1)),
+					(candidate_receipt2, CoreIndex(1), GroupIndex(1)),
+				]),
+				session_info: Some(session_info),
+			})
+			.build(&mut virtual_overseer)
+			.await;
+
+		let assignments = vec![
+			(candidate_index1, validator1),
+			(candidate_index2, validator1),
+			(candidate_index1, validator2),
+			(candidate_index2, validator2),
+		];
+
+		for (candidate_index, validator) in assignments {
+			let rx = check_and_import_assignment(
+				&mut virtual_overseer,
+				block_hash,
+				candidate_index,
+				validator,
+			).await;
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+		}
+
+		let approvals = vec![
+			(candidate_index1, validator1, candidate_hash1),
+			(candidate_index1, validator2, candidate_hash1),
+			(candidate_index2, validator1, candidate_hash2),
+			(candidate_index2, validator2, candidate_hash2),
+		];
+
+		for (i, (candidate_index, validator, candidate_hash)) in approvals.iter().enumerate() {
+			let expect_candidate1_approved = i >= 1;
+			let expect_candidate2_approved = i >= 3;
+			let expect_block_approved = expect_candidate2_approved;
+
+			let signature = if *validator == validator1 {
+				sign_approval(Sr25519Keyring::Alice, *candidate_hash, session_index)
+			} else {
+				sign_approval(Sr25519Keyring::Bob, *candidate_hash, session_index)
+			};
+			let rx = check_and_import_approval(
+				&mut virtual_overseer,
+				block_hash,
+				*candidate_index,
+				*validator,
+				*candidate_hash,
+				session_index,
+				expect_block_approved,
+				true,
+				Some(signature),
+			).await;
+			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+
+			// Sleep to get a consistent read on the database.
+			async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+
+			let block_entry = store.load_block_entry(&block_hash).unwrap().unwrap();
+			assert_eq!(block_entry.is_fully_approved(), expect_block_approved);
+			assert_eq!(block_entry.is_candidate_approved(&candidate_hash1), expect_candidate1_approved);
+			assert_eq!(block_entry.is_candidate_approved(&candidate_hash2), expect_candidate2_approved);
+		}
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn subsystem_approved_ancestor_all_approved() {
+	approved_ancestor_test(|_| false, 4);
+}
+
+#[test]
+fn subsystem_approved_ancestor_missing_approval() {
+	approved_ancestor_test(|i| i == 3, 2);
+}
+
+fn approved_ancestor_test(
+	skip_approval: impl FnOnce(BlockNumber) -> bool + Copy,
+	approved_height: BlockNumber,
+) {
+	let (oracle, _handle) = make_sync_oracle(false);
+	let (mock_clock, assignment_criteria) = make_harness_input();
+	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			..
+		} = test_harness;
+
+		let block_hashes = vec![
+			Hash::repeat_byte(0x01),
+			Hash::repeat_byte(0x02),
+			Hash::repeat_byte(0x03),
+			Hash::repeat_byte(0x04),
+		];
+
+		let candidate_receipts: Vec<_> = block_hashes.iter()
+			.enumerate()
+			.map(|(i, hash)| {
+				let mut candidate_receipt = CandidateReceipt::<Hash>::default();
+				candidate_receipt.descriptor.para_id = i.into();
+				candidate_receipt.descriptor.relay_parent = *hash;
+				candidate_receipt
+			})
+			.collect();
+
+		let candidate_hashes: Vec<_> = candidate_receipts.iter().map(|r| r.hash()).collect();
+
+		let candidate_index = 0;
+		let validator = ValidatorIndex(0);
+
+		let mut builder = ChainBuilder::new();
+		for (i, (block_hash, candidate_receipt)) in block_hashes.iter().zip(candidate_receipts).enumerate() {
+			let parent_hash = if i == 0 {
+				ChainBuilder::GENESIS_HASH
+			} else {
+				block_hashes[i-1]
+			};
+			builder.add_block(*block_hash, parent_hash, i as u32 + 1, BlockConfig {
+				slot: Slot::from(i as u64),
+				candidates: Some(vec![(candidate_receipt, CoreIndex(0), GroupIndex(0))]),
+				session_info: None,
+			});
+		}
+		builder.build(&mut virtual_overseer).await;
+
+		for (i, (block_hash, candidate_hash)) in block_hashes.iter().zip(candidate_hashes).enumerate() {
+			let rx = check_and_import_assignment(
+				&mut virtual_overseer,
+				*block_hash,
+				candidate_index,
+				validator,
+			).await;
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+
+			if skip_approval(i as BlockNumber + 1) {
+				continue
+			}
+
+			let rx = check_and_import_approval(
+				&mut virtual_overseer,
+				*block_hash,
+				candidate_index,
+				validator,
+				candidate_hash,
+				i as u32 + 1,
+				true,
+				true,
+				None,
+			).await;
+			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+		}
+
+		let target = block_hashes[block_hashes.len()-1];
+		let block_number = block_hashes.len();
+
+		let (tx, rx) = oneshot::channel();
+		overseer_send(
+			&mut virtual_overseer,
+			FromOverseer::Communication {
+				msg: ApprovalVotingMessage::ApprovedAncestor(target, 0, tx),
+			},
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(hash, tx)) => {
+				assert_eq!(target, hash);
+				tx.send(Ok(Some(block_number as BlockNumber))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel: tx,
+			}) => {
+				assert_eq!(target, hash);
+				assert_eq!(k, block_number - (0 + 1));
+				let ancestors = block_hashes.iter()
+					.take(block_number-1)
+					.rev()
+					.cloned()
+					.collect::<Vec<Hash>>();
+				tx.send(Ok(ancestors)).unwrap();
+			}
+		);
+
+		let approved_hash = block_hashes[approved_height as usize - 1];
+		assert_eq!(rx.await.unwrap(), Some((approved_hash, approved_height)));
 
 		virtual_overseer
 	});
