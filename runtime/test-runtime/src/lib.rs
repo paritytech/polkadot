@@ -545,7 +545,7 @@ construct_runtime! {
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
+		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
