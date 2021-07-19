@@ -35,7 +35,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		DisputeParticipationMessage, ImportStatementsResult
+		DisputeParticipationMessage, ImportStatementsResult, BlockDescription,
 	}
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
@@ -846,7 +846,7 @@ fn determine_undisputed_chain(
 ) -> Result<Option<(BlockNumber, Hash)>, Error> {
 	let last = block_descriptions.last()
 
-		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.0));
+		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
 
 	// Fast path for no disputes.
 	let recent_disputes = match overlay_db.load_recent_disputes()? {
@@ -869,7 +869,7 @@ fn determine_undisputed_chain(
 			} else {
 				return Ok(Some((
 					base_number + i as BlockNumber,
-					block_descriptions[i - 1].0,
+					block_descriptions[i - 1].block_hash,
 				)));
 			}
 		}
