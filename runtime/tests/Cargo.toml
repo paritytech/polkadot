@@ -16,6 +16,7 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 tokio = { version = "0.2", features = ["macros", "rt-threaded"] }
+log = { version = "0.4.14" }
 
 [features]
 polkadot = ["polkadot-runtime"]

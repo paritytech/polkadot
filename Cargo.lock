@@ -8152,6 +8152,7 @@ version = "0.9.8"
 dependencies = [
  "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "kusama-runtime",
+ "log",
  "pallet-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "polkadot-runtime",
  "remote-externalities",
