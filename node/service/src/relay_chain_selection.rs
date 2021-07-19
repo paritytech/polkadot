@@ -345,6 +345,18 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			}
 		};
 
+		// Prevent sending flawed data to the controller.
+		if Some(subchain_block_descriptions.len() as _) != subchain_number.checked_sub(target_number) {
+			tracing::error!(
+				LOG_TARGET,
+				present_block_descriptions = subchain_block_descriptions.len(),
+				target_number,
+				subchain_number,
+				"Mismatch of anticipated block descriptions and block number difference.",
+			);
+			return Ok(Some(target_hash));
+		}
+
 		// 3. Constrain according to disputes:
 		let (tx, rx) = oneshot::channel();
 		overseer.send_msg(DisputeCoordinatorMessage::DetermineUndisputedChain{
