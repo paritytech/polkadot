@@ -7,11 +7,11 @@ use pallet_staking::{
 use frame_support::{assert_ok, traits::Get};
 use sp_runtime::traits::Block as BlockT;
 
+const LOG_TARGET: &'static str = "runtime::test";
+
 fn init_logger() {
 	sp_tracing::try_init_simple();
 }
-
-const LOG_TARGET: &'static str = "runtime::test";
 
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
@@ -74,12 +74,13 @@ pub (crate) async fn test_voter_bags_migration<
 		let mut seen_in_bags = 0;
 		for vote_weight_thresh in <Runtime as pallet_staking::Config>::VoterBagThresholds::get() {
 			// Threshold in terms of UNITS (e.g. KSM, DOT etc)
-			let vote_weight_thresh_as_unit = vote_weight_thresh / currency_unit;
+			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
+			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
 
 			let bag = match Bag::<Runtime>::get(*vote_weight_thresh) {
 				Some(bag) => bag,
 				None => {
-					log::info!(target: LOG_TARGET, "Threshold: {} UNITS. NO VOTERS.", vote_weight_thresh_as_unit);
+					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
 					continue;
 				},
 			};
@@ -88,11 +89,10 @@ pub (crate) async fn test_voter_bags_migration<
 			seen_in_bags += voters_in_bag_count;
 			let percentage_of_voters =
 				(voters_in_bag_count as f64 / voter_count as f64) * 100f64;
-
 			log::info!(
 				target: LOG_TARGET,
-				"Threshold: {} UNITS. Voters: {} [%{:.3}]",
-				vote_weight_thresh_as_unit, voters_in_bag_count, percentage_of_voters
+				"{} Voters: {} [%{:.3}]",
+				pretty_thresh, voters_in_bag_count, percentage_of_voters
 			);
 		}
 
