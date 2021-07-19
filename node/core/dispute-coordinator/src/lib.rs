@@ -72,16 +72,16 @@ const ACTIVE_DURATION_SECS: Timestamp = 180;
 type Timestamp = u64;
 
 #[derive(Eq, PartialEq)]
-enum Recovery {
+enum Participation {
 	Pending,
 	Complete,
 }
 
-impl Recovery {
+impl Participation {
 	fn complete(&mut self) -> bool {
-		let complete = *self == Recovery::Complete;
+		let complete = *self == Participation::Complete;
 		if !complete {
-			*self = Recovery::Complete
+			*self = Participation::Complete
 		}
 		complete
 	}
@@ -91,7 +91,7 @@ struct State {
 	keystore: Arc<LocalKeystore>,
 	highest_session: Option<SessionIndex>,
 	rolling_session_window: RollingSessionWindow,
-	recovery_state: Recovery,
+	recovery_state: Participation,
 }
 
 /// Configuration for the dispute coordinator subsystem.
@@ -331,7 +331,7 @@ where
 		keystore: subsystem.keystore.clone(),
 		highest_session: None,
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
-		recovery_state: Recovery::Pending,
+		recovery_state: Participation::Pending,
 	};
 
 	loop {
@@ -341,20 +341,17 @@ where
 				return Ok(())
 			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				let leaves = update.activated.into_iter().map(|a| a.hash);
+				handle_new_activations(
+					ctx,
+					&mut overlay_db,
+					&mut state,
+					update.activated.into_iter().map(|a| a.hash),
+				).await?;
 				if !state.recovery_state.complete() {
-					handle_leaf(
+					handle_startup(
 						ctx,
 						&mut overlay_db,
 						&mut state,
-						leaves,
-					).await?;
-				} else {
-					handle_new_activations(
-						ctx,
-						&mut overlay_db,
-						&mut state,
-						leaves,
 					).await?;
 				}
 			}
@@ -384,20 +381,15 @@ where
 // This method also retransmits a `DisputeParticiationMessage::Participate` for any non-concluded
 // disputes for which the subsystem doesn't have a local statement, ensuring it eventually makes an
 // arbitration on the dispute.
-async fn handle_leaf<Context>(
+async fn handle_startup<Context>(
 	ctx: &mut Context,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
-	leaves: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
-	// Process the leaves as we would during normal operation. Any writes are committed
-	// immediately so that they are made available to the primary event loop.
-	handle_new_activations(ctx, overlay_db, state, leaves).await?;
-
 	let recent_disputes = match overlay_db.load_recent_disputes() {
 		Ok(Some(disputes)) => disputes,
 		Ok(None) => return Ok(()),
@@ -445,10 +437,13 @@ where
 		let missing_local_statement = validators.iter()
 			.enumerate()
 			.map(|(index, validator)| (ValidatorIndex(index as _), validator))
-			.filter(|(index, validator)|
-				voted_indices.contains(index) ||
-				state.keystore.key_pair::<ValidatorPair>(validator).map(|v| v.is_none()).unwrap_or_default())
-			.count() > 0;
+			.any(|(index, validator)|
+				!voted_indices.contains(&index) &&
+				state.keystore
+					.key_pair::<ValidatorPair>(validator)
+					.ok()
+					.map_or(false, |v| v.is_some())
+			);
 
 		// Send a `DisputeParticipationMessage` for all non-concluded disputes which do not have a
 		// recorded local statement.
