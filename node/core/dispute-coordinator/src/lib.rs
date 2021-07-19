@@ -71,10 +71,27 @@ const ACTIVE_DURATION_SECS: Timestamp = 180;
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 type Timestamp = u64;
 
+#[derive(Eq, PartialEq)]
+enum Recovery {
+	Pending,
+	Complete,
+}
+
+impl Recovery {
+	fn complete(&mut self) -> bool {
+		let complete = *self == Recovery::Complete;
+		if !complete {
+			*self = Recovery::Complete
+		}
+		complete
+	}
+}
+
 struct State {
 	keystore: Arc<LocalKeystore>,
 	highest_session: Option<SessionIndex>,
 	rolling_session_window: RollingSessionWindow,
+	recovery_state: Recovery,
 }
 
 /// Configuration for the dispute coordinator subsystem.
@@ -314,6 +331,7 @@ where
 		keystore: subsystem.keystore.clone(),
 		highest_session: None,
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
+		recovery_state: Recovery::Pending,
 	};
 
 	loop {
@@ -323,12 +341,22 @@ where
 				return Ok(())
 			}
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				handle_leaf(
-					ctx,
-					&mut overlay_db,
-					&mut state,
-					update.activated.into_iter().map(|a| a.hash),
-				).await?;
+				let leaves = update.activated.into_iter().map(|a| a.hash);
+				if !state.recovery_state.complete() {
+					handle_leaf(
+						ctx,
+						&mut overlay_db,
+						&mut state,
+						leaves,
+					).await?;
+				} else {
+					handle_new_activations(
+						ctx,
+						&mut overlay_db,
+						&mut state,
+						leaves,
+					).await?;
+				}
 			}
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } => {
