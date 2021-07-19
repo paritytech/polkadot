@@ -8150,9 +8150,14 @@ dependencies = [
 name = "runtime-tests"
 version = "0.9.8"
 dependencies = [
+ "frame-support 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "kusama-runtime",
  "pallet-staking 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "polkadot-runtime",
  "remote-externalities",
+ "sp-runtime 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-storage 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-tracing 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "tokio 0.2.21",
 ]
 

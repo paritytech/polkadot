@@ -5,9 +5,18 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-polkadot-runtime = { version = "0.9.8", path = "../polkadot" }
+polkadot-runtime = { version = "0.9.8", path = "../polkadot", optional = true }
+kusama-runtime = { version = "0.9.8", path = "../kusama", optional = true }
 
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 tokio = { version = "0.2", features = ["macros", "rt-threaded"] }
+
+[features]
+polkadot = ["polkadot-runtime"]
+kusama = ["kusama-runtime"]
