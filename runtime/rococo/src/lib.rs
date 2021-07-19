@@ -589,6 +589,7 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ();
 	type RewardValidators = RewardValidators;
 }
 

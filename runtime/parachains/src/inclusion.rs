@@ -35,7 +35,7 @@ use parity_scale_codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
+use crate::{configuration, disputes, paras, dmp, ump, hrmp, shared, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -118,6 +118,7 @@ pub trait Config:
 	+ configuration::Config
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 	type RewardValidators: RewardValidators;
 }
 
@@ -238,7 +239,7 @@ impl<T: Config> Module<T> {
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<CoreIndex>, DispatchError> {
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Module::<T>::active_validator_keys();
 		let session_index = shared::Module::<T>::session_index();
 
@@ -246,7 +247,6 @@ impl<T: Config> Module<T> {
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
 			.collect();
-
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -368,14 +368,11 @@ impl<T: Config> Module<T> {
 					pending_availability.backing_group,
 				);
 
-				freed_cores.push(pending_availability.core);
+				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
 			}
 		}
-
-		// TODO: pass available candidates onwards to validity module once implemented.
-		// https://github.com/paritytech/polkadot/issues/1251
 
 		Ok(freed_cores)
 	}
@@ -749,6 +746,28 @@ impl<T: Config> Module<T> {
 					pending.core,
 				));
 			}
+		}
+
+		cleaned_up_cores
+	}
+
+	/// Cleans up all paras pending availability that are in the given list of disputed candidates.
+	///
+	/// Returns a vector of cleaned-up core IDs.
+	pub(crate) fn collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex> {
+		let mut cleaned_up_ids = Vec::new();
+		let mut cleaned_up_cores = Vec::new();
+
+		for (para_id, pending_record) in <PendingAvailability<T>>::iter() {
+			if disputed.contains(&pending_record.hash) {
+				cleaned_up_ids.push(para_id);
+				cleaned_up_cores.push(pending_record.core);
+			}
+		}
+
+		for para_id in cleaned_up_ids {
+			let _ = <PendingAvailability<T>>::take(&para_id);
+			let _ = <PendingAvailabilityCommitments>::take(&para_id);
 		}
 
 		cleaned_up_cores
@@ -2553,4 +2572,6 @@ mod tests {
 			assert!(<PendingAvailabilityCommitments>::iter().collect::<Vec<_>>().is_empty());
 		});
 	}
+
+	// TODO [now]: test `collect_disputed`
 }
