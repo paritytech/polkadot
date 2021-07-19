@@ -32,7 +32,6 @@ sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch 
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }

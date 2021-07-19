@@ -85,7 +85,7 @@ impl DefaultTestClientBuilderExt for TestClientBuilder {
 #[cfg(test)]
 mod tests{
 	use super::*;
-	use sc_consensus_api::BlockOrigin;
+	use sp_consensus::BlockOrigin;
 
 	#[test]
 	fn ensure_test_client_can_build_and_import_block() {
