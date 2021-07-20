@@ -907,23 +907,6 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		// after the given pause block is finalized and restarting after the
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
-		// we should enable approval checking voting rule before we deploy parachains on polkadot
-		let enable_approval_checking_voting_rule = chain_spec.is_kusama()
-			|| chain_spec.is_westend()
-			|| chain_spec.is_rococo()
-			|| chain_spec.is_wococo();
-
-		let builder = if let Some(ref overseer) = overseer_handler {
-			if enable_approval_checking_voting_rule {
-				builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
-					overseer.clone(),
-				))
-			} else {
-				builder
-			}
-		} else {
-			builder
-		};
 
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
