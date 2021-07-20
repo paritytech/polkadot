@@ -1228,7 +1228,7 @@ async fn handle_approved_ancestor(
 		Vec::new()
 	};
 
-	let mut candidates: Vec<_> = Vec::new();
+	let mut block_descriptions = Vec::new();
 
 	let mut bits: BitVec<Lsb0, u8> = Default::default();
 	for (i, block_hash) in std::iter::once(target).chain(ancestry).enumerate() {
@@ -1261,10 +1261,10 @@ async fn handle_approved_ancestor(
 			}
 		} else if bits.len() <= ABNORMAL_DEPTH_THRESHOLD {
 			all_approved_max = None;
-			candidates.clear();
+			block_descriptions.clear();
 		} else {
 			all_approved_max = None;
-			candidates.clear();
+			block_descriptions.clear();
 
 			let unapproved: Vec<_> = entry.unapproved_candidates().collect();
 			tracing::debug!(
@@ -1342,7 +1342,7 @@ async fn handle_approved_ancestor(
 				}
 			}
 		}
-		candidates.push(BlockDescription {
+		block_descriptions.push(BlockDescription {
 			block_hash,
 			session: entry.session(),
 			candidates: entry.candidates().iter().map(|(_idx, candidate_hash)| *candidate_hash ).collect(),
@@ -1377,13 +1377,13 @@ async fn handle_approved_ancestor(
 
 	// `reverse()` to obtain the ascending order from lowest to highest
 	// block within the candidates, which is the expected order
-	candidates.reverse();
+	block_descriptions.reverse();
 
 	let all_approved_max = all_approved_max.map(|(hash, block_number)| {
 		HighestApprovedAncestorBlock{
 			hash,
 			number: block_number,
-			descriptions: candidates,
+			descriptions: block_descriptions,
 		}
 	});
 	match all_approved_max {
