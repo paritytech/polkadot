@@ -28,7 +28,7 @@ mod tests;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases,
-	AccountKey20Aliases, LocationInverter,
+	AccountKey20Aliases, LocationInverter, DerivedParachainAccountId32,
 };
 
 mod origin_conversion;

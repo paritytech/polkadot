@@ -123,6 +123,7 @@ impl<
 	}
 }
 
+/// Extracts the `AccountKey20` from the passed `location` if the network matches.
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<
 	Network: Get<NetworkId>,
@@ -140,6 +141,41 @@ impl<
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
 		let j = Junction::AccountKey20 { key: who.into(), network: Network::get() };
 		Ok(j.into())
+	}
+}
+
+/// Generates a unique `AccountId` for a given parachain + account combination.
+///
+/// Used for giving parachains control over some accounts on the interpreting chain.
+///
+/// Note: Not reversible.
+pub struct DerivedParachainAccountId32<Network, AccountId>(PhantomData<(Network, AccountId)>);
+impl<
+	Network: Get<NetworkId>,
+	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
+> Convert<MultiLocation, AccountId> for DerivedParachainAccountId32<Network, AccountId> {
+	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
+		use Junction::*;
+		use MultiLocation::*;
+		let id = match location {
+			X2(Parachain(para_id), AccountId32 { id, network })
+				if network == NetworkId::Any || &network == &Network::get() =>
+			{
+				(para_id, id).using_encoded(blake2_256)
+			},
+			X2(Parachain(para_id), AccountKey20 { key, network })
+				if network == NetworkId::Any || &network == &Network::get() =>
+			{
+				(para_id, key).using_encoded(blake2_256)
+			},
+			l => return Err(l),
+		};
+		Ok(id.into())
+	}
+
+	// reverse conversion is not implemented
+	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
+		Err(who)
 	}
 }
 
