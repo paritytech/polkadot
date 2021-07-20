@@ -55,6 +55,9 @@ pub async fn spawn(
 pub enum Outcome {
 	/// The worker has finished the work assigned to it.
 	Concluded(IdleWorker),
+	/// The host tried to reach the worker but failed. This is most likely because the worked was
+	/// killed by the system.
+	Unreachable,
 	/// The execution was interrupted abruptly and the worker is not available anymore. For example,
 	/// this could've happen because the worker hadn't finished the work until the given deadline.
 	///
@@ -96,7 +99,7 @@ pub async fn start_work(
 				"failed to send a prepare request: {:?}",
 				err,
 			);
-			return Outcome::DidntMakeIt;
+			return Outcome::Unreachable;
 		}
 
 		// Wait for the result from the worker, keeping in mind that there may be a timeout, the
@@ -270,7 +273,7 @@ fn renice(pid: u32, niceness: i32) {
 	}
 }
 
-/// The entrypoint that the spawned prepare worker should start with. The socket_path specifies
+/// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {

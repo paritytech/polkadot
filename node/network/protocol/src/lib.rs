@@ -38,6 +38,9 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
+/// Accessing authority discovery service
+pub mod authority_discovery;
+
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.
@@ -87,13 +90,15 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
+/// Implement `TryFrom` for one enum variant into the inner type.
+/// `$m_ty::$variant(inner) -> Ok(inner)`
 macro_rules! impl_try_from {
 	($m_ty:ident, $variant:ident, $out:ty) => {
 		impl TryFrom<$m_ty> for $out {
 			type Error = crate::WrongVariant;
 
-			#[allow(unreachable_patterns)] // when there is only one variant
 			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
 				match x {
 					$m_ty::$variant(y) => Ok(y),
 					_ => Err(crate::WrongVariant),
@@ -279,7 +284,7 @@ impl View {
 
 	/// Check if two views have the same heads.
 	///
-	/// Equivalent to the `PartialEq` fn,
+	/// Equivalent to the `PartialEq` function,
 	/// but ignores the `finalized_number` field.
 	pub fn check_heads_eq(&self, other: &Self) -> bool {
 		self.heads == other.heads
@@ -320,7 +325,7 @@ pub mod v1 {
 		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
-		/// via req/response.
+		/// via request/response.
 		#[codec(index = 1)]
 		LargeStatement(StatementMetadata),
 	}

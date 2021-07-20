@@ -24,7 +24,7 @@ use std::pin::Pin;
 
 const TICK_DURATION_MILLIS: u64 = 500;
 
-/// A base unit of time, starting from the unix epoch, split into half-second intervals.
+/// A base unit of time, starting from the Unix epoch, split into half-second intervals.
 pub(crate) type Tick = u64;
 
 /// A clock which allows querying of the current tick as well as

@@ -22,7 +22,7 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
+use polkadot_overseer::Handle;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
@@ -185,10 +185,10 @@ pub fn node_config(
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
+		rpc_max_payload: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
-		rpc_max_payload: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		telemetry_external_transport: None,
@@ -285,15 +285,15 @@ pub fn run_collator_node(
 
 /// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode {
-	/// TaskManager's instance.
+	/// `TaskManager`'s instance.
 	pub task_manager: TaskManager,
 	/// Client's instance.
 	pub client: Arc<Client>,
 	/// The overseer handler.
-	pub overseer_handler: OverseerHandler,
+	pub overseer_handler: Handle,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
-	/// RPCHandlers to make RPC queries.
+	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
 }
 

@@ -55,8 +55,8 @@ pub struct EthereumTransactionInclusionProof {
 ///
 /// The assumption is that this pair will never appear more than once in
 /// transactions included into finalized blocks. This is obviously true
-/// for any existing eth-like chain (that keep current tx format), because
-/// otherwise transaction can be replayed over and over.
+/// for any existing eth-like chain (that keep current transaction format),
+/// because otherwise transaction can be replayed over and over.
 #[derive(Encode, Decode, PartialEq, RuntimeDebug)]
 pub struct EthereumTransactionTag {
 	/// Account that has locked funds.

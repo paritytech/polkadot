@@ -75,7 +75,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 				sender.send_message(CollatorProtocolMessage::Invalid(
 					Default::default(),
 					Default::default(),
-				).into()).await;
+				)).await;
 			}
 
 			// it isn't necessary to break run_loop into its own function,

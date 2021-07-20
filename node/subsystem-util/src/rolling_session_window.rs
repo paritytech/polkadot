@@ -20,10 +20,12 @@
 //! care about the state of particular blocks.
 
 use polkadot_primitives::v1::{Hash, Header, SessionInfo, SessionIndex};
+
 use polkadot_node_subsystem::{
-	SubsystemContext,
+	overseer,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	errors::RuntimeApiError,
+	SubsystemContext,
 };
 use futures::channel::oneshot;
 
@@ -147,7 +149,7 @@ impl RollingSessionWindow {
 	/// some backwards drift in session index is acceptable.
 	pub async fn cache_session_info_for_head(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
 		block_header: &Header,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
@@ -162,7 +164,7 @@ impl RollingSessionWindow {
 			ctx.send_message(RuntimeApiMessage::Request(
 				if block_header.number == 0 { block_hash } else { block_header.parent_hash },
 				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			).into()).await;
+			)).await;
 
 			match s_rx.await {
 				Ok(Ok(s)) => s,
@@ -263,7 +265,7 @@ impl RollingSessionWindow {
 }
 
 async fn load_all_sessions(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	block_hash: Hash,
 	start: SessionIndex,
 	end_inclusive: SessionIndex,
@@ -274,7 +276,7 @@ async fn load_all_sessions(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::SessionInfo(i, tx),
-		).into()).await;
+		)).await;
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
@@ -295,7 +297,7 @@ async fn load_all_sessions(
 mod tests {
 	use super::*;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use sp_core::testing::TaskExecutor;
 	use assert_matches::assert_matches;
 
@@ -331,7 +333,7 @@ mod tests {
 		};
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) = make_subsystem_context::<AvailabilityRecoveryMessage, _>(pool.clone());
 
 		let hash = header.hash();
 

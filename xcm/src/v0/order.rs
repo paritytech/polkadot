@@ -49,7 +49,7 @@ pub enum Order<Call> {
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The new owner for the assets.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
-	///   `dest.
+	///   `dest`.
 	///
 	/// Errors:
 	#[codec(index = 2)]
@@ -101,7 +101,7 @@ pub enum Order<Call> {
 	#[codec(index = 6)]
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 
-	/// Pay for the execution of some Xcm with up to `weight` picoseconds of execution time, paying for this with
+	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:

@@ -238,11 +238,11 @@ impl Get<crate::Balance> for GetDeliveryConfirmationTransactionFee {
 	}
 }
 
-/// This module contains definitions that are used by the messages pallet instance, 'deployed' at Rococo.
+/// This module contains definitions that are used by the messages pallet instance, "deployed" at Rococo.
 mod at_rococo {
 	use super::*;
 
-	/// Message bridge that is 'deployed' at Rococo chain and connecting it to Wococo chain.
+	/// Message bridge that is "deployed" at Rococo chain and connecting it to Wococo chain.
 	#[derive(RuntimeDebug, Clone, Copy)]
 	pub struct AtRococoWithWococoMessageBridge;
 
@@ -283,11 +283,11 @@ mod at_rococo {
 	>;
 }
 
-/// This module contains definitions that are used by the messages pallet instance, 'deployed' at Wococo.
+/// This module contains definitions that are used by the messages pallet instance, "deployed" at Wococo.
 mod at_wococo {
 	use super::*;
 
-	/// Message bridge that is 'deployed' at Wococo chain and connecting it to Rococo chain.
+	/// Message bridge that is "deployed" at Wococo chain and connecting it to Rococo chain.
 	#[derive(RuntimeDebug, Clone, Copy)]
 	pub struct AtWococoWithRococoMessageBridge;
 

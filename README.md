@@ -1,6 +1,6 @@
 # Polkadot
 
-Implementation of a https://polkadot.network node in Rust based on the Substrate framework.
+Implementation of a <https://polkadot.network> node in Rust based on the Substrate framework.
 
 > **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework
 > "Substrate". See the [Substrate][substrate-repo] repo for git history prior to 2018.
@@ -19,7 +19,7 @@ either run the latest binary from our
 [releases](https://github.com/paritytech/polkadot/releases) page, or install
 Polkadot from one of our package repositories.
 
-Installation from the debian or rpm repositories will create a `systemd`
+Installation from the Debian or rpm repositories will create a `systemd`
 service that can be used to run a Polkadot node. This is disabled by default,
 and can be started by running `systemctl start polkadot` on demand (use
 `systemctl enable polkadot` to make it auto-start after reboot). By default, it
@@ -207,7 +207,7 @@ You can run a simple single-node development "network" on your machine by runnin
 polkadot --dev
 ```
 
-You can muck around by heading to https://polkadot.js.org/apps and choose "Local Node" from the
+You can muck around by heading to <https://polkadot.js.org/apps> and choose "Local Node" from the
 Settings menu.
 
 ### Local Two-node Testnet
@@ -246,7 +246,3 @@ Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of 
 ## License
 
 Polkadot is [GPL 3.0 licensed](LICENSE).
-
-## Important Notice
-
-https://polkadot.network/testnetdisclaimer

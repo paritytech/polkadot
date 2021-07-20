@@ -110,7 +110,7 @@ impl TPruningStrategy for PruningStrategy {
 	}
 }
 
-/// ChainTime provider
+/// `ChainTime` provider
 #[derive(Default)]
 pub struct ChainTime;
 

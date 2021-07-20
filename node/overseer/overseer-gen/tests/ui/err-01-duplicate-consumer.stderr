@@ -1,0 +1,21 @@
+error[E0119]: conflicting implementations of trait `std::convert::From<MsgStrukt>` for type `AllMessages`
+  --> $DIR/err-01-duplicate-consumer.rs:19:1
+   |
+19 | #[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | first implementation here
+   | conflicting implementation for `AllMessages`
+   |
+   = note: this error originates in an attribute macro (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `polkadot_overseer_gen::SubsystemSender<MsgStrukt>` for type `OverseerSubsystemSender`
+  --> $DIR/err-01-duplicate-consumer.rs:19:1
+   |
+19 | #[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | first implementation here
+   | conflicting implementation for `OverseerSubsystemSender`
+   |
+   = note: this error originates in an attribute macro (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -41,7 +41,7 @@ pub trait WeightBounds<Call> {
 	///
 	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
 	/// any internal effects. Inner XCM messages may be executed by:
-	/// - Order::BuyExecution
+	/// - `Order::BuyExecution`
 	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 
 	/// Return the total weight for executing `message`.
