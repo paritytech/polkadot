@@ -153,8 +153,8 @@ impl Requester {
 	///
 	/// Starting requests where necessary.
 	///
-	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
-	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
+	/// Note: The passed in `leaf` is not the same as `CandidateDescriptor::relay_parent` in the
+	/// given cores. The latter is the `relay_parent` this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,

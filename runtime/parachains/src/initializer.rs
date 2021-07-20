@@ -25,6 +25,7 @@ use frame_support::traits::{Randomness, OneSessionHandler};
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
+	disputes::DisputesHandler,
 	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
@@ -35,7 +36,7 @@ pub use pallet::*;
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
-	/// The qeueud validators for the following session.
+	/// The queued validators for the following session.
 	pub queued: Vec<ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,
@@ -99,10 +100,10 @@ pub mod pallet {
 
 	/// Whether the parachains modules have been initialized within this block.
 	///
-	/// Semantically a bool, but this guarantees it should never hit the trie,
+	/// Semantically a `bool`, but this guarantees it should never hit the trie,
 	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
 	///
-	/// As a bool, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
 	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
 	/// the semantics of this variable.
 	#[pallet::storage]
@@ -127,7 +128,7 @@ pub mod pallet {
 			// - Scheduler
 			// - Inclusion
 			// - SessionInfo
-			// - Validity
+			// - Disputes
 			// - DMP
 			// - UMP
 			// - HRMP
@@ -137,6 +138,7 @@ pub mod pallet {
 				scheduler::Module::<T>::initializer_initialize(now) +
 				inclusion::Module::<T>::initializer_initialize(now) +
 				session_info::Module::<T>::initializer_initialize(now) +
+				T::DisputesHandler::initializer_initialize(now) +
 				dmp::Module::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
 				hrmp::Module::<T>::initializer_initialize(now);
@@ -151,6 +153,7 @@ pub mod pallet {
 			hrmp::Module::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
 			dmp::Module::<T>::initializer_finalize();
+			T::DisputesHandler::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
@@ -234,6 +237,7 @@ impl<T: Config> Pallet<T> {
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
+		T::DisputesHandler::initializer_on_new_session(&notification);
 		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
@@ -267,6 +271,20 @@ impl<T: Config> Pallet<T> {
 			}));
 		}
 
+	}
+
+	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// implemented in mock.
+	#[cfg(test)]
+	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
+		changed: bool,
+		session_index: SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	)
+		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	{
+		Self::on_new_session(changed, session_index, validators, queued)
 	}
 }
 

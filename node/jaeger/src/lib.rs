@@ -84,13 +84,13 @@ impl Jaeger {
 		Jaeger::Prep(cfg)
 	}
 
-	/// Spawn the background task in order to send the tracing information out via udp
+	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(target_os = "unknown")]
 	pub fn launch<S: SpawnNamed>(self, _spawner: S) -> result::Result<(), JaegerError> {
 		Ok(())
 	}
 
-	/// Spawn the background task in order to send the tracing information out via udp
+	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(not(target_os = "unknown"))]
 	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
 		let cfg = match self {

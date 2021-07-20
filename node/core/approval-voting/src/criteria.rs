@@ -152,7 +152,7 @@ pub(crate) struct Config {
 	n_cores: u32,
 	/// The zeroth delay tranche width.
 	zeroth_delay_tranche_width: u32,
-	/// The number of samples we do of relay_vrf_modulo.
+	/// The number of samples we do of `relay_vrf_modulo`.
 	relay_vrf_modulo_samples: u32,
 	/// The number of delay tranches in total.
 	n_delay_tranches: u32,
@@ -437,7 +437,7 @@ impl std::error::Error for InvalidAssignment { }
 ///   * Validator is present in backing group.
 ///
 /// This function does not check whether the core is actually a valid assignment or not. That should be done
-/// outside of the scope of this function.
+/// outside the scope of this function.
 pub(crate) fn check_assignment_cert(
 	claimed_core_index: CoreIndex,
 	validator_index: ValidatorIndex,

@@ -17,7 +17,7 @@
 //! The Statement Distribution Subsystem.
 //!
 //! This is responsible for distributing signed statements about candidate
-//! validity amongst validators.
+//! validity among validators.
 
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
@@ -208,7 +208,7 @@ struct PeerRelayParentKnowledge {
 	/// How many large statements this peer already sent us.
 	///
 	/// Flood protection for large statements is rather hard and as soon as we get
-	/// https://github.com/paritytech/polkadot/issues/2979 implemented also no longer necessary.
+	/// `https://github.com/paritytech/polkadot/issues/2979` implemented also no longer necessary.
 	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
 	/// statements and never provides the data, we will keep it around for the slot duration. Not
 	/// even signature checking would help, as the sender, if a validator, can just sign arbitrary
@@ -290,7 +290,7 @@ impl PeerRelayParentKnowledge {
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
 	/// not receive more statements for any one candidate than there are members in the group assigned
 	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -459,7 +459,7 @@ impl PeerData {
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
 	/// not receive more statements for any one candidate than there are members in the group assigned
 	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -580,7 +580,7 @@ struct FetchingInfo {
 }
 
 /// Messages to be handled in this subsystem.
-enum Message {
+enum MuxedMessage {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOverseer<StatementDistributionMessage>>),
 	/// Messages from spawned requester background tasks.
@@ -589,12 +589,12 @@ enum Message {
 	Responder(Option<ResponderMessage>)
 }
 
-impl Message {
+impl MuxedMessage {
 	async fn receive(
 		ctx: &mut (impl SubsystemContext<Message = StatementDistributionMessage> + overseer::SubsystemContext<Message = StatementDistributionMessage>),
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
-	) -> Message {
+	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
@@ -602,9 +602,9 @@ impl Message {
 		let from_responder = from_responder.next();
 		futures::pin_mut!(from_overseer, from_requester, from_responder);
 		futures::select! {
-			msg = from_overseer => Message::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
-			msg = from_requester => Message::Requester(msg),
-			msg = from_responder => Message::Responder(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_requester => MuxedMessage::Requester(msg),
+			msg = from_responder => MuxedMessage::Responder(msg),
 		}
 	}
 }
@@ -1614,9 +1614,9 @@ impl StatementDistribution {
 		let (res_sender, mut res_receiver) = mpsc::channel(1);
 
 		loop {
-			let message = Message::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
+			let message = MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
 			match message {
-				Message::Subsystem(result) => {
+				MuxedMessage::Subsystem(result) => {
 					let result = self.handle_subsystem_message(
 						&mut ctx,
 						&mut runtime,
@@ -1637,7 +1637,7 @@ impl StatementDistribution {
 							tracing::debug!(target: LOG_TARGET, ?error)
 					}
 				}
-				Message::Requester(result) => {
+				MuxedMessage::Requester(result) => {
 					let result = self.handle_requester_message(
 						&mut ctx,
 						&gossip_peers,
@@ -1649,7 +1649,7 @@ impl StatementDistribution {
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
 				}
-				Message::Responder(result) => {
+				MuxedMessage::Responder(result) => {
 					let result = self.handle_responder_message(
 						&peers,
 						&mut active_heads,
@@ -1856,8 +1856,8 @@ impl StatementDistribution {
 						"New active leaf",
 					);
 
-					let session_index = runtime.get_session_index(ctx, relay_parent).await?;
-					let info = runtime.get_session_info_by_index(ctx, relay_parent, session_index).await?;
+					let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
+					let info = runtime.get_session_info_by_index(ctx.sender(), relay_parent, session_index).await?;
 					let session_info = &info.session_info;
 
 					active_heads.entry(relay_parent)
@@ -1899,7 +1899,7 @@ impl StatementDistribution {
 						}
 					}
 
-					let info = runtime.get_session_info(ctx, relay_parent).await?;
+					let info = runtime.get_session_info(ctx.sender(), relay_parent).await?;
 					let session_info = &info.session_info;
 					let validator_info = &info.validator_info;
 

@@ -146,7 +146,7 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
-	/// The maximum number of valdiators to use for parachain consensus, period.
+	/// The maximum number of validators to use for parachain consensus, period.
 	///
 	/// `None` means no maximum.
 	pub max_validators: Option<u32>,
@@ -170,7 +170,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub zeroth_delay_tranche_width: u32,
 	/// The number of validators needed to approve a block.
 	pub needed_approvals: u32,
-	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
 }
 
@@ -527,7 +527,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Set the number of samples to do of the RelayVRFModulo approval assignment criterion.
+		/// Set the number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_relay_vrf_modulo_samples(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;

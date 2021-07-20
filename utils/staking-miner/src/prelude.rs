@@ -44,5 +44,5 @@ pub use pallet_election_provider_multi_phase as EPM;
 /// The externalities type.
 pub type Ext = sp_io::TestExternalities;
 
-/// The key pair type being used. We 'strongly' assume sr25519 for simplicity.
+/// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;
