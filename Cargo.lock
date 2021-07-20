@@ -156,12 +156,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-swap"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d25d88fd6b8041580a654f9d0c581a047baee2b3efee13275f2fc392fc75034"
-
-[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -304,15 +298,16 @@ dependencies = [
 
 [[package]]
 name = "async-process"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c8cea09c1fb10a317d1b5af8024eeba256d6554763e85ecd90ff8df31c7bbda"
+checksum = "a8f38756dd9ac84671c428afbf7c9f7495feff9ec5b0710f17100098e5b354ac"
 dependencies = [
  "async-io",
  "blocking",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "event-listener",
  "futures-lite",
+ "libc",
  "once_cell",
  "signal-hook",
  "winapi 0.3.9",
@@ -492,7 +487,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
 dependencies = [
  "beefy-primitives",
  "fnv",
@@ -516,12 +511,13 @@ dependencies = [
  "sp-utils",
  "substrate-prometheus-endpoint",
  "thiserror",
+ "wasm-timer",
 ]
 
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -540,9 +536,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "beefy-merkle-tree"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
+
+[[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2688,6 +2689,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmac-drbg"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17ea0a1394df5b6574da6e0c1ade9e78868c9fb0a4e5ef4428e32da4676b85b1"
+dependencies = [
+ "digest 0.9.0",
+ "generic-array 0.14.4",
+ "hmac 0.8.1",
+]
+
+[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3362,7 +3374,6 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -3498,9 +3509,9 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 
 [[package]]
 name = "libc"
-version = "0.2.91"
+version = "0.2.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
+checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 
 [[package]]
 name = "libloading"
@@ -3581,7 +3592,7 @@ dependencies = [
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "lazy_static",
- "libsecp256k1",
+ "libsecp256k1 0.3.5",
  "log",
  "multihash",
  "multistream-select",
@@ -3983,11 +3994,59 @@ dependencies = [
  "arrayref",
  "crunchy",
  "digest 0.8.1",
- "hmac-drbg",
+ "hmac-drbg 0.2.0",
  "rand 0.7.3",
  "sha2 0.8.2",
  "subtle 2.2.3",
  "typenum",
+]
+
+[[package]]
+name = "libsecp256k1"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9d220bc1feda2ac231cb78c3d26f27676b8cf82c96971f7aeef3d0cf2797c73"
+dependencies = [
+ "arrayref",
+ "base64 0.12.3",
+ "digest 0.9.0",
+ "hmac-drbg 0.3.0",
+ "libsecp256k1-core",
+ "libsecp256k1-gen-ecmult",
+ "libsecp256k1-gen-genmult",
+ "rand 0.7.3",
+ "serde",
+ "sha2 0.9.2",
+ "typenum",
+]
+
+[[package]]
+name = "libsecp256k1-core"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0f6ab710cec28cef759c5f18671a27dae2a5f952cdaaee1d8e2908cb2478a80"
+dependencies = [
+ "crunchy",
+ "digest 0.9.0",
+ "subtle 2.2.3",
+]
+
+[[package]]
+name = "libsecp256k1-gen-ecmult"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccab96b584d38fac86a83f07e659f0deafd0253dc096dab5a36d53efe653c5c3"
+dependencies = [
+ "libsecp256k1-core",
+]
+
+[[package]]
+name = "libsecp256k1-gen-genmult"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67abfe149395e3aa1c48a2beb32b068e2334402df8181f818d3aee2b304c4f5d"
+dependencies = [
+ "libsecp256k1-core",
 ]
 
 [[package]]
@@ -4713,7 +4772,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#2e450ac733d55b2f5e42a304afa287be6abcc53b"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -4721,6 +4780,30 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-beefy-mmr"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#26d617c699afc6c7f8f4207e72aee59449712765"
+dependencies = [
+ "beefy-merkle-tree",
+ "beefy-primitives",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "libsecp256k1 0.3.5",
+ "log",
+ "pallet-beefy",
+ "pallet-mmr",
+ "pallet-mmr-primitives",
+ "pallet-session",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -6708,7 +6791,6 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -6778,7 +6860,6 @@ dependencies = [
 name = "polkadot-runtime-common"
 version = "0.9.8"
 dependencies = [
- "beefy-primitives",
  "bitvec",
  "frame-benchmarking",
  "frame-support",
@@ -6786,14 +6867,13 @@ dependencies = [
  "frame-system",
  "hex-literal",
  "impl-trait-for-tuples",
- "libsecp256k1",
+ "libsecp256k1 0.6.0",
  "log",
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
- "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase",
- "pallet-mmr",
  "pallet-offences",
  "pallet-session",
  "pallet-staking",
@@ -6831,6 +6911,7 @@ dependencies = [
 name = "polkadot-runtime-parachains"
 version = "0.9.8"
 dependencies = [
+ "bitflags",
  "bitvec",
  "derive_more",
  "frame-benchmarking",
@@ -6839,7 +6920,6 @@ dependencies = [
  "frame-system",
  "futures 0.3.15",
  "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -7122,7 +7202,6 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -7912,6 +7991,7 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
@@ -8500,7 +8580,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#bfca1a91f760
 dependencies = [
  "derive_more",
  "lazy_static",
- "libsecp256k1",
+ "libsecp256k1 0.3.5",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -9400,9 +9480,9 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "signal-hook"
-version = "0.1.16"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "604508c1418b99dfe1925ca9224829bb2a8a9a04dda655cc01fcad46f4ab05ed"
+checksum = "470c5a6397076fae0094aaf06a08e6ba6f37acb77d3b1b91ea92b4d6c8650c39"
 dependencies = [
  "libc",
  "signal-hook-registry",
@@ -9410,11 +9490,10 @@ dependencies = [
 
 [[package]]
 name = "signal-hook-registry"
-version = "1.2.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94f478ede9f64724c5d173d7bb56099ec3e2d9fc2774aac65d34b8b890405f41"
+checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
- "arc-swap",
  "libc",
 ]
 
@@ -9464,9 +9543,9 @@ dependencies = [
 
 [[package]]
 name = "slotmap"
-version = "1.0.2"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3003725ae562cf995f3dc82bb99e70926e09000396816765bb6d7adbe740b1"
+checksum = "a952280edbecfb1d4bd3cf2dbc309dc6ab523e53487c438ae21a6df09fe84bc4"
 dependencies = [
  "version_check",
 ]
@@ -9768,7 +9847,7 @@ dependencies = [
  "hex",
  "impl-serde",
  "lazy_static",
- "libsecp256k1",
+ "libsecp256k1 0.3.5",
  "log",
  "merlin",
  "num-traits",
@@ -9864,7 +9943,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#bfca1a91f760
 dependencies = [
  "futures 0.3.15",
  "hash-db",
- "libsecp256k1",
+ "libsecp256k1 0.3.5",
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
@@ -11967,7 +12046,6 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",

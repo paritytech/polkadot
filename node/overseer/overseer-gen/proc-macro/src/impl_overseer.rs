@@ -90,7 +90,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			/// Gather running subsystems' outbound streams into one.
 			to_overseer_rx: #support_crate ::stream::Fuse<
-				#support_crate ::metered::UnboundedMeteredReceiver< ToOverseer >
+				#support_crate ::metered::UnboundedMeteredReceiver< #support_crate ::ToOverseer >
 			>,
 
 			/// Events that are sent to the overseer from the outside world.

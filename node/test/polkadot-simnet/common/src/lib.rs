@@ -99,10 +99,10 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 		>
 {
 	type DemocracyCall = democracy::Call<Runtime>;
-	type CouncilCollectiveEvent = collective::Event::<Runtime, CouncilCollective>;
+	type CouncilCollectiveEvent = collective::Event<Runtime, CouncilCollective>;
 	type CouncilCollectiveCall = collective::Call<Runtime, CouncilCollective>;
 	type TechnicalCollectiveCall = collective::Call<Runtime, TechnicalCollective>;
-	type TechnicalCollectiveEvent = collective::Event::<Runtime, TechnicalCollective>;
+	type TechnicalCollectiveEvent = collective::Event<Runtime, TechnicalCollective>;
 
 	// here lies a black mirror esque copy of on chain whales.
 	let whales = vec![
@@ -126,14 +126,15 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 		node.seal_blocks(1).await;
 
 		// fetch proposal hash from event emitted by the runtime
-		node.events()
-			.into_iter()
+		let events = node.events();
+		events.iter()
 			.filter_map(|event| match event.event {
-				Event::Democracy(democracy::Event::PreimageNoted(proposal_hash, _, _)) => Some(proposal_hash),
+				Event::Democracy(democracy::Event::PreimageNoted(ref proposal_hash, _, _))
+					=> Some(proposal_hash.clone()),
 				_ => None
 			})
 			.next()
-			.ok_or_else(|| "failed to note pre-image")?
+			.ok_or_else(|| format!("democracy::Event::PreimageNoted not found in events: {:#?}", events))?
 	};
 
 	// submit external_propose call through council collective
@@ -151,16 +152,17 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 		node.seal_blocks(1).await;
 
 		// fetch proposal index from event emitted by the runtime
-		let (index, hash): (u32, H256) = node.events()
-			.into_iter()
+		let events = node.events();
+		let (index, hash): (u32, H256) = events.iter()
 			.filter_map(|event| {
 				match event.event {
-					Event::Council(CouncilCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
+					Event::Council(CouncilCollectiveEvent::Proposed(_, index, ref hash, _)) =>
+						Some((index, hash.clone())),
 					_ => None
 				}
 			})
 			.next()
-			.ok_or_else(|| "failed to execute council::Call::propose(democracy::Call::external_propose_majority)")?;
+			.ok_or_else(|| format!("CouncilCollectiveEvent::Proposed not found in events: {:#?}", events))?;
 
 		// vote
 		for member in &council_collective[1..] {
@@ -179,16 +181,20 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 			.into_iter()
 			.filter(|event| {
 				match event.event {
-					Event::Council(CouncilCollectiveEvent::Closed(_, _, _)) |
-					Event::Council(CouncilCollectiveEvent::Approved(_, )) |
-					Event::Council(CouncilCollectiveEvent::Executed(_, Ok(()))) => true,
+					Event::Council(CouncilCollectiveEvent::Closed(_hash, _, _)) if hash == _hash => true,
+					Event::Council(CouncilCollectiveEvent::Approved(_hash, )) if hash == _hash => true,
+					Event::Council(CouncilCollectiveEvent::Executed(_hash, Ok(()))) if hash == _hash => true,
 					_ => false,
 				}
 			})
 			.collect::<Vec<_>>();
 
 		// make sure all 3 events are in state
-		assert_eq!(events.len(), 3);
+		assert_eq!(
+			events.len(), 3,
+			"CouncilCollectiveEvent::{{Closed, Approved, Executed}} not found in events: {:#?}",
+			node.events(),
+		);
 	}
 
 	// next technical collective must fast track the proposal.
@@ -205,16 +211,17 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 		node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
 		node.seal_blocks(1).await;
 
-		let (index, hash) = node.events()
-			.into_iter()
+		let events = node.events();
+		let (index, hash) = events.iter()
 			.filter_map(|event| {
 				match event.event {
-					Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(_, index, hash, _)) => Some((index, hash)),
+					Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(_, index, ref hash, _))
+						=> Some((index, hash.clone())),
 					_ => None
 				}
 			})
 			.next()
-			.ok_or_else(|| "failed to execute council::Call::propose(democracy::Call::fast_track))")?;
+			.ok_or_else(|| format!("TechnicalCollectiveEvent::Proposed not found in events: {:#?}", events))?;
 
 		// vote
 		for member in &technical_collective[1..] {
@@ -233,29 +240,34 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 			.into_iter()
 			.filter(|event| {
 				match event.event {
-					Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_, _, _)) |
-					Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_)) |
-					Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_, Ok(()))) => true,
+					Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_hash, _, _)) if hash == _hash => true,
+					Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_hash)) if hash == _hash => true,
+					Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_hash, Ok(()))) if hash == _hash => true,
 					_ => false,
 				}
 			})
 			.collect::<Vec<_>>();
 
 		// make sure all 3 events are in state
-		assert_eq!(events.len(), 3);
+		assert_eq!(
+			events.len(), 3,
+			"TechnicalCollectiveEvent::{{Closed, Approved, Executed}} not found in events: {:#?}",
+			node.events(),
+		);
 	}
 
 	// now runtime upgrade proposal is a fast-tracked referendum we can vote for.
-	let referendum_index = node.events()
+	let ref_index = node.events()
 		.into_iter()
 		.filter_map(|event| match event.event {
-			Event::Democracy(democracy::Event::<Runtime>::Started(index, _)) => Some(index),
+			Event::Democracy(democracy::Event::Started(index, _)) => Some(index),
 			_ => None,
 		})
 		.next()
-		.ok_or_else(|| "failed to execute council::Call::close")?;
+		.ok_or_else(|| format!("democracy::Event::Started not found in events: {:#?}", node.events()))?;
+
 	let call = DemocracyCall::vote(
-		referendum_index,
+		ref_index,
 		AccountVote::Standard {
 			vote: Vote { aye: true, conviction: Conviction::Locked1x },
 			// 10 DOTS
@@ -274,16 +286,20 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 		.into_iter()
 		.filter(|event| {
 			match event.event {
-				Event::Democracy(democracy::Event::Passed(_)) |
-				Event::Democracy(democracy::Event::PreimageUsed(_, _, _)) |
-				Event::Democracy(democracy::Event::Executed(_, true)) => true,
+				Event::Democracy(democracy::Event::Passed(_index)) if _index == ref_index => true,
+				Event::Democracy(democracy::Event::PreimageUsed(_hash, _, _)) if _hash == proposal_hash => true,
+				Event::Democracy(democracy::Event::Executed(_index, true)) if _index == ref_index => true,
 				_ => false,
 			}
 		})
 		.collect::<Vec<_>>();
 
 	// make sure all events were emitted
-	assert_eq!(events.len(), 3);
+	assert_eq!(
+		events.len(), 3,
+		"democracy::Event::{{Passed, PreimageUsed, Executed}} not found in events: {:#?}",
+		node.events(),
+	);
 	Ok(())
 }
 
