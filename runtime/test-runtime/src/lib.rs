@@ -36,6 +36,7 @@ use polkadot_runtime_parachains::dmp as parachains_dmp;
 use polkadot_runtime_parachains::ump as parachains_ump;
 use polkadot_runtime_parachains::hrmp as parachains_hrmp;
 use polkadot_runtime_parachains::scheduler as parachains_scheduler;
+use polkadot_runtime_parachains::disputes as parachains_disputes;
 use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 
 use primitives::v1::{
@@ -455,7 +456,14 @@ impl parachains_shared::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
 }
 
 impl parachains_paras_inherent::Config for Runtime {}
@@ -537,6 +545,7 @@ construct_runtime! {
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
+		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
