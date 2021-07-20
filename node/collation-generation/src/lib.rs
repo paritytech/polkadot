@@ -443,7 +443,7 @@ struct MetricsInner {
 	new_activations_per_availability_core: prometheus::Histogram,
 }
 
-/// CollationGenerationSubsystem metrics.
+/// `CollationGenerationSubsystem` metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 

@@ -152,7 +152,7 @@ pub(crate) struct Config {
 	n_cores: u32,
 	/// The zeroth delay tranche width.
 	zeroth_delay_tranche_width: u32,
-	/// The number of samples we do of relay_vrf_modulo.
+	/// The number of samples we do of `relay_vrf_modulo`.
 	relay_vrf_modulo_samples: u32,
 	/// The number of delay tranches in total.
 	n_delay_tranches: u32,

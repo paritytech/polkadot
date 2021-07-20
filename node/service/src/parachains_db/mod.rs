@@ -11,7 +11,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A RocksDB instance for storing parachain data; availability data, and approvals.
+//! A `RocksDB` instance for storing parachain data; availability data, and approvals.
 
 #[cfg(feature = "full-node")]
 use {

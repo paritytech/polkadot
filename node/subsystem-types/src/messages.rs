@@ -217,7 +217,7 @@ pub enum DisputeCoordinatorMessage {
 		///		`InvalidImport`)
 		///		- or were known already (in that case the result will still be `ValidImport`)
 		/// - or we recorded them because (`ValidImport`)
-		///		- we casted our own vote already on that dispute
+		///		- we cast our own vote already on that dispute
 		///		- or we have approval votes on that candidate
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
@@ -490,7 +490,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 impl AvailabilityStoreMessage {
-	/// In fact, none of the AvailabilityStore messages assume a particular relay parent.
+	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			_ => None,
@@ -697,8 +697,8 @@ pub enum ProvisionerMessage {
 	/// This message allows external subsystems to request the set of bitfields and backed candidates
 	/// associated with a particular potential block hash.
 	///
-	/// This is expected to be used by a proposer, to inject that information into the InherentData
-	/// where it can be assembled into the ParaInherent.
+	/// This is expected to be used by a proposer, to inject that information into the `InherentData`
+	/// where it can be assembled into the `ParaInherent`.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),

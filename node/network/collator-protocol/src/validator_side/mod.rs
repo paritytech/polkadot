@@ -71,7 +71,7 @@ const BENEFIT_NOTIFY_GOOD: Rep = Rep::BenefitMinor("A collator was noted good by
 ///
 /// This is to protect from a single slow collator preventing collations from happening.
 ///
-/// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
+/// With a collation size of 5MB and bandwidth of 500Mbit/s (requirement for Kusama validators),
 /// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
 /// plenty, even with multiple heads and should be low enough for later collators to still be able
 /// to finish on time.
@@ -718,7 +718,7 @@ where
 }
 
 /// A peer's view has changed. A number of things should be done:
-///  - Ongoing collation requests have to be cancelled.
+///  - Ongoing collation requests have to be canceled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
 async fn handle_peer_view_change(
 	state: &mut State,
@@ -738,7 +738,7 @@ async fn handle_peer_view_change(
 /// This function will
 ///  - Check for duplicate requests.
 ///  - Check if the requested collation is in our view.
-///  - Update PerRequest records with the `result` field if necessary.
+///  - Update `PerRequest` records with the `result` field if necessary.
 /// And as such invocations of this function may rely on that.
 async fn request_collation<Context>(
 	ctx: &mut Context,

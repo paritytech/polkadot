@@ -273,7 +273,7 @@ fn renice(pid: u32, niceness: i32) {
 	}
 }
 
-/// The entrypoint that the spawned prepare worker should start with. The socket_path specifies
+/// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {

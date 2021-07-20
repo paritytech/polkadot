@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # Parachain Crowdloaning pallet
+//! # Parachain `Crowdloaning` pallet
 //!
 //! The point of this pallet is to allow parachain projects to offer the ability to help fund a
 //! deposit for the parachain. When the crowdloan has ended, the funds are returned.
@@ -136,11 +136,11 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
 	last_contribution: LastContribution<BlockNumber>,
-	/// First lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
-	/// as BlockNumber.
+	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
+	/// as `BlockNumber`.
 	first_period: LeasePeriod,
-	/// Last lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
-	/// as BlockNumber.
+	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
+	/// as `BlockNumber`.
 	last_period: LeasePeriod,
 	/// Index used for the child trie of this fund
 	trie_index: TrieIndex,
@@ -160,7 +160,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// PalletId for the crowdloan pallet. An appropriate value could be ```PalletId(*b"py/cfund")```
+		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 
@@ -168,7 +168,7 @@ pub mod pallet {
 		type SubmissionDeposit: Get<BalanceOf<Self>>;
 
 		/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
-		/// least ExistentialDeposit.
+		/// least `ExistentialDeposit`.
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;
 
@@ -176,7 +176,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type RemoveKeysLimit: Get<u32>;
 
-		/// The parachain registrar type. We jus use this to ensure that only the manager of a para is able to
+		/// The parachain registrar type. We just use this to ensure that only the manager of a para is able to
 		/// start a crowdloan for its slot.
 		type Registrar: Registrar<AccountId=Self::AccountId>;
 
@@ -223,26 +223,26 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
-		/// Create a new crowdloaning campaign. [fund_index]
+		/// Create a new crowdloaning campaign. `[fund_index]`
 		Created(ParaId),
-		/// Contributed to a crowd sale. [who, fund_index, amount]
+		/// Contributed to a crowd sale. `[who, fund_index, amount]`
 		Contributed(T::AccountId, ParaId, BalanceOf<T>),
-		/// Withdrew full balance of a contributor. [who, fund_index, amount]
+		/// Withdrew full balance of a contributor. `[who, fund_index, amount]`
 		Withdrew(T::AccountId, ParaId, BalanceOf<T>),
 		/// The loans in a fund have been partially dissolved, i.e. there are some left
-		/// over child keys that still need to be killed. [fund_index]
+		/// over child keys that still need to be killed. `[fund_index]`
 		PartiallyRefunded(ParaId),
-		/// All loans in a fund have been refunded. [fund_index]
+		/// All loans in a fund have been refunded. `[fund_index]`
 		AllRefunded(ParaId),
-		/// Fund is dissolved. [fund_index]
+		/// Fund is dissolved. `[fund_index]`
 		Dissolved(ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
-		/// The configuration to a crowdloan has been edited. [fund_index]
+		/// The configuration to a crowdloan has been edited. `[fund_index]`
 		Edited(ParaId),
-		/// A memo has been updated. [who, fund_index, memo]
+		/// A memo has been updated. `[who, fund_index, memo]`
 		MemoUpdated(T::AccountId, ParaId, Vec<u8>),
-		/// A parachain has been moved to NewRaise
+		/// A parachain has been moved to `NewRaise`
 		AddedToNewRaise(ParaId),
 	}
 
@@ -288,7 +288,7 @@ pub mod pallet {
 		InvalidSignature,
 		/// The provided memo is too large.
 		MemoTooLarge,
-		/// The fund is already in NewRaise
+		/// The fund is already in `NewRaise`
 		AlreadyInNewRaise,
 		/// No contributions allowed during the VRF delay
 		VrfDelayInProgress,
@@ -637,7 +637,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Poke the fund into NewRaise
+		/// Poke the fund into `NewRaise`
 		///
 		/// Origin must be Signed, and the fund has non-zero raise.
 		#[pallet::weight(T::WeightInfo::poke())]

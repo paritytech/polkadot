@@ -32,7 +32,6 @@ use primitives::v1::{
 	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
-	mmr as mmr_common,
 	SlowAdjustingFeeUpdate, impls::ToAuthor, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use runtime_parachains::{
@@ -65,6 +64,7 @@ use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::mmr::MmrLeafVersion;
 use pallet_mmr_primitives as mmr;
 use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
@@ -146,9 +146,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -235,9 +235,9 @@ construct_runtime! {
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage},
+		Mmr: pallet_mmr::{Pallet, Storage},
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
-		MmrLeaf: mmr_common::{Pallet, Storage},
+		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage},
 
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
@@ -589,6 +589,7 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ();
 	type RewardValidators = RewardValidators;
 }
 
@@ -825,27 +826,57 @@ impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
 	type Hash = <Keccak256 as traits::Hash>::Output;
-	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
+	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
-	type LeafData = mmr_common::Pallet<Runtime>;
+	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
 }
 
-impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
-	type ParachainHeads = Paras;
+pub struct ParasProvider;
+impl pallet_beefy_mmr::ParachainHeadsProvider for ParasProvider {
+	fn parachain_heads() -> Vec<(u32, Vec<u8>)> {
+		Paras::parachains()
+			.into_iter()
+			.filter_map(|id| {
+				Paras::para_head(&id).map(|head| (id.into(), head.0))
+			})
+			.collect()
+	}
 }
 
 parameter_types! {
-	// This is a pretty unscientific cap.
-	//
-	// Note that once this is hit the pallet will essentially throttle incoming requests down to one
-	// call per block.
+	/// Version of the produced MMR leaf.
+	///
+	/// The version consists of two parts;
+	/// - `major` (3 bits)
+	/// - `minor` (5 bits)
+	///
+	/// `major` should be updated only if decoding the previous MMR Leaf format from the payload
+	/// is not possible (i.e. backward incompatible change).
+	/// `minor` should be updated if fields are added to the previous MMR Leaf, which given SCALE
+	/// encoding does not prevent old leafs from being decoded.
+	///
+	/// Hence we expect `major` to be changed really rarely (think never).
+	/// See [`MmrLeafVersion`] type documentation for more details.
+	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
+}
+
+impl pallet_beefy_mmr::Config for Runtime {
+	type LeafVersion = LeafVersion;
+	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+	type ParachainHeads = ParasProvider;
+}
+
+parameter_types! {
+	/// This is a pretty unscientific cap.
+	///
+	/// Note that once this is hit the pallet will essentially throttle incoming requests down to one
+	/// call per block.
 	pub const MaxRequests: u32 = 4 * HOURS as u32;
 
-	// Number of headers to keep.
-	//
-	// Assuming the worst case of every header being finalized, we will keep headers at least for a
-	// week.
+	/// Number of headers to keep.
+	///
+	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
+	/// week.
 	pub const HeadersToKeep: u32 = 7 * DAYS as u32;
 }
 
@@ -867,7 +898,7 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
 }
 
-// Instance that is 'deployed' at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
+// Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
 pub type AtWococoFromRococoMessagesDispatch = pallet_bridge_dispatch::DefaultInstance;
 impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runtime {
 	type Event = Event;
@@ -881,7 +912,7 @@ impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runt
 	type AccountIdConverter = bp_rococo::AccountIdConverter;
 }
 
-// Instance that is 'deployed' at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
+// Instance that is "deployed" at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
 pub type AtRococoFromWococoMessagesDispatch = pallet_bridge_dispatch::Instance1;
 impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runtime {
 	type Event = Event;
@@ -904,7 +935,7 @@ parameter_types! {
 	pub const RootAccountForPayments: Option<AccountId> = None;
 }
 
-// Instance that is 'deployed' at Wococo chain. Responsible for sending Wococo -> Rococo messages
+// Instance that is "deployed" at Wococo chain. Responsible for sending Wococo -> Rococo messages
 // and receiving Rococo -> Wococo messages.
 pub type AtWococoWithRococoMessagesInstance = pallet_bridge_messages::DefaultInstance;
 impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
@@ -938,7 +969,7 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 	type MessageDispatch = crate::bridge_messages::FromRococoMessageDispatch;
 }
 
-// Instance that is 'deployed' at Rococo chain. Responsible for sending Rococo -> Wococo messages
+// Instance that is "deployed" at Rococo chain. Responsible for sending Rococo -> Wococo messages
 // and receiving Wococo -> Rococo messages.
 pub type AtRococoWithWococoMessagesInstance = pallet_bridge_messages::Instance1;
 impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runtime {

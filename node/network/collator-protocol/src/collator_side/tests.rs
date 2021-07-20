@@ -863,7 +863,7 @@ fn collators_reject_declare_messages() {
 ///
 /// After the first response is done, the passed in lambda will be called with the receiver for the
 /// next response and a sender for giving feedback on the response of the first transmission. After
-/// the lamda has passed it is assumed that the second response is sent, which is checked by this
+/// the lambda has passed it is assumed that the second response is sent, which is checked by this
 /// function.
 ///
 /// The lambda can trigger occasions on which the second response should be sent, like timeouts,

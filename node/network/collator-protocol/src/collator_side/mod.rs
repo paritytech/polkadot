@@ -58,7 +58,7 @@ const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Message received when previous 
 ///
 /// This is to protect from a single slow validator preventing collations from happening.
 ///
-/// With a collation size of 5Meg and bandwidth of 500Mbit/s (requirement for Kusama validators),
+/// With a collation size of 5MB and bandwidth of 500Mbit/s (requirement for Kusama validators),
 /// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
 /// plenty and should be low enough for later validators to still be able to finish on time.
 ///

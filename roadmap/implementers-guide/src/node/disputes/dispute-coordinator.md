@@ -81,13 +81,14 @@ dispute participation subsystem.
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
 For each leaf in the leaves update:
-  * Fetch the session index for the child of the block with a [`RuntimeApiMessage::SessionIndexForChild`][RuntimeApiMessage].
-  * If the session index is higher than `state.highest_session`:
-    * update `state.highest_session`
-    * remove everything with session index less than `state.highest_session - DISPUTE_WINDOW` from the `"recent-disputes"` in the DB.
-    * Use `iter_with_prefix` to remove everything from `"earliest-session"` up to `state.highest_session - DISPUTE_WINDOW` from the DB under `"candidate-votes"`.
-    * Update `"earliest-session"` to be equal to `state.highest_session - DISPUTE_WINDOW`.
-  * For each new block, explicitly or implicitly, under the new leaf, scan for a dispute digest which indicates a rollback. If a rollback is detected, use the ChainApi subsystem to blacklist the chain.
+
+* Fetch the session index for the child of the block with a [`RuntimeApiMessage::SessionIndexForChild`][RuntimeApiMessage].
+* If the session index is higher than `state.highest_session`:
+  * update `state.highest_session`
+  * remove everything with session index less than `state.highest_session - DISPUTE_WINDOW` from the `"recent-disputes"` in the DB.
+  * Use `iter_with_prefix` to remove everything from `"earliest-session"` up to `state.highest_session - DISPUTE_WINDOW` from the DB under `"candidate-votes"`.
+  * Update `"earliest-session"` to be equal to `state.highest_session - DISPUTE_WINDOW`.
+* For each new block, explicitly or implicitly, under the new leaf, scan for a dispute digest which indicates a rollback. If a rollback is detected, use the `ChainApi` subsystem to blacklist the chain.
 
 ### On `OverseerSignal::Conclude`
 
@@ -144,7 +145,7 @@ Do nothing.
 ### On `DisputeCoordinatorMessage::QueryCandidateVotes`
 
 * Load `"candidate-votes"` for every `(SessionIndex, CandidateHash)` in the query and return data within each `CandidateVote`.
-  If a particular `candidate-vote` is missing, that particular request is ommitted from the response.
+  If a particular `candidate-vote` is missing, that particular request is omitted from the response.
 
 ### On `DisputeCoordinatorMessage::IssueLocalStatement`
 
