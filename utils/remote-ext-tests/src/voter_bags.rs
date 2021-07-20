@@ -1,3 +1,19 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_storage::well_known_keys;
 use pallet_staking::{
@@ -7,7 +23,7 @@ use pallet_staking::{
 use frame_support::{assert_ok, traits::Get};
 use sp_runtime::traits::Block as BlockT;
 
-const LOG_TARGET: &'static str = "runtime::test";
+const LOG_TARGET: &'static str = "remote-ext-tests";
 
 fn init_logger() {
 	sp_tracing::try_init_simple();

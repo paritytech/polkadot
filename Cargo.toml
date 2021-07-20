@@ -36,7 +36,6 @@ members = [
 	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
-	"runtime/tests",
 	"statement-table",
 	"xcm",
 	"xcm/xcm-builder",
@@ -87,6 +86,7 @@ members = [
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
 	"utils/staking-miner",
+	"utils/remote-ext-tests",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
