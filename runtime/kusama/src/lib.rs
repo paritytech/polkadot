@@ -60,7 +60,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
 	IsConcrete, FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32,
+	IsChildSystemParachain, UsingComponents, BackingToPlurality, SignedToAccountId32, DerivedParachainAccountId32,
 };
 use xcm_executor::XcmExecutor;
 use sp_arithmetic::Perquintill;
@@ -1222,6 +1222,8 @@ pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
 	AccountId32Aliases<KusamaNetwork, AccountId>,
+	// We can generate local account ids for accounts originating on parachains.
+	DerivedParachainAccountId32<KusamaNetwork, AccountId>,
 );
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of

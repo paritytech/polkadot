@@ -94,7 +94,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
 	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
-	BackingToPlurality, SignedToAccountId32, UsingComponents,
+	BackingToPlurality, SignedToAccountId32, UsingComponents, DerivedParachainAccountId32,
 };
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
@@ -608,6 +608,8 @@ parameter_types! {
 pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<RococoNetwork, AccountId>,
+	// We can generate local account ids for accounts originating on parachains.
+	DerivedParachainAccountId32<RococoNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor =

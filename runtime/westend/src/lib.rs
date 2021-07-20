@@ -61,7 +61,7 @@ use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete,
 	FixedWeightBounds, TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, UsingComponents, SignedToAccountId32,
+	IsChildSystemParachain, UsingComponents, SignedToAccountId32, DerivedParachainAccountId32,
 };
 
 use sp_runtime::{
@@ -880,6 +880,8 @@ parameter_types! {
 pub type LocationConverter = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	AccountId32Aliases<WestendNetwork, AccountId>,
+	// We can generate local account ids for accounts originating on parachains.
+	DerivedParachainAccountId32<WestendNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor =
