@@ -345,7 +345,7 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			}
 		};
 
-		// Prevent sending flawed data to the controller.
+		// Prevent sending flawed data to the dispute-coordinator.
 		if Some(subchain_block_descriptions.len() as _) != subchain_number.checked_sub(target_number) {
 			tracing::error!(
 				LOG_TARGET,
@@ -356,6 +356,9 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			);
 			return Ok(Some(target_hash));
 		}
+
+		let lag = initial_leaf_number.saturating_sub(subchain_number);
+		self.metrics.note_approval_checking_finality_lag(lag);
 
 		// 3. Constrain according to disputes:
 		let (tx, rx) = oneshot::channel();
@@ -371,9 +374,9 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			.unwrap_or_else(|| (subchain_number, subchain_head));
 
-		let lag = initial_leaf_number.saturating_sub(subchain_number);
-		self.metrics.note_approval_checking_finality_lag(lag);
-		self.metrics.note_disputes_finality_lag(0);
+		// The the total lag accounting for disputes.
+		let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+		self.metrics.note_disputes_finality_lag(lag_disputes);
 
 		// 4. Apply the maximum safeguard to the finality lag.
 		if lag > MAX_FINALITY_LAG {
