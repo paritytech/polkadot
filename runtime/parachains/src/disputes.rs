@@ -534,7 +534,8 @@ impl StatementSetFilter {
 
 				// reverse order ensures correctness
 				for index in indices.into_iter().rev() {
-					statement_set.statements.remove(index);
+					// swap_remove guarantees linear complexity.
+					statement_set.statements.swap_remove(index);
 				}
 
 				if statement_set.statements.is_empty() {
