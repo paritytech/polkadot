@@ -17,6 +17,7 @@
 use std::collections::HashMap;
 
 use super::*;
+use overseer::TimeoutExt;
 use polkadot_primitives::v1::{BlakeTwo256, HashT, ValidatorId, Header, SessionInfo};
 use polkadot_node_subsystem::{jaeger, ActiveLeavesUpdate, ActivatedLeaf, LeafStatus};
 use polkadot_node_subsystem::messages::{
@@ -1229,6 +1230,102 @@ fn resume_dispute_without_local_statement() {
 				report_availability.send(true).unwrap();
 			}
 		);
+
+		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
+	}));
+}
+
+#[test]
+fn resume_dispute_with_local_statement() {
+	let session = 1;
+
+	test_harness(|mut test_state, mut virtual_overseer| Box::pin(async move {
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+		let candidate_receipt = CandidateReceipt::default();
+		let candidate_hash = candidate_receipt.hash();
+
+		test_state.activate_leaf_at_session(
+			&mut virtual_overseer,
+			session,
+			1,
+		).await;
+
+		let local_valid_vote = test_state.issue_statement_with_index(
+			0,
+			candidate_hash,
+			session,
+			true,
+		).await;
+
+		let valid_vote = test_state.issue_statement_with_index(
+			1,
+			candidate_hash,
+			session,
+			true,
+		).await;
+
+		let invalid_vote = test_state.issue_statement_with_index(
+			2,
+			candidate_hash,
+			session,
+			false,
+		).await;
+
+		let (pending_confirmation, confirmation_rx) = oneshot::channel();
+		virtual_overseer.send(FromOverseer::Communication {
+			msg: DisputeCoordinatorMessage::ImportStatements {
+				candidate_hash,
+				candidate_receipt: candidate_receipt.clone(),
+				session,
+				statements: vec![
+					(local_valid_vote, ValidatorIndex(0)),
+					(valid_vote, ValidatorIndex(1)),
+					(invalid_vote, ValidatorIndex(2)),
+				],
+				pending_confirmation,
+			},
+		}).await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeParticipation(
+				DisputeParticipationMessage::Participate {
+					report_availability,
+					..
+				}
+			) => {
+				report_availability.send(true).unwrap();
+			}
+		);
+
+		assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+		{
+			let (tx, rx) = oneshot::channel();
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().len(), 1);
+		}
+
+		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		assert!(virtual_overseer.try_recv().await.is_none());
+
+		test_state
+	}))
+	// Alice should send a DisputeParticiationMessage::Participate on restart since she has no
+	// local statement for the active dispute.
+	.resume(|test_state, mut virtual_overseer| Box::pin(async move {
+		test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+		// Assert that subsystem is not sending Participation messages because we issued a local statement
+		assert!(virtual_overseer.recv().timeout(std::time::Duration::from_secs(2)).await.is_none());
 
 		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		assert!(virtual_overseer.try_recv().await.is_none());
