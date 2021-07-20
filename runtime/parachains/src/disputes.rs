@@ -686,7 +686,7 @@ impl<T: Config> Pallet<T> {
 	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
 		let config = <configuration::Pallet<T>>::config();
 
-		let old_statement_sets = sp_std::mem::replace(statement_sets, Vec::new());
+		let old_statement_sets = sp_std::mem::take(statement_sets);
 
 		// Deduplicate.
 		let dedup_iter = {
