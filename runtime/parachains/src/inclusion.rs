@@ -780,7 +780,7 @@ impl<T: Config> Pallet<T> {
 
 		for para_id in cleaned_up_ids {
 			let _ = <PendingAvailability<T>>::take(&para_id);
-			let _ = <PendingAvailabilityCommitments>::take(&para_id);
+			let _ = <PendingAvailabilityCommitments<T>>::take(&para_id);
 		}
 
 		cleaned_up_cores

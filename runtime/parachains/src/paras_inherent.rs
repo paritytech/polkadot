@@ -137,7 +137,7 @@ decl_module! {
 						.map(|(_, c)| *c)
 						.collect();
 
-					<inclusion::Module<T>>::collect_disputed(current_session_disputes)
+					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
 						.collect()
