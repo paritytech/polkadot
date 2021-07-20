@@ -54,6 +54,7 @@ impl<
 		for_tuples!( #(
 			match Tuple::matches_fungibles(a) { o @ Ok(_) => return o, _ => () }
 		)* );
+		log::trace!(target: "xcm::matches_fungibles", "did not match fungibles asset: {:?}", &a);
 		Err(Error::AssetNotFound)
 	}
 }

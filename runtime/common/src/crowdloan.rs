@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # Parachain Crowdloaning pallet
+//! # Parachain `Crowdloaning` pallet
 //!
 //! The point of this pallet is to allow parachain projects to offer the ability to help fund a
 //! deposit for the parachain. When the crowdloan has ended, the funds are returned.
@@ -136,11 +136,11 @@ pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// If this is `Ending(n)`, this fund received a contribution during the current ending period,
 	/// where `n` is how far into the ending period the contribution was made.
 	last_contribution: LastContribution<BlockNumber>,
-	/// First lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
-	/// as BlockNumber.
+	/// First lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
+	/// as `BlockNumber`.
 	first_period: LeasePeriod,
-	/// Last lease period in range to bid on; it's actually a LeasePeriod, but that's the same type
-	/// as BlockNumber.
+	/// Last lease period in range to bid on; it's actually a `LeasePeriod`, but that's the same type
+	/// as `BlockNumber`.
 	last_period: LeasePeriod,
 	/// Index used for the child trie of this fund
 	trie_index: TrieIndex,
@@ -160,7 +160,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// PalletId for the crowdloan pallet. An appropriate value could be ```PalletId(*b"py/cfund")```
+		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 
@@ -168,7 +168,7 @@ pub mod pallet {
 		type SubmissionDeposit: Get<BalanceOf<Self>>;
 
 		/// The minimum amount that may be contributed into a crowdloan. Should almost certainly be at
-		/// least ExistentialDeposit.
+		/// least `ExistentialDeposit`.
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;
 
@@ -176,7 +176,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type RemoveKeysLimit: Get<u32>;
 
-		/// The parachain registrar type. We jus use this to ensure that only the manager of a para is able to
+		/// The parachain registrar type. We just use this to ensure that only the manager of a para is able to
 		/// start a crowdloan for its slot.
 		type Registrar: Registrar<AccountId=Self::AccountId>;
 
@@ -223,26 +223,26 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
-		/// Create a new crowdloaning campaign. [fund_index]
+		/// Create a new crowdloaning campaign. `[fund_index]`
 		Created(ParaId),
-		/// Contributed to a crowd sale. [who, fund_index, amount]
+		/// Contributed to a crowd sale. `[who, fund_index, amount]`
 		Contributed(T::AccountId, ParaId, BalanceOf<T>),
-		/// Withdrew full balance of a contributor. [who, fund_index, amount]
+		/// Withdrew full balance of a contributor. `[who, fund_index, amount]`
 		Withdrew(T::AccountId, ParaId, BalanceOf<T>),
 		/// The loans in a fund have been partially dissolved, i.e. there are some left
-		/// over child keys that still need to be killed. [fund_index]
+		/// over child keys that still need to be killed. `[fund_index]`
 		PartiallyRefunded(ParaId),
-		/// All loans in a fund have been refunded. [fund_index]
+		/// All loans in a fund have been refunded. `[fund_index]`
 		AllRefunded(ParaId),
-		/// Fund is dissolved. [fund_index]
+		/// Fund is dissolved. `[fund_index]`
 		Dissolved(ParaId),
 		/// The result of trying to submit a new bid to the Slots pallet.
 		HandleBidResult(ParaId, DispatchResult),
-		/// The configuration to a crowdloan has been edited. [fund_index]
+		/// The configuration to a crowdloan has been edited. `[fund_index]`
 		Edited(ParaId),
-		/// A memo has been updated. [who, fund_index, memo]
+		/// A memo has been updated. `[who, fund_index, memo]`
 		MemoUpdated(T::AccountId, ParaId, Vec<u8>),
-		/// A parachain has been moved to NewRaise
+		/// A parachain has been moved to `NewRaise`
 		AddedToNewRaise(ParaId),
 	}
 
@@ -288,15 +288,18 @@ pub mod pallet {
 		InvalidSignature,
 		/// The provided memo is too large.
 		MemoTooLarge,
-		/// The fund is already in NewRaise
-		AlreadyInNewRaise
+		/// The fund is already in `NewRaise`
+		AlreadyInNewRaise,
+		/// No contributions allowed during the VRF delay
+		VrfDelayInProgress,
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(n: T::BlockNumber) -> frame_support::weights::Weight {
-			if let Some(n) = T::Auctioneer::is_ending(n) {
-				if n.is_zero() {
+		fn on_initialize(num: T::BlockNumber) -> frame_support::weights::Weight {
+			if let Some((sample, sub_sample)) = T::Auctioneer::auction_status(num).is_ending() {
+				// This is the very first block in the ending period
+				if sample.is_zero() && sub_sample.is_zero() {
 					// first block of ending period.
 					EndingsCount::<T>::mutate(|c| *c += 1);
 				}
@@ -413,6 +416,10 @@ pub mod pallet {
 			let fund_account = Self::fund_account_id(index);
 			ensure!(!T::Auctioneer::has_won_an_auction(index, &fund_account), Error::<T>::BidOrLeaseActive);
 
+			// We disallow any crowdloan contributions during the VRF Period, so that people do not sneak their
+			// contributions into the auction when it would not impact the outcome.
+			ensure!(!T::Auctioneer::auction_status(now).is_vrf(), Error::<T>::VrfDelayInProgress);
+
 			let (old_balance, memo) = Self::contribution_get(fund.trie_index, &who);
 
 			if let Some(ref verifier) = fund.verifier {
@@ -427,7 +434,7 @@ pub mod pallet {
 			let balance = old_balance.saturating_add(value);
 			Self::contribution_put(fund.trie_index, &who, &balance, &memo);
 
-			if T::Auctioneer::is_ending(now).is_some() {
+			if T::Auctioneer::auction_status(now).is_ending().is_some() {
 				match fund.last_contribution {
 					// In ending period; must ensure that we are in NewRaise.
 					LastContribution::Ending(n) if n == now => {
@@ -630,7 +637,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Poke the fund into NewRaise
+		/// Poke the fund into `NewRaise`
 		///
 		/// Origin must be Signed, and the fund has non-zero raise.
 		#[pallet::weight(T::WeightInfo::poke())]
@@ -758,7 +765,7 @@ mod tests {
 	};
 	use crate::{
 		mock::TestRegistrar,
-		traits::OnSwap,
+		traits::{OnSwap, AuctionStatus},
 		crowdloan,
 	};
 	use sp_keystore::{KeystoreExt, testing::KeyStore};
@@ -785,7 +792,7 @@ mod tests {
 	type BlockNumber = u64;
 
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -837,6 +844,7 @@ mod tests {
 	}
 	thread_local! {
 		static AUCTION: RefCell<Option<(u64, u64)>> = RefCell::new(None);
+		static VRF_DELAY: RefCell<u64> = RefCell::new(0);
 		static ENDING_PERIOD: RefCell<u64> = RefCell::new(5);
 		static BIDS_PLACED: RefCell<Vec<BidPlaced>> = RefCell::new(Vec::new());
 		static HAS_WON: RefCell<BTreeMap<(ParaId, u64), bool>> = RefCell::new(BTreeMap::new());
@@ -854,6 +862,12 @@ mod tests {
 	}
 	fn bids() -> Vec<BidPlaced> {
 		BIDS_PLACED.with(|p| p.borrow().clone())
+	}
+	fn vrf_delay() -> u64 {
+		VRF_DELAY.with(|p| p.borrow().clone())
+	}
+	fn set_vrf_delay(delay: u64) {
+		VRF_DELAY.with(|p| *p.borrow_mut() = delay);
 	}
 	// Emulate what would happen if we won an auction:
 	// balance is reserved and a deposit_held is recorded
@@ -884,15 +898,29 @@ mod tests {
 			Ok(())
 		}
 
-		fn is_ending(now: u64) -> Option<u64> {
-			if let Some((_, early_end)) = auction() {
-				if let Some(after_early_end) = now.checked_sub(early_end) {
-					if after_early_end < ending_period() {
-						return Some(after_early_end)
-					}
+		fn auction_status(now: u64) -> AuctionStatus<u64> {
+			let early_end = match auction() {
+				Some((_, early_end)) => early_end,
+				None => return AuctionStatus::NotStarted,
+			};
+			let after_early_end = match now.checked_sub(early_end) {
+				Some(after_early_end) => after_early_end,
+				None => return AuctionStatus::StartingPeriod,
+			};
+
+			let ending_period = ending_period();
+			if after_early_end < ending_period {
+				return AuctionStatus::EndingPeriod(after_early_end, 0)
+			} else {
+				let after_end = after_early_end - ending_period;
+				// Optional VRF delay
+				if after_end < vrf_delay() {
+					return AuctionStatus::VrfDelay(after_end);
+				} else {
+					// VRF delay is done, so we just end the auction
+					return AuctionStatus::NotStarted;
 				}
 			}
-			None
 		}
 
 		fn place_bid(
@@ -997,10 +1025,10 @@ mod tests {
 			assert_ok!(TestAuctioneer::place_bid(1, 2.into(), 0, 3, 6));
 			let b = BidPlaced { height: 0, bidder: 1, para: 2.into(), first_period: 0, last_period: 3, amount: 6 };
 			assert_eq!(bids(), vec![b]);
-			assert_eq!(TestAuctioneer::is_ending(4), None);
-			assert_eq!(TestAuctioneer::is_ending(5), Some(0));
-			assert_eq!(TestAuctioneer::is_ending(9), Some(4));
-			assert_eq!(TestAuctioneer::is_ending(11), None);
+			assert_eq!(TestAuctioneer::auction_status(4), AuctionStatus::<u64>::StartingPeriod);
+			assert_eq!(TestAuctioneer::auction_status(5), AuctionStatus::<u64>::EndingPeriod(0, 0));
+			assert_eq!(TestAuctioneer::auction_status(9), AuctionStatus::<u64>::EndingPeriod(4, 0));
+			assert_eq!(TestAuctioneer::auction_status(11), AuctionStatus::<u64>::NotStarted);
 		});
 	}
 
@@ -1210,10 +1238,40 @@ mod tests {
 	}
 
 	#[test]
+	fn cannot_contribute_during_vrf() {
+		new_test_ext().execute_with(|| {
+			set_vrf_delay(5);
+
+			let para = new_para();
+			let first_period = 1;
+			let last_period = 4;
+
+			assert_ok!(TestAuctioneer::new_auction(5, 0));
+
+			// Set up a crowdloan
+			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, first_period, last_period, 20, None));
+
+			run_to_block(8);
+			// Can def contribute when auction is running.
+			assert!(TestAuctioneer::auction_status(System::block_number()).is_ending().is_some());
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 250, None));
+
+			run_to_block(10);
+			// Can't contribute when auction is in the VRF delay period.
+			assert!(TestAuctioneer::auction_status(System::block_number()).is_vrf());
+			assert_noop!(Crowdloan::contribute(Origin::signed(2), para, 250, None), Error::<Test>::VrfDelayInProgress);
+
+			run_to_block(15);
+			// Its fine to contribute when no auction is running.
+			assert!(!TestAuctioneer::auction_status(System::block_number()).is_in_progress());
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 250, None));
+		})
+	}
+
+	#[test]
 	fn bidding_works() {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
-
 			let first_period = 1;
 			let last_period = 4;
 
@@ -1811,7 +1869,7 @@ mod benchmarking {
 				.ok_or("duration of auction less than zero")?;
 			T::Auctioneer::new_auction(duration, lease_period_index)?;
 
-			assert_eq!(T::Auctioneer::is_ending(end_block), Some(0u32.into()));
+			assert_eq!(T::Auctioneer::auction_status(end_block).is_ending(), Some((0u32.into(), 0u32.into())));
 			assert_eq!(NewRaise::<T>::get().len(), n as usize);
 			let old_endings_count = EndingsCount::<T>::get();
 		}: {

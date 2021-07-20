@@ -25,24 +25,27 @@ use polkadot_node_subsystem::{
 	messages::{
 		AssignmentCheckError, AssignmentCheckResult, ApprovalCheckError, ApprovalCheckResult,
 		ApprovalVotingMessage, RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage,
-		ApprovalDistributionMessage, ValidationFailed, CandidateValidationMessage,
-		AvailabilityRecoveryMessage,
+		ApprovalDistributionMessage, CandidateValidationMessage,
+		AvailabilityRecoveryMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
+		ImportStatementsResult,
 	},
 	errors::RecoveryError,
-	Subsystem, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
-	FromOverseer, OverseerSignal,
+	overseer::{self, SubsystemSender as _}, SubsystemContext, SubsystemError, SubsystemResult, SpawnedSubsystem,
+	FromOverseer, OverseerSignal, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
+	TimeoutExt,
 	metrics::{self, prometheus},
 	rolling_session_window::RollingSessionWindow,
 };
 use polkadot_primitives::v1::{
 	ValidatorIndex, Hash, SessionIndex, SessionInfo, CandidateHash,
-	CandidateReceipt, BlockNumber, PersistedValidationData,
-	ValidationCode, CandidateDescriptor, ValidatorPair, ValidatorSignature, ValidatorId,
-	CandidateIndex, GroupIndex, ApprovalVote,
+	CandidateReceipt, BlockNumber,
+	ValidatorPair, ValidatorSignature, ValidatorId,
+	CandidateIndex, GroupIndex, ApprovalVote, DisputeStatement,
+	ValidDisputeStatementKind,
 };
-use polkadot_node_primitives::{ValidationResult, PoV};
+use polkadot_node_primitives::{SignedDisputeStatement, ValidationResult};
 use polkadot_node_primitives::approval::{
 	IndirectAssignmentCert, IndirectSignedApprovalVote, DelayTranche, BlockApprovalMeta,
 };
@@ -50,17 +53,18 @@ use polkadot_node_jaeger as jaeger;
 use sc_keystore::LocalKeystore;
 use sp_consensus::SyncOracle;
 use sp_consensus_slots::Slot;
-use sp_runtime::traits::AppVerify;
 use sp_application_crypto::Pair;
 use kvdb::KeyValueDB;
 
 use futures::prelude::*;
-use futures::future::RemoteHandle;
-use futures::channel::{mpsc, oneshot};
+use futures::future::{BoxFuture, RemoteHandle};
+use futures::channel::oneshot;
+use futures::stream::FuturesUnordered;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::collections::btree_map::Entry;
 use std::sync::Arc;
+use std::time::Duration;
 
 use approval_checking::RequiredTranches;
 use persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
@@ -69,17 +73,26 @@ use time::{slot_number_to_tick, Tick, Clock, ClockExt, SystemClock};
 
 mod approval_checking;
 mod approval_db;
+mod backend;
 mod criteria;
 mod import;
+mod ops;
 mod time;
 mod persisted_entries;
 
-use crate::approval_db::v1::Config as DatabaseConfig;
+use crate::approval_db::v1::{DbBackend, Config as DatabaseConfig};
+use crate::backend::{Backend, OverlayedBackend};
 
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod old_tests;
+
 const APPROVAL_SESSIONS: SessionIndex = 6;
+const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
+const APPROVAL_CACHE_SIZE: usize = 1024;
+const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 
 /// Configuration for the approval voting subsystem
@@ -108,7 +121,7 @@ enum Mode {
 
 /// The approval voting subsystem.
 pub struct ApprovalVotingSubsystem {
-	/// LocalKeystore is needed for assignment keys, but not necessarily approval keys.
+	/// `LocalKeystore` is needed for assignment keys, but not necessarily approval keys.
 	///
 	/// We do a lot of VRF signing and need the keys to have low latency.
 	keystore: Arc<LocalKeystore>,
@@ -132,7 +145,7 @@ struct MetricsInner {
 	time_recover_and_approve: prometheus::Histogram,
 }
 
-/// Aproval Voting metrics.
+/// Approval Voting metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
@@ -321,15 +334,20 @@ impl ApprovalVotingSubsystem {
 	}
 }
 
-impl<C> Subsystem<C> for ApprovalVotingSubsystem
-	where C: SubsystemContext<Message = ApprovalVotingMessage>
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
+where
+	Context: SubsystemContext<Message = ApprovalVotingMessage>,
+	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run::<C>(
+
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let backend = DbBackend::new(self.db.clone(), self.db_config);
+		let future = run::<DbBackend, Context>(
 			ctx,
 			self,
 			Box::new(SystemClock),
 			Box::new(RealAssignmentCriteria),
+			backend,
 		)
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 			.boxed();
@@ -341,21 +359,10 @@ impl<C> Subsystem<C> for ApprovalVotingSubsystem
 	}
 }
 
-enum BackgroundRequest {
-	ApprovalVote(ApprovalVoteRequest),
-	CandidateValidation(
-		PersistedValidationData,
-		ValidationCode,
-		CandidateDescriptor,
-		Arc<PoV>,
-		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
-	),
-}
-
+#[derive(Debug, Clone)]
 struct ApprovalVoteRequest {
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
-	candidate_index: usize,
 }
 
 #[derive(Default)]
@@ -467,88 +474,124 @@ impl Wakeups {
 	}
 }
 
-/// A read-only handle to a database.
-trait DBReader {
-	fn load_block_entry(
-		&self,
-		block_hash: &Hash,
-	) -> SubsystemResult<Option<BlockEntry>>;
-
-	fn load_candidate_entry(
-		&self,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<CandidateEntry>>;
-
-	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>>;
-}
-
-// This is a submodule to enforce opacity of the inner DB type.
-mod approval_db_v1_reader {
-	use super::{
-		DBReader, KeyValueDB, Hash, CandidateHash, BlockEntry, CandidateEntry,
-		SubsystemResult, SubsystemError, DatabaseConfig, approval_db,
-	};
-
-	/// A DB reader that uses the approval-db V1 under the hood.
-	pub(super) struct ApprovalDBV1Reader<T> {
-		inner: T,
-		config: DatabaseConfig,
-	}
-
-	impl<T> ApprovalDBV1Reader<T> {
-		pub(super) fn new(inner: T, config: DatabaseConfig) -> Self {
-			ApprovalDBV1Reader {
-				inner,
-				config,
-			}
-		}
-	}
-
-	impl<'a, T: 'a> DBReader for ApprovalDBV1Reader<T>
-		where T: std::ops::Deref<Target=(dyn KeyValueDB + 'a)>
-	{
-		fn load_block_entry(
-			&self,
-			block_hash: &Hash,
-		) -> SubsystemResult<Option<BlockEntry>> {
-			approval_db::v1::load_block_entry(&*self.inner, &self.config, block_hash)
-				.map(|e| e.map(Into::into))
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-		}
-
-		fn load_candidate_entry(
-			&self,
-			candidate_hash: &CandidateHash,
-		) -> SubsystemResult<Option<CandidateEntry>> {
-			approval_db::v1::load_candidate_entry(&*self.inner, &self.config, candidate_hash)
-				.map(|e| e.map(Into::into))
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-		}
-
-		fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
-			approval_db::v1::load_all_blocks(&*self.inner, &self.config)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-		}
-	}
-}
-use approval_db_v1_reader::ApprovalDBV1Reader;
-
 struct ApprovalStatus {
 	required_tranches: RequiredTranches,
 	tranche_now: DelayTranche,
 	block_tick: Tick,
 }
 
-struct State<T> {
+#[derive(Copy, Clone)]
+enum ApprovalOutcome {
+	Approved,
+	Failed,
+	TimedOut,
+}
+
+struct ApprovalState {
+	validator_index: ValidatorIndex,
+	candidate_hash: CandidateHash,
+	approval_outcome: ApprovalOutcome,
+}
+
+impl ApprovalState {
+	fn approved(
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) -> Self {
+		Self {
+			validator_index,
+			candidate_hash,
+			approval_outcome: ApprovalOutcome::Approved,
+		}
+	}
+	fn failed(
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) -> Self {
+		Self {
+			validator_index,
+			candidate_hash,
+			approval_outcome: ApprovalOutcome::Failed,
+		}
+	}
+}
+
+struct CurrentlyCheckingSet {
+	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
+	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
+}
+
+impl Default for CurrentlyCheckingSet {
+	fn default() -> Self {
+		Self {
+			candidate_hash_map: HashMap::new(),
+			currently_checking: FuturesUnordered::new(),
+		}
+	}
+}
+
+impl CurrentlyCheckingSet {
+	// This function will lazily launch approval voting work whenever the
+	// candidate is not already undergoing validation.
+	pub async fn insert_relay_block_hash(
+		&mut self,
+		candidate_hash: CandidateHash,
+		validator_index: ValidatorIndex,
+		relay_block: Hash,
+		launch_work: impl Future<Output = SubsystemResult<RemoteHandle<ApprovalState>>>,
+	) -> SubsystemResult<()> {
+		let val = self.candidate_hash_map
+			.entry(candidate_hash)
+			.or_insert(Default::default());
+
+		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
+			let _ = val.insert(k, relay_block);
+			let work = launch_work.await?;
+			self.currently_checking.push(
+				Box::pin(async move {
+					match work.timeout(APPROVAL_CHECKING_TIMEOUT).await {
+						None => ApprovalState {
+							candidate_hash,
+							validator_index,
+							approval_outcome: ApprovalOutcome::TimedOut,
+						},
+						Some(approval_state) => approval_state,
+					}
+				})
+			);
+		}
+
+		Ok(())
+	}
+
+	pub async fn next(
+		&mut self,
+		approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
+	) -> (Vec<Hash>, ApprovalState) {
+		if !self.currently_checking.is_empty() {
+			if let Some(approval_state) = self.currently_checking
+				.next()
+				.await
+			{
+				let out = self.candidate_hash_map.remove(&approval_state.candidate_hash).unwrap_or_default();
+				approvals_cache.put(approval_state.candidate_hash.clone(), approval_state.approval_outcome.clone());
+				return (out, approval_state);
+			}
+		}
+
+		future::pending().await
+	}
+}
+
+struct State {
 	session_window: RollingSessionWindow,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
-	db: T,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
-impl<T> State<T> {
+impl State {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
 		self.session_window.session_info(i)
 	}
@@ -600,7 +643,7 @@ impl<T> State<T> {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Action {
 	ScheduleWakeup {
 		block_hash: Hash,
@@ -608,57 +651,63 @@ enum Action {
 		candidate_hash: CandidateHash,
 		tick: Tick,
 	},
-	WriteBlockEntry(BlockEntry),
-	WriteCandidateEntry(CandidateHash, CandidateEntry),
 	LaunchApproval {
+		candidate_hash: CandidateHash,
 		indirect_cert: IndirectAssignmentCert,
 		assignment_tranche: DelayTranche,
-		relay_block_number: BlockNumber,
+		relay_block_hash: Hash,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
+	InformDisputeCoordinator {
+		candidate_hash: CandidateHash,
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		dispute_statement: SignedDisputeStatement,
+		validator_index: ValidatorIndex,
+	},
+	NoteApprovedInChainSelection(Hash),
+	IssueApproval(CandidateHash, ApprovalVoteRequest),
 	BecomeActive,
 	Conclude,
 }
 
-type BackgroundTaskMap = BTreeMap<BlockNumber, Vec<RemoteHandle<()>>>;
-
-async fn run<C>(
-	mut ctx: C,
+async fn run<B, Context>(
+	mut ctx: Context,
 	mut subsystem: ApprovalVotingSubsystem,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	mut backend: B,
 ) -> SubsystemResult<()>
-	where C: SubsystemContext<Message = ApprovalVotingMessage>
+	where
+		Context: SubsystemContext<Message = ApprovalVotingMessage>,
+		Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+		B: Backend,
 {
-	let (background_tx, background_rx) = mpsc::channel::<BackgroundRequest>(64);
 	let mut state = State {
 		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
-		db: ApprovalDBV1Reader::new(subsystem.db.clone(), subsystem.db_config.clone()),
 		clock,
 		assignment_criteria,
 	};
 
 	let mut wakeups = Wakeups::default();
-
-	// map block numbers to background work.
-	let mut background_tasks = BTreeMap::new();
+	let mut currently_checking_set = CurrentlyCheckingSet::default();
+	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
-	let mut background_rx = background_rx.fuse();
-
-	let db_writer = &*subsystem.db;
 
 	loop {
+		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
 					&mut state,
+					&mut overlayed_db,
 					woken_block,
 					woken_candidate,
 					tick,
@@ -668,17 +717,12 @@ async fn run<C>(
 				let mut actions = handle_from_overseer(
 					&mut ctx,
 					&mut state,
+					&mut overlayed_db,
 					&subsystem.metrics,
-					db_writer,
-					subsystem.db_config,
 					next_msg?,
 					&mut last_finalized_height,
 					&mut wakeups,
 				).await?;
-
-				if let Some(finalized_height) = last_finalized_height {
-					cleanup_background_tasks(finalized_height, &mut background_tasks);
-				}
 
 				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
 					if !oracle.is_major_syncing() {
@@ -689,73 +733,136 @@ async fn run<C>(
 
 				actions
 			}
-			background_request = background_rx.next().fuse() => {
-				if let Some(req) = background_request {
-					handle_background_request(
-						&mut ctx,
-						&mut state,
-						&subsystem.metrics,
-						req,
-					).await?
-				} else {
-					Vec::new()
+			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
+				let mut actions = Vec::new();
+				let (
+					relay_block_hashes,
+					ApprovalState {
+						validator_index,
+						candidate_hash,
+						approval_outcome,
+					}
+				) = approval_state;
+
+				if matches!(approval_outcome, ApprovalOutcome::Approved) {
+					let mut approvals: Vec<Action> = relay_block_hashes
+						.into_iter()
+						.map(|block_hash|
+							Action::IssueApproval(
+								candidate_hash,
+								ApprovalVoteRequest {
+									validator_index,
+									block_hash,
+								},
+							)
+						)
+						.collect();
+					actions.append(&mut approvals);
 				}
+
+				actions
 			}
 		};
 
 		if handle_actions(
 			&mut ctx,
+			&mut state,
+			&mut overlayed_db,
 			&subsystem.metrics,
 			&mut wakeups,
-			db_writer,
-			subsystem.db_config,
-			&background_tx,
-			&mut background_tasks,
+			&mut currently_checking_set,
+			&mut approvals_cache,
 			&mut subsystem.mode,
 			actions,
 		).await? {
 			break;
+		}
+
+		if !overlayed_db.is_empty() {
+			let _timer = subsystem.metrics.time_db_transaction();
+
+			let ops = overlayed_db.into_write_ops();
+			backend.write(ops)?;
 		}
 	}
 
 	Ok(())
 }
 
+// Handle actions is a function that accepts a set of instructions
+// and subsequently updates the underlying approvals_db in accordance
+// with the linear set of instructions passed in. Therefore, actions
+// must be processed in series to ensure that earlier actions are not
+// negated/corrupted by later actions being executed out-of-order.
+//
+// However, certain Actions can cause additional actions to need to be
+// processed by this function. In order to preserve linearity, we would
+// need to handle these newly generated actions before we finalize
+// completing additional actions in the submitted sequence of actions.
+//
+// Since recursive async functions are not not stable yet, we are
+// forced to modify the actions iterator on the fly whenever a new set
+// of actions are generated by handling a single action.
+//
+// This particular problem statement is specified in issue 3311:
+// 	https://github.com/paritytech/polkadot/issues/3311
+//
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	state: &mut State,
+	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	wakeups: &mut Wakeups,
-	db: &dyn KeyValueDB,
-	db_config: DatabaseConfig,
-	background_tx: &mpsc::Sender<BackgroundRequest>,
-	background_tasks: &mut BackgroundTaskMap,
+	currently_checking_set: &mut CurrentlyCheckingSet,
+	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
-	actions: impl IntoIterator<Item = Action>,
+	actions: Vec<Action>,
 ) -> SubsystemResult<bool> {
-	let mut transaction = approval_db::v1::Transaction::new(db_config);
 	let mut conclude = false;
 
-	for action in actions {
+	let mut actions_iter = actions.into_iter();
+	while let Some(action) = actions_iter.next() {
 		match action {
 			Action::ScheduleWakeup {
 				block_hash,
 				block_number,
 				candidate_hash,
 				tick,
-			} => {
-				wakeups.schedule(block_hash, block_number, candidate_hash, tick)
-			}
-			Action::WriteBlockEntry(block_entry) => {
-				transaction.put_block_entry(block_entry.into());
-			}
-			Action::WriteCandidateEntry(candidate_hash, candidate_entry) => {
-				transaction.put_candidate_entry(candidate_hash, candidate_entry.into());
+			} => wakeups.schedule(block_hash, block_number, candidate_hash, tick),
+			Action::IssueApproval(candidate_hash, approval_request) => {
+					let mut sender = ctx.sender().clone();
+					// Note that the IssueApproval action will create additional
+					// actions that will need to all be processed before we can
+					// handle the next action in the set passed to the ambient
+					// function.
+					//
+					// In order to achieve this, we append the existing iterator
+					// to the end of the iterator made up of these newly generated
+					// actions.
+					//
+					// Note that chaining these iterators is O(n) as we must consume
+					// the prior iterator.
+					let next_actions: Vec<Action> = issue_approval(
+						&mut sender,
+						state,
+						overlayed_db,
+						metrics,
+						candidate_hash,
+						approval_request,
+					).await?
+						.into_iter()
+						.map(|v| v.clone())
+						.chain(actions_iter)
+						.collect();
+
+					actions_iter = next_actions.into_iter();
 			}
 			Action::LaunchApproval {
+				candidate_hash,
 				indirect_cert,
 				assignment_tranche,
-				relay_block_number,
+				relay_block_hash,
 				candidate_index,
 				session,
 				candidate,
@@ -771,64 +878,95 @@ async fn handle_actions(
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,
-				).into());
+				));
 
-				let handle = launch_approval(
-					ctx,
-					metrics.clone(),
-					background_tx.clone(),
-					session,
-					&candidate,
-					validator_index,
-					block_hash,
-					candidate_index as _,
-					backing_group,
-				).await?;
-
-				if let Some(handle) = handle {
-					background_tasks.entry(relay_block_number).or_default().push(handle);
+				match approvals_cache.get(&candidate_hash) {
+					Some(ApprovalOutcome::Approved) => {
+						let new_actions: Vec<Action> = std::iter::once(
+							Action::IssueApproval(
+								candidate_hash,
+								ApprovalVoteRequest {
+									validator_index,
+									block_hash,
+								}
+							)
+						)
+							.map(|v| v.clone())
+							.chain(actions_iter)
+							.collect();
+						actions_iter = new_actions.into_iter();
+					},
+					None => {
+						let ctx = &mut *ctx;
+						currently_checking_set.insert_relay_block_hash(
+							candidate_hash,
+							validator_index,
+							relay_block_hash,
+							async move {
+								launch_approval(
+									ctx,
+									metrics.clone(),
+									session,
+									candidate,
+									validator_index,
+									block_hash,
+									backing_group,
+								).await
+							}
+						).await?;
+					}
+					Some(_) => {},
 				}
+			}
+			Action::InformDisputeCoordinator {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				dispute_statement,
+				validator_index,
+			} => {
+				let (pending_confirmation, confirmation_rx) = oneshot::channel();
+				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt,
+					session,
+					statements: vec![(dispute_statement, validator_index)],
+					pending_confirmation,
+				}).await;
+
+				match confirmation_rx.await {
+					Err(oneshot::Canceled) => tracing::warn!(
+						target: LOG_TARGET,
+						"Dispute coordinator confirmation lost",
+					),
+					Ok(ImportStatementsResult::ValidImport) => {}
+					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
+						target: LOG_TARGET,
+						"Failed to import statements of validity",
+					),
+				}
+			}
+			Action::NoteApprovedInChainSelection(block_hash) => {
+				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 			}
 			Action::BecomeActive => {
 				*mode = Mode::Active;
 
-				let messages = distribution_messages_for_activation(
-					ApprovalDBV1Reader::new(db, db_config)
-				)?;
+				let messages = distribution_messages_for_activation(overlayed_db)?;
 
-				ctx.send_messages(messages.into_iter().map(Into::into)).await;
+				ctx.send_messages(messages.into_iter()).await;
 			}
 			Action::Conclude => { conclude = true; }
 		}
 	}
 
-	if !transaction.is_empty() {
-		let _timer = metrics.time_db_transaction();
-
-		transaction.write(db)
-			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-	}
-
 	Ok(conclude)
 }
 
-// Clean up all background tasks which are no longer needed as they correspond to a
-// finalized block.
-fn cleanup_background_tasks(
-	current_finalized_block: BlockNumber,
-	tasks: &mut BackgroundTaskMap,
-) {
-	let after = tasks.split_off(&(current_finalized_block + 1));
-	*tasks = after;
-
-	// tasks up to the finalized block are dropped, and `RemoteHandle` cancels
-	// the task on drop.
-}
-
-fn distribution_messages_for_activation<'a>(
-	db: impl DBReader + 'a,
+fn distribution_messages_for_activation(
+	db: &OverlayedBackend<'_, impl Backend>,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
-	let all_blocks = db.load_all_blocks()?;
+	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 
 	let mut approval_meta = Vec::with_capacity(all_blocks.len());
 	let mut messages = Vec::new();
@@ -924,11 +1062,10 @@ fn distribution_messages_for_activation<'a>(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut impl SubsystemContext,
-	state: &mut State<impl DBReader>,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	state: &mut State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
-	db_writer: &dyn KeyValueDB,
-	db_config: DatabaseConfig,
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
@@ -943,8 +1080,7 @@ async fn handle_from_overseer(
 				match import::handle_new_head(
 					ctx,
 					state,
-					db_writer,
-					db_config,
+					db,
 					head,
 					&*last_finalized_height,
 				).await {
@@ -998,7 +1134,7 @@ async fn handle_from_overseer(
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			*last_finalized_height = Some(block_number);
 
-			approval_db::v1::canonicalize(db_writer, &db_config, block_number, block_hash)
+			crate::ops::canonicalize(db, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			wakeups.prune_finalized_wakeups(block_number);
@@ -1011,15 +1147,16 @@ async fn handle_from_overseer(
 		FromOverseer::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
 				let (check_outcome, actions)
-					= check_and_import_assignment(state, a, claimed_core)?;
+					= check_and_import_assignment(state, db, a, claimed_core)?;
 				let _ = res.send(check_outcome);
+
 				actions
 			}
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
-				check_and_import_approval(state, metrics, a, |r| { let _ = res.send(r); })?.0
+				check_and_import_approval(state, db, metrics, a, |r| { let _ = res.send(r); })?.0
 			}
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res ) => {
-				match handle_approved_ancestor(ctx, &state.db, target, lower_bound, wakeups).await {
+				match handle_approved_ancestor(ctx, db, target, lower_bound, wakeups).await {
 					Ok(v) => {
 						let _ = res.send(v);
 					}
@@ -1037,39 +1174,9 @@ async fn handle_from_overseer(
 	Ok(actions)
 }
 
-async fn handle_background_request(
-	ctx: &mut impl SubsystemContext,
-	state: &State<impl DBReader>,
-	metrics: &Metrics,
-	request: BackgroundRequest,
-) -> SubsystemResult<Vec<Action>> {
-	match request {
-		BackgroundRequest::ApprovalVote(vote_request) => {
-			issue_approval(ctx, state, metrics, vote_request)
-		}
-		BackgroundRequest::CandidateValidation(
-			validation_data,
-			validation_code,
-			descriptor,
-			pov,
-			tx,
-		) => {
-			ctx.send_message(CandidateValidationMessage::ValidateFromExhaustive(
-				validation_data,
-				validation_code,
-				descriptor,
-				pov,
-				tx,
-			).into()).await;
-
-			Ok(Vec::new())
-		}
-	}
-}
-
 async fn handle_approved_ancestor(
-	ctx: &mut impl SubsystemContext,
-	db: &impl DBReader,
+	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
@@ -1087,7 +1194,7 @@ async fn handle_approved_ancestor(
 	let target_number = {
 		let (tx, rx) = oneshot::channel();
 
-		ctx.send_message(ChainApiMessage::BlockNumber(target, tx).into()).await;
+		ctx.send_message(ChainApiMessage::BlockNumber(target, tx)).await;
 
 		match rx.await {
 			Ok(Ok(Some(n))) => n,
@@ -1111,7 +1218,7 @@ async fn handle_approved_ancestor(
 			hash: target,
 			k: (target_number - (lower_bound + 1)) as usize,
 			response_channel: tx,
-		}.into()).await;
+		}).await;
 
 		match rx.await {
 			Ok(Ok(a)) => a,
@@ -1357,14 +1464,14 @@ fn schedule_wakeup_action(
 }
 
 fn check_and_import_assignment(
-	state: &State<impl DBReader>,
+	state: &State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
-	const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
-
 	let tick_now = state.clock.tick_now();
-	let block_entry = match state.db.load_block_entry(&assignment.block_hash)? {
+
+	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
 		None => return Ok((AssignmentCheckResult::Bad(
 			AssignmentCheckError::UnknownBlock(assignment.block_hash),
@@ -1389,7 +1496,7 @@ fn check_and_import_assignment(
 		), Vec::new())), // no candidate at core.
 	};
 
-	let mut candidate_entry = match state.db.load_candidate_entry(&assigned_candidate_hash)? {
+	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
 		None => {
 			return Ok((AssignmentCheckResult::Bad(
@@ -1471,13 +1578,14 @@ fn check_and_import_assignment(
 	}
 
 	// We also write the candidate entry as it now contains the new candidate.
-	actions.push(Action::WriteCandidateEntry(assigned_candidate_hash, candidate_entry));
+	db.write_candidate_entry(candidate_entry.into());
 
 	Ok((res, actions))
 }
 
 fn check_and_import_approval<T>(
-	state: &State<impl DBReader>,
+	state: &State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
@@ -1489,7 +1597,7 @@ fn check_and_import_approval<T>(
 		} }
 	}
 
-	let block_entry = match state.db.load_block_entry(&approval.block_hash)? {
+	let block_entry = match db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
 		None => {
 			respond_early!(ApprovalCheckResult::Bad(
@@ -1514,9 +1622,6 @@ fn check_and_import_approval<T>(
 		))
 	};
 
-	let approval_payload = ApprovalVote(approved_candidate_hash)
-		.signing_payload(block_entry.session());
-
 	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad(
@@ -1524,15 +1629,22 @@ fn check_and_import_approval<T>(
 		))
 	};
 
-	let approval_sig_valid = approval.signature.verify(approval_payload.as_slice(), pubkey);
-
-	if !approval_sig_valid {
-		respond_early!(ApprovalCheckResult::Bad(
+	// Transform the approval vote into the wrapper used to import statements into disputes.
+	// This also does signature checking.
+	let signed_dispute_statement = match SignedDisputeStatement::new_checked(
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+		approved_candidate_hash,
+		block_entry.session(),
+		pubkey.clone(),
+		approval.signature.clone(),
+	) {
+		Err(_) => respond_early!(ApprovalCheckResult::Bad(
 			ApprovalCheckError::InvalidSignature(approval.validator),
-		))
-	}
+		)),
+		Ok(s) => s,
+	};
 
-	let candidate_entry = match state.db.load_candidate_entry(&approved_candidate_hash)? {
+	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
 		None => {
 			respond_early!(ApprovalCheckResult::Bad(
@@ -1568,14 +1680,33 @@ fn check_and_import_approval<T>(
 		"Importing approval vote",
 	);
 
-	let actions = import_checked_approval(
+	let inform_disputes_action = if !candidate_entry.has_approved(approval.validator) {
+		// The approval voting system requires a separate approval for each assignment
+		// to the candidate. It's possible that there are semi-duplicate approvals,
+		// but we only need to inform the dispute coordinator about the first expressed
+		// opinion by the validator about the candidate.
+		Some(Action::InformDisputeCoordinator {
+			candidate_hash: approved_candidate_hash,
+			candidate_receipt: candidate_entry.candidate_receipt().clone(),
+			session: block_entry.session(),
+			dispute_statement: signed_dispute_statement,
+			validator_index: approval.validator,
+		})
+	} else {
+		None
+	};
+
+	let mut actions = import_checked_approval(
 		state,
+		db,
 		&metrics,
 		block_entry,
 		approved_candidate_hash,
 		candidate_entry,
 		ApprovalSource::Remote(approval.validator),
 	);
+
+	actions.extend(inform_disputes_action);
 
 	Ok((actions, t))
 }
@@ -1604,7 +1735,8 @@ impl ApprovalSource {
 // validator on the candidate and block. This updates the block entry and candidate entry as
 // necessary and schedules any further wakeups.
 fn import_checked_approval(
-	state: &State<impl DBReader>,
+	state: &State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	mut block_entry: BlockEntry,
 	candidate_hash: CandidateHash,
@@ -1675,9 +1807,10 @@ fn import_checked_approval(
 
 			if is_block_approved && !was_block_approved {
 				metrics.on_block_approved(status.tranche_now as _);
+				actions.push(Action::NoteApprovedInChainSelection(block_hash));
 			}
 
-			actions.push(Action::WriteBlockEntry(block_entry));
+			db.write_block_entry(block_entry.into());
 		}
 
 		(is_approved, status)
@@ -1721,11 +1854,11 @@ fn import_checked_approval(
 		//
 		// 1. The source is remote, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
-		//    approved flag with `mark_approved` above.
+		//	  approved flag with `mark_approved` above.
 		// 3. The source had already approved the candidate, as we haven't altered the bitfield.
 		if !source.is_remote() || newly_approved || !already_approved_by {
 			// In all other cases, we need to write the candidate entry.
-			actions.push(Action::WriteCandidateEntry(candidate_hash, candidate_entry));
+			db.write_candidate_entry(candidate_entry);
 		}
 
 	}
@@ -1769,7 +1902,8 @@ fn should_trigger_assignment(
 }
 
 fn process_wakeup(
-	state: &State<impl DBReader>,
+	state: &State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
 	expected_tick: Tick,
@@ -1782,8 +1916,8 @@ fn process_wakeup(
 	.with_candidate(candidate_hash)
 	.with_stage(jaeger::Stage::ApprovalChecking);
 
-	let block_entry = state.db.load_block_entry(&relay_block)?;
-	let candidate_entry = state.db.load_candidate_entry(&candidate_hash)?;
+	let block_entry = db.load_block_entry(&relay_block)?;
+	let candidate_entry = db.load_candidate_entry(&candidate_hash)?;
 
 	// If either is not present, we have nothing to wakeup. Might have lost a race with finality
 	let (block_entry, mut candidate_entry) = match (block_entry, candidate_entry) {
@@ -1846,7 +1980,10 @@ fn process_wakeup(
 		(should_trigger, approval_entry.backing_group())
 	};
 
-	let (mut actions, maybe_cert) = if should_trigger {
+	let mut actions = Vec::new();
+	let candidate_receipt = candidate_entry.candidate_receipt().clone();
+
+	let maybe_cert = if should_trigger {
 		let maybe_cert = {
 			let approval_entry = candidate_entry.approval_entry_mut(&relay_block)
 				.expect("should_trigger only true if this fetched earlier; qed");
@@ -1854,11 +1991,11 @@ fn process_wakeup(
 			approval_entry.trigger_our_assignment(state.clock.tick_now())
 		};
 
-		let actions = vec![Action::WriteCandidateEntry(candidate_hash, candidate_entry.clone())];
+		db.write_candidate_entry(candidate_entry.clone());
 
-		(actions, maybe_cert)
+		maybe_cert
 	} else {
-		(Vec::new(), None)
+		None
 	};
 
 	if let Some((cert, val_index, tranche)) = maybe_cert {
@@ -1875,19 +2012,20 @@ fn process_wakeup(
 			tracing::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
-				para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+				para_id = ?candidate_receipt.descriptor.para_id,
 				block_hash = ?relay_block,
 				"Launching approval work.",
 			);
 
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
+				candidate_hash,
 				indirect_cert,
 				assignment_tranche: tranche,
-				relay_block_number: block_entry.block_number(),
+				relay_block_hash: relay_block,
 				candidate_index: i as _,
 				session: block_entry.session(),
-				candidate: candidate_entry.candidate_receipt().clone(),
+				candidate: candidate_receipt,
 				backing_group,
 			});
 		}
@@ -1923,16 +2061,14 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage> + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
 	metrics: Metrics,
-	mut background_tx: mpsc::Sender<BackgroundRequest>,
 	session_index: SessionIndex,
-	candidate: &CandidateReceipt,
+	candidate: CandidateReceipt,
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
-	candidate_index: usize,
 	backing_group: GroupIndex,
-) -> SubsystemResult<Option<RemoteHandle<()>>> {
+) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -1974,7 +2110,7 @@ async fn launch_approval(
 		session_index,
 		Some(backing_group),
 		a_tx,
-	).into()).await;
+	)).await;
 
 	ctx.send_message(
 		RuntimeApiMessage::Request(
@@ -1983,11 +2119,12 @@ async fn launch_approval(
 				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
-		).into()
+		)
 	).await;
 
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
+	let mut sender = ctx.sender().clone();
 	let background = async move {
 		// Force the move of the timer into the background task.
 		let _timer = timer;
@@ -1997,35 +2134,56 @@ async fn launch_approval(
 			.with_stage(jaeger::Stage::ApprovalChecking);
 
 		let available_data = match a_rx.await {
-			Err(_) => return,
+			Err(_) => return ApprovalState::failed(
+				validator_index,
+				candidate_hash,
+			),
 			Ok(Ok(a)) => a,
-			Ok(Err(RecoveryError::Unavailable)) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Data unavailable for candidate {:?}",
-					(candidate_hash, candidate.descriptor.para_id),
-				);
-				// do nothing. we'll just be a no-show and that'll cause others to rise up.
-				metrics_guard.take().on_approval_unavailable();
-				return;
-			}
-			Ok(Err(RecoveryError::Invalid)) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Data recovery invalid for candidate {:?}",
-					(candidate_hash, candidate.descriptor.para_id),
-				);
+			Ok(Err(e)) => {
+				match &e {
+					&RecoveryError::Unavailable => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Data unavailable for candidate {:?}",
+							(candidate_hash, candidate.descriptor.para_id),
+						);
+						// do nothing. we'll just be a no-show and that'll cause others to rise up.
+						metrics_guard.take().on_approval_unavailable();
+					}
+					&RecoveryError::Invalid => {
+						tracing::warn!(
+							target: LOG_TARGET,
+							"Data recovery invalid for candidate {:?}",
+							(candidate_hash, candidate.descriptor.para_id),
+						);
 
-				// TODO: dispute. Either the merkle trie is bad or the erasure root is.
-				// https://github.com/paritytech/polkadot/issues/2176
-				metrics_guard.take().on_approval_invalid();
-				return;
+						sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+							session_index,
+							candidate_hash,
+							candidate.clone(),
+							false,
+						).into()).await;
+						metrics_guard.take().on_approval_invalid();
+					}
+				}
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				);
 			}
 		};
 
 		let validation_code = match code_rx.await {
-			Err(_) => return,
-			Ok(Err(_)) => return,
+			Err(_) =>
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				),
+			Ok(Err(_)) =>
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				),
 			Ok(Ok(Some(code))) => code,
 			Ok(Ok(None)) => {
 				tracing::warn!(
@@ -2038,24 +2196,32 @@ async fn launch_approval(
 				// No dispute necessary, as this indicates that the chain is not behaving
 				// according to expectations.
 				metrics_guard.take().on_approval_unavailable();
-				return;
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				);
 			}
 		};
 
 		let (val_tx, val_rx) = oneshot::channel();
 
 		let para_id = candidate.descriptor.para_id;
-		let _ = background_tx.send(BackgroundRequest::CandidateValidation(
+
+		sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
-			candidate.descriptor,
+			candidate.descriptor.clone(),
 			available_data.pov,
 			val_tx,
-		)).await;
+		).into()).await;
 
 		match val_rx.await {
-			Err(_) => return,
-			Ok(Ok(ValidationResult::Valid(_, _))) => {
+			Err(_) =>
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				),
+			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
@@ -2066,12 +2232,28 @@ async fn launch_approval(
 					"Candidate Valid",
 				);
 
-				let _ = metrics_guard.take();
-				let _ = background_tx.send(BackgroundRequest::ApprovalVote(ApprovalVoteRequest {
-					validator_index,
-					block_hash,
-					candidate_index,
-				})).await;
+				let expected_commitments_hash = candidate.commitments_hash;
+				if commitments.hash() == expected_commitments_hash {
+					let _ = metrics_guard.take();
+					return ApprovalState::approved(
+						validator_index,
+						candidate_hash,
+					);
+				} else {
+					// Commitments mismatch - issue a dispute.
+					sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+						false,
+					).into()).await;
+
+					metrics_guard.take().on_approval_invalid();
+					return ApprovalState::failed(
+						validator_index,
+						candidate_hash,
+					);
+				}
 			}
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
@@ -2082,9 +2264,18 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				// TODO: issue dispute, but not for timeouts.
-				// https://github.com/paritytech/polkadot/issues/2176
+				sender.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+					session_index,
+					candidate_hash,
+					candidate.clone(),
+					false,
+				).into()).await;
+
 				metrics_guard.take().on_approval_invalid();
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				);
 			}
 			Ok(Err(e)) => {
 				tracing::error!(
@@ -2093,33 +2284,55 @@ async fn launch_approval(
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();
-				return
+				return ApprovalState::failed(
+					validator_index,
+					candidate_hash,
+				);
 			}
 		}
 	};
 
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background))
-		.map(move |()| Some(remote_handle))
+		.map(move |()| remote_handle)
 }
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-fn issue_approval(
-	ctx: &mut impl SubsystemContext,
-	state: &State<impl DBReader>,
+async fn issue_approval(
+	ctx: &mut impl SubsystemSender,
+	state: &mut State,
+	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
-	request: ApprovalVoteRequest,
+	candidate_hash: CandidateHash,
+	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
-	let ApprovalVoteRequest { validator_index, block_hash, candidate_index } = request;
-
-	let block_entry = match state.db.load_block_entry(&block_hash)? {
+	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
 			// not a cause for alarm - just lost a race with pruning, most likely.
 			metrics.on_approval_stale();
 			return Ok(Vec::new())
 		}
+	};
+
+	let candidate_index = match block_entry
+		.candidates()
+		.iter()
+		.position(|e| e.1 == candidate_hash)
+	{
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Candidate hash {} is not present in the block entry's candidates for relay block {}",
+				candidate_hash,
+				block_entry.parent_hash(),
+			);
+
+			metrics.on_approval_error();
+			return Ok(Vec::new());
+		}
+		Some(idx) => idx,
 	};
 
 	let session_info = match state.session_info(block_entry.session()) {
@@ -2137,7 +2350,7 @@ fn issue_approval(
 		}
 	};
 
-	let candidate_hash = match block_entry.candidate(candidate_index) {
+	let candidate_hash = match block_entry.candidate(candidate_index as usize) {
 		Some((_, h)) => h.clone(),
 		None => {
 			tracing::warn!(
@@ -2152,7 +2365,7 @@ fn issue_approval(
 		}
 	};
 
-	let candidate_entry = match state.db.load_candidate_entry(&candidate_hash)? {
+	let candidate_entry = match db.load_candidate_entry(&candidate_hash)? {
 		Some(c) => c,
 		None => {
 			tracing::warn!(
@@ -2182,25 +2395,36 @@ fn issue_approval(
 		}
 	};
 
+	let session = block_entry.session();
 	let sig = match sign_approval(
 		&state.keystore,
 		&validator_pubkey,
 		candidate_hash,
-		block_entry.session(),
+		session,
 	) {
 		Some(sig) => sig,
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
-				"Could not issue approval signature with validator index {} in session {}. Assignment key present but not validator key?",
-				validator_index.0,
-				block_entry.session(),
+				validator_index = ?validator_index,
+				session,
+				"Could not issue approval signature. Assignment key present but not validator key?",
 			);
 
 			metrics.on_approval_error();
 			return Ok(Vec::new());
 		}
 	};
+
+	// Record our statement in the dispute coordinator for later
+	// participation in disputes on the same candidate.
+	let signed_dispute_statement = SignedDisputeStatement::new_checked(
+		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+		candidate_hash,
+		session,
+		validator_pubkey.clone(),
+		sig.clone(),
+	).expect("Statement just signed; should pass checks; qed");
 
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -2210,8 +2434,27 @@ fn issue_approval(
 		"Issuing approval vote",
 	);
 
-	let actions = import_checked_approval(
+	let candidate_receipt = candidate_entry.candidate_receipt().clone();
+
+	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
+		// The approval voting system requires a separate approval for each assignment
+		// to the candidate. It's possible that there are semi-duplicate approvals,
+		// but we only need to inform the dispute coordinator about the first expressed
+		// opinion by the validator about the candidate.
+		Some(Action::InformDisputeCoordinator {
+			candidate_hash,
+			candidate_receipt,
+			session,
+			dispute_statement: signed_dispute_statement,
+			validator_index,
+		})
+	} else {
+		None
+	};
+
+	let mut actions = import_checked_approval(
 		state,
+		db,
 		metrics,
 		block_entry,
 		candidate_hash,
@@ -2230,6 +2473,9 @@ fn issue_approval(
 			signature: sig,
 		}
 	).into());
+
+	// dispatch to dispute coordinator.
+	actions.extend(inform_disputes_action);
 
 	Ok(actions)
 }

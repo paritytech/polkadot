@@ -128,7 +128,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcrete
 	}
 }
 
-/// Weight trader which uses the TransactionPayment pallet to set the right price for weight and then
+/// Weight trader which uses the `TransactionPayment` pallet to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
 	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,

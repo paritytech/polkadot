@@ -42,7 +42,7 @@ impl Pvf {
 		Self { code, code_hash }
 	}
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	#[cfg(test)]
 	pub(crate) fn from_discriminator(num: u32) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();

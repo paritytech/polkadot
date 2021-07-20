@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Xcm sender for relay chain.
+//! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
 use sp_std::marker::PhantomData;
 use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
 
-/// Xcm sender for relay chain. It only sends downward message.
+/// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T>(PhantomData<T>);
 
 impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T> {

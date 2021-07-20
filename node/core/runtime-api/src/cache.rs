@@ -77,10 +77,10 @@ pub(crate) struct RequestResultCache {
 	check_validation_outputs: MemoryLruCache<(Hash, ParaId, CandidateCommitments), ResidentSizeOf<bool>>,
 	session_index_for_child: MemoryLruCache<Hash, ResidentSizeOf<SessionIndex>>,
 	validation_code: MemoryLruCache<(Hash, ParaId, OccupiedCoreAssumption), ResidentSizeOf<Option<ValidationCode>>>,
-	validation_code_by_hash: MemoryLruCache<(Hash, ValidationCodeHash), ResidentSizeOf<Option<ValidationCode>>>,
+	validation_code_by_hash: MemoryLruCache<ValidationCodeHash, ResidentSizeOf<Option<ValidationCode>>>,
 	candidate_pending_availability: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_info: MemoryLruCache<(Hash, SessionIndex), ResidentSizeOf<Option<SessionInfo>>>,
+	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<Option<SessionInfo>>>,
 	dmq_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	inbound_hrmp_channels_contents: MemoryLruCache<(Hash, ParaId), ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
@@ -173,11 +173,13 @@ impl RequestResultCache {
 		self.validation_code.insert(key, ResidentSizeOf(value));
 	}
 
+	// the actual key is `ValidationCodeHash` (`Hash` is ignored),
+	// but we keep the interface that way to keep the macro simple
 	pub(crate) fn validation_code_by_hash(&mut self, key: (Hash, ValidationCodeHash)) -> Option<&Option<ValidationCode>> {
-		self.validation_code_by_hash.get(&key).map(|v| &v.0)
+		self.validation_code_by_hash.get(&key.1).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_validation_code_by_hash(&mut self, key: (Hash, ValidationCodeHash), value: Option<ValidationCode>) {
+	pub(crate) fn cache_validation_code_by_hash(&mut self, key: ValidationCodeHash, value: Option<ValidationCode>) {
 		self.validation_code_by_hash.insert(key, ResidentSizeOf(value));
 	}
 
@@ -198,10 +200,10 @@ impl RequestResultCache {
 	}
 
 	pub(crate) fn session_info(&mut self, key: (Hash, SessionIndex)) -> Option<&Option<SessionInfo>> {
-		self.session_info.get(&key).map(|v| &v.0)
+		self.session_info.get(&key.1).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_info(&mut self, key: (Hash, SessionIndex), value: Option<SessionInfo>) {
+	pub(crate) fn cache_session_info(&mut self, key: SessionIndex, value: Option<SessionInfo>) {
 		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 

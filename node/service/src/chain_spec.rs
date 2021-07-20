@@ -975,7 +975,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		},
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		hrmp: Default::default(),
 		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
@@ -986,6 +985,14 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			..Default::default()
 		},
 		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
 			owner: Some(endowed_accounts[0].clone()),
 			..Default::default()
 		},
@@ -1159,7 +1166,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot GenesisConfig for testing
+/// Helper function to create polkadot `GenesisConfig` for testing
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(
@@ -1213,7 +1220,7 @@ pub fn polkadot_testnet_genesis(
 		},
 		staking: polkadot::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1257,7 +1264,7 @@ pub fn polkadot_testnet_genesis(
 	}
 }
 
-/// Helper function to create kusama GenesisConfig for testing
+/// Helper function to create kusama `GenesisConfig` for testing
 #[cfg(feature = "kusama-native")]
 pub fn kusama_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1312,7 +1319,7 @@ pub fn kusama_testnet_genesis(
 		},
 		staking: kusama::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1361,7 +1368,7 @@ pub fn kusama_testnet_genesis(
 	}
 }
 
-/// Helper function to create westend GenesisConfig for testing
+/// Helper function to create westend `GenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1416,7 +1423,7 @@ pub fn westend_testnet_genesis(
 		},
 		staking: westend::StakingConfig {
 			minimum_validator_count: 1,
-			validator_count: 2,
+			validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities
 				.iter()
 				.map(|x| {
@@ -1449,7 +1456,7 @@ pub fn westend_testnet_genesis(
 	}
 }
 
-/// Helper function to create rococo GenesisConfig for testing
+/// Helper function to create rococo `GenesisConfig` for testing
 #[cfg(feature = "rococo-native")]
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1516,13 +1523,20 @@ pub fn rococo_testnet_genesis(
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig {
 			paras: vec![],
-			_phdata: Default::default(),
 		},
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(root_key.clone()),
 			..Default::default()
 		},
 		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+			owner: Some(root_key.clone()),
+			..Default::default()
+		},
+		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
 			owner: Some(root_key.clone()),
 			..Default::default()
 		},

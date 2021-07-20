@@ -27,7 +27,7 @@ use {
 	polkadot_primitives::v1::{Hash, Block as PolkadotBlock, Header as PolkadotHeader},
 	polkadot_subsystem::messages::ApprovalVotingMessage,
 	prometheus_endpoint::{self, Registry},
-	polkadot_overseer::OverseerHandler,
+	polkadot_overseer::Handle,
 	futures::channel::oneshot,
 };
 
@@ -41,13 +41,13 @@ use {
 #[derive(Clone)]
 pub(crate) struct ApprovalCheckingVotingRule {
 	checking_lag: Option<prometheus_endpoint::Gauge<prometheus_endpoint::U64>>,
-	overseer: OverseerHandler,
+	overseer: Handle,
 }
 
 #[cfg(feature = "full-node")]
 impl ApprovalCheckingVotingRule {
 	/// Create a new approval checking diagnostic voting rule.
-	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
+	pub fn new(overseer: Handle, registry: Option<&Registry>)
 		-> Result<Self, prometheus_endpoint::PrometheusError>
 	{
 		Ok(ApprovalCheckingVotingRule {
@@ -130,11 +130,14 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 		Box::pin(async move {
 			let (tx, rx) = oneshot::channel();
 			let approval_checking_subsystem_vote = {
-				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-					best_hash,
-					base_number,
-					tx,
-				)).await;
+				overseer.send_msg(
+					ApprovalVotingMessage::ApprovedAncestor(
+						best_hash,
+						base_number,
+						tx,
+					),
+					std::any::type_name::<Self>(),
+				).await;
 
 				rx.await.ok().and_then(|v| v)
 			};
@@ -196,7 +199,7 @@ impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
-fn walk_backwards_to_target_block<Block, B>(
+pub(super) fn walk_backwards_to_target_block<Block, B>(
 	backend: &B,
 	target_number: NumberFor<Block>,
 	current_header: &Block::Header,
@@ -224,7 +227,7 @@ where
 		target_hash = *target_header.parent_hash();
 		target_header = backend
 			.header(BlockId::Hash(target_hash))?
-			.expect("Header known to exist due to the existence of one of its descendents; qed");
+			.expect("Header known to exist due to the existence of one of its descendants; qed");
 	}
 }
 
@@ -278,7 +281,7 @@ where
 }
 
 /// GRANDPA hard forks due to borked migration of session keys after a runtime
-/// upgrade (at #1491596), the signalled authority set changes were invalid
+/// upgrade (at #1491596), the signaled authority set changes were invalid
 /// (blank keys) and were impossible to finalize. The authorities for these
 /// intermediary pending changes are replaced with a static list comprised of
 /// w3f validators and randomly selected validators from the latest session (at

@@ -44,7 +44,7 @@ pub trait TransactAsset {
 	/// not be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains
 	/// where the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_in(_origin: &MultiLocation, _what: &MultiAsset) {}
 
@@ -56,7 +56,7 @@ pub trait TransactAsset {
 	/// be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains where
 	/// the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_out(_origin: &MultiLocation, _what: &MultiAsset) {}
 
@@ -107,18 +107,27 @@ impl TransactAsset for Tuple {
 				r => return r,
 			}
 		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::can_check_in",
+			"asset not found: what: {:?}, origin: {:?}",
+			what,
+			origin,
+		);
 		Err(XcmError::AssetNotFound)
 	}
+
 	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
 		for_tuples!( #(
 			Tuple::check_in(origin, what);
 		)* );
 	}
+
 	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
 		for_tuples!( #(
 			Tuple::check_out(dest, what);
 		)* );
 	}
+
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::deposit_asset(what, who) {
@@ -126,8 +135,15 @@ impl TransactAsset for Tuple {
 				r => return r,
 			}
 		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::deposit_asset",
+			"did not deposit asset: what: {:?}, who: {:?}",
+			what,
+			who,
+		);
 		Err(XcmError::AssetNotFound)
 	}
+
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who) {
@@ -135,8 +151,15 @@ impl TransactAsset for Tuple {
 				r => return r,
 			}
 		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::withdraw_asset",
+			"did not withdraw asset: what: {:?}, who: {:?}",
+			what,
+			who,
+		);
 		Err(XcmError::AssetNotFound)
 	}
+
 	fn transfer_asset(what: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::transfer_asset(what, from, to) {
@@ -144,6 +167,13 @@ impl TransactAsset for Tuple {
 				r => return r,
 			}
 		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::transfer_asset",
+			"did not transfer asset: what: {:?}, from: {:?}, to: {:?}",
+			what,
+			from,
+			to,
+		);
 		Err(XcmError::AssetNotFound)
 	}
 }
