@@ -1376,7 +1376,7 @@ async fn handle_approved_ancestor(
 	);
 
 	// `reverse()` to obtain the ascending order from highest to lowest
-	// block within the canddidates, which is the expected order
+	// block within the candidates, which is the expected order
 	candidates.reverse();
 
 	let all_approved_max = all_approved_max.map(|(hash, block_number)| {
