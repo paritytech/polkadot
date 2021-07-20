@@ -17,6 +17,7 @@
 //! Runtime component for handling disputes of parachain candidates.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_set::BTreeSet;
 use primitives::v1::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
 	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
@@ -689,15 +690,10 @@ impl<T: Config> Pallet<T> {
 
 		// Deduplicate.
 		let dedup_iter = {
-			let mut targets = Vec::new();
+			let mut targets = BTreeSet::new();
 			old_statement_sets.into_iter().filter(move |set| {
 				let target = (set.candidate_hash, set.session);
-				let dup = targets.contains(&target);
-				if !dup {
-					targets.push(target);
-				}
-
-				!dup
+				targets.insert(target)
 			})
 		};
 
