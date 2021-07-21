@@ -21,7 +21,7 @@ async function start() {
 
 	// Build our client.
 	log('Starting client');
-	let client = await start_client(chain_spec_text, 'info');
+	let client = start_client(chain_spec_text, 'info');
 	log('Client started');
 
 	client.rpcSubscribe('{"method":"chain_subscribeNewHead","params":[],"id":1,"jsonrpc":"2.0"}',

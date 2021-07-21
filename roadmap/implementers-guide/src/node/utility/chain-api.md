@@ -15,6 +15,7 @@ On receipt of `ChainApiMessage`, answer the request and provide the response to 
 Currently, the following requests are supported:
 * Block hash to number
 * Block hash to header
+* Block weight
 * Finalized block number to hash
 * Last finalized block number
 * Ancestors

@@ -31,7 +31,7 @@ pub trait ShouldExecute {
 	/// - `message`: The message itself.
 	/// - `shallow_weight`: The weight of the non-negotiable execution of the message. This does not include any
 	///   embedded XCMs sat behind mechanisms like `BuyExecution` which would need to answer for their own weight.
-	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message may utilise
+	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message may utilize
 	///   in its execution. Typically non-zero only because of prior fee payment, but could in principle be due to other
 	///   factors.
 	fn should_execute<Call>(
@@ -58,6 +58,15 @@ impl ShouldExecute for Tuple {
 				_ => (),
 			}
 		)* );
+		log::trace!(
+			target: "xcm::should_execute",
+			"did not pass barrier: origin: {:?}, top_level: {:?}, message: {:?}, shallow_weight: {:?}, weight_credit: {:?}",
+			origin,
+			top_level,
+			message,
+			shallow_weight,
+			weight_credit,
+		);
 		Err(())
 	}
 }

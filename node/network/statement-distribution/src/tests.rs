@@ -15,9 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::time::Duration;
-use parity_scale_codec::{Decode, Encode};
-use super::*;
 use std::sync::Arc;
+use std::iter::FromIterator as _;
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
+use super::*;
 use sp_keyring::Sr25519Keyring;
 use sp_application_crypto::{AppKey, sr25519::Pair, Pair as TraitPair};
 use polkadot_node_primitives::Statement;
@@ -441,8 +443,10 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		update_peer_view_and_send_unlocked(
+		let gossip_peers = HashSet::from_iter(vec![peer.clone()].into_iter());
+		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
+			&gossip_peers,
 			&mut peer_data,
 			&mut ctx,
 			&active_heads,
@@ -562,7 +566,11 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			statement: &statement,
 		};
 
+		let gossip_peers = HashSet::from_iter(vec![
+			peer_a.clone(), peer_b.clone(), peer_c.clone(),
+		].into_iter());
 		let needs_dependents = circulate_statement(
+			&gossip_peers,
 			&mut peer_data,
 			&mut ctx,
 			hash_b,
@@ -1696,15 +1704,4 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		no_show_slots: 0,
 		needed_approvals: 0,
 	}
-}
-
-pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		ValidatorId::ID,
-		Some(&Sr25519Keyring::Ferdie.to_seed()),
-		)
-		.expect("Insert key into keystore");
-	keystore
 }

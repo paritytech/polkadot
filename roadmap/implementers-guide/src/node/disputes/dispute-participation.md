@@ -12,6 +12,7 @@ Output:
   - [RuntimeApiMessage][RuntimeApiMessage]
   - [CandidateValidationMessage][CandidateValidationMessage]
   - [AvailabilityRecoveryMessage][AvailabilityRecoveryMessage]
+  - [AvailabilityStoreMessage][AvailabilityStoreMessage]
   - [ChainApiMessage][ChainApiMessage]
 
 ## Functionality
@@ -40,6 +41,8 @@ Conclude.
 
 * Decompose into parts: `{ candidate_hash, candidate_receipt, session, voted_indices }`
 * Issue an [`AvailabilityRecoveryMessage::RecoverAvailableData`][AvailabilityRecoveryMessage]
+* Report back availability result to the `AvailabilityRecoveryMessage` sender
+  via the `report_availability` oneshot.
 * If the result is `Unavailable`, return.
 * If the result is `Invalid`, [cast invalid votes](#cast-votes) and return.
 * If the data is recovered, dispatch a [`RuntimeApiMessage::ValidationCodeByHash`][RuntimeApiMessage] with the parameters `(candidate_receipt.descriptor.validation_code_hash)` at `state.recent_block.hash`.

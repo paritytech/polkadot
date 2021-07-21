@@ -19,6 +19,7 @@
 //! 1) relay new messages from source to target node;
 //! 2) relay proof-of-delivery from target to source node.
 
+use num_traits::{SaturatingAdd, Zero};
 use relay_utils::{BlockNumberBase, HeaderId};
 use std::fmt::Debug;
 
@@ -34,6 +35,12 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 	/// Messages receiving proof.
 	type MessagesReceivingProof: Clone + Debug + Send + Sync;
 
+	/// The type of the source chain token balance, that is used to:
+	///
+	/// 1) pay transaction fees;
+	/// 2) pay message delivery and dispatch fee;
+	/// 3) pay relayer rewards.
+	type SourceChainBalance: Clone + Copy + Debug + PartialOrd + SaturatingAdd + Zero + Send + Sync;
 	/// Number of the source header.
 	type SourceHeaderNumber: BlockNumberBase;
 	/// Hash of the source header.

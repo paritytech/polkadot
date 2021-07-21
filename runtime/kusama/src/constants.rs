@@ -62,7 +62,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, MAXIMUM_BLOCK_WEIGHT]
+	///   - [0, `MAXIMUM_BLOCK_WEIGHT`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
@@ -83,16 +83,6 @@ pub mod fee {
 			}]
 		}
 	}
-}
-
-/// Parachains-related.
-pub mod paras {
-	/// Maximum parachain code blob size.
-	pub const MAX_CODE_SIZE: u32 = 10 * 1024 * 1024;
-	/// Maximum parachain head size.
-	pub const MAX_HEAD_SIZE: u32 = 20 * 1024;
-	/// Maximum PoV size.
-	pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 }
 
 #[cfg(test)]

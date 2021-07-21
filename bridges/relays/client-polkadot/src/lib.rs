@@ -41,6 +41,7 @@ impl Chain for Polkadot {
 	type Index = bp_polkadot::Nonce;
 	type SignedBlock = bp_polkadot::SignedBlock;
 	type Call = ();
+	type Balance = bp_polkadot::Balance;
 }
 
 /// Polkadot header type used in headers sync.

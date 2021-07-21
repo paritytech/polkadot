@@ -44,6 +44,8 @@ module events set:
   weight, the dispatch is rejected. Keep in mind, that even if post-dispatch weight will be less
   than specified, the submitter still have to declare (and pay for) the maximal possible weight
   (that is the pre-dispatch weight);
+- `MessageDispatchPaymentFailed` event is emitted if the message submitter has selected to pay
+  dispatch fee at the target chain, but has failed to do that;
 - `MessageDispatched` event is emitted if the message has passed all checks and we have actually
   dispatched it. The dispatch may still fail, though - that's why we are including the dispatch
   result in the event payload.

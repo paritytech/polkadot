@@ -26,13 +26,14 @@ use runtime_common::{
 	impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
 	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
+	elections::fee_for_submit_call,
 	ParachainSessionKeyPlaceholder, AssignmentSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
@@ -40,7 +41,7 @@ use primitives::v1::{
 	ValidatorIndex, InboundDownwardMessage, InboundHrmpMessage, SessionInfo,
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult,
+	create_runtime_str, generic, impl_opaque_keys, ApplyExtrinsicResult, FixedPointNumber,
 	KeyTypeId, Percent, Permill, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
@@ -48,8 +49,6 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
-#[cfg(feature = "runtime-benchmarks")]
-use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
@@ -58,7 +57,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, MaxEncodedLen},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -67,7 +66,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use pallet_session::historical as session_historical;
 use static_assertions::const_assert;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
 use pallet_mmr_primitives as mmr;
 
 #[cfg(feature = "std")]
@@ -76,6 +75,7 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_election_provider_multi_phase::Call as EPMCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -95,7 +95,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9050,
+	spec_version: 9090,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -176,13 +176,17 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
-impl pallet_randomness_collective_flip::Config for Runtime {}
-
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 }
+
+type ScheduleOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
+>;
 
 impl pallet_scheduler::Config for Runtime {
 	type Event = Event;
@@ -190,7 +194,7 @@ impl pallet_scheduler::Config for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type ScheduleOrigin = ScheduleOrigin;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 }
@@ -323,12 +327,29 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
+use pallet_election_provider_multi_phase::WeightInfo;
 parameter_types! {
-	// no signed phase for now, just unsigned.
-	pub const SignedPhase: u32 = 0;
+	// phase durations. 1/4 of the last session for each.
+	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
 
-	// fallback: run election on-chain.
+	// signed config
+	pub const SignedMaxSubmissions: u32 = 16;
+	pub const SignedDepositBase: Balance = deposit(1, 0);
+	// A typical solution occupies within an order of magnitude of 50kb.
+	// This formula is currently adjusted such that a typical solution will spend an amount equal
+	// to the base deposit for every 50 kb.
+	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub SignedRewardBase: Balance = fee_for_submit_call::<Runtime>(
+		// give 20% threshold.
+		sp_runtime::FixedU128::saturating_from_rational(12, 10),
+		// maximum weight possible.
+		weights::pallet_election_provider_multi_phase::WeightInfo::<Runtime>::submit(SignedMaxSubmissions::get()),
+		// assume a solution of 200kb length.
+		200 * 1024
+	);
+
+	// fallback: emergency phase.
 	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
 		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
@@ -352,6 +373,14 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Currency = Balances;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
+	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedRewardBase = SignedRewardBase;
+	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositByte = SignedDepositByte;
+	type SignedDepositWeight = ();
+	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SlashHandler = (); // burn slashes
+	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
 	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
@@ -362,7 +391,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
-	type BenchmarkingConfig = ();
+	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
 		AccountId,
 		EnsureRoot<AccountId>,
@@ -492,7 +521,7 @@ impl pallet_democracy::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
-	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
+	/// Two thirds of the technical committee can have an `ExternalMajority/ExternalDefault` vote
 	/// be tabled immediately and with a shorter voting/enactment period.
 	type FastTrackOrigin = frame_system::EnsureOneOf<AccountId,
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
@@ -536,7 +565,7 @@ parameter_types! {
 	pub const CouncilMaxMembers: u32 = 100;
 }
 
-type CouncilCollective = pallet_collective::Instance1;
+pub type CouncilCollective = pallet_collective::Instance1;
 impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
@@ -588,7 +617,7 @@ parameter_types! {
 	pub const TechnicalMaxMembers: u32 = 100;
 }
 
-type TechnicalCollective = pallet_collective::Instance2;
+pub type TechnicalCollective = pallet_collective::Instance2;
 impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
@@ -981,7 +1010,6 @@ construct_runtime! {
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage} = 31,
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 1,
 
 		// Must be before session.
@@ -1038,97 +1066,6 @@ construct_runtime! {
 	}
 }
 
-pub struct GrandpaStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::migrate::<Runtime, Grandpa, _>(name)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::pre_migration::<Runtime, Grandpa, _>(name);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_grandpa::migrations::v3_1::post_migration::<Grandpa>();
-		Ok(())
-	}
-}
-
-const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
-pub struct CouncilStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for CouncilStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v3_1::migrate::<Runtime, Council, _>(
-			COUNCIL_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v3_1::pre_migration::<Runtime, Council, _>(
-			COUNCIL_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v3_1::post_migration::<Council>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-}
-
-const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-pub struct TechnicalCommitteeStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v3_1::migrate::<Runtime, TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v3_1::pre_migration::<Runtime, TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v3_1::post_migration::<TechnicalCommittee>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1137,9 +1074,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -1159,10 +1096,86 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(GrandpaStoragePrefixMigration, CouncilStoragePrefixMigration, TechnicalCommitteeStoragePrefixMigration),
+	(RemoveCollectiveFlip, CouncilStoragePrefixMigration, TechnicalCommitteeStoragePrefixMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct RemoveCollectiveFlip;
+impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
+	fn on_runtime_upgrade() -> Weight {
+		use frame_support::storage::migration;
+		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
+		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
+		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
+	}
+}
+
+const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
+pub struct CouncilStoragePrefixMigration;
+impl frame_support::traits::OnRuntimeUpgrade for CouncilStoragePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
+			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(
+			COUNCIL_OLD_PREFIX,
+			name,
+		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
+			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_collective::migrations::v4::pre_migration::<Runtime, Council, _>(
+			COUNCIL_OLD_PREFIX,
+			name,
+		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_collective::migrations::v4::post_migration::<Council>(COUNCIL_OLD_PREFIX);
+		Ok(())
+	}
+}
+
+const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
+pub struct TechnicalCommitteeStoragePrefixMigration;
+impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
+			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
+			TECHNICAL_COMMITTEE_OLD_PREFIX,
+			name,
+		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
+			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_collective::migrations::v4::pre_migration::<Runtime, TechnicalCommittee, _>(
+			TECHNICAL_COMMITTEE_OLD_PREFIX,
+			name,
+		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_collective::migrations::v4::post_migration::<TechnicalCommittee>(
+			TECHNICAL_COMMITTEE_OLD_PREFIX,
+		);
+		Ok(())
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1211,8 +1224,9 @@ sp_api::impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
@@ -1281,7 +1295,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			// dummy implementation due to lack of BEEFY pallet.
 			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
@@ -1447,8 +1461,12 @@ sp_api::impl_runtime_apis! {
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
-		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
+		) -> Result<
+			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
+			sp_runtime::RuntimeString,
+		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_support::traits::StorageInfoTrait;
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
@@ -1506,7 +1524,8 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			Ok(batches)
+			let storage_info = AllPalletsWithSystem::storage_info();
+			Ok((batches, storage_info))
 		}
 	}
 }
@@ -1515,7 +1534,6 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use frame_support::weights::WeightToFeePolynomial;
-	use frame_support::storage::StorageValue;
 	use sp_runtime::FixedPointNumber;
 	use frame_support::weights::GetDispatchInfo;
 	use parity_scale_codec::Encode;
@@ -1566,12 +1584,12 @@ mod test_fees {
 		let mut ext = sp_io::TestExternalities::new_empty();
 		let mut test_with_multiplier = |m| {
 			ext.execute_with(|| {
-				pallet_transaction_payment::NextFeeMultiplier::put(m);
+				pallet_transaction_payment::NextFeeMultiplier::<Runtime>::put(m);
 				let fee = TransactionPayment::compute_fee(len, &info, 0);
 				println!(
 					"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
 					info.weight.separated_string(),
-					pallet_transaction_payment::NextFeeMultiplier::get(),
+					pallet_transaction_payment::NextFeeMultiplier::<Runtime>::get(),
 					fee.separated_string(),
 				);
 			});

@@ -157,7 +157,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
-		/// Someone claimed some DOTs. [who, ethereum_address, amount]
+		/// Someone claimed some DOTs. `[who, ethereum_address, amount]`
 		Claimed(T::AccountId, EthereumAddress, BalanceOf<T>),
 	}
 
@@ -167,7 +167,7 @@ pub mod pallet {
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
 		SignerHasNoClaim,
-		/// Account ID sending tx has no claim.
+		/// Account ID sending transaction has no claim.
 		SenderHasNoClaim,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
@@ -618,19 +618,18 @@ impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 #[cfg(any(test, feature = "runtime-benchmarks"))]
 mod secp_utils {
 	use super::*;
-	use secp256k1;
 
-	pub fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
-		secp256k1::PublicKey::from_secret_key(secret)
+	pub fn public(secret: &libsecp256k1::SecretKey) -> libsecp256k1::PublicKey {
+		libsecp256k1::PublicKey::from_secret_key(secret)
 	}
-	pub fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
+	pub fn eth(secret: &libsecp256k1::SecretKey) -> EthereumAddress {
 		let mut res = EthereumAddress::default();
 		res.0.copy_from_slice(&keccak_256(&public(secret).serialize()[1..65])[12..]);
 		res
 	}
-	pub fn sig<T: Config>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
+	pub fn sig<T: Config>(secret: &libsecp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
 		let msg = keccak_256(&<super::Pallet<T>>::ethereum_signable_message(&to_ascii_hex(what)[..], extra));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
+		let (sig, recovery_id) = libsecp256k1::sign(&libsecp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
 		r[64] = recovery_id.serialize();
@@ -640,7 +639,6 @@ mod secp_utils {
 
 #[cfg(test)]
 mod tests {
-	use secp256k1;
 	use hex_literal::hex;
 	use super::*;
 	use secp_utils::*;
@@ -683,7 +681,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -751,20 +749,20 @@ mod tests {
 		type WeightInfo = TestWeightInfo;
 	}
 
-	fn alice() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Alice")).unwrap()
+	fn alice() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Alice")).unwrap()
 	}
-	fn bob() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Bob")).unwrap()
+	fn bob() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Bob")).unwrap()
 	}
-	fn dave() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Dave")).unwrap()
+	fn dave() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Dave")).unwrap()
 	}
-	fn eve() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Eve")).unwrap()
+	fn eve() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Eve")).unwrap()
 	}
-	fn frank() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Frank")).unwrap()
+	fn frank() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Frank")).unwrap()
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -1196,7 +1194,7 @@ mod benchmarking {
 	const VALUE: u32 = 1_000_000;
 
 	fn create_claim<T: Config>(input: u32) -> DispatchResult {
-		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
@@ -1204,7 +1202,7 @@ mod benchmarking {
 	}
 
 	fn create_claim_attest<T: Config>(input: u32) -> DispatchResult {
-		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Pallet::<T>::mint_claim(
@@ -1224,10 +1222,10 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1250,7 +1248,7 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			let eth_address = account("eth_address", 0, SEED);
@@ -1267,12 +1265,12 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			// Crate signature
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1296,11 +1294,11 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1334,14 +1332,14 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 
-			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::max_value()/2).encode())).unwrap();
+			let new_secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&(u32::MAX/2).encode())).unwrap();
 			let new_eth_address = eth(&new_secret_key);
 
 			let account: T::AccountId = account("user", c, SEED);
@@ -1371,7 +1369,7 @@ mod benchmarking {
 		eth_recover {
 			let i in 0 .. 1_000;
 			// Crate signature
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
 			let account: T::AccountId = account("user", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			let data = account.using_encoded(to_ascii_hex);

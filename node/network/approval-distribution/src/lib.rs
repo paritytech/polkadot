@@ -29,11 +29,13 @@ use polkadot_node_primitives::{
 	approval::{AssignmentCert, BlockApprovalMeta, IndirectSignedApprovalVote, IndirectAssignmentCert},
 };
 use polkadot_node_subsystem::{
+	overseer,
 	messages::{
-		AllMessages, ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
+		ApprovalDistributionMessage, ApprovalVotingMessage, NetworkBridgeMessage,
 		AssignmentCheckResult, ApprovalCheckResult, NetworkBridgeEvent,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext,
+	SubsystemError,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -81,6 +83,10 @@ struct State {
 
 	/// Peer view data is partially stored here, and partially inline within the [`BlockEntry`]s
 	peer_views: HashMap<PeerId, View>,
+
+	/// Track all our neighbors in the current gossip topology.
+	/// We're not necessarily connected to all of them.
+	gossip_peers: HashSet<PeerId>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -183,7 +189,7 @@ enum PendingMessage {
 impl State {
 	async fn handle_network_msg(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
 	) {
@@ -208,6 +214,15 @@ impl State {
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
+			}
+			NetworkBridgeEvent::NewGossipTopology(peers) => {
+				let newly_added: Vec<PeerId> = peers.difference(&self.gossip_peers).cloned().collect();
+				self.gossip_peers = peers;
+				for peer_id in newly_added {
+					if let Some(view) = self.peer_views.remove(&peer_id) {
+						self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
+					}
+				}
 			}
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
@@ -244,8 +259,7 @@ impl State {
 
 	async fn handle_new_blocks(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 	) {
 		let mut new_hashes = HashSet::new();
@@ -336,6 +350,7 @@ impl State {
 			);
 			Self::unify_with_peer(
 				ctx,
+				&self.gossip_peers,
 				metrics,
 				&mut self.blocks,
 				peer_id.clone(),
@@ -346,8 +361,7 @@ impl State {
 
 	async fn process_incoming_peer_message(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
 	) {
@@ -434,16 +448,13 @@ impl State {
 
 	async fn handle_peer_view_change(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
 	) {
-		let lucky = util::gen_ratio_sqrt_subset(self.peer_views.len(), util::MIN_GOSSIP_PEERS);
 		tracing::trace!(
 			target: LOG_TARGET,
 			?view,
-			?lucky,
 			"Peer view change",
 		);
 		let finalized_number = view.finalized_number;
@@ -468,12 +479,9 @@ impl State {
 			});
 		}
 
-		if !lucky {
-			return;
-		}
-
 		Self::unify_with_peer(
 			ctx,
+			&self.gossip_peers,
 			metrics,
 			&mut self.blocks,
 			peer_id.clone(),
@@ -503,8 +511,7 @@ impl State {
 
 	async fn import_and_circulate_assignment(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
@@ -583,11 +590,11 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 
-			ctx.send_message(AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
+			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
 				claimed_candidate_index,
 				tx,
-			))).await;
+			)).await;
 
 			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
@@ -704,7 +711,12 @@ impl State {
 			.collect::<Vec<_>>();
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.contains(e),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -729,14 +741,13 @@ impl State {
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
 				),
-			).into()).await;
+			)).await;
 		}
 	}
 
 	async fn import_and_circulate_approval(
 		&mut self,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		metrics: &Metrics,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
 	) {
@@ -826,10 +837,10 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 
-			ctx.send_message(AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
+			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(
 				vote.clone(),
 				tx,
-			))).await;
+			)).await;
 
 			let timer = metrics.time_awaiting_approval_voting();
 			let result = match rx.await {
@@ -943,7 +954,13 @@ impl State {
 			.cloned()
 			.filter(|key| maybe_peer_id.as_ref().map_or(true, |id| id != key))
 			.collect::<Vec<_>>();
-		let peers = util::choose_random_sqrt_subset(peers, MIN_GOSSIP_PEERS);
+
+		let gossip_peers = &self.gossip_peers;
+		let peers = util::choose_random_subset(
+			|e| gossip_peers.contains(e),
+			peers,
+			MIN_GOSSIP_PEERS,
+		);
 
 		// Add the fingerprint of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -969,17 +986,32 @@ impl State {
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
 				),
-			).into()).await;
+			)).await;
 		}
 	}
 
 	async fn unify_with_peer(
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		gossip_peers: &HashSet<PeerId>,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		peer_id: PeerId,
 		view: View,
 	) {
+		let is_gossip_peer = gossip_peers.contains(&peer_id);
+		let lucky = is_gossip_peer || util::gen_ratio(
+			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+			util::MIN_GOSSIP_PEERS,
+		);
+
+		if !lucky {
+			tracing::trace!(
+				target: LOG_TARGET,
+				?peer_id,
+				"Unlucky peer",
+			);
+			return;
+		}
+
 		metrics.on_unify_with_peer();
 		let _timer = metrics.time_unify_with_peer();
 		let mut to_send: Vec<Hash> = Vec::new();
@@ -1024,8 +1056,7 @@ impl State {
 
 	async fn send_gossip_messages_to_peer(
 		entries: &HashMap<Hash, BlockEntry>,
-		ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
-		peer_id: PeerId,
+		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),		peer_id: PeerId,
 		blocks: Vec<Hash>,
 	) {
 		let mut assignments = Vec::new();
@@ -1094,7 +1125,7 @@ impl State {
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments)
 				),
-			).into()).await;
+			)).await;
 		}
 
 		if !approvals.is_empty() {
@@ -1111,7 +1142,7 @@ impl State {
 				protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals)
 				),
-			).into()).await;
+			)).await;
 		}
 	}
 }
@@ -1119,7 +1150,7 @@ impl State {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
-	ctx: &mut impl SubsystemContext<Message = ApprovalDistributionMessage>,
+	ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage> + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 	peer_id: PeerId,
 	rep: Rep,
 ) {
@@ -1130,9 +1161,9 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
+	ctx.send_message(
 		NetworkBridgeMessage::ReportPeer(peer_id, rep),
-	)).await;
+	).await;
 }
 
 impl ApprovalDistribution {
@@ -1144,6 +1175,7 @@ impl ApprovalDistribution {
 	async fn run<Context>(self, ctx: Context)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		let mut state = State::default();
 		self.run_inner(ctx, &mut state).await
@@ -1153,6 +1185,7 @@ impl ApprovalDistribution {
 	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
 	where
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		loop {
 			let message = match ctx.recv().await {
@@ -1225,11 +1258,12 @@ impl ApprovalDistribution {
 	}
 }
 
-impl<C> Subsystem<C> for ApprovalDistribution
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalDistribution
 where
-	C: SubsystemContext<Message = ApprovalDistributionMessage> + Sync + Send,
+	Context: SubsystemContext<Message = ApprovalDistributionMessage>,
+	Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)
 			.map(|_| Ok(()))
 			.boxed();

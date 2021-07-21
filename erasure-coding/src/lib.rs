@@ -20,7 +20,7 @@
 //! The way we accomplish this is by erasure coding the data into n pieces
 //! and constructing a merkle root of the data.
 //!
-//! Each of n validators stores their piece of data. We assume n=3f+k, 0 < k ≤ 3.
+//! Each of n validators stores their piece of data. We assume `n = 3f + k`, `0 < k ≤ 3`.
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
@@ -58,7 +58,7 @@ pub enum Error {
 	/// Chunks not of uniform length or the chunks are empty.
 	#[error("Chunks are not unform, mismatch in length or are zero sized")]
 	NonUniformChunks,
-	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
+	/// An uneven byte-length of a shard is not valid for `GF(2^16)` encoding.
 	#[error("Uneven length is not valid for field GF(2^16)")]
 	UnevenLength,
 	/// Chunk index out of bounds.

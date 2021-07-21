@@ -1,0 +1,38 @@
+[package]
+name = "polkadot-dispute-distribution"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.15"
+tracing = "0.1.26"
+parity-scale-codec = { version = "2.0.0", features = ["std"]  }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-erasure-coding = { path = "../../../erasure-coding" }
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+thiserror = "1.0.23"
+rand = "0.8.3"
+lru = "0.6.5"
+
+[dev-dependencies]
+async-trait = "0.1.42"
+polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = {git = "https://github.com/paritytech/substrate", branch = "master" }
+futures-timer = "3.0.2"
+assert_matches = "1.4.0"
+maplit = "1.0"
+smallvec = "1.6.1"
+lazy_static = "1.4.0"

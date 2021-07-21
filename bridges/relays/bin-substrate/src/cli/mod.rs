@@ -406,7 +406,7 @@ macro_rules! declare_chain_options {
 						port: self.[<$chain_prefix _port>],
 						secure: self.[<$chain_prefix _secure>],
 					})
-					.await?
+					.await
 					)
 				}
 			}
