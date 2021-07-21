@@ -196,7 +196,7 @@ pub mod pallet {
 
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
 	#[pallet::storage]
-	pub type AvailabilityBitfields<T: Config> = StorageMap<
+	pub(crate) type AvailabilityBitfields<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ValidatorIndex,
@@ -205,7 +205,7 @@ pub mod pallet {
 
 	/// Candidates pending availability by `ParaId`.
 	#[pallet::storage]
-	pub type PendingAvailability<T: Config> = StorageMap<
+	pub(crate) type PendingAvailability<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ParaId,
@@ -214,7 +214,7 @@ pub mod pallet {
 
 	/// The commitments of candidates pending availability, by `ParaId`.
 	#[pallet::storage]
-	pub type PendingAvailabilityCommitments<T: Config> = StorageMap<
+	pub(crate) type PendingAvailabilityCommitments<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ParaId,
