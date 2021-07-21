@@ -1869,6 +1869,10 @@ fn should_trigger_assignment(
 	required_tranches: RequiredTranches,
 	tranche_now: DelayTranche,
 ) -> bool {
+	println!("Approval Entry {:?}", approval_entry);
+	println!("Candidate Entry {:?}", candidate_entry);
+	println!("Required Tranches {:?}", required_tranches);
+	println!("Tranche Now {:?}", tranche_now);
 	match approval_entry.our_assignment() {
 		None => false,
 		Some(ref assignment) if assignment.triggered() => false,
@@ -1905,6 +1909,7 @@ fn process_wakeup(
 	candidate_hash: CandidateHash,
 	expected_tick: Tick,
 ) -> SubsystemResult<Vec<Action>> {
+	println!("PROCESSING WAKEUP");
 	let _span = jaeger::Span::from_encodable(
 		(relay_block, candidate_hash, expected_tick),
 		"process-approval-wakeup",
