@@ -519,7 +519,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		let mut weight = 0;
 		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
