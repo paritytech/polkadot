@@ -42,7 +42,10 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
-	polkadot_node_core_chain_selection::Config as ChainSelectionConfig,
+	polkadot_node_core_chain_selection::{
+		self as chain_selection_subsystem,
+		Config as ChainSelectionConfig,
+	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_overseer::BlockInfo,
 	sp_trie::PrefixedMemoryDB,
@@ -663,7 +666,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 
 	let chain_selection_config = ChainSelectionConfig {
 		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: Default::default(),
+		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
