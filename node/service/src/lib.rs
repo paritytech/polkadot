@@ -34,6 +34,10 @@ pub use self::overseer::{
 	create_default_subsystems,
 };
 
+#[cfg(test)]
+mod tests;
+
+
 #[cfg(feature = "full-node")]
 use {
 	tracing::info,

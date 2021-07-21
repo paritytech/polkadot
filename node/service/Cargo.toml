@@ -109,7 +109,10 @@ polkadot-statement-distribution = { path = "../network/statement-distribution", 
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
+polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.8.4"
+assert_matches = "1.5.0"
+schnorrkel = "0.10"
 
 [features]
 default = ["db", "full-node"]
