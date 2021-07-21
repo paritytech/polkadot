@@ -86,7 +86,7 @@ pub mod pallet {
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
-	pub type DownwardMessageQueues<T: Config> = StorageMap<
+	pub(crate) type DownwardMessageQueues<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		ParaId,
@@ -102,7 +102,13 @@ pub mod pallet {
 	/// - `B`: is the relay-chain block number in which a message was appended.
 	/// - `H(M)`: is the hash of the message being appended.
 	#[pallet::storage]
-	pub type DownwardMessageQueueHeads<T: Config> = StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
+	pub(crate) type DownwardMessageQueueHeads<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		Hash,
+		ValueQuery,
+	>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
