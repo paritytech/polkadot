@@ -781,8 +781,16 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 				complete => (),
 			}
 		}));
+		// we should remove this check before we deploy parachains on polkadot
+		// TODO: https://github.com/paritytech/polkadot/issues/3326
+		let should_connect_overseer = chain_spec.is_kusama()
+			|| chain_spec.is_westend()
+			|| chain_spec.is_rococo()
+			|| chain_spec.is_wococo();
 
-		select_chain.connect_overseer_handler(&overseer_handler);
+		if should_connect_overseer {
+			select_chain.connect_overseer_handler(&overseer_handler);
+		}
 		Some(overseer_handler)
 	} else {
 		None
