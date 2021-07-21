@@ -1805,3 +1805,39 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Default::default(),
 	))
 }
+
+/// Wococo is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Wococo local testnet config (multivalidator Alice + Bob)
+#[cfg(feature = "rococo-native")]
+pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Wococo Local Testnet",
+		"wococo_local_testnet",
+		ChainType::Local,
+		move || RococoGenesisExt {
+			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}

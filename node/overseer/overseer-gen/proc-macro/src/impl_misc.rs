@@ -118,7 +118,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				signals: #support_crate ::metered::MeteredReceiver< #signal >,
 				messages: SubsystemIncomingMessages<M>,
 				to_subsystems: ChannelsOut,
-				to_overseer: #support_crate ::metered::UnboundedMeteredSender<ToOverseer>,
+				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOverseer>,
 			) -> Self {
 				let signals_received = SignalsReceived::default();
 				#subsystem_ctx_name {
@@ -136,7 +136,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		}
 
 		#[#support_crate ::async_trait]
-		impl<M: std::fmt::Debug + Send + 'static> SubsystemContext for #subsystem_ctx_name<M>
+		impl<M: std::fmt::Debug + Send + 'static> #support_crate ::SubsystemContext for #subsystem_ctx_name<M>
 		where
 			#subsystem_sender_name: #support_crate ::SubsystemSender< #wrapper_message >,
 			#wrapper_message: From<M>,

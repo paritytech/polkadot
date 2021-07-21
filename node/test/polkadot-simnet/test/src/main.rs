@@ -48,13 +48,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 			.collect::<Vec<_>>();
 
 		// make sure event was emitted
-		assert_eq!(events.len(), 1);
+		assert_eq!(events.len(), 1, "system::Event::CodeUpdate not found in events: {:#?}", node.events());
 		let new_runtime_version = node.client()
 			.executor()
 			.runtime_version(&BlockId::Hash(node.client().info().best_hash))?
 			.spec_version;
 		// just confirming
-		assert!(new_runtime_version > old_runtime_version);
+		assert!(
+			new_runtime_version > old_runtime_version,
+			"Invariant, spec_version of new runtime: {} not greater than spec_version of old runtime: {}",
+			new_runtime_version,
+			old_runtime_version,
+		);
 
 		let (from, dest, balance) = (
 			AccountId32::from_str("15j4dg5GzsL1bw2U2AWgeyAk6QTxq43V7ZPbXdAmbVLjvDCK")?,
@@ -76,7 +81,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 			})
 			.collect::<Vec<_>>();
 		// make sure transfer went through
-		assert_eq!(events.len(), 1);
+		assert_eq!(
+			events.len(), 1,
+			"balances::Call::transfer failed to execute, balances::Event::Transfer not found in events: {:#?}",
+			node.events()
+		);
 
 		// we're done, drop node.
 		drop(node);
