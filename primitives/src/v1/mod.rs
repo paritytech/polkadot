@@ -1124,6 +1124,22 @@ impl DisputeStatement {
 			Err(())
 		}
 	}
+
+	/// Whether the statement indicates validity.
+	pub fn indicates_validity(&self) -> bool {
+		match *self {
+			DisputeStatement::Valid(_) => true,
+			DisputeStatement::Invalid(_) => false,
+		}
+	}
+
+	/// Whether the statement indicates invalidity.
+	pub fn indicates_invalidity(&self) -> bool {
+		match *self {
+			DisputeStatement::Valid(_) => false,
+			DisputeStatement::Invalid(_) => true,
+		}
+	}
 }
 
 /// Different kinds of statements of validity on  a candidate.

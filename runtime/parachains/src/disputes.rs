@@ -761,10 +761,7 @@ impl<T: Config> Pallet<T> {
 					Some(v) => v,
 				};
 
-				let valid = match statement {
-					DisputeStatement::Valid(_) => true,
-					DisputeStatement::Invalid(_) => false,
-				};
+				let valid = statement.indicates_validity();
 
 				if let Err(_) = importer.import(*validator_index, valid) {
 					filter.remove_index(i);
@@ -911,10 +908,7 @@ impl<T: Config> Pallet<T> {
 					signature,
 				).map_err(|()| Error::<T>::InvalidSignature)?;
 
-				let valid = match statement {
-					DisputeStatement::Valid(_) => true,
-					DisputeStatement::Invalid(_) => false,
-				};
+				let valid = statement.indicates_validity();
 
 				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
 			}
