@@ -47,7 +47,7 @@ pub enum Error {
 	BadOrigin,
 	ExceedsMaxMessageSize,
 	/// An asset transaction (like withdraw or deposit) failed.
-	/// See implementors of the `TransactAsset` trait for sources.
+	/// See implementers of the `TransactAsset` trait for sources.
 	/// Causes can include type conversion failures between id or balance types.
 	FailedToTransactAsset(#[codec(skip)] &'static str),
 	/// Execution of the XCM would potentially result in a greater weight used than the pre-specified
