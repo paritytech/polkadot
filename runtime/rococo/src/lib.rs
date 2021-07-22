@@ -214,14 +214,14 @@ construct_runtime! {
 		ParachainsOrigin: parachains_origin::{Pallet, Origin},
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
-		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event, Config},
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 
 		// Parachain Onboarding Pallets
@@ -1257,7 +1257,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::Inclusion(ev) => {
+					Event::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,
