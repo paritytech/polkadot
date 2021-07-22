@@ -10,6 +10,7 @@ kusama-runtime = { version = "0.9.8", path = "../../runtime/kusama", optional = 
 
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }

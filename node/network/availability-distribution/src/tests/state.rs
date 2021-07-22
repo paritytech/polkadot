@@ -57,7 +57,7 @@ pub struct TestHarness {
 	pub pool: TaskExecutor,
 }
 
-/// TestState for mocking execution of this subsystem.
+/// `TestState` for mocking execution of this subsystem.
 ///
 /// The `Default` instance provides data, which makes the system succeed by providing a couple of
 /// valid occupied cores. You can tune the data before calling `TestState::run`. E.g. modify some

@@ -144,7 +144,7 @@ async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) {
 		)) => {
 			tx.send(Ok(Some(validation_code))).unwrap();
 		},
-		"overseer did not receive runtime api request for validation code",
+		"overseer did not receive runtime API request for validation code",
 	);
 }
 
@@ -243,7 +243,7 @@ fn cannot_participate_if_cannot_recover_validation_code() {
 				)) => {
 					tx.send(Ok(None)).unwrap();
 				},
-				"overseer did not receive runtime api request for validation code",
+				"overseer did not receive runtime API request for validation code",
 			);
 
 			virtual_overseer

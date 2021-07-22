@@ -62,25 +62,25 @@ pub enum Fatal {
 	#[error("Spawning subsystem task failed")]
 	SpawnTask(#[source] SubsystemError),
 
-	/// DisputeSender mpsc receiver exhausted.
+	/// `DisputeSender` mpsc receiver exhausted.
 	#[error("Erasure chunk requester stream exhausted")]
 	SenderExhausted,
 
-	/// Errors coming from runtime::Runtime.
+	/// Errors coming from `runtime::Runtime`.
 	#[error("Error while accessing runtime information")]
-	Runtime(#[from] #[source] runtime::Fatal),
+	Runtime(#[from] runtime::Fatal),
 
-	/// Errors coming from DisputeSender
+	/// Errors coming from `DisputeSender`
 	#[error("Error while accessing runtime information")]
-	Sender(#[from] #[source] sender::Fatal),
+	Sender(#[from] sender::Fatal),
 }
 
 /// Non-fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum NonFatal {
-	/// Errors coming from DisputeSender
+	/// Errors coming from `DisputeSender`
 	#[error("Error while accessing runtime information")]
-	Sender(#[from] #[source] sender::NonFatal),
+	Sender(#[from] sender::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

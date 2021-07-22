@@ -79,7 +79,7 @@ impl Requests {
 	///
 	/// Note: `Requests` is just an enum collecting all supported requests supported by network
 	/// bridge, it is never sent over the wire. This function just encodes the individual requests
-	/// contained in the enum.
+	/// contained in the `enum`.
 	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
 		match self {
 			Self::ChunkFetching(r) => r.encode_request(),
@@ -219,7 +219,7 @@ impl From<oneshot::Canceled> for RequestError {
 /// `IncomingRequest`s are produced by `RequestMultiplexer` on behalf of the network bridge.
 #[derive(Debug)]
 pub struct IncomingRequest<Req> {
-	/// PeerId of sending peer.
+	/// `PeerId` of sending peer.
 	pub peer: PeerId,
 	/// The sent request.
 	pub payload: Req,
@@ -227,7 +227,7 @@ pub struct IncomingRequest<Req> {
 	pub pending_response: OutgoingResponseSender<Req>,
 }
 
-/// Sender for sendinb back responses on an `IncomingRequest`.
+/// Sender for sending back responses on an `IncomingRequest`.
 #[derive(Debug)]
 pub struct OutgoingResponseSender<Req>{
 	pending_response: oneshot::Sender<netconfig::OutgoingResponse>,
@@ -241,9 +241,9 @@ where
 {
 	/// Send the response back.
 	///
-	/// On success we return Ok(()), on error we return the not sent `Response`.
+	/// On success we return `Ok(())`, on error we return the not sent `Response`.
 	///
-	/// netconfig::OutgoingResponse exposes a way of modifying the peer's reputation. If needed we
+	/// `netconfig::OutgoingResponse` exposes a way of modifying the peer's reputation. If needed we
 	/// can change this function to expose this feature as well.
 	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
 		self.pending_response
@@ -375,7 +375,7 @@ where
 	}
 }
 
-/// Future for actually receiving a typed response for an OutgoingRequest.
+/// Future for actually receiving a typed response for an `OutgoingRequest`.
 async fn receive_response<Req>(
 	rec: oneshot::Receiver<Result<Vec<u8>, network::RequestFailure>>,
 ) -> OutgoingResult<Req::Response>

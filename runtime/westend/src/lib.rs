@@ -400,7 +400,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = NposCompactSolution16;
 	type Fallback = Fallback;
-	type BenchmarkingConfig = ();
+	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
 }
@@ -773,6 +773,7 @@ impl parachains_session_info::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ();
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
@@ -1080,12 +1081,12 @@ construct_runtime! {
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
 		ParasShared: parachains_shared::{Pallet, Call, Storage} = 43,
-		ParasInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage} = 46,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
-		ParasDmp: parachains_dmp::{Pallet, Call, Storage} = 49,
+		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		ParasHrmp: parachains_hrmp::{Pallet, Call, Storage, Event} = 51,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 52,
@@ -1110,9 +1111,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -1246,7 +1247,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			parachains_runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::ParasInclusion(ev) => {
+					Event::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,

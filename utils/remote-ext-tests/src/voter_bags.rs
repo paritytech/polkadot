@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use remote_externalities::{Builder, Mode, OnlineConfig};
+use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig, OfflineConfig};
 use sp_storage::well_known_keys;
 use pallet_staking::{
 	Nominators, Validators, CounterForValidators, CounterForNominators,
@@ -38,6 +38,7 @@ pub (crate) async fn test_voter_bags_migration<
 	use std::env;
 
 	init_logger();
+	sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::PolkadotAccount);
 
 	let ws_url = match env::var("WS_RPC") {
 		Ok(ws_url) => ws_url,
@@ -49,7 +50,7 @@ pub (crate) async fn test_voter_bags_migration<
 			transport: ws_url.to_string().into(),
 			modules: vec!["Staking".to_string()],
 			at: None,
-			state_snapshot: None,
+			state_snapshot: Some(SnapshotConfig::new("voters-bag")),
 		}))
 		.inject_hashed_key(well_known_keys::CODE)
 		.build()

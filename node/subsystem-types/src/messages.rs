@@ -217,17 +217,25 @@ pub enum DisputeCoordinatorMessage {
 		///		`InvalidImport`)
 		///		- or were known already (in that case the result will still be `ValidImport`)
 		/// - or we recorded them because (`ValidImport`)
-		///		- we casted our own vote already on that dispute
+		///		- we cast our own vote already on that dispute
 		///		- or we have approval votes on that candidate
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: oneshot::Sender<ImportStatementsResult>
 	},
+	/// Fetch a list of all recent disputes the co-ordinator is aware of.
+	/// These are disputes which have occurred any time in recent sessions,
+	/// and which may have already concluded.
+	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
+	/// These disputes are either unconcluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
-	QueryCandidateVotes(SessionIndex, CandidateHash, oneshot::Sender<Option<CandidateVotes>>),
+	QueryCandidateVotes(
+		Vec<(SessionIndex, CandidateHash)>,
+		oneshot::Sender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
+	),
 	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
 	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
 	/// Determine the highest undisputed block within the given chain, based on where candidates
@@ -482,7 +490,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 impl AvailabilityStoreMessage {
-	/// In fact, none of the AvailabilityStore messages assume a particular relay parent.
+	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			_ => None,
@@ -689,8 +697,8 @@ pub enum ProvisionerMessage {
 	/// This message allows external subsystems to request the set of bitfields and backed candidates
 	/// associated with a particular potential block hash.
 	///
-	/// This is expected to be used by a proposer, to inject that information into the InherentData
-	/// where it can be assembled into the ParaInherent.
+	/// This is expected to be used by a proposer, to inject that information into the `InherentData`
+	/// where it can be assembled into the `ParaInherent`.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),

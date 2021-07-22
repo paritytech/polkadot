@@ -17,7 +17,10 @@
 use super::*;
 use super::approval_db::v1::Config;
 use super::backend::{Backend, BackendWriteOp};
-use polkadot_primitives::v1::{CandidateDescriptor, CoreIndex, GroupIndex, ValidatorSignature};
+use polkadot_primitives::v1::{
+	CandidateDescriptor, CoreIndex, GroupIndex, ValidatorSignature,
+	DisputeStatement, ValidDisputeStatementKind,
+};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
 	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
@@ -814,7 +817,25 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 
-	assert_eq!(actions.len(), 0);
+	assert_eq!(actions.len(), 1);
+
+	assert_matches!(
+		&actions[0],
+		Action::InformDisputeCoordinator {
+			dispute_statement,
+			candidate_hash: c_hash,
+			validator_index: v,
+			..
+		} => {
+			assert_matches!(
+				dispute_statement.statement(),
+				&DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+			);
+
+			assert_eq!(c_hash, &candidate_hash);
+			assert_eq!(v, &validator_index);
+		}
+	);
 
 	let write_ops = overlay_db.into_write_ops().collect::<Vec<BackendWriteOp>>();
 	assert_eq!(write_ops.len(), 1);

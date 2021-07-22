@@ -36,6 +36,7 @@ use polkadot_runtime_parachains::dmp as parachains_dmp;
 use polkadot_runtime_parachains::ump as parachains_ump;
 use polkadot_runtime_parachains::hrmp as parachains_hrmp;
 use polkadot_runtime_parachains::scheduler as parachains_scheduler;
+use polkadot_runtime_parachains::disputes as parachains_disputes;
 use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
 
 use primitives::v1::{
@@ -129,7 +130,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type DbWeight = ();
@@ -456,7 +457,14 @@ impl parachains_shared::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
 }
 
 impl parachains_paras_inherent::Config for Runtime {}
@@ -529,7 +537,7 @@ construct_runtime! {
 
 		// Parachains runtime modules
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
-		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
@@ -538,6 +546,8 @@ construct_runtime! {
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
+		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
@@ -551,9 +561,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,

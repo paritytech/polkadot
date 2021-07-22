@@ -44,7 +44,7 @@ pub trait TransactAsset {
 	/// not be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains
 	/// where the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_in(_origin: &MultiLocation, _what: &MultiAsset) {}
 
@@ -56,7 +56,7 @@ pub trait TransactAsset {
 	/// be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains where
 	/// the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_out(_origin: &MultiLocation, _what: &MultiAsset) {}
 

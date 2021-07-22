@@ -27,7 +27,7 @@ use polkadot_primitives::v1::{CandidateReceipt, DisputeStatement, SessionIndex, 
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
 
-/// A dispute initiating/participtating message that is guaranteed to have been built from signed
+/// A dispute initiating/participating message that is guaranteed to have been built from signed
 /// statements.
 ///
 /// And most likely has been constructed correctly. This is used with
@@ -102,7 +102,7 @@ impl DisputeMessage {
 	/// - the invalid statement is indeed an invalid one
 	/// - the valid statement is indeed a valid one
 	/// - The passed `CandidateReceipt` has the correct hash (as signed in the statements).
-	/// - the given validator indeces match with the given `ValidatorId`s in the statements,
+	/// - the given validator indices match with the given `ValidatorId`s in the statements,
 	///   given a `SessionInfo`.
 	///
 	/// We don't check whether the given `SessionInfo` matches the `SessionIndex` in the
@@ -210,7 +210,7 @@ impl DisputeMessage {
 }
 
 impl UncheckedDisputeMessage {
-	/// Try to recover the two signed dispute votes from an UncheckedDisputeMessage.
+	/// Try to recover the two signed dispute votes from an `UncheckedDisputeMessage`.
 	pub fn try_into_signed_votes(self, session_info: &SessionInfo)
 		-> Result<(CandidateReceipt, (SignedDisputeStatement, ValidatorIndex), (SignedDisputeStatement, ValidatorIndex)), ()>
 	{

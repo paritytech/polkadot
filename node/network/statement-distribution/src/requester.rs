@@ -45,7 +45,7 @@ pub enum RequesterMessage {
 		candidate_hash: CandidateHash,
 		tx: oneshot::Sender<Vec<PeerId>>
 	},
-	/// Fetching finished, ask for verification. If verification failes, task will continue asking
+	/// Fetching finished, ask for verification. If verification fails, task will continue asking
 	/// peers for data.
 	Finished {
 		/// Relay parent this candidate is in the context of.
