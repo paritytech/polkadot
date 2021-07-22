@@ -37,12 +37,3 @@ fn sample_size_is_sensible() {
 	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
 }
 
-#[test]
-fn election_provider_signed_reward_base_is_as_expected() {
-	sp_io::TestExternalities::new_empty().execute_with(|| {
-		assert_eq!(
-			<Runtime as pallet_election_provider_multi_phase::Config>::SignedRewardBase::get(),
-			2_463_776_601_600u64.into()
-		);
-	});
-}
