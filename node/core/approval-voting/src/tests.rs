@@ -2209,36 +2209,6 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 	});
 }
 
-#[test]
-fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
-	triggers_assignment_test(TriggersAssignmentConfig {
-		our_assigned_tranche: 1,
-		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
-		no_show_slots: 2,
-		assignments_to_import: vec![0, 1],
-		approvals_to_import: vec![1],
-		ticks: vec![
-			11,
-		],
-		should_be_triggered: |_| false,
-	});
-}
-
-#[test]
-fn subsystem_assignment_not_triggered_by_all_with_threshold() {
-	triggers_assignment_test(TriggersAssignmentConfig {
-		our_assigned_tranche: 1,
-		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
-		no_show_slots: 2,
-		assignments_to_import: vec![0, 1, 2],
-		approvals_to_import: vec![1, 2],
-		ticks: vec![
-			11, // Alice wakeup
-		],
-		should_be_triggered: |_| false,
-	});
-}
-
 async fn should_trigger_assignment(
 	virtual_overseer: &mut VirtualOverseer,
 	store: impl Backend,
@@ -2378,7 +2348,9 @@ where
 			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 		}
 
-		for validator_index in approvals_to_import {
+		let n_validators = validators.len();
+		for (i, &validator_index) in approvals_to_import.iter().enumerate() {
+			let expect_chain_approved = 3 * (i + 1) > n_validators;
 			let rx = check_and_import_approval(
 				&mut virtual_overseer,
 				block_hash,
@@ -2386,7 +2358,7 @@ where
 				ValidatorIndex(validator_index),
 				candidate_hash,
 				1,
-				false,
+				expect_chain_approved,
 				true,
 				Some(sign_approval(validators[validator_index as usize].clone(), candidate_hash, 1))
 			).await;
@@ -2402,8 +2374,8 @@ where
 		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
 
 		for tick in ticks {
-			// Assert that this tick is the the next to wake up, requiring the test harness to
-			// encode all relevant wakeups.
+			// Assert that this tick is the next to wake up, requiring the test harness to encode
+			// all relevant wakeups sequentially.
 			assert_eq!(Some(tick), clock.inner.lock().next_wakeup());
 
 			clock.inner.lock().set_tick(tick);
@@ -2421,18 +2393,25 @@ where
 	});
 }
 
+// This method is used to generate a trace for an execution of a triggers_assignment_test given a
+// starting configuration. The relevant ticks (all scheduled wakeups) are printed after no further
+// ticks are scheduled. To create a valid test, a prefix of the relevant ticks should be included
+// in the final test configuration, ending at the tick with the desired inputs to
+// should_trigger_assignemnt.
 async fn step_until_done(clock: &MockClock) {
 	let mut relevant_ticks = Vec::new();
 	loop {
 		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
 		let mut clock = clock.inner.lock();
 		if let Some(tick) = clock.next_wakeup() {
+			println!("TICK: {:?}", tick);
 			relevant_ticks.push(tick);
 			clock.set_tick(tick);
 		} else {
 			break
 		}
 	}
+	println!("relevant_ticks: {:?}", relevant_ticks);
 }
 
 #[test]
@@ -2447,6 +2426,36 @@ fn subsystem_assignment_triggered_solo_zero_tranche() {
 			10, // Alice wakeup, assignment triggered
 		],
 		should_be_triggered: |_| true,
+	});
+}
+
+#[test]
+fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 11,
+		assign_validator_tranche: |_| Ok(0),
+		no_show_slots: 2,
+		assignments_to_import: vec![1, 2, 3, 4, 5],
+		approvals_to_import: vec![2, 4],
+		ticks: vec![
+			20, // Check for no shows
+		],
+		should_be_triggered: |_| true,
+	});
+}
+
+#[test]
+fn subsystem_assignment_not_triggered_by_all_with_threshold() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 11,
+		assign_validator_tranche: |_| Ok(0),
+		no_show_slots: 2,
+		assignments_to_import: vec![1, 2, 3, 4, 5],
+		approvals_to_import: vec![1, 3, 5],
+		ticks: vec![
+			20, // Check no shows
+		],
+		should_be_triggered: |_| false,
 	});
 }
 
@@ -2488,9 +2497,9 @@ fn subsystem_assignment_triggered_if_at_maximum() {
 	triggers_assignment_test(TriggersAssignmentConfig {
 		our_assigned_tranche: 11,
 		assign_validator_tranche: |_| Ok(2),
-		approvals_to_import: vec![],
 		no_show_slots: 2,
 		assignments_to_import: vec![1],
+		approvals_to_import: vec![],
 		ticks: vec![
 			12, // Bob wakeup
 			20, // Check no shows
