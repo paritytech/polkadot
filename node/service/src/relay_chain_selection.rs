@@ -341,7 +341,7 @@ pub trait HeaderProviderProvider<Block>: Send + Sync + 'static
 where
 	Block: BlockT,
 {
-	type Provider: HeaderBackend<Block> + 'static;
+	type Provider: HeaderProvider<Block> + 'static;
 
 	fn header_provider(&self) -> &Self::Provider;
 }

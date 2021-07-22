@@ -81,7 +81,7 @@ use sp_state_machine::{
 	UsageInfo,
 };
 
-use crate::relay_chain_selection::HeaderProvider;
+use crate::relay_chain_selection::{HeaderProvider, HeaderProviderProvider};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
 
@@ -221,16 +221,20 @@ struct ChainContent {
 
 
 impl HeaderProvider<Block> for ChainContent {
-
-	type Error = ();
-
-	fn header(&self, hash: Hash) -> Result<Option<Header>, ()> {
+	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		Ok(self.blocks_by_hash.get(&hash))
 	}
-	fn number(&self, hash: Hash) -> Result<Option<BlockNumber>, ()> {
+	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
 		self.header(hash).map(|opt| {
 			opt.map(|h| h.number)
 		})
+	}
+}
+
+impl HeaderProviderProvider<Block> for ChainContent {
+	type Provider = Self;
+	fn header_provider(&self) -> &Self {
+		self
 	}
 }
 
