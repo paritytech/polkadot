@@ -42,11 +42,10 @@ use sp_consensus_babe::digests::SecondaryVRFPreDigest;
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::iter::IntoIterator;
 use std::sync::RwLock;
-use polkadot_approval_distribution::{
-	BlockEntry,
-};
+// use polkadot_approval_distribution::{
+// 	BlockEntry,
+// };
 
-use sc_client_api::{StorageKey, StorageValue};
 use assert_matches::assert_matches;
 use sp_keystore::CryptoStore;
 use std::sync::Arc;
@@ -288,7 +287,7 @@ impl ChainBuilder {
 		block_number: BlockNumber,
 		slot: impl Into<Slot>,
 	) -> Hash {
-		let block = self.ff_available(self, branch_tag, parent, block_number, slot);
+		let block = self.ff_available(branch_tag, parent, block_number, slot);
 		let _ = self.0.disputed_blocks.insert(block);
 		block
 	}
@@ -408,11 +407,9 @@ async fn test_skeleton(
 
 /// Straight forward test case, where the test is not
 /// for integrity, but for different block relation structures.
-fn run_specialized_test_w_harness<CaseVarsProvider>()
-where
-	CaseVarsProvider: FnOnce() -> CaseVars,
+fn run_specialized_test_w_harness<CaseVarsProvider: FnOnce() -> CaseVars>()
 {
-	test_harness(Default::default(), CaseVarsProvider(), |test_harness| async move {
+	test_harness(Default::default(), CaseVarsProvider::call_once(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			finality_target_rx,
@@ -486,14 +483,14 @@ fn chain_0() -> CaseVars {
 	let mut head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(&mut builder, 0xA0, head, 1, 1);
-	let a2 = builder.ff_available(&mut builder, 0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(&mut builder, 0xA0, a2, 3, 1);
-	let a4 = builder.ff(&mut builder, 0xA0, a3, 4, 1);
-	let a5 = builder.ff(&mut builder, 0xA0, a4, 5, 1);
-	let b1 = builder.ff_available(&mut builder, 0xB0, a1, 2, 2);
-	let b2 = builder.ff_available(&mut builder, 0xB0, b1, 2, 2);
-	let b3 = builder.ff_available(&mut builder, 0xB0, b2, 2, 2);
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
+	let a2 = builder.ff_available(0xA0, a1, 2, 1);
+	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+	let a4 = builder.ff(0xA0, a3, 4, 1);
+	let a5 = builder.ff(0xA0, a4, 5, 1);
+	let b1 = builder.ff_available(0xB0, a1, 2, 2);
+	let b2 = builder.ff_available(0xB0, b1, 2, 2);
+	let b3 = builder.ff_available(0xB0, b2, 2, 2);
 
 	CaseVars {
 		chain: builder.init(),
@@ -514,11 +511,11 @@ fn chain_1() -> CaseVars {
 	let mut head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(&mut builder, 0xA0, head, 1, 1);
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_disputed(&mut builder, 0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(&mut builder, 0xA0, a2, 3, 1);
-	let b2 = builder.ff_available(&mut builder, 0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(&mut builder, 0xB0, a1, 3, 2);
+	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+	let b2 = builder.ff_available(0xB0, a1, 2, 2);
+	let b3 = builder.ff_available(0xB0, a1, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
@@ -539,18 +536,18 @@ fn chain_2() -> CaseVars {
 	let mut head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(&mut builder, 0xA0, head, 1, 1);
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_disputed(&mut builder, 0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(&mut builder, 0xA0, a2, 3, 1);
-	let b2 = builder.ff_available(&mut builder, 0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(&mut builder, 0xB0, a1, 3, 2);
+	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+	let b2 = builder.ff_available(0xB0, a1, 2, 2);
+	let b3 = builder.ff_available(0xB0, a1, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
 		heads: vec![a3, b3],
-		target_block: ChainBuilder::A3,
-		best_chain_containing_block: Some(ChainBuilder::A3),
-		highest_approved_ancestor_block: Some(ChainBuilder::A3),
+		target_block: A3,
+		best_chain_containing_block: Some(A3),
+		highest_approved_ancestor_block: Some(A3),
 		undisputed_chain: None,
 	}
 }
@@ -560,15 +557,15 @@ fn chain_2() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3
 /// ```
-fn chain_3() -> Vec<Hash> {
+fn chain_3() -> CaseVars {
 	let mut head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(&mut builder, 0xA0, head, 1, 1);
-	let a2 = builder.ff_available(&mut builder, 0xA0, a1, 2, 1);
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
+	let a2 = builder.ff_available(0xA0, a1, 2, 1);
 	let a3 = builder.ff_disputed(&mut builder, 0xA0, a2, 3, 1);
-	let b2 = builder.ff_available(&mut builder, 0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(&mut builder, 0xB0, a1, 3, 2);
+	let b2 = builder.ff_available(0xB0, a1, 2, 2);
+	let b3 = builder.ff_available(0xB0, a1, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
