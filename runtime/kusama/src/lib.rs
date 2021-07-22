@@ -35,7 +35,7 @@ use runtime_common::{
 	claims, paras_registrar, xcm_sender, slots, auctions, crowdloan,
 	SlowAdjustingFeeUpdate, CurrencyToVote, impls::DealWithFees,
 	BlockHashCount, RocksDbWeight, BlockWeights, BlockLength,
-	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit, elections::fee_for_submit_call,
+	OffchainSolutionWeightLimit, OffchainSolutionLengthLimit,
 	ToAuthor,
 };
 
