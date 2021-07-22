@@ -14,12 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![allow(dead_code)]
-#![deny(unused_crate_dependencies)]
-#![deny(unused_imports)]
-#![deny(unused_import_braces)]
 
 use super::*;
+use crate::AuxStore;
 use futures::channel::oneshot::Receiver;
 use sp_consensus_babe::Transcript;
 use polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID;

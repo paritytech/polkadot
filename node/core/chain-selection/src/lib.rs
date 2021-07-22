@@ -152,7 +152,7 @@ impl LeafEntrySet {
 }
 
 #[derive(Debug, Clone)]
-struct BlockEntry {
+pub struct BlockEntry {
 	block_hash: Hash,
 	block_number: BlockNumber,
 	parent_hash: Hash,

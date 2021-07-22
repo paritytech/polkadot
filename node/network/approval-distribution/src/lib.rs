@@ -155,7 +155,7 @@ enum LocalSource {
 /// In other words, multiple `CandidateEntry`s may exist for the same candidate,
 /// if it is included by multiple blocks - this is likely the case when there are forks.
 #[derive(Debug, Default)]
-struct CandidateEntry {
+pub struct CandidateEntry {
 	approvals: HashMap<ValidatorIndex, (ApprovalState, LocalSource)>,
 }
 
