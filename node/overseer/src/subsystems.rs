@@ -17,7 +17,7 @@
 //! Legacy way of defining subsystems.
 //!
 //! In the future, everything should be set up using the generated
-//! overeseer builder pattern instead.
+//! overseer builder pattern instead.
 
 use polkadot_node_subsystem_types::errors::SubsystemError;
 use polkadot_overseer_gen::{
@@ -170,7 +170,7 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS>
 		}
 	}
 
-	/// Reference every indidviudal subsystem.
+	/// Reference every individual subsystem.
 	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,

@@ -227,7 +227,7 @@ where
 		target_hash = *target_header.parent_hash();
 		target_header = backend
 			.header(BlockId::Hash(target_hash))?
-			.expect("Header known to exist due to the existence of one of its descendents; qed");
+			.expect("Header known to exist due to the existence of one of its descendants; qed");
 	}
 }
 
@@ -281,7 +281,7 @@ where
 }
 
 /// GRANDPA hard forks due to borked migration of session keys after a runtime
-/// upgrade (at #1491596), the signalled authority set changes were invalid
+/// upgrade (at #1491596), the signaled authority set changes were invalid
 /// (blank keys) and were impossible to finalize. The authorities for these
 /// intermediary pending changes are replaced with a static list comprised of
 /// w3f validators and randomly selected validators from the latest session (at

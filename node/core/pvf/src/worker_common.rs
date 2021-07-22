@@ -177,7 +177,7 @@ pub enum SpawnErr {
 	Accept,
 	/// An error happened during spawning the process.
 	ProcessSpawn,
-	/// The deadline alloted for the worker spawning and connecting to the socket has elapsed.
+	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
 }
 
@@ -187,7 +187,7 @@ pub enum SpawnErr {
 /// has been terminated. Since the worker is running in another process it is obviously not necessarily
 ///  to poll this future to make the worker run, it's only for termination detection.
 ///
-/// This future relies on the fact that a child process's stdout fd is closed upon it's termination.
+/// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]
 pub struct WorkerHandle {
 	child: async_process::Child,

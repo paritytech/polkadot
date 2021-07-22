@@ -199,12 +199,12 @@ where
 	failed_rx
 }
 
-/// We partition the list of all sorted `authorities` into sqrt(len) groups of sqrt(len) size
+/// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
 /// and form a matrix where each validator is connected to all validators in its row and column.
-/// This is similar to [web3] research proposed topology, except for the groups are not parachain
+/// This is similar to `[web3]` research proposed topology, except for the groups are not parachain
 /// groups (because not all validators are parachain validators and the group size is small),
 /// but formed randomly via BABE randomness from two epochs ago.
-/// This limits the amount of gossip peers to 2 * sqrt(len) and ensures the diameter of 2.
+/// This limits the amount of gossip peers to 2 * `sqrt(len)` and ensures the diameter of 2.
 ///
 /// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
 async fn update_gossip_topology<Context>(

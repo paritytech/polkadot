@@ -837,7 +837,11 @@ where
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
-				if self.active_leaves.get(&hash).is_some() {
+				// We use known leaves here because the `WaitForActivation` message
+				// is primarily concerned about leaves which subsystems have simply
+				// not been made aware of yet. Anything in the known leaves set,
+				// even if stale, has been activated in the past.
+				if self.known_leaves.peek(&hash).is_some() {
 					// it's fine if the listener is no longer interested
 					let _ = response_channel.send(Ok(()));
 				} else {

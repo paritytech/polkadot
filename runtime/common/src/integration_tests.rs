@@ -28,7 +28,6 @@ use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop, PalletId,
-	storage::StorageMap,
 	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
 };
 use frame_system::EnsureRoot;
@@ -85,7 +84,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();

@@ -46,7 +46,7 @@ use self::error::NonFatalResult;
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
 ///
-/// For each dispute a `SendTask` is responsible of sending to the concerned validators for that
+/// For each dispute a `SendTask` is responsible for sending to the concerned validators for that
 /// particular dispute. The `DisputeSender` keeps track of those tasks, informs them about new
 /// sessions/validator sets and cleans them up when they become obsolete.
 pub struct DisputeSender {
@@ -318,7 +318,7 @@ impl DisputeSender
 
 /// Retrieve the currently active sessions.
 ///
-/// List is all indeces of all active sessions together with the head that was used for the query.
+/// List is all indices of all active sessions together with the head that was used for the query.
 async fn get_active_session_indeces<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
@@ -352,11 +352,12 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
 		DisputeCoordinatorMessage::QueryCandidateVotes(
-			session_index,
-			candidate_hash,
+			vec![(session_index, candidate_hash)],
 			tx
 		)
 	))
 	.await;
-	rx.await.map_err(|_| NonFatal::AskCandidateVotesCanceled)
+	rx.await
+		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
+		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
 }
