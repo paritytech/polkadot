@@ -321,10 +321,16 @@ publish-adder-collator-image:
 .update_weights:                   &update-weights
   stage:                           build
   when:                            manual
+  tags:
+    - weights
   variables:
     RUNTIME:                       polkadot
-  script:
+  artifacts:
+    paths:
+      - ${RUNTIMES}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script: |
     ./scripts/run_benches_for_runtime.sh $RUNTIME
+    git diff -P > ${RUNTIMES}_weights_${CI_COMMIT_SHORT_SHA}.patch
 
 update_polkadot_weights:
   <<:                              *update-weights
