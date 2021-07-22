@@ -31,23 +31,29 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::Slot;
 use polkadot_subsystem::messages::BlockDescription;
 use polkadot_subsystem::*;
-use sp_runtime::DigestItem;
+use sp_runtime::{
+	DigestItem,
+	Justification,
+};
+use sp_blockchain::Cache;
 use sp_runtime::testing::*;
 use sp_consensus_babe::digests::PreDigest;
 use sp_consensus_babe::digests::SecondaryVRFPreDigest;
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::iter::IntoIterator;
+use std::sync::RwLock;
+use polkadot_approval_distribution::{
+	BlockEntry,
+};
 
+use sc_client_api::{StorageKey, StorageValue};
 use assert_matches::assert_matches;
 use sp_keystore::CryptoStore;
 use std::sync::Arc;
 use std::time::Duration;
 
-const TIMEOUT: Duration = Duration::from_secs(5);
-
 use super::relay_chain_selection::*;
 use consensus_common::SelectChain;
-use polkadot_overseer::Handle;
 use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
@@ -55,80 +61,27 @@ use polkadot_subsystem::messages::{
 
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
-
 use sc_keystore::LocalKeystore;
 use futures::prelude::*;
 use futures::channel::oneshot;
 
 const SLOT_DURATION_MILLIS: u64 = 100;
 
+use sc_client_api::{
+	ChildInfo,
+	Storage,
+	TransactionForSB,
+	NewBlockState,
+	PrunableStateChangesTrieStorage,
+};
+use sp_state_machine::{
+	IndexOperation,
+	ChangesTrieTransaction,
+	StorageCollection,
+	UsageInfo,
+};
 
-#[derive(Default)]
-struct TestStore {
-	stored_block_range: Option<StoredBlockRange>,
-	blocks_at_height: HashMap<BlockNumber, Vec<Hash>>,
-	block_entries: HashMap<Hash, BlockEntry>,
-	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
-}
-
-impl Backend for TestStore {
-	fn load_block_entry(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
-		Ok(self.block_entries.get(block_hash).cloned())
-	}
-
-	fn load_candidate_entry(&self, candidate_hash: &CandidateHash) -> SubsystemResult<Option<CandidateEntry>> {
-		Ok(self.candidate_entries.get(candidate_hash).cloned())
-	}
-
-	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
-		Ok(self.blocks_at_height.get(height).cloned().unwrap_or_default())
-	}
-
-	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
-		let mut hashes: Vec<_> = self.block_entries.keys().cloned().collect();
-
-		hashes.sort_by_key(|k| self.block_entries.get(k).unwrap().block_number());
-
-		Ok(hashes)
-	}
-
-	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
-		Ok(self.stored_block_range.clone())
-	}
-
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-	where
-		I: IntoIterator<Item = BackendWriteOp>,
-	{
-		for op in ops {
-			match op {
-				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
-					self.stored_block_range = Some(stored_block_range);
-				}
-				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
-					self.blocks_at_height.insert(h, blocks);
-				}
-				BackendWriteOp::DeleteBlocksAtHeight(h) => {
-					let _ = self.blocks_at_height.remove(&h);
-				}
-				BackendWriteOp::WriteBlockEntry(block_entry) => {
-					self.block_entries.insert(block_entry.block_hash(), block_entry);
-				}
-				BackendWriteOp::DeleteBlockEntry(hash) => {
-					let _ = self.block_entries.remove(&hash);
-				}
-				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
-					self.candidate_entries.insert(candidate_entry.candidate_receipt().hash(), candidate_entry);
-				}
-				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
-					let _ = self.candidate_entries.remove(&candidate_hash);
-				}
-			}
-		}
-
-		Ok(())
-	}
-}
+use crate::relay_chain_selection::HeaderProvider;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
 
@@ -162,8 +115,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	select_relay_chain.connect_overseer_handler(handle);
 
 	let selection_process = async move {
-		let best = select_relay_chain.finality_target(case_vars.target_block, block_number).await;
+		let best = select_relay_chain.finality_target(case_vars.target_block, None).await;
 		finality_target_tx.send(best).unwrap();
+		best
 	};
 
 	let test_fut = test(TestHarness { virtual_overseer, finality_target_rx });
@@ -195,6 +149,29 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	tracing::trace!("Received message:\n{:?}", &msg);
 
 	msg
+}
+async fn overseer_recv_with_timeout(
+	overseer: &mut VirtualOverseer,
+	timeout: Duration,
+) -> Option<AllMessages> {
+	tracing::trace!("Waiting for message...");
+	overseer
+		.recv()
+		.timeout(timeout)
+		.await
+}
+
+const TIMEOUT: Duration = Duration::from_millis(2000);
+
+async fn overseer_signal(
+	overseer: &mut VirtualOverseer,
+	signal: OverseerSignal,
+) {
+	overseer
+		.send(FromOverseer::Signal(signal))
+		.timeout(TIMEOUT)
+		.await
+		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
 }
 
 // sets up a keystore with the given keyring accounts.
@@ -241,6 +218,22 @@ struct ChainContent {
 
 	heads: HashSet<Hash>,
 }
+
+
+impl HeaderProvider<Block> for ChainContent {
+
+	type Error = ();
+
+	fn header(&self, hash: Hash) -> Result<Option<Header>, ()> {
+		Ok(self.blocks_by_hash.get(&hash))
+	}
+	fn number(&self, hash: Hash) -> Result<Option<BlockNumber>, ()> {
+		self.header(hash).map(|opt| {
+			opt.map(|h| h.number)
+		})
+	}
+}
+
 
 #[derive(Debug, Clone)]
 struct ChainBuilder(pub ChainContent);
@@ -411,11 +404,11 @@ async fn test_skeleton(
 
 /// Straight forward test case, where the test is not
 /// for integrity, but for different block relation structures.
-fn run_specialized_test_w_harness<T>()
+fn run_specialized_test_w_harness<CaseVarsProvider>()
 where
-	T: FnOnce() -> CaseVars,
+	CaseVarsProvider: FnOnce() -> CaseVars,
 {
-	test_harness(Default::default(), chain_0(), |test_harness| async move {
+	test_harness(Default::default(), CaseVarsProvider(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			finality_target_rx,
