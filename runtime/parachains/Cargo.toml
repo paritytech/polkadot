@@ -38,7 +38,6 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-libsecp256k1 = { version = "0.3.5", default-features = false, optional = true }
 
 rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
@@ -54,7 +53,6 @@ pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate",
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.61"
-libsecp256k1 = "0.3.5"
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -90,7 +88,6 @@ std = [
 	"log/std",
 ]
 runtime-benchmarks = [
-	"libsecp256k1/hmac",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",

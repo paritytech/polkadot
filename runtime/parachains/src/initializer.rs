@@ -136,12 +136,12 @@ pub mod pallet {
 				shared::Module::<T>::initializer_initialize(now) +
 				paras::Pallet::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
-				inclusion::Module::<T>::initializer_initialize(now) +
+				inclusion::Pallet::<T>::initializer_initialize(now) +
 				session_info::Module::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
-				dmp::Module::<T>::initializer_initialize(now) +
+				dmp::Pallet::<T>::initializer_initialize(now) +
 				ump::Module::<T>::initializer_initialize(now) +
-				hrmp::Module::<T>::initializer_initialize(now);
+				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
 
@@ -150,12 +150,12 @@ pub mod pallet {
 
 		fn on_finalize(_: T::BlockNumber) {
 			// reverse initialization order.
-			hrmp::Module::<T>::initializer_finalize();
+			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Module::<T>::initializer_finalize();
-			dmp::Module::<T>::initializer_finalize();
+			dmp::Pallet::<T>::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
-			inclusion::Module::<T>::initializer_finalize();
+			inclusion::Pallet::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Pallet::<T>::initializer_finalize();
 			shared::Module::<T>::initializer_finalize();
@@ -235,12 +235,12 @@ impl<T: Config> Pallet<T> {
 
 		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
-		inclusion::Module::<T>::initializer_on_new_session(&notification);
+		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
 		session_info::Module::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
-		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
