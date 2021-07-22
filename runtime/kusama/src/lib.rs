@@ -1503,40 +1503,6 @@ construct_runtime! {
 	}
 }
 
-const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
-pub struct TechnicalMembershipStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("membership is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_membership::migrations::v3_1::migrate::<Runtime, TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("membership is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_membership::migrations::v3_1::pre_migration::<Runtime, TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_membership::migrations::v3_1::post_migration::<TechnicalMembership>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-		);
-		Ok(())
-	}
-}
-
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 /// Block header type as expected by this runtime.
@@ -1578,6 +1544,40 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
 		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
 		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
 		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
+	}
+}
+
+const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
+pub struct TechnicalMembershipStoragePrefixMigration;
+impl frame_support::traits::OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("membership is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::migrate::<Runtime, TechnicalMembership, _>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
+		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("membership is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::pre_migration::<Runtime, TechnicalMembership, _>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
+		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_membership::migrations::v4::post_migration::<TechnicalMembership>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+		);
+		Ok(())
 	}
 }
 
