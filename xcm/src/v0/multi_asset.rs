@@ -28,7 +28,7 @@ pub enum AssetInstance {
 	/// Undefined - used if the NFA class has only one instance.
 	Undefined,
 
-	/// A compact index. Technically this could be greater than u128, but this implementation supports only
+	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
 	/// values up to `2**128 - 1`.
 	Index { #[codec(compact)] id: u128 },
 

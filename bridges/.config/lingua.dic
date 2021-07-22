@@ -12,6 +12,7 @@ args
 aren
 async
 Best/MS
+benchmarking/MS
 BlockId
 BFT/M
 bitfield/MS
@@ -31,7 +32,7 @@ choosen
 config/MS
 crypto/MS
 customizable/B
-debian/M
+Debian/M
 decodable/MS
 DOT/S
 doesn

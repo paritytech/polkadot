@@ -103,7 +103,7 @@ impl From<[u8; 32]> for ValidationCodeHash {
 
 impl sp_std::fmt::LowerHex for ValidationCodeHash {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
-        sp_std::fmt::LowerHex::fmt(&self.0, f)
+		sp_std::fmt::LowerHex::fmt(&self.0, f)
 	}
 }
 

@@ -86,7 +86,7 @@ pub struct AssignmentCert {
 	pub vrf: (VRFOutput, VRFProof),
 }
 
-/// An assignment crt which refers to the candidate under which the assignment is
+/// An assignment criterion which refers to the candidate under which the assignment is
 /// relevant by block hash.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectAssignmentCert {
@@ -97,10 +97,6 @@ pub struct IndirectAssignmentCert {
 	/// The cert itself.
 	pub cert: AssignmentCert,
 }
-
-/// A vote of approval on a candidate.
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct ApprovalVote(pub CandidateHash);
 
 /// A signed approval vote which references the candidate indirectly via the block.
 ///

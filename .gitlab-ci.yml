@@ -164,6 +164,18 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+spellcheck:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo spellcheck --version
+    # compare with the commit parent to the PR, given it's from a default branch
+    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
+        -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
+  allow_failure:                   true
+
 build-adder-collator:
   stage:                           test
   <<:                              *collect-artifacts
@@ -383,9 +395,9 @@ trigger-simnet:
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # simnet project ID
+    # Simnet project ID
     DWNSTRM_ID:                    332
   script:
-    # API trigger for a simnet job, argument value is set in the project variables
+    # API trigger for a Simnet job, argument value is set in the project variables
     - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
   allow_failure:                   true

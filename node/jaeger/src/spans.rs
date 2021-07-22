@@ -143,7 +143,6 @@ impl std::ops::Deref for PerLeafSpan {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum Stage {
-	CandidateSelection = 1,
 	CandidateBacking = 2,
 	StatementDistribution = 3,
 	PoVDistribution = 4,
@@ -327,7 +326,7 @@ impl Span {
 
 	/// Add an additional int tag to the span without consuming.
 	///
-	/// Should be used sparingly, introduction of new types is prefered.
+	/// Should be used sparingly, introduction of new types is preferred.
 	#[inline(always)]
 	pub fn with_int_tag(mut self, tag: &'static str, i: i64) -> Self {
 		self.add_int_tag(tag, i);
@@ -355,11 +354,11 @@ impl Span {
 		}
 	}
 
-	/// Add a pov hash meta tag with lazy hash eval, without consuming the span.
+	/// Add a PoV hash meta tag with lazy hash evaluation, without consuming the span.
 	#[inline(always)]
 	pub fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
-			// avoid computing the pov hash if jaeger is not enabled
+			// avoid computing the PoV hash if jaeger is not enabled
 			self.add_string_fmt_debug_tag("pov", pov.hash());
 		}
 	}

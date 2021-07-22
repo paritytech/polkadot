@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,20 +24,19 @@ pub mod auctions;
 pub mod crowdloan;
 pub mod purchase;
 pub mod impls;
-pub mod mmr;
 pub mod paras_sudo_wrapper;
 pub mod paras_registrar;
 pub mod slot_range;
 pub mod traits;
 pub mod xcm_sender;
+pub mod elections;
 
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod integration_tests;
 
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
-use primitives::v1::{AccountId, AssignmentId, BlockNumber, ValidatorId};
+use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
@@ -54,6 +53,7 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use elections::{OffchainSolutionLengthLimit, OffchainSolutionWeightLimit};
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
@@ -108,26 +108,6 @@ parameter_types! {
 		.build_or_panic();
 }
 
-parameter_types! {
-	/// A limit for off-chain phragmen unsigned solution submission.
-	///
-	/// We want to keep it as high as possible, but can't risk having it reject,
-	/// so we always subtract the base block execution weight.
-	pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.expect("Normal extrinsics have weight limit configured by default; qed")
-		.saturating_sub(BlockExecutionWeight::get());
-
-	/// A limit for off-chain phragmen unsigned solution length.
-	///
-	/// We allow up to 90% of the block's size to be consumed by the solution.
-	pub OffchainSolutionLengthLimit: u32 = Perbill::from_rational(90_u32, 100) *
-		*BlockLength::get()
-		.max
-		.get(DispatchClass::Normal);
-}
-
 /// Parameterized slow adjusting fee updated based on
 /// https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html#-2.-slow-adjusting-mechanism
 pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
@@ -139,7 +119,7 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 
 /// The type used for currency conversion.
 ///
-/// This must only be used as long as the balance type is u128.
+/// This must only be used as long as the balance type is `u128`.
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 
@@ -199,20 +179,6 @@ impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for AssignmentSe
 	fn on_disabled(_: usize) { }
 }
 
-/// Generates a `BeefyId` from the given `AccountId`. The resulting `BeefyId` is
-/// a dummy value and this is a utility function meant to be used when migration
-/// session keys.
-pub fn dummy_beefy_id_from_account_id(a: AccountId) -> BeefyId {
-	let mut id = BeefyId::default();
-	let id_raw: &mut [u8] = id.as_mut();
-
-	// NOTE: AccountId is 32 bytes, whereas BeefyId is 33 bytes.
-	id_raw[1..].copy_from_slice(a.as_ref());
-	id_raw[0..4].copy_from_slice(b"beef");
-
-	id
-}
-
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
@@ -247,7 +213,7 @@ mod multiplier_tests {
 	}
 
 	impl frame_system::Config for Runtime {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = BlockWeights;
 		type BlockLength = ();
 		type DbWeight = ();
@@ -314,16 +280,5 @@ mod multiplier_tests {
 			blocks += 1;
 			println!("block = {} multiplier {:?}", blocks, multiplier);
 		}
-	}
-
-	#[test]
-	fn generate_dummy_unique_beefy_id_from_account_id() {
-		let acc1 = AccountId::new([0; 32]);
-		let acc2 = AccountId::new([1; 32]);
-
-		let beefy_id1 = dummy_beefy_id_from_account_id(acc1);
-		let beefy_id2 = dummy_beefy_id_from_account_id(acc2);
-
-		assert_ne!(beefy_id1, beefy_id2);
 	}
 }

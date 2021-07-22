@@ -23,7 +23,7 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
@@ -32,7 +32,6 @@ use primitives::v1::{
 	SessionInfo as SessionInfoData,
 };
 use runtime_common::{
-	mmr as mmr_common,
 	SlowAdjustingFeeUpdate, impls::ToAuthor, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use runtime_parachains::{
@@ -41,7 +40,7 @@ use runtime_parachains::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec, MaxEncodedLen},
+	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
 	weights::Weight,
 	PalletId
 };
@@ -64,7 +63,8 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::mmr::MmrLeafVersion;
 use pallet_mmr_primitives as mmr;
 use frame_system::EnsureRoot;
 use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
@@ -82,6 +82,8 @@ use runtime_parachains::ump as parachains_ump;
 use runtime_parachains::hrmp as parachains_hrmp;
 use runtime_parachains::scheduler as parachains_scheduler;
 
+use bridge_runtime_common::messages::{MessageBridge, source::estimate_message_dispatch_and_delivery_fee};
+
 pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
@@ -94,11 +96,12 @@ use xcm_builder::{
 	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
 	BackingToPlurality, SignedToAccountId32, UsingComponents,
 };
-use constants::{time::*, currency::*, fee::*, size::*};
+use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
 /// Constant values used within the runtime.
 pub mod constants;
+mod bridge_messages;
 mod validator_manager;
 
 // Make the WASM binary available.
@@ -143,9 +146,9 @@ pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
+/// `BlockId` type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
+/// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -200,21 +203,21 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Pallet, Call, Storage},
-		Offences: pallet_offences::{Pallet, Call, Storage, Event},
+		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
+		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
 
 		// Parachains modules.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin},
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: parachains_shared::{Pallet, Call, Storage},
-		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config<T>},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
@@ -232,9 +235,9 @@ construct_runtime! {
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Bridges support.
-		Mmr: pallet_mmr::{Pallet, Call, Storage},
+		Mmr: pallet_mmr::{Pallet, Storage},
 		Beefy: pallet_beefy::{Pallet, Config<T>, Storage},
-		MmrLeaf: mmr_common::{Pallet, Storage},
+		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage},
 
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
@@ -245,6 +248,13 @@ construct_runtime! {
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
 
+		// Bridge messages support. The same story as with the bridge grandpa pallet above ^^^ - when we're
+		// running as Rococo we only use `BridgeWococoMessages`/`BridgeWococoMessagesDispatch`, and vice versa.
+		BridgeRococoMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 43,
+		BridgeWococoMessages: pallet_bridge_messages::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 44,
+		BridgeRococoMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 45,
+		BridgeWococoMessagesDispatch: pallet_bridge_dispatch::<Instance1>::{Pallet, Event<T>} = 46,
+
 		// A "council"
 		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 80,
 		Membership: pallet_membership::{Pallet, Call, Storage, Event<T>, Config<T>} = 81,
@@ -253,7 +263,7 @@ construct_runtime! {
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
 	}
 }
 
@@ -579,6 +589,7 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
+	type DisputesHandler = ();
 	type RewardValidators = RewardValidators;
 }
 
@@ -790,8 +801,6 @@ impl paras_sudo_wrapper::Config for Runtime {}
 parameter_types! {
 	pub const ParaDeposit: Balance = 5 * DOLLARS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
-	pub const MaxCodeSize: u32 = MAX_CODE_SIZE;
-	pub const MaxHeadSize: u32 = 20 * 1024; // 20 KB
 }
 
 impl paras_registrar::Config for Runtime {
@@ -801,8 +810,6 @@ impl paras_registrar::Config for Runtime {
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadSize = MaxHeadSize;
 	type WeightInfo = paras_registrar::TestWeightInfo;
 }
 
@@ -812,34 +819,64 @@ impl paras_registrar::Config for Runtime {
 pub struct ParentHashRandomness;
 
 impl pallet_beefy::Config for Runtime {
-	type AuthorityId = BeefyId;
+	type BeefyId = BeefyId;
 }
 
 impl pallet_mmr::Config for Runtime {
 	const INDEXING_PREFIX: &'static [u8] = b"mmr";
 	type Hashing = Keccak256;
 	type Hash = <Keccak256 as traits::Hash>::Output;
-	type OnNewRoot = mmr_common::DepositBeefyDigest<Runtime>;
+	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
 	type WeightInfo = ();
-	type LeafData = mmr_common::Pallet<Runtime>;
+	type LeafData = pallet_beefy_mmr::Pallet<Runtime>;
 }
 
-impl mmr_common::Config for Runtime {
-	type BeefyAuthorityToMerkleLeaf = mmr_common::UncompressBeefyEcdsaKeys;
-	type ParachainHeads = Paras;
+pub struct ParasProvider;
+impl pallet_beefy_mmr::ParachainHeadsProvider for ParasProvider {
+	fn parachain_heads() -> Vec<(u32, Vec<u8>)> {
+		Paras::parachains()
+			.into_iter()
+			.filter_map(|id| {
+				Paras::para_head(&id).map(|head| (id.into(), head.0))
+			})
+			.collect()
+	}
 }
 
 parameter_types! {
-	// This is a pretty unscientific cap.
-	//
-	// Note that once this is hit the pallet will essentially throttle incoming requests down to one
-	// call per block.
+	/// Version of the produced MMR leaf.
+	///
+	/// The version consists of two parts;
+	/// - `major` (3 bits)
+	/// - `minor` (5 bits)
+	///
+	/// `major` should be updated only if decoding the previous MMR Leaf format from the payload
+	/// is not possible (i.e. backward incompatible change).
+	/// `minor` should be updated if fields are added to the previous MMR Leaf, which given SCALE
+	/// encoding does not prevent old leafs from being decoded.
+	///
+	/// Hence we expect `major` to be changed really rarely (think never).
+	/// See [`MmrLeafVersion`] type documentation for more details.
+	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
+}
+
+impl pallet_beefy_mmr::Config for Runtime {
+	type LeafVersion = LeafVersion;
+	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
+	type ParachainHeads = ParasProvider;
+}
+
+parameter_types! {
+	/// This is a pretty unscientific cap.
+	///
+	/// Note that once this is hit the pallet will essentially throttle incoming requests down to one
+	/// call per block.
 	pub const MaxRequests: u32 = 4 * HOURS as u32;
 
-	// Number of headers to keep.
-	//
-	// Assuming the worst case of every header being finalized, we will keep headers at least for a
-	// week.
+	/// Number of headers to keep.
+	///
+	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
+	/// week.
 	pub const HeadersToKeep: u32 = 7 * DAYS as u32;
 }
 
@@ -859,6 +896,111 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type HeadersToKeep = HeadersToKeep;
 
 	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>;
+}
+
+// Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
+pub type AtWococoFromRococoMessagesDispatch = pallet_bridge_dispatch::DefaultInstance;
+impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runtime {
+	type Event = Event;
+	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type Call = Call;
+	type CallFilter = frame_support::traits::AllowAll;
+	type EncodedCall = bridge_messages::FromRococoEncodedCall;
+	type SourceChainAccountId = bp_wococo::AccountId;
+	type TargetChainAccountPublic = sp_runtime::MultiSigner;
+	type TargetChainSignature = sp_runtime::MultiSignature;
+	type AccountIdConverter = bp_rococo::AccountIdConverter;
+}
+
+// Instance that is "deployed" at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
+pub type AtRococoFromWococoMessagesDispatch = pallet_bridge_dispatch::Instance1;
+impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runtime {
+	type Event = Event;
+	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type Call = Call;
+	type CallFilter = frame_support::traits::AllowAll;
+	type EncodedCall = bridge_messages::FromWococoEncodedCall;
+	type SourceChainAccountId = bp_rococo::AccountId;
+	type TargetChainAccountPublic = sp_runtime::MultiSigner;
+	type TargetChainSignature = sp_runtime::MultiSignature;
+	type AccountIdConverter = bp_wococo::AccountIdConverter;
+}
+
+parameter_types! {
+	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
+	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
+		bp_rococo::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
+		bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+	pub const RootAccountForPayments: Option<AccountId> = None;
+}
+
+// Instance that is "deployed" at Wococo chain. Responsible for sending Wococo -> Rococo messages
+// and receiving Rococo -> Wococo messages.
+pub type AtWococoWithRococoMessagesInstance = pallet_bridge_messages::DefaultInstance;
+impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runtime {
+	type Event = Event;
+	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type Parameter = ();
+	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
+	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
+	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;
+
+	type OutboundPayload = crate::bridge_messages::ToRococoMessagePayload;
+	type OutboundMessageFee = bp_wococo::Balance;
+
+	type InboundPayload = crate::bridge_messages::FromRococoMessagePayload;
+	type InboundMessageFee = bp_rococo::Balance;
+	type InboundRelayer = bp_rococo::AccountId;
+
+	type AccountIdConverter = bp_wococo::AccountIdConverter;
+
+	type TargetHeaderChain = crate::bridge_messages::RococoAtWococo;
+	type LaneMessageVerifier = crate::bridge_messages::ToRococoMessageVerifier;
+	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+		Runtime,
+		pallet_balances::Pallet<Runtime>,
+		crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
+		RootAccountForPayments,
+	>;
+	type OnDeliveryConfirmed = ();
+
+	type SourceHeaderChain = crate::bridge_messages::RococoAtWococo;
+	type MessageDispatch = crate::bridge_messages::FromRococoMessageDispatch;
+}
+
+// Instance that is "deployed" at Rococo chain. Responsible for sending Rococo -> Wococo messages
+// and receiving Wococo -> Rococo messages.
+pub type AtRococoWithWococoMessagesInstance = pallet_bridge_messages::Instance1;
+impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runtime {
+	type Event = Event;
+	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>;
+	type Parameter = ();
+	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
+	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
+	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;
+
+	type OutboundPayload = crate::bridge_messages::ToWococoMessagePayload;
+	type OutboundMessageFee = bp_rococo::Balance;
+
+	type InboundPayload = crate::bridge_messages::FromWococoMessagePayload;
+	type InboundMessageFee = bp_wococo::Balance;
+	type InboundRelayer = bp_wococo::AccountId;
+
+	type AccountIdConverter = bp_rococo::AccountIdConverter;
+
+	type TargetHeaderChain = crate::bridge_messages::WococoAtRococo;
+	type LaneMessageVerifier = crate::bridge_messages::ToWococoMessageVerifier;
+	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+		Runtime,
+		pallet_balances::Pallet<Runtime>,
+		crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
+		RootAccountForPayments,
+	>;
+	type OnDeliveryConfirmed = ();
+
+	type SourceHeaderChain = crate::bridge_messages::WococoAtRococo;
+	type MessageDispatch = crate::bridge_messages::FromWococoMessageDispatch;
 }
 
 impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
@@ -1062,8 +1204,9 @@ sp_api::impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
@@ -1114,7 +1257,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::Inclusion(ev) => {
+					Event::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,
@@ -1244,7 +1387,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_primitives::BeefyApi<Block, BeefyId> for Runtime {
+	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
 			Beefy::validator_set()
 		}
@@ -1302,6 +1445,116 @@ sp_api::impl_runtime_apis! {
 
 		fn is_known_header(hash: bp_wococo::Hash) -> bool {
 			BridgeWococoGrandpa::is_known_header(hash)
+		}
+	}
+
+	impl bp_rococo::ToRococoOutboundLaneApi<Block, Balance, bridge_messages::ToRococoMessagePayload> for Runtime {
+		fn estimate_message_delivery_and_dispatch_fee(
+			_lane_id: bp_messages::LaneId,
+			payload: bridge_messages::ToWococoMessagePayload,
+		) -> Option<Balance> {
+			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtWococoWithRococoMessageBridge>(
+				&payload,
+				bridge_messages::AtWococoWithRococoMessageBridge::RELAYER_FEE_PERCENT,
+			).ok()
+		}
+
+		fn message_details(
+			lane: bp_messages::LaneId,
+			begin: bp_messages::MessageNonce,
+			end: bp_messages::MessageNonce,
+		) -> Vec<bp_messages::MessageDetails<Balance>> {
+			(begin..=end).filter_map(|nonce| {
+				let message_data = BridgeRococoMessages::outbound_message_data(lane, nonce)?;
+				let decoded_payload = bridge_messages::ToRococoMessagePayload::decode(
+					&mut &message_data.payload[..]
+				).ok()?;
+				Some(bp_messages::MessageDetails {
+					nonce,
+					dispatch_weight: decoded_payload.weight,
+					size: message_data.payload.len() as _,
+					delivery_and_dispatch_fee: message_data.fee,
+					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
+				})
+			})
+			.collect()
+		}
+
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeRococoMessages::outbound_latest_received_nonce(lane)
+		}
+
+		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeRococoMessages::outbound_latest_generated_nonce(lane)
+		}
+	}
+
+	impl bp_rococo::FromRococoInboundLaneApi<Block> for Runtime {
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeRococoMessages::inbound_latest_received_nonce(lane)
+		}
+
+		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeRococoMessages::inbound_latest_confirmed_nonce(lane)
+		}
+
+		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
+			BridgeRococoMessages::inbound_unrewarded_relayers_state(lane)
+		}
+	}
+
+	impl bp_wococo::ToWococoOutboundLaneApi<Block, Balance, bridge_messages::ToWococoMessagePayload> for Runtime {
+		fn estimate_message_delivery_and_dispatch_fee(
+			_lane_id: bp_messages::LaneId,
+			payload: bridge_messages::ToWococoMessagePayload,
+		) -> Option<Balance> {
+			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtRococoWithWococoMessageBridge>(
+				&payload,
+				bridge_messages::AtRococoWithWococoMessageBridge::RELAYER_FEE_PERCENT,
+			).ok()
+		}
+
+		fn message_details(
+			lane: bp_messages::LaneId,
+			begin: bp_messages::MessageNonce,
+			end: bp_messages::MessageNonce,
+		) -> Vec<bp_messages::MessageDetails<Balance>> {
+			(begin..=end).filter_map(|nonce| {
+				let message_data = BridgeWococoMessages::outbound_message_data(lane, nonce)?;
+				let decoded_payload = bridge_messages::ToWococoMessagePayload::decode(
+					&mut &message_data.payload[..]
+				).ok()?;
+				Some(bp_messages::MessageDetails {
+					nonce,
+					dispatch_weight: decoded_payload.weight,
+					size: message_data.payload.len() as _,
+					delivery_and_dispatch_fee: message_data.fee,
+					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
+				})
+			})
+			.collect()
+		}
+
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeWococoMessages::outbound_latest_received_nonce(lane)
+		}
+
+		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeWococoMessages::outbound_latest_generated_nonce(lane)
+		}
+	}
+
+	impl bp_wococo::FromWococoInboundLaneApi<Block> for Runtime {
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeWococoMessages::inbound_latest_received_nonce(lane)
+		}
+
+		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgeWococoMessages::inbound_latest_confirmed_nonce(lane)
+		}
+
+		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
+			BridgeWococoMessages::inbound_unrewarded_relayers_state(lane)
 		}
 	}
 

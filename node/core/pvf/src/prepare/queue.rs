@@ -530,7 +530,7 @@ mod tests {
 	use std::task::Poll;
 	use super::*;
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn pvf(descriminator: u32) -> Pvf {
 		Pvf::from_discriminator(descriminator)
 	}

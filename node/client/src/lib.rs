@@ -20,7 +20,6 @@
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
 use std::sync::Arc;
-use beefy_primitives::ecdsa::AuthorityId as BeefyId;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -82,7 +81,7 @@ pub trait RuntimeApiCollection:
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-	+ beefy_primitives::BeefyApi<Block, BeefyId>
+	+ beefy_primitives::BeefyApi<Block>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
@@ -102,7 +101,7 @@ where
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-		+ beefy_primitives::BeefyApi<Block, BeefyId>,
+		+ beefy_primitives::BeefyApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
@@ -427,6 +426,22 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			client,
 			{
 				client.child_storage_keys(id, child_info, key_prefix)
+			}
+		}
+	}
+
+	fn child_storage_keys_iter<'a>(
+		&self,
+		id: &BlockId<Block>,
+		child_info: ChildInfo,
+		prefix: Option<&'a StorageKey>,
+		start_key: Option<&StorageKey>,
+	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
+		with_client! {
+			self,
+			client,
+			{
+				client.child_storage_keys_iter(id, child_info, prefix, start_key)
 			}
 		}
 	}

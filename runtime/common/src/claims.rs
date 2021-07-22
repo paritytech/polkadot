@@ -27,8 +27,7 @@ use sp_runtime::traits::Zero;
 use sp_runtime::{
 	traits::{CheckedSub, SignedExtension, DispatchInfoOf}, RuntimeDebug,
 	transaction_validity::{
-		TransactionLongevity, TransactionValidity, ValidTransaction, InvalidTransaction,
-		TransactionSource, TransactionValidityError,
+		TransactionValidity, ValidTransaction, InvalidTransaction, TransactionValidityError,
 	},
 };
 use primitives::v1::ValidityError;
@@ -158,7 +157,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
-		/// Someone claimed some DOTs. [who, ethereum_address, amount]
+		/// Someone claimed some DOTs. `[who, ethereum_address, amount]`
 		Claimed(T::AccountId, EthereumAddress, BalanceOf<T>),
 	}
 
@@ -168,7 +167,7 @@ pub mod pallet {
 		InvalidEthereumSignature,
 		/// Ethereum address has no claim.
 		SignerHasNoClaim,
-		/// Account ID sending tx has no claim.
+		/// Account ID sending transaction has no claim.
 		SenderHasNoClaim,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
@@ -429,6 +428,53 @@ pub mod pallet {
 			Ok(Pays::No.into())
 		}
 	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			const PRIORITY: u64 = 100;
+
+			let (maybe_signer, maybe_statement) = match call {
+				// <weight>
+				// The weight of this logic is included in the `claim` dispatchable.
+				// </weight>
+				Call::claim(account, ethereum_signature) => {
+					let data = account.using_encoded(to_ascii_hex);
+					(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
+				}
+				// <weight>
+				// The weight of this logic is included in the `claim_attest` dispatchable.
+				// </weight>
+				Call::claim_attest(account, ethereum_signature, statement) => {
+					let data = account.using_encoded(to_ascii_hex);
+					(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
+				}
+				_ => return Err(InvalidTransaction::Call.into()),
+			};
+
+			let signer = maybe_signer
+				.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
+
+			let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
+			ensure!(<Claims<T>>::contains_key(&signer), e);
+
+			let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
+			match Signing::<T>::get(signer) {
+				None => ensure!(maybe_statement.is_none(), e),
+				Some(s) => ensure!(Some(s.to_text()) == maybe_statement, e),
+			}
+
+			Ok(ValidTransaction {
+				priority: PRIORITY,
+				requires: vec![],
+				provides: vec![("claims", signer).encode()],
+				longevity: TransactionLongevity::max_value(),
+				propagate: true,
+			})
+		}
+	}
 }
 
 /// Converts the given binary data into ASCII-encoded hex. It will be twice the length.
@@ -503,52 +549,6 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
-impl<T: Config> sp_runtime::traits::ValidateUnsigned for Pallet<T> {
-	type Call = Call<T>;
-
-	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-		const PRIORITY: u64 = 100;
-
-		let (maybe_signer, maybe_statement) = match call {
-			// <weight>
-			// The weight of this logic is included in the `claim` dispatchable.
-			// </weight>
-			Call::claim(account, ethereum_signature) => {
-				let data = account.using_encoded(to_ascii_hex);
-				(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
-			}
-			// <weight>
-			// The weight of this logic is included in the `claim_attest` dispatchable.
-			// </weight>
-			Call::claim_attest(account, ethereum_signature, statement) => {
-				let data = account.using_encoded(to_ascii_hex);
-				(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
-			}
-			_ => return Err(InvalidTransaction::Call.into()),
-		};
-
-		let signer = maybe_signer
-			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()))?;
-
-		let e = InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into());
-		ensure!(<Claims<T>>::contains_key(&signer), e);
-
-		let e = InvalidTransaction::Custom(ValidityError::InvalidStatement.into());
-		match Signing::<T>::get(signer) {
-			None => ensure!(maybe_statement.is_none(), e),
-			Some(s) => ensure!(Some(s.to_text()) == maybe_statement, e),
-		}
-
-		Ok(ValidTransaction {
-			priority: PRIORITY,
-			requires: vec![],
-			provides: vec![("claims", signer).encode()],
-			longevity: TransactionLongevity::max_value(),
-			propagate: true,
-		})
-	}
-}
-
 /// Validate `attest` calls prior to execution. Needed to avoid a DoS attack since they are
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
@@ -618,19 +618,18 @@ impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 #[cfg(any(test, feature = "runtime-benchmarks"))]
 mod secp_utils {
 	use super::*;
-	use secp256k1;
 
-	pub fn public(secret: &secp256k1::SecretKey) -> secp256k1::PublicKey {
-		secp256k1::PublicKey::from_secret_key(secret)
+	pub fn public(secret: &libsecp256k1::SecretKey) -> libsecp256k1::PublicKey {
+		libsecp256k1::PublicKey::from_secret_key(secret)
 	}
-	pub fn eth(secret: &secp256k1::SecretKey) -> EthereumAddress {
+	pub fn eth(secret: &libsecp256k1::SecretKey) -> EthereumAddress {
 		let mut res = EthereumAddress::default();
 		res.0.copy_from_slice(&keccak_256(&public(secret).serialize()[1..65])[12..]);
 		res
 	}
-	pub fn sig<T: Config>(secret: &secp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
+	pub fn sig<T: Config>(secret: &libsecp256k1::SecretKey, what: &[u8], extra: &[u8]) -> EcdsaSignature {
 		let msg = keccak_256(&<super::Pallet<T>>::ethereum_signable_message(&to_ascii_hex(what)[..], extra));
-		let (sig, recovery_id) = secp256k1::sign(&secp256k1::Message::parse(&msg), secret);
+		let (sig, recovery_id) = libsecp256k1::sign(&libsecp256k1::Message::parse(&msg), secret);
 		let mut r = [0u8; 65];
 		r[0..64].copy_from_slice(&sig.serialize()[..]);
 		r[64] = recovery_id.serialize();
@@ -640,7 +639,6 @@ mod secp_utils {
 
 #[cfg(test)]
 mod tests {
-	use secp256k1;
 	use hex_literal::hex;
 	use super::*;
 	use secp_utils::*;
@@ -649,7 +647,11 @@ mod tests {
 	use parity_scale_codec::Encode;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sp_runtime::{traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
+	use sp_runtime::{
+		traits::{BlakeTwo256, IdentityLookup, Identity},
+		transaction_validity::TransactionLongevity,
+		testing::Header,
+	};
 	use frame_support::{
 		assert_ok, assert_err, assert_noop, parameter_types,
 		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::{ExistenceRequirement, GenesisBuild},
@@ -679,7 +681,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -747,20 +749,20 @@ mod tests {
 		type WeightInfo = TestWeightInfo;
 	}
 
-	fn alice() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Alice")).unwrap()
+	fn alice() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Alice")).unwrap()
 	}
-	fn bob() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Bob")).unwrap()
+	fn bob() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Bob")).unwrap()
 	}
-	fn dave() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Dave")).unwrap()
+	fn dave() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Dave")).unwrap()
 	}
-	fn eve() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Eve")).unwrap()
+	fn eve() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Eve")).unwrap()
 	}
-	fn frank() -> secp256k1::SecretKey {
-		secp256k1::SecretKey::parse(&keccak_256(b"Frank")).unwrap()
+	fn frank() -> libsecp256k1::SecretKey {
+		libsecp256k1::SecretKey::parse(&keccak_256(b"Frank")).unwrap()
 	}
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -1192,7 +1194,7 @@ mod benchmarking {
 	const VALUE: u32 = 1_000_000;
 
 	fn create_claim<T: Config>(input: u32) -> DispatchResult {
-		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
@@ -1200,7 +1202,7 @@ mod benchmarking {
 	}
 
 	fn create_claim_attest<T: Config>(input: u32) -> DispatchResult {
-		let secret_key = secp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
+		let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&input.encode())).unwrap();
 		let eth_address = eth(&secret_key);
 		let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
 		super::Pallet::<T>::mint_claim(
@@ -1220,10 +1222,10 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1246,7 +1248,7 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			let eth_address = account("eth_address", 0, SEED);
@@ -1263,12 +1265,12 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
 			// Crate signature
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1292,11 +1294,11 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 			let account: T::AccountId = account("user", c, SEED);
 			let vesting = Some((100_000u32.into(), 1_000u32.into(), 100u32.into()));
@@ -1330,14 +1332,14 @@ mod benchmarking {
 
 			for i in 0 .. c / 2 {
 				create_claim::<T>(c)?;
-				create_claim_attest::<T>(u32::max_value() - c)?;
+				create_claim_attest::<T>(u32::MAX - c)?;
 			}
 
-			let attest_c = u32::max_value() - c;
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
+			let attest_c = u32::MAX - c;
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&attest_c.encode())).unwrap();
 			let eth_address = eth(&secret_key);
 
-			let new_secret_key = secp256k1::SecretKey::parse(&keccak_256(&(u32::max_value()/2).encode())).unwrap();
+			let new_secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&(u32::MAX/2).encode())).unwrap();
 			let new_eth_address = eth(&new_secret_key);
 
 			let account: T::AccountId = account("user", c, SEED);
@@ -1367,7 +1369,7 @@ mod benchmarking {
 		eth_recover {
 			let i in 0 .. 1_000;
 			// Crate signature
-			let secret_key = secp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
+			let secret_key = libsecp256k1::SecretKey::parse(&keccak_256(&i.encode())).unwrap();
 			let account: T::AccountId = account("user", i, SEED);
 			let signature = sig::<T>(&secret_key, &account.encode(), &[][..]);
 			let data = account.using_encoded(to_ascii_hex);

@@ -172,7 +172,7 @@ impl<
 	}
 }
 
-/// EnsureOrigin barrier to convert from dispatch origin to XCM origin, if one exists.
+/// `EnsureOrigin` barrier to convert from dispatch origin to XCM origin, if one exists.
 pub struct EnsureXcmOrigin<Origin, Conversion>(PhantomData<(Origin, Conversion)>);
 impl<
 	Origin: OriginTrait + Clone,
@@ -227,7 +227,7 @@ impl<
 }
 
 /// `Convert` implementation to convert from some an origin which implements `Backing` into a corresponding `Plurality`
-/// MultiLocation.
+/// `MultiLocation`.
 ///
 /// Typically used when configuring `pallet-xcm` for allowing a collective's Origin to dispatch an XCM from a
 /// `Plurality` origin.

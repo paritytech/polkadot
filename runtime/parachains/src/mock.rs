@@ -21,14 +21,17 @@ use sp_core::H256;
 use sp_runtime::traits::{
 	BlakeTwo256, IdentityLookup,
 };
-use primitives::v1::{AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex};
+use primitives::v1::{
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex, SessionIndex,
+};
 use frame_support::parameter_types;
+use frame_support::traits::GenesisBuild;
 use frame_support_test::TestRandomness;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use crate::{
 	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
-	initializer, shared,
+	initializer, shared, disputes,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -42,16 +45,17 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		Shared: shared::{Pallet, Call, Storage},
-		Inclusion: inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
 		Scheduler: scheduler::{Pallet, Call, Storage},
 		Initializer: initializer::{Pallet, Call, Storage},
 		Dmp: dmp::{Pallet, Call, Storage},
 		Ump: ump::{Pallet, Call, Storage, Event},
 		Hrmp: hrmp::{Pallet, Call, Storage, Event},
 		SessionInfo: session_info::{Pallet, Call, Storage},
+		Disputes: disputes::{Pallet, Storage, Event<T>},
 	}
 );
 
@@ -61,8 +65,10 @@ parameter_types! {
 		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 }
 
+pub type AccountId = u64;
+
 impl frame_system::Config for Test {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
@@ -135,10 +141,59 @@ impl crate::hrmp::Config for Test {
 	type Currency = pallet_balances::Pallet<Test>;
 }
 
+impl crate::disputes::Config for Test {
+	type Event = Event;
+	type RewardValidators = Self;
+	type PunishValidators = Self;
+}
+
+thread_local! {
+	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_VALIDATORS_INCONCLUSIVE: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+}
+
+impl crate::disputes::RewardValidators for Test {
+	fn reward_dispute_statement(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item=ValidatorIndex>
+	) {
+		REWARD_VALIDATORS.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	}
+}
+
+impl crate::disputes::PunishValidators for Test {
+	fn punish_for_invalid(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item=ValidatorIndex>,
+	) {
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	}
+
+	fn punish_against_valid(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item=ValidatorIndex>,
+	) {
+		PUNISH_VALIDATORS_AGAINST
+			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	}
+
+	fn punish_inconclusive(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item=ValidatorIndex>,
+	) {
+		PUNISH_VALIDATORS_INCONCLUSIVE
+			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	}
+}
+
 impl crate::scheduler::Config for Test { }
 
 impl crate::inclusion::Config for Test {
 	type Event = Event;
+	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
 }
 
@@ -208,7 +263,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
-	state.paras.assimilate_storage(&mut t).unwrap();
+	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	t.into()
 }
@@ -217,5 +272,5 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
-	pub paras: crate::paras::GenesisConfig<Test>,
+	pub paras: crate::paras::GenesisConfig,
 }

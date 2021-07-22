@@ -324,7 +324,7 @@ async fn wait_transaction_mined<P: TransactionProofPipeline>(
 	source_tx_hash: &TransactionHashOf<P>,
 ) -> Result<(HeaderId<P>, usize), String> {
 	loop {
-		let source_header_and_tx = source_client.transaction_block(&source_tx_hash).await.map_err(|err| {
+		let source_header_and_tx = source_client.transaction_block(source_tx_hash).await.map_err(|err| {
 			format!(
 				"Error retrieving transaction {} from {} node: {:?}",
 				source_tx_hash,
@@ -363,7 +363,7 @@ async fn wait_header_imported<P: TransactionProofPipeline>(
 	source_header_id: &HeaderId<P>,
 ) -> Result<(), String> {
 	loop {
-		let is_header_known = target_client.is_header_known(&source_header_id).await.map_err(|err| {
+		let is_header_known = target_client.is_header_known(source_header_id).await.map_err(|err| {
 			format!(
 				"Failed to check existence of header {}/{} on {} node: {:?}",
 				source_header_id.0,
@@ -406,7 +406,7 @@ async fn wait_header_finalized<P: TransactionProofPipeline>(
 ) -> Result<(), String> {
 	loop {
 		let is_header_finalized = target_client
-			.is_header_finalized(&source_header_id)
+			.is_header_finalized(source_header_id)
 			.await
 			.map_err(|err| {
 				format!(
