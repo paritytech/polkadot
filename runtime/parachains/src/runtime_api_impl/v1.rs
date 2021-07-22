@@ -51,7 +51,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
-	let parachains = <paras::Module<T>>::parachains();
+	let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Module<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -100,7 +100,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 			CoreState::Occupied(match occupied {
 				CoreOccupied::Parachain => {
 					let para_id = parachains[i];
-					let pending_availability = <inclusion::Module<T>>
+					let pending_availability = <inclusion::Pallet<T>>
 						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
@@ -128,7 +128,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 				}
 				CoreOccupied::Parathread(p) => {
 					let para_id = p.claim.0;
-					let pending_availability = <inclusion::Module<T>>
+					let pending_availability = <inclusion::Pallet<T>>
 						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
@@ -180,14 +180,14 @@ fn with_assumption<Config, T, F>(
 {
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<Config>>::force_enact(para_id);
+			<inclusion::Pallet<Config>>::force_enact(para_id);
 			build()
 		}
 		OccupiedCoreAssumption::TimedOut => {
 			build()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<Config>>::pending_availability(para_id).is_some() {
+			if <inclusion::Pallet<Config>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				build()
@@ -219,7 +219,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
+	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -236,7 +236,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets next, current and some historical authority ids using session_info module.
+/// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
 	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
@@ -270,7 +270,7 @@ pub fn validation_code<T: initializer::Config>(
 	with_assumption::<T, _, _>(
 		para_id,
 		assumption,
-		|| <paras::Module<T>>::current_code(&para_id),
+		|| <paras::Pallet<T>>::current_code(&para_id),
 	)
 }
 
@@ -278,7 +278,7 @@ pub fn validation_code<T: initializer::Config>(
 pub fn candidate_pending_availability<T: initializer::Config>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
 {
-	<inclusion::Module<T>>::candidate_pending_availability(para_id)
+	<inclusion::Pallet<T>>::candidate_pending_availability(para_id)
 }
 
 /// Implementation for the `candidate_events` function of the runtime API.
@@ -300,6 +300,8 @@ where
 				=> CandidateEvent::CandidateIncluded(c, h, core, group),
 			RawEvent::<T>::CandidateTimedOut(c, h, core)
 				=> CandidateEvent::CandidateTimedOut(c, h, core),
+			RawEvent::<T>::__Ignore(_, _)
+				=> unreachable!("__Ignore cannot be used"),
 		})
 		.collect()
 }
@@ -313,19 +315,19 @@ pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<Sess
 pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Module<T>>::dmq_contents(recipient)
+	<dmp::Pallet<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
 pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
-	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
+	<hrmp::Pallet<T>>::inbound_hrmp_channels_contents(recipient)
 }
 
 /// Implementation for the `validation_code_by_hash` function of the runtime API.
 pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
-	<paras::Module<T>>::code_by_hash(hash)
+	<paras::Pallet<T>>::code_by_hash(hash)
 }

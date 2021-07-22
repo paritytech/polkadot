@@ -140,7 +140,7 @@ pub mod pallet {
 		PaymentAccountSet(T::AccountId),
 		/// A new statement was set.
 		StatementUpdated,
-		/// A new statement was set. [block_number]
+		/// A new statement was set. `[block_number]`
 		UnlockBlockUpdated(T::BlockNumber),
 	}
 
@@ -226,7 +226,7 @@ pub mod pallet {
 		/// Update the validity status of an existing account. If set to completed, the account
 		/// will no longer be able to continue through the crowdfund process.
 		///
-		/// We check tht the account exists at this stage, but has not completed the process.
+		/// We check that the account exists at this stage, but has not completed the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
@@ -248,7 +248,7 @@ pub mod pallet {
 
 		/// Update the balance of a valid account.
 		///
-		/// We check tht the account is valid for a balance transfer at this point.
+		/// We check that the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::weight(T::DbWeight::get().reads_writes(2, 1))]
@@ -457,7 +457,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -898,8 +898,8 @@ mod tests {
 			assert_noop!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
-				u64::max_value(),
-				u64::max_value(),
+				u64::MAX,
+				u64::MAX,
 				Permill::zero(),
 			), Error::<Test>::InvalidAccount);
 		});

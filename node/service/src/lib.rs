@@ -56,7 +56,7 @@ pub use {
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sc_client_api::AuxStore,
 	polkadot_primitives::v1::ParachainHost,
-	polkadot_overseer::{Overseer, OverseerHandler},
+	polkadot_overseer::{Overseer, Handle},
 };
 pub use sp_core::traits::SpawnNamed;
 
@@ -427,7 +427,7 @@ fn new_partial<RuntimeApi, Executor>(
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub overseer_handler: Option<OverseerHandler>,
+	pub overseer_handler: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
@@ -893,8 +893,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		let enable_approval_checking_voting_rule = chain_spec.is_kusama()
 			|| chain_spec.is_westend()
 			|| chain_spec.is_rococo()
-			|| chain_spec.is_wococo()
-			|| chain_spec.is_dev();
+			|| chain_spec.is_wococo();
 
 		let builder = if let Some(ref overseer) = overseer_handler {
 			if enable_approval_checking_voting_rule {

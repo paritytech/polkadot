@@ -75,25 +75,11 @@ The end result of this process is a vector of `BackedCandidate`s, sorted in orde
 
 This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
 
-We must take care not to overwhelm the "spam slots" of the chain. That is, to avoid too many votes from the same validators being placed into the chain, which would trigger the anti-spam protection functionality of the [disputes module](../../runtime/disputes.md).
+The block-authoring logic of the runtime has an extra step between handling the inherent-data and producing the actual inherent call, which we assume performs the work of filtering out disputes which are not relevant to the on-chain state.
 
 To select disputes:
 
-- Make a `DisputesInfo` runtime API call and decompose into `{ spam_slots, disputes }`. Bind `disputes` to `onchain_disputes`.
-- Issue a `DisputeCoordinatorMessage::ActiveDisputes` message and wait for the response. Assign the value to `offchain_disputes`.
-- Make a `CandidatesIncluded` runtime API call for each dispute in `offchain_disputes` and tag each offchain dispute as local if the result for it is `true`.
-- Initialize `NewSpamSlots: Map<(SessionIndex, ValidatorIndex), u32>` as an empty map.
-- For each dispute in `offchain_disputes`:
-  1. Make a `RuntimeApiRequest::SessionInfo` against the parent hash for the session of the dispute. If `None`, continue - this chain is in the past relative to the session the dispute belongs to and we can import it when it reaches that session.
-  1. Load the spam slots from `spam_slots` for the given session. If it isn't present, treat as though all zeros.
-  1. construct a `DisputeStatementSet` of all offchain votes we are aware of that the onchain doesn't already have a `valid` or `invalid` bit set for, respectively.
-  1. If the `onchain_disputes` contains an entry for the dispute, load that. Otherwise, treat as empty.
-  1. If the offchain dispute is local or the `DisputeStatementSet` and the onchain dispute together have at least `byzantine_threshold + 1` validators in it, continue to the next offchain dispute.
-  1. Otherwise
-    1. Filter out all votes from the `DisputeStatementSet` where the amount of spam slots occupied on-chain by the validator, plus the `NewSpamSlots` value, plus 1, is greater than `spam_slots.max_spam_slots`.
-    1. After filtering, if either the `valid` or `invalid` lists in the combination of the `DisputeStatementSet` and the onchain dispute is empty, skip this dispute.
-    1. Add 1 to the `NewSpamSlots` value for each validator in the `DisputeStatementSet`.
-- Construct a `MultiDisputeStatementSet` for each `DisputeStatement` and return that.
+- Issue a `DisputeCoordinatorMessage::RecentDisputes` message and wait for the response. This is a set of all disputes in recent sessions which we are aware of.
 
 ### Determining Bitfield Availability
 

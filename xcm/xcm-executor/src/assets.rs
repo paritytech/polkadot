@@ -26,7 +26,7 @@ pub enum AssetId {
 }
 
 impl AssetId {
-	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
+	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
 	pub fn prepend_location(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
