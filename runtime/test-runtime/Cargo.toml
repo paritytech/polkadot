@@ -60,7 +60,6 @@ polkadot-runtime-parachains = { path = "../parachains", default-features = false
 
 [dev-dependencies]
 hex-literal = "0.3.1"
-libsecp256k1 = "0.3.5"
 tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }

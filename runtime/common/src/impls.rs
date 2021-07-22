@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Auxillary struct/enums for polkadot runtime.
+//! Auxiliary `struct`/`enum`s for polkadot runtime.
 
 use frame_support::traits::{OnUnbalanced, Imbalance, Currency};
 use crate::NegativeImbalance;

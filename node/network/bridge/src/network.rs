@@ -232,7 +232,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 	}
 }
 
-/// We assume one peer_id per authority_id.
+/// We assume one `peer_id` per `authority_id`.
 pub async fn get_peer_id_by_authority_id<AD: AuthorityDiscovery>(
 	authority_discovery: &mut AD,
 	authority: AuthorityDiscoveryId,

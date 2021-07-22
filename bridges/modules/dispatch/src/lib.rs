@@ -19,7 +19,7 @@
 //! The messages are interpreted directly as runtime `Call`. We attempt to decode
 //! them and then dispatch as usual. To prevent compatibility issues, the Calls have
 //! to include a `spec_version`. This will be checked before dispatch. In the case of
-//! a succesful dispatch an event is emitted.
+//! a successful dispatch an event is emitted.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
@@ -52,7 +52,7 @@ pub trait Config<I = DefaultInstance>: frame_system::Config {
 	/// The overarching event type.
 	type Event: From<Event<Self, I>> + Into<<Self as frame_system::Config>::Event>;
 	/// Id of the message. Whenever message is passed to the dispatch module, it emits
-	/// event with this id + dispatch result. Could be e.g. (LaneId, MessageNonce) if
+	/// event with this id + dispatch result. Could be e.g. (`LaneId`, `MessageNonce`) if
 	/// it comes from the messages module.
 	type MessageId: Parameter;
 	/// Type of account ID on source chain.
@@ -77,13 +77,13 @@ pub trait Config<I = DefaultInstance>: frame_system::Config {
 	/// The type that is used to wrap the `Self::Call` when it is moved over bridge.
 	///
 	/// The idea behind this is to avoid `Call` conversion/decoding until we'll be sure
-	/// that all other stuff (like `spec_version`) is ok. If we would try to decode
+	/// that all other stuff (like `spec_version`) is OK. If we would try to decode
 	/// `Call` which has been encoded using previous `spec_version`, then we might end
 	/// up with decoding error, instead of `MessageVersionSpecMismatch`.
 	type EncodedCall: Decode + Encode + Into<Result<<Self as Config<I>>::Call, ()>>;
-	/// A type which can be turned into an AccountId from a 256-bit hash.
+	/// A type which can be turned into an `AccountId` from a 256-bit hash.
 	///
-	/// Used when deriving target chain AccountIds from source chain AccountIds.
+	/// Used when deriving target chain `AccountId`s from source chain `AccountId`s.
 	type AccountIdConverter: sp_runtime::traits::Convert<sp_core::hash::H256, Self::AccountId>;
 }
 

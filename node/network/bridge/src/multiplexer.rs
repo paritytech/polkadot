@@ -39,7 +39,7 @@ use polkadot_overseer::AllMessages;
 ///
 /// The resulting stream will end once any of its input ends.
 ///
-/// TODO: Get rid of this: https://github.com/paritytech/polkadot/issues/2842
+// TODO: Get rid of this: <https://github.com/paritytech/polkadot/issues/2842>
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
 	statement_fetching: Option<mpsc::Receiver<network::IncomingRequest>>,

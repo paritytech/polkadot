@@ -17,8 +17,8 @@
 //! Helper method for RPC.
 
 use super::*;
-use jsonrpsee_ws_client::traits::Client;
-pub(crate) use jsonrpsee_ws_client::v2::params::JsonRpcParams;
+use jsonrpsee_ws_client::types::traits::Client;
+pub(crate) use jsonrpsee_ws_client::types::v2::params::JsonRpcParams;
 
 #[macro_export]
 macro_rules! params {

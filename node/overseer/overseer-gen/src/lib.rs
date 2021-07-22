@@ -225,7 +225,7 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 
 /// An asynchronous subsystem task..
 ///
-/// In essence it's just a newtype wrapping a `BoxFuture`.
+/// In essence it's just a new type wrapping a `BoxFuture`.
 pub struct SpawnedSubsystem<E>
 	where
 		E: std::error::Error
@@ -366,12 +366,12 @@ impl<Signal, Message> From<Signal> for FromOverseer<Message, Signal> {
 #[async_trait::async_trait]
 pub trait SubsystemContext: Send + 'static {
 	/// The message type of this context. Subsystems launched with this context will expect
-	/// to receive messages of this type. Commonly uses the wrapping enum commonly called
+	/// to receive messages of this type. Commonly uses the wrapping `enum` commonly called
 	/// `AllMessages`.
 	type Message: std::fmt::Debug + Send + 'static;
 	/// And the same for signals.
 	type Signal: std::fmt::Debug + Send + 'static;
-	/// The overarching all messages enum.
+	/// The overarching all messages `enum`.
 	/// In some cases can be identical to `Self::Message`.
 	type AllMessages: From<Self::Message> + Send + 'static;
 	/// The sender type as provided by `sender()` and underlying.

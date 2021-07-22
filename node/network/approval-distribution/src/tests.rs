@@ -274,11 +274,11 @@ fn try_import_the_same_assignment() {
 	});
 }
 
-/// https://github.com/paritytech/polkadot/pull/2160#discussion_r547594835
+/// <https://github.com/paritytech/polkadot/pull/2160#discussion_r547594835>
 ///
 /// 1. Send a view update that removes block B from their view.
-/// 2. Send a message from B that they incur COST_UNEXPECTED_MESSAGE for,
-///    but then they receive BENEFIT_VALID_MESSAGE.
+/// 2. Send a message from B that they incur `COST_UNEXPECTED_MESSAGE` for,
+///    but then they receive `BENEFIT_VALID_MESSAGE`.
 /// 3. Send all other messages related to B.
 #[test]
 fn spam_attack_results_in_negative_reputation_change() {
@@ -360,7 +360,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 /// Upon receiving them, they both will try to send the message each other.
 /// This test makes sure they will not punish each other for such duplicate messages.
 ///
-/// See https://github.com/paritytech/polkadot/issues/2499.
+/// See <https://github.com/paritytech/polkadot/issues/2499>.
 #[test]
 fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let parent_hash = Hash::repeat_byte(0xFF);

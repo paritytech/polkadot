@@ -45,7 +45,7 @@ pub(super) trait Backend {
 	fn load_leaves(&self) -> Result<LeafEntrySet, Error>;
 	/// Load the stagnant list at the given timestamp.
 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
-	/// Load all stagnant lists up to and including the given UNIX timestamp
+	/// Load all stagnant lists up to and including the given Unix timestamp
 	/// in ascending order.
 	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
 		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;

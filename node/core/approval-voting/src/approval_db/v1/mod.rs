@@ -38,7 +38,7 @@ const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 #[cfg(test)]
 pub mod tests;
 
-/// DbBackend is a concrete implementation of the higher-level Backend trait
+/// `DbBackend` is a concrete implementation of the higher-level Backend trait
 pub struct DbBackend {
 	inner: Arc<dyn KeyValueDB>,
 	config: Config,
