@@ -793,6 +793,8 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 
 		if should_connect_overseer {
 			select_chain.connect_overseer_handler(&overseer_handler);
+		} else {
+			tracing::info!("Overseer is running in the disconnected state");
 		}
 		Some(overseer_handler)
 	} else {
