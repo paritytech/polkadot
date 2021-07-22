@@ -164,14 +164,14 @@ impl MockClockInner {
 	fn wakeup_all(&mut self, up_to: Tick) {
 		// This finds the position of the first wakeup after
 		// the given tick, or the end of the map.
-		let drain_up_to = self.wakeups.binary_search_by_key(
-			&(up_to + 1),
-			|w| w.0,
-		).unwrap_or_else(|i| i);
-
+		let drain_up_to = self.wakeups.partition_point(|w| w.0 <= up_to);
 		for (_, wakeup) in self.wakeups.drain(..drain_up_to) {
 			let _ = wakeup.send(());
 		}
+	}
+
+	fn next_wakeup(&self) -> Option<Tick> {
+		self.wakeups.iter().map(|w| w.0).next()
 	}
 
 	fn has_wakeup(&self, tick: Tick) -> bool {
@@ -190,11 +190,7 @@ impl MockClockInner {
 	fn register_wakeup(&mut self, tick: Tick, pre_emptive: bool) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 
-		let pos = self.wakeups.binary_search_by_key(
-			&tick,
-			|w| w.0,
-		).unwrap_or_else(|i| i);
-
+		let pos = self.wakeups.partition_point(|w| w.0 <= tick);
 		self.wakeups.insert(pos, (tick, tx));
 
 		if pre_emptive {
@@ -212,7 +208,7 @@ struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
 	Compute: Fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
+	Check: Fn(ValidatorIndex) -> Result<DelayTranche, criteria::InvalidAssignment>
 {
 	fn compute_assignments(
 		&self,
@@ -227,13 +223,13 @@ where
 	fn check_assignment_cert(
 		&self,
 		_claimed_core_index: polkadot_primitives::v1::CoreIndex,
-		_validator_index: ValidatorIndex,
+		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
 		_backing_group: polkadot_primitives::v1::GroupIndex,
 	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
-		self.1()
+		self.1(validator_index)
 	}
 }
 
@@ -511,7 +507,7 @@ fn make_harness_input() -> (MockClock, impl AssignmentCriteria) {
 		assigned_tranche,
 	} = Default::default();
 	let mock_clock = MockClock::new(tick_start);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move || { Ok(assigned_tranche) });
+	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| { Ok(assigned_tranche) });
 	(mock_clock, assignment_criteria)
 }
 
@@ -575,7 +571,7 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 	let (oracle, _handle) = make_sync_oracle(false);
 
 	let mock_clock = MockClock::new(0);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move || {
+	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| {
 		Err(criteria::InvalidAssignment)
 	});
 
@@ -817,7 +813,7 @@ fn subsystem_rejects_assignment_in_future() {
 	let tick_start = 0;
 	let assigned_tranche = TICK_TOO_FAR_IN_FUTURE as DelayTranche;
 	let mock_clock = MockClock::new(tick_start);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move || { Ok(assigned_tranche) });
+	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| { Ok(assigned_tranche) });
 
 	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
 		let TestHarness {
@@ -1713,7 +1709,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	let store = SharedTestStore::new(TestStore::default());
 	let mock_clock = MockClock::new(0);
-	let assignment_criteria = MockAssignmentCriteria::check_only(|| {
+	let assignment_criteria = MockAssignmentCriteria::check_only(|_| {
 		Ok(0)
 	});
 	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
@@ -2007,7 +2003,7 @@ fn subsystem_approved_ancestor_missing_approval() {
 }
 
 fn approved_ancestor_test(
-	skip_approval: impl FnOnce(BlockNumber) -> bool + Copy,
+	skip_approval: impl Fn(BlockNumber) -> bool,
 	approved_height: BlockNumber,
 ) {
 	let (oracle, _handle) = make_sync_oracle(false);
@@ -2143,7 +2139,7 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 			}.into());
 			assignments
 		},
-		|| Ok(0),
+		|_| Ok(0),
 	);
 
 	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
@@ -2215,289 +2211,31 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 
 #[test]
 fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, _) = make_harness_input();
-	let store = SharedTestStore::new(TestStore::default());
-	let assignment_criteria = MockAssignmentCriteria(|| {
-			let mut assignments = HashMap::new();
-			let _ = assignments.insert(CoreIndex(0), approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
-				tranche: 1,
-				validator_index: ValidatorIndex(4),
-				triggered: false,
-			}.into());
-			assignments
-		},
-		|| Ok(0),
-	);
-
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			clock,
-			..
-		} = test_harness;
-
-		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::default();
-		let candidate_hash = candidate_receipt.hash();
-		let slot = Slot::from(1);
-		let session_index = 1;
-		let candidate_index = 0;
-		let validator0 = ValidatorIndex(0);
-
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Eve,
-		];
-		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: vec![
-				vec![ValidatorIndex(0), ValidatorIndex(1)],
-				vec![ValidatorIndex(2)],
-				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
-		};
-
-		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
-				slot,
-				candidates: Some(vec![(candidate_receipt, CoreIndex(0), GroupIndex(0))]),
-				session_info: Some(session_info),
-			})
-			.build(&mut virtual_overseer).await;
-
-		assert!(!clock.inner.lock().has_wakeup(1));
-		clock.inner.lock().wakeup_all(1);
-
-		let rx = check_and_import_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(4),
-		).await;
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(4),
-			candidate_hash,
-			session_index,
-			false,
-			true,
-			Some(sign_approval(Sr25519Keyring::Eve, candidate_hash, session_index))
-		).await;
-
-		assert_matches!(rx.await.unwrap(), ApprovalCheckResult::Accepted);
-
-		let rx = check_and_import_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator0,
-		).await;
-
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator0,
-			candidate_hash,
-			session_index,
-			true,
-			true,
-			None,
-		).await;
-
-		assert_matches!(rx.await.unwrap(), ApprovalCheckResult::Accepted);
-
-		assert_eq!(clock.inner.lock().wakeups.len(), 4);
-		clock.inner.lock().wakeup_all(slot_to_tick(slot) + 1);
-
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
-
-		assert_eq!(clock.inner.lock().wakeups.len(), 1);
-		clock.inner.lock().wakeup_all(slot_to_tick(slot + 1) + 1);
-
-		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
-		let our_assignment = candidate_entry
-			.approval_entry(&block_hash).unwrap()
-			.our_assignment().unwrap();
-		assert!(!our_assignment.triggered());
-
-		virtual_overseer
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 1,
+		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
+		no_show_slots: 2,
+		assignments_to_import: vec![0, 1],
+		approvals_to_import: vec![1],
+		ticks: vec![
+			11,
+		],
+		should_be_triggered: |_| false,
 	});
 }
 
 #[test]
 fn subsystem_assignment_not_triggered_by_all_with_threshold() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, _) = make_harness_input();
-	let store = SharedTestStore::new(TestStore::default());
-	let assignment_criteria = MockAssignmentCriteria(|| {
-			let mut assignments = HashMap::new();
-			let _ = assignments.insert(CoreIndex(0), approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
-				tranche: 1,
-				validator_index: ValidatorIndex(4),
-				triggered: false,
-			}.into());
-			assignments
-		},
-		|| Ok(0),
-	);
-
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			clock,
-			..
-		} = test_harness;
-
-		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_receipt = CandidateReceipt::<Hash>::default();
-		let candidate_hash = candidate_receipt.hash();
-		let slot = Slot::from(1);
-		let session_index = 1;
-		let candidate_index = 0;
-		let validator0 = ValidatorIndex(0);
-
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Eve,
-		];
-		let session_info = SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: vec![
-				vec![ValidatorIndex(0), ValidatorIndex(1)],
-				vec![ValidatorIndex(2)],
-				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
-			needed_approvals: 2,
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			n_cores: validators.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots: 2,
-		};
-
-		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
-				slot,
-				candidates: Some(vec![(candidate_receipt, CoreIndex(0), GroupIndex(0))]),
-				session_info: Some(session_info),
-			})
-			.build(&mut virtual_overseer).await;
-
-		assert!(!clock.inner.lock().has_wakeup(1));
-		clock.inner.lock().wakeup_all(1);
-
-		let rx = check_and_import_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(4),
-		).await;
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(4),
-			candidate_hash,
-			session_index,
-			false,
-			true,
-			Some(sign_approval(Sr25519Keyring::Eve, candidate_hash, session_index))
-		).await;
-
-		assert_matches!(rx.await.unwrap(), ApprovalCheckResult::Accepted);
-
-		let rx = check_and_import_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator0,
-		).await;
-
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
-
-		let rx = check_and_import_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(1),
-		).await;
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator0,
-			candidate_hash,
-			session_index,
-			true,
-			true,
-			None,
-		).await;
-
-		assert_matches!(rx.await.unwrap(), ApprovalCheckResult::Accepted);
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(1),
-			candidate_hash,
-			session_index,
-			false,
-			true,
-			Some(sign_approval(Sr25519Keyring::Bob, candidate_hash, session_index))
-		).await;
-
-		assert_matches!(rx.await.unwrap(), ApprovalCheckResult::Accepted);
-
-		assert_eq!(clock.inner.lock().wakeups.len(), 4);
-		clock.inner.lock().wakeup_all(slot_to_tick(slot) + 1);
-
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
-
-		assert_eq!(clock.inner.lock().wakeups.len(), 1);
-		clock.inner.lock().wakeup_all(slot_to_tick(slot + 1) + 1);
-
-		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
-		let our_assignment = candidate_entry
-			.approval_entry(&block_hash).unwrap()
-			.our_assignment().unwrap();
-		assert!(!our_assignment.triggered());
-
-		virtual_overseer
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 1,
+		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
+		no_show_slots: 2,
+		assignments_to_import: vec![0, 1, 2],
+		approvals_to_import: vec![1, 2],
+		ticks: vec![
+			11, // Alice wakeup
+		],
+		should_be_triggered: |_| false,
 	});
 }
 
@@ -2538,4 +2276,276 @@ async fn should_trigger_assignment(
 			.approval_entry(&block_hash).unwrap()
 			.our_assignment().unwrap();
 		our_assignment.triggered()
+}
+
+struct TriggersAssignmentConfig<F1, F2> {
+	our_assigned_tranche: DelayTranche,
+	assign_validator_tranche: F1,
+	no_show_slots: u32,
+	assignments_to_import: Vec<u32>,
+	approvals_to_import: Vec<u32>,
+	ticks: Vec<Tick>,
+	should_be_triggered: F2,
+}
+
+fn triggers_assignment_test<F1, F2>(config: TriggersAssignmentConfig<F1, F2>)
+where
+	F1: 'static + Fn(ValidatorIndex) -> Result<DelayTranche, criteria::InvalidAssignment> + Send + Sync,
+	F2: Fn(Tick) -> bool,
+{
+	let TriggersAssignmentConfig {
+		our_assigned_tranche,
+		assign_validator_tranche,
+		no_show_slots,
+		assignments_to_import,
+		approvals_to_import,
+		ticks,
+		should_be_triggered,
+	} = config;
+
+	let (oracle, _handle) = make_sync_oracle(false);
+	let (mock_clock, _) = make_harness_input();
+	let store = SharedTestStore::new(TestStore::default());
+
+	let assignment_criteria = MockAssignmentCriteria(move || {
+			let mut assignments = HashMap::new();
+			let _ = assignments.insert(CoreIndex(0), approval_db::v1::OurAssignment {
+				cert: garbage_assignment_cert(
+					AssignmentCertKind::RelayVRFModulo { sample: 0 }
+				),
+				tranche: our_assigned_tranche,
+				validator_index: ValidatorIndex(0),
+				triggered: false,
+			}.into());
+			assignments
+		},
+		assign_validator_tranche,
+	);
+
+	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			clock,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let candidate_receipt = CandidateReceipt::<Hash>::default();
+		let candidate_hash = candidate_receipt.hash();
+		let slot = Slot::from(1);
+		let candidate_index = 0;
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::Ferdie,
+		];
+		let session_info = SessionInfo {
+			validators: validators.iter().map(|v| v.public().into()).collect(),
+			validator_groups: vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2), ValidatorIndex(3)],
+				vec![ValidatorIndex(4), ValidatorIndex(5)],
+			],
+			needed_approvals: 2,
+			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
+			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
+			n_cores: validators.len() as _,
+			zeroth_delay_tranche_width: 5,
+			relay_vrf_modulo_samples: 2,
+			n_delay_tranches: 50,
+			no_show_slots,
+		};
+
+		ChainBuilder::new()
+			.add_block(block_hash, ChainBuilder::GENESIS_HASH, 1, BlockConfig {
+				slot,
+				candidates: Some(vec![(candidate_receipt, CoreIndex(0), GroupIndex(2))]),
+				session_info: Some(session_info),
+			})
+			.build(&mut virtual_overseer).await;
+
+		for validator in assignments_to_import {
+			let rx = check_and_import_assignment(
+				&mut virtual_overseer,
+				block_hash,
+				candidate_index,
+				ValidatorIndex(validator),
+			).await;
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+		}
+
+		for validator_index in approvals_to_import {
+			let rx = check_and_import_approval(
+				&mut virtual_overseer,
+				block_hash,
+				candidate_index,
+				ValidatorIndex(validator_index),
+				candidate_hash,
+				1,
+				false,
+				true,
+				Some(sign_approval(validators[validator_index as usize].clone(), candidate_hash, 1))
+			).await;
+			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+		}
+
+		let debug = false;
+		if debug {
+			step_until_done(&clock).await;
+			return virtual_overseer
+		}
+
+		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+
+		for tick in ticks {
+			// Assert that this tick is the the next to wake up, requiring the test harness to
+			// encode all relevant wakeups.
+			assert_eq!(Some(tick), clock.inner.lock().next_wakeup());
+
+			clock.inner.lock().set_tick(tick);
+			async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+
+			// Assert that Alice's assignment is triggered at the correct tick.
+			let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+			let our_assignment = candidate_entry
+				.approval_entry(&block_hash).unwrap()
+				.our_assignment().unwrap();
+			assert_eq!(our_assignment.triggered(), should_be_triggered(tick), "at tick {:?}", tick);
+		}
+
+		virtual_overseer
+	});
+}
+
+async fn step_until_done(clock: &MockClock) {
+	let mut relevant_ticks = Vec::new();
+	loop {
+		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+		let mut clock = clock.inner.lock();
+		if let Some(tick) = clock.next_wakeup() {
+			relevant_ticks.push(tick);
+			clock.set_tick(tick);
+		} else {
+			break
+		}
+	}
+}
+
+#[test]
+fn subsystem_assignment_triggered_solo_zero_tranche() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 0,
+		assign_validator_tranche: |_| Ok(0),
+		no_show_slots: 2,
+		assignments_to_import: vec![],
+		approvals_to_import: vec![],
+		ticks: vec![
+			10, // Alice wakeup, assignment triggered
+		],
+		should_be_triggered: |_| true,
+	});
+}
+
+#[test]
+fn subsystem_assignment_triggered_if_below_maximum_and_clock_is_equal() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 11,
+		assign_validator_tranche: |_| Ok(0),
+		no_show_slots: 2,
+		assignments_to_import: vec![1],
+		approvals_to_import: vec![],
+		ticks: vec![
+			20, // Check no shows
+			21, // Alice wakeup, assignment triggered
+		],
+		should_be_triggered: |tick| tick >= 21,
+	});
+}
+
+#[test]
+fn subsystem_assignment_not_triggered_more_than_maximum() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 3,
+		assign_validator_tranche: |_| Ok(0),
+		no_show_slots: 2,
+		assignments_to_import: vec![2, 3],
+		approvals_to_import: vec![],
+		ticks: vec![
+			13, // Alice wakeup
+			20, // Check no shows
+		],
+		should_be_triggered: |_| false,
+	});
+}
+
+#[test]
+fn subsystem_assignment_triggered_if_at_maximum() {
+	// TODO(ladi): is this possible?
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 11,
+		assign_validator_tranche: |_| Ok(2),
+		approvals_to_import: vec![],
+		no_show_slots: 2,
+		assignments_to_import: vec![1],
+		ticks: vec![
+			12, // Bob wakeup
+			20, // Check no shows
+		],
+		should_be_triggered: |_| false,
+	});
+}
+
+#[test]
+fn subsystem_assignment_not_triggered_by_exact() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 2,
+		assign_validator_tranche: |_| Ok(1),
+		no_show_slots: 2,
+		assignments_to_import: vec![2, 3],
+		approvals_to_import: vec![],
+		ticks: vec![
+			11, // Charlie and Dave wakeup
+		],
+		should_be_triggered: |_| false,
+	});
+}
+
+#[test]
+fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 6,
+		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
+		no_show_slots: 0,
+		assignments_to_import: vec![2, 3, 4],
+		approvals_to_import: vec![],
+		ticks: vec![
+			12, // Charlie wakeup
+			13, // Dave wakeup
+			14, // Eve wakeup
+		],
+		should_be_triggered: |_| false,
+	});
+}
+
+#[test]
+fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
+	triggers_assignment_test(TriggersAssignmentConfig {
+		our_assigned_tranche: 5,
+		assign_validator_tranche: |validator: ValidatorIndex| Ok(validator.0 as _),
+		no_show_slots: 2,
+		assignments_to_import: vec![2, 3, 4],
+		approvals_to_import: vec![],
+		ticks: vec![
+			12, // Charlie wakeup
+			13, // Dave wakeup
+			15, // Alice wakeup, noop
+			20, // Check no shows
+			34, // Eve wakeup
+		],
+		should_be_triggered: |_| false,
+	});
 }
