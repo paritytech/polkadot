@@ -758,7 +758,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Return the session index that should be used for any future scheduled changes.
 	fn scheduled_session() -> SessionIndex {
-		shared::Module::<T>::scheduled_session()
+		shared::Pallet::<T>::scheduled_session()
 	}
 
 	/// Forcibly set the active config. This should be used with extreme care, and typically

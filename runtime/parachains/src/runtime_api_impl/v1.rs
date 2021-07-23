@@ -32,7 +32,7 @@ use crate::{initializer, inclusion, scheduler, configuration, paras, session_inf
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
-	<shared::Module<T>>::active_validator_keys()
+	<shared::Pallet<T>>::active_validator_keys()
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
@@ -100,7 +100,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 			CoreState::Occupied(match occupied {
 				CoreOccupied::Parachain => {
 					let para_id = parachains[i];
-					let pending_availability = <inclusion::Module<T>>
+					let pending_availability = <inclusion::Pallet<T>>
 						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
@@ -128,7 +128,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 				}
 				CoreOccupied::Parathread(p) => {
 					let para_id = p.claim.0;
-					let pending_availability = <inclusion::Module<T>>
+					let pending_availability = <inclusion::Pallet<T>>
 						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
@@ -180,14 +180,14 @@ fn with_assumption<Config, T, F>(
 {
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<Config>>::force_enact(para_id);
+			<inclusion::Pallet<Config>>::force_enact(para_id);
 			build()
 		}
 		OccupiedCoreAssumption::TimedOut => {
 			build()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<Config>>::pending_availability(para_id).is_some() {
+			if <inclusion::Pallet<Config>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				build()
@@ -219,7 +219,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
+	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -231,7 +231,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<shared::Module<T>>::session_index()
+	<shared::Pallet<T>>::session_index()
 }
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
@@ -278,7 +278,7 @@ pub fn validation_code<T: initializer::Config>(
 pub fn candidate_pending_availability<T: initializer::Config>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
 {
-	<inclusion::Module<T>>::candidate_pending_availability(para_id)
+	<inclusion::Pallet<T>>::candidate_pending_availability(para_id)
 }
 
 /// Implementation for the `candidate_events` function of the runtime API.
@@ -300,6 +300,8 @@ where
 				=> CandidateEvent::CandidateIncluded(c, h, core, group),
 			RawEvent::<T>::CandidateTimedOut(c, h, core)
 				=> CandidateEvent::CandidateTimedOut(c, h, core),
+			RawEvent::<T>::__Ignore(_, _)
+				=> unreachable!("__Ignore cannot be used"),
 		})
 		.collect()
 }
@@ -313,14 +315,14 @@ pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<Sess
 pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Module<T>>::dmq_contents(recipient)
+	<dmp::Pallet<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
 pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
-	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
+	<hrmp::Pallet<T>>::inbound_hrmp_channels_contents(recipient)
 }
 
 /// Implementation for the `validation_code_by_hash` function of the runtime API.

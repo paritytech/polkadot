@@ -28,7 +28,6 @@ use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop, PalletId,
-	storage::StorageMap,
 	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
 };
 use frame_system::EnsureRoot;
@@ -66,6 +65,7 @@ frame_support::construct_runtime!(
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
+		ParasShared: shared::{Pallet, Call, Storage},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -252,8 +252,8 @@ const BLOCKS_PER_SESSION: u32 = 10;
 
 fn maybe_new_session(n: u32) {
 	if n % BLOCKS_PER_SESSION == 0 {
-		shared::Module::<Test>::set_session_index(
-			shared::Module::<Test>::session_index() + 1
+		shared::Pallet::<Test>::set_session_index(
+			shared::Pallet::<Test>::session_index() + 1
 		);
 		Paras::test_on_new_session();
 	}
