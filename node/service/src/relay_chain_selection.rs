@@ -257,7 +257,6 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
-		tracing::info!(?target_hash, ?maybe_max_number, "Calculating finality target");
 		if self.overseer.is_disconnected() {
 			return self.fallback.finality_target(target_hash, maybe_max_number).await
 		}
@@ -277,10 +276,7 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 			match best {
 				// No viable leaves containing the block.
-				None => {
-					tracing::info!(?target_hash, "No viable leaf containing the block");
-					return Ok(Some(target_hash))
-				},
+				None => return Ok(Some(target_hash)),
 				Some(best) => best,
 			}
 		};
@@ -347,7 +343,6 @@ impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
-		tracing::info!(?lag, "Approval checking finality lag");
 
 		// 3. Constrain according to disputes:
 		// TODO: https://github.com/paritytech/polkadot/issues/3164
