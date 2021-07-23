@@ -73,6 +73,7 @@ use futures::{
 	Future, FutureExt, StreamExt,
 };
 use lru::LruCache;
+use parking_lot::RwLock;
 
 use polkadot_primitives::v1::{Block, BlockId,BlockNumber, Hash, ParachainHost};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -159,16 +160,22 @@ impl<Client> HeadSupportsParachains for Arc<Client> where
 }
 
 
-/// A handler used to communicate with the [`Overseer`].
+/// A handle used to communicate with the [`Overseer`].
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub struct Handle(pub Option<OverseerHandle>);
+pub enum Handle {
+	/// Used only at initialization to break the cyclic dependency.
+	// TODO: refactor in https://github.com/paritytech/polkadot/issues/3427
+	Disconnected(Arc<RwLock<Option<OverseerHandle>>>),
+	/// A handle to the overseer.
+	Connected(OverseerHandle),
+}
 
 impl Handle {
 	/// Create a new disconnected [`Handle`].
 	pub fn new_disconnected() -> Self {
-		Self(None)
+		Self::Disconnected(Arc::new(RwLock::new(None)))
 	}
 
 	/// Inform the `Overseer` that that some block was imported.
@@ -212,7 +219,8 @@ impl Handle {
 
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
-		if let Some(handle) = self.0.as_mut() {
+		self.try_connect();
+		if let Self::Connected(ref mut handle) = self {
 			if handle.send(event).await.is_err() {
 				tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 			}
@@ -221,15 +229,49 @@ impl Handle {
 		}
 	}
 
-	/// Whether the handler is disconnected.
+	/// Whether the handle is disconnected.
 	pub fn is_disconnected(&self) -> bool {
-		self.0.is_none()
+		match self {
+			Self::Disconnected(ref x) => x.read().is_none(),
+			_ => false,
+		}
 	}
 
-	/// Using this handler, connect another handler to the same
-	/// overseer, if any.
-	pub fn connect_other(&self, other: &mut Handle) {
-		*other = self.clone();
+	/// Connect this handle and all disconnected clones of it to the overseer.
+	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
+		match self {
+			Self::Disconnected(ref mut x) => {
+				let mut maybe_handle = x.write();
+				if maybe_handle.is_none() {
+					tracing::info!(target: LOG_TARGET, "🖇️ Connecting all Handles to Overseer");
+					*maybe_handle = Some(handle);
+				} else {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Attempting to connect a clone of a connected Handle",
+					);
+				}
+			},
+			_ => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Attempting to connect and already connected Handle",
+				);
+			},
+		}
+	}
+
+	/// Try upgrading from `Self::Disconnected` to `Self::Connected` state
+	/// after calling `connect_to_overseer` on `self` or a clone of `self`.
+	fn try_connect(&mut self) {
+		if let Self::Disconnected(ref mut x) = self {
+			let guard = x.write();
+			if let Some(ref h) = *guard {
+				let handle = h.clone();
+				drop(guard);
+				*self = Self::Connected(handle);
+			}
+		}
 	}
 }
 
@@ -558,7 +600,7 @@ where
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
-	) -> SubsystemResult<(Self, Handle)>
+	) -> SubsystemResult<(Self, OverseerHandle)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
 		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
@@ -585,7 +627,7 @@ where
 	{
 		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
 
-		let (mut overseer, handler) = Self::builder()
+		let (mut overseer, handle) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
 			.candidate_backing(all_subsystems.candidate_backing)
 			.statement_distribution(all_subsystems.statement_distribution)
@@ -658,7 +700,7 @@ where
 			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
 		}
 
-		Ok((overseer, Handle(Some(handler))))
+		Ok((overseer, handle))
 	}
 
 	/// Stop the overseer.

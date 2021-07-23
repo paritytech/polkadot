@@ -61,7 +61,7 @@ pub use {
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sc_client_api::AuxStore,
 	polkadot_primitives::v1::ParachainHost,
-	polkadot_overseer::{Overseer, Handle},
+	polkadot_overseer::{Overseer, Handle, OverseerHandle},
 };
 pub use sp_core::traits::SpawnNamed;
 
@@ -732,8 +732,6 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		None
 	};
 
-	// we'd say let overseer_handler = authority_discovery_service.map(|authority_discovery_service|, ...),
-	// but in that case we couldn't use ? to propagate errors
 	let local_keystore = keystore_container.local_keystore();
 	if local_keystore.is_none() {
 		tracing::info!("Cannot run as validator without local keystore.");
@@ -742,8 +740,8 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	let maybe_params = local_keystore
 		.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
-	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		let (overseer, overseer_handler) = overseer_gen.generate::<
+	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+		let (overseer, overseer_handle) = overseer_gen.generate::<
 			service::SpawnTaskHandle,
 			FullClient<RuntimeApi, Executor>,
 		>(
@@ -765,12 +763,13 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 				dispute_coordinator_config,
 			}
 		)?;
-		let overseer_handler_clone = overseer_handler.clone();
+		let handle = Handle::Connected(overseer_handle.clone());
+		let handle_clone = handle.clone();
 
 		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
 
-			let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+			let forward = polkadot_overseer::forward_events(overseer_client, handle_clone);
 
 			let forward = forward.fuse();
 			let overseer_fut = overseer.run().fuse();
@@ -792,11 +791,11 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			|| chain_spec.is_wococo();
 
 		if should_connect_overseer {
-			select_chain.connect_overseer_handler(&overseer_handler);
+			select_chain.connect_to_overseer(overseer_handle.clone());
 		} else {
 			tracing::info!("Overseer is running in the disconnected state");
 		}
-		Some(overseer_handler)
+		Some(handle)
 	} else {
 		None
 	};
@@ -814,7 +813,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		);
 
 		let client_clone = client.clone();
-		let overseer_handler = overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
+		let overseer_handler = overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
@@ -959,7 +958,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	Ok(NewFull {
 		task_manager,
 		client,
-		overseer_handler,
+		overseer_handler: overseer_handle,
 		network,
 		rpc_handlers,
 		backend,

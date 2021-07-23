@@ -167,13 +167,14 @@ fn overseer_works() {
 			.replace_candidate_validation(TestSubsystem1(s1_tx))
 			.replace_candidate_backing(TestSubsystem2(s2_tx));
 
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			vec![],
 			all_subsystems,
 			None,
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -189,7 +190,7 @@ fn overseer_works() {
 						Some(msg) => {
 							s1_results.push(msg);
 							if s1_results.len() == 10 {
-								handler.stop().await;
+								handle.stop().await;
 							}
 						}
 						None => break,
@@ -237,21 +238,22 @@ fn overseer_metrics_work() {
 
 		let all_subsystems = AllSubsystems::<()>::dummy();
 		let registry = prometheus::Registry::new();
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			vec![first_block],
 			all_subsystems,
 			Some(&registry),
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
 
-		handler.block_imported(second_block).await;
-		handler.block_imported(third_block).await;
-		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-		handler.stop().await;
+		handle.block_imported(second_block).await;
+		handle.block_imported(third_block).await;
+		handle.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handle.stop().await;
 
 		select! {
 			res = overseer_fut => {
@@ -399,13 +401,14 @@ fn overseer_start_stop_works() {
 		let all_subsystems = AllSubsystems::<()>::dummy()
 			.replace_candidate_validation(TestSubsystem5(tx_5))
 			.replace_candidate_backing(TestSubsystem6(tx_6));
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			vec![first_block],
 			all_subsystems,
 			None,
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -413,8 +416,8 @@ fn overseer_start_stop_works() {
 		let mut ss5_results = Vec::new();
 		let mut ss6_results = Vec::new();
 
-		handler.block_imported(second_block).await;
-		handler.block_imported(third_block).await;
+		handle.block_imported(second_block).await;
+		handle.block_imported(third_block).await;
 
 		let expected_heartbeats = vec![
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
@@ -464,7 +467,7 @@ fn overseer_start_stop_works() {
 
 			if ss5_results.len() == expected_heartbeats.len() &&
 				ss6_results.len() == expected_heartbeats.len() {
-					handler.stop().await;
+					handle.stop().await;
 			}
 		}
 
@@ -508,13 +511,14 @@ fn overseer_finalize_works() {
 			.replace_candidate_backing(TestSubsystem6(tx_6));
 
 		// start with two forks of different height.
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			vec![first_block, second_block],
 			all_subsystems,
 			None,
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -523,7 +527,7 @@ fn overseer_finalize_works() {
 		let mut ss6_results = Vec::new();
 
 		// this should stop work on both forks we started with earlier.
-		handler.block_finalized(third_block).await;
+		handle.block_finalized(third_block).await;
 
 		let expected_heartbeats = vec![
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -570,7 +574,7 @@ fn overseer_finalize_works() {
 			}
 
 			if ss5_results.len() == expected_heartbeats.len() && ss6_results.len() == expected_heartbeats.len() {
-				handler.stop().await;
+				handle.stop().await;
 			}
 		}
 
@@ -608,21 +612,22 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 		let all_subsystems = AllSubsystems::<()>::dummy()
 			.replace_candidate_backing(TestSubsystem6(tx_5));
 
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
 			None,
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
 
 		let mut ss5_results = Vec::new();
 
-		handler.block_finalized(finalized_block.clone()).await;
-		handler.block_imported(imported_block.clone()).await;
+		handle.block_finalized(finalized_block.clone()).await;
+		handle.block_imported(imported_block.clone()).await;
 
 		let expected_heartbeats = vec![
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -653,7 +658,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 			}
 
 			if ss5_results.len() == expected_heartbeats.len() {
-				handler.stop().await;
+				handle.stop().await;
 			}
 		}
 
@@ -877,19 +882,20 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			dispute_distribution: subsystem.clone(),
 			chain_selection: subsystem.clone(),
 		};
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			vec![],
 			all_subsystems,
 			None,
 			MockSupportsParachains,
 			spawner,
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
 
 		// send a signal to each subsystem
-		handler.block_imported(BlockInfo {
+		handle.block_imported(BlockInfo {
 			hash: Default::default(),
 			parent_hash: Default::default(),
 			number: Default::default(),
@@ -897,26 +903,26 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		// send a msg to each subsystem
 		// except for BitfieldSigning and GossipSupport as the messages are not instantiable
-		handler.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
-		handler.send_msg_anon(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
-		handler.send_msg_anon(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
-		handler.send_msg_anon(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
-		handler.send_msg_anon(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
-		handler.send_msg_anon(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
-		// handler.send_msg_anon(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
-		// handler.send_msg_anon(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
-		handler.send_msg_anon(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
-		handler.send_msg_anon(AllMessages::Provisioner(test_provisioner_msg())).await;
-		handler.send_msg_anon(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
-		handler.send_msg_anon(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
-		handler.send_msg_anon(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
-		handler.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
-		handler.send_msg_anon(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
-		handler.send_msg_anon(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
-		handler.send_msg_anon(AllMessages::DisputeCoordinator(test_dispute_coordinator_msg())).await;
-		handler.send_msg_anon(AllMessages::DisputeParticipation(test_dispute_participation_msg())).await;
-		handler.send_msg_anon(AllMessages::DisputeDistribution(test_dispute_distribution_msg())).await;
-		handler.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg())).await;
+		handle.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg())).await;
+		handle.send_msg_anon(AllMessages::CandidateBacking(test_candidate_backing_msg())).await;
+		handle.send_msg_anon(AllMessages::CollationGeneration(test_collator_generation_msg())).await;
+		handle.send_msg_anon(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await;
+		handle.send_msg_anon(AllMessages::StatementDistribution(test_statement_distribution_msg())).await;
+		handle.send_msg_anon(AllMessages::AvailabilityRecovery(test_availability_recovery_msg())).await;
+		// handle.send_msg_anon(AllMessages::BitfieldSigning(test_bitfield_signing_msg())).await;
+		// handle.send_msg_anon(AllMessages::GossipSupport(test_bitfield_signing_msg())).await;
+		handle.send_msg_anon(AllMessages::BitfieldDistribution(test_bitfield_distribution_msg())).await;
+		handle.send_msg_anon(AllMessages::Provisioner(test_provisioner_msg())).await;
+		handle.send_msg_anon(AllMessages::RuntimeApi(test_runtime_api_msg())).await;
+		handle.send_msg_anon(AllMessages::AvailabilityStore(test_availability_store_msg())).await;
+		handle.send_msg_anon(AllMessages::NetworkBridge(test_network_bridge_msg())).await;
+		handle.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
+		handle.send_msg_anon(AllMessages::ApprovalDistribution(test_approval_distribution_msg())).await;
+		handle.send_msg_anon(AllMessages::ApprovalVoting(test_approval_voting_msg())).await;
+		handle.send_msg_anon(AllMessages::DisputeCoordinator(test_dispute_coordinator_msg())).await;
+		handle.send_msg_anon(AllMessages::DisputeParticipation(test_dispute_participation_msg())).await;
+		handle.send_msg_anon(AllMessages::DisputeDistribution(test_dispute_distribution_msg())).await;
+		handle.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
 		// the conclude signal.
@@ -937,7 +943,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 		}
 
 		// send a stop signal to each subsystems
-		handler.stop().await;
+		handle.stop().await;
 
 		let res = overseer_fut.await;
 		assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);

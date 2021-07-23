@@ -6631,6 +6631,7 @@ dependencies = [
  "kv-log-macro",
  "lru",
  "metered-channel",
+ "parking_lot 0.11.1",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",

@@ -41,7 +41,7 @@ use {
 	},
 	polkadot_subsystem::messages::{ApprovalVotingMessage, ChainSelectionMessage},
 	polkadot_node_subsystem_util::metrics::{self, prometheus},
-	polkadot_overseer::Handle,
+	polkadot_overseer::{Handle, OverseerHandle},
 	futures::channel::oneshot,
 	consensus_common::{Error as ConsensusError, SelectChain},
 	sp_blockchain::HeaderBackend,
@@ -166,13 +166,13 @@ impl<B> SelectRelayChain<B>
 }
 
 impl<B> SelectRelayChain<B> {
-	/// Given an overseer handler, this connects the [`SelectRelayChain`]'s
-	/// internal handler to the same overseer.
-	pub fn connect_overseer_handler(
+	/// Given an overseer handle, connects the [`SelectRelayChain`]'s
+	/// internal handle and its clones to the same overseer.
+	pub fn connect_to_overseer(
 		&mut self,
-		other_handler: &Handle,
+		handle: OverseerHandle,
 	) {
-		other_handler.connect_other(&mut self.overseer);
+		self.overseer.connect_to_overseer(handle);
 	}
 }
 

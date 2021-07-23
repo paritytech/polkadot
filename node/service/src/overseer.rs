@@ -30,7 +30,7 @@ use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, Handle};
+use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandle};
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sp_api::ProvideRuntimeApi;
@@ -268,7 +268,7 @@ where
 /// would do.
 pub trait OverseerGen {
 	/// Overwrite the full generation of the overseer, including the subsystems.
-	fn generate<'a, Spawner, RuntimeClient>(&self, args: OverseerGenArgs<'a, Spawner, RuntimeClient>) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, Handle), Error>
+	fn generate<'a, Spawner, RuntimeClient>(&self, args: OverseerGenArgs<'a, Spawner, RuntimeClient>) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -287,7 +287,7 @@ pub struct RealOverseerGen;
 impl OverseerGen for RealOverseerGen {
 	fn generate<'a, Spawner, RuntimeClient>(&self,
 		args : OverseerGenArgs<'a, Spawner, RuntimeClient>
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, Handle), Error>
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
