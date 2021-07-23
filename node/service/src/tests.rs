@@ -16,13 +16,14 @@
 
 
 use super::*;
-use crate::AuxStore;
+use super::relay_chain_selection::*;
+
 use futures::channel::oneshot::Receiver;
 use sp_consensus_babe::Transcript;
+use sp_consensus_babe::digests::CompatibleDigestItem;
 use polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_test_client::Sr25519Keyring;
-use polkadot_primitives::v1::CandidateHash;
 use polkadot_node_primitives::approval::{
 	VRFOutput, VRFProof,
 };
@@ -33,25 +34,18 @@ use polkadot_subsystem::messages::BlockDescription;
 use polkadot_subsystem::*;
 use sp_runtime::{
 	DigestItem,
-	Justification,
 };
-use sp_blockchain::Cache;
 use sp_runtime::testing::*;
 use sp_consensus_babe::digests::PreDigest;
 use sp_consensus_babe::digests::SecondaryVRFPreDigest;
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::iter::IntoIterator;
-use std::sync::RwLock;
-// use polkadot_approval_distribution::{
-// 	BlockEntry,
-// };
 
 use assert_matches::assert_matches;
 use sp_keystore::CryptoStore;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::relay_chain_selection::*;
 use consensus_common::SelectChain;
 use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
@@ -59,80 +53,74 @@ use polkadot_subsystem::messages::{
 };
 
 use sp_blockchain::HeaderBackend;
-use sp_runtime::generic::BlockId;
 use sc_keystore::LocalKeystore;
 use futures::prelude::*;
 use futures::channel::oneshot;
 
-const SLOT_DURATION_MILLIS: u64 = 100;
-
-use sc_client_api::{
-	ChildInfo,
-	Storage,
-	TransactionForSB,
-	NewBlockState,
-	PrunableStateChangesTrieStorage,
-};
-use sp_state_machine::{
-	IndexOperation,
-	ChangesTrieTransaction,
-	StorageCollection,
-	UsageInfo,
-};
-
 use crate::relay_chain_selection::{HeaderProvider, HeaderProviderProvider};
+use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
+use polkadot_overseer::{SubsystemSender, SubsystemContext};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
 
+
+#[async_trait::async_trait]
+impl OverseerHandleT for TestSubsystemSender {
+	async fn send_msg<M: Send + Into<AllMessages>>(&mut self, msg: M, _origin: &'static str) {
+		TestSubsystemSender::send_message(self, msg.into()).await;
+	}
+}
+
 struct TestHarness {
 	virtual_overseer: VirtualOverseer,
+	case_vars: CaseVars,
 	/// The result of `fn finality_target` will be injected into the
 	/// harness scope via this channel.
-	finality_target_rx: Receiver<Option<(BlockNumber, Hash)>>,
+	finality_target_rx: Receiver<Option<Hash>>,
 }
 
 #[derive(Default)]
 struct HarnessConfig;
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
-	config: HarnessConfig,
 	case_vars: CaseVars,
 	test: impl FnOnce(TestHarness) -> T,
-) -> Option<(BlockNumber, Block)> {
+) {
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
+	let (mut context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
-	let (finality_target_tx, finality_target_rx) = oneshot::channel();
+	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
 
-	let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+	// let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
 
-	let store = Arc::new(TestStore::default());
-	let mut select_relay_chain = SelectRelayChain::new(store.clone(), virtual_overseer, Default::default());
+	let mut select_relay_chain =
+		SelectRelayChain::<
+			ChainContent,
+			TestSubsystemSender,
+		>::new(
+		Arc::new(case_vars.chain.clone()), context.sender().clone(), Default::default()
+		);
 
-	// let HarnessConfig { , block_number } = config;
-
-	select_relay_chain.connect_overseer_handler(handle);
-
+	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
-		let best = select_relay_chain.finality_target(case_vars.target_block, None).await;
+		let best = select_relay_chain.finality_target(target_hash, None).await.unwrap();
 		finality_target_tx.send(best).unwrap();
-		best
+		()
 	};
 
-	let test_fut = test(TestHarness { virtual_overseer, finality_target_rx });
+	let test_fut = test(TestHarness { virtual_overseer, case_vars, finality_target_rx });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(selection_process);
 
-	futures::executor::block_on(future::join(
+	let x = futures::executor::block_on(future::join(
 		async move {
 			let mut overseer = test_fut.await;
 			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
 		},
 		selection_process,
 	))
-	.1
-	.unwrap()
+	.1;
 }
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
@@ -174,20 +162,20 @@ async fn overseer_signal(
 }
 
 // sets up a keystore with the given keyring accounts.
-async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
-	let store = LocalKeystore::in_memory();
+// async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+// 	let store = LocalKeystore::in_memory();
 
-	for s in accounts.iter().copied().map(|k| k.to_seed()) {
-		store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).await.unwrap();
-	}
+// 	for s in accounts.iter().copied().map(|k| k.to_seed()) {
+// 		store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).await.unwrap();
+// 	}
 
-	store
-}
+// 	store
+// }
 
 // used for generating assignments where the validity of the VRF doesn't matter.
 fn garbage_vrf() -> (VRFOutput, VRFProof) {
 	let key = Sr25519Keyring::Alice.pair();
-	let key: &schnorrkel::Keypair = key.as_ref();
+	let key = key.as_ref();
 
 	let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
 	(VRFOutput(o.to_output()), VRFProof(p))
@@ -203,7 +191,6 @@ const A5: Hash = Hash::repeat_byte(0xA5);
 const B1: Hash = Hash::repeat_byte(0xB1);
 const B2: Hash = Hash::repeat_byte(0xB2);
 const B3: Hash = Hash::repeat_byte(0xB3);
-const B4: Hash = Hash::repeat_byte(0xB4);
 
 /// Representation of a local representation
 /// to extract information for finalization target
@@ -214,14 +201,54 @@ struct ChainContent {
 	blocks_at_height: BTreeMap<u32, Vec<Hash>>,
 	disputed_blocks: HashSet<Hash>,
 	available_blocks: HashSet<Hash>,
-
 	heads: HashSet<Hash>,
+}
+
+impl ChainContent {
+
+	/// Fill the `HighestApprovedAncestor` structure with mostly
+	/// correct data.
+	pub fn highest_approved_ancestors(&self, target_block: Hash) -> Option<HighestApprovedAncestorBlock> {
+		let hash = target_block;
+		let number = self.blocks_by_hash.get(&target_block)?.number;
+
+		let header = self.blocks_by_hash.get(&target_block).unwrap();
+
+		let mut descriptions = Vec::new();
+		let mut block_hash = target_block;
+		let mut highest_approved_ancestor = None;
+
+		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
+			block_hash = block.hash();
+			descriptions.push(BlockDescription {
+				session: 1 as _, // dummy
+				block_hash,
+				candidates: vec![], // not relevant for all test cases
+			});
+			if self.available_blocks.contains(&block_hash) {
+				highest_approved_ancestor = Some(block_hash);
+				break;
+			}
+			let next = block.parent_hash();
+			if &target_block != block.parent_hash() {
+				block_hash = *next;
+			} else {
+				break;
+			}
+		}
+
+		if highest_approved_ancestor.is_none() {
+			return None;
+		}
+
+		Some(HighestApprovedAncestorBlock { hash, number, descriptions: descriptions.into_iter().rev().collect() })
+	}
 }
 
 
 impl HeaderProvider<Block> for ChainContent {
 	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
-		Ok(self.blocks_by_hash.get(&hash))
+		Ok(self.blocks_by_hash.get(&hash).cloned())
 	}
 	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
 		self.header(hash).map(|opt| {
@@ -247,7 +274,7 @@ impl ChainBuilder {
 
 	pub fn new() -> Self {
 		let mut builder = Self(ChainContent::default());
-		builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
+		let _ = builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
 		builder
 	}
 
@@ -273,7 +300,7 @@ impl ChainBuilder {
 		block_number: BlockNumber,
 		slot: impl Into<Slot>,
 	) -> Hash {
-		let block = self.ff(self, branch_tag, parent, block_number, slot);
+		let block = self.ff(branch_tag, parent, block_number, slot);
 		let _ = self.0.available_blocks.insert(block);
 		block
 	}
@@ -295,7 +322,7 @@ impl ChainBuilder {
 	pub fn ff(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber, slot: impl Into<Slot>) -> Hash {
 		let slot: Slot = slot.into();
 		let hash = Hash::repeat_byte((block_number & 0xA0) as u8);
-		self.add_block(hash, parent, slot, block_number);
+		let _ = self.add_block(hash, parent, slot, block_number);
 		hash
 	}
 
@@ -305,42 +332,6 @@ impl ChainBuilder {
 
 	pub fn init(mut self) -> ChainContent {
 		self.0
-	}
-
-	/// Fill the `HighestApprovedAncestor` structure with mostly
-	/// correct data.
-	pub fn highest_approved_ancestors(&self, target_block: Hash) -> Option<HighestApprovedAncestorBlock> {
-		let hash = target_block;
-		let number = self.0.blocks_by_hash.get(&target_block)?.number;
-
-		let header = self.0.blocks_by_hash.get(&target_block).unwrap();
-
-		let mut descriptions = Vec::new();
-		let mut block = target_block;
-		let mut highest_approved_ancestor = None;
-
-		while let Some(block) = self.0.blocks_by_hash.get(&block) {
-			descriptions.push(BlockDescription {
-				session: 1 as _, // dummy
-				block_hash: block,
-				candidates: vec![], // not relevant for all test cases
-			});
-			if self.0.available_blocks.contains(&block) {
-				highest_approved_ancestor = Some(block);
-				break;
-			}
-			if let Some(next) = block.parent {
-				block = next
-			} else {
-				break;
-			}
-		}
-
-		if highest_approved_ancestor.is_none() {
-			return None;
-		}
-
-		Some(HighestApprovedAncestorBlock { hash, number, descriptions: descriptions.into_iter().rev().collect() })
 	}
 
 	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
@@ -365,34 +356,37 @@ impl ChainBuilder {
 /// Depends on a particular `target_hash`
 /// that is passed to `finality_target` block number.
 async fn test_skeleton(
+	chain: &ChainContent,
 	virtual_overseer: &mut VirtualOverseer,
 	best_chain_containing_block: Option<Hash>,
 	highest_approved_ancestor_block: Option<HighestApprovedAncestorBlock>,
-	undisputed_chain: Option<(BlockNumber, Hash)>,
+	undisputed_chain: Option<Hash>,
 ) {
+	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
+
 	assert_matches!(
 		overseer_recv(
-			&mut virtual_overseer
+			virtual_overseer
 		).await,
 		AllMessages::ChainSelection(ChainSelectionMessage::BestLeafContaining(target_hash, tx))
 		=> {
-			tx.send(best_chain_containing_block);
+			tx.send(best_chain_containing_block).unwrap();
 		}
 	);
 
 	assert_matches!(
 		overseer_recv(
-			&mut virtual_overseer
+			virtual_overseer
 		).await,
 		AllMessages::ApprovalVoting(ApprovalVotingMessage::ApprovedAncestor(block_hash, block_number, tx))
 		=> {
-			tx.send(highest_approved_ancestor_block);
+			tx.send(highest_approved_ancestor_block).unwrap();
 		}
 	);
 
 	assert_matches!(
 		overseer_recv(
-			&mut virtual_overseer
+			virtual_overseer
 		).await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
@@ -401,15 +395,15 @@ async fn test_skeleton(
 				tx,
 			}
 		) => {
-			tx.send(undisputed_chain);
+			tx.send(undisputed_chain).unwrap();
 	});
 }
 
 /// Straight forward test case, where the test is not
 /// for integrity, but for different block relation structures.
-fn run_specialized_test_w_harness<CaseVarsProvider: FnOnce() -> CaseVars>()
+fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F)
 {
-	test_harness(Default::default(), CaseVarsProvider::call_once(), |test_harness| async move {
+	test_harness(case_var_provider(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			finality_target_rx,
@@ -425,30 +419,40 @@ fn run_specialized_test_w_harness<CaseVarsProvider: FnOnce() -> CaseVars>()
 			..
 		} = test_harness;
 
-		let highest_approved_ancestor_w_desc = chain.highest_approved_ancestor(target_block);
+		// XXX nice to have
+		let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(target_block);
 
-		if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
-			(highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
-		{
-			assert_eq!(
-				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-				"Derived block hash and provided do not match {:?} vs {:?}",
-				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-			);
-		}
+		// if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
+		// 	(highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
+		// {
+		// 	assert_eq!(
+		// 		highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+		// 		"Derived block hash and provided do not match {:?} vs {:?}",
+		// 		highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+		// 	);
+		// }
+		test_skeleton(
+			&chain,
+			&mut virtual_overseer,
+			best_chain_containing_block,
+			highest_approved_ancestor_w_desc,
+			undisputed_chain
+		).await;
 
-		test_skeleton(best_chain_containing_block, highest_approved_ancestor_w_desc, undisputed_chain).await;
-
+		// TODO FIXME
 		assert_matches!(finality_target_rx.await,
-			Some(
-				val,
-			) => assert_eq!(undisputed_chain, val));
+		 	Ok(
+		 		hash_to_finalize,
+			) => assert_eq!(undisputed_chain, hash_to_finalize));
 
 		virtual_overseer
 	});
+
+
 }
 
 /// All variables relevant for a test case.
+#[derive(Clone, Debug)]
 struct CaseVars {
 	/// Abstract chain definition.
 	// TODO must be tied to the `TestStore` content.
@@ -512,10 +516,10 @@ fn chain_1() -> CaseVars {
 	let mut builder = ChainBuilder::new();
 
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_disputed(&mut builder, 0xA0, a1, 2, 1);
+	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
 	let a3 = builder.ff_available(0xA0, a2, 3, 1);
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, a1, 3, 2);
+	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
@@ -537,10 +541,10 @@ fn chain_2() -> CaseVars {
 	let mut builder = ChainBuilder::new();
 
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_disputed(&mut builder, 0xA0, a1, 2, 1);
+	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
 	let a3 = builder.ff_available(0xA0, a2, 3, 1);
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, a1, 3, 2);
+	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
@@ -563,9 +567,9 @@ fn chain_3() -> CaseVars {
 
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_available(0xA0, a1, 2, 1);
-	let a3 = builder.ff_disputed(&mut builder, 0xA0, a2, 3, 1);
+	let a3 = builder.ff_disputed( 0xA0, a2, 3, 1);
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, a1, 3, 2);
+	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
 	CaseVars {
 		chain: builder.init(),
@@ -579,17 +583,22 @@ fn chain_3() -> CaseVars {
 
 #[test]
 fn chain_sel_0() {
-	run_specialized_test_w_harness::<chain_0>();
+	run_specialized_test_w_harness(chain_0);
 }
 
 #[test]
 fn chain_sel_1() {
-	run_specialized_test_w_harness::<chain_1>();
+	run_specialized_test_w_harness(chain_1);
 }
 
 #[test]
 fn chain_sel_2() {
-	run_specialized_test_w_harness::<chain_2>();
+	run_specialized_test_w_harness(chain_2);
+}
+
+#[test]
+fn chain_sel_3() {
+	run_specialized_test_w_harness(chain_3);
 }
 
 #[test]

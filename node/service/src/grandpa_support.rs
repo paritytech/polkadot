@@ -19,7 +19,6 @@
 use std::sync::Arc;
 
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
 
 use crate::relay_chain_selection::HeaderProvider;

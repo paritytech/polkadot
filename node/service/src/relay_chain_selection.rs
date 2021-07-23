@@ -35,24 +35,20 @@
 
 #![cfg(feature = "full-node")]
 
-use {
-	polkadot_primitives::v1::{
-		Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
-	},
-	polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock, ChainSelectionMessage, DisputeCoordinatorMessage},
-	polkadot_node_subsystem_util::metrics::{self, prometheus},
-	polkadot_overseer::Handle,
-	futures::channel::oneshot,
-	consensus_common::{Error as ConsensusError, SelectChain},
-	sc_client_api::Backend,
-	std::sync::Arc,
+use polkadot_primitives::v1::{
+	Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
 };
+use polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock, ChainSelectionMessage, DisputeCoordinatorMessage};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use futures::channel::oneshot;
+use consensus_common::{Error as ConsensusError, SelectChain};
+use std::sync::Arc;
+use polkadot_overseer::{AllMessages, Handle};
 use sp_runtime::{
 	generic::BlockId,
 	traits::{
 		Block as BlockT,
 		Header as HeaderT,
-		NumberFor,
 	},
 };
 
@@ -116,7 +112,9 @@ impl Metrics {
 }
 
 /// A chain-selection implementation which provides safety for relay chains.
-pub struct SelectRelayChainWithFallback<B: sc_client_api::Backend<PolkadotBlock>> {
+pub struct SelectRelayChainWithFallback<
+	B: sc_client_api::Backend<PolkadotBlock>,
+> {
 	// A fallback to use in case the overseer is disconnected.
 	//
 	// This is used on relay chains which have not yet enabled
@@ -124,7 +122,8 @@ pub struct SelectRelayChainWithFallback<B: sc_client_api::Backend<PolkadotBlock>
 	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
 	selection: SelectRelayChain<
 		// <B as sc_client_api::Backend<PolkadotBlock>>::Blockchain
-		B
+		B,
+		Handle,
 	>,
 }
 
@@ -132,8 +131,9 @@ impl<B> Clone for SelectRelayChainWithFallback<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 	SelectRelayChain<
-		B
 		// <B as sc_client_api::Backend<PolkadotBlock>>::Blockchain
+		B,
+		Handle,
 	>: Clone,
 {
 	fn clone(&self) -> Self {
@@ -146,7 +146,8 @@ where
 
 
 impl<B> SelectRelayChainWithFallback<B>
-	where B: sc_client_api::Backend<PolkadotBlock> + 'static
+where
+	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
 	/// Create a new [`SelectRelayChainWithFallback`] wrapping the given chain backend
 	/// and a handle to the overseer.
@@ -161,21 +162,13 @@ impl<B> SelectRelayChainWithFallback<B>
 			),
 		}
 	}
-
-	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
-		self.selection.block_header(hash)
-	}
-
-	fn block_number(&self, hash: Hash) -> Result<BlockNumber, ConsensusError> {
-		self.selection.block_number(hash)
-	}
 }
 
 impl<B> SelectRelayChainWithFallback<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock>,
 {
-	/// Given an overseer handler, this connects the [`SelectRelayChain`]'s
+	/// Given an overseer handler, this connects the [`SelectRelayChainWithFallback`]'s
 	/// internal handler to the same overseer.
 	#[allow(unused)]
 	pub fn connect_overseer_handler(
@@ -222,19 +215,21 @@ where
 
 /// A chain-selection implementation which provides safety for relay chains
 /// but does not handle situations where the overseer is not yet connected.
-pub struct SelectRelayChain<B> {
+pub struct SelectRelayChain<B, OH> {
 	backend: Arc<B>,
-	overseer: Handle,
+	overseer: OH,
 	metrics: Metrics,
 }
 
-impl<B> SelectRelayChain<B>
-	where B: HeaderProviderProvider<PolkadotBlock> + 'static
+impl<B, OH> SelectRelayChain<B, OH>
+where
+	B: HeaderProviderProvider<PolkadotBlock> + 'static,
+	OH: OverseerHandleT,
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	#[allow(unused)]
-	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
+	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			backend,
 			overseer,
@@ -273,23 +268,12 @@ impl<B> SelectRelayChain<B>
 	}
 }
 
-impl<B> SelectRelayChain<B> {
-	/// Given an overseer handler, this connects the [`SelectRelayChain`]'s
-	/// internal handler to the same overseer.
-	#[allow(unused)]
-	pub fn connect_overseer_handler(
-		&mut self,
-		other_handler: &Handle,
-	) {
-		other_handler.connect_other(&mut self.overseer);
-	}
-}
-
-impl<B> Clone for SelectRelayChain<B>
+impl<B, OH> Clone for SelectRelayChain<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock> + Send + Sync + 'static,
+	OH: OverseerHandleT,
 {
-	fn clone(&self) -> SelectRelayChain<B> {
+	fn clone(&self) -> Self {
 		SelectRelayChain {
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
@@ -307,8 +291,6 @@ enum Error {
 	#[error("ChainSelection returned no leaves")]
 	EmptyLeaves,
 }
-
-use sc_client_api::HeaderBackend;
 
 /// Provides the header and block number for a hash.
 ///
@@ -337,6 +319,10 @@ where
 	}
 }
 
+/// Decoupling the provider.
+///
+/// Mandated since `trait HeaderProvider` can only be
+/// implemented once for a generic `T`.
 pub trait HeaderProviderProvider<Block>: Send + Sync + 'static
 where
 	Block: BlockT,
@@ -360,11 +346,27 @@ where
 }
 
 
+/// Decoupling trait for the overseer handle.
+///
+/// Required for testing purposes.
+#[async_trait::async_trait]
+pub trait OverseerHandleT: Clone + Send + Sync {
+	async fn send_msg<M: Send + Into<AllMessages>>(&mut self, msg: M, origin: &'static str);
+}
 
 #[async_trait::async_trait]
-impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
+impl OverseerHandleT for Handle {
+	async fn send_msg<M: Send + Into<AllMessages>>(&mut self, msg: M, origin: &'static str) {
+		Handle::send_msg(self, msg, origin).await
+	}
+}
+
+
+#[async_trait::async_trait]
+impl<B, OH> SelectChain<PolkadotBlock> for SelectRelayChain<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock> + 'static,
+	OH: OverseerHandleT,
 {
 	/// Get all leaves of the chain, i.e. block hashes that are suitable to
 	/// build upon and have no suitable children.
