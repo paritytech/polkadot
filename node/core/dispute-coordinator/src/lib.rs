@@ -845,7 +845,6 @@ fn determine_undisputed_chain(
 	block_descriptions: Vec<BlockDescription>,
 ) -> Result<Option<(BlockNumber, Hash)>, Error> {
 	let last = block_descriptions.last()
-
 		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
 
 	// Fast path for no disputes.

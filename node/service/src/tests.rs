@@ -116,7 +116,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let x = futures::executor::block_on(future::join(
 		async move {
 			let mut overseer = test_fut.await;
-			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
 		},
 		selection_process,
 	))
@@ -185,10 +184,8 @@ fn garbage_vrf() -> (VRFOutput, VRFProof) {
 const A1: Hash = Hash::repeat_byte(0xA1);
 const A2: Hash = Hash::repeat_byte(0xA2);
 const A3: Hash = Hash::repeat_byte(0xA3);
-const A4: Hash = Hash::repeat_byte(0xA4);
 const A5: Hash = Hash::repeat_byte(0xA5);
 
-const B1: Hash = Hash::repeat_byte(0xB1);
 const B2: Hash = Hash::repeat_byte(0xB2);
 const B3: Hash = Hash::repeat_byte(0xB3);
 
@@ -200,7 +197,7 @@ struct ChainContent {
 	blocks_by_hash: HashMap<Hash, Header>,
 	blocks_at_height: BTreeMap<u32, Vec<Hash>>,
 	disputed_blocks: HashSet<Hash>,
-	available_blocks: HashSet<Hash>,
+	approved_blocks: HashSet<Hash>,
 	heads: HashSet<Hash>,
 }
 
@@ -221,11 +218,11 @@ impl ChainContent {
 		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
 			block_hash = block.hash();
 			descriptions.push(BlockDescription {
-				session: 1 as _, // dummy
+				session: 1 as _, // dummy, not checked
 				block_hash,
-				candidates: vec![], // not relevant for all test cases
+				candidates: vec![], // not relevant for any test cases
 			});
-			if self.available_blocks.contains(&block_hash) {
+			if self.approved_blocks.contains(&block_hash) {
 				highest_approved_ancestor = Some(block_hash);
 				break;
 			}
@@ -242,6 +239,31 @@ impl ChainContent {
 		}
 
 		Some(HighestApprovedAncestorBlock { hash, number, descriptions: descriptions.into_iter().rev().collect() })
+	}
+
+	/// Traverse backwards from leave down to block number.
+	fn undisputed_chain(&self, base_blocknumber: BlockNumber, highest_approved_block_hash: Hash) -> Option<Hash> {
+		if self.disputed_blocks.is_empty() {
+			return Some(highest_approved_block_hash)
+		}
+
+		let mut undisputed_chain = Some(highest_approved_block_hash);
+		let mut block_hash = highest_approved_block_hash;
+		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
+			block_hash = block.hash();
+			if ChainBuilder::GENESIS_HASH == block_hash {
+				return None;
+			}
+			let next = block.parent_hash();
+			if self.disputed_blocks.contains(&block_hash) {
+				undisputed_chain = Some(*next);
+			}
+			if block.number() == &base_blocknumber {
+				return None;
+			}
+			block_hash = *next;
+		}
+		undisputed_chain
 	}
 }
 
@@ -301,7 +323,7 @@ impl ChainBuilder {
 		slot: impl Into<Slot>,
 	) -> Hash {
 		let block = self.ff(branch_tag, parent, block_number, slot);
-		let _ = self.0.available_blocks.insert(block);
+		let _ = self.0.approved_blocks.insert(block);
 		block
 	}
 
@@ -321,7 +343,7 @@ impl ChainBuilder {
 
 	pub fn ff(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber, slot: impl Into<Slot>) -> Hash {
 		let slot: Slot = slot.into();
-		let hash = Hash::repeat_byte((block_number & 0xA0) as u8);
+		let hash = Hash::repeat_byte((block_number as u8 | branch_tag) as u8);
 		let _ = self.add_block(hash, parent, slot, block_number);
 		hash
 	}
@@ -363,6 +385,7 @@ async fn test_skeleton(
 	undisputed_chain: Option<Hash>,
 ) {
 	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
+
 
 	assert_matches!(
 		overseer_recv(
@@ -419,18 +442,30 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 			..
 		} = test_harness;
 
-		// XXX nice to have
+		// Verify test integrity: the provided highest approved
+		// ancesotr must match the chain derived one.
 		let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(target_block);
+		if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
+			(&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
+		{
+			assert_eq!(
+				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+				"TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
+				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+			);
+		}
 
-		// if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
-		// 	(highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
-		// {
-		// 	assert_eq!(
-		// 		highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-		// 		"Derived block hash and provided do not match {:?} vs {:?}",
-		// 		highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-		// 	);
-		// }
+		if let Some(haacwd) = &highest_approved_ancestor_w_desc {
+			let expected = chain.undisputed_chain(haacwd.number, haacwd.hash);
+			assert_eq!(
+				expected,
+				undisputed_chain,
+				"TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
+				undisputed_chain,
+				expected,
+			)
+		}
+
 		test_skeleton(
 			&chain,
 			&mut virtual_overseer,
@@ -439,7 +474,6 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 			undisputed_chain
 		).await;
 
-		// TODO FIXME
 		assert_matches!(finality_target_rx.await,
 		 	Ok(
 		 		hash_to_finalize,
@@ -454,8 +488,7 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 /// All variables relevant for a test case.
 #[derive(Clone, Debug)]
 struct CaseVars {
-	/// Abstract chain definition.
-	// TODO must be tied to the `TestStore` content.
+	/// Chain test _case_ definition.
 	chain: ChainContent,
 
 	/// All heads of the chain.
@@ -492,17 +525,18 @@ fn chain_0() -> CaseVars {
 	let a3 = builder.ff_available(0xA0, a2, 3, 1);
 	let a4 = builder.ff(0xA0, a3, 4, 1);
 	let a5 = builder.ff(0xA0, a4, 5, 1);
+
 	let b1 = builder.ff_available(0xB0, a1, 2, 2);
-	let b2 = builder.ff_available(0xB0, b1, 2, 2);
-	let b3 = builder.ff_available(0xB0, b2, 2, 2);
+	let b2 = builder.ff_available(0xB0, b1, 3, 2);
+	let b3 = builder.ff_available(0xB0, b2, 4, 2);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a3, b2],
-		target_block: A4,
+		heads: vec![a5, b3],
+		target_block: A1,
 		best_chain_containing_block: Some(A5),
 		highest_approved_ancestor_block: Some(A3),
-		undisputed_chain: Some(A3),
+		undisputed_chain: Some(A2),
 	}
 }
 
@@ -518,6 +552,7 @@ fn chain_1() -> CaseVars {
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
 	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
 	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
@@ -543,6 +578,7 @@ fn chain_2() -> CaseVars {
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
 	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
 	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
@@ -552,7 +588,7 @@ fn chain_2() -> CaseVars {
 		target_block: A3,
 		best_chain_containing_block: Some(A3),
 		highest_approved_ancestor_block: Some(A3),
-		undisputed_chain: None,
+		undisputed_chain: Some(A1),
 	}
 }
 
@@ -568,6 +604,7 @@ fn chain_3() -> CaseVars {
 	let a1 = builder.ff_available(0xA0, head, 1, 1);
 	let a2 = builder.ff_available(0xA0, a1, 2, 1);
 	let a3 = builder.ff_disputed( 0xA0, a2, 3, 1);
+
 	let b2 = builder.ff_available(0xB0, a1, 2, 2);
 	let b3 = builder.ff_available(0xB0, b2, 3, 2);
 
