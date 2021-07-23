@@ -307,6 +307,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
+			ActiveConfig::<T>::put(&self.config);
 			self.config.check_consistency();
 		}
 	}
