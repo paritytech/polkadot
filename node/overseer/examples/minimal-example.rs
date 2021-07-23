@@ -174,7 +174,7 @@ fn main() {
 			.replace_candidate_backing(Subsystem1)
 			;
 
-		let (overseer, _handler) = Overseer::new(
+		let (overseer, _handle) = Overseer::new(
 			vec![],
 			all_subsystems,
 			None,

@@ -347,7 +347,7 @@ pub enum ExternalRequest {
 /// import and finality notifications into the [`OverseerHandle`].
 pub async fn forward_events<P: BlockchainEvents<Block>>(
 	client: Arc<P>,
-	mut handler: Handle,
+	mut handle: Handle,
 ) {
 	let mut finality = client.finality_notification_stream();
 	let mut imports = client.import_notification_stream();
@@ -357,7 +357,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 			f = finality.next() => {
 				match f {
 					Some(block) => {
-						handler.block_finalized(block.into()).await;
+						handle.block_finalized(block.into()).await;
 					}
 					None => break,
 				}
@@ -365,7 +365,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(
 			i = imports.next() => {
 				match i {
 					Some(block) => {
-						handler.block_imported(block.into()).await;
+						handle.block_imported(block.into()).await;
 					}
 					None => break,
 				}
@@ -481,7 +481,7 @@ where
 	/// This returns the overseer along with an [`OverseerHandle`] which can
 	/// be used to send messages from external parts of the codebase.
 	///
-	/// The [`OverseerHandler`] returned from this function is connected to
+	/// The [`OverseerHandle`] returned from this function is connected to
 	/// the returned [`Overseer`].
 	///
 	/// ```text
@@ -572,7 +572,7 @@ where
 	/// let spawner = sp_core::testing::TaskExecutor::new();
 	/// let all_subsystems = AllSubsystems::<()>::dummy()
 	///		.replace_candidate_validation(ValidationSubsystem);
-	/// let (overseer, _handler) = Overseer::new(
+	/// let (overseer, _handle) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
 	///     None,

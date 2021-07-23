@@ -436,7 +436,7 @@ fn new_partial<RuntimeApi, Executor>(
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub overseer_handler: Option<Handle>,
+	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
@@ -449,7 +449,7 @@ impl<C> NewFull<C> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
-			overseer_handler: self.overseer_handler,
+			overseer_handle: self.overseer_handle,
 			network: self.network,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
@@ -958,7 +958,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	Ok(NewFull {
 		task_manager,
 		client,
-		overseer_handler: overseer_handle,
+		overseer_handle,
 		network,
 		rpc_handlers,
 		backend,
