@@ -18,18 +18,18 @@
 
 use std::sync::Arc;
 
-use sp_runtime::traits::{Block as BlockT, NumberFor};
 use sp_runtime::traits::Header as _;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 use crate::relay_chain_selection::HeaderProvider;
 
 #[cfg(feature = "full-node")]
 use {
-	polkadot_primitives::v1::{Hash, Block as PolkadotBlock, Header as PolkadotHeader},
+	futures::channel::oneshot,
+	polkadot_overseer::Handle,
+	polkadot_primitives::v1::{Block as PolkadotBlock, Hash, Header as PolkadotHeader},
 	polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock},
 	prometheus_endpoint::{self, Registry},
-	polkadot_overseer::Handle,
-	futures::channel::oneshot,
 };
 
 /// A custom GRANDPA voting rule that acts as a diagnostic for the approval
@@ -105,7 +105,8 @@ const MAX_APPROVAL_CHECKING_FINALITY_LAG: polkadot_primitives::v1::BlockNumber =
 
 #[cfg(feature = "full-node")]
 impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
-	where B: sp_blockchain::HeaderBackend<PolkadotBlock> + 'static
+where
+	B: sp_blockchain::HeaderBackend<PolkadotBlock> + 'static,
 {
 	fn restrict_vote(
 		&self,
@@ -228,7 +229,8 @@ where
 		}
 
 		target_hash = *target_header.parent_hash();
-		target_header = backend.header(target_hash)?
+		target_header = backend
+			.header(target_hash)?
 			.expect("Header known to exist due to the existence of one of its descendants; qed");
 	}
 }

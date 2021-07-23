@@ -14,25 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-use super::*;
 use super::relay_chain_selection::*;
+use super::*;
 
 use futures::channel::oneshot::Receiver;
-use sp_consensus_babe::Transcript;
-use sp_consensus_babe::digests::CompatibleDigestItem;
-use polkadot_subsystem::messages::AllMessages;
-use polkadot_test_client::Sr25519Keyring;
-use polkadot_node_primitives::approval::{
-	VRFOutput, VRFProof,
-};
+use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_subsystem::messages::AllMessages;
 use polkadot_subsystem::messages::BlockDescription;
-use sp_runtime::DigestItem;
-use sp_runtime::testing::*;
+use polkadot_test_client::Sr25519Keyring;
+use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_consensus_babe::digests::{PreDigest, SecondaryVRFPreDigest};
-use std::collections::{HashMap, HashSet, BTreeMap};
+use sp_consensus_babe::Transcript;
+use sp_runtime::testing::*;
+use sp_runtime::DigestItem;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::IntoIterator;
 
 use assert_matches::assert_matches;
@@ -40,19 +37,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use consensus_common::SelectChain;
+use futures::channel::oneshot;
+use futures::prelude::*;
 use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 };
-use futures::prelude::*;
-use futures::channel::oneshot;
 
 use crate::relay_chain_selection::{HeaderProvider, HeaderProviderProvider};
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-use polkadot_overseer::{SubsystemSender, SubsystemContext};
+use polkadot_overseer::{SubsystemContext, SubsystemSender};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
-
 
 #[async_trait::async_trait]
 impl OverseerHandleT for TestSubsystemSender {
@@ -72,10 +68,7 @@ struct TestHarness {
 #[derive(Default)]
 struct HarnessConfig;
 
-fn test_harness<T: Future<Output = VirtualOverseer>>(
-	case_vars: CaseVars,
-	test: impl FnOnce(TestHarness) -> T,
-) {
+fn test_harness<T: Future<Output = VirtualOverseer>>(case_vars: CaseVars, test: impl FnOnce(TestHarness) -> T) {
 	let _ = env_logger::builder().is_test(true).filter_level(log::LevelFilter::Trace).try_init();
 
 	let pool = sp_core::testing::TaskExecutor::new();
@@ -85,13 +78,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	// let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
 
-	let select_relay_chain =
-		SelectRelayChain::<
-			TestChainStorage,
-			TestSubsystemSender,
-		>::new(
-		Arc::new(case_vars.chain.clone()), context.sender().clone(), Default::default()
-		);
+	let select_relay_chain = SelectRelayChain::<TestChainStorage, TestSubsystemSender>::new(
+		Arc::new(case_vars.chain.clone()),
+		context.sender().clone(),
+		Default::default(),
+	);
 
 	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
@@ -114,7 +105,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	.1;
 }
 
-
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 		.await
@@ -124,15 +114,9 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 
 	msg
 }
-async fn overseer_recv_with_timeout(
-	overseer: &mut VirtualOverseer,
-	timeout: Duration,
-) -> Option<AllMessages> {
+async fn overseer_recv_with_timeout(overseer: &mut VirtualOverseer, timeout: Duration) -> Option<AllMessages> {
 	tracing::trace!("Waiting for message...");
-	overseer
-		.recv()
-		.timeout(timeout)
-		.await
+	overseer.recv().timeout(timeout).await
 }
 
 const TIMEOUT: Duration = Duration::from_millis(2000);
@@ -170,7 +154,11 @@ struct TestChainStorage {
 impl TestChainStorage {
 	/// Fill the [`HighestApprovedAncestor`] structure with mostly
 	/// correct data.
-	pub fn highest_approved_ancestors(&self, minimum_block_number: BlockNumber, leaf: Hash) -> Option<HighestApprovedAncestorBlock> {
+	pub fn highest_approved_ancestors(
+		&self,
+		minimum_block_number: BlockNumber,
+		leaf: Hash,
+	) -> Option<HighestApprovedAncestorBlock> {
 		let hash = leaf;
 		let number = dbg!(self.blocks_by_hash.get(&leaf)?.number);
 
@@ -206,13 +194,17 @@ impl TestChainStorage {
 			return None;
 		}
 
-		Some(HighestApprovedAncestorBlock { hash, number, descriptions: dbg!(descriptions).into_iter().rev().collect() })
+		Some(HighestApprovedAncestorBlock {
+			hash,
+			number,
+			descriptions: dbg!(descriptions).into_iter().rev().collect(),
+		})
 	}
 
 	/// Traverse backwards from leave down to block number.
 	fn undisputed_chain(&self, base_blocknumber: BlockNumber, highest_approved_block_hash: Hash) -> Option<Hash> {
 		if self.disputed_blocks.is_empty() {
-			return Some(highest_approved_block_hash)
+			return Some(highest_approved_block_hash);
 		}
 
 		let mut undisputed_chain = Some(highest_approved_block_hash);
@@ -235,15 +227,12 @@ impl TestChainStorage {
 	}
 }
 
-
 impl HeaderProvider<Block> for TestChainStorage {
 	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		Ok(self.blocks_by_hash.get(&hash).cloned())
 	}
 	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
-		self.header(hash).map(|opt| {
-			opt.map(|h| h.number)
-		})
+		self.header(hash).map(|opt| opt.map(|h| h.number))
 	}
 }
 
@@ -253,7 +242,6 @@ impl HeaderProviderProvider<Block> for TestChainStorage {
 		self
 	}
 }
-
 
 #[derive(Debug, Clone)]
 struct ChainBuilder(pub TestChainStorage);
@@ -313,7 +301,7 @@ impl ChainBuilder {
 		hash
 	}
 
-	pub fn set_heads(&mut self, heads: impl IntoIterator<Item=Hash>) {
+	pub fn set_heads(&mut self, heads: impl IntoIterator<Item = Hash>) {
 		self.0.heads = heads.into_iter().collect();
 	}
 
@@ -367,9 +355,8 @@ async fn test_skeleton(
 		}
 	);
 
-
 	if best_chain_containing_block.is_none() {
-	 	return;
+		return;
 	}
 
 	println!("approved ancestor response: {:?}", undisputed_chain);
@@ -401,8 +388,7 @@ async fn test_skeleton(
 
 /// Straight forward test case, where the test is not
 /// for integrity, but for different block relation structures.
-fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F)
-{
+fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars>(case_var_provider: F) {
 	test_harness(case_var_provider(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
@@ -422,8 +408,10 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 		// Verify test integrity: the provided highest approved
 		// ancestor must match the chain derived one.
 		let highest_approved_ancestor_w_desc = best_chain_containing_block.and_then(|best_chain_containing_block| {
-			let min_blocknumber = chain.blocks_by_hash.get(&best_chain_containing_block).map(|x| x.number).unwrap_or_default();
-			let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(min_blocknumber, best_chain_containing_block);
+			let min_blocknumber =
+				chain.blocks_by_hash.get(&best_chain_containing_block).map(|x| x.number).unwrap_or_default();
+			let highest_approved_ancestor_w_desc =
+				chain.highest_approved_ancestors(min_blocknumber, best_chain_containing_block);
 			if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
 				(&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
 			{
@@ -438,11 +426,9 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 		if let Some(haacwd) = &highest_approved_ancestor_w_desc {
 			let expected = chain.undisputed_chain(haacwd.number, haacwd.hash);
 			assert_eq!(
-				expected,
-				undisputed_chain,
+				expected, undisputed_chain,
 				"TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
-				undisputed_chain,
-				expected,
+				undisputed_chain, expected,
 			)
 		}
 
@@ -452,8 +438,9 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 			target_block,
 			best_chain_containing_block,
 			highest_approved_ancestor_w_desc,
-			undisputed_chain
-		).await;
+			undisputed_chain,
+		)
+		.await;
 
 		assert_matches!(finality_target_rx.await,
 		 	Ok(
@@ -462,8 +449,6 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 
 		virtual_overseer
 	});
-
-
 }
 
 /// All variables relevant for a test case.
@@ -607,7 +592,6 @@ fn chain_3() -> CaseVars {
 	}
 }
 
-
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
 ///               \
@@ -621,7 +605,7 @@ fn chain_4() -> CaseVars {
 
 	let a1 = builder.ff_approved(0xA0, head, 1);
 	let a2 = builder.ff_approved(0xA0, a1, 2);
-	let a3 = builder.ff_disputed( 0xA0, a2, 3);
+	let a3 = builder.ff_disputed(0xA0, a2, 3);
 
 	let b2 = builder.ff_approved(0xB0, a1, 2);
 	let b3 = builder.ff_approved(0xB0, b2, 3);
@@ -697,7 +681,6 @@ fn chain_6() -> CaseVars {
 		expected_finality_target_result: Some(approved),
 	}
 }
-
 
 #[test]
 fn chain_sel_0() {
