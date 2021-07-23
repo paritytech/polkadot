@@ -1124,6 +1124,22 @@ impl DisputeStatement {
 			Err(())
 		}
 	}
+
+	/// Whether the statement indicates validity.
+	pub fn indicates_validity(&self) -> bool {
+		match *self {
+			DisputeStatement::Valid(_) => true,
+			DisputeStatement::Invalid(_) => false,
+		}
+	}
+
+	/// Whether the statement indicates invalidity.
+	pub fn indicates_invalidity(&self) -> bool {
+		match *self {
+			DisputeStatement::Valid(_) => false,
+			DisputeStatement::Invalid(_) => true,
+		}
+	}
 }
 
 /// Different kinds of statements of validity on  a candidate.
@@ -1186,7 +1202,7 @@ pub struct DisputeStatementSet {
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
 
 /// The entire state of a dispute.
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq)]
 pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
 	pub validators_for: BitVec<bitvec::order::Lsb0, u8>, // one bit per validator.

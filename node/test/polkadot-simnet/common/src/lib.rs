@@ -288,7 +288,7 @@ pub async fn dispatch_with_root<T>(call: impl Into<<T::Runtime as system::Config
 			match event.event {
 				Event::Democracy(democracy::Event::Passed(_index)) if _index == ref_index => true,
 				Event::Democracy(democracy::Event::PreimageUsed(_hash, _, _)) if _hash == proposal_hash => true,
-				Event::Democracy(democracy::Event::Executed(_index, true)) if _index == ref_index => true,
+				Event::Democracy(democracy::Event::Executed(_index, Ok(()))) if _index == ref_index => true,
 				_ => false,
 			}
 		})
