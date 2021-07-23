@@ -213,7 +213,7 @@ construct_runtime! {
 		// Parachains modules.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin},
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
-		Shared: parachains_shared::{Pallet, Call, Storage},
+		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
@@ -221,7 +221,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event, Config},
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
 
 		// Parachain Onboarding Pallets
