@@ -386,16 +386,19 @@ async fn test_skeleton(
 ) {
 	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
 
-
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
 		).await,
 		AllMessages::ChainSelection(ChainSelectionMessage::BestLeafContaining(target_hash, tx))
 		=> {
-			tx.send(best_chain_containing_block).unwrap();
+			tx.send(best_chain_containing_block.clone()).unwrap();
 		}
 	);
+
+	if best_chain_containing_block.is_none() {
+		return;
+	}
 
 	assert_matches!(
 		overseer_recv(
@@ -403,9 +406,13 @@ async fn test_skeleton(
 		).await,
 		AllMessages::ApprovalVoting(ApprovalVotingMessage::ApprovedAncestor(block_hash, block_number, tx))
 		=> {
-			tx.send(highest_approved_ancestor_block).unwrap();
+			tx.send(highest_approved_ancestor_block.clone()).unwrap();
 		}
 	);
+
+	if highest_approved_ancestor_block.is_none() {
+		return;
+	}
 
 	assert_matches!(
 		overseer_recv(
@@ -618,6 +625,88 @@ fn chain_3() -> CaseVars {
 	}
 }
 
+
+/// ```raw
+/// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
+///               \
+///                `- 0xB2 --- 0xB3
+///
+///      ? --- NEX(does_not_exist)
+/// ```
+fn chain_4() -> CaseVars {
+	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let mut builder = ChainBuilder::new();
+
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
+	let a2 = builder.ff_available(0xA0, a1, 2, 1);
+	let a3 = builder.ff_disputed( 0xA0, a2, 3, 1);
+
+	let b2 = builder.ff_available(0xB0, a1, 2, 2);
+	let b3 = builder.ff_available(0xB0, b2, 3, 2);
+
+	let does_not_exist = Hash::repeat_byte(0xCC);
+	CaseVars {
+		chain: builder.init(),
+		heads: vec![a3, b3],
+		target_block: does_not_exist,
+		best_chain_containing_block: None,
+		highest_approved_ancestor_block: None,
+		undisputed_chain: Some(A2),
+	}
+}
+
+/// ```raw
+/// genesis -- 0xA1 --- 0xA2
+/// ```
+fn chain_5() -> CaseVars {
+	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let mut builder = ChainBuilder::new();
+
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
+	let a2 = builder.ff_available(0xA0, a1, 2, 1);
+
+	CaseVars {
+		chain: builder.init(),
+		heads: vec![a2],
+		target_block: A2,
+		best_chain_containing_block: Some(A2),
+		highest_approved_ancestor_block: Some(A2),
+		undisputed_chain: Some(A2),
+	}
+}
+
+/// ```raw
+/// genesis -- 0xD2 --- .. --- 0xD8 --- 0xC8(unapproved) --- .. --- 0xCF(unapproved)
+/// ```
+fn chain_6() -> CaseVars {
+	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let mut builder = ChainBuilder::new();
+
+	let a1 = builder.ff_available(0xA0, head, 1, 1);
+
+	let mut previous = a1;
+	let mut approved = a1;
+	for block_number in 2_u32..16 {
+		if block_number <= 8 {
+			previous = builder.ff_available(0xD0, previous, block_number as _, 1);
+			approved = previous;
+		} else {
+			previous = builder.ff(0xA0, previous, block_number as _, 1);
+		}
+	}
+
+	let leaf = previous;
+	CaseVars {
+		chain: builder.init(),
+		heads: vec![leaf],
+		target_block: A1,
+		best_chain_containing_block: Some(leaf),
+		highest_approved_ancestor_block: Some(approved),
+		undisputed_chain: Some(approved),
+	}
+}
+
+
 #[test]
 fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
@@ -640,20 +729,15 @@ fn chain_sel_3() {
 
 #[test]
 fn chain_sel_4_target_hash_value_not_contained() {
-	todo!("")
+	run_specialized_test_w_harness(chain_4);
 }
 
 #[test]
 fn chain_sel_5_best_is_target_hash() {
-	todo!("")
+	run_specialized_test_w_harness(chain_5);
 }
 
 #[test]
-fn chain_sel_5_huge_lag() {
-	todo!("")
-}
-
-#[test]
-fn chain_sel_6_invalid_ordering() {
-	todo!("")
+fn chain_sel_6_approval_lag() {
+	run_specialized_test_w_harness(chain_6);
 }
