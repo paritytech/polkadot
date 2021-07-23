@@ -327,10 +327,10 @@ publish-adder-collator-image:
     RUNTIME:                       polkadot
   artifacts:
     paths:
-      - ${RUNTIMES}_weights_${CI_COMMIT_SHORT_SHA}.patch
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   script: |
     ./scripts/run_benches_for_runtime.sh $RUNTIME
-    git diff -P > ${RUNTIMES}_weights_${CI_COMMIT_SHORT_SHA}.patch
+    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
 
 update_polkadot_weights:
   <<:                              *update-weights
