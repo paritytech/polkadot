@@ -20,12 +20,7 @@ use frame_support::{
 	parameter_types,
 	weights::{DispatchClass, Weight},
 };
-use sp_runtime::{
-	traits::{Zero, Dispatchable},
-	FixedU128, FixedPointNumber, Perbill,
-};
-use pallet_transaction_payment::OnChargeTransaction;
-use frame_support::weights::{DispatchInfo, Pays};
+use sp_runtime::Perbill;
 use super::{BlockExecutionWeight, BlockLength, BlockWeights};
 
 parameter_types! {
