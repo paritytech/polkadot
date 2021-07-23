@@ -21,7 +21,6 @@ use super::relay_chain_selection::*;
 use futures::channel::oneshot::Receiver;
 use sp_consensus_babe::Transcript;
 use sp_consensus_babe::digests::CompatibleDigestItem;
-use polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID;
 use polkadot_subsystem::messages::AllMessages;
 use polkadot_test_client::Sr25519Keyring;
 use polkadot_node_primitives::approval::{
@@ -29,20 +28,14 @@ use polkadot_node_primitives::approval::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::Slot;
 use polkadot_subsystem::messages::BlockDescription;
-use polkadot_subsystem::*;
-use sp_runtime::{
-	DigestItem,
-};
+use sp_runtime::DigestItem;
 use sp_runtime::testing::*;
-use sp_consensus_babe::digests::PreDigest;
-use sp_consensus_babe::digests::SecondaryVRFPreDigest;
+use sp_consensus_babe::digests::{PreDigest, SecondaryVRFPreDigest};
 use std::collections::{HashMap, HashSet, BTreeMap};
 use std::iter::IntoIterator;
 
 use assert_matches::assert_matches;
-use sp_keystore::CryptoStore;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,9 +44,6 @@ use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 };
-
-use sp_blockchain::HeaderBackend;
-use sc_keystore::LocalKeystore;
 use futures::prelude::*;
 use futures::channel::oneshot;
 
@@ -86,6 +76,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	case_vars: CaseVars,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
+	let _ = env_logger::builder().is_test(true).filter_level(log::LevelFilter::Trace).try_init();
+
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
@@ -93,9 +85,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	// let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
 
-	let mut select_relay_chain =
+	let select_relay_chain =
 		SelectRelayChain::<
-			ChainContent,
+			TestChainStorage,
 			TestSubsystemSender,
 		>::new(
 		Arc::new(case_vars.chain.clone()), context.sender().clone(), Default::default()
@@ -113,19 +105,15 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(selection_process);
 
-	let x = futures::executor::block_on(future::join(
+	futures::executor::block_on(future::join(
 		async move {
-			let mut overseer = test_fut.await;
+			let _overseer = test_fut.await;
 		},
 		selection_process,
 	))
 	.1;
 }
 
-async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
-	tracing::trace!("Sending message:\n{:?}", &msg);
-	overseer.send(msg).timeout(TIMEOUT).await.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
-}
 
 async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
@@ -149,28 +137,6 @@ async fn overseer_recv_with_timeout(
 
 const TIMEOUT: Duration = Duration::from_millis(2000);
 
-async fn overseer_signal(
-	overseer: &mut VirtualOverseer,
-	signal: OverseerSignal,
-) {
-	overseer
-		.send(FromOverseer::Signal(signal))
-		.timeout(TIMEOUT)
-		.await
-		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
-}
-
-// sets up a keystore with the given keyring accounts.
-// async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
-// 	let store = LocalKeystore::in_memory();
-
-// 	for s in accounts.iter().copied().map(|k| k.to_seed()) {
-// 		store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).await.unwrap();
-// 	}
-
-// 	store
-// }
-
 // used for generating assignments where the validity of the VRF doesn't matter.
 fn garbage_vrf() -> (VRFOutput, VRFProof) {
 	let key = Sr25519Keyring::Alice.pair();
@@ -193,7 +159,7 @@ const B3: Hash = Hash::repeat_byte(0xB3);
 /// to extract information for finalization target
 /// extraction.
 #[derive(Debug, Default, Clone)]
-struct ChainContent {
+struct TestChainStorage {
 	blocks_by_hash: HashMap<Hash, Header>,
 	blocks_at_height: BTreeMap<u32, Vec<Hash>>,
 	disputed_blocks: HashSet<Hash>,
@@ -201,33 +167,35 @@ struct ChainContent {
 	heads: HashSet<Hash>,
 }
 
-impl ChainContent {
-
-	/// Fill the `HighestApprovedAncestor` structure with mostly
+impl TestChainStorage {
+	/// Fill the [`HighestApprovedAncestor`] structure with mostly
 	/// correct data.
-	pub fn highest_approved_ancestors(&self, target_block: Hash) -> Option<HighestApprovedAncestorBlock> {
-		let hash = target_block;
-		let number = self.blocks_by_hash.get(&target_block)?.number;
-
-		let header = self.blocks_by_hash.get(&target_block).unwrap();
+	pub fn highest_approved_ancestors(&self, minimum_block_number: BlockNumber, leaf: Hash) -> Option<HighestApprovedAncestorBlock> {
+		let hash = leaf;
+		let number = dbg!(self.blocks_by_hash.get(&leaf)?.number);
 
 		let mut descriptions = Vec::new();
-		let mut block_hash = target_block;
+		let mut block_hash = leaf;
 		let mut highest_approved_ancestor = None;
 
 		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
-			block_hash = block.hash();
+			if dbg!(minimum_block_number >= block.number) {
+				break;
+			}
 			descriptions.push(BlockDescription {
 				session: 1 as _, // dummy, not checked
 				block_hash,
 				candidates: vec![], // not relevant for any test cases
 			});
-			if self.approved_blocks.contains(&block_hash) {
-				highest_approved_ancestor = Some(block_hash);
-				break;
+			if !self.approved_blocks.contains(&block_hash) {
+				highest_approved_ancestor = None;
+				descriptions.clear();
+			} else if highest_approved_ancestor.is_none() {
+				descriptions.clear();
+				highest_approved_ancestor = dbg!(Some(block_hash));
 			}
 			let next = block.parent_hash();
-			if &target_block != block.parent_hash() {
+			if &leaf != next {
 				block_hash = *next;
 			} else {
 				break;
@@ -238,7 +206,7 @@ impl ChainContent {
 			return None;
 		}
 
-		Some(HighestApprovedAncestorBlock { hash, number, descriptions: descriptions.into_iter().rev().collect() })
+		Some(HighestApprovedAncestorBlock { hash, number, descriptions: dbg!(descriptions).into_iter().rev().collect() })
 	}
 
 	/// Traverse backwards from leave down to block number.
@@ -268,7 +236,7 @@ impl ChainContent {
 }
 
 
-impl HeaderProvider<Block> for ChainContent {
+impl HeaderProvider<Block> for TestChainStorage {
 	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		Ok(self.blocks_by_hash.get(&hash).cloned())
 	}
@@ -279,7 +247,7 @@ impl HeaderProvider<Block> for ChainContent {
 	}
 }
 
-impl HeaderProviderProvider<Block> for ChainContent {
+impl HeaderProviderProvider<Block> for TestChainStorage {
 	type Provider = Self;
 	fn header_provider(&self) -> &Self {
 		self
@@ -288,41 +256,40 @@ impl HeaderProviderProvider<Block> for ChainContent {
 
 
 #[derive(Debug, Clone)]
-struct ChainBuilder(pub ChainContent);
+struct ChainBuilder(pub TestChainStorage);
 
 impl ChainBuilder {
 	const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 	const GENESIS_PARENT_HASH: Hash = Hash::repeat_byte(0x00);
 
 	pub fn new() -> Self {
-		let mut builder = Self(ChainContent::default());
-		let _ = builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
+		let mut builder = Self(TestChainStorage::default());
+		let _ = builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, 0);
 		builder
 	}
 
-	pub fn add_block<'a>(&'a mut self, hash: Hash, parent_hash: Hash, slot: Slot, number: u32) -> &'a mut Self {
+	pub fn add_block<'a>(&'a mut self, hash: Hash, parent_hash: Hash, number: u32) -> &'a mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(parent_hash != Self::GENESIS_PARENT_HASH, "cannot add block with genesis parent hash");
 		assert!(self.0.blocks_by_hash.len() < u8::MAX.into());
-		self.add_block_inner(hash, parent_hash, slot, number)
+		self.add_block_inner(hash, parent_hash, number)
 	}
 
-	fn add_block_inner<'a>(&'a mut self, hash: Hash, parent_hash: Hash, slot: Slot, number: u32) -> &'a mut Self {
-		let header = ChainBuilder::make_header(parent_hash, slot, number);
+	fn add_block_inner<'a>(&'a mut self, hash: Hash, parent_hash: Hash, number: u32) -> &'a mut Self {
+		let header = ChainBuilder::make_header(parent_hash, number);
 		assert!(self.0.blocks_by_hash.insert(hash, header).is_none(), "block with hash {:?} already exists", hash,);
 		self.0.blocks_at_height.entry(number).or_insert_with(Vec::new).push(hash);
 		self
 	}
 
-	pub fn ff_available(
+	pub fn ff_approved(
 		&mut self,
 		branch_tag: u8,
 		parent: Hash,
 		block_number: BlockNumber,
-		slot: impl Into<Slot>,
 	) -> Hash {
-		let block = self.ff(branch_tag, parent, block_number, slot);
+		let block = self.ff(branch_tag, parent, block_number);
 		let _ = self.0.approved_blocks.insert(block);
 		block
 	}
@@ -334,17 +301,15 @@ impl ChainBuilder {
 		branch_tag: u8,
 		parent: Hash,
 		block_number: BlockNumber,
-		slot: impl Into<Slot>,
 	) -> Hash {
-		let block = self.ff_available(branch_tag, parent, block_number, slot);
+		let block = self.ff_approved(branch_tag, parent, block_number);
 		let _ = self.0.disputed_blocks.insert(block);
 		block
 	}
 
-	pub fn ff(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber, slot: impl Into<Slot>) -> Hash {
-		let slot: Slot = slot.into();
+	pub fn ff(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber) -> Hash {
 		let hash = Hash::repeat_byte((block_number as u8 | branch_tag) as u8);
-		let _ = self.add_block(hash, parent, slot, block_number);
+		let _ = self.add_block(hash, parent, block_number);
 		hash
 	}
 
@@ -352,17 +317,17 @@ impl ChainBuilder {
 		self.0.heads = heads.into_iter().collect();
 	}
 
-	pub fn init(mut self) -> ChainContent {
+	pub fn init(self) -> TestChainStorage {
 		self.0
 	}
 
-	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
+	fn make_header(parent_hash: Hash, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
 			let (vrf_output, vrf_proof) = garbage_vrf();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(SecondaryVRFPreDigest {
 				authority_index: 0,
-				slot,
+				slot: 1.into(), // slot, unused
 				vrf_output,
 				vrf_proof,
 			})));
@@ -378,50 +343,55 @@ impl ChainBuilder {
 /// Depends on a particular `target_hash`
 /// that is passed to `finality_target` block number.
 async fn test_skeleton(
-	chain: &ChainContent,
+	chain: &TestChainStorage,
 	virtual_overseer: &mut VirtualOverseer,
+	target_block_hash: Hash,
 	best_chain_containing_block: Option<Hash>,
 	highest_approved_ancestor_block: Option<HighestApprovedAncestorBlock>,
 	undisputed_chain: Option<Hash>,
 ) {
 	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
 
+	println!("best leaf response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
 		).await,
-		AllMessages::ChainSelection(ChainSelectionMessage::BestLeafContaining(target_hash, tx))
+		AllMessages::ChainSelection(ChainSelectionMessage::BestLeafContaining(
+			target_hash,
+			tx,
+		))
 		=> {
+			assert_eq!(target_block_hash, target_hash, "TestIntegrity: target hashes always match. qed");
 			tx.send(best_chain_containing_block.clone()).unwrap();
 		}
 	);
 
+
 	if best_chain_containing_block.is_none() {
-		return;
+	 	return;
 	}
 
+	println!("approved ancestor response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
 		).await,
-		AllMessages::ApprovalVoting(ApprovalVotingMessage::ApprovedAncestor(block_hash, block_number, tx))
+		AllMessages::ApprovalVoting(ApprovalVotingMessage::ApprovedAncestor(_block_hash, _block_number, tx))
 		=> {
 			tx.send(highest_approved_ancestor_block.clone()).unwrap();
 		}
 	);
 
-	if highest_approved_ancestor_block.is_none() {
-		return;
-	}
-
+	println!("determine undisputed chain response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
 		).await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
-				base_number,
-				block_descriptions,
+				base_number: _,
+				block_descriptions: _,
 				tx,
 			}
 		) => {
@@ -439,29 +409,32 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 			finality_target_rx,
 			case_vars:
 				CaseVars {
-					heads,
 					chain,
 					target_block,
 					best_chain_containing_block,
 					highest_approved_ancestor_block,
 					undisputed_chain,
+					expected_finality_target_result,
 				},
 			..
 		} = test_harness;
 
 		// Verify test integrity: the provided highest approved
-		// ancesotr must match the chain derived one.
-		let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(target_block);
-		if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
-			(&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
-		{
-			assert_eq!(
-				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-				"TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
-				highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-			);
-		}
-
+		// ancestor must match the chain derived one.
+		let highest_approved_ancestor_w_desc = best_chain_containing_block.and_then(|best_chain_containing_block| {
+			let min_blocknumber = chain.blocks_by_hash.get(&best_chain_containing_block).map(|x| x.number).unwrap_or_default();
+			let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(min_blocknumber, best_chain_containing_block);
+			if let (Some(highest_approved_ancestor_w_desc), Some(highest_approved_ancestor_block)) =
+				(&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
+			{
+				assert_eq!(
+					highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+					"TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
+					highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+				);
+			}
+			highest_approved_ancestor_w_desc
+		});
 		if let Some(haacwd) = &highest_approved_ancestor_w_desc {
 			let expected = chain.undisputed_chain(haacwd.number, haacwd.hash);
 			assert_eq!(
@@ -476,6 +449,7 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 		test_skeleton(
 			&chain,
 			&mut virtual_overseer,
+			target_block,
 			best_chain_containing_block,
 			highest_approved_ancestor_w_desc,
 			undisputed_chain
@@ -483,8 +457,8 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 
 		assert_matches!(finality_target_rx.await,
 		 	Ok(
-		 		hash_to_finalize,
-			) => assert_eq!(undisputed_chain, hash_to_finalize));
+		 		finality_target_val,
+			) => assert_eq!(expected_finality_target_result, finality_target_val));
 
 		virtual_overseer
 	});
@@ -496,10 +470,7 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars> (case_var_provider: F
 #[derive(Clone, Debug)]
 struct CaseVars {
 	/// Chain test _case_ definition.
-	chain: ChainContent,
-
-	/// All heads of the chain.
-	heads: Vec<Hash>,
+	chain: TestChainStorage,
 
 	/// The target block to be finalized.
 	target_block: Hash,
@@ -516,6 +487,9 @@ struct CaseVars {
 	/// The backtracked version of this must _never_
 	/// contain a disputed block.
 	undisputed_chain: Option<Hash>,
+
+	/// The returned value by `fn finality_target`.
+	expected_finality_target_result: Option<Hash>,
 }
 
 /// ```raw
@@ -524,26 +498,28 @@ struct CaseVars {
 ///                `- 0xB2
 /// ```
 fn chain_0() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_available(0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(0xA0, a2, 3, 1);
-	let a4 = builder.ff(0xA0, a3, 4, 1);
-	let a5 = builder.ff(0xA0, a4, 5, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_approved(0xA0, a1, 2);
+	let a3 = builder.ff_approved(0xA0, a2, 3);
+	let a4 = builder.ff(0xA0, a3, 4);
+	let a5 = builder.ff(0xA0, a4, 5);
 
-	let b1 = builder.ff_available(0xB0, a1, 2, 2);
-	let b2 = builder.ff_available(0xB0, b1, 3, 2);
-	let b3 = builder.ff_available(0xB0, b2, 4, 2);
+	let b1 = builder.ff_approved(0xB0, a1, 2);
+	let b2 = builder.ff_approved(0xB0, b1, 3);
+	let b3 = builder.ff_approved(0xB0, b2, 4);
+
+	builder.set_heads(vec![a5, b3]);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a5, b3],
 		target_block: A1,
 		best_chain_containing_block: Some(A5),
 		highest_approved_ancestor_block: Some(A3),
 		undisputed_chain: Some(A2),
+		expected_finality_target_result: Some(A2),
 	}
 }
 
@@ -553,23 +529,25 @@ fn chain_0() -> CaseVars {
 ///                `- 0xB2 --- 0xB3(!available)
 /// ```
 fn chain_1() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_disputed(0xA0, a1, 2);
+	let a3 = builder.ff_approved(0xA0, a2, 3);
 
-	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, b2, 3, 2);
+	let b2 = builder.ff_approved(0xB0, a1, 2);
+	let b3 = builder.ff_approved(0xB0, b2, 3);
+
+	builder.set_heads(vec![a3, b3]);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a3, b3],
 		target_block: A1,
 		best_chain_containing_block: Some(B3),
 		highest_approved_ancestor_block: Some(B2),
 		undisputed_chain: Some(B2),
+		expected_finality_target_result: Some(B2),
 	}
 }
 
@@ -579,23 +557,25 @@ fn chain_1() -> CaseVars {
 ///                `- 0xB2 --- 0xB3
 /// ```
 fn chain_2() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_disputed(0xA0, a1, 2, 1);
-	let a3 = builder.ff_available(0xA0, a2, 3, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_disputed(0xA0, a1, 2);
+	let a3 = builder.ff_approved(0xA0, a2, 3);
 
-	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, b2, 3, 2);
+	let b2 = builder.ff_approved(0xB0, a1, 2);
+	let b3 = builder.ff_approved(0xB0, b2, 3);
+
+	builder.set_heads(vec![a3, b3]);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a3, b3],
 		target_block: A3,
 		best_chain_containing_block: Some(A3),
 		highest_approved_ancestor_block: Some(A3),
 		undisputed_chain: Some(A1),
+		expected_finality_target_result: Some(A1),
 	}
 }
 
@@ -605,23 +585,25 @@ fn chain_2() -> CaseVars {
 ///                `- 0xB2 --- 0xB3
 /// ```
 fn chain_3() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_available(0xA0, a1, 2, 1);
-	let a3 = builder.ff_disputed( 0xA0, a2, 3, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_approved(0xA0, a1, 2);
+	let a3 = builder.ff_disputed(0xA0, a2, 3);
 
-	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, b2, 3, 2);
+	let b2 = builder.ff_approved(0xB0, a1, 2);
+	let b3 = builder.ff_approved(0xB0, b2, 3);
+
+	builder.set_heads(vec![a3, b3]);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a3, b3],
 		target_block: A2,
 		best_chain_containing_block: Some(A3),
 		highest_approved_ancestor_block: Some(A3),
 		undisputed_chain: Some(A2),
+		expected_finality_target_result: Some(A2),
 	}
 }
 
@@ -634,24 +616,26 @@ fn chain_3() -> CaseVars {
 ///      ? --- NEX(does_not_exist)
 /// ```
 fn chain_4() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_available(0xA0, a1, 2, 1);
-	let a3 = builder.ff_disputed( 0xA0, a2, 3, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_approved(0xA0, a1, 2);
+	let a3 = builder.ff_disputed( 0xA0, a2, 3);
 
-	let b2 = builder.ff_available(0xB0, a1, 2, 2);
-	let b3 = builder.ff_available(0xB0, b2, 3, 2);
+	let b2 = builder.ff_approved(0xB0, a1, 2);
+	let b3 = builder.ff_approved(0xB0, b2, 3);
+
+	builder.set_heads(vec![a3, b3]);
 
 	let does_not_exist = Hash::repeat_byte(0xCC);
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a3, b3],
 		target_block: does_not_exist,
 		best_chain_containing_block: None,
 		highest_approved_ancestor_block: None,
-		undisputed_chain: Some(A2),
+		undisputed_chain: None,
+		expected_finality_target_result: Some(does_not_exist),
 	}
 }
 
@@ -659,50 +643,58 @@ fn chain_4() -> CaseVars {
 /// genesis -- 0xA1 --- 0xA2
 /// ```
 fn chain_5() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
-	let a2 = builder.ff_available(0xA0, a1, 2, 1);
+	let a1 = builder.ff_approved(0xA0, head, 1);
+	let a2 = builder.ff_approved(0xA0, a1, 2);
+
+	builder.set_heads(vec![a2]);
 
 	CaseVars {
 		chain: builder.init(),
-		heads: vec![a2],
 		target_block: A2,
 		best_chain_containing_block: Some(A2),
 		highest_approved_ancestor_block: Some(A2),
 		undisputed_chain: Some(A2),
+		expected_finality_target_result: Some(A2),
 	}
 }
 
 /// ```raw
-/// genesis -- 0xD2 --- .. --- 0xD8 --- 0xC8(unapproved) --- .. --- 0xCF(unapproved)
+/// genesis -- 0xB2 -- 0xD2 -- .. -- 0xD8 -- 0xC8(unapproved) -- .. -- 0xCF(unapproved)
 /// ```
 fn chain_6() -> CaseVars {
-	let mut head: Hash = ChainBuilder::GENESIS_HASH;
+	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_available(0xA0, head, 1, 1);
+	let b1 = builder.ff_approved(0xB0, head, 1);
 
-	let mut previous = a1;
-	let mut approved = a1;
+	let mut previous = b1;
+	let mut approved = b1;
 	for block_number in 2_u32..16 {
 		if block_number <= 8 {
-			previous = builder.ff_available(0xD0, previous, block_number as _, 1);
+			previous = builder.ff_approved(0xD0, previous, block_number as _);
 			approved = previous;
 		} else {
-			previous = builder.ff(0xA0, previous, block_number as _, 1);
+			previous = builder.ff(0xA0, previous, block_number as _);
 		}
 	}
-
 	let leaf = previous;
+
+	builder.set_heads(vec![leaf]);
+
+	let chain = builder.init();
+
+	dbg!(chain.highest_approved_ancestors(1, leaf));
+	dbg!(chain.undisputed_chain(1, approved));
 	CaseVars {
-		chain: builder.init(),
-		heads: vec![leaf],
-		target_block: A1,
+		chain,
+		target_block: b1,
 		best_chain_containing_block: Some(leaf),
 		highest_approved_ancestor_block: Some(approved),
 		undisputed_chain: Some(approved),
+		expected_finality_target_result: Some(approved),
 	}
 }
 
