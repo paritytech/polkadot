@@ -564,7 +564,7 @@ where
 		.unwrap_or_default()
 		.into_iter()
 		.filter_map(|hash| {
-			let number = HeaderProvider::number(client, hash).ok()??;
+			let number = HeaderBackend::number(client, hash).ok()??;
 
 			// Only consider leaves that are in maximum an uncle of the best block.
 			if number < best_block.number().saturating_sub(1) {
