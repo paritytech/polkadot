@@ -44,7 +44,6 @@ use polkadot_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 };
 
-use crate::relay_chain_selection::{HeaderProvider, HeaderProviderProvider};
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 use polkadot_overseer::{SubsystemContext, SubsystemSender};
 

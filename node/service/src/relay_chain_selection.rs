@@ -44,13 +44,7 @@ use futures::channel::oneshot;
 use consensus_common::{Error as ConsensusError, SelectChain};
 use std::sync::Arc;
 use polkadot_overseer::{AllMessages, Handle};
-use sp_runtime::{
-	generic::BlockId,
-	traits::{
-		Block as BlockT,
-		Header as HeaderT,
-	},
-};
+use super::{HeaderProvider, HeaderProviderProvider};
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
 /// or disputes.
@@ -128,7 +122,7 @@ pub struct SelectRelayChainWithFallback<
 
 impl<B> Clone for SelectRelayChainWithFallback<B>
 where
-	B: sc_client_api::Backend<PolkadotBlock> + 'static,
+	B: sc_client_api::Backend<PolkadotBlock>,
 	SelectRelayChain<
 		B,
 		Handle,
@@ -164,7 +158,7 @@ where
 
 impl<B> SelectRelayChainWithFallback<B>
 where
-	B: sc_client_api::Backend<PolkadotBlock>,
+	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
 	/// Given an overseer handler, this connects the [`SelectRelayChainWithFallback`]'s
 	/// internal handler to the same overseer.
@@ -221,7 +215,7 @@ pub struct SelectRelayChain<B, OH> {
 
 impl<B, OH> SelectRelayChain<B, OH>
 where
-	B: HeaderProviderProvider<PolkadotBlock> + 'static,
+	B: HeaderProviderProvider<PolkadotBlock>,
 	OH: OverseerHandleT,
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
@@ -268,7 +262,7 @@ where
 
 impl<B, OH> Clone for SelectRelayChain<B, OH>
 where
-	B: HeaderProviderProvider<PolkadotBlock> + Send + Sync + 'static,
+	B: HeaderProviderProvider<PolkadotBlock> + Send + Sync,
 	OH: OverseerHandleT,
 {
 	fn clone(&self) -> Self {
@@ -288,59 +282,6 @@ enum Error {
 	/// Chain selection returned empty leaves.
 	#[error("ChainSelection returned no leaves")]
 	EmptyLeaves,
-}
-
-/// Provides the header and block number for a hash.
-///
-/// Decouples `sc_client_api::Backend` and `sp_blockchain::HeaderBackend`.
-pub trait HeaderProvider<Block, Error=sp_blockchain::Error>: Send + Sync + 'static
-where
-	Block: BlockT,
-	Error: std::fmt::Debug + Send + Sync + 'static,
-{
-	/// Obtain the header for a hash.
-	fn header(&self, hash: <Block as BlockT>::Hash) -> Result<Option<<Block as BlockT>::Header>, Error>;
-	/// Obtain the block number for a hash.
-	fn number(&self, hash: <Block as BlockT>::Hash) -> Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>, Error>;
-}
-
-impl<Block, T> HeaderProvider<Block> for T
-where
-	Block: BlockT,
-	T: sp_blockchain::HeaderBackend<Block> + 'static,
-{
-	fn header(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, BlockId::Hash(hash))
-	}
-	fn number(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::number(self, hash)
-	}
-}
-
-/// Decoupling the provider.
-///
-/// Mandated since `trait HeaderProvider` can only be
-/// implemented once for a generic `T`.
-pub trait HeaderProviderProvider<Block>: Send + Sync + 'static
-where
-	Block: BlockT,
-{
-	type Provider: HeaderProvider<Block> + 'static;
-
-	fn header_provider(&self) -> &Self::Provider;
-}
-
-
-impl<Block, T> HeaderProviderProvider<Block> for T
-where
- 	Block: BlockT,
- 	T: sc_client_api::Backend<Block> + 'static,
- {
- 	type Provider = <T as sc_client_api::Backend<Block>>::Blockchain;
-
- 	fn header_provider(&self) -> &Self::Provider {
-		self.blockchain()
- 	}
 }
 
 
@@ -363,7 +304,7 @@ impl OverseerHandleT for Handle {
 #[async_trait::async_trait]
 impl<B, OH> SelectChain<PolkadotBlock> for SelectRelayChain<B, OH>
 where
-	B: HeaderProviderProvider<PolkadotBlock> + 'static,
+	B: HeaderProviderProvider<PolkadotBlock>,
 	OH: OverseerHandleT,
 {
 	/// Get all leaves of the chain, i.e. block hashes that are suitable to

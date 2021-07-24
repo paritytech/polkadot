@@ -21,7 +21,7 @@ use std::sync::Arc;
 use sp_runtime::traits::Header as _;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
-use crate::relay_chain_selection::HeaderProvider;
+use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
 use {
