@@ -80,9 +80,8 @@ mod ops;
 mod time;
 mod persisted_entries;
 
-// `pub` only for tests.
-pub use crate::approval_db::v1::{DbBackend, Config as DatabaseConfig};
-pub use crate::backend::{Backend, OverlayedBackend};
+use crate::approval_db::v1::{DbBackend, Config as DatabaseConfig};
+use crate::backend::{Backend, OverlayedBackend};
 
 #[cfg(test)]
 mod tests;

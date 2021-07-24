@@ -37,7 +37,6 @@ pub use self::overseer::{
 #[cfg(test)]
 mod tests;
 
-
 #[cfg(feature = "full-node")]
 use {
 	tracing::info,

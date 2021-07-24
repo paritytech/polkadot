@@ -37,7 +37,7 @@ const ADD: u64 = 2;
 
 /// Calculates the head and state for the block with the given `number`.
 fn calculate_head_and_state_for_number(number: u64) -> (HeadData, u64) {
-	let head = HeadData {
+	let mut head = HeadData {
 		number: 0,
 		parent_hash: Default::default(),
 		post_state: hash_state(0),
@@ -299,7 +299,7 @@ mod tests {
 	fn advance_to_state_when_parent_head_is_missing() {
 		let collator = Collator::new();
 
-		let head = calculate_head_and_state_for_number(10).0;
+		let mut head = calculate_head_and_state_for_number(10).0;
 
 		for i in 1..10 {
 			head = collator.state.lock().unwrap().advance(head).1;
