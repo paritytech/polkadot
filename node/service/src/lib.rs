@@ -122,21 +122,27 @@ pub use rococo_runtime;
 pub use westend_runtime;
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
-#[cfg(any(test,feature = "full-node"))]
+#[cfg(any(test, feature = "full-node"))]
 const MAX_ACTIVE_LEAVES: usize = 4;
 
 /// Provides the header and block number for a hash.
 ///
 /// Decouples `sc_client_api::Backend` and `sp_blockchain::HeaderBackend`.
-pub trait HeaderProvider<Block, Error=sp_blockchain::Error>: Send + Sync + 'static
+pub trait HeaderProvider<Block, Error = sp_blockchain::Error>: Send + Sync + 'static
 where
 	Block: BlockT,
 	Error: std::fmt::Debug + Send + Sync + 'static,
 {
 	/// Obtain the header for a hash.
-	fn header(&self, hash: <Block as BlockT>::Hash) -> Result<Option<<Block as BlockT>::Header>, Error>;
+	fn header(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> Result<Option<<Block as BlockT>::Header>, Error>;
 	/// Obtain the block number for a hash.
-	fn number(&self, hash: <Block as BlockT>::Hash) -> Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>, Error>;
+	fn number(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>, Error>;
 }
 
 impl<Block, T> HeaderProvider<Block> for T
@@ -144,10 +150,19 @@ where
 	Block: BlockT,
 	T: sp_blockchain::HeaderBackend<Block> + 'static,
 {
-	fn header(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, generic::BlockId::<Block>::Hash(hash))
+	fn header(
+		&self,
+		hash: Block::Hash,
+	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(
+			self,
+			generic::BlockId::<Block>::Hash(hash),
+		)
 	}
-	fn number(&self, hash: Block::Hash) -> sp_blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
+	fn number(
+		&self,
+		hash: Block::Hash,
+	) -> sp_blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
 		<Self as sp_blockchain::HeaderBackend<Block>>::number(self, hash)
 	}
 }
@@ -165,19 +180,17 @@ where
 	fn header_provider(&self) -> &Self::Provider;
 }
 
-
 impl<Block, T> HeaderProviderProvider<Block> for T
 where
- 	Block: BlockT,
- 	T: sc_client_api::Backend<Block> + 'static,
- {
- 	type Provider = <T as sc_client_api::Backend<Block>>::Blockchain;
+	Block: BlockT,
+	T: sc_client_api::Backend<Block> + 'static,
+{
+	type Provider = <T as sc_client_api::Backend<Block>>::Blockchain;
 
- 	fn header_provider(&self) -> &Self::Provider {
+	fn header_provider(&self) -> &Self::Provider {
 		self.blockchain()
- 	}
+	}
 }
-
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -267,8 +280,12 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-#[cfg(any(test,feature = "full-node"))]
-fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
+#[cfg(any(test, feature = "full-node"))]
+fn jaeger_launch_collector_with_agent(
+	spawner: impl SpawnNamed,
+	config: &Configuration,
+	agent: Option<std::net::SocketAddr>,
+) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
 			.agent(agent)
