@@ -659,7 +659,7 @@ mod tests {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		GenesisBuild::<Test>::assimilate_storage(
-		&configuration::<Test>::GenesisConfig {
+		&configuration::GenesisConfig {
 				config: configuration::HostConfiguration {
 					max_code_size: 2 * 1024 * 1024, // 2 MB
 					max_head_data_size: 1 * 1024 * 1024, // 1 MB

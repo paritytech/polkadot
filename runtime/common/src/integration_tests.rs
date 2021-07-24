@@ -28,7 +28,7 @@ use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop, PalletId,
-	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
+	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem, GenesisBuild},
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
@@ -235,7 +235,7 @@ impl crowdloan::Config for Test {
 pub fn new_test_ext() -> TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 	GenesisBuild::<Test>::assimilate_storage(
-		&configuration::<Test>::GenesisConfig {
+		&configuration::GenesisConfig {
 				config: configuration::HostConfiguration {
 					max_code_size: 2 * 1024 * 1024, // 2 MB
 					max_head_data_size: 1 * 1024 * 1024, // 1 MB
