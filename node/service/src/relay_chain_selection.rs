@@ -121,7 +121,6 @@ pub struct SelectRelayChainWithFallback<
 	// parachains as well as situations where the node is offline.
 	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
 	selection: SelectRelayChain<
-		// <B as sc_client_api::Backend<PolkadotBlock>>::Blockchain
 		B,
 		Handle,
 	>,
@@ -131,7 +130,6 @@ impl<B> Clone for SelectRelayChainWithFallback<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 	SelectRelayChain<
-		// <B as sc_client_api::Backend<PolkadotBlock>>::Blockchain
 		B,
 		Handle,
 	>: Clone,

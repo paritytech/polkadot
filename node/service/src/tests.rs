@@ -76,8 +76,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(case_vars: CaseVars, test: 
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
 
-	// let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
-
 	let select_relay_chain = SelectRelayChain::<TestChainStorage, TestSubsystemSender>::new(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
