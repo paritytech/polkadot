@@ -245,7 +245,7 @@ pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
 where
 	Block: BlockT,
-	B: sp_blockchain::HeaderBackend<Block>,
+	B: sp_blockchain::HeaderBackend<Block> + 'static,
 {
 	fn restrict_vote(
 		&self,
