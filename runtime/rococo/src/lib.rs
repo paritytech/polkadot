@@ -443,6 +443,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 parameter_types! {
 	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
+	pub const MaxAuthorities: u32 = 100;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -451,7 +452,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = ();
 }
 
-impl pallet_authority_discovery::Config for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
 
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
