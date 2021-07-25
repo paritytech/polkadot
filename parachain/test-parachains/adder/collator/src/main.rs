@@ -69,7 +69,7 @@ fn main() -> Result<()> {
 						).map_err(|e| e.to_string())?;
 						let mut overseer_handle = full_node
 							.overseer_handle
-							.expect("Overseer handler should be initialized for collators");
+							.expect("Overseer handle should be initialized for collators");
 
 						let genesis_head_hex =
 							format!("0x{:?}", HexDisplay::from(&collator.genesis_head()));

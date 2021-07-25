@@ -255,7 +255,7 @@ impl Handle {
 			_ => {
 				tracing::warn!(
 					target: LOG_TARGET,
-					"Attempting to connect and already connected Handle",
+					"Attempting to connect an already connected Handle",
 				);
 			},
 		}

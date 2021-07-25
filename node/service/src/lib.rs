@@ -813,7 +813,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		);
 
 		let client_clone = client.clone();
-		let overseer_handler = overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
+		let overseer_handle = overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
@@ -825,11 +825,11 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			justification_sync_link: network.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
-				let overseer_handler = overseer_handler.clone();
+				let overseer_handle = overseer_handle.clone();
 				async move {
 					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
-						overseer_handler,
+						overseer_handle,
 						parent,
 					).await.map_err(|e| Box::new(e))?;
 
