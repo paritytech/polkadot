@@ -18,23 +18,24 @@
 
 use std::sync::Arc;
 
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use sp_runtime::generic::BlockId;
 use sp_runtime::traits::Header as _;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
+
+use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
 use polkadot_primitives::v1::Hash;
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
-pub(super) fn walk_backwards_to_target_block<Block, B>(
-	backend: &B,
+pub(super) fn walk_backwards_to_target_block<Block, HP>(
+	backend: &HP,
 	target_number: NumberFor<Block>,
 	current_header: &Block::Header,
 ) -> Result<(Block::Hash, NumberFor<Block>), sp_blockchain::Error>
 where
 	Block: BlockT,
-	B: sp_blockchain::HeaderBackend<Block>,
+	HP: HeaderProvider<Block>,
 {
 	let mut target_hash = current_header.hash();
 	let mut target_header = current_header.clone();
@@ -54,7 +55,7 @@ where
 
 		target_hash = *target_header.parent_hash();
 		target_header = backend
-			.header(BlockId::Hash(target_hash))?
+			.header(target_hash)?
 			.expect("Header known to exist due to the existence of one of its descendants; qed");
 	}
 }
@@ -69,7 +70,7 @@ pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
 where
 	Block: BlockT,
-	B: sp_blockchain::HeaderBackend<Block>,
+	B: sp_blockchain::HeaderBackend<Block> + 'static,
 {
 	fn restrict_vote(
 		&self,

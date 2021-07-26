@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2017-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -34,6 +34,9 @@ pub use self::overseer::{
 	create_default_subsystems,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "full-node")]
 use {
 	tracing::info,
@@ -51,7 +54,6 @@ use {
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-	sp_runtime::traits::Header as HeaderT,
 };
 
 #[cfg(feature = "full-node")]
@@ -103,7 +105,18 @@ pub use service::{
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor, Block as BlockT, self as runtime_traits, BlakeTwo256};
+pub use sp_runtime::{
+	generic,
+	traits::{
+		DigestFor,
+		HashFor,
+		NumberFor,
+		Block as BlockT,
+		Header as HeaderT,
+		self as runtime_traits,
+		BlakeTwo256,
+	},
+};
 
 #[cfg(feature = "kusama-native")]
 pub use kusama_runtime;
@@ -114,8 +127,75 @@ pub use rococo_runtime;
 pub use westend_runtime;
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
-#[cfg(any(test,feature = "full-node"))]
+#[cfg(any(test, feature = "full-node"))]
 const MAX_ACTIVE_LEAVES: usize = 4;
+
+/// Provides the header and block number for a hash.
+///
+/// Decouples `sc_client_api::Backend` and `sp_blockchain::HeaderBackend`.
+pub trait HeaderProvider<Block, Error = sp_blockchain::Error>: Send + Sync + 'static
+where
+	Block: BlockT,
+	Error: std::fmt::Debug + Send + Sync + 'static,
+{
+	/// Obtain the header for a hash.
+	fn header(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> Result<Option<<Block as BlockT>::Header>, Error>;
+	/// Obtain the block number for a hash.
+	fn number(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>, Error>;
+}
+
+impl<Block, T> HeaderProvider<Block> for T
+where
+	Block: BlockT,
+	T: sp_blockchain::HeaderBackend<Block> + 'static,
+{
+	fn header(
+		&self,
+		hash: Block::Hash,
+	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(
+			self,
+			generic::BlockId::<Block>::Hash(hash),
+		)
+	}
+	fn number(
+		&self,
+		hash: Block::Hash,
+	) -> sp_blockchain::Result<Option<<<Block as BlockT>::Header as HeaderT>::Number>> {
+		<Self as sp_blockchain::HeaderBackend<Block>>::number(self, hash)
+	}
+}
+
+/// Decoupling the provider.
+///
+/// Mandated since `trait HeaderProvider` can only be
+/// implemented once for a generic `T`.
+pub trait HeaderProviderProvider<Block>: Send + Sync + 'static
+where
+	Block: BlockT,
+{
+	type Provider: HeaderProvider<Block> + 'static;
+
+	fn header_provider(&self) -> &Self::Provider;
+}
+
+impl<Block, T> HeaderProviderProvider<Block> for T
+where
+	Block: BlockT,
+	T: sc_client_api::Backend<Block> + 'static,
+{
+	type Provider = <T as sc_client_api::Backend<Block>>::Blockchain;
+
+	fn header_provider(&self) -> &Self::Provider {
+		self.blockchain()
+	}
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -205,8 +285,12 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-#[cfg(any(test,feature = "full-node"))]
-fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configuration, agent: Option<std::net::SocketAddr>) -> Result<(), Error> {
+#[cfg(any(test, feature = "full-node"))]
+fn jaeger_launch_collector_with_agent(
+	spawner: impl SpawnNamed,
+	config: &Configuration,
+	agent: Option<std::net::SocketAddr>,
+) -> Result<(), Error> {
 	if let Some(agent) = agent {
 		let cfg = jaeger::JaegerConfig::builder()
 			.agent(agent)
@@ -219,7 +303,7 @@ fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configu
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
+type FullSelectChain = relay_chain_selection::SelectRelayChainWithFallback<FullBackend>;
 #[cfg(feature = "full-node")]
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
@@ -303,7 +387,7 @@ fn new_partial<RuntimeApi, Executor>(
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = relay_chain_selection::SelectRelayChain::new(
+	let select_chain = relay_chain_selection::SelectRelayChainWithFallback::new(
 		backend.clone(),
 		Handle::new_disconnected(),
 		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
@@ -506,7 +590,7 @@ where
 		.unwrap_or_default()
 		.into_iter()
 		.filter_map(|hash| {
-			let number = client.number(hash).ok()??;
+			let number = HeaderBackend::number(client, hash).ok()??;
 
 			// Only consider leaves that are in maximum an uncle of the best block.
 			if number < best_block.number().saturating_sub(1) {

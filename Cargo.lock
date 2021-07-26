@@ -1764,6 +1764,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
+dependencies = [
+ "atty",
+ "humantime 2.0.1",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "environmental"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6946,16 +6959,18 @@ dependencies = [
 name = "polkadot-service"
 version = "0.9.8"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "beefy-gadget",
  "beefy-primitives",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "frame-system-rpc-runtime-api",
  "futures 0.3.15",
  "hex-literal",
  "kusama-runtime",
  "kvdb",
  "kvdb-rocksdb",
+ "log",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
@@ -6985,6 +7000,7 @@ dependencies = [
  "polkadot-node-core-runtime-api",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-parachain",
