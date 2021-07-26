@@ -157,14 +157,14 @@ impl TestChainStorage {
 		leaf: Hash,
 	) -> Option<HighestApprovedAncestorBlock> {
 		let hash = leaf;
-		let number = dbg!(self.blocks_by_hash.get(&leaf)?.number);
+		let number = self.blocks_by_hash.get(&leaf)?.number;
 
 		let mut descriptions = Vec::new();
 		let mut block_hash = leaf;
 		let mut highest_approved_ancestor = None;
 
 		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
-			if dbg!(minimum_block_number >= block.number) {
+			if minimum_block_number >= block.number {
 				break;
 			}
 			descriptions.push(BlockDescription {
@@ -177,7 +177,7 @@ impl TestChainStorage {
 				descriptions.clear();
 			} else if highest_approved_ancestor.is_none() {
 				descriptions.clear();
-				highest_approved_ancestor = dbg!(Some(block_hash));
+				highest_approved_ancestor = Some(block_hash);
 			}
 			let next = block.parent_hash();
 			if &leaf != next {
@@ -194,7 +194,7 @@ impl TestChainStorage {
 		Some(HighestApprovedAncestorBlock {
 			hash,
 			number,
-			descriptions: dbg!(descriptions).into_iter().rev().collect(),
+			descriptions: descriptions.into_iter().rev().collect(),
 		})
 	}
 
@@ -268,31 +268,31 @@ impl ChainBuilder {
 		self
 	}
 
-	pub fn ff_approved(
+	pub fn fast_forward_approved(
 		&mut self,
 		branch_tag: u8,
 		parent: Hash,
 		block_number: BlockNumber,
 	) -> Hash {
-		let block = self.ff(branch_tag, parent, block_number);
+		let block = self.fast_forward(branch_tag, parent, block_number);
 		let _ = self.0.approved_blocks.insert(block);
 		block
 	}
 
 	/// Add a relay chain block that contains a disputed parachain block.
 	/// For simplicity this is not modeled explicitly.
-	pub fn ff_disputed(
+	pub fn fast_forward_disputed(
 		&mut self,
 		branch_tag: u8,
 		parent: Hash,
 		block_number: BlockNumber,
 	) -> Hash {
-		let block = self.ff_approved(branch_tag, parent, block_number);
+		let block = self.fast_forward_approved(branch_tag, parent, block_number);
 		let _ = self.0.disputed_blocks.insert(block);
 		block
 	}
 
-	pub fn ff(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber) -> Hash {
+	pub fn fast_forward(&mut self, branch_tag: u8, parent: Hash, block_number: BlockNumber) -> Hash {
 		let hash = Hash::repeat_byte((block_number as u8 | branch_tag) as u8);
 		let _ = self.add_block(hash, parent, block_number);
 		hash
@@ -337,7 +337,7 @@ async fn test_skeleton(
 ) {
 	let undisputed_chain = undisputed_chain.map(|x| (chain.number(x).unwrap().unwrap(), x));
 
-	println!("best leaf response: {:?}", undisputed_chain);
+	tracing::trace!("best leaf response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
@@ -356,7 +356,7 @@ async fn test_skeleton(
 		return;
 	}
 
-	println!("approved ancestor response: {:?}", undisputed_chain);
+	tracing::trace!("approved ancestor response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
@@ -367,7 +367,7 @@ async fn test_skeleton(
 		}
 	);
 
-	println!("determine undisputed chain response: {:?}", undisputed_chain);
+	tracing::trace!("determine undisputed chain response: {:?}", undisputed_chain);
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
@@ -483,15 +483,15 @@ fn chain_0() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_approved(0xA0, a1, 2);
-	let a3 = builder.ff_approved(0xA0, a2, 3);
-	let a4 = builder.ff(0xA0, a3, 4);
-	let a5 = builder.ff(0xA0, a4, 5);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
+	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
+	let a4 = builder.fast_forward(0xA0, a3, 4);
+	let a5 = builder.fast_forward(0xA0, a4, 5);
 
-	let b1 = builder.ff_approved(0xB0, a1, 2);
-	let b2 = builder.ff_approved(0xB0, b1, 3);
-	let b3 = builder.ff_approved(0xB0, b2, 4);
+	let b1 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b2 = builder.fast_forward_approved(0xB0, b1, 3);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 4);
 
 	builder.set_heads(vec![a5, b3]);
 
@@ -514,12 +514,12 @@ fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_disputed(0xA0, a1, 2);
-	let a3 = builder.ff_approved(0xA0, a2, 3);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_disputed(0xA0, a1, 2);
+	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
 
-	let b2 = builder.ff_approved(0xB0, a1, 2);
-	let b3 = builder.ff_approved(0xB0, b2, 3);
+	let b2 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 3);
 
 	builder.set_heads(vec![a3, b3]);
 
@@ -542,12 +542,12 @@ fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_disputed(0xA0, a1, 2);
-	let a3 = builder.ff_approved(0xA0, a2, 3);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_disputed(0xA0, a1, 2);
+	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
 
-	let b2 = builder.ff_approved(0xB0, a1, 2);
-	let b3 = builder.ff_approved(0xB0, b2, 3);
+	let b2 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 3);
 
 	builder.set_heads(vec![a3, b3]);
 
@@ -570,12 +570,12 @@ fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_approved(0xA0, a1, 2);
-	let a3 = builder.ff_disputed(0xA0, a2, 3);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
+	let a3 = builder.fast_forward_disputed(0xA0, a2, 3);
 
-	let b2 = builder.ff_approved(0xB0, a1, 2);
-	let b3 = builder.ff_approved(0xB0, b2, 3);
+	let b2 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 3);
 
 	builder.set_heads(vec![a3, b3]);
 
@@ -600,12 +600,12 @@ fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_approved(0xA0, a1, 2);
-	let a3 = builder.ff_disputed(0xA0, a2, 3);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
+	let a3 = builder.fast_forward_disputed(0xA0, a2, 3);
 
-	let b2 = builder.ff_approved(0xB0, a1, 2);
-	let b3 = builder.ff_approved(0xB0, b2, 3);
+	let b2 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 3);
 
 	builder.set_heads(vec![a3, b3]);
 
@@ -627,8 +627,8 @@ fn chain_5() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let a1 = builder.ff_approved(0xA0, head, 1);
-	let a2 = builder.ff_approved(0xA0, a1, 2);
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
 
 	builder.set_heads(vec![a2]);
 
@@ -649,16 +649,16 @@ fn chain_6() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
 
-	let b1 = builder.ff_approved(0xB0, head, 1);
+	let b1 = builder.fast_forward_approved(0xB0, head, 1);
 
 	let mut previous = b1;
 	let mut approved = b1;
 	for block_number in 2_u32..16 {
 		if block_number <= 8 {
-			previous = builder.ff_approved(0xD0, previous, block_number as _);
+			previous = builder.fast_forward_approved(0xD0, previous, block_number as _);
 			approved = previous;
 		} else {
-			previous = builder.ff(0xA0, previous, block_number as _);
+			previous = builder.fast_forward(0xA0, previous, block_number as _);
 		}
 	}
 	let leaf = previous;
@@ -667,8 +667,8 @@ fn chain_6() -> CaseVars {
 
 	let chain = builder.init();
 
-	dbg!(chain.highest_approved_ancestors(1, leaf));
-	dbg!(chain.undisputed_chain(1, approved));
+	tracing::trace!(highest_approved = ?chain.highest_approved_ancestors(1, leaf));
+	tracing::trace!(undisputed = ?chain.undisputed_chain(1, approved));
 	CaseVars {
 		chain,
 		target_block: b1,
