@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use futures::channel::oneshot;
 use consensus_common::{Error as ConsensusError, SelectChain};
 use std::sync::Arc;
-use polkadot_overseer::{AllMessages, Handle};
+use polkadot_overseer::{AllMessages, Handle, OverseerHandle};
 use super::{HeaderProvider, HeaderProviderProvider};
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
@@ -143,7 +143,6 @@ where
 {
 	/// Create a new [`SelectRelayChainWithFallback`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	#[allow(unused)]
 	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
 		SelectRelayChainWithFallback {
 			fallback: sc_consensus::LongestChain::new(backend.clone()),
@@ -160,14 +159,13 @@ impl<B> SelectRelayChainWithFallback<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
-	/// Given an overseer handler, this connects the [`SelectRelayChainWithFallback`]'s
-	/// internal handler to the same overseer.
-	#[allow(unused)]
-	pub fn connect_overseer_handler(
+	/// Given an overseer handle, this connects the [`SelectRelayChainWithFallback`]'s
+	/// internal handle and its clones to the same overseer.
+	pub fn connect_to_overseer(
 		&mut self,
-		other_handler: &Handle,
+		handle: OverseerHandle,
 	) {
-		other_handler.connect_other(&mut self.selection.overseer);
+		self.selection.overseer.connect_to_overseer(handle);
 	}
 }
 

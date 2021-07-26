@@ -303,7 +303,7 @@ fn jaeger_launch_collector_with_agent(
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
+type FullSelectChain = relay_chain_selection::SelectRelayChainWithFallback<FullBackend>;
 #[cfg(feature = "full-node")]
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
@@ -387,7 +387,7 @@ fn new_partial<RuntimeApi, Executor>(
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = relay_chain_selection::SelectRelayChain::new(
+	let select_chain = relay_chain_selection::SelectRelayChainWithFallback::new(
 		backend.clone(),
 		Handle::new_disconnected(),
 		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
