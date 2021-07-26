@@ -220,7 +220,6 @@ where
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	#[allow(unused)]
 	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			backend,
