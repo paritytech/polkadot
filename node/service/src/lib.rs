@@ -42,6 +42,11 @@ use {
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
+	polkadot_node_core_chain_selection::{
+		self as chain_selection_subsystem,
+		Config as ChainSelectionConfig,
+	},
+	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_overseer::BlockInfo,
 	sp_trie::PrefixedMemoryDB,
 	sc_client_api::ExecutorProvider,
@@ -56,7 +61,7 @@ pub use {
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sc_client_api::AuxStore,
 	polkadot_primitives::v1::ParachainHost,
-	polkadot_overseer::{Overseer, Handle},
+	polkadot_overseer::{Overseer, Handle, OverseerHandle},
 };
 pub use sp_core::traits::SpawnNamed;
 
@@ -214,7 +219,7 @@ fn jaeger_launch_collector_with_agent(spawner: impl SpawnNamed, config: &Configu
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
 #[cfg(feature = "full-node")]
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
@@ -298,7 +303,11 @@ fn new_partial<RuntimeApi, Executor>(
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
+	let select_chain = relay_chain_selection::SelectRelayChain::new(
+		backend.clone(),
+		Handle::new_disconnected(),
+		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
+	);
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
@@ -427,7 +436,7 @@ fn new_partial<RuntimeApi, Executor>(
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub overseer_handler: Option<Handle>,
+	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
@@ -440,7 +449,7 @@ impl<C> NewFull<C> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
-			overseer_handler: self.overseer_handler,
+			overseer_handle: self.overseer_handle,
 			network: self.network,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
@@ -480,7 +489,7 @@ impl IsCollator {
 /// Returns the active leaves the overseer should start with.
 #[cfg(feature = "full-node")]
 async fn active_leaves<RuntimeApi, Executor>(
-	select_chain: &sc_consensus::LongestChain<FullBackend, Block>,
+	select_chain: &impl SelectChain<Block>,
 	client: &FullClient<RuntimeApi, Executor>,
 ) -> Result<Vec<BlockInfo>, Error>
 where
@@ -573,7 +582,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		backend,
 		mut task_manager,
 		keystore_container,
-		select_chain,
+		mut select_chain,
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry)
@@ -655,6 +664,15 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		},
 	};
 
+	let chain_selection_config = ChainSelectionConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+	};
+
+	let dispute_coordinator_config = DisputeCoordinatorConfig {
+		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+	};
+
 	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
@@ -714,8 +732,6 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		None
 	};
 
-	// we'd say let overseer_handler = authority_discovery_service.map(|authority_discovery_service|, ...),
-	// but in that case we couldn't use ? to propagate errors
 	let local_keystore = keystore_container.local_keystore();
 	if local_keystore.is_none() {
 		tracing::info!("Cannot run as validator without local keystore.");
@@ -724,8 +740,8 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	let maybe_params = local_keystore
 		.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
-	let overseer_handler = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		let (overseer, overseer_handler) = overseer_gen.generate::<
+	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+		let (overseer, overseer_handle) = overseer_gen.generate::<
 			service::SpawnTaskHandle,
 			FullClient<RuntimeApi, Executor>,
 		>(
@@ -734,23 +750,26 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 				keystore,
 				runtime_client: overseer_client.clone(),
 				parachains_db,
-				availability_config,
-				approval_voting_config,
 				network_service: network.clone(),
 				authority_discovery_service,
 				request_multiplexer,
 				registry: prometheus_registry.as_ref(),
 				spawner,
 				is_collator,
+				approval_voting_config,
+				availability_config,
 				candidate_validation_config,
+				chain_selection_config,
+				dispute_coordinator_config,
 			}
 		)?;
-		let overseer_handler_clone = overseer_handler.clone();
+		let handle = Handle::Connected(overseer_handle.clone());
+		let handle_clone = handle.clone();
 
 		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
 
-			let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+			let forward = polkadot_overseer::forward_events(overseer_client, handle_clone);
 
 			let forward = forward.fuse();
 			let overseer_fut = overseer.run().fuse();
@@ -764,8 +783,19 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 				complete => (),
 			}
 		}));
+		// we should remove this check before we deploy parachains on polkadot
+		// TODO: https://github.com/paritytech/polkadot/issues/3326
+		let should_connect_overseer = chain_spec.is_kusama()
+			|| chain_spec.is_westend()
+			|| chain_spec.is_rococo()
+			|| chain_spec.is_wococo();
 
-		Some(overseer_handler)
+		if should_connect_overseer {
+			select_chain.connect_to_overseer(overseer_handle.clone());
+		} else {
+			tracing::info!("Overseer is running in the disconnected state");
+		}
+		Some(handle)
 	} else {
 		None
 	};
@@ -783,7 +813,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		);
 
 		let client_clone = client.clone();
-		let overseer_handler = overseer_handler.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
+		let overseer_handle = overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
@@ -795,11 +825,11 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			justification_sync_link: network.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
-				let overseer_handler = overseer_handler.clone();
+				let overseer_handle = overseer_handle.clone();
 				async move {
 					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
-						overseer_handler,
+						overseer_handle,
 						parent,
 					).await.map_err(|e| Box::new(e))?;
 
@@ -889,24 +919,6 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		// after the given pause block is finalized and restarting after the
 		// given delay.
 		let builder = grandpa::VotingRulesBuilder::default();
-		// we should enable approval checking voting rule before we deploy parachains on polkadot
-		let enable_approval_checking_voting_rule = chain_spec.is_kusama()
-			|| chain_spec.is_westend()
-			|| chain_spec.is_rococo()
-			|| chain_spec.is_wococo();
-
-		let builder = if let Some(ref overseer) = overseer_handler {
-			if enable_approval_checking_voting_rule {
-				builder.add(grandpa_support::ApprovalCheckingVotingRule::new(
-					overseer.clone(),
-					prometheus_registry.as_ref(),
-				)?)
-			} else {
-				builder
-			}
-		} else {
-			builder
-		};
 
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
@@ -946,7 +958,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 	Ok(NewFull {
 		task_manager,
 		client,
-		overseer_handler,
+		overseer_handle,
 		network,
 		rpc_handlers,
 		backend,
