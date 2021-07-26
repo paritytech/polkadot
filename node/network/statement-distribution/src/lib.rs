@@ -1847,6 +1847,16 @@ impl StatementDistribution {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 				let _timer = metrics.time_active_leaves_update();
 
+				for deactivated in deactivated {
+					if active_heads.remove(&deactivated).is_some() {
+						tracing::trace!(
+							target: LOG_TARGET,
+							hash = ?deactivated,
+							"Deactivating leaf",
+						);
+					}
+				}
+
 				for activated in activated {
 					let relay_parent = activated.hash;
 					let span = PerLeafSpan::new(activated.span, "statement-distribution");
@@ -1862,18 +1872,6 @@ impl StatementDistribution {
 
 					active_heads.entry(relay_parent)
 						.or_insert(ActiveHeadData::new(session_info.validators.clone(), session_index, span));
-
-					active_heads.retain(|h, _| {
-						let live = !deactivated.contains(h);
-						if !live {
-							tracing::trace!(
-								target: LOG_TARGET,
-								hash = ?h,
-								"Deactivating leaf",
-							);
-						}
-						live
-					});
 				}
 			}
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
