@@ -286,15 +286,12 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 
 	overseer_signal(
 		virtual_overseer,
-		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
-				hash: test_state.relay_parent,
-				number: 1,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: [][..].into(),
-		}),
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: test_state.relay_parent,
+			number: 1,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		})),
 	).await;
 
 	overseer_send(
@@ -579,7 +576,7 @@ fn advertise_and_send_collation() {
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
-					assert_eq!(bad_peer, peer); 
+					assert_eq!(bad_peer, peer);
 				}
 			);
 			assert_matches!(
