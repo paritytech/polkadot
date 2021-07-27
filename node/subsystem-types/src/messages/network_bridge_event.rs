@@ -59,8 +59,8 @@ impl<M> NetworkBridgeEvent<M> {
 	/// for example into a `BitfieldDistributionMessage` in case of the `BitfieldDistribution`
 	/// constructor.
 	///
-	/// Therefore a NetworkBridgeEvent<ValidationProtocol> will become for example a
-	/// NetworkBridgeEvent<BitfieldDistributionMessage>, with the more specific message type
+	/// Therefore a `NetworkBridgeEvent<ValidationProtocol>` will become for example a
+	/// `NetworkBridgeEvent<BitfieldDistributionMessage>`, with the more specific message type
 	/// `BitfieldDistributionMessage`.
 	///
 	/// This acts as a call to `clone`, except in the case where the event is a message event,

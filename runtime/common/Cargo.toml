@@ -37,14 +37,13 @@ pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "aj-metadata-vnext", default-features = false }
-pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "aj-metadata-vnext", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features=false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
-libsecp256k1 = { version = "0.3.5", default-features = false }
+libsecp256k1 = { version = "0.6.0", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
 slot-range-helper = { path = "slot_range_helper", default-features = false }
@@ -62,13 +61,12 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "m
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.22.3"
 serde_json = "1.0.61"
-libsecp256k1 = "0.3.5"
+libsecp256k1 = "0.6.0"
 
 [features]
 default = ["std"]
 no_std = []
 std = [
-	"beefy-primitives/std",
 	"bitvec/std",
 	"parity-scale-codec/std",
 	"log/std",
@@ -84,8 +82,7 @@ std = [
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
-	"pallet-beefy/std",
-	"pallet-mmr/std",
+	"pallet-beefy-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
@@ -104,6 +101,7 @@ std = [
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
+	"libsecp256k1/static-context",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",

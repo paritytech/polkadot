@@ -104,7 +104,7 @@ pub enum Error {
 
 /// PoV data to validate.
 enum PoVData {
-	/// Allready available (from candidate selection).
+	/// Already available (from candidate selection).
 	Ready(Arc<PoV>),
 	/// Needs to be fetched from validator (we are checking a signed statement).
 	FetchFromValidator {
@@ -856,7 +856,7 @@ impl CandidateBackingJob {
 	/// This also does bounds-checking on the validator index and will return an error if the
 	/// validator index is out of bounds for the current validator set. It's expected that
 	/// this should never happen due to the interface of the candidate backing subsystem -
-	/// the networking component repsonsible for feeding statements to the backing subsystem
+	/// the networking component responsible for feeding statements to the backing subsystem
 	/// is meant to check the signature and provenance of all statements before submission.
 	async fn dispatch_new_statement_to_dispute_coordinator(
 		&self,

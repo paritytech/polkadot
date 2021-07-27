@@ -17,7 +17,7 @@
 //! The Statement Distribution Subsystem.
 //!
 //! This is responsible for distributing signed statements about candidate
-//! validity amongst validators.
+//! validity among validators.
 
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
@@ -208,7 +208,7 @@ struct PeerRelayParentKnowledge {
 	/// How many large statements this peer already sent us.
 	///
 	/// Flood protection for large statements is rather hard and as soon as we get
-	/// https://github.com/paritytech/polkadot/issues/2979 implemented also no longer necessary.
+	/// `https://github.com/paritytech/polkadot/issues/2979` implemented also no longer necessary.
 	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
 	/// statements and never provides the data, we will keep it around for the slot duration. Not
 	/// even signature checking would help, as the sender, if a validator, can just sign arbitrary
@@ -290,7 +290,7 @@ impl PeerRelayParentKnowledge {
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
 	/// not receive more statements for any one candidate than there are members in the group assigned
 	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -459,7 +459,7 @@ impl PeerData {
 	/// Provide the maximum message count that we can receive per candidate. In practice we should
 	/// not receive more statements for any one candidate than there are members in the group assigned
 	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
-	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
 	///
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
@@ -1847,6 +1847,16 @@ impl StatementDistribution {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 				let _timer = metrics.time_active_leaves_update();
 
+				for deactivated in deactivated {
+					if active_heads.remove(&deactivated).is_some() {
+						tracing::trace!(
+							target: LOG_TARGET,
+							hash = ?deactivated,
+							"Deactivating leaf",
+						);
+					}
+				}
+
 				for activated in activated {
 					let relay_parent = activated.hash;
 					let span = PerLeafSpan::new(activated.span, "statement-distribution");
@@ -1862,18 +1872,6 @@ impl StatementDistribution {
 
 					active_heads.entry(relay_parent)
 						.or_insert(ActiveHeadData::new(session_info.validators.clone(), session_index, span));
-
-					active_heads.retain(|h, _| {
-						let live = !deactivated.contains(h);
-						if !live {
-							tracing::trace!(
-								target: LOG_TARGET,
-								hash = ?h,
-								"Deactivating leaf",
-							);
-						}
-						live
-					});
 				}
 			}
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {

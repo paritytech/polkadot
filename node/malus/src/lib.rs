@@ -27,7 +27,7 @@ use std::pin::Pin;
 
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
-	/// The message type the original subsystm handles incoming.
+	/// The message type the original subsystem handles incoming.
 	type Message: Send + 'static;
 
 	/// Filter messages that are to be received by

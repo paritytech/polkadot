@@ -26,6 +26,7 @@
 #![recursion_limit = "256"]
 
 pub mod configuration;
+pub mod disputes;
 pub mod shared;
 pub mod inclusion;
 pub mod initializer;

@@ -103,7 +103,7 @@ enum MuxedMessage {
 	///
 	/// - We need to make sure responses are actually sent (therefore we need to await futures
 	/// promptly).
-	/// - We need to update banned_peers accordingly to the result.
+	/// - We need to update `banned_peers` accordingly to the result.
 	ConfirmedImport(NonFatalResult<(PeerId, ImportStatementsResult)>),
 
 	/// A new request has arrived and should be handled.

@@ -62,14 +62,14 @@ pub struct RuntimeInfo {
 	/// overseer seems sensible.
 	session_index_cache: LruCache<Hash, SessionIndex>,
 
-	/// Look up cached sessions by SessionIndex.
+	/// Look up cached sessions by `SessionIndex`.
 	session_info_cache: LruCache<SessionIndex, ExtendedSessionInfo>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
 	keystore: Option<SyncCryptoStorePtr>,
 }
 
-/// SessionInfo with additional useful data for validator nodes.
+/// `SessionInfo` with additional useful data for validator nodes.
 pub struct ExtendedSessionInfo {
 	/// Actual session info as fetched from the runtime.
 	pub session_info: SessionInfo,
@@ -303,7 +303,7 @@ where
 	)
 }
 
-/// Get group rotation info based on the given relay_parent.
+/// Get group rotation info based on the given `relay_parent`.
 pub async fn get_group_rotation_info<Context>(ctx: &mut Context, relay_parent: Hash)
 	-> Result<GroupRotationInfo>
 where

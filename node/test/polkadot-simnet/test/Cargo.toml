@@ -1,0 +1,22 @@
+[package]
+name = "polkadot-simnet-test"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+# substrate primitives
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# frame pallets
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# substrate client libs
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# polkadot deps
+polkadot-simnet = { path = "../common" }
+polkadot-runtime = { path = "../../../../runtime/polkadot" }

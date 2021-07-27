@@ -72,7 +72,7 @@ enum FetchedState {
 	///
 	/// Once the contained `Sender` is dropped, any still running task will be canceled.
 	Started(oneshot::Sender<()>),
-	/// All relevant live_in have been removed, before we were able to get our chunk.
+	/// All relevant `live_in` have been removed, before we were able to get our chunk.
 	Canceled,
 }
 
@@ -118,7 +118,7 @@ struct RunningTask {
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
 
-	/// Prometheues metrics for reporting results.
+	/// Prometheus metrics for reporting results.
 	metrics: Metrics,
 
 	/// Span tracking the fetching of this chunk.

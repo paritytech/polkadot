@@ -173,7 +173,7 @@ pub enum Xcm<Call> {
 	/// - `assets`: The asset(s) to be withdrawn.
 	/// - `dest`: The new owner for the assets.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
-	///   `dest.
+	///   `dest`.
 	///
 	/// Safety: No concerns.
 	///

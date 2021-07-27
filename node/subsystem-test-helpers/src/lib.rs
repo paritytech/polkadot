@@ -375,7 +375,7 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
+	use polkadot_overseer::{Overseer, Handle, HeadSupportsParachains, AllSubsystems};
 	use futures::executor::block_on;
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
@@ -390,17 +390,18 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
 		let all_subsystems = AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
-		let (overseer, mut handler) = Overseer::new(
+		let (overseer, handle) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
 			None,
 			AlwaysSupportsParachains,
 			spawner.clone(),
 		).unwrap();
+		let mut handle = Handle::Connected(handle);
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
+		block_on(handle.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
 		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CollatorProtocolMessage::CollateOn(_)));
 	}
 }

@@ -81,7 +81,6 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 
 [dev-dependencies]
 hex-literal = "0.3.1"
-libsecp256k1 = "0.3.5"
 tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -222,10 +221,10 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"runtime-common/try-runtime",
 ]
-# When enabled, the runtime api will not be build.
+# When enabled, the runtime API will not be build.
 #
 # This is required by Cumulus to access certain types of the
-# runtime without clashing with the runtime api exported functions
+# runtime without clashing with the runtime API exported functions
 # in WASM.
 disable-runtime-api = []
 

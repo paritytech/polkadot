@@ -35,8 +35,10 @@ use frame_support::{
 };
 use frame_system::ensure_none;
 use crate::{
+	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
+	shared,
 	ump,
 };
 
@@ -53,7 +55,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as ParaInherent {
 		/// Whether the paras inherent was included within this block.
 		///
-		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
+		/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
 		/// due to the guarantees of FRAME's storage APIs.
 		///
 		/// If this is `None` at the end of the block, we panic and render the block invalid.
@@ -68,6 +70,8 @@ decl_error! {
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
+		/// Potentially invalid candidate.
+		CandidateCouldBeInvalid,
 	}
 }
 
@@ -99,7 +103,7 @@ decl_module! {
 				bitfields: signed_bitfields,
 				backed_candidates,
 				parent_header,
-				disputes: _,
+				disputes,
 			} = data;
 
 			ensure_none(origin)?;
@@ -112,26 +116,66 @@ decl_module! {
 				Error::<T>::InvalidParentHeader,
 			);
 
+			// Handle disputes logic.
+			let current_session = <shared::Pallet<T>>::session_index();
+			let freed_disputed: Vec<(_, FreedReason)> = {
+				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				if T::DisputesHandler::is_frozen() {
+					// The relay chain we are currently on is invalid. Proceed no further on parachains.
+					Included::set(Some(()));
+					return Ok(Some(
+						MINIMAL_INCLUSION_INHERENT_WEIGHT
+					).into());
+				}
+
+				let any_current_session_disputes = fresh_disputes.iter()
+					.any(|(s, _)| s == &current_session);
+
+				if any_current_session_disputes {
+					let current_session_disputes: Vec<_> = fresh_disputes.iter()
+						.filter(|(s, _)| s == &current_session)
+						.map(|(_, c)| *c)
+						.collect();
+
+					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
+						.into_iter()
+						.map(|core| (core, FreedReason::Concluded))
+						.collect()
+				} else {
+					Vec::new()
+				}
+			};
+
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
 			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
-			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
 				<scheduler::Module<T>>::core_para,
 			)?;
 
+			// Inform the disputes module of all included candidates.
+			let now = <frame_system::Pallet<T>>::block_number();
+			for (_, candidate_hash) in &freed_concluded {
+				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
+			}
+
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
 			let freed_timeout = if let Some(pred) = availability_pred {
-				<inclusion::Module<T>>::collect_pending(pred)
+				<inclusion::Pallet<T>>::collect_pending(pred)
 			} else {
 				Vec::new()
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
-				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
+			let mut freed = freed_disputed.into_iter()
+				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
+				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+				.collect::<Vec<_>>();
+
+			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Module<T>>::clear();
 			<scheduler::Module<T>>::schedule(
@@ -142,9 +186,20 @@ decl_module! {
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
+			// Refuse to back any candidates that are disputed or invalid.
+			for candidate in &backed_candidates {
+				ensure!(
+					!T::DisputesHandler::could_be_invalid(
+						current_session,
+						candidate.candidate.hash(),
+					),
+					Error::<T>::CandidateCouldBeInvalid,
+				);
+			}
+
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Module<T>>::process_candidates(
+			let occupied = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
 				<scheduler::Module<T>>::scheduled(),
@@ -216,7 +271,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let inherent_data: ParachainsInherentData<T::Header>
+		let mut inherent_data: ParachainsInherentData<T::Header>
 			= match data.get_data(&Self::INHERENT_IDENTIFIER)
 		{
 			Ok(Some(d)) => d,
@@ -230,6 +285,9 @@ impl<T: Config> ProvideInherent for Module<T> {
 				return None;
 			}
 		};
+
+		// filter out any unneeded dispute statements
+		T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
 
 		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 		// See github.com/paritytech/polkadot/issues/1327

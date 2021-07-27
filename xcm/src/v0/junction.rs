@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Support datastructures for `MultiLocation`, primarily the `Junction` datatype.
+//! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
