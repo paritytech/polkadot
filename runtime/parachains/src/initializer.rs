@@ -140,7 +140,7 @@ pub mod pallet {
 				session_info::Module::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
-				ump::Module::<T>::initializer_initialize(now) +
+				ump::Pallet::<T>::initializer_initialize(now) +
 				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
@@ -151,7 +151,7 @@ pub mod pallet {
 		fn on_finalize(_: T::BlockNumber) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
-			ump::Module::<T>::initializer_finalize();
+			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Module::<T>::initializer_finalize();
@@ -239,7 +239,7 @@ impl<T: Config> Pallet<T> {
 		session_info::Module::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
