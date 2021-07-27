@@ -39,10 +39,9 @@ use runtime_parachains::{
 	runtime_api_impl::v1 as runtime_api_impl,
 };
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, Randomness, All, IsInVec},
+	PalletId, construct_runtime, parameter_types,
+	traits::{All, Filter, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
 	weights::Weight,
-	PalletId
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -159,6 +158,17 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
+/// Migrate from `PalletVersion` to the new `StorageVersion`
+pub struct MigratePalletVersionToStorageVersion;
+
+impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<AllPalletsWithSystem>(
+			&RocksDbWeight::get()
+		)
+	}
+}
+
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
@@ -168,7 +178,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	GrandpaStoragePrefixMigration,
+	MigratePalletVersionToStorageVersion,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -264,31 +274,6 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
-	}
-}
-
-pub struct GrandpaStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for GrandpaStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::migrate::<Runtime, Grandpa, _>(name)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Grandpa>()
-			.expect("grandpa is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_grandpa::migrations::v3_1::pre_migration::<Runtime, Grandpa, _>(name);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_grandpa::migrations::v3_1::post_migration::<Grandpa>();
-		Ok(())
 	}
 }
 
