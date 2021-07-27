@@ -46,7 +46,7 @@ use frame_support::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, KeyTypeId,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
@@ -474,10 +474,6 @@ impl pallet_transaction_payment::Config for Runtime {
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
-parameter_types! {
-	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
-}
-
 /// Special `ValidatorIdOf` implementation that is just returning the input as result.
 pub struct ValidatorIdOf;
 impl sp_runtime::traits::Convert<AccountId, Option<AccountId>> for ValidatorIdOf {
@@ -493,7 +489,6 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	type WeightInfo = ();
 }
 

@@ -162,7 +162,6 @@ mod tests {
 		type SessionManager = ();
 		type SessionHandler = TestSessionHandler;
 		type Keys = UintAuthorityId;
-		type DisabledValidatorsThreshold = ();
 		type WeightInfo = ();
 	}
 
