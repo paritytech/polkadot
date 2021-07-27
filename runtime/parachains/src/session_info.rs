@@ -56,14 +56,14 @@ pub mod pallet {
 	/// The earliest session for which previous session info is stored.
 	#[pallet::storage]
 	#[pallet::getter(fn earliest_stored_session)]
-	pub type EarliestStoredSession<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+	pub(crate) type EarliestStoredSession<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
 
 	/// Session information in a rolling window.
 	/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
 	/// Does not have any entries before the session index in the first session change notification.
 	#[pallet::storage]
 	#[pallet::getter(fn session_info)]
-	pub type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
+	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
