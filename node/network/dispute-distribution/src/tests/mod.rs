@@ -614,19 +614,21 @@ async fn activate_leaf(
 	let has_active_disputes = !active_disputes.is_empty();
 	handle.send(FromOverseer::Signal(
 		OverseerSignal::ActiveLeaves(
-			ActiveLeavesUpdate {
-				activated: [ActivatedLeaf {
-						hash: activate,
-						number: 10,
-						status: LeafStatus::Fresh,
-						span: Arc::new(Span::Disabled),
-					}][..]
-				   .into(),
-				deactivated: deactivate.into_iter().collect(),
-			}
+			ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: activate,
+				number: 10,
+				status: LeafStatus::Fresh,
+				span: Arc::new(Span::Disabled),
+			})),
 
-	)))
-	.await;
+	)).await;
+	if let Some(deactivated) = deactivate {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::stop_work(deactivated),
+			)
+		)).await;
+	}
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(

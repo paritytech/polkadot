@@ -652,15 +652,14 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 	let test_fut = async move {
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -828,15 +827,14 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -1300,15 +1298,14 @@ fn share_prioritizes_backing_group() {
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -1556,15 +1553,14 @@ fn peer_cant_flood_with_large_statements() {
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
