@@ -51,12 +51,12 @@ pub mod pallet {
 	/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
 	/// When in doubt, use `Sessions` API instead.
 	#[pallet::storage]
-	pub(crate) type AssignmentKeysUnsafe<T: Config> = StorageValue<_, Vec<AssignmentId>, ValueQuery>;
+	pub(super) type AssignmentKeysUnsafe<T: Config> = StorageValue<_, Vec<AssignmentId>, ValueQuery>;
 
 	/// The earliest session for which previous session info is stored.
 	#[pallet::storage]
 	#[pallet::getter(fn earliest_stored_session)]
-	pub(crate) type EarliestStoredSession<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+	pub type EarliestStoredSession<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
 
 	/// Session information in a rolling window.
 	/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
