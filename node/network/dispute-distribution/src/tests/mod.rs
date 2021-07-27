@@ -615,16 +615,14 @@ async fn activate_leaf(
 	handle.send(FromOverseer::Signal(
 		OverseerSignal::ActiveLeaves(
 			ActiveLeavesUpdate {
-				activated: [ActivatedLeaf {
-						hash: activate,
-						number: 10,
-						status: LeafStatus::Fresh,
-						span: Arc::new(Span::Disabled),
-					}][..]
-				   .into(),
+				activated: Some(ActivatedLeaf {
+					hash: activate,
+					number: 10,
+					status: LeafStatus::Fresh,
+					span: Arc::new(Span::Disabled),
+				}),
 				deactivated: deactivate.into_iter().collect(),
 			}
-
 	)))
 	.await;
 	assert_matches!(
