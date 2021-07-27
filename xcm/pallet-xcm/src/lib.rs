@@ -97,14 +97,14 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
-		pub fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
+		pub fn send(origin: OriginFor<T>, dest: Box<MultiLocation>, message: Box<Xcm<()>>) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone())
+			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone())
 				.map_err(|e| match e {
 					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
 					_ => Error::<T>::SendFailure,
 				})?;
-			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}
 
@@ -124,7 +124,7 @@ pub mod pallet {
 				assets: assets.clone(),
 				effects: sp_std::vec![ InitiateTeleport {
 					assets: sp_std::vec![ All ],
-					dest: dest.clone(),
+					dest: *dest.clone(),
 					effects: sp_std::vec![],
 				} ]
 			};
@@ -132,8 +132,8 @@ pub mod pallet {
 		})]
 		pub fn teleport_assets(
 			origin: OriginFor<T>,
-			dest: MultiLocation,
-			beneficiary: MultiLocation,
+			dest: Box<MultiLocation>,
+			beneficiary: Box<MultiLocation>,
 			assets: Vec<MultiAsset>,
 			dest_weight: Weight,
 		) -> DispatchResult {
@@ -146,7 +146,7 @@ pub mod pallet {
 				effects: vec![
 					InitiateTeleport {
 						assets: vec![ All ],
-						dest,
+						dest: *dest,
 						effects: vec![
 							BuyExecution {
 								fees: All,
@@ -156,7 +156,7 @@ pub mod pallet {
 								halt_on_error: false,
 								xcm: vec![],
 							},
-							DepositAsset { assets: vec![ All ], dest: beneficiary },
+							DepositAsset { assets: vec![ All ], dest: *beneficiary },
 						],
 					},
 				],
@@ -183,15 +183,15 @@ pub mod pallet {
 		#[pallet::weight({
 			let mut message = Xcm::TransferReserveAsset {
 				assets: assets.clone(),
-				dest: dest.clone(),
+				dest: *dest.clone(),
 				effects: sp_std::vec![],
 			};
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
-			dest: MultiLocation,
-			beneficiary: MultiLocation,
+			dest: Box<MultiLocation>,
+			beneficiary: Box<MultiLocation>,
 			assets: Vec<MultiAsset>,
 			dest_weight: Weight,
 		) -> DispatchResult {
@@ -201,7 +201,7 @@ pub mod pallet {
 			let (origin_location, assets) = value;
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
-				dest,
+				dest: *dest,
 				effects: vec![
 					BuyExecution {
 						fees: All,
@@ -211,7 +211,7 @@ pub mod pallet {
 						halt_on_error: false,
 						xcm: vec![],
 					},
-					DepositAsset { assets: vec![ All ], dest: beneficiary },
+					DepositAsset { assets: vec![ All ], dest: *beneficiary },
 				],
 			};
 			let weight = T::Weigher::weight(&mut message)
