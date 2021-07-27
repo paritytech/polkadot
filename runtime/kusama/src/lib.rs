@@ -81,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All, OnRuntimeUpgrade},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -1525,10 +1525,21 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	RemoveCollectiveFlip,
+	(RemoveCollectiveFlip, MigratePalletVersionToStorageVersion),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Migrate from `PalletVersion` to the new `StorageVersion`
+pub struct MigratePalletVersionToStorageVersion;
+
+impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<AllPalletsWithSystem>(
+			&RocksDbWeight::get()
+		)
+	}
+}
 
 pub struct RemoveCollectiveFlip;
 impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
