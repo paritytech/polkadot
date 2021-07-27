@@ -239,7 +239,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 /// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
-	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+	let earliest_stored_session = <session_info::Pallet<T>>::earliest_stored_session();
 
 	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively
 	// selected to participate in parachain consensus. We'd like all authorities for the current
@@ -250,7 +250,7 @@ pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discover
 	// Due to disputes, we'd like to remain connected to authorities of the previous few sessions.
 	// For this, we don't need anyone other than the validators actively participating in consensus.
 	for session_index in earliest_stored_session..current_session_index {
-		let info = <session_info::Module<T>>::session_info(session_index);
+		let info = <session_info::Pallet<T>>::session_info(session_index);
 		if let Some(mut info) = info {
 			authority_ids.append(&mut info.discovery_keys);
 		}
@@ -308,7 +308,7 @@ where
 
 /// Get the session info for the given session, if stored.
 pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
-	<session_info::Module<T>>::session_info(index)
+	<session_info::Pallet<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
