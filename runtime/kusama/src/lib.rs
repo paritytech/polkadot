@@ -372,6 +372,8 @@ parameter_types! {
 	// miner configs
 	pub const MinerMaxIterations: u32 = 10;
 	pub OffchainRepeat: BlockNumber = 5;
+
+	pub const VoterSnapshotPerBlock: u32 = u32::max_value();
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -414,6 +416,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
+	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
 fn era_payout(
