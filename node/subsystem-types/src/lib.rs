@@ -90,8 +90,8 @@ pub struct ActivatedLeaf {
 /// Note that the activated and deactivated fields indicate deltas, not complete sets.
 #[derive(Clone, Default)]
 pub struct ActiveLeavesUpdate {
-	/// New relay chain blocks of interest.
-	pub activated: SmallVec<[ActivatedLeaf; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	/// New relay chain block of interest.
+	pub activated: Option<ActivatedLeaf>,
 	/// Relay chain block hashes no longer of interest.
 	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 }
@@ -99,7 +99,7 @@ pub struct ActiveLeavesUpdate {
 impl ActiveLeavesUpdate {
 	/// Create a `ActiveLeavesUpdate` with a single activated hash
 	pub fn start_work(activated: ActivatedLeaf) -> Self {
-		Self { activated: [activated][..].into(), ..Default::default() }
+		Self { activated: Some(activated), ..Default::default() }
 	}
 
 	/// Create a `ActiveLeavesUpdate` with a single deactivated hash
@@ -109,7 +109,7 @@ impl ActiveLeavesUpdate {
 
 	/// Is this update empty and doesn't contain any information?
 	pub fn is_empty(&self) -> bool {
-		self.activated.is_empty() && self.deactivated.is_empty()
+		self.activated.is_none() && self.deactivated.is_empty()
 	}
 }
 
@@ -118,23 +118,16 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		self.activated.len() == other.activated.len() && self.deactivated.len() == other.deactivated.len()
-			&& self.activated.iter().all(|a| other.activated.iter().any(|o| a.hash == o.hash))
+		self.activated.as_ref().map(|a| a.hash) == other.activated.as_ref().map(|a| a.hash)
+			&& self.deactivated.len() == other.deactivated.len()
 			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
 }
 
 impl fmt::Debug for ActiveLeavesUpdate {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		struct Activated<'a>(&'a [ActivatedLeaf]);
-		impl fmt::Debug for Activated<'_> {
-			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-				f.debug_list().entries(self.0.iter().map(|e| e.hash)).finish()
-			}
-		}
-
 		f.debug_struct("ActiveLeavesUpdate")
-			.field("activated", &Activated(&self.activated))
+			.field("activated", &self.activated)
 			.field("deactivated", &self.deactivated)
 			.finish()
 	}
