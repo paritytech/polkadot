@@ -9254,8 +9254,7 @@ dependencies = [
 [[package]]
 name = "scale-info"
 version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0af18b6ba34ebe0429199eb77e64f04c98508b8afb420aaac8fc187bb1c8ff02"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#11bc0cfe65368a2dde8f4afbda0d97625cd29657"
 dependencies = [
  "bitvec",
  "cfg-if 1.0.0",
@@ -9267,8 +9266,7 @@ dependencies = [
 [[package]]
 name = "scale-info-derive"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "113a247fe47d242d24f4795cbc069d0a168a70da9e1cff98b5645edcc21f1eed"
+source = "git+https://github.com/paritytech/scale-info?branch=aj-substrate#11bc0cfe65368a2dde8f4afbda0d97625cd29657"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
