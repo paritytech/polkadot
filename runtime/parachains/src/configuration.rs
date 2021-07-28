@@ -275,7 +275,7 @@ pub mod pallet {
 	/// The active configuration for the current session.
 	#[pallet::storage]
 	#[pallet::getter(fn config)]
-	pub type ActiveConfig<T: Config> = StorageValue<
+	pub(crate) type ActiveConfig<T: Config> = StorageValue<
 		_,
 		HostConfiguration<T::BlockNumber>,
 		ValueQuery
@@ -283,7 +283,7 @@ pub mod pallet {
 
 	/// Pending configuration (if any) for the next session.
 	#[pallet::storage]
-	pub type PendingConfig<T: Config> = StorageMap<
+	pub(crate) type PendingConfig<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
 		SessionIndex,
