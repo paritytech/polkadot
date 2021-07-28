@@ -168,14 +168,14 @@ pub mod pallet {
 	/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
 	#[pallet::storage]
 	#[pallet::getter(fn validator_groups)]
-	pub type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
+	pub(crate) type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
 
 	/// A queue of upcoming claims and which core they should be mapped onto.
 	///
 	/// The number of queued claims is bounded at the `scheduling_lookahead`
 	/// multiplied by the number of parathread multiplexer cores. Reasonably, 10 * 50 = 500.
 	#[pallet::storage]
-	pub type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
+	pub(crate) type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
 
 	/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 	/// temporarily `Some` if scheduled but not occupied.
@@ -187,14 +187,14 @@ pub mod pallet {
 	///   * The number of validators divided by `configuration.max_validators_per_core`.
 	#[pallet::storage]
 	#[pallet::getter(fn availability_cores)]
-	pub type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
+	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
 
 	/// An index used to ensure that only one claim on a parathread exists in the queue or is
 	/// currently being handled by an occupied core.
 	///
 	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 	#[pallet::storage]
-	pub type ParathreadClaimIndex<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+	pub(crate) type ParathreadClaimIndex<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
 	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 	///
@@ -204,7 +204,7 @@ pub mod pallet {
 	/// block following the session change, block number of which we save in this storage value.
 	#[pallet::storage]
 	#[pallet::getter(fn session_start_block)]
-	pub type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	/// Currently scheduled cores - free but up to be occupied.
 	///
@@ -214,7 +214,7 @@ pub mod pallet {
 	/// for the upcoming block.
 	#[pallet::storage]
 	#[pallet::getter(fn scheduled)]
-	pub type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>; // sorted ascending by CoreIndex.
+	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>; // sorted ascending by CoreIndex.
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -721,7 +721,7 @@ impl<T: Config> Pallet<T> {
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 	pub(crate) fn clear() {
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		ParathreadQueue::<T>::mutate(|queue| {
 			for core_assignment in Scheduled::<T>::take() {
 				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
