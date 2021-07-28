@@ -18,7 +18,7 @@ use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig, OfflineC
 use sp_storage::well_known_keys;
 use pallet_staking::{
 	Nominators, Validators, CounterForValidators, CounterForNominators,
-	voter_bags::{Bag, VoterList},
+	voter_bags::{Bag, VoterList, VoterType, Voter},
 };
 use frame_support::{assert_ok, traits::Get};
 use sp_runtime::traits::Block as BlockT;
@@ -59,8 +59,8 @@ pub (crate) async fn test_voter_bags_migration<
 
 	ext.execute_with(|| {
 		// Get the nominator & validator count prior to migrating; these should be invariant.
-		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().collect::<Vec<_>>().len();
-		let pre_migrate_validator_count = <Validators<Runtime>>::iter().collect::<Vec<_>>().len();
+		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
+		let pre_migrate_validator_count = <Validators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
 		log::info!(target: LOG_TARGET, "Validator count: {}", pre_migrate_validator_count);
 
@@ -71,18 +71,18 @@ pub (crate) async fn test_voter_bags_migration<
 		log::info!(target: LOG_TARGET, "Migration weight: {}", migration_weight);
 
 		// `CountFor*` storage items are created during the migration, check them.
-		assert_eq!(CounterForNominators::<Runtime>::get(), pre_migrate_nominator_count as u32);
-		assert_eq!(CounterForValidators::<Runtime>::get(), pre_migrate_validator_count as u32);
+		assert_eq!(CounterForNominators::<Runtime>::get(), pre_migrate_nominator_count);
+		assert_eq!(CounterForValidators::<Runtime>::get(), pre_migrate_validator_count);
 
 		// Check that the count of validators and nominators did not change during the migration.
-		let post_migrate_nominator_count = <Nominators<Runtime>>::iter().collect::<Vec<_>>().len();
-		let post_migrate_validator_count = <Validators<Runtime>>::iter().collect::<Vec<_>>().len();
+		let post_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
+		let post_migrate_validator_count = <Validators<Runtime>>::iter().count() as u32;
 		assert_eq!(post_migrate_nominator_count, pre_migrate_nominator_count);
 		assert_eq!(post_migrate_validator_count, pre_migrate_validator_count);
 
 		// We can't access VoterCount from here, so we create it,
 		let voter_count = post_migrate_nominator_count + post_migrate_validator_count;
-		let voter_list_len = VoterList::<Runtime>::iter().collect::<Vec<_>>().len();
+		let voter_list_len = VoterList::<Runtime>::iter().count() as u32;
 		// and confirm it is equal to the length of the `VoterList`.
 		assert_eq!(voter_count, voter_list_len);
 
@@ -102,17 +102,51 @@ pub (crate) async fn test_voter_bags_migration<
 				},
 			};
 
-			let voters_in_bag_count = bag.iter().collect::<Vec<_>>().len();
-			seen_in_bags += voters_in_bag_count;
-			let percentage_of_voters =
-				(voters_in_bag_count as f64 / voter_count as f64) * 100f64;
+			let (voters_in_bag, noms_in_bag, vals_in_bag) = bag
+				.iter()
+				.fold((0, 0, 0), |(mut total, mut noms, mut vals), node|{
+					let Voter { id, voter_type } = node.voter();
+
+					match voter_type {
+						VoterType::Nominator => {
+							assert!(Nominators::<Runtime>::contains_key(id.clone()));
+							noms += 1;
+						},
+						VoterType::Validator => {
+							assert!(Validators::<Runtime>::contains_key(id.clone()));
+							vals += 1;
+						},
+					}
+
+					total += 1;
+
+					(total, noms, vals)
+				});
+
+			// update our overall counter
+			seen_in_bags += voters_in_bag;
+
+			// percentage of all voters (nominators and voters)
+			let percent_of_voters = percent(voters_in_bag, voter_count);
+			// percentage of all nominators
+			let percent_of_noms = percent(noms_in_bag, pre_migrate_nominator_count);
+			// percentage of all validators
+			let percent_of_vals = percent(vals_in_bag, pre_migrate_validator_count);
+
 			log::info!(
 				target: LOG_TARGET,
-				"{} Voters: {} [%{:.3}]",
-				pretty_thresh, voters_in_bag_count, percentage_of_voters
+				"{} Voters: {} [%{:.3}] (Noms {} [%{:.3}] : Vals {} [%{:.3}])",
+				pretty_thresh, voters_in_bag, percent_of_voters,
+				noms_in_bag, percent_of_noms,
+				vals_in_bag, percent_of_vals,
 			);
 		}
 
 		assert_eq!(seen_in_bags, voter_list_len);
 	});
 }
+
+fn percent(portion: u32, total: u32) -> f64 {
+	(portion as f64 / total as f64) * 100f64
+}
+

@@ -8,7 +8,7 @@ edition = "2018"
 polkadot-runtime = { version = "0.9.8", path = "../../runtime/polkadot", optional = true }
 kusama-runtime = { version = "0.9.8", path = "../../runtime/kusama", optional = true }
 
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["runtime-benchmarks"] }
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
