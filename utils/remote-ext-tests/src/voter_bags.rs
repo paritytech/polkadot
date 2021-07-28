@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Generic remote tests for the voter bags module.
+
 use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig, OfflineConfig};
 use sp_storage::well_known_keys;
 use pallet_staking::{

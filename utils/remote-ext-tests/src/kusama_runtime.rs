@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Remote tests for the kusama runtime.
+
 use kusama_runtime::{Block, Runtime, constants::currency::UNITS};
 
 #[tokio::test]
