@@ -522,7 +522,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn force_process_hrmp_open(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;
-			let host_config = configuration::Module::<T>::config();
+			let host_config = configuration::Pallet::<T>::config();
 			Self::process_hrmp_open_channel_requests(&host_config);
 			Ok(())
 		}
@@ -542,7 +542,7 @@ pub mod pallet {
 
 #[cfg(feature = "std")]
 fn initialize_storage<T: Config>(preopen_hrmp_channels: &[(ParaId, ParaId, u32, u32)]) {
-	let host_config = configuration::Module::<T>::config();
+	let host_config = configuration::Pallet::<T>::config();
 	for &(sender, recipient, max_capacity, max_message_size) in preopen_hrmp_channels {
 		if let Err(err) = preopen_hrmp_channel::<T>(sender, recipient, max_capacity, max_message_size) {
 			panic!("failed to initialize the genesis storage: {:?}", err);
@@ -1051,7 +1051,7 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::OpenHrmpChannelInvalidRecipient,
 		);
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		ensure!(
 			proposed_max_capacity > 0,
 			Error::<T>::OpenHrmpChannelZeroCapacity,
@@ -1154,7 +1154,7 @@ impl<T: Config> Pallet<T> {
 
 		// check if by accepting this open channel request, this parachain would exceed the
 		// number of inbound channels.
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
 			config.hrmp_max_parathread_inbound_channels
 		} else {
@@ -1221,7 +1221,7 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::HrmpCloseChannelRequests::insert(&channel_id, ());
 		<Self as Store>::HrmpCloseChannelRequestsList::append(channel_id.clone());
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
 			use xcm::opaque::{v0::Xcm, VersionedXcm};
