@@ -132,7 +132,7 @@ pub mod pallet {
 			// - DMP
 			// - UMP
 			// - HRMP
-			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
+			let total_weight = configuration::Pallet::<T>::initializer_initialize(now) +
 				shared::Pallet::<T>::initializer_initialize(now) +
 				paras::Pallet::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
@@ -159,7 +159,7 @@ pub mod pallet {
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Pallet::<T>::initializer_finalize();
 			shared::Pallet::<T>::initializer_finalize();
-			configuration::Module::<T>::initializer_finalize();
+			configuration::Pallet::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
 			// next block will observe the next session.
@@ -199,7 +199,7 @@ impl<T: Config> Pallet<T> {
 		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
-		let prev_config = <configuration::Module<T>>::config();
+		let prev_config = <configuration::Pallet<T>>::config();
 
 		let random_seed = {
 			let mut buf = [0u8; 32];
@@ -213,9 +213,9 @@ impl<T: Config> Pallet<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&session_index);
+		configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 
-		let new_config = <configuration::Module<T>>::config();
+		let new_config = <configuration::Pallet<T>>::config();
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,

@@ -674,7 +674,7 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		T::RewardValidators::reward_backing(backers.iter().enumerate()
 			.filter(|(_, backed)| **backed)
@@ -876,7 +876,7 @@ struct CandidateCheckContext<T: Config> {
 impl<T: Config> CandidateCheckContext<T> {
 	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self {
-			config: <configuration::Module<T>>::config(),
+			config: <configuration::Pallet<T>>::config(),
 			now,
 			relay_parent_number,
 		}

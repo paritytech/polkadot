@@ -388,7 +388,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_pending_upward_messages() -> Weight {
 		let mut weight_used = 0;
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let mut cursor = NeedsDispatchCursor::new::<T>();
 		let mut queue_cache = QueueCache::new();
 
