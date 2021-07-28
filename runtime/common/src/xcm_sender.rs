@@ -29,8 +29,8 @@ impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T>
 		match dest {
 			MultiLocation::X1(Junction::Parachain(id)) => {
 				// Downward message passing.
-				let config = <configuration::Module<T>>::config();
-				<dmp::Module<T>>::queue_downward_message(
+				let config = <configuration::Pallet<T>>::config();
+				<dmp::Pallet<T>>::queue_downward_message(
 					&config,
 					id.into(),
 					VersionedXcm::from(msg).encode(),

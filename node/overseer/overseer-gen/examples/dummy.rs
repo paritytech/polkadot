@@ -123,7 +123,7 @@ impl SpawnNamed for DummySpawner{
 struct DummyCtx;
 
 fn main() {
-	let (overseer, _handler): (Xxx<_>, _) = Xxx::builder()
+	let (overseer, _handle): (Xxx<_>, _) = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)
