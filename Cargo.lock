@@ -1947,9 +1947,8 @@ dependencies = [
 
 [[package]]
 name = "finality-grandpa"
-version = "0.14.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74a1bfdcc776e63e49f741c7ce6116fa1b887e8ac2e3ccb14dd4aa113e54feb9"
+version = "0.14.3"
+source = "git+https://github.com/paritytech/finality-grandpa?branch=aj-scale-info#e7cdb8781c51f2f02d1dc24de5b50f811be1309f"
 dependencies = [
  "either",
  "futures 0.3.16",
@@ -1958,6 +1957,7 @@ dependencies = [
  "num-traits",
  "parity-scale-codec",
  "parking_lot 0.11.1",
+ "scale-info",
 ]
 
 [[package]]
@@ -11503,7 +11503,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.3.23",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
@@ -12394,8 +12394,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "finality-grandpa"
-version = "0.14.3"
-source = "git+https://github.com/paritytech/finality-grandpa?branch=aj-scale-info#e7cdb8781c51f2f02d1dc24de5b50f811be1309f"
