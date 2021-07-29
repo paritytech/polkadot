@@ -499,10 +499,12 @@ mod tests {
 	}
 
 	parameter_types! {
+		pub const VestingPalletId: LockIdentifier = *b"vesting ";
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
 	impl pallet_vesting::Config for Test {
+		type PalletId = VestingPalletId;
 		type Event = Event;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;

@@ -409,6 +409,7 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
+	pub const StakingPalletId: LockIdentifier = *b"staking ";
 	// Six sessions in an era (24 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
@@ -426,6 +427,7 @@ type SlashCancelOrigin = EnsureOneOf<
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 = <NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+	type PalletId = StakingPalletId;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -476,6 +478,7 @@ impl pallet_identity::Config for Runtime {
 }
 
 parameter_types! {
+	pub const DemocracyPalletId: LockIdentifier = *b"democrac";
 	pub const LaunchPeriod: BlockNumber = 28 * DAYS;
 	pub const VotingPeriod: BlockNumber = 28 * DAYS;
 	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
@@ -490,6 +493,7 @@ parameter_types! {
 }
 
 impl pallet_democracy::Config for Runtime {
+	type PalletId = DemocracyPalletId;
 	type Proposal = Call;
 	type Event = Event;
 	type Currency = Balances;
@@ -820,10 +824,12 @@ impl claims::Config for Runtime {
 }
 
 parameter_types! {
+	pub const VestingPalletId: LockIdentifier = *b"vesting ";
 	pub const MinVestedTransfer: Balance = 1 * DOLLARS;
 }
 
 impl pallet_vesting::Config for Runtime {
+	type PalletId = VestingPalletId;
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;

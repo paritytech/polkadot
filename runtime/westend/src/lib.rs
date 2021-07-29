@@ -80,7 +80,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All, OnRuntimeUpgrade},
+	traits::{KeyOwnerProofSystem, Filter, InstanceFilter, All, OnRuntimeUpgrade, LockIdentifier},
 	weights::Weight,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -406,6 +406,7 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
+	pub const StakingPalletId: LockIdentifier = *b"staking ";
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
@@ -418,6 +419,7 @@ parameter_types! {
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 = <NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+	type PalletId = StakingPalletId;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -621,10 +623,12 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
+	pub const VestingPalletId: LockIdentifier = *b"vesting ";
 	pub const MinVestedTransfer: Balance = 100 * CENTS;
 }
 
 impl pallet_vesting::Config for Runtime {
+	type PalletId = VestingPalletId;
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;

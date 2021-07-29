@@ -321,8 +321,13 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 	type DataProvider = Staking;
 }
 
+parameter_types! {
+	pub const StakingPalletId: LockIdentifier = *b"staking ";
+}
+
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 = 16;
+	type PalletId = StakingPalletId;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -434,10 +439,12 @@ impl claims::Config for Runtime {
 }
 
 parameter_types! {
+	pub const VestingPalletId: LockIdentifier = *b"vesting ";
 	pub storage MinVestedTransfer: Balance = 100 * DOLLARS;
 }
 
 impl pallet_vesting::Config for Runtime {
+	type PalletId = VestingPalletId;
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
