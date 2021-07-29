@@ -26,10 +26,7 @@ use sp_runtime::traits::Header as HeaderT;
 use primitives::v1::{
 	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
 };
-use frame_support::{
-	traits::Get,
-	inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent},
-};
+use frame_support::inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use crate::{
@@ -58,7 +55,6 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: inclusion::Config + scheduler::Config {}
 
 	#[pallet::error]
