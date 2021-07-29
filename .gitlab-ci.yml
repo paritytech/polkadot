@@ -326,8 +326,6 @@ publish-adder-collator-image:
     - weights
   variables:
     RUNTIME:                       polkadot
-    # sccache causing issues...
-    RUSTC_WRAPPER:                 ""
   artifacts:
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch

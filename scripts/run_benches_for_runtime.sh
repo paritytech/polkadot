@@ -10,7 +10,7 @@ standard_args="--release --locked --features=runtime-benchmarks"
 echo "[+] Running all benchmarks for $runtime"
 
 # shellcheck disable=SC2086
-RUSTC_WRAPPER="" cargo +nightly run $standard_args benchmark \
+cargo +nightly run $standard_args benchmark \
     --chain "${runtime}-dev" \
     --execution=wasm \
     --wasm-execution=compiled \
@@ -24,7 +24,7 @@ while read -r line; do
   pallet="$(echo "$line" | cut -d' ' -f1)";
   echo "Runtime: $runtime. Pallet: $pallet";
 # shellcheck disable=SC2086
-RUSTC_WRAPPER="" cargo +nightly run $standard_args -- benchmark \
+cargo +nightly run $standard_args -- benchmark \
   --chain="${runtime}-dev" \
   --steps=50 \
   --repeat=20 \
