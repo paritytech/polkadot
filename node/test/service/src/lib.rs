@@ -37,7 +37,6 @@ use polkadot_test_runtime::{
 use polkadot_node_primitives::{CollatorFn, CollationGenerationConfig};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
-use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_executor::native_executor_instance;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
@@ -174,12 +173,12 @@ pub fn node_config(
 		wasm_method: WasmExecutionMethod::Interpreted,
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
-		execution_strategies: ExecutionStrategies {
-			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
-			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+		execution_configs: sc_client_api::execution_extensions::ExecutionConfigs {
+			syncing: sc_client_api::ExecutionConfig::new_offchain(sc_client_api::ExecutionStrategy::AlwaysWasm),
+			importing: sc_client_api::ExecutionConfig::new_offchain(sc_client_api::ExecutionStrategy::AlwaysWasm),
+			block_construction: sc_client_api::ExecutionConfig::new_offchain(sc_client_api::ExecutionStrategy::AlwaysWasm),
+			offchain_worker: sc_client_api::ExecutionConfig::new_offchain(sc_client_api::ExecutionStrategy::AlwaysWasm),
+			other: sc_client_api::ExecutionConfig::new_offchain(sc_client_api::ExecutionStrategy::AlwaysWasm),
 		},
 		rpc_http_threads: None,
 		rpc_http: None,
