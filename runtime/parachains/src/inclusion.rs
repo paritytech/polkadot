@@ -675,7 +675,7 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		T::RewardValidators::reward_backing(backers.iter().enumerate()
 			.filter(|(_, backed)| **backed)
@@ -877,7 +877,7 @@ struct CandidateCheckContext<T: Config> {
 impl<T: Config> CandidateCheckContext<T> {
 	fn new(now: T::BlockNumber, relay_parent_number: T::BlockNumber) -> Self {
 		Self {
-			config: <configuration::Module<T>>::config(),
+			config: <configuration::Pallet<T>>::config(),
 			now,
 			relay_parent_number,
 		}
@@ -923,7 +923,7 @@ impl<T: Config> CandidateCheckContext<T> {
 			para_id,
 			processed_downward_messages,
 		)?;
-		<ump::Module<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		<ump::Pallet<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
 		<hrmp::Pallet<T>>::check_hrmp_watermark(
 			para_id,
 			self.relay_parent_number,

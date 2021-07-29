@@ -18,7 +18,6 @@ use std::{collections::{HashMap, HashSet}, sync::Arc, time::Duration};
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers::TestSubsystemContextHandle;
-use smallvec::smallvec;
 
 use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
 use futures_timer::Delay;
@@ -171,13 +170,13 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
+				activated: Some(ActivatedLeaf {
 					hash: new.clone(),
 					number: 1,
 					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![old.clone()],
+				}),
+				deactivated: vec![old.clone()].into(),
 			}).collect::<Vec<_>>()
 		};
 
