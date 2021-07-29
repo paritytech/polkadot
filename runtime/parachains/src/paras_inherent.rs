@@ -55,6 +55,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: inclusion::Config + scheduler::Config {}
 
 	#[pallet::error]
