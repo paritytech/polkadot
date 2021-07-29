@@ -91,6 +91,63 @@ pub mod pallet {
 		}
 	}
 
+	#[pallet::inherent]
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = MakeFatalError<()>;
+		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
+
+		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			let mut inherent_data: ParachainsInherentData<T::Header>
+				= match data.get_data(&Self::INHERENT_IDENTIFIER)
+			{
+				Ok(Some(d)) => d,
+				Ok(None) => return None,
+				Err(_) => {
+					log::warn!(
+						target: LOG_TARGET,
+						"ParachainsInherentData failed to decode",
+					);
+
+					return None;
+				}
+			};
+
+			// filter out any unneeded dispute statements
+			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+
+			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+			// See github.com/paritytech/polkadot/issues/1327
+			let inherent_data = match Self::enter(
+				frame_system::RawOrigin::None.into(),
+				inherent_data.clone(),
+			) {
+				Ok(_) => inherent_data,
+				Err(err) => {
+					log::warn!(
+						target: LOG_TARGET,
+						"dropping signed_bitfields and backed_candidates because they produced \
+						an invalid paras inherent: {:?}",
+						err,
+					);
+
+					ParachainsInherentData {
+						bitfields: Vec::new(),
+						backed_candidates: Vec::new(),
+						disputes: Vec::new(),
+						parent_header: inherent_data.parent_header,
+					}
+				}
+			};
+
+			Some(Call::enter(inherent_data))
+		}
+
+		fn is_inherent(call: &Self::Call) -> bool {
+			matches!(call, Call::enter(..))
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
@@ -265,62 +322,6 @@ fn limit_backed_candidates<T: Config>(
 		Vec::new()
 	} else {
 		backed_candidates
-	}
-}
-
-impl<T: Config> ProvideInherent for Pallet<T> {
-	type Call = Call<T>;
-	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
-
-	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let mut inherent_data: ParachainsInherentData<T::Header>
-			= match data.get_data(&Self::INHERENT_IDENTIFIER)
-		{
-			Ok(Some(d)) => d,
-			Ok(None) => return None,
-			Err(_) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"ParachainsInherentData failed to decode",
-				);
-
-				return None;
-			}
-		};
-
-		// filter out any unneeded dispute statements
-		T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
-
-		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-		// See github.com/paritytech/polkadot/issues/1327
-		let inherent_data = match Self::enter(
-			frame_system::RawOrigin::None.into(),
-			inherent_data.clone(),
-		) {
-			Ok(_) => inherent_data,
-			Err(err) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"dropping signed_bitfields and backed_candidates because they produced \
-					an invalid paras inherent: {:?}",
-					err,
-				);
-
-				ParachainsInherentData {
-					bitfields: Vec::new(),
-					backed_candidates: Vec::new(),
-					disputes: Vec::new(),
-					parent_header: inherent_data.parent_header,
-				}
-			}
-		};
-
-		Some(Call::enter(inherent_data))
-	}
-
-	fn is_inherent(call: &Self::Call) -> bool {
-		matches!(call, Call::enter(..))
 	}
 }
 
