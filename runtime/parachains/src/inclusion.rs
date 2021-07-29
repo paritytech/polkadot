@@ -133,7 +133,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::Hash = "Hash")]
 	pub enum Event<T: Config> {
 		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
