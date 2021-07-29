@@ -112,7 +112,6 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 
 [patch.crates-io]
 finality-grandpa = { git = "https://github.com/paritytech/finality-grandpa", branch = "aj-scale-info" }
-scale-info = { git = "https://github.com/paritytech/scale-info", branch = "aj-substrate" }
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
