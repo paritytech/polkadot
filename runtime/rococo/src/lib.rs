@@ -1089,7 +1089,7 @@ impl InstanceFilter<Call> for ProxyType {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::CancelProxy => matches!(c,
-				Call::Proxy(pallet_proxy::Call::reject_announcement(..))
+				Call::Proxy(pallet_proxy::Call::reject_announcement {..})
 			)
 		}
 	}
