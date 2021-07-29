@@ -31,7 +31,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use crate::{
 	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
-	initializer, shared, disputes,
+	initializer, shared, disputes, paras_inherent
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -49,6 +49,7 @@ frame_support::construct_runtime!(
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: shared::{Pallet, Call, Storage},
 		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInherent: paras_inherent::{Pallet, Call, Storage}, 
 		Scheduler: scheduler::{Pallet, Call, Storage},
 		Initializer: initializer::{Pallet, Call, Storage},
 		Dmp: dmp::{Pallet, Call, Storage},

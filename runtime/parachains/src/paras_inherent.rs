@@ -27,13 +27,11 @@ use primitives::v1::{
 	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
 };
 use frame_support::{
-	decl_error, decl_module, decl_storage, ensure,
-	dispatch::DispatchResultWithPostInfo,
-	weights::{DispatchClass, Weight},
 	traits::Get,
 	inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent},
 };
-use frame_system::ensure_none;
+use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::*;
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
@@ -42,6 +40,8 @@ use crate::{
 	ump,
 };
 
+pub use pallet::*;
+
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
@@ -49,22 +49,20 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: inclusion::Config + scheduler::Config {}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaInherent {
-		/// Whether the paras inherent was included within this block.
-		///
-		/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
-		/// due to the guarantees of FRAME's storage APIs.
-		///
-		/// If this is `None` at the end of the block, we panic and render the block invalid.
-		Included: Option<()>;
-	}
-}
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: inclusion::Config + scheduler::Config {}
+
+	#[pallet::error]
+	pub enum Error<T> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
@@ -73,30 +71,38 @@ decl_error! {
 		/// Potentially invalid candidate.
 		CandidateCouldBeInvalid,
 	}
-}
 
-decl_module! {
-	/// The paras inherent module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	/// Whether the paras inherent was included within this block.
+	///
+	/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
+	/// due to the guarantees of FRAME's storage APIs.
+	///
+	/// If this is `None` at the end of the block, we panic and render the block invalid.
+	#[pallet::storage]
+	pub(crate) type Included<T> = StorageValue<_, ()>;
 
-		fn on_initialize() -> Weight {
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_: T::BlockNumber) -> Weight {
 			T::DbWeight::get().reads_writes(1, 1) // in on_finalize.
 		}
 
-		fn on_finalize() {
-			if Included::take().is_none() {
+		fn on_finalize(_: T::BlockNumber) {
+			if Included::<T>::take().is_none() {
 				panic!("Bitfields and heads must be included every block");
 			}
 		}
+	}
 
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
-		#[weight = (
+		#[pallet::weight((
 			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
-		)]
+		))]
 		pub fn enter(
-			origin,
+			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
@@ -107,7 +113,7 @@ decl_module! {
 			} = data;
 
 			ensure_none(origin)?;
-			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -122,7 +128,7 @@ decl_module! {
 				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					Included::set(Some(()));
+					Included::<T>::set(Some(()));
 					return Ok(Some(
 						MINIMAL_INCLUSION_INHERENT_WEIGHT
 					).into());
@@ -213,7 +219,7 @@ decl_module! {
 			<ump::Pallet<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
-			Included::set(Some(()));
+			Included::<T>::set(Some(()));
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
@@ -265,7 +271,7 @@ fn limit_backed_candidates<T: Config>(
 	}
 }
 
-impl<T: Config> ProvideInherent for Module<T> {
+impl<T: Config> ProvideInherent for Pallet<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
 	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
