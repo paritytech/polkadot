@@ -440,14 +440,14 @@ pub mod pallet {
 				// <weight>
 				// The weight of this logic is included in the `claim` dispatchable.
 				// </weight>
-				Call::claim(account, ethereum_signature) => {
+				Call::claim { dest: account, ethereum_signature} => {
 					let data = account.using_encoded(to_ascii_hex);
 					(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 				}
 				// <weight>
 				// The weight of this logic is included in the `claim_attest` dispatchable.
 				// </weight>
-				Call::claim_attest(account, ethereum_signature, statement) => {
+				Call::claim_attest { dest: account, ethereum_signature, statement } => {
 					let data = account.using_encoded(to_ascii_hex);
 					(Self::eth_recover(&ethereum_signature, &data, &statement), Some(statement.as_slice()))
 				}
@@ -603,7 +603,7 @@ impl<T: Config + Send + Sync> SignedExtension for PrevalidateAttests<T> where
 		_len: usize,
 	) -> TransactionValidity {
 		if let Some(local_call) = call.is_sub_type() {
-			if let Call::attest(attested_statement) = local_call {
+			if let Call::attest { statement: attested_statement } = local_call {
 				let signer = Preclaims::<T>::get(who)
 					.ok_or(InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()))?;
 				if let Some(s) = Signing::<T>::get(signer) {
