@@ -73,7 +73,7 @@ pub trait AuthorityDiscoveryConfig {
 
 impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 	fn authorities() -> Vec<AuthorityDiscoveryId> {
-		<pallet_authority_discovery::Module<T>>::current_authorities()
+		<pallet_authority_discovery::Pallet<T>>::current_authorities()
 	}
 }
 
@@ -82,18 +82,17 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
 	) {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		let dispute_period = config.dispute_period;
-		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		let assignment_keys = AssignmentKeysUnsafe::get();
-		let active_set = <shared::Module<T>>::active_validator_indices();
+		let active_set = <shared::Pallet<T>>::active_validator_indices();
 
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
-		let n_cores = n_parachains + config.parathread_cores;
+		let n_cores = <scheduler::Module<T>>::availability_cores().len() as u32;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;
 		let n_delay_tranches = config.n_delay_tranches;
@@ -170,7 +169,7 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin, Shared,
+		Origin, ParasShared,
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
@@ -186,14 +185,14 @@ mod tests {
 			let b = System::block_number();
 
 			SessionInfo::initializer_finalize();
-			Shared::initializer_finalize();
+			ParasShared::initializer_finalize();
 			Configuration::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
 				Configuration::initializer_on_new_session(
 					&notification.session_index,
 				);
-				Shared::initializer_on_new_session(
+				ParasShared::initializer_on_new_session(
 					notification.session_index,
 					notification.random_seed,
 					&notification.new_config,
@@ -208,7 +207,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			Configuration::initializer_initialize(b + 1);
-			Shared::initializer_initialize(b + 1);
+			ParasShared::initializer_initialize(b + 1);
 			SessionInfo::initializer_initialize(b + 1);
 		}
 	}
@@ -343,12 +342,12 @@ mod tests {
 		let validators = take_active_subset(&active_set, &unscrambled_validators);
 
 		new_test_ext(genesis_config()).execute_with(|| {
-			Shared::set_active_validators_with_indices(
+			ParasShared::set_active_validators_with_indices(
 				active_set.clone(),
 				validators.clone(),
 			);
 
-			assert_eq!(Shared::active_validator_indices(), active_set);
+			assert_eq!(ParasShared::active_validator_indices(), active_set);
 
 			AssignmentKeysUnsafe::set(unscrambled_assignment.clone());
 			crate::mock::set_discovery_authorities(unscrambled_discovery.clone());

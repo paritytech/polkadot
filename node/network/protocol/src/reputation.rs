@@ -32,7 +32,7 @@ impl UnifiedReputationChange {
 			Self::CostMajor(_) => -300_000,
 			Self::CostMinorRepeated(_) => -200_000,
 			Self::CostMajorRepeated(_) => -600_000,
-			Self::Malicious(_) => i32::min_value(),
+			Self::Malicious(_) => i32::MIN,
 			Self::BenefitMajorFirst(_) => 300_000,
 			Self::BenefitMajor(_) => 200_000,
 			Self::BenefitMinorFirst(_) => 15_000,
@@ -52,6 +52,17 @@ impl UnifiedReputationChange {
 			Self::BenefitMajor(description) => description,
 			Self::BenefitMinorFirst(description) => description,
 			Self::BenefitMinor(description) => description,
+		}
+	}
+
+	/// Whether the reputation change is for good behavior.
+	pub const fn is_benefit(&self) -> bool {
+		match self {
+			Self::BenefitMajorFirst(_) |
+			Self::BenefitMajor(_) |
+			Self::BenefitMinorFirst(_) |
+			Self::BenefitMinor(_) => true,
+			_ => false,
 		}
 	}
 

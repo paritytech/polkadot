@@ -22,6 +22,7 @@
 
 #![deny(missing_docs)]
 
+
 use std::pin::Pin;
 
 use serde::{Serialize, Deserialize};
@@ -33,17 +34,44 @@ pub use sp_consensus_babe::{
 	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
 };
 
-use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
+	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
+	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+
 pub use polkadot_parachain::primitives::BlockData;
 
-
 pub mod approval;
+
+/// Disputes related types.
+pub mod disputes;
+pub use disputes::{
+	SignedDisputeStatement, UncheckedDisputeMessage, DisputeMessage, CandidateVotes, InvalidDisputeVote, ValidDisputeVote,
+	DisputeMessageCheckError,
+};
+
+/// The bomb limit for decompressing code blobs.
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
+
+/// The bomb limit for decompressing PoV blobs.
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
+
+/// It would be nice to draw this from the chain state, but we have no tools for it right now.
+/// On Polkadot this is 1 day, and on Kusama it's 6 hours.
+///
+/// Number of sessions we want to consider in disputes.
+pub const DISPUTE_WINDOW: SessionIndex = 6;
+
+/// The cumulative weight of a block in a fork-choice rule.
+pub type BlockWeight = u32;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
 /// it gives access to the commitments to validators who have not executed the candidate. This
-/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// is necessary to allow a block-producing validator to include candidates from outside the para
 /// it is assigned to.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
@@ -106,6 +134,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
+/// Variant of `SignedFullStatement` where the signature has not yet been verified.
+pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
+
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
@@ -119,6 +150,10 @@ pub enum InvalidCandidate {
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
 	CodeTooLarge(u64),
+	/// Code does not decompress correctly.
+	CodeDecompressionFailure,
+	/// PoV does not decompress correctly.
+	PoVDecompressionFailure,
 	/// Validation function returned invalid data.
 	BadReturn,
 	/// Invalid relay chain parent.
@@ -143,17 +178,6 @@ pub enum ValidationResult {
 	Invalid(InvalidCandidate),
 }
 
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 50 * 1024 * 1024;
-
-/// Very conservative (compression ratio of 1).
-///
-/// Experiments showed that we have a typical compression ratio of 3.4.
-/// https://github.com/ordian/bench-compression-algorithms/
-///
-/// So this could be reduced if deemed necessary.
-pub const MAX_COMPRESSED_POV_SIZE: u32 = MAX_POV_SIZE;
-
 /// A Proof-of-Validity
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Debug)]
 pub struct PoV {
@@ -165,77 +189,6 @@ impl PoV {
 	/// Get the blake2-256 hash of the PoV.
 	pub fn hash(&self) -> Hash {
 		BlakeTwo256::hash_of(self)
-	}
-}
-
-/// SCALE and Zstd encoded [`PoV`].
-#[derive(Clone, Encode, Decode, PartialEq, Eq)]
-pub struct CompressedPoV(Vec<u8>);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum CompressedPoVError {
-	#[error("Failed to compress a PoV")]
-	Compress,
-	#[error("Failed to decompress a PoV")]
-	Decompress,
-	#[error("Failed to decode the uncompressed PoV")]
-	Decode,
-	#[error("Architecture is not supported")]
-	NotSupported,
-}
-
-impl CompressedPoV {
-	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(not(target_os = "unknown"))]
-	pub fn compress(pov: &PoV) -> Result<Self, CompressedPoVError> {
-		zstd::encode_all(pov.encode().as_slice(), 3).map_err(|_| CompressedPoVError::Compress).map(Self)
-	}
-
-	/// Compress the given [`PoV`] and returns a [`CompressedPoV`].
-	#[cfg(target_os = "unknown")]
-	pub fn compress(_: &PoV) -> Result<Self, CompressedPoVError> {
-		Err(CompressedPoVError::NotSupported)
-	}
-
-	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(not(target_os = "unknown"))]
-	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
-		use std::io::Read;
-
-		struct InputDecoder<'a, 'b: 'a, T: std::io::BufRead>(&'a mut zstd::Decoder<'b, T>, usize);
-		impl<'a, 'b, T: std::io::BufRead> parity_scale_codec::Input for InputDecoder<'a, 'b, T> {
-			fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-				self.1 = self.1.saturating_add(into.len());
-				if self.1 > MAX_POV_SIZE as usize {
-					return Err("pov block too big".into())
-				}
-				self.0.read_exact(into).map_err(Into::into)
-			}
-			fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
-				Ok(None)
-			}
-		}
-
-		let mut decoder = zstd::Decoder::new(self.0.as_slice()).map_err(|_| CompressedPoVError::Decompress)?;
-		PoV::decode(&mut InputDecoder(&mut decoder, 0)).map_err(|_| CompressedPoVError::Decode)
-	}
-
-	/// Decompress `self` and returns the [`PoV`] on success.
-	#[cfg(target_os = "unknown")]
-	pub fn decompress(&self) -> Result<PoV, CompressedPoVError> {
-		Err(CompressedPoVError::NotSupported)
-	}
-
-	/// Get compressed data size.
-	pub fn len(&self) -> usize {
-		self.0.len()
-	}
-}
-
-impl std::fmt::Debug for CompressedPoV {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "CompressedPoV({} bytes)", self.0.len())
 	}
 }
 
@@ -269,7 +222,7 @@ pub struct CollationResult {
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
 	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
@@ -330,15 +283,13 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-#[cfg(test)]
-mod test {
-	use super::{CompressedPoV, CompressedPoVError, PoV};
+/// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].
+#[cfg(not(target_os = "unknown"))]
+pub fn maybe_compress_pov(pov: PoV) -> PoV {
+	let PoV { block_data: BlockData(raw) } = pov;
+	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
+		.unwrap_or(raw);
 
-	#[test]
-	fn decompress_huge_pov_block_fails() {
-		let pov = PoV { block_data: vec![0; 63 * 1024 * 1024].into() };
-
-		let compressed = CompressedPoV::compress(&pov).unwrap();
-		assert_eq!(CompressedPoVError::Decode, compressed.decompress().unwrap_err());
-	}
+	let pov = PoV { block_data: BlockData(raw) };
+	pov
 }

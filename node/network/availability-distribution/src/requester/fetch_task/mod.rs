@@ -34,8 +34,8 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::{SubsystemContext, jaeger};
 
 use crate::{
-	error::{Error, Result},
-	session_cache::{BadValidators, SessionInfo},
+	error::{Fatal, Result},
+	requester::session_cache::{BadValidators, SessionInfo},
 	LOG_TARGET,
 	metrics::{Metrics, SUCCEEDED, FAILED},
 };
@@ -72,7 +72,7 @@ enum FetchedState {
 	///
 	/// Once the contained `Sender` is dropped, any still running task will be canceled.
 	Started(oneshot::Sender<()>),
-	/// All relevant live_in have been removed, before we were able to get our chunk.
+	/// All relevant `live_in` have been removed, before we were able to get our chunk.
 	Canceled,
 }
 
@@ -118,7 +118,7 @@ struct RunningTask {
 	/// Sender for communicating with other subsystems and reporting results.
 	sender: mpsc::Sender<FromFetchTask>,
 
-	/// Prometheues metrics for reporting results.
+	/// Prometheus metrics for reporting results.
 	metrics: Metrics,
 
 	/// Span tracking the fetching of this chunk.
@@ -176,7 +176,6 @@ impl FetchTask {
 	/// Start fetching a chunk.
 	///
 	/// A task handling the fetching of the configured chunk will be spawned.
-	#[tracing::instrument(level = "trace", skip(config, ctx), fields(subsystem = LOG_TARGET))]
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
 		Context: SubsystemContext,
@@ -190,8 +189,7 @@ impl FetchTask {
 			let (handle, kill) = oneshot::channel();
 
 			ctx.spawn("chunk-fetcher", running.run(kill).boxed())
-				.await
-				.map_err(|e| Error::SpawnTask(e))?;
+				.map_err(|e| Fatal::SpawnTask(e))?;
 
 			Ok(FetchTask {
 				live_in,
@@ -221,13 +219,13 @@ impl FetchTask {
 		}
 	}
 
-	/// Whether or not there are still relay parents around with this candidate pending
+	/// Whether there are still relay parents around with this candidate pending
 	/// availability.
 	pub fn is_live(&self) -> bool {
 		!self.live_in.is_empty()
 	}
 
-	/// Whether or not this task can be considered finished.
+	/// Whether this task can be considered finished.
 	///
 	/// That is, it is either canceled, succeeded or failed.
 	pub fn is_finished(&self) -> bool {
@@ -249,7 +247,6 @@ enum TaskError {
 }
 
 impl RunningTask {
-	#[tracing::instrument(level = "trace", skip(self, kill), fields(subsystem = LOG_TARGET))]
 	async fn run(self, kill: oneshot::Receiver<()>) {
 		// Wait for completion/or cancel.
 		let run_it = self.run_inner();

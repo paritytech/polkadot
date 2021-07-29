@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Everything required to run benchmarks of message-lanes, based on
+//! Everything required to run benchmarks of messages module, based on
 //! `bridge_runtime_common::messages` implementation.
 
 #![cfg(feature = "runtime-benchmarks")]
@@ -24,11 +24,12 @@ use crate::messages::{
 	BridgedChain, HashOf, MessageBridge, ThisChain,
 };
 
-use bp_message_lane::{LaneId, MessageData, MessageKey, MessagePayload};
+use bp_messages::{LaneId, MessageData, MessageKey, MessagePayload};
+use bp_runtime::ChainId;
 use codec::Encode;
 use ed25519_dalek::{PublicKey, SecretKey, Signer, KEYPAIR_LENGTH, SECRET_KEY_LENGTH};
 use frame_support::weights::Weight;
-use pallet_message_lane::benchmarking::{MessageDeliveryProofParams, MessageProofParams, ProofSize};
+use pallet_bridge_messages::benchmarking::{MessageDeliveryProofParams, MessageProofParams, ProofSize};
 use sp_core::Hasher;
 use sp_runtime::traits::Header;
 use sp_std::prelude::*;
@@ -37,7 +38,13 @@ use sp_trie::{record_all_keys, trie_types::TrieDBMut, Layout, MemoryDB, Recorder
 /// Generate ed25519 signature to be used in `pallet_brdige_call_dispatch::CallOrigin::TargetAccount`.
 ///
 /// Returns public key of the signer and the signature itself.
-pub fn ed25519_sign(target_call: &impl Encode, source_account_id: &impl Encode) -> ([u8; 32], [u8; 64]) {
+pub fn ed25519_sign(
+	target_call: &impl Encode,
+	source_account_id: &impl Encode,
+	target_spec_version: u32,
+	source_chain_id: ChainId,
+	target_chain_id: ChainId,
+) -> ([u8; 32], [u8; 64]) {
 	// key from the repo example (https://docs.rs/ed25519-dalek/1.0.1/ed25519_dalek/struct.SecretKey.html)
 	let target_secret = SecretKey::from_bytes(&[
 		157, 097, 177, 157, 239, 253, 090, 096, 186, 132, 074, 244, 146, 236, 044, 196, 068, 073, 197, 105, 123, 050,
@@ -51,9 +58,13 @@ pub fn ed25519_sign(target_call: &impl Encode, source_account_id: &impl Encode) 
 	target_pair_bytes[SECRET_KEY_LENGTH..].copy_from_slice(&target_public.to_bytes());
 	let target_pair = ed25519_dalek::Keypair::from_bytes(&target_pair_bytes).expect("hardcoded pair is valid");
 
-	let mut signature_message = Vec::new();
-	target_call.encode_to(&mut signature_message);
-	source_account_id.encode_to(&mut signature_message);
+	let signature_message = pallet_bridge_dispatch::account_ownership_digest(
+		target_call,
+		source_account_id,
+		target_spec_version,
+		source_chain_id,
+		target_chain_id,
+	);
 	let target_origin_signature = target_pair
 		.try_sign(&signature_message)
 		.expect("Ed25519 try_sign should not fail in benchmarks");
@@ -62,7 +73,7 @@ pub fn ed25519_sign(target_call: &impl Encode, source_account_id: &impl Encode) 
 }
 
 /// Prepare proof of messages for the `receive_messages_proof` call.
-pub fn prepare_message_proof<B, H, R, MM, ML, MH>(
+pub fn prepare_message_proof<B, H, R, FI, MM, ML, MH>(
 	params: MessageProofParams,
 	make_bridged_message_storage_key: MM,
 	make_bridged_outbound_lane_data_key: ML,
@@ -73,7 +84,8 @@ pub fn prepare_message_proof<B, H, R, MM, ML, MH>(
 where
 	B: MessageBridge,
 	H: Hasher,
-	R: pallet_substrate_bridge::Config,
+	R: pallet_bridge_grandpa::Config<FI>,
+	FI: 'static,
 	<R::BridgedChain as bp_runtime::Chain>::Hash: Into<HashOf<BridgedChain<B>>>,
 	MM: Fn(MessageKey) -> Vec<u8>,
 	ML: Fn(LaneId) -> Vec<u8>,
@@ -129,7 +141,7 @@ where
 	// prepare Bridged chain header and insert it into the Substrate pallet
 	let bridged_header = make_bridged_header(root);
 	let bridged_header_hash = bridged_header.hash();
-	pallet_substrate_bridge::initialize_for_benchmarks::<R>(bridged_header);
+	pallet_bridge_grandpa::initialize_for_benchmarks::<R, FI>(bridged_header);
 
 	(
 		FromBridgedChainMessagesProof {
@@ -146,7 +158,7 @@ where
 }
 
 /// Prepare proof of messages delivery for the `receive_messages_delivery_proof` call.
-pub fn prepare_message_delivery_proof<B, H, R, ML, MH>(
+pub fn prepare_message_delivery_proof<B, H, R, FI, ML, MH>(
 	params: MessageDeliveryProofParams<AccountIdOf<ThisChain<B>>>,
 	make_bridged_inbound_lane_data_key: ML,
 	make_bridged_header: MH,
@@ -154,7 +166,8 @@ pub fn prepare_message_delivery_proof<B, H, R, ML, MH>(
 where
 	B: MessageBridge,
 	H: Hasher,
-	R: pallet_substrate_bridge::Config,
+	R: pallet_bridge_grandpa::Config<FI>,
+	FI: 'static,
 	<R::BridgedChain as bp_runtime::Chain>::Hash: Into<HashOf<BridgedChain<B>>>,
 	ML: Fn(LaneId) -> Vec<u8>,
 	MH: Fn(H::Out) -> <R::BridgedChain as bp_runtime::Chain>::Header,
@@ -181,7 +194,7 @@ where
 	// prepare Bridged chain header and insert it into the Substrate pallet
 	let bridged_header = make_bridged_header(root);
 	let bridged_header_hash = bridged_header.hash();
-	pallet_substrate_bridge::initialize_for_benchmarks::<R>(bridged_header);
+	pallet_bridge_grandpa::initialize_for_benchmarks::<R, FI>(bridged_header);
 
 	FromBridgedChainMessagesDeliveryProof {
 		bridged_header_hash: bridged_header_hash.into(),

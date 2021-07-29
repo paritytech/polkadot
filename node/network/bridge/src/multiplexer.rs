@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::pin::Pin;
+use std::unreachable;
 
 use futures::channel::mpsc;
 use futures::stream::{FusedStream, Stream};
@@ -29,7 +30,7 @@ use sc_network::PeerId;
 use polkadot_node_network_protocol::request_response::{
 	request::IncomingRequest, v1, Protocol, RequestResponseConfig,
 };
-use polkadot_subsystem::messages::AllMessages;
+use polkadot_overseer::AllMessages;
 
 /// Multiplex incoming network requests.
 ///
@@ -37,8 +38,12 @@ use polkadot_subsystem::messages::AllMessages;
 /// type, useful for the network bridge to send them via the `Overseer` to other subsystems.
 ///
 /// The resulting stream will end once any of its input ends.
+///
+// TODO: Get rid of this: <https://github.com/paritytech/polkadot/issues/2842>
 pub struct RequestMultiplexer {
 	receivers: Vec<(Protocol, mpsc::Receiver<network::IncomingRequest>)>,
+	statement_fetching: Option<mpsc::Receiver<network::IncomingRequest>>,
+	dispute_sending: Option<mpsc::Receiver<network::IncomingRequest>>,
 	next_poll: usize,
 }
 
@@ -58,20 +63,56 @@ impl RequestMultiplexer {
 	/// `RequestMultiplexer` from it. The returned `RequestResponseConfig`s must be passed to the
 	/// network implementation.
 	pub fn new() -> (Self, Vec<RequestResponseConfig>) {
-		let (receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
+		let (mut receivers, cfgs): (Vec<_>, Vec<_>) = Protocol::iter()
 			.map(|p| {
 				let (rx, cfg) = p.get_config();
 				((p, rx), cfg)
 			})
 			.unzip();
 
+		// Ok this code is ugly as hell, it is also a hack, see https://github.com/paritytech/polkadot/issues/2842.
+		// But it works and is executed on startup so, if anything is wrong here it will be noticed immediately.
+		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
+			if let Protocol::StatementFetching = p {
+				Some(i)
+			} else {
+				None
+			}
+		).expect("Statement fetching must be registered. qed.");
+		let statement_fetching = Some(receivers.remove(index).1);
+
+		let index = receivers.iter().enumerate().find_map(|(i, (p, _))|
+			if let Protocol::DisputeSending = p {
+				Some(i)
+			} else {
+				None
+			}
+		).expect("Dispute sending must be registered. qed.");
+		let dispute_sending = Some(receivers.remove(index).1);
+
 		(
 			Self {
 				receivers,
+				statement_fetching,
+                dispute_sending,
 				next_poll: 0,
 			},
 			cfgs,
 		)
+	}
+
+	/// Get the receiver for handling statement fetching requests.
+	///
+	/// This function will only return `Some` once.
+	pub fn get_statement_fetching(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
+		std::mem::take(&mut self.statement_fetching)
+	}
+
+	/// Get the receiver for handling dispute sending requests.
+	///
+	/// This function will only return `Some` once.
+	pub fn get_dispute_sending(&mut self) -> Option<mpsc::Receiver<network::IncomingRequest>> {
+		std::mem::take(&mut self.dispute_sending)
 	}
 }
 
@@ -131,26 +172,32 @@ fn multiplex_single(
 	}: network::IncomingRequest,
 ) -> Result<AllMessages, RequestMultiplexError> {
 	let r = match p {
-		Protocol::ChunkFetching => From::from(IncomingRequest::new(
+		Protocol::ChunkFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::ChunkFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::CollationFetching => From::from(IncomingRequest::new(
+		Protocol::CollationFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::CollationFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::PoVFetching => From::from(IncomingRequest::new(
+		Protocol::PoVFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::PoVFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
-		Protocol::AvailableDataFetching => From::from(IncomingRequest::new(
+		Protocol::AvailableDataFetching => AllMessages::from(IncomingRequest::new(
 			peer,
 			decode_with_peer::<v1::AvailableDataFetchingRequest>(peer, payload)?,
 			pending_response,
 		)),
+		Protocol::StatementFetching => {
+			unreachable!("Statement fetching requests are handled directly. qed.");
+		}
+		Protocol::DisputeSending => {
+			unreachable!("Dispute sending request are handled directly. qed.");
+		}
 	};
 	Ok(r)
 }

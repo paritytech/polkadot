@@ -17,6 +17,7 @@
 use std::time::Duration;
 use futures::{future, Future, executor};
 use assert_matches::assert_matches;
+use polkadot_node_subsystem::messages::{AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use polkadot_node_network_protocol::{view, ObservedRole};
@@ -27,7 +28,7 @@ use super::*;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
 
-fn test_harness<T: Future<Output = ()>>(
+fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,
 	test_fn: impl FnOnce(VirtualOverseer) -> T,
 ) -> State {
@@ -51,7 +52,14 @@ fn test_harness<T: Future<Output = ()>>(
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		executor::block_on(future::join(async move {
+			let mut overseer = test_fut.await;
+			overseer
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.timeout(TIMEOUT)
+				.await
+				.expect("Conclude send timeout");
+		}, subsystem));
 	}
 
 	state
@@ -110,7 +118,7 @@ async fn setup_peer_with_view(
 	overseer_send(
 		virtual_overseer,
 		ApprovalDistributionMessage::NetworkBridgeUpdateV1(
-			NetworkBridgeEvent::PeerConnected(peer_id.clone(), ObservedRole::Full)
+			NetworkBridgeEvent::PeerConnected(peer_id.clone(), ObservedRole::Full, None)
 		)
 	).await;
 	overseer_send(
@@ -262,14 +270,15 @@ fn try_import_the_same_assignment() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }
 
-/// https://github.com/paritytech/polkadot/pull/2160#discussion_r547594835
+/// <https://github.com/paritytech/polkadot/pull/2160#discussion_r547594835>
 ///
 /// 1. Send a view update that removes block B from their view.
-/// 2. Send a message from B that they incur COST_UNEXPECTED_MESSAGE for,
-///    but then they receive BENEFIT_VALID_MESSAGE.
+/// 2. Send a message from B that they incur `COST_UNEXPECTED_MESSAGE` for,
+///    but then they receive `BENEFIT_VALID_MESSAGE`.
 /// 3. Send all other messages related to B.
 #[test]
 fn spam_attack_results_in_negative_reputation_change() {
@@ -342,6 +351,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
 			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE).await;
 		}
+		virtual_overseer
 	});
 }
 
@@ -350,7 +360,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 /// Upon receiving them, they both will try to send the message each other.
 /// This test makes sure they will not punish each other for such duplicate messages.
 ///
-/// See https://github.com/paritytech/polkadot/issues/2499.
+/// See <https://github.com/paritytech/polkadot/issues/2499>.
 #[test]
 fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let parent_hash = Hash::repeat_byte(0xFF);
@@ -423,6 +433,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 
 		// now we should
 		expect_reputation_change(overseer, peer, COST_DUPLICATE_MESSAGE).await;
+		virtual_overseer
 	});
 }
 
@@ -509,6 +520,7 @@ fn import_approval_happy_path() {
 				assert_eq!(approvals.len(), 1);
 			}
 		);
+		virtual_overseer
 	});
 }
 
@@ -583,11 +595,12 @@ fn import_approval_bad() {
 				tx,
 			)) => {
 				assert_eq!(vote, approval);
-				tx.send(ApprovalCheckResult::Bad).unwrap();
+				tx.send(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(hash))).unwrap();
 			}
 		);
 
 		expect_reputation_change(overseer, &peer_b, COST_INVALID_MESSAGE).await;
+		virtual_overseer
 	});
 }
 
@@ -626,6 +639,7 @@ fn update_our_view() {
 
 		let msg = ApprovalDistributionMessage::NewBlocks(vec![meta_a, meta_b, meta_c]);
 		overseer_send(overseer, msg).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&1).is_some());
@@ -639,6 +653,7 @@ fn update_our_view() {
 		let overseer = &mut virtual_overseer;
 		// finalize a block
 		overseer_signal_block_finalized(overseer, 2).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&1).is_none());
@@ -652,6 +667,7 @@ fn update_our_view() {
 		let overseer = &mut virtual_overseer;
 		// finalize a very high block
 		overseer_signal_block_finalized(overseer, 4_000_000_000).await;
+		virtual_overseer
 	});
 
 	assert!(state.blocks_by_number.get(&3).is_none());
@@ -726,6 +742,7 @@ fn update_peer_view() {
 				assert_eq!(assignments.len(), 1);
 			}
 		);
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(0));
@@ -773,6 +790,7 @@ fn update_peer_view() {
 				assert_eq!(assignments[0].0, cert_c);
 			}
 		);
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(2));
@@ -799,6 +817,7 @@ fn update_peer_view() {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::with_finalized(finalized_number))
 			)
 		).await;
+		virtual_overseer
 	});
 
 	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(finalized_number));
@@ -909,6 +928,7 @@ fn import_remotely_then_locally() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }
 
@@ -994,5 +1014,6 @@ fn sends_assignments_even_when_state_is_approved() {
 			.is_none(),
 			"no message should be sent",
 		);
+		virtual_overseer
 	});
 }

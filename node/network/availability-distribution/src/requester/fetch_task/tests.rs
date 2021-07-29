@@ -30,7 +30,6 @@ use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_node_primitives::{BlockData, PoV};
 use polkadot_node_network_protocol::request_response::v1;
 use polkadot_node_network_protocol::request_response::Recipient;
-use polkadot_subsystem::messages::AllMessages;
 
 use crate::metrics::Metrics;
 use crate::tests::mock::get_valid_chunk_data;
@@ -200,7 +199,7 @@ fn task_stores_valid_chunk_if_there_is_one() {
 
 struct TestRun {
 	/// Response to deliver for a given validator index.
-	/// None means, answer with NetworkError.
+	/// None means, answer with `NetworkError`.
 	chunk_responses: HashMap<Recipient, ChunkFetchingResponse>,
 	/// Set of chunks that should be considered valid:
 	valid_chunks: HashSet<Vec<u8>>,
@@ -239,7 +238,7 @@ impl TestRun {
 		});
 	}
 
-	/// Returns true, if after processing of the given message it would be ok for the stream to
+	/// Returns true, if after processing of the given message it would be OK for the stream to
 	/// end.
 	async fn handle_message(&self, msg: AllMessages) -> bool {
 		match msg {
@@ -300,4 +299,3 @@ fn get_test_running_task() -> (RunningTask, mpsc::Receiver<FromFetchTask>) {
 		rx
 	)
 }
-

@@ -34,12 +34,13 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{ErasureChunk, AvailableData};
 use polkadot_subsystem::{
-	SubsystemContext, SubsystemResult, SubsystemError, Subsystem, SpawnedSubsystem, FromOverseer,
+	overseer::{self, Subsystem},
+	SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem, FromOverseer,
 	OverseerSignal, ActiveLeavesUpdate, SubsystemSender,
 	errors::RecoveryError,
 	jaeger,
 	messages::{
-		AvailabilityStoreMessage, AvailabilityRecoveryMessage, AllMessages, NetworkBridgeMessage,
+		AvailabilityStoreMessage, AvailabilityRecoveryMessage, NetworkBridgeMessage,
 	},
 };
 use polkadot_node_network_protocol::{
@@ -51,6 +52,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
+
 mod error;
 
 #[cfg(test)]
@@ -142,10 +144,7 @@ impl RequestFromBackersPhase {
 		);
 		loop {
 			// Pop the next backer, and proceed to next phase if we're out.
-			let validator_index = match self.shuffled_backers.pop() {
-				None => return Err(RecoveryError::Unavailable),
-				Some(i) => i,
-			};
+			let validator_index = self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
 
 			// Request data.
 			let (req, res) = OutgoingRequest::new(
@@ -575,10 +574,12 @@ impl Default for State {
 	}
 }
 
-impl<C> Subsystem<C> for AvailabilityRecoverySubsystem
-	where C: SubsystemContext<Message = AvailabilityRecoveryMessage>
+impl<Context> Subsystem<Context, SubsystemError> for AvailabilityRecoverySubsystem
+where
+	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("availability-recovery", e))
 			.boxed();
@@ -611,16 +612,18 @@ async fn handle_signal(
 }
 
 /// Machinery around launching interactions into the background.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
-async fn launch_interaction(
+async fn launch_interaction<Context>(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
-	session_index: SessionIndex,
+	ctx: &mut Context,
 	session_info: SessionInfo,
 	receipt: CandidateReceipt,
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
-) -> error::Result<()> {
+) -> error::Result<()>
+where
+	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
+{
 	let candidate_hash = receipt.hash();
 
 	let params = InteractionParams {
@@ -654,7 +657,7 @@ async fn launch_interaction(
 		awaiting: vec![response_sender],
 	});
 
-	if let Err(e) = ctx.spawn("recovery interaction", Box::pin(remote)).await {
+	if let Err(e) = ctx.spawn("recovery interaction", Box::pin(remote)) {
 		tracing::warn!(
 			target: LOG_TARGET,
 			err = ?e,
@@ -666,15 +669,18 @@ async fn launch_interaction(
 }
 
 /// Handles an availability recovery request.
-#[tracing::instrument(level = "trace", skip(ctx, state), fields(subsystem = LOG_TARGET))]
-async fn handle_recover(
+async fn handle_recover<Context>(
 	state: &mut State,
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	ctx: &mut Context,
 	receipt: CandidateReceipt,
 	session_index: SessionIndex,
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
-) -> error::Result<()> {
+) -> error::Result<()>
+where
+	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
+{
 	let candidate_hash = receipt.hash();
 
 	let span = jaeger::Span::new(candidate_hash, "availbility-recovery")
@@ -709,7 +715,6 @@ async fn handle_recover(
 			launch_interaction(
 				state,
 				ctx,
-				session_index,
 				session_info,
 				receipt,
 				backing_group,
@@ -730,15 +735,18 @@ async fn handle_recover(
 }
 
 /// Queries a chunk from av-store.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_full_data(
-	ctx: &mut impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
+async fn query_full_data<Context>(
+	ctx: &mut Context,
 	candidate_hash: CandidateHash,
-) -> error::Result<Option<AvailableData>> {
+) -> error::Result<Option<AvailableData>>
+where
+	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
+{
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::AvailabilityStore(
+	ctx.send_message(
 		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
-	)).await;
+	).await;
 
 	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
 }
@@ -754,10 +762,14 @@ impl AvailabilityRecoverySubsystem {
 		Self { fast_path: false }
 	}
 
-	async fn run(
+	async fn run<Context>(
 		self,
-		mut ctx: impl SubsystemContext<Message = AvailabilityRecoveryMessage>,
-	) -> SubsystemResult<()> {
+		mut ctx: Context,
+	) -> SubsystemResult<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
+		Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
+	{
 		let mut state = State::default();
 
 		loop {
@@ -813,8 +825,8 @@ impl AvailabilityRecoverySubsystem {
 						}
 					}
 				}
-				output = state.interactions.next() => {
-					if let Some((candidate_hash, result)) = output.flatten() {
+				output = state.interactions.select_next_some() => {
+					if let Some((candidate_hash, result)) = output {
 						state.availability_lru.put(candidate_hash, result);
 					}
 				}

@@ -32,7 +32,8 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages, ActivatedLeaf,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, ActivatedLeaf,
+	LeafStatus, messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -49,9 +50,7 @@ const TEST_CONFIG: Config = Config {
 	col_meta: columns::META,
 };
 
-struct TestHarness {
-	virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
-}
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
 
 #[derive(Default)]
 struct TestCandidateBuilder {
@@ -140,10 +139,10 @@ impl Default for TestState {
 }
 
 
-fn test_harness<T: Future<Output=()>>(
+fn test_harness<T: Future<Output=VirtualOverseer>>(
 	state: TestState,
 	store: Arc<dyn KeyValueDB>,
-	test: impl FnOnce(TestHarness) -> T,
+	test: impl FnOnce(VirtualOverseer) -> T,
 ) {
 	let _ = env_logger::builder()
 		.is_test(true)
@@ -170,20 +169,24 @@ fn test_harness<T: Future<Output=()>>(
 
 	let subsystem = run(subsystem, context);
 
-	let test_fut = test(TestHarness {
-		virtual_overseer,
-	});
+	let test_fut = test(virtual_overseer);
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
 
-	executor::block_on(future::select(test_fut, subsystem));
+	executor::block_on(future::join(async move {
+		let mut overseer = test_fut.await;
+		overseer_signal(
+			&mut overseer,
+			OverseerSignal::Conclude,
+		).await;
+	}, subsystem));
 }
 
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 async fn overseer_send(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	overseer: &mut VirtualOverseer,
 	msg: AvailabilityStoreMessage,
 ) {
 	tracing::trace!(meg = ?msg, "sending message");
@@ -195,7 +198,7 @@ async fn overseer_send(
 }
 
 async fn overseer_recv(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	overseer: &mut VirtualOverseer,
 ) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 		.await
@@ -207,7 +210,7 @@ async fn overseer_recv(
 }
 
 async fn overseer_recv_with_timeout(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	overseer: &mut VirtualOverseer,
 	timeout: Duration,
 ) -> Option<AllMessages> {
 	tracing::trace!("waiting for message...");
@@ -218,7 +221,7 @@ async fn overseer_recv_with_timeout(
 }
 
 async fn overseer_signal(
-	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	overseer: &mut VirtualOverseer,
 	signal: OverseerSignal,
 ) {
 	overseer
@@ -247,23 +250,39 @@ fn candidate_included(receipt: CandidateReceipt) -> CandidateEvent {
 fn runtime_api_error_does_not_stop_the_subsystem() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 
-	test_harness(TestState::default(), store, |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(TestState::default(), store, |mut virtual_overseer| async move {
 		let new_leaf = Hash::repeat_byte(0x01);
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![ActivatedLeaf {
-					hash: new_leaf,
-					number: 1,
-					span: Arc::new(jaeger::Span::Disabled),
-				}].into(),
-				deactivated: vec![].into(),
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: new_leaf,
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
-		// runtime api call fails
+		let header = Header {
+			parent_hash: Hash::zero(),
+			number: 1,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+
+		// runtime API call fails
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -288,15 +307,14 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
 
 		assert!(rx.await.unwrap().is_none());
-
+		virtual_overseer
 	});
 }
 
 #[test]
 fn store_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(TestState::default(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(TestState::default(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
@@ -338,6 +356,7 @@ fn store_chunk_works() {
 		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), chunk);
+		virtual_overseer
 	});
 }
 
@@ -345,8 +364,7 @@ fn store_chunk_works() {
 #[test]
 fn store_chunk_does_nothing_if_no_entry_already() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(TestState::default(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(TestState::default(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = ValidatorIndex(5);
 
@@ -377,14 +395,14 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
 
 		assert!(rx.await.unwrap().is_none());
+		virtual_overseer
 	});
 }
 
 #[test]
 fn query_chunk_checks_meta() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-	test_harness(TestState::default(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(TestState::default(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
@@ -422,6 +440,7 @@ fn query_chunk_checks_meta() {
 
 		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
 		assert!(!rx.await.unwrap());
+		virtual_overseer
 	});
 }
 
@@ -429,8 +448,7 @@ fn query_chunk_checks_meta() {
 fn store_block_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let validator_index = ValidatorIndex(5);
 		let n_validators = 10;
@@ -474,6 +492,7 @@ fn store_block_works() {
 		};
 
 		assert_eq!(chunk, expected_chunk);
+		virtual_overseer
 	});
 }
 
@@ -482,8 +501,7 @@ fn store_pov_and_query_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
 
@@ -516,6 +534,7 @@ fn store_pov_and_query_chunk_works() {
 
 			assert_eq!(chunk.chunk, chunks_expected[i as usize]);
 		}
+		virtual_overseer
 	});
 }
 
@@ -524,9 +543,7 @@ fn query_all_chunks_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
-
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		// all chunks for hash 1.
 		// 1 chunk for hash 2.
 		// 0 chunks for hash 3.
@@ -608,6 +625,7 @@ fn query_all_chunks_works() {
 			virtual_overseer.send(FromOverseer::Communication { msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 0);
 		}
+		virtual_overseer
 	});
 }
 
@@ -616,8 +634,7 @@ fn stored_but_not_included_data_is_pruned() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
 
@@ -655,6 +672,7 @@ fn stored_but_not_included_data_is_pruned() {
 
 		// The block was not included by this point so it should be pruned now.
 		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
+		virtual_overseer
 	});
 }
 
@@ -663,8 +681,7 @@ fn stored_data_kept_until_finalized() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		let n_validators = 10;
 
 		let pov = PoV {
@@ -760,6 +777,132 @@ fn stored_data_kept_until_finalized() {
 		assert!(
 			has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, false).await
 		);
+		virtual_overseer
+	});
+}
+
+#[test]
+fn we_dont_miss_anything_if_import_notifications_are_missed() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+	let test_state = TestState::default();
+
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::BlockFinalized(Hash::zero(), 1)
+		).await;
+
+		let header = Header {
+			parent_hash: Hash::repeat_byte(3),
+			number: 4,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+		let new_leaf = Hash::repeat_byte(4);
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: new_leaf,
+				number: 4,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+
+		let new_heads = vec![
+			(Hash::repeat_byte(2), Hash::repeat_byte(1)),
+			(Hash::repeat_byte(3), Hash::repeat_byte(2)),
+			(Hash::repeat_byte(4), Hash::repeat_byte(3)),
+		];
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::Ancestors {
+				hash,
+				k,
+				response_channel: tx,
+			}) => {
+				assert_eq!(hash, new_leaf);
+				assert_eq!(k, 2);
+				let _ = tx.send(Ok(vec![
+					Hash::repeat_byte(3),
+					Hash::repeat_byte(2),
+				]));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, Hash::repeat_byte(3));
+				tx.send(Ok(Some(Header {
+					parent_hash: Hash::repeat_byte(2),
+					number: 3,
+					state_root: Hash::zero(),
+					extrinsics_root: Hash::zero(),
+					digest: Default::default(),
+				}))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, Hash::repeat_byte(2));
+				tx.send(Ok(Some(Header {
+					parent_hash: Hash::repeat_byte(1),
+					number: 2,
+					state_root: Hash::zero(),
+					extrinsics_root: Hash::zero(),
+					digest: Default::default(),
+				}))).unwrap();
+			}
+		);
+
+		for (head, parent) in new_heads {
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::CandidateEvents(tx),
+				)) => {
+					assert_eq!(relay_parent, head);
+					tx.send(Ok(Vec::new())).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, parent);
+					tx.send(Ok(Vec::new())).unwrap();
+				}
+			);
+		}
+
+		virtual_overseer
 	});
 }
 
@@ -768,8 +911,7 @@ fn forkfullness_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
 
-	test_harness(test_state.clone(), store.clone(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
 		let n_validators = 10;
 		let block_number_1 = 5;
 		let block_number_2 = 5;
@@ -930,11 +1072,12 @@ fn forkfullness_works() {
 		assert!(
 			has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,
 		);
+		virtual_overseer
 	});
 }
 
 async fn query_available_data(
-	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: CandidateHash,
 ) -> Option<AvailableData> {
 	let (tx, rx) = oneshot::channel();
@@ -946,7 +1089,7 @@ async fn query_available_data(
 }
 
 async fn query_chunk(
-	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: CandidateHash,
 	index: ValidatorIndex,
 ) -> Option<ErasureChunk> {
@@ -959,7 +1102,7 @@ async fn query_chunk(
 }
 
 async fn has_all_chunks(
-	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: CandidateHash,
 	n_validators: u32,
 	expect_present: bool,
@@ -973,7 +1116,7 @@ async fn has_all_chunks(
 }
 
 async fn import_leaf(
-	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+	virtual_overseer: &mut VirtualOverseer,
 	parent_hash: Hash,
 	block_number: BlockNumber,
 	events: Vec<CandidateEvent>,
@@ -990,15 +1133,24 @@ async fn import_leaf(
 
 	overseer_signal(
 		virtual_overseer,
-		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
-				hash: new_leaf,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}),
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: new_leaf,
+			number: 1,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		})),
 	).await;
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+			relay_parent,
+			tx,
+		)) => {
+			assert_eq!(relay_parent, new_leaf);
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
@@ -1011,27 +1163,6 @@ async fn import_leaf(
 		}
 	);
 
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(block_number))).unwrap();
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockHeader(
-			relay_parent,
-			tx,
-		)) => {
-			assert_eq!(relay_parent, new_leaf);
-			tx.send(Ok(Some(header))).unwrap();
-		}
-	);
 
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,

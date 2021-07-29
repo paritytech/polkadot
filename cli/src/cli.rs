@@ -43,8 +43,12 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "validation-worker", setting = structopt::clap::AppSettings::Hidden)]
-	ValidationWorker(ValidationWorkerCommand),
+	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfPrepareWorker(ValidationWorkerCommand),
+
+	#[allow(missing_docs)]
+	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfExecuteWorker(ValidationWorkerCommand),
 
 	/// The custom benchmark subcommand benchmarking runtime pallets.
 	#[structopt(
@@ -53,22 +57,23 @@ pub enum Subcommand {
 	)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-	/// Testing subcommand for runtime testing and trying.
+	/// Try some command against runtime state.
 	#[cfg(feature = "try-runtime")]
 	TryRuntime(try_runtime_cli::TryRuntimeCmd),
 
-	/// Key management cli utilities
+	/// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
+	#[cfg(not(feature = "try-runtime"))]
+	TryRuntime,
+
+	/// Key management CLI utilities
 	Key(sc_cli::KeySubcommand),
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct ValidationWorkerCommand {
-	/// The path that the executor can use for its caching purposes.
-	pub cache_base_path: std::path::PathBuf,
-
-	#[allow(missing_docs)]
-	pub mem_id: String,
+	/// The path to the validation host's socket.
+	pub socket_path: String,
 }
 
 #[allow(missing_docs)]
@@ -98,6 +103,10 @@ pub struct RunCmd {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+
+	/// Disable BEEFY gadget.
+	#[structopt(long)]
+	pub no_beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///

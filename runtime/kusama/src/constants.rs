@@ -18,35 +18,28 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 6;
-	pub const CENTS: Balance = DOLLARS / 100;
+	pub const UNITS: Balance = 1_000_000_000_000;
+	pub const CENTS: Balance = UNITS / 30_000;
+	pub const GRAND: Balance = CENTS * 100_000;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 20 * DOLLARS + (bytes as Balance) * 100 * MILLICENTS
+		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
 	}
 }
 
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{Moment, BlockNumber};
-	// Kusama & mainnet
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
-	// Testnet
-//	pub const MILLISECS_PER_BLOCK: Moment = 1000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	// Kusama
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
-	// Mainnet
-//	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
-	// Testnet
-//	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
@@ -69,7 +62,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, MAXIMUM_BLOCK_WEIGHT]
+	///   - [0, `MAXIMUM_BLOCK_WEIGHT`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
@@ -97,15 +90,15 @@ mod tests {
 	use frame_support::weights::WeightToFeePolynomial;
 	use runtime_common::{MAXIMUM_BLOCK_WEIGHT, ExtrinsicBaseWeight};
 	use super::fee::WeightToFee;
-	use super::currency::{CENTS, DOLLARS, MILLICENTS};
+	use super::currency::{CENTS, MILLICENTS};
 
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
 	fn full_block_fee_is_correct() {
-		// A full block should cost 16 DOLLARS
+		// A full block should cost 1,600 CENTS
 		println!("Base: {}", ExtrinsicBaseWeight::get());
 		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * DOLLARS;
+		let y = 16 * 100 * CENTS;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}
 

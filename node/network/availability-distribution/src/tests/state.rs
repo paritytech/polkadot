@@ -18,7 +18,6 @@ use std::{collections::{HashMap, HashSet}, sync::Arc, time::Duration};
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers::TestSubsystemContextHandle;
-use smallvec::smallvec;
 
 use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
 use futures_timer::Delay;
@@ -29,7 +28,8 @@ use sc_network as network;
 use sc_network::IfDisconnected;
 use sc_network::config as netconfig;
 
-use polkadot_subsystem::{ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf,
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, ActivatedLeaf, LeafStatus,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
@@ -45,17 +45,18 @@ use polkadot_node_network_protocol::{
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;
-use test_helpers::SingleItemSink;
+use test_helpers::{SingleItemSink, mock::make_ferdie_keystore};
 
-use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
+use super::mock::{make_session_info, OccupiedCoreBuilder};
 use crate::LOG_TARGET;
 
+type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>;
 pub struct TestHarness {
-	pub virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	pub virtual_overseer: VirtualOverseer,
 	pub pool: TaskExecutor,
 }
 
-/// TestState for mocking execution of this subsystem.
+/// `TestState` for mocking execution of this subsystem.
 ///
 /// The `Default` instance provides data, which makes the system succeed by providing a couple of
 /// valid occupied cores. You can tune the data before calling `TestState::run`. E.g. modify some
@@ -67,7 +68,7 @@ pub struct TestState {
 	pub relay_chain: Vec<Hash>,
 	/// Whenever the subsystem tries to fetch an erasure chunk one item of the given vec will be
 	/// popped. So you can experiment with serving invalid chunks or no chunks on request and see
-	/// whether the subystem still succeds with its goal.
+	/// whether the subsystem still succeeds with its goal.
 	pub chunks: HashMap<(CandidateHash, ValidatorIndex), Vec<Option<ErasureChunk>>>,
 	/// All chunks that are valid and should be accepted.
 	pub valid_chunks: HashSet<(CandidateHash, ValidatorIndex)>,
@@ -161,7 +162,7 @@ impl TestState {
 	///
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
-	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: TestSubsystemContextHandle<AvailabilityDistributionMessage>) {
+	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: VirtualOverseer) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
@@ -169,12 +170,13 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
+				activated: Some(ActivatedLeaf {
 					hash: new.clone(),
 					number: 1,
+					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![old.clone()],
+				}),
+				deactivated: vec![old.clone()].into(),
 			}).collect::<Vec<_>>()
 		};
 
@@ -198,8 +200,7 @@ impl TestState {
 				// cancel jobs as obsolete:
 				Delay::new(Duration::from_millis(20)).await;
 			}
-		}.boxed()
-		);
+		}.boxed());
 
 		while remaining_stores > 0
 		{
@@ -211,11 +212,12 @@ impl TestState {
 						// Forward requests:
 						let in_req = to_incoming_req(&executor, req);
 
-						executor.spawn("Request forwarding",
-									overseer_send(
-										tx.clone(),
-										AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
-									).boxed()
+						executor.spawn(
+							"Request forwarding",
+							overseer_send(
+									tx.clone(),
+									AvailabilityDistributionMessage::ChunkFetchingRequest(in_req)
+							).boxed()
 						);
 					}
 				}
@@ -259,6 +261,8 @@ impl TestState {
 				}
 			}
 		}
+
+		overseer_signal(tx, OverseerSignal::Conclude).await;
 	}
 }
 

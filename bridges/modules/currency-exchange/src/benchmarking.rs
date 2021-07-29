@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 //! before invoking module calls.
 
 use super::{
-	Call, Config as CurrencyExchangeConfig, InclusionProofVerifier, Instance, Module as CurrencyExchangeModule,
+	Call, Config as CurrencyExchangeConfig, InclusionProofVerifier, Instance, Pallet as CurrencyExchangePallet,
 };
 use sp_std::prelude::*;
 
@@ -30,8 +30,8 @@ const SEED: u32 = 0;
 const WORST_TX_SIZE_FACTOR: u32 = 1000;
 const WORST_PROOF_SIZE_FACTOR: u32 = 1000;
 
-/// Module we're benchmarking here.
-pub struct Module<T: Config<I>, I: Instance>(CurrencyExchangeModule<T, I>);
+/// Pallet we're benchmarking here.
+pub struct Pallet<T: Config<I>, I: Instance>(CurrencyExchangePallet<T, I>);
 
 /// Proof benchmarking parameters.
 pub struct ProofParams<Recipient> {
@@ -40,10 +40,10 @@ pub struct ProofParams<Recipient> {
 	/// When true, recipient must exists before import.
 	pub recipient_exists: bool,
 	/// When 0, transaction should have minimal possible size. When this value has non-zero value n,
-	/// transaction size should be (if possible) near to MIN_SIZE + n * SIZE_FACTOR.
+	/// transaction size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
 	pub transaction_size_factor: u32,
 	/// When 0, proof should have minimal possible size. When this value has non-zero value n,
-	/// proof size should be (if possible) near to MIN_SIZE + n * SIZE_FACTOR.
+	/// proof size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
 	pub proof_size_factor: u32,
 }
 

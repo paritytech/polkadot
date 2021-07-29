@@ -18,116 +18,45 @@
 
 use std::sync::Arc;
 
+use sp_runtime::traits::Header as _;
+use sp_runtime::traits::{Block as BlockT, NumberFor};
+
+use crate::HeaderProvider;
+
+#[cfg(feature = "full-node")]
 use polkadot_primitives::v1::Hash;
 
-use sp_runtime::traits::{Block as BlockT, NumberFor};
-use sp_runtime::generic::BlockId;
-use sp_runtime::traits::Header as _;
-
-#[cfg(feature = "real-overseer")]
-use {
-	polkadot_primitives::v1::{Block as PolkadotBlock, Header as PolkadotHeader},
-	polkadot_subsystem::messages::ApprovalVotingMessage,
-	prometheus_endpoint::{self, Registry},
-	polkadot_overseer::OverseerHandler,
-	futures::channel::oneshot,
-};
-
-/// A custom GRANDPA voting rule that acts as a diagnostic for the approval
-/// voting subsystem's desired votes.
-///
-/// The practical effect of this voting rule is to implement a fixed delay of
-/// blocks and to issue a prometheus metric on the lag behind the head that
-/// approval checking would indicate.
-#[cfg(feature = "real-overseer")]
-#[derive(Clone)]
-pub(crate) struct ApprovalCheckingVotingRule {
-	checking_lag: Option<prometheus_endpoint::Gauge<prometheus_endpoint::U64>>,
-	overseer: OverseerHandler,
-}
-
-#[cfg(feature = "real-overseer")]
-impl ApprovalCheckingVotingRule {
-	/// Create a new approval checking diagnostic voting rule.
-	pub fn new(overseer: OverseerHandler, registry: Option<&Registry>)
-		-> Result<Self, prometheus_endpoint::PrometheusError>
-	{
-		Ok(ApprovalCheckingVotingRule {
-			checking_lag: if let Some(registry) = registry {
-				Some(prometheus_endpoint::register(
-					prometheus_endpoint::Gauge::with_opts(
-						prometheus_endpoint::Opts::new(
-							"parachain_approval_checking_finality_lag",
-							"How far behind the head of the chain the Approval Checking protocol wants to vote",
-						)
-					)?,
-					registry,
-				)?)
-			} else {
-				None
-			},
-			overseer,
-		})
-	}
-}
-
-#[cfg(feature = "real-overseer")]
-impl<B> grandpa::VotingRule<PolkadotBlock, B> for ApprovalCheckingVotingRule
-	where B: sp_blockchain::HeaderBackend<PolkadotBlock>
+/// Returns the block hash of the block at the given `target_number` by walking
+/// backwards from the given `current_header`.
+pub(super) fn walk_backwards_to_target_block<Block, HP>(
+	backend: &HP,
+	target_number: NumberFor<Block>,
+	current_header: &Block::Header,
+) -> Result<(Block::Hash, NumberFor<Block>), sp_blockchain::Error>
+where
+	Block: BlockT,
+	HP: HeaderProvider<Block>,
 {
-	fn restrict_vote(
-		&self,
-		_backend: Arc<B>,
-		base: &PolkadotHeader,
-		best_target: &PolkadotHeader,
-		current_target: &PolkadotHeader,
-	) -> grandpa::VotingRuleResult<PolkadotBlock> {
-		// Query approval checking and issue metrics.
-		let mut overseer = self.overseer.clone();
-		let checking_lag = self.checking_lag.clone();
+	let mut target_hash = current_header.hash();
+	let mut target_header = current_header.clone();
 
-		let best_hash = best_target.hash();
-		let best_number = best_target.number.clone();
-
-		let current_hash = current_target.hash();
-		let current_number = current_target.number.clone();
-
-		let base_number = base.number;
-
-		Box::pin(async move {
-			let (tx, rx) = oneshot::channel();
-			let approval_checking_subsystem_vote = {
-				overseer.send_msg(ApprovalVotingMessage::ApprovedAncestor(
-					best_hash,
-					base_number,
-					tx,
-				)).await;
-
-				rx.await.ok().and_then(|v| v)
-			};
-
-			let approval_checking_subsystem_lag = approval_checking_subsystem_vote.map_or(
-				best_number - base_number,
-				|(_h, n)| best_number - n,
+	loop {
+		if *target_header.number() < target_number {
+			unreachable!(
+				"we are traversing backwards from a known block; \
+				 blocks are stored contiguously; \
+				 qed"
 			);
+		}
 
-			if let Some(ref checking_lag) = checking_lag {
-				checking_lag.set(approval_checking_subsystem_lag as _);
-			}
+		if *target_header.number() == target_number {
+			return Ok((target_hash, target_number));
+		}
 
-			tracing::trace!(
-				target: "parachain::approval-voting",
-				"GRANDPA: voting on {:?}. Approval-checking lag behind best is {}",
-				approval_checking_subsystem_vote,
-				approval_checking_subsystem_lag,
-			);
-
-			if approval_checking_subsystem_vote.map_or(false, |v| current_number < v.1) {
-				Some((current_hash, current_number))
-			} else {
-				approval_checking_subsystem_vote
-			}
-		})
+		target_hash = *target_header.parent_hash();
+		target_header = backend
+			.header(target_hash)?
+			.expect("Header known to exist due to the existence of one of its descendants; qed");
 	}
 }
 
@@ -141,7 +70,7 @@ pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
 where
 	Block: BlockT,
-	B: sp_blockchain::HeaderBackend<Block>,
+	B: sp_blockchain::HeaderBackend<Block> + 'static,
 {
 	fn restrict_vote(
 		&self,
@@ -151,31 +80,6 @@ where
 		current_target: &Block::Header,
 	) -> grandpa::VotingRuleResult<Block> {
 		let aux = || {
-			// walk backwards until we find the target block
-			let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
-				let mut target_hash = current_header.hash();
-				let mut target_header = current_header.clone();
-
-				loop {
-					if *target_header.number() < target_number {
-						unreachable!(
-							"we are traversing backwards from a known block; \
-							 blocks are stored contiguously; \
-							 qed"
-						);
-					}
-
-					if *target_header.number() == target_number {
-						return Some((target_hash, target_number));
-					}
-
-					target_hash = *target_header.parent_hash();
-					target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
-						"Header known to exist due to the existence of one of its descendents; qed",
-					);
-				}
-			};
-
 			// only restrict votes targeting a block higher than the block
 			// we've set for the pause
 			if *current_target.number() > self.0 {
@@ -193,7 +97,7 @@ where
 
 				// otherwise find the target header at the pause block
 				// to vote on
-				return find_target(self.0, current_target);
+				return walk_backwards_to_target_block(&*backend, self.0, current_target).ok();
 			}
 
 			None
@@ -206,7 +110,7 @@ where
 }
 
 /// GRANDPA hard forks due to borked migration of session keys after a runtime
-/// upgrade (at #1491596), the signalled authority set changes were invalid
+/// upgrade (at #1491596), the signaled authority set changes were invalid
 /// (blank keys) and were impossible to finalize. The authorities for these
 /// intermediary pending changes are replaced with a static list comprised of
 /// w3f validators and randomly selected validators from the latest session (at

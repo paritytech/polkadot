@@ -14,24 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::marker::PhantomData;
-use frame_support::traits::{Get, OriginTrait};
-use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction};
-use xcm_executor::traits::{LocationConversion, ConvertOrigin};
+//! Various implementations for `ConvertOrigin`.
+
+use sp_std::{marker::PhantomData, convert::TryInto};
+use xcm::v0::{MultiLocation, OriginKind, NetworkId, Junction, BodyId, BodyPart};
+use xcm_executor::traits::{Convert, ConvertOrigin};
+use frame_support::traits::{EnsureOrigin, Get, OriginTrait, GetBacking};
+use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 
-/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
-/// `LocationConverter`.
+/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
 pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
 	PhantomData<(LocationConverter, Origin)>
 );
 impl<
-	LocationConverter: LocationConversion<Origin::AccountId>,
+	LocationConverter: Convert<MultiLocation, Origin::AccountId>,
 	Origin: OriginTrait,
-> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> {
+> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> where Origin::AccountId: Clone {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		if let OriginKind::SovereignAccount = kind {
-			let location = LocationConverter::from_location(&origin).ok_or(origin)?;
+			let location = LocationConverter::convert(origin)?;
 			Ok(Origin::signed(location).into())
 		} else {
 			Err(origin)
@@ -59,7 +61,7 @@ impl<
 > ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -74,7 +76,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			if ParaId::from(id).is_system() =>
 				Ok(Origin::root()),
 			(_, origin) => Err(origin),
@@ -91,7 +93,7 @@ impl<
 > ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X1(Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
@@ -107,7 +109,7 @@ impl<
 > ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
@@ -167,5 +169,89 @@ impl<
 			}
 			(_, origin) => Err(origin),
 		}
+	}
+}
+
+/// `EnsureOrigin` barrier to convert from dispatch origin to XCM origin, if one exists.
+pub struct EnsureXcmOrigin<Origin, Conversion>(PhantomData<(Origin, Conversion)>);
+impl<
+	Origin: OriginTrait + Clone,
+	Conversion: Convert<Origin, MultiLocation>,
+> EnsureOrigin<Origin> for EnsureXcmOrigin<Origin, Conversion> where
+	Origin::PalletsOrigin: PartialEq,
+{
+	type Success = MultiLocation;
+	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		let o = match Conversion::convert(o) {
+			Ok(location) => return Ok(location),
+			Err(o) => o,
+		};
+		// We institute a root fallback so root can always represent the context. This
+		// guarantees that `successful_origin` will work.
+		if o.caller() == Origin::root().caller() {
+			Ok(MultiLocation::Null)
+		} else {
+			Err(o)
+		}
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin {
+		Origin::root()
+	}
+}
+
+/// `Convert` implementation to convert from some a `Signed` (system) `Origin` into an `AccountId32`.
+///
+/// Typically used when configuring `pallet-xcm` for allowing normal accounts to dispatch an XCM from an `AccountId32`
+/// origin.
+pub struct SignedToAccountId32<Origin, AccountId, Network>(
+	PhantomData<(Origin, AccountId, Network)>
+);
+impl<
+	Origin: OriginTrait + Clone,
+	AccountId: Into<[u8; 32]>,
+	Network: Get<NetworkId>,
+> Convert<Origin, MultiLocation> for SignedToAccountId32<Origin, AccountId, Network> where
+	Origin::PalletsOrigin: From<SystemRawOrigin<AccountId>> +
+	TryInto<SystemRawOrigin<AccountId>, Error=Origin::PalletsOrigin>
+{
+	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
+		o.try_with_caller(|caller| match caller.try_into() {
+			Ok(SystemRawOrigin::Signed(who)) =>
+				Ok(Junction::AccountId32 { network: Network::get(), id: who.into() }.into()),
+			Ok(other) => Err(other.into()),
+			Err(other) => Err(other),
+		})
+	}
+}
+
+/// `Convert` implementation to convert from some an origin which implements `Backing` into a corresponding `Plurality`
+/// `MultiLocation`.
+///
+/// Typically used when configuring `pallet-xcm` for allowing a collective's Origin to dispatch an XCM from a
+/// `Plurality` origin.
+pub struct BackingToPlurality<Origin, COrigin, Body>(
+	PhantomData<(Origin, COrigin, Body)>
+);
+impl<
+	Origin: OriginTrait + Clone,
+	COrigin: GetBacking,
+	Body: Get<BodyId>,
+> Convert<Origin, MultiLocation> for BackingToPlurality<Origin, COrigin, Body> where
+	Origin::PalletsOrigin: From<COrigin> +
+	TryInto<COrigin, Error=Origin::PalletsOrigin>
+{
+	fn convert(o: Origin) -> Result<MultiLocation, Origin> {
+		o.try_with_caller(|caller| match caller.try_into() {
+			Ok(co) => match co.get_backing() {
+				Some(backing) => Ok(Junction::Plurality {
+					id: Body::get(),
+					part: BodyPart::Fraction { nom: backing.approvals, denom: backing.eligible },
+				}.into()),
+				None => Err(co.into()),
+			}
+			Err(other) => Err(other),
+		})
 	}
 }

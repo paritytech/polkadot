@@ -18,8 +18,8 @@
 pub mod currency {
 	use primitives::v0::Balance;
 
-	pub const DOTS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = DOTS / 100;       // 10_000_000_000
+	pub const UNITS: Balance = 10_000_000_000;
+	pub const DOLLARS: Balance = UNITS;       // 10_000_000_000
 	pub const CENTS: Balance = DOLLARS / 100;      // 100_000_000
 	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
 
@@ -33,7 +33,7 @@ pub mod time {
 	use primitives::v0::{Moment, BlockNumber};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
@@ -61,7 +61,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, MAXIMUM_BLOCK_WEIGHT]
+	///   - [0, `MAXIMUM_BLOCK_WEIGHT`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:

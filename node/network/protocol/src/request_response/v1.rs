@@ -18,12 +18,9 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, ValidatorIndex,
-	Hash,
-};
+use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
 use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, CompressedPoV, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, DisputeMessage, ErasureChunk, PoV, UncheckedDisputeMessage};
 
 use super::request::IsRequest;
 use super::Protocol;
@@ -107,7 +104,7 @@ pub struct CollationFetchingRequest {
 pub enum CollationFetchingResponse {
 	/// Deliver requested collation.
 	#[codec(index = 0)]
-	Collation(CandidateReceipt, CompressedPoV),
+	Collation(CandidateReceipt, PoV),
 }
 
 impl IsRequest for CollationFetchingRequest {
@@ -127,7 +124,7 @@ pub struct PoVFetchingRequest {
 pub enum PoVFetchingResponse {
 	/// Deliver requested PoV.
 	#[codec(index = 0)]
-	PoV(CompressedPoV),
+	PoV(PoV),
 	/// PoV was not found in store.
 	#[codec(index = 1)]
 	NoSuchPoV,
@@ -168,4 +165,55 @@ impl From<Option<AvailableData>> for AvailableDataFetchingResponse {
 impl IsRequest for AvailableDataFetchingRequest {
 	type Response = AvailableDataFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;
+}
+
+/// Request for fetching a large statement via request/response.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct StatementFetchingRequest {
+	/// Data needed to locate and identify the needed statement.
+	pub relay_parent: Hash,
+	/// Hash of candidate that was used create the `CommitedCandidateRecept`.
+	pub candidate_hash: CandidateHash,
+}
+
+/// Respond with found full statement.
+///
+/// In this protocol the requester will only request data it was previously notified about,
+/// therefore not having the data is not really an option and would just result in a
+/// `RequestFailure`.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum StatementFetchingResponse {
+	/// Data missing to reconstruct the full signed statement.
+	#[codec(index = 0)]
+	Statement(CommittedCandidateReceipt),
+}
+
+impl IsRequest for StatementFetchingRequest {
+	type Response = StatementFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::StatementFetching;
+}
+
+/// A dispute request.
+///
+/// Contains an invalid vote a valid one for a particular candidate in a given session.
+#[derive(Clone, Encode, Decode, Debug)]
+pub struct DisputeRequest(pub UncheckedDisputeMessage);
+
+impl From<DisputeMessage> for DisputeRequest {
+	fn from(msg: DisputeMessage) -> Self {
+		Self(msg.into())
+	}
+}
+
+/// Possible responses to a `DisputeRequest`.
+#[derive(Encode, Decode, Debug, PartialEq, Eq)]
+pub enum DisputeResponse {
+	/// Recipient successfully processed the dispute request.
+	#[codec(index = 0)]
+	Confirmed
+}
+
+impl IsRequest for DisputeRequest {
+	type Response = DisputeResponse;
+	const PROTOCOL: Protocol = Protocol::DisputeSending;
 }

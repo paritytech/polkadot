@@ -60,7 +60,7 @@ pub type Hash = sp_core::H256;
 /// This type is produced by [`CandidateReceipt::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a candidate hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default)]
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
@@ -81,11 +81,11 @@ impl sp_std::fmt::Debug for CandidateHash {
 pub type Nonce = u32;
 
 /// The balance of an account.
-/// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution
-/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (10^11 unit
-/// denomination), or 10^18 total atomic units, to grow at 50%/year for 51 years (10^9 multiplier)
-/// for an eventual total of 10^27 units (27 significant decimal figures).
-/// We round denomination to 10^12 (12 sdf), and leave the other redundancy at the upper end so
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a resolution
+/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
+/// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
+/// for an eventual total of `10^27` units (27 significant decimal figures).
+/// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
@@ -99,7 +99,7 @@ pub type BlockId = generic::BlockId<Block>;
 /// Opaque, encoded, unchecked extrinsic.
 pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
-/// The information that goes alongside a transfer_into_parachain operation. Entirely opaque, it
+/// The information that goes alongside a `transfer_into_parachain` operation. Entirely opaque, it
 /// will generally be used for identifying the reason for the transfer. Typically it will hold the
 /// destination account to which the transfer should be credited. If still more information is
 /// needed, then this should be a hash with the pre-image presented via an off-chain mechanism on
@@ -144,7 +144,7 @@ pub struct OutboundHrmpMessage<Id> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
-/// V1 primitives.
+/// `V1` primitives.
 pub mod v1 {
 	pub use super::*;
 }

@@ -1,0 +1,31 @@
+[package]
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+name = "pallet-xcm"
+version = "0.1.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+log = { version = "0.4.14", default-features = false }
+
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+
+xcm = { path = "..", default-features = false }
+xcm-executor = { path = "../xcm-executor", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"serde",
+	"sp-std/std",
+	"sp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"xcm/std",
+]
+runtime-benchmarks = []

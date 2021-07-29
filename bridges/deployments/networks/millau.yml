@@ -20,7 +20,7 @@ services:
       - --unsafe-rpc-external
       - --unsafe-ws-external
     environment:
-      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace
+      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,runtime::bridge=trace
     ports:
       - "19933:9933"
       - "19944:9944"
@@ -37,8 +37,6 @@ services:
       - --rpc-cors=all
       - --unsafe-rpc-external
       - --unsafe-ws-external
-    environment:
-      RUST_LOG: runtime=trace,rpc=debug,txpool=trace,pallet_substrate_bridge=trace,pallet_bridge_call_dispatch=trace,pallet_message_lane=trace,jsonrpc_ws_server=trace,parity_ws=trace
     ports:
       - "20033:9933"
       - "20044:9944"

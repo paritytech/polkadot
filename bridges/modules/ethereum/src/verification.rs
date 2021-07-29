@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -144,7 +144,7 @@ pub fn accept_aura_header_into_pool<S: Storage, CT: ChainTime>(
 
 	// the heaviest, but rare operation - we do not want invalid receipts in the pool
 	if let Some(receipts) = receipts {
-		frame_support::debug::trace!(target: "runtime", "Got receipts! {:?}", receipts);
+		log::trace!(target: "runtime", "Got receipts! {:?}", receipts);
 		if header.check_receipts_root(receipts).is_err() {
 			return Err(Error::TransactionsReceiptsMismatch);
 		}
@@ -166,7 +166,7 @@ pub fn verify_aura_header<S: Storage, CT: ChainTime>(
 
 	// the rest of checks requires access to the parent header
 	let context = storage.import_context(submitter, &header.parent_hash).ok_or_else(|| {
-		frame_support::debug::warn!(
+		log::warn!(
 			target: "runtime",
 			"Missing parent PoA block: ({:?}, {})",
 			header.number.checked_sub(1),
@@ -191,7 +191,7 @@ fn contextless_checks<CT: ChainTime>(
 	if header.seal.len() != expected_seal_fields {
 		return Err(Error::InvalidSealArity);
 	}
-	if header.number >= u64::max_value() {
+	if header.number >= u64::MAX {
 		return Err(Error::RidiculousNumber);
 	}
 	if header.gas_used > header.gas_limit {
@@ -209,7 +209,7 @@ fn contextless_checks<CT: ChainTime>(
 
 	// we can't detect if block is from future in runtime
 	// => let's only do an overflow check
-	if header.timestamp > i32::max_value() as u64 {
+	if header.timestamp > i32::MAX as u64 {
 		return Err(Error::TimestampOverflow);
 	}
 
@@ -309,7 +309,7 @@ fn validator_checks(
 
 /// Returns expected number of seal fields in the header.
 fn expected_header_seal_fields(config: &AuraConfiguration, header: &AuraHeader) -> usize {
-	if header.number != u64::max_value() && header.number >= config.empty_steps_transition {
+	if header.number != u64::MAX && header.number >= config.empty_steps_transition {
 		3
 	} else {
 		2
@@ -323,9 +323,9 @@ fn verify_empty_step(parent_hash: &H256, step: &SealedEmptyStep, validators: &[A
 	verify_signature(&expected_validator, &step.signature, &message)
 }
 
-/// Chain scoring: total weight is sqrt(U256::max_value())*height - step
+/// Chain scoring: total weight is sqrt(U256::MAX)*height - step
 pub(crate) fn calculate_score(parent_step: u64, current_step: u64, current_empty_steps: usize) -> U256 {
-	U256::from(U128::max_value()) + U256::from(parent_step) - U256::from(current_step) + U256::from(current_empty_steps)
+	U256::from(U128::MAX) + U256::from(parent_step) - U256::from(current_step) + U256::from(current_empty_steps)
 }
 
 /// Verify that the signature over message has been produced by given validator.
@@ -396,7 +396,7 @@ mod tests {
 	fn verify_with_config(config: &AuraConfiguration, header: &AuraHeader) -> Result<ImportContext<AccountId>, Error> {
 		run_test_with_genesis(genesis(), TOTAL_VALIDATORS, |_| {
 			let storage = BridgeStorage::<TestRuntime>::new();
-			verify_aura_header(&storage, &config, None, header, &ConstChainTime::default())
+			verify_aura_header(&storage, config, None, header, &ConstChainTime::default())
 		})
 	}
 
@@ -491,12 +491,12 @@ mod tests {
 
 	#[test]
 	fn verifies_header_number() {
-		// when number is u64::max_value()
-		let header = HeaderBuilder::with_number(u64::max_value()).sign_by(&validator(0));
+		// when number is u64::MAX
+		let header = HeaderBuilder::with_number(u64::MAX).sign_by(&validator(0));
 		assert_eq!(default_verify(&header), Err(Error::RidiculousNumber));
 
-		// when header is < u64::max_value()
-		let header = HeaderBuilder::with_number(u64::max_value() - 1).sign_by(&validator(0));
+		// when header is < u64::MAX
+		let header = HeaderBuilder::with_number(u64::MAX - 1).sign_by(&validator(0));
 		assert_ne!(default_verify(&header), Err(Error::RidiculousNumber));
 	}
 
@@ -559,13 +559,13 @@ mod tests {
 	fn verifies_timestamp() {
 		// when timestamp overflows i32
 		let header = HeaderBuilder::with_number(1)
-			.timestamp(i32::max_value() as u64 + 1)
+			.timestamp(i32::MAX as u64 + 1)
 			.sign_by(&validator(0));
 		assert_eq!(default_verify(&header), Err(Error::TimestampOverflow));
 
 		// when timestamp doesn't overflow i32
 		let header = HeaderBuilder::with_number(1)
-			.timestamp(i32::max_value() as u64)
+			.timestamp(i32::MAX as u64)
 			.sign_by(&validator(0));
 		assert_ne!(default_verify(&header), Err(Error::TimestampOverflow));
 	}
@@ -597,19 +597,19 @@ mod tests {
 
 		// header is behind
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2 - 100)
+			.timestamp(i32::MAX as u64 / 2 - 100)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header).unwrap(), expect);
 
 		// header is ahead
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2 + 100)
+			.timestamp(i32::MAX as u64 / 2 + 100)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header), Err(Error::HeaderTimestampIsAhead));
 
 		// header has same timestamp as ConstChainTime
 		let header = HeaderBuilder::with_parent(&genesis())
-			.timestamp(i32::max_value() as u64 / 2)
+			.timestamp(i32::MAX as u64 / 2)
 			.sign_by(&validator(1));
 		assert_eq!(default_verify(&header).unwrap(), expect);
 	}
@@ -787,7 +787,7 @@ mod tests {
 	fn pool_verifies_future_block_number() {
 		// when header is too far from the future
 		assert_eq!(
-			default_accept_into_pool(|validators| (HeaderBuilder::with_number(100).sign_by_set(&validators), None),),
+			default_accept_into_pool(|validators| (HeaderBuilder::with_number(100).sign_by_set(validators), None),),
 			Err(Error::UnsignedTooFarInTheFuture),
 		);
 	}
@@ -800,7 +800,7 @@ mod tests {
 			default_accept_into_pool(|validators| (
 				HeaderBuilder::with_parent_number(3)
 					.step(GENESIS_STEP + 3)
-					.sign_by_set(&validators),
+					.sign_by_set(validators),
 				None,
 			),),
 			Err(Error::DoubleVote),

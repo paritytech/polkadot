@@ -1,0 +1,44 @@
+[package]
+name = "polkadot-simnet"
+version = "0.9.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master" }
+support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "master" }
+benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "master" }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "master" }
+collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "master" }
+democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "master" }
+
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-primitives = { path = "../../../../primitives" }
+polkadot-cli = { path = "../../../../cli", features = ["cli"] }
+polkadot-service = { path = "../../../../node/service" }
+polkadot-runtime = { path = "../../../../runtime/polkadot" }
+polkadot-runtime-common = { path = "../../../../runtime/common" }
+
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+structopt = "0.3.22"
+
+[dev-dependencies]
+log = "0.4.14"

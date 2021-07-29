@@ -86,6 +86,19 @@ pub struct ApprovalEntry {
 }
 
 impl ApprovalEntry {
+	/// Convenience constructor
+	pub fn new(
+		tranches: Vec<TrancheEntry>,
+		backing_group: GroupIndex,
+		our_assignment: Option<OurAssignment>,
+		our_approval_sig: Option<ValidatorSignature>,
+		// `n_validators` bits.
+		assignments: BitVec<BitOrderLsb0, u8>,
+		approved: bool,
+	) -> Self {
+		Self { tranches, backing_group, our_assignment, our_approval_sig, assignments, approved }
+	}
+
 	// Access our assignment for this approval entry.
 	pub fn our_assignment(&self) -> Option<&OurAssignment> {
 		self.our_assignment.as_ref()
@@ -93,7 +106,7 @@ impl ApprovalEntry {
 
 	// Note that our assignment is triggered. No-op if already triggered.
 	pub fn trigger_our_assignment(&mut self, tick_now: Tick)
-		-> Option<(AssignmentCert, ValidatorIndex)>
+		-> Option<(AssignmentCert, ValidatorIndex, DelayTranche)>
 	{
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() { return None }
@@ -105,7 +118,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.cert().clone(), a.validator_index())
+			(a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 
@@ -244,12 +257,12 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 /// Metadata regarding approval of a particular candidate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CandidateEntry {
-	candidate: CandidateReceipt,
-	session: SessionIndex,
+	pub candidate: CandidateReceipt,
+	pub session: SessionIndex,
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
-	block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	approvals: BitVec<BitOrderLsb0, u8>,
+	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
+	pub approvals: BitVec<BitOrderLsb0, u8>,
 }
 
 impl CandidateEntry {
@@ -260,9 +273,14 @@ impl CandidateEntry {
 
 	/// Note that a given validator has approved. Return the previous approval state.
 	pub fn mark_approval(&mut self, validator: ValidatorIndex) -> bool {
-		let prev = self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false);
+		let prev = self.has_approved(validator);
 		self.approvals.set(validator.0 as usize, true);
 		prev
+	}
+
+	/// Query whether a given validator has approved the candidate.
+	pub fn has_approved(&self, validator: ValidatorIndex) -> bool {
+		self.approvals.get(validator.0 as usize).map(|b| *b).unwrap_or(false)
 	}
 
 	/// Get the candidate receipt.
@@ -328,8 +346,8 @@ pub struct BlockEntry {
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	approved_bitfield: BitVec<BitOrderLsb0, u8>,
-	children: Vec<Hash>,
+	pub approved_bitfield: BitVec<BitOrderLsb0, u8>,
+	pub children: Vec<Hash>,
 }
 
 impl BlockEntry {
