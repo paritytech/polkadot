@@ -26,6 +26,7 @@ use bitvec::prelude::*;
 use bp_runtime::messages::DispatchFeePayment;
 use codec::{Decode, Encode};
 use frame_support::RuntimeDebug;
+use scale_info::TypeInfo;
 use sp_std::{collections::vec_deque::VecDeque, prelude::*};
 
 pub mod source_chain;
@@ -35,7 +36,7 @@ pub mod target_chain;
 pub use frame_support::weights::Weight;
 
 /// Messages pallet operating mode.
-#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum OperatingMode {
 	/// Normal mode, when all operations are allowed.
@@ -81,7 +82,7 @@ pub type MessageId = (LaneId, MessageNonce);
 pub type MessagePayload = Vec<u8>;
 
 /// Message key (unique message identifier) as it is stored in the storage.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct MessageKey {
 	/// ID of the message lane.
 	pub lane_id: LaneId,
@@ -90,7 +91,7 @@ pub struct MessageKey {
 }
 
 /// Message data as it is stored in the storage.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct MessageData<Fee> {
 	/// Message payload.
 	pub payload: MessagePayload,
@@ -99,7 +100,7 @@ pub struct MessageData<Fee> {
 }
 
 /// Message as it is stored in the storage.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct Message<Fee> {
 	/// Message key.
 	pub key: MessageKey,
@@ -108,7 +109,7 @@ pub struct Message<Fee> {
 }
 
 /// Inbound lane data.
-#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct InboundLaneData<RelayerId> {
 	/// Identifiers of relayers and messages that they have delivered to this lane (ordered by message nonce).
 	///
@@ -266,7 +267,7 @@ pub struct UnrewardedRelayersState {
 }
 
 /// Outbound lane data.
-#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct OutboundLaneData {
 	/// Nonce of oldest message that we haven't yet pruned. May point to not-yet-generated message if
 	/// all sent messages are already pruned.
