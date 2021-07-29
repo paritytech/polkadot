@@ -17,9 +17,9 @@ bp-kusama = { path = "../../primitives/chain-kusama" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }

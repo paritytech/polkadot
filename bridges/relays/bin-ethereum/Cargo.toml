@@ -12,9 +12,9 @@ async-trait = "0.1.42"
 clap = { version = "2.33.3", features = ["yaml"] }
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 env_logger = "0.8.3"
-ethabi = { git = "https://github.com/paritytech/ethabi", branch = "td-eth-types-11" }
-ethabi-contract = { git = "https://github.com/paritytech/ethabi", branch = "td-eth-types-11" }
-ethabi-derive = { git = "https://github.com/paritytech/ethabi", branch = "td-eth-types-11" }
+ethabi = { git = "https://github.com/paritytech/ethabi", branch = "kiz-ocw-max-heap-pages" }
+ethabi-contract = { git = "https://github.com/paritytech/ethabi", branch = "kiz-ocw-max-heap-pages" }
+ethabi-derive = { git = "https://github.com/paritytech/ethabi", branch = "kiz-ocw-max-heap-pages" }
 futures = "0.3.12"
 hex = "0.4"
 hex-literal = "0.3"
@@ -40,9 +40,9 @@ rialto-runtime = { path = "../../bin/rialto/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }

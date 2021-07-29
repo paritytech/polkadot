@@ -18,15 +18,15 @@ bp-header-chain = { path = "../../primitives/header-chain", default-features = f
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-ocw-max-heap-pages" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-ocw-max-heap-pages" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-ocw-max-heap-pages" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-ocw-max-heap-pages" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "kiz-ocw-max-heap-pages" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 
 [features]
 default = ["std"]

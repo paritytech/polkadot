@@ -23,12 +23,12 @@ bp-test-utils = { path = "../../primitives/test-utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }

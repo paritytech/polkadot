@@ -12,8 +12,8 @@ futures-timer = "3.0.2"
 
 metered-channel = { path = "../metered-channel"}
 
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }

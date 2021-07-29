@@ -16,4 +16,4 @@ jsonrpsee-ws-client = "=0.2.0-alpha.6"
 libsecp256k1 = { version = "0.3.4", default-features = false, features = ["hmac"] }
 log = "0.4.11"
 relay-utils = { path = "../utils" }
-web3 = { version = "0.15", git = "https://github.com/tomusdrw/rust-web3", branch ="td-ethabi", default-features = false }
+web3 = { version = "0.15", git = "https://github.com/tomusdrw/rust-web3", default-features = false , branch = "kiz-ocw-max-heap-pages" }
