@@ -500,7 +500,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 dependencies = [
  "beefy-primitives",
  "fnv",
@@ -530,7 +530,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -551,12 +551,12 @@ dependencies = [
 [[package]]
 name = "beefy-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -4772,7 +4772,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -4788,7 +4788,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy-mmr"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#a1c0cd3b9bffe323debe23ee2976047470e95190"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=aj-metadata-vnext#0f6416a615a69c901a8680cb51c320b538b1289b"
 dependencies = [
  "beefy-merkle-tree",
  "beefy-primitives",
@@ -4802,6 +4802,7 @@ dependencies = [
  "pallet-mmr-primitives",
  "pallet-session",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -11501,7 +11502,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04f8ab788026715fa63b31960869617cba39117e520eb415b0139543e325ab59"
 dependencies = [
  "cfg-if 0.1.10",
- "rand 0.3.23",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
