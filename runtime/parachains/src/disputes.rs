@@ -30,6 +30,7 @@ use sp_runtime::{
 };
 use frame_support::{ensure, traits::Get, weights::Weight};
 use parity_scale_codec::{Encode, Decode};
+use scale_info::TypeInfo;
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use crate::{
 	configuration::{self, HostConfiguration},
@@ -38,14 +39,14 @@ use crate::{
 };
 
 /// Whether the dispute is local or remote.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeLocation {
 	Local,
 	Remote,
 }
 
 /// The result of a dispute, whether the candidate is deemed valid (for) or invalid (against).
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeResult {
 	Valid,
 	Invalid,

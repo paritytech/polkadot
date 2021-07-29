@@ -196,7 +196,7 @@ pub type DispatchResultsBitVec = BitVec<Msb0, u8>;
 ///
 /// This struct represents a continuous range of messages that have been delivered by the same relayer
 /// and whose confirmations are still pending.
-#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct UnrewardedRelayer<RelayerId> {
 	/// Identifier of the relayer.
 	pub relayer: RelayerId,
@@ -205,7 +205,7 @@ pub struct UnrewardedRelayer<RelayerId> {
 }
 
 /// Delivered messages with their dispatch result.
-#[derive(Clone, Default, Encode, Decode, RuntimeDebug, PartialEq, Eq)]
+#[derive(Clone, Default, Encode, Decode, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct DeliveredMessages {
 	/// Nonce of the first message that has been delivered (inclusive).
 	pub begin: MessageNonce,
@@ -255,7 +255,7 @@ impl DeliveredMessages {
 }
 
 /// Gist of `InboundLaneData::relayers` field used by runtime APIs.
-#[derive(Clone, Default, Encode, Decode, RuntimeDebug, PartialEq, Eq)]
+#[derive(Clone, Default, Encode, Decode, RuntimeDebug, PartialEq, Eq, TypeInfo)]
 pub struct UnrewardedRelayersState {
 	/// Number of entries in the `InboundLaneData::relayers` set.
 	pub unrewarded_relayer_entries: MessageNonce,
