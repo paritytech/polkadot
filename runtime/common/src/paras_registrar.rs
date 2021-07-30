@@ -551,7 +551,7 @@ mod tests {
 	use primitives::v1::{Balance, BlockNumber, Header};
 	use frame_system::limits;
 	use frame_support::{
-		traits::{OnInitialize, OnFinalize},
+		traits::{OnInitialize, OnFinalize, GenesisBuild},
 		assert_ok, assert_noop, parameter_types,
 		error::BadOrigin,
 	};
@@ -571,7 +571,7 @@ mod tests {
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-			ParachainsConfiguration: configuration::{Pallet, Call, Storage, Config<T>},
+			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 			Parachains: paras::{Pallet, Origin, Call, Storage, Config, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -658,13 +658,16 @@ mod tests {
 	pub fn new_test_ext() -> TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-		configuration::GenesisConfig::<Test> {
-			config: configuration::HostConfiguration {
-				max_code_size: 2 * 1024 * 1024, // 2 MB
-				max_head_data_size: 1 * 1024 * 1024, // 1 MB
-				..Default::default()
+		GenesisBuild::<Test>::assimilate_storage(
+			&configuration::GenesisConfig {
+				config: configuration::HostConfiguration {
+					max_code_size: 2 * 1024 * 1024, // 2 MB
+					max_head_data_size: 1 * 1024 * 1024, // 1 MB
+					..Default::default()
+				}
 			},
-		}.assimilate_storage(&mut t).unwrap();
+			&mut t
+		).unwrap();
 
 		pallet_balances::GenesisConfig::<Test> {
 			balances: vec![(1, 10_000_000), (2, 10_000_000)],
@@ -716,11 +719,11 @@ mod tests {
 	}
 
 	fn max_code_size() -> u32 {
-		ParachainsConfiguration::config().max_code_size
+		Configuration::config().max_code_size
 	}
 
 	fn max_head_size() -> u32 {
-		ParachainsConfiguration::config().max_head_data_size
+		Configuration::config().max_head_data_size
 	}
 
 	#[test]

@@ -81,7 +81,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, RuntimeDebug, PalletId,
-	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All},
+	traits::{KeyOwnerProofSystem, LockIdentifier, Filter, InstanceFilter, All, OnRuntimeUpgrade},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -1473,7 +1473,7 @@ construct_runtime! {
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
-		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
+		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
 		ParasShared: parachains_shared::{Pallet, Call, Storage} = 52,
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
@@ -1481,7 +1481,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
-		ParasUmp: parachains_ump::{Pallet, Call, Storage, Event} = 59,
+		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 60,
 		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 61,
 
@@ -1525,10 +1525,26 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(RemoveCollectiveFlip, CouncilStoragePrefixMigration, TechnicalCommitteeStoragePrefixMigration),
+	(
+		RemoveCollectiveFlip,
+		MigratePalletVersionToStorageVersion,
+		CouncilStoragePrefixMigration,
+		TechnicalCommitteeStoragePrefixMigration
+	),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Migrate from `PalletVersion` to the new `StorageVersion`
+pub struct MigratePalletVersionToStorageVersion;
+
+impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<AllPalletsWithSystem>(
+			&RocksDbWeight::get()
+		)
+	}
+}
 
 pub struct RemoveCollectiveFlip;
 impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
