@@ -16,11 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryFrom};
 use alloc::vec::Vec;
 
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiLocation, VersionedMultiAsset, AssetInstance};
+use super::{MultiLocation, AssetInstance};
 
 /// A single general identifier for an asset.
 ///

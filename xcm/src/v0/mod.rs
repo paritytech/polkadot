@@ -20,7 +20,7 @@ use core::{result, convert::TryFrom, fmt::Debug};
 use derivative::Derivative;
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
-use crate::{VersionedMultiAsset, VersionedWildMultiAsset, DoubleEncoded, VersionedXcm};
+use crate::{DoubleEncoded, VersionedXcm};
 
 mod junction;
 mod multi_asset;
@@ -40,7 +40,14 @@ pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
-	pub use super::multi_asset::{MultiAsset::{self, *}, AssetInstance::{self, *}};
+	pub use super::multiasset::{
+		AssetId, MultiAssets, MultiAsset,
+		AssetInstance::{self, *},
+		MultiAssetFilter::{self, *},
+		Fungibility::{self, *},
+		WildMultiAsset::{self, *},
+		WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+	};
 	pub use super::multi_location::MultiLocation::{self, *};
 	pub use super::order::Order::{self, *};
 	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};

@@ -24,11 +24,10 @@
 //!   account.
 
 use core::convert::{TryFrom, TryInto};
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use parity_scale_codec::{self as codec, Encode, Decode};
 use super::{
-	MultiLocation, multi_asset::MultiAsset as OldMultiAsset, VersionedMultiAsset,
-	VersionedWildMultiAsset,
+	MultiLocation, multi_asset::MultiAsset as OldMultiAsset,
 };
 use core::cmp::Ordering;
 
@@ -80,14 +79,8 @@ impl AssetId {
 	}
 
 	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
-	/// definite (`Asset`) value.
-	pub fn into_wild(self, fun: Fungibility) -> WildMultiAsset {
-		WildMultiAsset::Asset(fun, self)
-	}
-
-	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
 	/// wildcard (`AllOf`) value.
-	pub fn into_allof(self, fun: WildFungibility) -> WildMultiAsset {
+	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
 		WildMultiAsset::AllOf(fun, self)
 	}
 }
@@ -137,10 +130,10 @@ impl PartialOrd for MultiAsset {
 impl Ord for MultiAsset {
 	fn cmp(&self, other: &Self) -> Ordering {
 		match (&self.fun, &other.fun) {
-			(Fungibility::Fungible(..), Fungibility::NonFungible(..)) => return Ordering::Less,
-			(Fungibility::NonFungible(..), Fungibility::Fungible(..)) => return Ordering::Greater,
+			(Fungibility::Fungible(..), Fungibility::NonFungible(..)) => Ordering::Less,
+			(Fungibility::NonFungible(..), Fungibility::Fungible(..)) => Ordering::Greater,
+			_ => (&self.id, &self.fun).cmp(&(&other.id, &other.fun)),
 		}
-		(&self.id, &self.fun).cmp((&other.id, &other.fun))
 	}
 }
 
@@ -197,18 +190,17 @@ impl Encode for MultiAsset {
 
 impl Decode for MultiAsset {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		OldMultiAsset::decode(input)
-			.and_then(|r| TryInto::try_into(r).map_err(|_| "Unsupported wildcard".into()))?
+		OldMultiAsset::decode(input)?.try_into().map_err(|_| "Unsupported wildcard".into())
 	}
 }
 
 impl MultiAsset {
-	fn is_fungible(&self, maybe_id: Option<AssetId>) -> bool {
+	pub fn is_fungible(&self, maybe_id: Option<AssetId>) -> bool {
 		use Fungibility::*;
 		matches!(self.fun, Fungible(..)) && maybe_id.map_or(true, |i| i == self.id)
 	}
 
-	fn is_non_fungible(&self, maybe_id: Option<AssetId>) -> bool {
+	pub fn is_non_fungible(&self, maybe_id: Option<AssetId>) -> bool {
 		use Fungibility::*;
 		matches!(self.fun, NonFungible(..)) && maybe_id.map_or(true, |i| i == self.id)
 	}
@@ -220,7 +212,7 @@ impl MultiAsset {
 
 	/// Returns true if `self` is a super-set of the given `inner`.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
-		use {MultiAsset::*, Fungibility::*};
+		use Fungibility::*;
 		if self.id == inner.id {
 			match (&self.fun, &inner.fun) {
 				(Fungible(a), Fungible(i)) if a >= i => return true,
@@ -242,7 +234,7 @@ impl Decode for MultiAssets {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
 		let r = Vec::<MultiAsset>::decode(input)?;
 		if r.is_empty() { return Ok(Self(Vec::new())) }
-		r.iter().skip(1).try_fold(&r[0], |a, b| {
+		r.iter().skip(1).try_fold(&r[0], |a, b| -> Result<&MultiAsset, parity_scale_codec::Error> {
 			if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
 				Ok(b)
 			} else {
@@ -262,7 +254,7 @@ impl From<MultiAssets> for Vec<OldMultiAsset> {
 impl TryFrom<Vec<OldMultiAsset>> for MultiAssets {
 	type Error = ();
 	fn try_from(a: Vec<OldMultiAsset>) -> Result<Self, ()> {
-		a.0.into_iter().map(MultiAsset::try_from).collect()
+		a.into_iter().map(MultiAsset::try_from).collect::<Result<_, _>>().map(Self)
 	}
 }
 
@@ -293,7 +285,6 @@ impl MultiAssets {
 
 	/// Returns true if `self` is a super-set of the given `inner`.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
-		use {MultiAsset::*, Fungibility::*};
 		self.0.iter().any(|i| i.contains(inner))
 	}
 
@@ -339,19 +330,19 @@ impl Encode for WildMultiAsset {
 
 impl Decode for WildMultiAsset {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		OldMultiAsset::decode(input).map(Into::into)
+		OldMultiAsset::decode(input)?.try_into().map_err(|()| "Invalid wildcard item".into())
 	}
 }
 
 impl From<WildMultiAsset> for OldMultiAsset {
 	fn from(a: WildMultiAsset) -> Self {
-		use {AssetId::*, Fungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
+		use {AssetId::*, WildFungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
 		match a {
 			WildMultiAsset::All => All,
-			AllOf(WildFungibility::Fungible, Concrete(id)) => AllConcreteFungible { id },
-			AllOf(WildFungibility::Fungible, Abstract(id)) => AllAbstractFungible { id },
-			AllOf(WildFungibility::NonFungible, Concrete(class)) => AllConcreteNonFungible { class },
-			AllOf(WildFungibility::NonFungible, Abstract(class)) => AllAbstractNonFungible { class },
+			AllOf(Fungible, Concrete(id)) => AllConcreteFungible { id },
+			AllOf(Fungible, Abstract(id)) => AllAbstractFungible { id },
+			AllOf(NonFungible, Concrete(class)) => AllConcreteNonFungible { class },
+			AllOf(NonFungible, Abstract(class)) => AllAbstractNonFungible { class },
 		}
 	}
 }
@@ -359,13 +350,13 @@ impl From<WildMultiAsset> for OldMultiAsset {
 impl TryFrom<OldMultiAsset> for WildMultiAsset {
 	type Error = ();
 	fn try_from(a: OldMultiAsset) -> Result<Self, ()> {
-		use {AssetId::*, Fungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
+		use {AssetId::*, WildFungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
 		Ok(match a {
 			All => WildMultiAsset::All,
-			AllConcreteFungible { id } => AllOf(WildFungibility::Fungible, Concrete(id)),
-			AllAbstractFungible { id } => AllOf(WildFungibility::Fungible, Abstract(id)),
-			AllConcreteNonFungible { class } => AllOf(WildFungibility::NonFungible, Concrete(class)),
-			AllAbstractNonFungible { class } => AllOf(WildFungibility::NonFungible, Abstract(class)),
+			AllConcreteFungible { id } => AllOf(Fungible, Concrete(id)),
+			AllAbstractFungible { id } => AllOf(Fungible, Abstract(id)),
+			AllConcreteNonFungible { class } => AllOf(NonFungible, Concrete(class)),
+			AllAbstractNonFungible { class } => AllOf(NonFungible, Abstract(class)),
 			_ => return Err(()),
 		})
 	}
@@ -379,7 +370,7 @@ impl WildMultiAsset {
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use WildMultiAsset::*;
 		match self {
-			AllOf(fun, id) => inner.fun.is_kind(*fun) && inner.id == id,
+			AllOf(fun, id) => inner.fun.is_kind(*fun) && &inner.id == id,
 			All => true,
 		}
 	}
@@ -388,7 +379,7 @@ impl WildMultiAsset {
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
-			AllOf(_, ref mut id) => id.prepend_with(prepend.clone()).map_err(|_| ()),
+			AllOf(_, ref mut id) => id.reanchor(prepend).map_err(|_| ()),
 			_ => Ok(()),
 		}
 	}
@@ -418,16 +409,28 @@ impl From<MultiAssetFilter> for Vec<OldMultiAsset> {
 
 impl TryFrom<Vec<OldMultiAsset>> for MultiAssetFilter {
 	type Error = ();
-	fn try_from(old_assets: Vec<OldMultiAsset>) -> Result<Self, ()> {
+	fn try_from(mut old_assets: Vec<OldMultiAsset>) -> Result<Self, ()> {
 		use MultiAssetFilter::*;
 		if old_assets.is_empty() {
 			return Ok(Assets(MultiAssets::new()))
 		}
-		if let (1, Ok(wild)) = (old_assets.len(), old_assets[0].try_into()) {
-			return Ok(Wild(wild))
+		if old_assets.len() == 1 && old_assets[0].is_wildcard() {
+			return old_assets.pop().ok_or(()).and_then(|i| Ok(Wild(i.try_into()?)))
 		}
 
-		old_assets.into_iter().map(MultiAsset::try_from).collect()
+		MultiAssets::try_from(old_assets).map(Self::Assets)
+	}
+}
+
+impl Encode for MultiAssetFilter {
+	fn encode(&self) -> Vec<u8> {
+		Vec::<OldMultiAsset>::from(self.clone()).encode()
+	}
+}
+
+impl Decode for MultiAssetFilter {
+	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+		Vec::<OldMultiAsset>::decode(input)?.try_into().map_err(|()| "Invalid items".into())
 	}
 }
 

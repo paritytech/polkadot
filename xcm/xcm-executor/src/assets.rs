@@ -113,21 +113,7 @@ impl Assets {
 			NonFungible(instance) => self.non_fungible.insert((asset.id, instance)),
 		}
 	}
-/*
-	/// Modify `self` to include a new fungible asset by `id` and `amount`,
-	/// saturating if necessary.
-	pub fn saturating_subsume_fungible(&mut self, id: AssetId, amount: u128) {
-		self.fungible
-			.entry(id)
-			.and_modify(|e| *e = e.saturating_add(amount))
-			.or_insert(amount);
-	}
 
-	/// Modify `self` to include a new non-fungible asset by `class` and `instance`.
-	pub fn saturating_subsume_non_fungible(&mut self, class: AssetId, instance: AssetInstance) {
-		self.non_fungible.insert((class, instance));
-	}
-*/
 	/// Swaps two mutable Assets, without deinitializing either one.
 	pub fn swapped(&mut self, mut with: Assets) -> Self {
 		mem::swap(&mut *self, &mut with);
