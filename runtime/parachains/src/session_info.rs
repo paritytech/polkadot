@@ -82,7 +82,7 @@ impl<T: Config> Module<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
 	) {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		let dispute_period = config.dispute_period;
 

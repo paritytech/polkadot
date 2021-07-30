@@ -706,29 +706,25 @@ where
 	/// Stop the overseer.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(
-				OverseerSignal::Conclude,
-				::std::time::Duration::from_secs(1_u64)
-			).await;
+			OverseerSignal::Conclude,
+			Duration::from_secs(1_u64)
+		).await;
 	}
 
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
-		let mut update = ActiveLeavesUpdate::default();
-
+		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
 			if let Some((span, status)) = self.on_head_activated(&hash, None) {
-				update.activated.push(ActivatedLeaf {
+				let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash,
 					number,
 					status,
 					span,
 				});
+				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 			}
-		}
-
-		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 		}
 
 		loop {

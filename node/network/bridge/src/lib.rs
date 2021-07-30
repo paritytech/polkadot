@@ -401,7 +401,7 @@ where
 					tracing::trace!(
 						target: LOG_TARGET,
 						action = "ActiveLeaves",
-						num_activated = %activated.len(),
+						has_activated = activated.is_some(),
 						num_deactivated = %deactivated.len(),
 					);
 

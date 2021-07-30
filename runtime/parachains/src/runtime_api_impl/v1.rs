@@ -52,7 +52,7 @@ pub fn validator_groups<T: initializer::Config>() -> (
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Module<T>>::availability_cores();
 	let parachains = <paras::Pallet<T>>::parachains();
-	let config = <configuration::Module<T>>::config();
+	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 	<scheduler::Module<T>>::clear();
