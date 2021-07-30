@@ -524,7 +524,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		sudo: westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
-		parachains_configuration: westend::ParachainsConfigurationConfig {
+		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
@@ -733,7 +733,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		vesting: kusama::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		parachains_configuration: kusama::ParachainsConfigurationConfig {
+		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
@@ -977,7 +977,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			paras: vec![],
 		},
 		hrmp: Default::default(),
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
@@ -1360,7 +1360,7 @@ pub fn kusama_testnet_genesis(
 		},
 		vesting: kusama::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		parachains_configuration: kusama::ParachainsConfigurationConfig {
+		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
@@ -1449,7 +1449,7 @@ pub fn westend_testnet_genesis(
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
 		sudo: westend::SudoConfig { key: root_key },
-		parachains_configuration: westend::ParachainsConfigurationConfig {
+		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
@@ -1517,7 +1517,7 @@ pub fn rococo_testnet_genesis(
 			keys: vec![],
 		},
 		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		hrmp: Default::default(),

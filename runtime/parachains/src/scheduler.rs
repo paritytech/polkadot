@@ -335,7 +335,7 @@ impl<T: Config> Module<T> {
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
 		if !<paras::Pallet<T>>::is_parathread(claim.0) { return }
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
 
 		ParathreadQueue::mutate(|queue| {
@@ -368,7 +368,7 @@ impl<T: Config> Module<T> {
 		now: T::BlockNumber,
 	) {
 		let mut cores = AvailabilityCores::get();
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		for (freed_index, freed_reason) in just_freed_cores {
 			if (freed_index.0 as usize) < cores.len() {
@@ -552,7 +552,7 @@ impl<T: Config> Module<T> {
 	/// Get the group assigned to a specific core by index at the current block number. Result undefined if the core index is unknown
 	/// or the block number is less than the session start index.
 	pub(crate) fn group_assigned_to_core(core: CoreIndex, at: T::BlockNumber) -> Option<GroupIndex> {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let session_start_block = <SessionStartBlock<T>>::get();
 
 		if at < session_start_block { return None }
@@ -588,7 +588,7 @@ impl<T: Config> Module<T> {
 	/// which prevents us from testing the code if using `impl Trait`.
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
 		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
@@ -630,7 +630,7 @@ impl<T: Config> Module<T> {
 	/// Returns a helper for determining group rotation.
 	pub(crate) fn group_rotation_info(now: T::BlockNumber) -> GroupRotationInfo<T::BlockNumber> {
 		let session_start_block = Self::session_start_block();
-		let group_rotation_frequency = <configuration::Module<T>>::config()
+		let group_rotation_frequency = <configuration::Pallet<T>>::config()
 			.group_rotation_frequency;
 
 		GroupRotationInfo {
@@ -708,7 +708,7 @@ impl<T: Config> Module<T> {
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 	pub(crate) fn clear() {
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		ParathreadQueue::mutate(|queue| {
 			for core_assignment in Scheduled::take() {
 				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
