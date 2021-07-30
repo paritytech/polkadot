@@ -94,7 +94,7 @@ impl Decode for MultiLocation {
 pub const MAX_MULTILOCATION_LENGTH: usize = 8;
 
 impl MultiLocation {
-	/// Creates a new MultiLocation, ensuring that the length of it does not exceed the maximum,
+	/// Creates a new `MultiLocation`, ensuring that the length of it does not exceed the maximum,
 	/// otherwise returns `Err`.
 	pub fn new(parents: u8, junctions: Junctions) -> result::Result<MultiLocation, ()> {
 		if parents as usize + junctions.len() > MAX_MULTILOCATION_LENGTH {
@@ -246,7 +246,7 @@ impl MultiLocation {
 		self.interior.at_mut(i - num_parents)
 	}
 
-	/// Decrement the parent count by 1.
+	/// Decrements the parent count by 1.
 	pub fn pop_parent(&mut self) {
 		self.parents = self.parents.saturating_sub(1);
 	}
