@@ -61,7 +61,7 @@ impl Encode for MultiLocation {
 		for _ in 0..parents {
 			dest.push_byte(0);
 		}
-		for j in self.interior.iter() {
+		for j in &self.interior {
 			j.encode_to(dest)
 		}
 	}
@@ -583,6 +583,22 @@ impl<'a> Iterator for JunctionsReverseRefIterator<'a> {
 	}
 }
 
+impl<'a> IntoIterator for &'a Junctions {
+	type Item = &'a Junction;
+	type IntoIter = JunctionsRefIterator<'a>;
+	fn into_iter(self) -> Self::IntoIter {
+		JunctionsRefIterator(self, 0)
+	}
+}
+
+impl IntoIterator for Junctions {
+	type Item = Junction;
+	type IntoIter = JunctionsIterator;
+	fn into_iter(self) -> Self::IntoIter {
+		JunctionsIterator(self)
+	}
+}
+
 impl Junctions {
 	/// Returns first junction, or `None` if the location is empty.
 	pub fn first(&self) -> Option<&Junction> {
@@ -806,11 +822,6 @@ impl Junctions {
 	/// Returns a reference iterator over the junctions in reverse.
 	pub fn iter_rev(&self) -> JunctionsReverseRefIterator {
 		JunctionsReverseRefIterator(&self, 0)
-	}
-
-	/// Consumes `self` and returns an iterator over the junctions.
-	pub fn into_iter(self) -> JunctionsIterator {
-		JunctionsIterator(self)
 	}
 
 	/// Consumes `self` and returns an iterator over the junctions in reverse.
