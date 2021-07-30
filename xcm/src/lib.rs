@@ -57,7 +57,7 @@ pub mod opaque {
 		pub use crate::v1::opaque::{Xcm, Order};
 	}
 
-	/// The basic VersionedXcm type which just uses the `Vec<u8>` as an encoded call.
+	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
 }
 

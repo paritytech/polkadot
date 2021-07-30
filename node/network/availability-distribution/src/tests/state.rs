@@ -18,7 +18,6 @@ use std::{collections::{HashMap, HashSet}, sync::Arc, time::Duration};
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem_testhelpers::TestSubsystemContextHandle;
-use smallvec::smallvec;
 
 use futures::{FutureExt, channel::oneshot, SinkExt, channel::mpsc, StreamExt};
 use futures_timer::Delay;
@@ -46,9 +45,9 @@ use polkadot_node_network_protocol::{
 	request_response::{IncomingRequest, OutgoingRequest, Requests, v1}
 };
 use polkadot_subsystem_testhelpers as test_helpers;
-use test_helpers::SingleItemSink;
+use test_helpers::{SingleItemSink, mock::make_ferdie_keystore};
 
-use super::mock::{make_session_info, OccupiedCoreBuilder, make_ferdie_keystore};
+use super::mock::{make_session_info, OccupiedCoreBuilder};
 use crate::LOG_TARGET;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>;
@@ -57,7 +56,7 @@ pub struct TestHarness {
 	pub pool: TaskExecutor,
 }
 
-/// TestState for mocking execution of this subsystem.
+/// `TestState` for mocking execution of this subsystem.
 ///
 /// The `Default` instance provides data, which makes the system succeed by providing a couple of
 /// valid occupied cores. You can tune the data before calling `TestState::run`. E.g. modify some
@@ -171,13 +170,13 @@ impl TestState {
 			self
 			.relay_chain.iter().zip(advanced)
 			.map(|(old, new)| ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
+				activated: Some(ActivatedLeaf {
 					hash: new.clone(),
 					number: 1,
 					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![old.clone()],
+				}),
+				deactivated: vec![old.clone()].into(),
 			}).collect::<Vec<_>>()
 		};
 

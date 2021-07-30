@@ -22,7 +22,7 @@ use crate::traits::{
 	OnResponse,
 };
 
-/// The trait to parametrize the `XcmExecutor`.
+/// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<PostInfo=PostDispatchInfo> + GetDispatchInfo;

@@ -33,7 +33,7 @@ impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
 		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => FailedToTransactAsset("AssetNotFound"),
+			Error::AssetNotFound => XcmError::AssetNotFound,
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
 			Error::AmountToBalanceConversionFailed => FailedToTransactAsset("AmountToBalanceConversionFailed"),
 			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
@@ -54,6 +54,7 @@ impl<
 		for_tuples!( #(
 			match Tuple::matches_fungibles(a) { o @ Ok(_) => return o, _ => () }
 		)* );
+		log::trace!(target: "xcm::matches_fungibles", "did not match fungibles asset: {:?}", &a);
 		Err(Error::AssetNotFound)
 	}
 }

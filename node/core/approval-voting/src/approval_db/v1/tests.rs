@@ -17,7 +17,13 @@
 //! Tests for the aux-schema of approval voting.
 
 use super::*;
+use std::sync::Arc;
+use std::collections::HashMap;
 use polkadot_primitives::v1::Id as ParaId;
+use kvdb::KeyValueDB;
+use super::{DbBackend, StoredBlockRange};
+use crate::backend::{Backend, OverlayedBackend};
+use crate::ops::{NewCandidateInfo, add_block_entry, force_approve, canonicalize};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -26,36 +32,9 @@ const TEST_CONFIG: Config = Config {
 	col_data: DATA_COL,
 };
 
-pub(crate) fn write_stored_blocks(tx: &mut DBTransaction, range: StoredBlockRange) {
-	tx.put_vec(
-		DATA_COL,
-		&STORED_BLOCKS_KEY[..],
-		range.encode(),
-	);
-}
-
-pub(crate) fn write_blocks_at_height(tx: &mut DBTransaction, height: BlockNumber, blocks: &[Hash]) {
-	tx.put_vec(
-		DATA_COL,
-		&blocks_at_height_key(height)[..],
-		blocks.encode(),
-	);
-}
-
-pub(crate) fn write_block_entry(tx: &mut DBTransaction, block_hash: &Hash, entry: &BlockEntry) {
-	tx.put_vec(
-		DATA_COL,
-		&block_entry_key(block_hash)[..],
-		entry.encode(),
-	);
-}
-
-pub(crate) fn write_candidate_entry(tx: &mut DBTransaction, candidate_hash: &CandidateHash, entry: &CandidateEntry) {
-	tx.put_vec(
-		DATA_COL,
-		&candidate_entry_key(candidate_hash)[..],
-		entry.encode(),
-	);
+fn make_db() -> (DbBackend, Arc<dyn KeyValueDB>) {
+	let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
+	(DbBackend::new(db_writer.clone(), TEST_CONFIG), db_writer)
 }
 
 fn make_bitvec(len: usize) -> BitVec<BitOrderLsb0, u8> {
@@ -92,11 +71,11 @@ fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
 
 #[test]
 fn read_write() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
-	let candidate_hash = CandidateHash(Hash::repeat_byte(3));
+	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];
@@ -124,53 +103,48 @@ fn read_write() {
 		approvals: Default::default(),
 	};
 
-	let mut tx = DBTransaction::new();
+	let mut overlay_db = OverlayedBackend::new(&db);
+	overlay_db.write_stored_block_range(range.clone());
+	overlay_db.write_blocks_at_height(1, at_height.clone());
+	overlay_db.write_block_entry(block_entry.clone().into());
+	overlay_db.write_candidate_entry(candidate_entry.clone().into());
 
-	write_stored_blocks(&mut tx, range.clone());
-	write_blocks_at_height(&mut tx, 1, &at_height);
-	write_block_entry(&mut tx, &hash_a, &block_entry);
-	write_candidate_entry(&mut tx, &candidate_hash, &candidate_entry);
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
-	store.write(tx).unwrap();
-
-	assert_eq!(load_stored_blocks(&store, &TEST_CONFIG).unwrap(), Some(range));
-	assert_eq!(load_blocks_at_height(&store, &TEST_CONFIG, 1).unwrap(), at_height);
-	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &hash_a).unwrap(), Some(block_entry));
+	assert_eq!(load_stored_blocks(store.as_ref(), &TEST_CONFIG).unwrap(), Some(range));
+	assert_eq!(load_blocks_at_height(store.as_ref(), &TEST_CONFIG, &1).unwrap(), at_height);
+	assert_eq!(load_block_entry(store.as_ref(), &TEST_CONFIG, &hash_a).unwrap(), Some(block_entry.into()));
 	assert_eq!(
-		load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash).unwrap(),
-		Some(candidate_entry),
+		load_candidate_entry(store.as_ref(), &TEST_CONFIG, &candidate_hash).unwrap(),
+		Some(candidate_entry.into()),
 	);
 
-	let delete_keys = vec![
-		STORED_BLOCKS_KEY.to_vec(),
-		blocks_at_height_key(1).to_vec(),
-		block_entry_key(&hash_a).to_vec(),
-		candidate_entry_key(&candidate_hash).to_vec(),
-	];
+	let mut overlay_db = OverlayedBackend::new(&db);
+	overlay_db.delete_blocks_at_height(1);
+	overlay_db.delete_block_entry(&hash_a);
+	overlay_db.delete_candidate_entry(&candidate_hash);
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
-	let mut tx = DBTransaction::new();
-	for key in delete_keys {
-		tx.delete(DATA_COL, &key[..]);
-	}
-
-	store.write(tx).unwrap();
-
-	assert!(load_stored_blocks(&store, &TEST_CONFIG).unwrap().is_none());
-	assert!(load_blocks_at_height(&store, &TEST_CONFIG, 1).unwrap().is_empty());
-	assert!(load_block_entry(&store, &TEST_CONFIG, &hash_a).unwrap().is_none());
-	assert!(load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash).unwrap().is_none());
+	assert!(load_blocks_at_height(store.as_ref(), &TEST_CONFIG, &1).unwrap().is_empty());
+	assert!(load_block_entry(store.as_ref(), &TEST_CONFIG, &hash_a).unwrap().is_none());
+	assert!(load_candidate_entry(store.as_ref(), &TEST_CONFIG, &candidate_hash).unwrap().is_none());
 }
 
 #[test]
 fn add_block_entry_works() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 
 	let parent_hash = Hash::repeat_byte(1);
 	let block_hash_a = Hash::repeat_byte(2);
 	let block_hash_b = Hash::repeat_byte(69);
 
-	let candidate_hash_a = CandidateHash(Hash::repeat_byte(3));
-	let candidate_hash_b = CandidateHash(Hash::repeat_byte(4));
+	let candidate_receipt_a = make_candidate(1.into(), parent_hash);
+	let candidate_receipt_b = make_candidate(2.into(), parent_hash);
+
+	let candidate_hash_a = candidate_receipt_a.hash();
+	let candidate_hash_b = candidate_receipt_b.hash();
 
 	let block_number = 10;
 
@@ -191,49 +165,53 @@ fn add_block_entry_works() {
 	let n_validators = 10;
 
 	let mut new_candidate_info = HashMap::new();
-	new_candidate_info.insert(candidate_hash_a, NewCandidateInfo {
-		candidate: make_candidate(1.into(), parent_hash),
-		backing_group: GroupIndex(0),
-		our_assignment: None,
-	});
+	new_candidate_info.insert(candidate_hash_a, NewCandidateInfo::new(
+		candidate_receipt_a,
+		GroupIndex(0),
+		None,
+	));
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_a.clone(),
+		&mut overlay_db,
+		block_entry_a.clone().into(),
 		n_validators,
 		|h| new_candidate_info.get(h).map(|x| x.clone()),
 	).unwrap();
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
-	new_candidate_info.insert(candidate_hash_b, NewCandidateInfo {
-		candidate: make_candidate(2.into(), parent_hash),
-		backing_group: GroupIndex(1),
-		our_assignment: None,
-	});
+	new_candidate_info.insert(candidate_hash_b, NewCandidateInfo::new(
+		candidate_receipt_b,
+		GroupIndex(1),
+		None,
+	));
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_b.clone(),
+		&mut overlay_db,
+		block_entry_b.clone().into(),
 		n_validators,
 		|h| new_candidate_info.get(h).map(|x| x.clone()),
 	).unwrap();
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
-	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a));
-	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b));
+	assert_eq!(load_block_entry(store.as_ref(), &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a.into()));
+	assert_eq!(load_block_entry(store.as_ref(), &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b.into()));
 
-	let candidate_entry_a = load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash_a)
+	let candidate_entry_a = load_candidate_entry(store.as_ref(), &TEST_CONFIG, &candidate_hash_a)
 		.unwrap().unwrap();
 	assert_eq!(candidate_entry_a.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_a, &block_hash_b]);
 
-	let candidate_entry_b = load_candidate_entry(&store, &TEST_CONFIG, &candidate_hash_b)
+	let candidate_entry_b = load_candidate_entry(store.as_ref(), &TEST_CONFIG, &candidate_hash_b)
 		.unwrap().unwrap();
 	assert_eq!(candidate_entry_b.block_assignments.keys().collect::<Vec<_>>(), vec![&block_hash_b]);
 }
 
 #[test]
 fn add_block_entry_adds_child() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 
 	let parent_hash = Hash::repeat_byte(1);
 	let block_hash_a = Hash::repeat_byte(2);
@@ -255,31 +233,33 @@ fn add_block_entry_adds_child() {
 
 	let n_validators = 10;
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_a.clone(),
+		&mut overlay_db,
+		block_entry_a.clone().into(),
 		n_validators,
 		|_| None,
 	).unwrap();
 
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_b.clone(),
+		&mut overlay_db,
+		block_entry_b.clone().into(),
 		n_validators,
 		|_| None,
 	).unwrap();
+
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
 	block_entry_a.children.push(block_hash_b);
 
-	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a));
-	assert_eq!(load_block_entry(&store, &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b));
+	assert_eq!(load_block_entry(store.as_ref(), &TEST_CONFIG, &block_hash_a).unwrap(), Some(block_entry_a.into()));
+	assert_eq!(load_block_entry(store.as_ref(), &TEST_CONFIG, &block_hash_b).unwrap(), Some(block_entry_b.into()));
 }
 
 #[test]
 fn canonicalize_works() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 
 	//   -> B1 -> C1 -> D1
 	// A -> B2 -> C2 -> D2
@@ -296,9 +276,10 @@ fn canonicalize_works() {
 
 	let n_validators = 10;
 
-	let mut tx = DBTransaction::new();
-	write_stored_blocks(&mut tx, StoredBlockRange(1, 5));
-	store.write(tx).unwrap();
+	let mut overlay_db = OverlayedBackend::new(&db);
+	overlay_db.write_stored_block_range(StoredBlockRange(1, 5));
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
 	let genesis = Hash::repeat_byte(0);
 
@@ -310,11 +291,17 @@ fn canonicalize_works() {
 	let block_hash_d1 = Hash::repeat_byte(6);
 	let block_hash_d2 = Hash::repeat_byte(7);
 
-	let cand_hash_1 = CandidateHash(Hash::repeat_byte(10));
-	let cand_hash_2 = CandidateHash(Hash::repeat_byte(11));
-	let cand_hash_3 = CandidateHash(Hash::repeat_byte(12));
-	let cand_hash_4 = CandidateHash(Hash::repeat_byte(13));
-	let cand_hash_5 = CandidateHash(Hash::repeat_byte(15));
+	let candidate_receipt_genesis = make_candidate(1.into(), genesis);
+	let candidate_receipt_a = make_candidate(2.into(), block_hash_a);
+	let candidate_receipt_b = make_candidate(3.into(), block_hash_a);
+	let candidate_receipt_b1 = make_candidate(4.into(), block_hash_b1);
+	let candidate_receipt_c1 = make_candidate(5.into(), block_hash_c1);
+
+	let cand_hash_1 = candidate_receipt_genesis.hash();
+	let cand_hash_2 = candidate_receipt_a.hash();
+	let cand_hash_3 = candidate_receipt_b.hash();
+	let cand_hash_4 = candidate_receipt_b1.hash();
+	let cand_hash_5 = candidate_receipt_c1.hash();
 
 	let block_entry_a = make_block_entry(block_hash_a, genesis, 1, Vec::new());
 	let block_entry_b1 = make_block_entry(block_hash_b1, block_hash_a, 2, Vec::new());
@@ -344,38 +331,37 @@ fn canonicalize_works() {
 		vec![(CoreIndex(0), cand_hash_5)],
 	);
 
-
 	let candidate_info = {
 		let mut candidate_info = HashMap::new();
-		candidate_info.insert(cand_hash_1, NewCandidateInfo {
-			candidate: make_candidate(1.into(), genesis),
-			backing_group: GroupIndex(1),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_1, NewCandidateInfo::new(
+			candidate_receipt_genesis,
+			GroupIndex(1),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_2, NewCandidateInfo {
-			candidate: make_candidate(2.into(), block_hash_a),
-			backing_group: GroupIndex(2),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_2, NewCandidateInfo::new(
+			candidate_receipt_a,
+			GroupIndex(2),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_3, NewCandidateInfo {
-			candidate: make_candidate(3.into(), block_hash_a),
-			backing_group: GroupIndex(3),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_3, NewCandidateInfo::new(
+			candidate_receipt_b,
+			GroupIndex(3),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_4, NewCandidateInfo {
-			candidate: make_candidate(4.into(), block_hash_b1),
-			backing_group: GroupIndex(4),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_4, NewCandidateInfo::new(
+			candidate_receipt_b1,
+			GroupIndex(4),
+			None,
+		));
 
-		candidate_info.insert(cand_hash_5, NewCandidateInfo {
-			candidate: make_candidate(5.into(), block_hash_c1),
-			backing_group: GroupIndex(5),
-			our_assignment: None,
-		});
+		candidate_info.insert(cand_hash_5, NewCandidateInfo::new(
+			candidate_receipt_c1,
+			GroupIndex(5),
+			None,
+		));
 
 		candidate_info
 	};
@@ -391,25 +377,27 @@ fn canonicalize_works() {
 		block_entry_d2.clone(),
 	];
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	for block_entry in blocks {
 		add_block_entry(
-			&store,
-			&TEST_CONFIG,
-			block_entry,
+			&mut overlay_db,
+			block_entry.into(),
 			n_validators,
 			|h| candidate_info.get(h).map(|x| x.clone()),
 		).unwrap();
 	}
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
 	let check_candidates_in_store = |expected: Vec<(CandidateHash, Option<Vec<_>>)>| {
 		for (c_hash, in_blocks) in expected {
 			let (entry, in_blocks) = match in_blocks {
 				None => {
-					assert!(load_candidate_entry(&store, &TEST_CONFIG, &c_hash).unwrap().is_none());
+					assert!(load_candidate_entry(store.as_ref(), &TEST_CONFIG, &c_hash).unwrap().is_none());
 					continue
 				}
 				Some(i) => (
-					load_candidate_entry(&store, &TEST_CONFIG, &c_hash).unwrap().unwrap(),
+					load_candidate_entry(store.as_ref(), &TEST_CONFIG, &c_hash).unwrap().unwrap(),
 					i,
 				),
 			};
@@ -426,11 +414,11 @@ fn canonicalize_works() {
 		for (hash, with_candidates) in expected {
 			let (entry, with_candidates) = match with_candidates {
 				None => {
-					assert!(load_block_entry(&store, &TEST_CONFIG, &hash).unwrap().is_none());
+					assert!(load_block_entry(store.as_ref(), &TEST_CONFIG, &hash).unwrap().is_none());
 					continue
 				}
 				Some(i) => (
-					load_block_entry(&store, &TEST_CONFIG, &hash).unwrap().unwrap(),
+					load_block_entry(store.as_ref(), &TEST_CONFIG, &hash).unwrap().unwrap(),
 					i,
 				),
 			};
@@ -461,9 +449,12 @@ fn canonicalize_works() {
 		(block_hash_d2, Some(vec![cand_hash_5])),
 	]);
 
-	canonicalize(&store, &TEST_CONFIG, 3, block_hash_c1).unwrap();
+	let mut overlay_db = OverlayedBackend::new(&db);
+	canonicalize(&mut overlay_db, 3, block_hash_c1).unwrap();
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
-	assert_eq!(load_stored_blocks(&store, &TEST_CONFIG).unwrap().unwrap(), StoredBlockRange(4, 5));
+	assert_eq!(load_stored_blocks(store.as_ref(), &TEST_CONFIG).unwrap().unwrap(), StoredBlockRange(4, 5));
 
 	check_candidates_in_store(vec![
 		(cand_hash_1, None),
@@ -486,22 +477,23 @@ fn canonicalize_works() {
 
 #[test]
 fn force_approve_works() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 	let n_validators = 10;
 
-	let mut tx = DBTransaction::new();
-	write_stored_blocks(&mut tx, StoredBlockRange(1, 4));
-	store.write(tx).unwrap();
+	let mut overlay_db = OverlayedBackend::new(&db);
+	overlay_db.write_stored_block_range(StoredBlockRange(1, 4));
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
 	let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 	let single_candidate_vec = vec![(CoreIndex(0), candidate_hash)];
 	let candidate_info = {
 		let mut candidate_info = HashMap::new();
-		candidate_info.insert(candidate_hash, NewCandidateInfo {
-			candidate: make_candidate(1.into(), Default::default()),
-			backing_group: GroupIndex(1),
-			our_assignment: None,
-		});
+		candidate_info.insert(candidate_hash, NewCandidateInfo::new(
+			make_candidate(1.into(), Default::default()),
+			GroupIndex(1),
+			None,
+		));
 
 		candidate_info
 	};
@@ -524,43 +516,48 @@ fn force_approve_works() {
 		block_entry_d.clone(),
 	];
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	for block_entry in blocks {
 		add_block_entry(
-			&store,
-			&TEST_CONFIG,
-			block_entry,
+			&mut overlay_db,
+			block_entry.into(),
 			n_validators,
 			|h| candidate_info.get(h).map(|x| x.clone()),
 		).unwrap();
 	}
-
-	force_approve(&store, TEST_CONFIG,  block_hash_d, 2).unwrap();
+	let approved_hashes = force_approve(&mut overlay_db,  block_hash_d, 2).unwrap();
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
 
 	assert!(load_block_entry(
-		&store,
+		store.as_ref(),
 		&TEST_CONFIG,
 		&block_hash_a,
 	).unwrap().unwrap().approved_bitfield.all());
 	assert!(load_block_entry(
-		&store,
+		store.as_ref(),
 		&TEST_CONFIG,
 		&block_hash_b,
 	).unwrap().unwrap().approved_bitfield.all());
 	assert!(load_block_entry(
-		&store,
+		store.as_ref(),
 		&TEST_CONFIG,
 		&block_hash_c,
 	).unwrap().unwrap().approved_bitfield.not_any());
 	assert!(load_block_entry(
-		&store,
+		store.as_ref(),
 		&TEST_CONFIG,
 		&block_hash_d,
 	).unwrap().unwrap().approved_bitfield.not_any());
+	assert_eq!(
+		approved_hashes,
+		vec![block_hash_b, block_hash_a],
+	);
 }
 
 #[test]
 fn load_all_blocks_works() {
-	let store = kvdb_memorydb::create(NUM_COLUMNS);
+	let (mut db, store) = make_db();
 
 	let parent_hash = Hash::repeat_byte(1);
 	let block_hash_a = Hash::repeat_byte(2);
@@ -592,34 +589,35 @@ fn load_all_blocks_works() {
 
 	let n_validators = 10;
 
+	let mut overlay_db = OverlayedBackend::new(&db);
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_a.clone(),
+		&mut overlay_db,
+		block_entry_a.clone().into(),
 		n_validators,
 		|_| None
 	).unwrap();
 
 	// add C before B to test sorting.
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_c.clone(),
+		&mut overlay_db,
+		block_entry_c.clone().into(),
 		n_validators,
 		|_| None
 	).unwrap();
 
 	add_block_entry(
-		&store,
-		&TEST_CONFIG,
-		block_entry_b.clone(),
+		&mut overlay_db,
+		block_entry_b.clone().into(),
 		n_validators,
 		|_| None
 	).unwrap();
 
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
+
 	assert_eq!(
 		load_all_blocks(
-			&store,
+			store.as_ref(),
 			&TEST_CONFIG
 		).unwrap(),
 		vec![block_hash_a, block_hash_b, block_hash_c],

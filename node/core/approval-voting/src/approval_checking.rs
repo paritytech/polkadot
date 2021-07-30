@@ -297,8 +297,8 @@ fn filled_tranche_iterator<'a>(
 	pre.chain(approval_entries_filled).chain(post)
 }
 
-/// Computes the number of no_show validators in a set of assignments given the relevant approvals
-/// and tick parameters. This method also returns the next tick at which a no_show will occur
+/// Computes the number of `no_show` validators in a set of assignments given the relevant approvals
+/// and tick parameters. This method also returns the next tick at which a `no_show` will occur
 /// amongst the set of validators that have not submitted an approval.
 ///
 /// If the returned `next_no_show` is not None, there are two possible cases for the value of

@@ -36,3 +36,4 @@ fn sample_size_is_sensible() {
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
 	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
 }
+

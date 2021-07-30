@@ -28,8 +28,7 @@ use sp_keystore::{KeystoreExt, testing::KeyStore};
 use primitives::v1::{BlockNumber, Header, Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID};
 use frame_support::{
 	parameter_types, assert_ok, assert_noop, PalletId,
-	storage::StorageMap,
-	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem},
+	traits::{Currency, OnInitialize, OnFinalize, KeyOwnerProofSystem, GenesisBuild},
 };
 use frame_system::EnsureRoot;
 use runtime_parachains::{
@@ -65,7 +64,8 @@ frame_support::construct_runtime!(
 
 		// Parachains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config<T>},
+		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
+		ParasShared: shared::{Pallet, Call, Storage},
 
 		// Para Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -85,7 +85,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
@@ -234,13 +234,16 @@ impl crowdloan::Config for Test {
 /// Create a new set of test externalities.
 pub fn new_test_ext() -> TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	configuration::GenesisConfig::<Test> {
-		config: configuration::HostConfiguration {
-			max_code_size: 2 * 1024 * 1024, // 2 MB
-			max_head_data_size: 1 * 1024 * 1024, // 1 MB
-			..Default::default()
-		},
-	}.assimilate_storage(&mut t).unwrap();
+	GenesisBuild::<Test>::assimilate_storage(
+		&configuration::GenesisConfig {
+				config: configuration::HostConfiguration {
+					max_code_size: 2 * 1024 * 1024, // 2 MB
+					max_head_data_size: 1 * 1024 * 1024, // 1 MB
+					..Default::default()
+				}
+			},
+			&mut t
+	).unwrap();
 	let keystore = KeyStore::new();
 	let mut ext: sp_io::TestExternalities = t.into();
 	ext.register_extension(KeystoreExt(Arc::new(keystore)));
@@ -252,8 +255,8 @@ const BLOCKS_PER_SESSION: u32 = 10;
 
 fn maybe_new_session(n: u32) {
 	if n % BLOCKS_PER_SESSION == 0 {
-		shared::Module::<Test>::set_session_index(
-			shared::Module::<Test>::session_index() + 1
+		shared::Pallet::<Test>::set_session_index(
+			shared::Pallet::<Test>::session_index() + 1
 		);
 		Paras::test_on_new_session();
 	}

@@ -33,7 +33,8 @@ use futures::{
 use polkadot_node_subsystem_util::runtime::{RuntimeInfo, get_occupied_cores};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::AllMessages,
+	ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
 };
 
 use super::{LOG_TARGET, Metrics};
@@ -152,8 +153,8 @@ impl Requester {
 	///
 	/// Starting requests where necessary.
 	///
-	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
-	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
+	/// Note: The passed in `leaf` is not the same as `CandidateDescriptor::relay_parent` in the
+	/// given cores. The latter is the `relay_parent` this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
@@ -229,4 +230,3 @@ impl Stream for Requester {
 		}
 	}
 }
-

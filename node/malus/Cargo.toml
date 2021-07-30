@@ -8,7 +8,7 @@ path = "src/variant-a.rs"
 
 [package]
 name = "polkadot-test-malus"
-description = "Misbehaving nodes for local testnets, system and simnet tests."
+description = "Misbehaving nodes for local testnets, system and Simnet tests."
 license = "GPL-3.0-only"
 version = "0.9.8"
 authors = ["Parity Technologies <admin@parity.io>"]
@@ -21,7 +21,7 @@ polkadot-cli = { path = "../../cli", default-features = false, features = [ "cli
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
-parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
+parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.21"

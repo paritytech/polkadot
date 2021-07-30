@@ -35,7 +35,7 @@ use crate::{
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
 pub struct SessionCache {
 
-	/// Look up cached sessions by SessionIndex.
+	/// Look up cached sessions by `SessionIndex`.
 	///
 	/// Note: Performance of fetching is really secondary here, but we need to ensure we are going
 	/// to get any existing cache entry, before fetching new information, as we should not mess up
@@ -106,7 +106,7 @@ impl SessionCache {
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = runtime.get_session_index(ctx, parent).await?;
+		let session_index = runtime.get_session_index(ctx.sender(), parent).await?;
 
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
@@ -183,7 +183,7 @@ impl SessionCache {
 	where
 		Context: SubsystemContext,
 	{
-		let info = runtime.get_session_info_by_index(ctx, parent, session_index).await?;
+		let info = runtime.get_session_info_by_index(ctx.sender(), parent, session_index).await?;
 
 		let discovery_keys = info.session_info.discovery_keys.clone();
 		let mut validator_groups = info.session_info.validator_groups.clone();

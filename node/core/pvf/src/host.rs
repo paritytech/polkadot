@@ -49,7 +49,7 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Execute PVF with the given code, params and priority. The result of execution will be sent
+	/// Execute PVF with the given code, parameters and priority. The result of execution will be sent
 	/// to the provided result sender.
 	///
 	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
@@ -106,7 +106,7 @@ pub struct Config {
 	pub cache_path: PathBuf,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
-	/// The time alloted for a prepare worker to spawn and report to the host.
+	/// The time allotted for a prepare worker to spawn and report to the host.
 	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
 	/// priority below critical.
@@ -115,7 +115,7 @@ pub struct Config {
 	pub prepare_workers_hard_max_num: usize,
 	/// The path to the program that can be used to spawn the execute workers.
 	pub execute_worker_program_path: PathBuf,
-	/// The time alloted for an execute worker to spawn and report to the host.
+	/// The time allotted for an execute worker to spawn and report to the host.
 	pub execute_worker_spawn_timeout: Duration,
 	/// The maximum number of execute workers that can run at the same time.
 	pub execute_workers_max_num: usize,
@@ -147,7 +147,7 @@ impl Config {
 /// must be polled in order for validation host to function.
 ///
 /// The future should not return normally but if it does then that indicates an unrecoverable error.
-/// In that case all pending requests will be cancelled, dropping the result senders and new ones
+/// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
 pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
@@ -220,7 +220,7 @@ struct PendingExecutionRequest {
 }
 
 /// A mapping from an artifact ID which is in preparation state to the list of pending execution
-/// requests that should be executed once the artifact's prepration is finished.
+/// requests that should be executed once the artifact's preparation is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
@@ -628,7 +628,7 @@ mod tests {
 		}
 	}
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
 		Pvf::from_discriminator(descriminator).as_artifact_id()
 	}
