@@ -317,7 +317,6 @@ impl TryFrom<VersionedMultiAsset> for MultiAsset {
 	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
 		match x {
 			VersionedMultiAsset::V0(x) => Ok(x),
-			_ => Err(()),
 		}
 	}
 }

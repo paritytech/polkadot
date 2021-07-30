@@ -27,7 +27,6 @@ use parity_scale_codec::{Encode, Decode};
 use derivative::Derivative;
 
 pub mod v0;
-pub mod v1;
 
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
@@ -39,7 +38,6 @@ pub use double_encoded::DoubleEncoded;
 #[codec(decode_bound())]
 pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
-	V1(v1::Xcm<Call>),
 }
 
 pub mod opaque {
@@ -50,13 +48,6 @@ pub mod opaque {
 		pub use crate::v0::opaque::{Xcm, Order};
 	}
 
-	pub mod v1 {
-		// Everything from v1
-		pub use crate::v1::*;
-		// Then override with the opaque types in v1
-		pub use crate::v1::opaque::{Xcm, Order};
-	}
-
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
 }
@@ -65,12 +56,10 @@ pub mod opaque {
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
-	V1(v1::MultiLocation),
 }
 
 /// A versioned multi-asset, an identifier for an asset within a consensus system.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum VersionedMultiAsset {
 	V0(v0::MultiAsset),
-	V1(v1::MultiAsset),
 }

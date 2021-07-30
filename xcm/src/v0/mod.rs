@@ -29,7 +29,7 @@ mod order;
 mod traits;
 pub use junction::{Junction, NetworkId, BodyId, BodyPart};
 pub use multi_asset::{MultiAsset, AssetInstance};
-pub use multi_location::MultiLocation;
+pub use multi_location::{Junctions::{self, *}, MultiLocation};
 pub use order::Order;
 pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
@@ -37,7 +37,7 @@ pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 pub mod prelude {
 	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
 	pub use super::multi_asset::{MultiAsset::{self, *}, AssetInstance::{self, *}};
-	pub use super::multi_location::MultiLocation::{self, *};
+	pub use super::multi_location::{Junctions::{self, *}, MultiLocation};
 	pub use super::order::Order::{self, *};
 	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
 	pub use super::{Xcm::{self, *}, OriginKind};
@@ -272,7 +272,6 @@ impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
 	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
 		match x {
 			VersionedXcm::V0(x) => Ok(x),
-			_ => Err(()),
 		}
 	}
 }
