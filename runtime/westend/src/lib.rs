@@ -1007,6 +1007,10 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
+impl pallet_xcm_benchmarks::Config for Runtime {
+	type XcmConfig = XcmConfig;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1084,6 +1088,7 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet} = 999,
 	}
 }
 
@@ -1493,6 +1498,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			let storage_info = AllPalletsWithSystem::storage_info();

@@ -40,6 +40,7 @@ members = [
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"xcm/pallet-xcm",
+	"xcm/pallet-xcm-benchmarks",
 	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",

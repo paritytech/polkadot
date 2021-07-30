@@ -54,6 +54,7 @@ pub enum TestCall {
 	OnlySigned(Weight, Option<Weight>, Option<u64>),
 	Any(Weight, Option<Weight>),
 }
+
 impl Dispatchable for TestCall {
 	type Origin = TestOrigin;
 	type Config = ();
@@ -101,9 +102,11 @@ impl GetDispatchInfo for TestCall {
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
 }
+
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
+
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
