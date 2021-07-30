@@ -20,7 +20,6 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::prelude::*;
 pub use pallet::*;
 
 #[cfg(test)]

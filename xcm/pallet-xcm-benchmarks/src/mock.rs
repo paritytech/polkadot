@@ -18,17 +18,15 @@
 //! A mock runtime for xcm benchmarking.
 #![allow(dead_code, unused_imports)] // TODO: remove this later.
 
+use crate as pallet_xcm_benchmarks;
 use crate::*;
-use frame_support::{
-	parameter_types,
-};
+use frame_support::parameter_types;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use crate as pallet_xcm_benchmarks;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -93,32 +91,43 @@ impl pallet_balances::Config for Test {
 	type WeightInfo = ();
 }
 
-use xcm::opaque::v0::MultiLocation;
-use xcm::opaque::v0::MultiAsset;
-use xcm::opaque::v0::Xcm;
-use xcm::opaque::v0::prelude::XcmResult;
+use frame_support::weights::Weight;
+use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiAsset, MultiLocation, Response, Xcm};
 
-// An xcm sender akin to > /dev/null
-struct DevNull;
+// An xcm sender/receiver akin to > /dev/null
+pub struct DevNull;
 impl xcm::opaque::v0::SendXcm for DevNull {
 	fn send_xcm(_: MultiLocation, _: Xcm) -> XcmResult {
 		Ok(())
 	}
 }
 
-parameter_types! {
-	pub const CheckedAccount: Option<u64> = Some(42);
+impl xcm_executor::traits::OnResponse for DevNull {
+	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
+		false
+	}
+
+	fn on_response(_: MultiLocation, _: u64, _: Response) -> Weight {
+		0
+	}
 }
 
-struct TestMatcher;
+parameter_types! {
+	pub const CheckedAccount: Option<u64> = Some(100);
+	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain(101));
+	pub UnitWeightCost: Weight = 10;
+	pub WeightPrice: (MultiLocation, u128) = (MultiLocation::Null, 1_000_000_000_000);
+}
+
+pub struct TestMatcher;
 impl xcm_executor::traits::MatchesFungible<u64> for TestMatcher {
-	fn matches_fungible(a: &MultiAsset) -> Option<u64> {
+	fn matches_fungible(_: &MultiAsset) -> Option<u64> {
 		// TODO
 		None
 	}
 }
 
-struct AccountIdConverter;
+pub struct AccountIdConverter;
 impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 	fn convert(ml: MultiLocation) -> Result<u64, MultiLocation> {
 		Err(ml)
@@ -130,38 +139,31 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 }
 
 // Use balances as the asset transactor.
-type AssetTransactor = xcm_builder::CurrencyAdapter<
-	Balances,
-	TestMatcher,
-	AccountIdConverter,
-	u64,
-	CheckedAccount
->;
+pub type AssetTransactor =
+	xcm_builder::CurrencyAdapter<Balances, TestMatcher, AccountIdConverter, u64, CheckedAccount>;
 
-struct XcmConfig;
+pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
-	type OriginConverter = ();
-	type IsReserve = ();
-	type IsTeleporter = ();
-	type LocationInverter = ();
-	type Barrier = ();
-	type Weigher = ();
-	type Trader = ();
-	type ResponseHandler = ();
+	type OriginConverter = (); // TODO:
+	type IsReserve = (); // TODO:
+	type IsTeleporter = (); // no one can teleport.
+	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
+	type Barrier = (); // No barriers -- everything is allowed.
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
+	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type ResponseHandler = DevNull;
 }
 
 impl pallet_xcm_benchmarks::Config for Test {
-	type XcmConfig = ();
+	type XcmConfig = XcmConfig;
 }
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = GenesisConfig { ..Default::default() }
-		.build_storage()
-		.unwrap();
+	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
 	t.into()
 }
