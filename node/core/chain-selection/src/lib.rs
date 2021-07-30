@@ -28,6 +28,7 @@ use polkadot_node_subsystem::{
 use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
+use futures::future::Either;
 use futures::prelude::*;
 
 use std::time::{UNIX_EPOCH, Duration,SystemTime};
@@ -244,7 +245,7 @@ impl Clock for SystemClock {
 
 /// The interval, in seconds to check for stagnant blocks.
 #[derive(Debug, Clone)]
-pub struct StagnantCheckInterval(Duration);
+pub struct StagnantCheckInterval(Option<Duration>);
 
 impl Default for StagnantCheckInterval {
 	fn default() -> Self {
@@ -255,28 +256,37 @@ impl Default for StagnantCheckInterval {
 		// between 2 validators is D + 5s.
 		const DEFAULT_STAGNANT_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
-		StagnantCheckInterval(DEFAULT_STAGNANT_CHECK_INTERVAL)
+		StagnantCheckInterval(Some(DEFAULT_STAGNANT_CHECK_INTERVAL))
 	}
 }
 
 impl StagnantCheckInterval {
 	/// Create a new stagnant-check interval wrapping the given duration.
 	pub fn new(interval: Duration) -> Self {
-		StagnantCheckInterval(interval)
+		StagnantCheckInterval(Some(interval))
+	}
+
+	/// Create a `StagnantCheckInterval` which never triggers.
+	pub fn never() -> Self {
+		StagnantCheckInterval(None)
 	}
 
 	fn timeout_stream(&self) -> impl Stream<Item = ()> {
-		let interval = self.0;
-		let mut delay = futures_timer::Delay::new(interval);
+		match self.0 {
+			Some(interval) => Either::Left({
+				let mut delay = futures_timer::Delay::new(interval);
 
-		futures::stream::poll_fn(move |cx| {
-			let poll = delay.poll_unpin(cx);
-			if poll.is_ready() {
-				delay.reset(interval)
-			}
+				futures::stream::poll_fn(move |cx| {
+					let poll = delay.poll_unpin(cx);
+					if poll.is_ready() {
+						delay.reset(interval)
+					}
 
-			poll.map(Some)
-		})
+					poll.map(Some)
+				})
+			}),
+			None => Either::Right(futures::stream::pending()),
+		}
 	}
 }
 

@@ -10,6 +10,7 @@ client = { package = "sc-client-api", git = "https://github.com/paritytech/subst
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.15"
 futures-timer = "3.0.2"
+parking_lot = "0.11.1"
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }

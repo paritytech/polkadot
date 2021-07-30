@@ -536,15 +536,17 @@ construct_runtime! {
 
 		// Parachains runtime modules
 		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
-		Inclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
+		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event},
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
+		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},

@@ -20,7 +20,6 @@ use std::sync::Arc;
 use futures::{executor, future};
 use futures_timer::Delay;
 use assert_matches::assert_matches;
-use smallvec::smallvec;
 
 use parity_scale_codec::Encode;
 
@@ -446,15 +445,12 @@ fn availability_is_recovered_from_chunks_if_no_group_provided() {
 	test_harness_fast_path(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -528,15 +524,12 @@ fn availability_is_recovered_from_chunks_even_if_backing_group_supplied_if_chunk
 	test_harness_chunks_only(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -610,15 +603,12 @@ fn bad_merkle_path_leads_to_recovery_error() {
 	test_harness_fast_path(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -667,15 +657,12 @@ fn wrong_chunk_index_leads_to_recovery_error() {
 	test_harness_fast_path(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -741,15 +728,12 @@ fn invalid_erasure_coding_leads_to_invalid_error() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -789,15 +773,12 @@ fn fast_path_backing_group_recovers() {
 	test_harness_fast_path(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -842,15 +823,12 @@ fn no_answers_in_fast_path_causes_chunk_requests() {
 	test_harness_fast_path(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -905,15 +883,12 @@ fn task_canceled_when_receivers_dropped() {
 	test_harness_chunks_only(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, _) = oneshot::channel();
@@ -948,15 +923,12 @@ fn chunks_retry_until_all_nodes_respond() {
 	test_harness_chunks_only(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -1007,15 +979,12 @@ fn returns_early_if_we_have_the_data() {
 	test_harness_chunks_only(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
@@ -1045,15 +1014,12 @@ fn does_not_query_local_validator() {
 	test_harness_chunks_only(|mut virtual_overseer| async move {
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: smallvec![ActivatedLeaf {
-					hash: test_state.current.clone(),
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}],
-				deactivated: smallvec![],
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let (tx, rx) = oneshot::channel();
