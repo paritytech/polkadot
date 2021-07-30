@@ -1138,7 +1138,7 @@ impl frame_support::traits::OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migration::<Council>(COUNCIL_OLD_PREFIX);
+		pallet_collective::migrations::v4::post_migration::<Council, _>(COUNCIL_OLD_PREFIX);
 		Ok(())
 	}
 }
@@ -1170,7 +1170,7 @@ impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefix
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migration::<TechnicalCommittee>(
+		pallet_collective::migrations::v4::post_migration::<TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
 		);
 		Ok(())
