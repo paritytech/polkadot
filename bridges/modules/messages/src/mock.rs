@@ -138,7 +138,7 @@ parameter_types! {
 	pub storage TokenConversionRate: FixedU128 = 1.into();
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, scale_info::TypeInfo)]
 pub enum TestMessagesParameter {
 	TokenConversionRate(FixedU128),
 }
