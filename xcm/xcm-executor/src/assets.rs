@@ -300,17 +300,17 @@ impl Assets {
 	/// use xcm_executor::Assets;
 	/// use xcm::v0::{MultiAsset, MultiLocation};
 	/// let assets_i_have: Assets = vec![
-	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount: 100 },
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
 	/// ].into();
 	/// let assets_they_want: Assets = vec![
-	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 200 },
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount: 200 },
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
 	/// ].into();
 	///
 	/// let assets_we_can_trade: Assets = assets_i_have.min(assets_they_want.assets_iter());
 	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount: 100 },
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
 	/// ]);
 	/// ```
@@ -417,7 +417,7 @@ impl Assets {
 	/// use xcm_executor::Assets;
 	/// use xcm::v0::{MultiAsset, MultiLocation};
 	/// let mut assets_i_have: Assets = vec![
-	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount: 100 },
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
 	/// ].into();
 	/// let assets_they_want = vec![
@@ -429,7 +429,7 @@ impl Assets {
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
 	/// ]);
 	/// assert_eq!(assets_i_have.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount: 100 },
 	/// ]);
 	/// ```
 	pub fn saturating_take<I>(&mut self, assets: I) -> Assets
@@ -547,11 +547,11 @@ mod tests {
 	}
 	#[allow(non_snake_case)]
 	fn CF(amount: u128) -> MultiAsset {
-		MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }
+		MultiAsset::ConcreteFungible { id: MultiLocation::default(), amount }
 	}
 	#[allow(non_snake_case)]
 	fn CNF(instance_id: u128) -> MultiAsset {
-		MultiAsset::ConcreteNonFungible { class: MultiLocation::Null, instance: AssetInstance::Index { id: instance_id } }
+		MultiAsset::ConcreteNonFungible { class: MultiLocation::default(), instance: AssetInstance::Index { id: instance_id } }
 	}
 
 	fn test_assets() -> Assets {
@@ -642,8 +642,8 @@ mod tests {
 	#[test]
 	fn min_all_concrete_works() {
 		let assets = test_assets();
-		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::Null }];
-		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
+		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::default() }];
+		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::default() }];
 
 		let fungible = assets.min(fungible.iter());
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -724,8 +724,8 @@ mod tests {
 	#[test]
 	fn saturating_take_all_concrete_works() {
 		let mut assets = test_assets();
-		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::Null }];
-		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
+		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::default() }];
+		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::default() }];
 
 		let fungible = assets.saturating_take(fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();

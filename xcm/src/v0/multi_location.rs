@@ -50,6 +50,15 @@ pub struct MultiLocation {
 	interior: Junctions,
 }
 
+impl Default for MultiLocation {
+	fn default() -> Self {
+		MultiLocation {
+			parents: 0,
+			interior: Junctions::Null,
+		}
+	}
+}
+
 impl Encode for MultiLocation {
 	fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
 		// 8 items max, but we cannot return an error, so we ap silently.
