@@ -21,10 +21,7 @@ use frame_support::{
 	ensure, weights::GetDispatchInfo,
 	dispatch::{Weight, Dispatchable}
 };
-use xcm::v0::{
-	ExecuteXcm, SendXcm, Error as XcmError, Outcome,
-	MultiLocation, MultiAsset, Xcm, Order, Response,
-};
+use xcm::v0::{ExecuteXcm, SendXcm, Error as XcmError, Outcome, MultiLocation, MultiAssets, Xcm, Order, Response};
 
 pub mod traits;
 use traits::{
@@ -33,7 +30,7 @@ use traits::{
 };
 
 mod assets;
-pub use assets::{Assets, AssetId};
+pub use assets::Assets;
 mod config;
 pub use config::Config;
 
@@ -86,10 +83,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Vec<MultiAsset> {
+	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> MultiAssets {
 		let inv_dest = Config::LocationInverter::invert_location(&dest);
 		assets.prepend_location(&inv_dest);
-		assets.into_assets_iter().collect::<Vec<_>>()
+		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 
 	/// Execute the XCM and return the portion of weight of `shallow_weight + deep_weight` that `message` did not use.
@@ -130,8 +127,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
-				for asset in assets {
-					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
+				for asset in assets.inner() {
 					let withdrawn = Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
 					holding.subsume_assets(withdrawn);
 				}
@@ -139,18 +135,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 			(origin, Xcm::ReserveAssetDeposit { assets, effects }) => {
 				// check whether we trust origin to be our reserve location for this asset.
-				for asset in assets.iter() {
-					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
+				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(Config::IsReserve::filter_asset_location(asset, &origin), XcmError::UntrustedReserveLocation);
 				}
-				Some((Assets::from(assets), effects))
+				Some((assets.into(), effects))
 			}
 			(origin, Xcm::TransferAsset { assets, dest }) => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
-				for asset in assets {
-					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
+				for asset in assets.inner() {
 					Config::AssetTransactor::teleport_asset(&asset, &origin, &dest)?;
 				}
 				None
@@ -158,18 +152,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			(origin, Xcm::TransferReserveAsset { mut assets, dest, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let inv_dest = Config::LocationInverter::invert_location(&dest);
-				for asset in assets.iter_mut() {
-					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
-					Config::AssetTransactor::teleport_asset(&asset, &origin, &dest)?;
-					asset.reanchor(&inv_dest)?;
+				for asset in assets.inner() {
+					Config::AssetTransactor::teleport_asset(asset, &origin, &dest)?;
 				}
+				assets.reanchor(&inv_dest)?;
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
 				None
 			}
 			(origin, Xcm::TeleportAsset { assets, effects }) => {
 				// check whether we trust origin to teleport this asset to us via config trait.
-				for asset in assets.iter() {
-					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
+				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(Config::IsTeleporter::filter_asset_location(asset, &origin), XcmError::UntrustedTeleportLocation);
@@ -178,7 +170,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// don't want to punish a possibly innocent chain/user).
 					Config::AssetTransactor::can_check_in(&origin, asset)?;
 				}
-				for asset in assets.iter() {
+				for asset in assets.inner() {
 					Config::AssetTransactor::check_in(&origin, asset);
 				}
 				Some((Assets::from(assets), effects))
@@ -280,13 +272,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
 			}
 			Order::QueryHolding { query_id, dest, assets } => {
-				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
+				let assets = Self::reanchored(holding.min(&assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::QueryResponse { query_id, response: Response::Assets(assets) })?;
 			}
 			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				// pay for `weight` using up to `fees` of the holding account.
 				let purchasing_weight = Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
-				let max_fee = holding.try_take(fees).map_err(|()| XcmError::NotHoldingFees)?;
+				let max_fee = holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
 				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
 				holding.subsume_assets(unspent);
 
@@ -298,7 +290,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						Ok(surplus) => { total_surplus += surplus }
 					}
 				}
-				holding.subsume(trader.refund_weight(remaining_weight));
+				if let Some(w) = trader.refund_weight(remaining_weight) {
+					holding.subsume(w);
+				}
 			}
 			_ => return Err(XcmError::UnhandledEffect)?,
 		}

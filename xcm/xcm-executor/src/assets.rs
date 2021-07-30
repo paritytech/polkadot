@@ -16,10 +16,8 @@
 
 use sp_std::{prelude::*, mem, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
 use xcm::v0::{
-	MultiAsset, MultiAssets, MultiLocation, AssetInstance,
-	MultiAssetFilter::{self, Assets, Wild},
-	AssetId::{self, Concrete, Abstract},
-	WildMultiAsset::{self, All, AllOf},
+	MultiAsset, MultiAssets, MultiLocation, AssetInstance, MultiAssetFilter, AssetId,
+	WildMultiAsset::{All, AllOf},
 	Fungibility::{Fungible, NonFungible},
 	WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible},
 };
@@ -32,7 +30,7 @@ pub struct Assets {
 	pub fungible: BTreeMap<AssetId, u128>,
 
 	/// The non-fungible assets.
-	// OPTIMIZE: Consider BTreeMap<AssetId, BTreeSet<AssetInstance>>
+	// TODO: Consider BTreeMap<AssetId, BTreeSet<AssetInstance>>
 	//   or even BTreeMap<AssetId, SortedVec<AssetInstance>>
 	pub non_fungible: BTreeSet<(AssetId, AssetInstance)>,
 }
@@ -47,9 +45,21 @@ impl From<Vec<MultiAsset>> for Assets {
 	}
 }
 
+impl From<MultiAssets> for Assets {
+	fn from(assets: MultiAssets) -> Assets {
+		assets.drain().into()
+	}
+}
+
 impl From<Assets> for Vec<MultiAsset> {
 	fn from(a: Assets) -> Self {
 		a.into_assets_iter().collect()
+	}
+}
+
+impl From<Assets> for MultiAssets {
+	fn from(a: Assets) -> Self {
+		a.into_assets_iter().collect::<Vec<MultiAsset>>().into()
 	}
 }
 
@@ -62,6 +72,7 @@ impl From<MultiAsset> for Assets {
 }
 
 /// An error emitted by `take` operations.
+#[derive(Debug)]
 pub enum TakeError {
 	/// There was an attempt to take an asset without saturating (enough of) which did not exist.
 	AssetUnderflow(MultiAsset),
@@ -106,11 +117,15 @@ impl Assets {
 	/// Wildcard values of `asset` do nothing.
 	pub fn subsume(&mut self, asset: MultiAsset) {
 		match asset.fun {
-			Fungible(amount) => self.fungible
-				.entry(asset.id)
-				.and_modify(|e| *e = e.saturating_add(amount))
-				.or_insert(amount),
-			NonFungible(instance) => self.non_fungible.insert((asset.id, instance)),
+			Fungible(amount) => {
+				self.fungible
+					.entry(asset.id)
+					.and_modify(|e| *e = e.saturating_add(amount))
+					.or_insert(amount);
+			}
+			NonFungible(instance) => {
+				self.non_fungible.insert((asset.id, instance));
+			}
 		}
 	}
 
@@ -128,12 +143,12 @@ impl Assets {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible.into_iter()
-			.map(|(mut id, amount)| { let _ = id.prepend_location(prepend); (id, amount) })
+			.map(|(mut id, amount)| { let _ = id.reanchor(prepend); (id, amount) })
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible.into_iter()
-			.map(|(mut class, inst)| { let _ = class.prepend_location(prepend); (class, inst) })
+			.map(|(mut class, inst)| { let _ = class.reanchor(prepend); (class, inst) })
 			.collect();
 	}
 
@@ -144,13 +159,13 @@ impl Assets {
 			match asset {
 				MultiAsset { fun: Fungible(ref amount), ref id } => {
 					if self.fungible.get(id).map_or(true, |a| a < amount) {
-						return Err(TakeError((id.clone(), amount).into()))
+						return Err(TakeError::AssetUnderflow((id.clone(), *amount).into()))
 					}
 				}
 				MultiAsset { fun: NonFungible(ref instance), ref id } => {
 					let id_instance = (id.clone(), instance.clone());
 					if !self.non_fungible.contains(&id_instance) {
-						return Err(TakeError(id_instance.into()))
+						return Err(TakeError::AssetUnderflow(id_instance.into()))
 					}
 				}
 			}
@@ -162,46 +177,42 @@ impl Assets {
 	///
 	/// If `saturate` is `true`, then `self` is considered to be masked by `mask`, thereby avoiding any attempt at
 	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
-	/// and `asset` references a definite asset which `self` does not contain then an error is returned.
+	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
 	///
 	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
-	/// `asset`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
+	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
 	/// be removed.
 	fn general_take(&mut self, mask: MultiAssetFilter, saturate: bool) -> Result<Assets, TakeError> {
+		let mut taken = Assets::new();
 		match mask {
-			Wild(All) => Ok(self.swapped(Assets::new())),
-			Wild(AllOf(WildFungible, id)) => {
-				let mut taken = Assets::new();
+			MultiAssetFilter::Wild(All) => return Ok(self.swapped(Assets::new())),
+			MultiAssetFilter::Wild(AllOf(WildFungible, id)) => {
 				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
 					taken.fungible.insert(id, amount);
 				}
-				Ok(taken)
 			}
-			Wild(AllOf(WildNonFungible, id)) => {
-				let mut taken = Assets::new();
+			MultiAssetFilter::Wild(AllOf(WildNonFungible, id)) => {
 				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 				non_fungible.into_iter().for_each(|(c, instance)| {
-					if &c == id {
+					if c == id {
 						taken.non_fungible.insert((c, instance));
 					} else {
 						self.non_fungible.insert((c, instance));
 					}
 				});
-				Ok(taken)
 			}
-			Assets(assets) => {
+			MultiAssetFilter::Assets(assets) => {
 				if !saturate {
 					self.ensure_contains(&assets)?;
 				}
-				let mut taken = Assets::new();
 				for asset in assets.drain().into_iter() {
 					match asset {
-						MultiAsset { fun: Fungible(mut amount), id } => {
+						MultiAsset { fun: Fungible(amount), id } => {
 							let (remove, amount) = match self.fungible.get_mut(&id) {
 								Some(self_amount) => {
 									let amount = amount.min(*self_amount);
 									*self_amount -= amount;
-									(self_amount == 0, amount)
+									(*self_amount == 0, amount)
 								}
 								None => (false, 0),
 							};
@@ -222,32 +233,30 @@ impl Assets {
 				}
 			}
 		}
+		Ok(taken)
 	}
 
-	/// Mutates `self` to its original value less `asset` and returns `true` iff it contains at least `asset`.
+	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
 	///
-	/// `asset` is interpreted as being masked under `self`.
-	///
-	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
-	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
+	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
+	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn saturating_take(&mut self, asset: MultiAssetFilter) -> Assets {
-		self.general_take(asset, true).expect("general_take never results in error when saturating")
+		self.general_take(asset, true)
+			.expect("general_take never results in error when saturating")
 	}
 
-	/// Mutates `self` to its original value less `asset` and returns `true` iff it contains at least `asset`.
-	///
-	/// `asset` is interpreted as being masked under `self`.
+	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
 	///
 	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
 	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
-	pub fn try_take(&mut self, asset: MultiAssetFilter) -> Result<Assets, TakeError> {
-		self.general_take(asset, false)
+	pub fn try_take(&mut self, mask: MultiAssetFilter) -> Result<Assets, TakeError> {
+		self.general_take(mask, false)
 	}
 
-	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`, as well as
+	/// Consumes `self` and returns its original value excluding `mask` iff it contains at least `mask`, as well as
 	/// the assets excluded.
-	pub fn less(mut self, asset: WildMultiAsset) -> Result<(Assets, Assets), Self> {
-		match self.try_take(asset) {
+	pub fn less(mut self, mask: MultiAssetFilter) -> Result<(Assets, Assets), Self> {
+		match self.try_take(mask) {
 			Ok(taken) => Ok((self, taken)),
 			Err(_) => Err(self),
 		}
@@ -277,23 +286,23 @@ impl Assets {
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
 	/// ]);
 	/// ```
-	pub fn min(&self, mask: MultiAssetFilter) -> Assets {
+	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
 		let mut masked = Assets::new();
 		match mask {
-			Wild(All) => Ok(self.clone()),
-			Wild(AllOf(WildFungible, id)) => {
-				if let Some(&(ref id, amount)) = self.fungible.get(&id) {
+			MultiAssetFilter::Wild(All) => return self.clone(),
+			MultiAssetFilter::Wild(AllOf(WildFungible, id)) => {
+				if let Some(&amount) = self.fungible.get(&id) {
 					masked.fungible.insert(id.clone(), amount);
 				}
 			}
-			Wild(AllOf(WildNonFungible, id)) => {
+			MultiAssetFilter::Wild(AllOf(WildNonFungible, id)) => {
 				self.non_fungible.iter().for_each(|(ref c, ref instance)| {
 					if c == id {
 						masked.non_fungible.insert((c.clone(), instance.clone()));
 					}
 				});
 			}
-			Assets(assets) => {
+			MultiAssetFilter::Assets(assets) => {
 				for asset in assets.inner().iter() {
 					match asset {
 						MultiAsset { fun: Fungible(ref amount), ref id } => {

@@ -110,14 +110,13 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
+	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
-		let result = MultiAsset::ConcreteFungible { amount, id };
-		result
+		Some((id, amount).into())
 	}
 }
 
@@ -158,16 +157,12 @@ impl<
 		Ok(unused)
 	}
 
-	fn refund_weight(&mut self, weight: Weight) -> MultiAsset {
+	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		let weight = weight.min(self.0);
 		let amount = WeightToFee::calc(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
-		let result = MultiAsset::ConcreteFungible {
-			amount: amount.saturated_into(),
-			id: AssetId::get(),
-		};
-		result
+		Some(MultiAsset::from((AssetId::get(), amount.saturated_into())))
 	}
 
 }

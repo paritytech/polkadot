@@ -54,7 +54,7 @@ pub mod prelude {
 	pub use super::{Xcm::{self, *}, OriginKind};
 }
 
-// TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
+// TODO: #2841 #XCMENCODE Efficient encodings for MultiAssets, Vec<Order>, using initial byte values 128+ to encode
 //   the number of items in the vector.
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
@@ -84,7 +84,7 @@ pub enum OriginKind {
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum Response {
 	/// Some assets.
-	Assets(Vec<MultiAsset>),
+	Assets(MultiAssets),
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -110,7 +110,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 0)]
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	WithdrawAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -127,7 +127,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	ReserveAssetDeposit { assets: MultiAssets, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -145,7 +145,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	TeleportAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -172,7 +172,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	TransferAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
+	TransferAsset { assets: MultiAssets, dest: MultiLocation },
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
 	/// ownership of `dest` within this consensus system.
@@ -190,7 +190,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 5)]
-	TransferReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
+	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
 	/// of origin `origin_type`.

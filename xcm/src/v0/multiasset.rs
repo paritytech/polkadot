@@ -245,6 +245,12 @@ impl Decode for MultiAssets {
 	}
 }
 
+impl From<Vec<MultiAsset>> for MultiAssets {
+	fn from(x: Vec<MultiAsset>) -> Self {
+		Self(x)
+	}
+}
+
 impl From<MultiAssets> for Vec<OldMultiAsset> {
 	fn from(a: MultiAssets) -> Self {
 		a.0.into_iter().map(OldMultiAsset::from).collect()
@@ -395,6 +401,12 @@ impl WildMultiAsset {
 pub enum MultiAssetFilter {
 	Assets(MultiAssets),
 	Wild(WildMultiAsset),
+}
+
+impl From<WildMultiAsset> for MultiAssetFilter {
+	fn from(x: WildMultiAsset) -> Self {
+		Self::Wild(x)
+	}
 }
 
 impl From<MultiAssetFilter> for Vec<OldMultiAsset> {

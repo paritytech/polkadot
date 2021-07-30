@@ -71,7 +71,7 @@ pub trait WeightTrader: Sized {
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+	fn refund_weight(&mut self, _weight: Weight) -> Option<MultiAsset> { None }
 }
 
 impl WeightTrader for () {
