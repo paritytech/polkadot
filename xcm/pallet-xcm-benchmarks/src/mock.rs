@@ -106,7 +106,6 @@ impl xcm_executor::traits::OnResponse for DevNull {
 	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
 		false
 	}
-
 	fn on_response(_: MultiLocation, _: u64, _: Response) -> Weight {
 		0
 	}

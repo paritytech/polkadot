@@ -106,10 +106,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
 			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
-			origin, 
-			top_level, 
-			message, 
-			weight_credit, 
+			origin,
+			top_level,
+			message,
+			weight_credit,
 			maybe_shallow_weight,
 		);
 		// This is the weight of everything that cannot be paid for. This basically means all computation
