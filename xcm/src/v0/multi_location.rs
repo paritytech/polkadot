@@ -854,6 +854,17 @@ impl Junctions {
 	}
 }
 
+impl TryFrom<MultiLocation> for Junctions {
+	type Error = ();
+	fn try_from(x: MultiLocation) -> result::Result<Self, ()> {
+		if x.parents > 0 {
+			Err(())
+		} else {
+			Ok(x.interior)
+		}
+	}
+}
+
 impl From<MultiLocation> for VersionedMultiLocation {
 	fn from(x: MultiLocation) -> Self {
 		VersionedMultiLocation::V0(x)
