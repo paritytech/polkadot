@@ -110,33 +110,35 @@ impl Requester {
 			activated,
 			deactivated,
 		} = update;
-		// Order important! We need to handle activated, prior to deactivated, otherwise we might
-		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
+		// Order is important! We need to handle `activated`, prior to `deactivated`,
+		// otherwise we might cancel still needed jobs.
+		// We don't use an early return `?` in order to handle `deactivated` properly.
+		let result = if let Some(ActivatedLeaf { hash: leaf, .. }) = activated {
+			self.start_requesting_chunks(ctx, runtime, leaf).await
+		} else {
+			Ok(())
+		};
 		self.stop_requesting_chunks(deactivated.into_iter());
-		Ok(())
+		result
 	}
 
-	/// Start requesting chunks for newly imported heads.
+	/// Start requesting chunks for a newly imported head.
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		new_heads: impl Iterator<Item = ActivatedLeaf>,
+		leaf: Hash,
 	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
-		for ActivatedLeaf { hash: leaf, .. } in new_heads {
-			let cores = get_occupied_cores(ctx, leaf).await?;
-			tracing::trace!(
-				target: LOG_TARGET,
-				occupied_cores = ?cores,
-				"Query occupied core"
-			);
-			self.add_cores(ctx, runtime, leaf, cores).await?;
-		}
-		Ok(())
+		let cores = get_occupied_cores(ctx, leaf).await?;
+		tracing::trace!(
+			target: LOG_TARGET,
+			occupied_cores = ?cores,
+			"Query occupied core"
+		);
+		self.add_cores(ctx, runtime, leaf, cores).await
 	}
 
 	/// Stop requesting chunks for obsolete heads.

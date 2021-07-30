@@ -1857,14 +1857,14 @@ impl StatementDistribution {
 					}
 				}
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let relay_parent = activated.hash;
-					let span = PerLeafSpan::new(activated.span, "statement-distribution");
 					tracing::trace!(
 						target: LOG_TARGET,
 						hash = ?relay_parent,
 						"New active leaf",
 					);
+					let span = PerLeafSpan::new(activated.span, "statement-distribution");
 
 					let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
 					let info = runtime.get_session_info_by_index(ctx.sender(), relay_parent, session_index).await?;

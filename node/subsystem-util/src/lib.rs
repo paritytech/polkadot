@@ -607,7 +607,7 @@ where
 	}
 
 	/// Stop the job associated with this `parent_hash`.
-	pub async fn stop_job(&mut self, parent_hash: Hash) {
+	pub fn stop_job(&mut self, parent_hash: Hash) {
 		self.running.remove(&parent_hash);
 	}
 
@@ -711,7 +711,10 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							activated,
 							deactivated,
 						}))) => {
-							for activated in activated {
+							for hash in deactivated {
+								jobs.stop_job(hash);
+							}
+							if let Some(activated) = activated {
 								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
 									activated.hash,
@@ -720,10 +723,6 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 									metrics.clone(),
 									sender,
 								)
-							}
-
-							for hash in deactivated {
-								jobs.stop_job(hash).await;
 							}
 						}
 						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {

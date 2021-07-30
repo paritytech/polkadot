@@ -599,7 +599,7 @@ async fn handle_signal(
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
 			// if activated is non-empty, set state.live_block to the highest block in `activated`
-			for activated in activated {
+			if let Some(activated) = activated {
 				if activated.number > state.live_block.0 {
 					state.live_block = (activated.number, activated.hash)
 				}
