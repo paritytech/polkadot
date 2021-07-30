@@ -15,7 +15,7 @@ serde = { version = "1.0.123", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "aj-metadata-vnext", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "aj-metadata-vnext", default-features = false, features = ["scale-info"] }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
