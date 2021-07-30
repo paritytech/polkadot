@@ -1234,7 +1234,7 @@ mod benchmarking {
 			super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
-			let call = Call::<T>::claim(account.clone(), signature.clone());
+			let call = Call::<T>::claim { dest: account.clone(), ethereum_signature: signature.clone() };
 		}: {
 			super::Pallet::<T>::validate_unsigned(source, &call)?;
 			super::Pallet::<T>::claim(RawOrigin::None.into(), account, signature)?;
@@ -1279,7 +1279,7 @@ mod benchmarking {
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
+			let call = Call::<T>::claim_attest { dest: account.clone(), ethereum_signature: signature.clone(), statement: StatementKind::Regular.to_text().to_vec() };
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Pallet::<T>::validate_unsigned(source, &call)?;
@@ -1309,10 +1309,10 @@ mod benchmarking {
 			Preclaims::<T>::insert(&account, eth_address);
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 
-			let call = super::Call::attest(StatementKind::Regular.to_text().to_vec());
+			let call = super::Call::attest { statement: StatementKind::Regular.to_text().to_vec() };
 			// We have to copy the validate statement here because of trait issues... :(
 			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
-				if let Call::attest(attested_statement) = call {
+				if let Call::attest{ statement: attested_statement } = call {
 					let signer = Preclaims::<T>::get(who).ok_or("signer has no claim")?;
 					if let Some(s) = Signing::<T>::get(signer) {
 						ensure!(&attested_statement[..] == s.to_text(), "invalid statement");
