@@ -106,10 +106,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
 			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
-			origin, 
-			top_level, 
-			message, 
-			weight_credit, 
+			origin,
+			top_level,
+			message,
+			weight_credit,
 			maybe_shallow_weight,
 		);
 		// This is the weight of everything that cannot be paid for. This basically means all computation
@@ -133,7 +133,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets {
 					ensure!(!asset.is_wildcard(), XcmError::Wildcard);
 					let withdrawn = Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
-					holding.saturating_subsume_all(withdrawn);
+					holding.subsume_assets(withdrawn);
 				}
 				Some((holding, effects))
 			}
@@ -288,7 +288,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let purchasing_weight = Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
 				let max_fee = holding.try_take(fees).map_err(|()| XcmError::NotHoldingFees)?;
 				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
-				holding.saturating_subsume_all(unspent);
+				holding.subsume_assets(unspent);
 
 				let mut remaining_weight = weight;
 				for message in xcm.into_iter() {
@@ -298,7 +298,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						Ok(surplus) => { total_surplus += surplus }
 					}
 				}
-				holding.saturating_subsume(trader.refund_weight(remaining_weight));
+				holding.subsume(trader.refund_weight(remaining_weight));
 			}
 			_ => return Err(XcmError::UnhandledEffect)?,
 		}

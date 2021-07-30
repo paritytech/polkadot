@@ -20,7 +20,7 @@ use core::{result, convert::TryFrom, fmt::Debug};
 use derivative::Derivative;
 use alloc::vec::Vec;
 use parity_scale_codec::{self, Encode, Decode};
-use crate::{VersionedMultiAsset, DoubleEncoded, VersionedXcm};
+use crate::{VersionedMultiAsset, VersionedWildMultiAsset, DoubleEncoded, VersionedXcm};
 
 mod junction;
 mod multi_asset;
@@ -30,7 +30,9 @@ mod traits;
 pub mod multiasset;	// the new multiasset.
 
 pub use junction::{Junction, NetworkId, BodyId, BodyPart};
-pub use multi_asset::{MultiAsset, AssetInstance};
+pub use multiasset::{
+	AssetId, AssetInstance, MultiAsset, MultiAssets, MultiAssetFilter, Fungibility, WildMultiAsset, WildFungibility
+};
 pub use multi_location::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};

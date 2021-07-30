@@ -19,7 +19,7 @@
 use alloc::vec::Vec;
 use derivative::Derivative;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, MultiLocation, Xcm};
+use super::{MultiAsset, WildMultiAsset, MultiAssetFilter, MultiLocation, Xcm};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
@@ -39,7 +39,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
+	DepositAsset { assets: MultiAssetFilter, dest: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
@@ -53,19 +53,18 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
+	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
 	/// The minimum amount of assets to be received into holding for the order not to fail may be stated.
 	///
 	/// - `give`: The asset(s) to remove from holding.
-	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for. The meaning of wildcards
-	///   is undefined and they should be not be used.
+	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for.
 	///
 	/// Errors:
 	#[codec(index = 3)]
-	ExchangeAsset { give: Vec<MultiAsset>, receive: Vec<MultiAsset> },
+	ExchangeAsset { give: MultiAssetFilter, receive: Vec<MultiAsset> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a reserve location.
 	///
@@ -77,7 +76,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<()>> },
+	InitiateReserveWithdraw { assets: MultiAssetFilter, reserve: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -87,7 +86,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 5)]
-	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
+	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
 	///
@@ -99,14 +98,16 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
+	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: MultiAssetFilter },
 
 	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
+	/// - `fees`: The asset(s) to remove from holding to pay for fees.
+	///
 	/// Errors:
 	#[codec(index = 7)]
-	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
+	BuyExecution { fees: WildMultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
 }
 
 pub mod opaque {

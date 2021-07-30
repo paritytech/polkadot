@@ -63,3 +63,18 @@ pub enum VersionedMultiLocation {
 pub enum VersionedMultiAsset {
 	V0(v0::MultiAsset),
 }
+
+impl From<v0::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v0::MultiAsset) -> Self {
+		VersionedMultiAsset::V0(x)
+	}
+}
+
+impl core::convert::TryFrom<VersionedMultiAsset> for v0::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> core::result::Result<Self, ()> {
+		match x {
+			VersionedMultiAsset::V0(x) => Ok(x),
+		}
+	}
+}

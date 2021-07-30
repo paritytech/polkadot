@@ -122,7 +122,7 @@ pub fn add_asset(who: u64, what: MultiAsset) {
 	ASSETS.with(|a| a.borrow_mut()
 		.entry(who)
 		.or_insert(Assets::new())
-		.saturating_subsume(what)
+		.subsume(what)
 	);
 }
 

@@ -20,33 +20,7 @@ use core::{result, convert::TryFrom};
 use alloc::vec::Vec;
 
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiLocation, VersionedMultiAsset};
-
-/// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum AssetInstance {
-	/// Undefined - used if the NFA class has only one instance.
-	Undefined,
-
-	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
-	/// values up to `2**128 - 1`.
-	Index { #[codec(compact)] id: u128 },
-
-	/// A 4-byte fixed-length datum.
-	Array4([u8; 4]),
-
-	/// An 8-byte fixed-length datum.
-	Array8([u8; 8]),
-
-	/// A 16-byte fixed-length datum.
-	Array16([u8; 16]),
-
-	/// A 32-byte fixed-length datum.
-	Array32([u8; 32]),
-
-	/// An arbitrary piece of data. Use only when necessary.
-	Blob(Vec<u8>),
-}
+use super::{MultiLocation, VersionedMultiAsset, AssetInstance};
 
 /// A single general identifier for an asset.
 ///
@@ -302,21 +276,6 @@ impl MultiAsset {
 			| ConcreteNonFungible { class: ref mut id, .. }
 			=> id.prepend_with(prepend.clone()).map_err(|_| ()),
 			_ => Ok(()),
-		}
-	}
-}
-
-impl From<MultiAsset> for VersionedMultiAsset {
-	fn from(x: MultiAsset) -> Self {
-		VersionedMultiAsset::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiAsset> for MultiAsset {
-	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiAsset::V0(x) => Ok(x),
 		}
 	}
 }
