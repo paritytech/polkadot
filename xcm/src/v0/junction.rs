@@ -84,11 +84,17 @@ impl BodyPart {
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
+///
+/// NOTE: The codec index starts at 1, because a previous iteration of `Junction` has a `Parent`
+///       variant occupying index 0. We deprecate `Junction::Parent` now by having a custom
+///       Encode/Decode implementation for `MultiLocation`. Refer to [`MultiLocation`] for more
+///       details.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
 	/// Generally used when the context is a Polkadot Relay-chain.
+	#[codec(index = 1)]
 	Parachain(#[codec(compact)] u32),
 	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
