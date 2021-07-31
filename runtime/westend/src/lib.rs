@@ -1491,12 +1491,12 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
-			// impl pallet_xcm_benchmarks::Config for Runtime {
-			// 	type XcmConfig = XcmConfig;
-			// 	type FungibleTransactAsset = Balances;
-			// 	type FungiblesTransactAsset = AsFungibles<Balances>;
-			// }
-			// type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
+			impl pallet_xcm_benchmarks::Config for Runtime {
+				type XcmConfig = XcmConfig;
+				type FungibleTransactAsset = Balances;
+				type FungiblesTransactAsset = AsFungibles<Balances>;
+			}
+			type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1539,7 +1539,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			// add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			let storage_info = AllPalletsWithSystem::storage_info();
