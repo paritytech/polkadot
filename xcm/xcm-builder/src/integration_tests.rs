@@ -1,18 +1,23 @@
-use frame_support::{assert_ok, construct_runtime, parameter_types, traits::{All, AllowAll}, weights::Weight};
+use frame_support::{
+	assert_ok, construct_runtime, parameter_types,
+	traits::{All, AllowAll},
+	weights::Weight,
+};
 use sp_core::H256;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_runtime::traits::AccountIdConversion;
+use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
-use polkadot_parachain::primitives::Id as ParaId;
-use polkadot_runtime_parachains::{configuration, origin, shared, ump};
-use xcm::v0::{MultiLocation, NetworkId};
-use xcm::opaque::v0::MultiAsset;
 use crate::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible,
-	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
+	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation,
 };
+use polkadot_parachain::primitives::Id as ParaId;
+use polkadot_runtime_parachains::{configuration, origin, shared, ump};
+use xcm::opaque::v0::MultiAsset;
+use xcm::v0::{MultiLocation, NetworkId, Order};
 use xcm_executor::XcmExecutor;
 
 use crate as xcm_builder;
@@ -80,10 +85,8 @@ parameter_types! {
 	pub UnitWeightCost: Weight = 1_000;
 }
 
-pub type SovereignAccountOf = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<KusamaNetwork, AccountId>,
-);
+pub type SovereignAccountOf =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
 pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>;
@@ -166,18 +169,12 @@ pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 
 pub fn kusama_like_ext() -> sp_io::TestExternalities {
-
-	let mut t = frame_system::GenesisConfig::default()
-		.build_storage::<Runtime>()
-		.unwrap();
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
 	let parachain_acc: AccountId = ParaId::from(PARA_ID).into_account();
 
 	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![
-			(ALICE, INITIAL_BALANCE),
-			(parachain_acc, INITIAL_BALANCE)
-		],
+		balances: vec![(ALICE, INITIAL_BALANCE), (parachain_acc, INITIAL_BALANCE)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
@@ -232,22 +229,40 @@ pub fn kusama_like_ext() -> sp_io::TestExternalities {
 	ext
 }
 
+fn buy_execution<C>(debt: Weight) -> Order<C> {
+	use xcm::opaque::v0::prelude::*;
+	Order::BuyExecution {
+		fees: All,
+		weight: 0,
+		debt,
+		halt_on_error: false,
+		xcm: vec![],
+	}
+}
+
 #[test]
 fn withdraw_and_deposit_works() {
-	use xcm::v0::Xcm;
 	use xcm::opaque::v0::prelude::*;
+	use xcm::v0::Xcm;
 	use MultiLocation::*;
 
 	kusama_like_ext().execute_with(|| {
 		let other_para_id = 3000;
 		let amount = 5_000_000;
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID).into(), Xcm::WithdrawAsset {
-			assets: vec![ConcreteFungible{ id: Null, amount}],
-			effects: vec![
-				Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
-				Order::DepositAsset { assets: vec![All], dest: Parachain(other_para_id).into() }
-			]
-		}, 2_000_000);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(0),
+					Order::DepositAsset {
+						assets: vec![All],
+						dest: Parachain(other_para_id).into(),
+					},
+				],
+			},
+			2_000_000,
+		);
 		assert_eq!(r, Outcome::Complete(3_000));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
@@ -256,8 +271,8 @@ fn withdraw_and_deposit_works() {
 
 #[test]
 fn reserve_transfer_assets_works() {
-	use xcm::v0::{Xcm, Junction};
 	use xcm::opaque::v0::prelude::*;
+	use xcm::v0::{Junction, Xcm};
 	use MultiLocation::*;
 
 	kusama_like_ext().execute_with(|| {
@@ -276,42 +291,57 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + amount);
 		assert_eq!(
 			crate::mock::sent_xcm(),
-			vec![(Parachain(PARA_ID).into(), Xcm::ReserveAssetDeposit {
-				assets: vec![ConcreteFungible { id: Parent.into(), amount }],
-				effects: vec![
-					BuyExecution {
-						fees: All,
-						weight: 0,
-						debt: dest_weight,
-						halt_on_error: false,
-						xcm: vec![],
-					},
-					DepositAsset { assets: vec![ All ], dest: Junction::AccountId32 { network: NetworkId::Kusama, id: ALICE.into() }.into() },
-				]
-			})]
+			vec![(
+				Parachain(PARA_ID).into(),
+				Xcm::ReserveAssetDeposit {
+					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+					effects: vec![
+						buy_execution(dest_weight),
+						DepositAsset {
+							assets: vec![All],
+							dest: Junction::AccountId32 {
+								network: NetworkId::Kusama,
+								id: ALICE.into()
+							}
+							.into()
+						},
+					]
+				}
+			)]
 		);
 	});
 }
 
 #[test]
 fn query_holding_works() {
-	use xcm::v0::Xcm;
 	use xcm::opaque::v0::prelude::*;
-	use MultiLocation::*;
 	use xcm::opaque::v0::Response;
+	use xcm::v0::Xcm;
+	use MultiLocation::*;
 
 	kusama_like_ext().execute_with(|| {
 		let other_para_id = 3000;
 		let amount = 5_000_000;
 		let query_id = 1234;
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID).into(), Xcm::WithdrawAsset {
-			assets: vec![ConcreteFungible{ id: Null, amount}],
-			effects: vec![
-				Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
-				Order::QueryHolding { query_id, dest: Parachain(PARA_ID).into(), assets: vec![All] },
-				Order::DepositAsset { assets: vec![All], dest: Parachain(other_para_id).into() },
-			]
-		}, 2_000_000);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(0),
+					Order::QueryHolding {
+						query_id,
+						dest: Parachain(PARA_ID).into(),
+						assets: vec![All],
+					},
+					Order::DepositAsset {
+						assets: vec![All],
+						dest: Parachain(other_para_id).into(),
+					},
+				],
+			},
+			2_000_000,
+		);
 		assert_eq!(r, Outcome::Complete(4_000));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
@@ -319,45 +349,60 @@ fn query_holding_works() {
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(
 			crate::mock::sent_xcm(),
-			vec![(Parachain(PARA_ID).into(), Xcm::QueryResponse {
-				query_id,
-				response: Response::Assets(vec![ConcreteFungible { id: Parent.into(), amount }])
-			})]
+			vec![(
+				Parachain(PARA_ID).into(),
+				Xcm::QueryResponse {
+					query_id,
+					response: Response::Assets(vec![ConcreteFungible {
+						id: Parent.into(),
+						amount
+					}])
+				}
+			)]
 		);
 	});
 }
 
 #[test]
 fn teleport_to_statemine_works() {
-	use xcm::v0::Xcm;
 	use xcm::opaque::v0::prelude::*;
+	use xcm::v0::Xcm;
 	use MultiLocation::*;
 
 	kusama_like_ext().execute_with(|| {
 		let statemine_id = 1000;
 		let amount = 5_000_000;
 		let teleport_effects = vec![
-			Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
-			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() }
+			buy_execution(0),
+			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() },
 		];
-		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID).into(), Xcm::WithdrawAsset {
-			assets: vec![ConcreteFungible{ id: Null, amount}],
-			effects: vec![
-				Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
-				Order::InitiateTeleport {
-					assets: vec![All], dest: Parachain(statemine_id).into(), effects: teleport_effects.clone(),
-				},
-			]
-		}, 2_000_000);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(0),
+					Order::InitiateTeleport {
+						assets: vec![All],
+						dest: Parachain(statemine_id).into(),
+						effects: teleport_effects.clone(),
+					},
+				],
+			},
+			2_000_000,
+		);
 		assert_eq!(r, Outcome::Complete(3_000));
 		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(
 			crate::mock::sent_xcm(),
-			vec![(Parachain(statemine_id).into(), Xcm::TeleportAsset {
-				assets: vec![ConcreteFungible { id: Parent.into(), amount }],
-				effects: teleport_effects,
-			})]
+			vec![(
+				Parachain(statemine_id).into(),
+				Xcm::TeleportAsset {
+					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+					effects: teleport_effects,
+				}
+			)]
 		);
 	});
 }
