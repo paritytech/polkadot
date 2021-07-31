@@ -18,6 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box, vec};
 use codec::{Encode, Decode};
 use xcm::v0::prelude::*;

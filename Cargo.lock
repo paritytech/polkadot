@@ -5448,11 +5448,16 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
+ "pallet-balances",
  "parity-scale-codec",
+ "polkadot-parachain",
+ "polkadot-runtime-parachains",
  "serde",
+ "sp-core",
  "sp-runtime",
  "sp-std",
  "xcm",
+ "xcm-builder",
  "xcm-executor",
 ]
 
