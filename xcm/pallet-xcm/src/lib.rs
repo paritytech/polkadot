@@ -20,6 +20,8 @@
 
 #[cfg(test)]
 mod mock;
+#[cfg(test)]
+mod tests;
 
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box, vec};
 use codec::{Encode, Decode};

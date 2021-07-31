@@ -2,7 +2,7 @@ use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll},
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
-use polkadot_parachain::primitives::Id as ParaId;
+use polkadot_parachain::primitives::{Id as ParaId, AccountIdConversion};
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
 use xcm::v0::{MultiLocation, NetworkId};
 use xcm::opaque::v0::MultiAsset;
@@ -23,9 +23,9 @@ pub type Balance = u128;
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
 }
-// pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
-// 	SENT_XCM.with(|q| (*q.borrow()).clone())
-// }
+pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
@@ -171,11 +171,31 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
 		ParasUmp: ump::{Pallet, Call, Storage, Event},
-		XcmPallet: crate::{Pallet, Call, Storage, Event<T>},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
-#[test]
-fn example() {
-    assert!(true);
+pub const ALICE: AccountId = AccountId::new([0u8; 32]);
+pub const PARA_ID: u32 = 2000;
+pub const INITIAL_BALANCE: u128 = 100_000_000_000;
+
+pub fn test_ext() -> sp_io::TestExternalities {
+	let mut t = frame_system::GenesisConfig::default()
+		.build_storage::<Runtime>()
+		.unwrap();
+
+	let parachain_acc: AccountId = ParaId::from(PARA_ID).into_account();
+
+	pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(ALICE, INITIAL_BALANCE),
+			(parachain_acc, INITIAL_BALANCE)
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| System::set_block_number(1));
+	ext
 }
