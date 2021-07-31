@@ -40,6 +40,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
 		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet},
 	}
 );
@@ -88,6 +89,30 @@ impl pallet_balances::Config for Test {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const AssetDeposit: u64 = 100 * ExistentialDeposit::get();
+	pub const ApprovalDeposit: u64 = 1 * ExistentialDeposit::get();
+	pub const StringLimit: u32 = 50;
+	pub const MetadataDepositBase: u64 = 10 * ExistentialDeposit::get();
+	pub const MetadataDepositPerByte: u64 = 1 * ExistentialDeposit::get();
+}
+
+impl pallet_assets::Config for Test {
+	type Event = Event;
+	type Balance = u64;
+	type AssetId = u32;
+	type Currency = Balances;
+	type ForceOrigin = frame_system::EnsureRoot<u64>;
+	type AssetDeposit = AssetDeposit;
+	type MetadataDepositBase = MetadataDepositBase;
+	type MetadataDepositPerByte = MetadataDepositPerByte;
+	type ApprovalDeposit = ApprovalDeposit;
+	type StringLimit = StringLimit;
+	type Freezer = ();
+	type Extra = ();
 	type WeightInfo = ();
 }
 
@@ -184,7 +209,8 @@ impl xcm_executor::Config for XcmConfig {
 
 impl pallet_xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
-	type TransactAssetAdapter = Balances;
+	type FungibleTransactAsset = Balances;
+	type FungiblesTransactAsset = Assets;
 }
 
 // This function basically just builds a genesis storage key/value store according to

@@ -304,7 +304,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub para_validator: Initializer,
-		pub para_assignment: ParasSessionInfo,
+		pub para_assignment: ParaSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -1007,10 +1007,6 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
-impl pallet_xcm_benchmarks::Config for Runtime {
-	type XcmConfig = XcmConfig;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1071,13 +1067,13 @@ construct_runtime! {
 		ParasShared: parachains_shared::{Pallet, Call, Storage} = 43,
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
-		ParasScheduler: parachains_scheduler::{Pallet, Call, Storage} = 46,
+		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 46,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 51,
-		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 52,
+		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
@@ -1088,7 +1084,6 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
-		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet} = 999,
 	}
 }
 
@@ -1456,6 +1451,52 @@ sp_api::impl_runtime_apis! {
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
+
+			use frame_support::traits::fungible::Inspect as FungibleInspect;
+			use frame_support::traits::fungibles::Inspect as FungiblesInspect;
+			use frame_support::traits::tokens::{DepositConsequence, WithdrawConsequence};
+			pub struct AsFungibles<B>(sp_std::marker::PhantomData<B>);
+			/// Trait for providing balance-inspection access to a set of named fungible assets.
+
+			impl<B: FungibleInspect<AccountId, Balance = Balance>> FungiblesInspect<AccountId> for AsFungibles<B> {
+				type AssetId = u32;
+				type Balance = Balance;
+
+				fn total_issuance(_: Self::AssetId) -> Self::Balance {
+					B::total_issuance()
+				}
+				fn minimum_balance(_: Self::AssetId) -> Self::Balance {
+					B::minimum_balance()
+				}
+				fn balance(_: Self::AssetId, who: &AccountId) -> Self::Balance {
+					B::balance(who)
+				}
+				fn reducible_balance(_: Self::AssetId, who: &AccountId, keep_alive: bool) -> Self::Balance {
+					B::reducible_balance(who, keep_alive)
+				}
+				fn can_deposit(
+					_: Self::AssetId,
+					who: &AccountId,
+					amount: Self::Balance,
+				) -> DepositConsequence {
+					B::can_deposit(who, amount)
+				}
+
+				fn can_withdraw(
+					_: Self::AssetId,
+					who: &AccountId,
+					amount: Self::Balance,
+				) -> WithdrawConsequence<Self::Balance> {
+					B::can_withdraw(who, amount)
+				}
+			}
+
+			impl pallet_xcm_benchmarks::Config for Runtime {
+				type XcmConfig = XcmConfig;
+				type FungibleTransactAsset = Balances;
+				type FungiblesTransactAsset = AsFungibles<Balances>;
+			}
+			type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number

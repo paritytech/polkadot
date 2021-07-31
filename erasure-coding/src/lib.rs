@@ -56,7 +56,7 @@ pub enum Error {
 	#[error("Too many chunks present")]
 	TooManyChunks,
 	/// Chunks not of uniform length or the chunks are empty.
-	#[error("Chunks are not unform, mismatch in length or are zero sized")]
+	#[error("Chunks are not uniform, mismatch in length or are zero sized")]
 	NonUniformChunks,
 	/// An uneven byte-length of a shard is not valid for `GF(2^16)` encoding.
 	#[error("Uneven length is not valid for field GF(2^16)")]

@@ -21,6 +21,7 @@ xcm = { path = "..", default-features = false, optional = true }
 
 [dev-dependencies]
 pallet-balances = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
+pallet-assets = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-core = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-io = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
