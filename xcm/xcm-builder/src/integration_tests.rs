@@ -292,3 +292,72 @@ fn reserve_transfer_assets_works() {
 		);
 	});
 }
+
+#[test]
+fn query_holding_works() {
+	use xcm::v0::Xcm;
+	use xcm::opaque::v0::prelude::*;
+	use MultiLocation::*;
+	use xcm::opaque::v0::Response;
+
+	kusama_like_ext().execute_with(|| {
+		let other_para_id = 3000;
+		let amount = 5_000_000;
+		let query_id = 1234;
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID).into(), Xcm::WithdrawAsset {
+			assets: vec![ConcreteFungible{ id: Null, amount}],
+			effects: vec![
+				Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
+				Order::QueryHolding { query_id, dest: Parachain(PARA_ID).into(), assets: vec![All] },
+				Order::DepositAsset { assets: vec![All], dest: Parachain(other_para_id).into() },
+			]
+		}, 2_000_000);
+		assert_eq!(r, Outcome::Complete(4_000));
+		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		assert_eq!(Balances::free_balance(other_para_acc), amount);
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		assert_eq!(
+			crate::mock::sent_xcm(),
+			vec![(Parachain(PARA_ID).into(), Xcm::QueryResponse {
+				query_id,
+				response: Response::Assets(vec![ConcreteFungible { id: Parent.into(), amount }])
+			})]
+		);
+	});
+}
+
+#[test]
+fn teleport_to_statemine_works() {
+	use xcm::v0::Xcm;
+	use xcm::opaque::v0::prelude::*;
+	use MultiLocation::*;
+
+	kusama_like_ext().execute_with(|| {
+		let statemine_id = 1000;
+		let amount = 5_000_000;
+		let teleport_effects = vec![
+			Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
+			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() }
+		];
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID).into(), Xcm::WithdrawAsset {
+			assets: vec![ConcreteFungible{ id: Null, amount}],
+			effects: vec![
+				Order::BuyExecution { fees: All, weight: 0, debt: 0, halt_on_error: false, xcm: vec![] },
+				Order::InitiateTeleport {
+					assets: vec![All], dest: Parachain(statemine_id).into(), effects: teleport_effects.clone(),
+				},
+			]
+		}, 2_000_000);
+		assert_eq!(r, Outcome::Complete(3_000));
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		assert_eq!(
+			crate::mock::sent_xcm(),
+			vec![(Parachain(statemine_id).into(), Xcm::TeleportAsset {
+				assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+				effects: teleport_effects,
+			})]
+		);
+	});
+}
