@@ -23,8 +23,10 @@ xcm = { path = "..", default-features = false, optional = true }
 pallet-balances = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-core = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-io = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
+sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
+log = "0.4.0"
 
 [features]
 default = ["std"]

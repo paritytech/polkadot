@@ -76,7 +76,7 @@ impl frame_system::Config for Test {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
+	pub const ExistentialDeposit: u64 = 7;
 }
 
 impl pallet_balances::Config for Test {
@@ -118,18 +118,26 @@ parameter_types! {
 	pub WeightPrice: (MultiLocation, u128) = (MultiLocation::Null, 1_000_000_000_000);
 }
 
-pub struct TestMatcher;
-impl xcm_executor::traits::MatchesFungible<u64> for TestMatcher {
-	fn matches_fungible(_: &MultiAsset) -> Option<u64> {
-		// TODO
-		None
+// TODO: maybe just use IsConcrete
+pub struct MatchAnyFungible;
+impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
+	fn matches_fungible(m: &MultiAsset) -> Option<u64> {
+		use sp_runtime::traits::SaturatedConversion;
+		match m {
+			MultiAsset::ConcreteFungible { amount, .. } => Some((*amount).saturated_into::<u64>()),
+			_ => None,
+		}
 	}
 }
 
 pub struct AccountIdConverter;
 impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 	fn convert(ml: MultiLocation) -> Result<u64, MultiLocation> {
-		Err(ml)
+		match ml {
+			MultiLocation::X1(Junction::AccountId32 { id, .. }) =>
+				Ok(<u64 as codec::Decode>::decode(&mut &*id.to_vec()).unwrap()),
+			_ => Err(ml),
+		}
 	}
 
 	fn reverse(acc: u64) -> Result<MultiLocation, u64> {
@@ -138,8 +146,26 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 }
 
 // Use balances as the asset transactor.
-pub type AssetTransactor =
-	xcm_builder::CurrencyAdapter<Balances, TestMatcher, AccountIdConverter, u64, CheckedAccount>;
+pub type AssetTransactor = xcm_builder::CurrencyAdapter<
+	Balances,
+	MatchAnyFungible,
+	AccountIdConverter,
+	u64,
+	CheckedAccount,
+>;
+
+pub struct YesItShould<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> xcm_executor::traits::ShouldExecute for YesItShould<T> {
+	fn should_execute<Call>(
+		_: &MultiLocation,
+		_: bool,
+		_: &xcm::v0::Xcm<Call>,
+		_: Weight,
+		_: &mut Weight,
+	) -> Result<(), ()> {
+		Ok(())
+	}
+}
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -150,7 +176,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = (); // TODO:
 	type IsTeleporter = (); // no one can teleport.
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = (); // No barriers -- everything is allowed.
+	type Barrier = YesItShould<Test>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
@@ -158,11 +184,13 @@ impl xcm_executor::Config for XcmConfig {
 
 impl pallet_xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
+	type TransactAssetAdapter = Balances;
 }
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	sp_tracing::try_init_simple();
 	t.into()
 }

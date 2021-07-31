@@ -16,7 +16,7 @@
 
 //! Implements a `AvailabilityStoreSubsystem`.
 
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 #![warn(missing_docs)]
 
 use std::collections::{HashMap, HashSet, BTreeSet};

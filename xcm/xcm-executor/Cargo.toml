@@ -30,3 +30,4 @@ std = [
 	"frame-support/std",
 	"log/std",
 ]
+runtime-benchmarks = []

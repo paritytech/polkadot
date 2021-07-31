@@ -162,10 +162,6 @@ pub trait ExecuteXcm<Call> {
 		weight_limit: Weight,
 		weight_credit: Weight,
 	) -> Outcome;
-
-	/// Execute just an order. This is only used in benchmarks.
-	#[cfg(feature = "runtime-benchmarks")]
-	fn execute_order(_: super::Order<Call>) {}
 }
 
 impl<C> ExecuteXcm<C> for () {

@@ -85,7 +85,11 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn teleport_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn teleport_asset(
+		asset: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
 			Err(XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;
@@ -244,29 +248,33 @@ mod tests {
 
 	#[test]
 	fn defaults_to_asset_not_found() {
-		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
-
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::AssetNotFound));
+		type MultiTransactor =
+			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
+		assert_eq!(
+			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			Err(XcmError::AssetNotFound),
+		);
 	}
 
 	#[test]
 	fn unimplemented_and_not_found_continue_iteration() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
-
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()),);
 	}
 
 	#[test]
 	fn unexpected_error_stops_iteration() {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
-
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::Overflow));
+		assert_eq!(
+			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			Err(XcmError::Overflow),
+		);
 	}
 
 	#[test]
 	fn success_stops_iteration() {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()),);
 	}
 }

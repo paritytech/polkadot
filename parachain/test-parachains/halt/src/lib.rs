@@ -17,7 +17,10 @@
 //! Basic parachain that executes forever.
 
 #![no_std]
-#![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler))]
+#![cfg_attr(
+	not(feature = "std"),
+	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
+)]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]

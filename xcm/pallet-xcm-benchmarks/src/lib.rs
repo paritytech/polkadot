@@ -38,6 +38,11 @@ pub mod pallet {
 		/// These might affect the execution of XCM messages, such as defining how the
 		/// `TransactAsset` is implemented.
 		type XcmConfig: xcm_executor::Config;
+
+		/// Direct access to whoever is being the implementor `TransactAsset`'s adapter.
+		///
+		/// Usually should be an instance of balances or assets/uniques pallet.
+		type TransactAssetAdapter: frame_support::traits::fungible::Inspect<Self::AccountId>;
 	}
 
 	#[pallet::pallet]

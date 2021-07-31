@@ -18,7 +18,7 @@
 
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};

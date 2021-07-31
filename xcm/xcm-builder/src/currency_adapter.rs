@@ -85,16 +85,20 @@ pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, Che
 );
 
 impl<
-	Matcher: MatchesFungible<Currency::Balance>,
-	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	Currency: frame_support::traits::Currency<AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-	CheckedAccount: Get<Option<AccountId>>,
-> TransactAsset for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount> {
+		Matcher: MatchesFungible<Currency::Balance>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		Currency: frame_support::traits::Currency<AccountId>,
+		AccountId: Clone, // can't get away without it since Currency is generic over it.
+		CheckedAccount: Get<Option<AccountId>>,
+	> TransactAsset
+	for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
+where
+	<Currency as frame_support::traits::Currency<AccountId>>::Balance: Into<u128>,
+{
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
 		// Check we handle this asset.
-		let amount: Currency::Balance = Matcher::matches_fungible(what)
-			.ok_or(Error::AssetNotFound)?;
+		let amount: Currency::Balance =
+			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
 		if let Some(checked_account) = CheckedAccount::get() {
 			let new_balance = Currency::free_balance(&checked_account)
 				.checked_sub(&amount)
@@ -123,10 +127,10 @@ impl<
 	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
+		log::trace!("xcm::currency_adapter deposit_asset {:?} {:?}", what, who);
 		// Check we handle this asset.
-		let amount: u128 = Matcher::matches_fungible(&what)
-			.ok_or(Error::AssetNotFound)?
-			.saturated_into();
+		let amount: u128 =
+			Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?.saturated_into();
 		let who = AccountIdConverter::convert_ref(who)
 			.map_err(|()| Error::AccountIdConversionFailed)?;
 		let balance_amount = amount
@@ -136,14 +140,10 @@ impl<
 		Ok(())
 	}
 
-	fn withdraw_asset(
-		what: &MultiAsset,
-		who: &MultiLocation
-	) -> result::Result<Assets, XcmError> {
+	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<Assets, XcmError> {
 		// Check we handle this asset.
-		let amount: u128 = Matcher::matches_fungible(what)
-			.ok_or(Error::AssetNotFound)?
-			.saturated_into();
+		let amount: u128 =
+			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?.saturated_into();
 		let who = AccountIdConverter::convert_ref(who)
 			.map_err(|()| Error::AccountIdConversionFailed)?;
 		let balance_amount = amount

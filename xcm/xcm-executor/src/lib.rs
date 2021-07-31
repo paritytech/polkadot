@@ -300,8 +300,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				holding.saturating_subsume(trader.refund_weight(remaining_weight));
 			}
+			Order::Null => {
+				// nada
+			}
 			_ => return Err(XcmError::UnhandledEffect)?,
 		}
 		Ok(total_surplus)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub fn do_execute_effects(
+		origin: &MultiLocation,
+		holding: &mut Assets,
+		effect: Order<Config::Call>,
+	) -> Result<Weight, XcmError> {
+		let mut trader = Config::Trader::new();
+		Self::execute_effects(origin, holding, effect, &mut trader)
 	}
 }
