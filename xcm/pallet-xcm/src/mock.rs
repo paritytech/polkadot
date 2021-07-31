@@ -1,4 +1,4 @@
-use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll, Contains}, weights::Weight};
+use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll}, weights::Weight};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
@@ -19,6 +19,22 @@ use crate as pallet_xcm;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
+
+construct_runtime!(
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic,
+	{
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		ParasOrigin: origin::{Pallet, Origin},
+		ParasUmp: ump::{Pallet, Call, Storage, Event},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
+	}
+);
 
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
@@ -38,7 +54,7 @@ parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 }
 
-impl frame_system::Config for Runtime {
+impl frame_system::Config for Test {
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -70,7 +86,7 @@ parameter_types! {
 	pub const MaxReserves: u32 = 50;
 }
 
-impl pallet_balances::Config for Runtime {
+impl pallet_balances::Config for Test {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
 	type Event = Event;
@@ -82,9 +98,9 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 }
 
-impl shared::Config for Runtime {}
+impl shared::Config for Test {}
 
-impl configuration::Config for Runtime {}
+impl configuration::Config for Test {}
 
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::Null;
@@ -114,6 +130,7 @@ parameter_types! {
 	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
 }
 
+// TODO: should we change this to be more selective to test it?
 pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 
 pub struct XcmConfig;
@@ -133,13 +150,11 @@ impl xcm_executor::Config for XcmConfig {
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
 
-impl pallet_xcm::Config for Runtime {
+impl pallet_xcm::Config for Test {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = TestSendXcm;
-	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-    // All Xcm messages can be executed
 	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
@@ -151,43 +166,30 @@ parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
-impl ump::Config for Runtime {
+impl ump::Config for Test {
 	type Event = Event;
-	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Test>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
-impl origin::Config for Runtime {}
-
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
-type Block = frame_system::mocking::MockBlock<Runtime>;
-
-construct_runtime!(
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		ParasOrigin: origin::{Pallet, Origin},
-		ParasUmp: ump::{Pallet, Call, Storage, Event},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
-	}
-);
+impl origin::Config for Test {}
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 
-pub fn test_ext() -> sp_io::TestExternalities {
+pub(crate) fn last_event() -> Event {
+	System::events().pop().expect("Event expected").event
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default()
-		.build_storage::<Runtime>()
+		.build_storage::<Test>()
 		.unwrap();
 
 	let parachain_acc: AccountId = ParaId::from(PARA_ID).into_account();
 
-	pallet_balances::GenesisConfig::<Runtime> {
+	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![
 			(ALICE, INITIAL_BALANCE),
 			(parachain_acc, INITIAL_BALANCE)
