@@ -17,7 +17,7 @@
 //! Various implementations of `FilterAssetLocation`.
 
 use sp_std::marker::PhantomData;
-use xcm::v0::{MultiAsset, MultiLocation};
+use xcm::v0::{MultiAsset, MultiLocation, AssetId::Concrete};
 use frame_support::traits::Get;
 use xcm_executor::traits::FilterAssetLocation;
 
@@ -25,7 +25,7 @@ use xcm_executor::traits::FilterAssetLocation;
 pub struct NativeAsset;
 impl FilterAssetLocation for NativeAsset {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		matches!(asset, MultiAsset::ConcreteFungible { ref id, .. } if id == origin)
+		matches!(asset.id, Concrete(ref id) if id == origin)
 	}
 }
 

@@ -16,7 +16,7 @@
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryInto};
 use parity_scale_codec::Decode;
-use xcm::v0::{Xcm, Order, MultiAsset, MultiLocation, Error};
+use xcm::v0::{Xcm, Order, MultiAsset, MultiLocation, Error, AssetId::Concrete};
 use sp_runtime::traits::{Zero, Saturating, SaturatedConversion};
 use frame_support::traits::{Get, OnUnbalanced as OnUnbalancedT, tokens::currency::Currency as CurrencyT};
 use frame_support::weights::{Weight, GetDispatchInfo, WeightToFeePolynomial};
@@ -103,8 +103,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		let (id, units_per_second) = T::get();
 		use frame_support::weights::constants::WEIGHT_PER_SECOND;
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
-		let required = MultiAsset::ConcreteFungible { amount, id };
-		let (unused, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
+		let unused = payment.checked_sub((id, amount).into()).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
@@ -116,14 +115,13 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOf
 		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
-		Some((id, amount).into())
+		Some((Concrete(id), amount).into())
 	}
 }
 
 impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcreteFungible<T, R> {
 	fn drop(&mut self) {
-		let revenue = MultiAsset::ConcreteFungible { amount: self.1, id: T::get().0 };
-		R::take_revenue(revenue);
+		R::take_revenue((Concrete(T::get().0), self.1).into());
 	}
 }
 
@@ -147,11 +145,9 @@ impl<
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let amount = WeightToFee::calc(&weight);
-		let required = MultiAsset::ConcreteFungible {
-			amount: amount.try_into().map_err(|_| Error::Overflow)?,
-			id: AssetId::get(),
-		};
-		let (unused, _) = payment.less(required).map_err(|_| Error::TooExpensive)?;
+		let u128_amount: u128 = amount.try_into().map_err(|_| Error::Overflow)?;
+		let required = (Concrete(AssetId::get()), u128_amount).into();
+		let unused = payment.checked_sub(required).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
@@ -162,7 +158,8 @@ impl<
 		let amount = WeightToFee::calc(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
-		Some(MultiAsset::from((AssetId::get(), amount.saturated_into())))
+		let amount: u128 = amount.saturated_into();
+		Some((AssetId::get(), amount).into())
 	}
 
 }

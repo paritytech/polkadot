@@ -64,6 +64,18 @@ pub enum AssetId {
 	Abstract(Vec<u8>),
 }
 
+impl From<MultiLocation> for AssetId {
+	fn from(x: MultiLocation) -> Self {
+		Self::Concrete(x)
+	}
+}
+
+impl From<Vec<u8>> for AssetId {
+	fn from(x: Vec<u8>) -> Self {
+		Self::Abstract(x)
+	}
+}
+
 impl AssetId {
 	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
@@ -137,21 +149,9 @@ impl Ord for MultiAsset {
 	}
 }
 
-impl From<(AssetId, Fungibility)> for MultiAsset {
-	fn from((id, fun): (AssetId, Fungibility)) -> MultiAsset {
-		MultiAsset { fun, id }
-	}
-}
-
-impl From<(AssetId, u128)> for MultiAsset {
-	fn from((id, amount): (AssetId, u128)) -> MultiAsset {
-		MultiAsset { fun: amount.into(), id }
-	}
-}
-
-impl From<(AssetId, AssetInstance)> for MultiAsset {
-	fn from((id, instance): (AssetId, AssetInstance)) -> MultiAsset {
-		MultiAsset { fun: instance.into(), id }
+impl<A: Into<AssetId>, B: Into<Fungibility>> From<(A, B)> for MultiAsset {
+	fn from((id, fun): (A, B)) -> MultiAsset {
+		MultiAsset { fun: fun.into(), id: id.into() }
 	}
 }
 
@@ -406,6 +406,18 @@ pub enum MultiAssetFilter {
 impl From<WildMultiAsset> for MultiAssetFilter {
 	fn from(x: WildMultiAsset) -> Self {
 		Self::Wild(x)
+	}
+}
+
+impl From<MultiAsset> for MultiAssetFilter {
+	fn from(x: MultiAsset) -> Self {
+		Self::Assets(vec![x].into())
+	}
+}
+
+impl From<MultiAssets> for MultiAssetFilter {
+	fn from(x: MultiAssets) -> Self {
+		Self::Assets(x)
 	}
 }
 

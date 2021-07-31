@@ -17,7 +17,10 @@
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
 use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
-use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
+use xcm::v0::{
+	Error as XcmError, Result, MultiAsset, MultiLocation, Junction, Fungibility::Fungible,
+	AssetId::{Concrete, Abstract},
+};
 use frame_support::traits::{Get, tokens::fungibles, Contains};
 use xcm_executor::traits::{TransactAsset, Convert, MatchesFungibles, Error as MatchError};
 
@@ -61,8 +64,8 @@ impl<
 	ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
-		let (id, amount) = match a {
-			MultiAsset::ConcreteFungible { id, amount } => (id, amount),
+		let (amount, id) = match (&a.fun, &a.id) {
+			(Fungible(ref amount), Concrete(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotFound),
 		};
 		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -83,8 +86,8 @@ impl<
 	ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
-		let (id, amount) = match a {
-			MultiAsset::AbstractFungible { id, amount } => (id, amount),
+		let (amount, id) = match (&a.fun, &a.id) {
+			(Fungible(ref amount), Abstract(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotFound),
 		};
 		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;

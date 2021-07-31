@@ -253,6 +253,16 @@ impl Assets {
 		self.general_take(mask, false)
 	}
 
+	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
+	pub fn checked_sub(mut self, asset: MultiAsset) -> Result<Assets, Self> {
+		// TODO: Optimize by doing this operation directly rather than converting into a MultiAssetFilter and
+		//   constructing the unused `_taken` return value.
+		match self.try_take(asset.into()) {
+			Ok(_taken) => Ok(self),
+			Err(_) => Err(self),
+		}
+	}
+
 	/// Consumes `self` and returns its original value excluding `mask` iff it contains at least `mask`, as well as
 	/// the assets excluded.
 	pub fn less(mut self, mask: MultiAssetFilter) -> Result<(Assets, Assets), Self> {
