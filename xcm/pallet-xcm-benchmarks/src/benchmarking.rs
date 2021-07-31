@@ -222,7 +222,11 @@ benchmarks! {
 			)
 		}
 	}
-	xcm_transfer_reserved_asset {}: {} verify {}
+
+	xcm_transfer_reserved_asset_fungible {}: {} verify {}
+	xcm_transfer_reserved_asset_fungibles {}: {} verify {}
+	xcm_transfer_reserved_asset_fungible_non {}: {} verify {}
+
 	xcm_transact {}: {} verify {}
 	xcm_hrmp_channel_open_request {}: {} verify {}
 	xcm_hrmp_channel_accepted {}: {} verify {}

@@ -1455,6 +1455,7 @@ sp_api::impl_runtime_apis! {
 			use frame_support::traits::fungible::Inspect as FungibleInspect;
 			use frame_support::traits::fungibles::Inspect as FungiblesInspect;
 			use frame_support::traits::tokens::{DepositConsequence, WithdrawConsequence};
+
 			pub struct AsFungibles<B>(sp_std::marker::PhantomData<B>);
 			/// Trait for providing balance-inspection access to a set of named fungible assets.
 

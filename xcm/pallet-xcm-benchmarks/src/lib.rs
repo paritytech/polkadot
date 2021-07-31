@@ -20,6 +20,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+use xcm::v0::MultiAsset;
 
 #[cfg(test)]
 mod mock;
@@ -43,9 +44,30 @@ pub mod pallet {
 		/// Usually should be an instance of balances or assets/uniques pallet.
 		type FungibleTransactAsset: frame_support::traits::fungible::Inspect<Self::AccountId>;
 		type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
+		type NonFungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
 	}
+
+	// transact asset that works with balances and asset
+	//
+	// transact asset that works with 3 assets
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+}
+
+
+// With this, we measure all weights per asset, so NONE of the benchmarks need to have a component
+// that is the number of assets, that's pretty pointless. You need to iterate the `Vec<MultiAsset>`
+// down the road
+enum AssetWeightType {
+	Fungible, 		// Balances
+	Fungibles, 		// assets,
+	NonFungible, 	// Uniques
+}
+
+trait IdentifyAsset<R> {
+	fn identify_asset(asset: MultiAsset) -> R {
+
+	}
 }
