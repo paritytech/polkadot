@@ -1,4 +1,4 @@
-use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll}, weights::Weight};
+use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll, Contains}, weights::Weight};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
@@ -139,7 +139,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = ();
+    // All Xcm messages can be executed
+	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
