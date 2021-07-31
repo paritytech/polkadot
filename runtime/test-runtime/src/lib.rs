@@ -541,7 +541,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
-		Scheduler: parachains_scheduler::{Pallet, Call, Storage},
+		Scheduler: parachains_scheduler::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
