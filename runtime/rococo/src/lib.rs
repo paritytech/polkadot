@@ -189,7 +189,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub para_validator: Initializer,
-		pub para_assignment: SessionInfo,
+		pub para_assignment: ParaSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 		pub beefy: Beefy,
 	}
@@ -232,7 +232,7 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
-		SessionInfo: parachains_session_info::{Pallet, Call, Storage},
+		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},

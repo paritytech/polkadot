@@ -54,7 +54,7 @@ frame_support::construct_runtime!(
 		Dmp: dmp::{Pallet, Call, Storage},
 		Ump: ump::{Pallet, Call, Storage, Event},
 		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
-		SessionInfo: session_info::{Pallet, Call, Storage},
+		SessionInfo: session_info::{Pallet, Storage},
 		Disputes: disputes::{Pallet, Storage, Event<T>},
 	}
 );

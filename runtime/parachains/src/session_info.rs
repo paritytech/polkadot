@@ -14,54 +14,56 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The session info module provides information about validator sets
+//! The session info pallet provides information about validator sets
 //! from prior sessions needed for approvals and disputes.
 //!
 //! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
 
 use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
-use frame_support::{
-	decl_storage, decl_module, decl_error,
-	traits::OneSessionHandler, weights::Weight,
-};
+use frame_support::pallet_prelude::*;
+use frame_support::traits::OneSessionHandler;
 use crate::{configuration, paras, scheduler, shared};
 use crate::util::take_active_subset;
 use sp_std::vec::Vec;
 
-pub trait Config:
-	frame_system::Config
-	+ configuration::Config
-	+ shared::Config
-	+ paras::Config
-	+ scheduler::Config
-	+ AuthorityDiscoveryConfig
-{
-}
+pub use pallet::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaSessionInfo {
-		/// Assignment keys for the current session.
-		/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
-		/// When in doubt, use `Sessions` API instead.
-		AssignmentKeysUnsafe: Vec<AssignmentId>;
-		/// The earliest session for which previous session info is stored.
-		EarliestStoredSession get(fn earliest_stored_session): SessionIndex;
-		/// Session information in a rolling window.
-		/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
-		/// Does not have any entries before the session index in the first session change notification.
-		Sessions get(fn session_info): map hasher(identity) SessionIndex => Option<SessionInfo>;
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config:
+		frame_system::Config
+		+ configuration::Config
+		+ shared::Config
+		+ paras::Config
+		+ scheduler::Config
+		+ AuthorityDiscoveryConfig
+	{
 	}
-}
 
-decl_error! {
-	pub enum Error for Module<T: Config> { }
-}
+	/// Assignment keys for the current session.
+	/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
+	/// When in doubt, use `Sessions` API instead.
+	#[pallet::storage]
+	pub(super) type AssignmentKeysUnsafe<T: Config> = StorageValue<_, Vec<AssignmentId>, ValueQuery>;
 
-decl_module! {
-	/// The session info module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
-	}
+	/// The earliest session for which previous session info is stored.
+	#[pallet::storage]
+	#[pallet::getter(fn earliest_stored_session)]
+	pub(crate) type EarliestStoredSession<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+
+	/// Session information in a rolling window.
+	/// Should have an entry in range `EarliestStoredSession..=CurrentSessionIndex`.
+	/// Does not have any entries before the session index in the first session change notification.
+	#[pallet::storage]
+	#[pallet::getter(fn session_info)]
+	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -77,7 +79,7 @@ impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 	}
 }
 
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
 		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
@@ -88,7 +90,7 @@ impl<T: Config> Module<T> {
 
 		let validators = notification.validators.clone();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
-		let assignment_keys = AssignmentKeysUnsafe::get();
+		let assignment_keys = AssignmentKeysUnsafe::<T>::get();
 		let active_set = <shared::Pallet<T>>::active_validator_indices();
 
 		let validator_groups = <scheduler::Module<T>>::validator_groups();
@@ -100,20 +102,20 @@ impl<T: Config> Module<T> {
 		let needed_approvals = config.needed_approvals;
 
 		let new_session_index = notification.session_index;
-		let old_earliest_stored_session = EarliestStoredSession::get();
+		let old_earliest_stored_session = EarliestStoredSession::<T>::get();
 		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
 		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
-		if old_earliest_stored_session != 0 || Sessions::get(0).is_some() {
+		if old_earliest_stored_session != 0 || Sessions::<T>::get(0).is_some() {
 			for idx in old_earliest_stored_session..new_earliest_stored_session {
-				Sessions::remove(&idx);
+				Sessions::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
-			EarliestStoredSession::set(new_earliest_stored_session);
+			EarliestStoredSession::<T>::set(new_earliest_stored_session);
 		} else {
 			// just introduced on a live chain
-			EarliestStoredSession::set(new_session_index);
+			EarliestStoredSession::<T>::set(new_session_index);
 		}
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
@@ -128,23 +130,23 @@ impl<T: Config> Module<T> {
 			no_show_slots,
 			needed_approvals,
 		};
-		Sessions::insert(&new_session_index, &new_session_info);
+		Sessions::<T>::insert(&new_session_index, &new_session_info);
 	}
 
-	/// Called by the initializer to initialize the session info module.
+	/// Called by the initializer to initialize the session info pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
-	/// Called by the initializer to finalize the session info module.
+	/// Called by the initializer to finalize the session info pallet.
 	pub(crate) fn initializer_finalize() {}
 }
 
-impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Pallet<T> {
 	type Public = AssignmentId;
 }
 
-impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 	type Key = AssignmentId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
@@ -157,7 +159,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Mod
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		let assignment_keys: Vec<_> = validators.map(|(_, v)| v).collect();
-		AssignmentKeysUnsafe::set(assignment_keys);
+		AssignmentKeysUnsafe::<T>::set(assignment_keys);
 	}
 
 	fn on_disabled(_i: usize) { }
@@ -169,11 +171,10 @@ mod tests {
 	use super::*;
 	use crate::mock::{
 		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin, ParasShared,
+		Origin, ParasShared, Test
 	};
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
-	use frame_support::traits::{OnFinalize, OnInitialize};
 	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 	use keyring::Sr25519Keyring;
 
@@ -259,11 +260,11 @@ mod tests {
 			// Move to session 10
 			run_to_block(100, session_changes);
 			// Earliest stored session is 10 - 2 = 8
-			assert_eq!(EarliestStoredSession::get(), 8);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 8);
 			// Pruning works as expected
-			assert!(Sessions::get(7).is_none());
-			assert!(Sessions::get(8).is_some());
-			assert!(Sessions::get(9).is_some());
+			assert!(Sessions::<Test>::get(7).is_none());
+			assert!(Sessions::<Test>::get(8).is_some());
+			assert!(Sessions::<Test>::get(9).is_some());
 
 			// changing dispute_period works
 			let dispute_period = 5;
@@ -278,29 +279,29 @@ mod tests {
 			assert_eq!(config.dispute_period, 5);
 
 			run_to_block(200, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 20 - dispute_period);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 20 - dispute_period);
 
 			// Increase dispute period even more
 			let new_dispute_period = 16;
 			Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
 
 			run_to_block(210, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 21 - dispute_period);
 
 			// Two sessions later it kicks in
 			run_to_block(220, session_changes);
 			let config = Configuration::config();
 			assert_eq!(config.dispute_period, 16);
 			// Earliest session stays the same
-			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 21 - dispute_period);
 
 			// We still don't have enough stored sessions to start pruning
 			run_to_block(300, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 21 - dispute_period);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 21 - dispute_period);
 
 			// now we do
 			run_to_block(420, session_changes);
-			assert_eq!(EarliestStoredSession::get(), 42 - new_dispute_period);
+			assert_eq!(EarliestStoredSession::<Test>::get(), 42 - new_dispute_period);
 		})
 	}
 
@@ -308,14 +309,14 @@ mod tests {
 	fn session_info_is_based_on_config() {
 		new_test_ext(genesis_config()).execute_with(|| {
 			run_to_block(1, new_session_every_block);
-			let session = Sessions::get(&1).unwrap();
+			let session = Sessions::<Test>::get(&1).unwrap();
 			assert_eq!(session.needed_approvals, 3);
 
 			// change some param
 			Configuration::set_needed_approvals(Origin::root(), 42).unwrap();
 			// 2 sessions later
 			run_to_block(3, new_session_every_block);
-			let session = Sessions::get(&3).unwrap();
+			let session = Sessions::<Test>::get(&3).unwrap();
 			assert_eq!(session.needed_approvals, 42);
 		})
 	}
@@ -349,9 +350,9 @@ mod tests {
 
 			assert_eq!(ParasShared::active_validator_indices(), active_set);
 
-			AssignmentKeysUnsafe::set(unscrambled_assignment.clone());
+			AssignmentKeysUnsafe::<Test>::set(unscrambled_assignment.clone());
 			crate::mock::set_discovery_authorities(unscrambled_discovery.clone());
-			assert_eq!(<crate::mock::Test>::authorities(), unscrambled_discovery);
+			assert_eq!(<Test>::authorities(), unscrambled_discovery);
 
 			// invoke directly, because `run_to_block` will invoke `Shared`	and clobber our
 			// values.
@@ -360,7 +361,7 @@ mod tests {
 				validators: validators.clone(),
 				..Default::default()
 			});
-			let session = Sessions::get(&1).unwrap();
+			let session = Sessions::<Test>::get(&1).unwrap();
 
 			assert_eq!(session.validators, validators);
 			assert_eq!(

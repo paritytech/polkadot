@@ -304,7 +304,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub para_validator: Initializer,
-		pub para_assignment: ParasSessionInfo,
+		pub para_assignment: ParaSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -1073,7 +1073,7 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 51,
-		ParasSessionInfo: parachains_session_info::{Pallet, Call, Storage} = 52,
+		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
