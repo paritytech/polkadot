@@ -8,11 +8,11 @@ use sp_runtime::traits::AccountIdConversion;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use crate::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
+	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
 	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation,
+	SovereignSignedViaLocation, TakeWeightCredit
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
@@ -103,7 +103,7 @@ parameter_types! {
 	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
 }
 
-pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -254,7 +254,7 @@ fn withdraw_and_deposit_works() {
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(0),
+					buy_execution(3_000),
 					Order::DepositAsset {
 						assets: vec![All],
 						dest: Parachain(other_para_id).into(),
@@ -283,7 +283,7 @@ fn reserve_transfer_assets_works() {
 			Parachain(PARA_ID).into(),
 			Junction::AccountId32 { network: NetworkId::Kusama, id: ALICE.into() }.into(),
 			vec![ConcreteFungible { id: Null, amount }],
-			dest_weight
+			dest_weight,
 		));
 
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
@@ -328,7 +328,7 @@ fn query_holding_works() {
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(0),
+					buy_execution(4_000),
 					Order::QueryHolding {
 						query_id,
 						dest: Parachain(PARA_ID).into(),
@@ -381,7 +381,7 @@ fn teleport_to_statemine_works() {
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(0),
+					buy_execution(3_000),
 					Order::InitiateTeleport {
 						assets: vec![All],
 						dest: Parachain(statemine_id).into(),
