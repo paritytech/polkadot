@@ -49,12 +49,8 @@ frame_support::construct_runtime!(
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: shared::{Pallet, Call, Storage},
 		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
-<<<<<<< HEAD
 		ParaInherent: paras_inherent::{Pallet, Call, Storage}, 
-		Scheduler: scheduler::{Pallet, Call, Storage},
-=======
 		Scheduler: scheduler::{Pallet, Storage},
->>>>>>> master
 		Initializer: initializer::{Pallet, Call, Storage},
 		Dmp: dmp::{Pallet, Call, Storage},
 		Ump: ump::{Pallet, Call, Storage, Event},
