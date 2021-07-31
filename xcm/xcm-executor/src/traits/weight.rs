@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset, MultiLocation, Error};
-use frame_support::weights::Weight;
 use crate::Assets;
+use frame_support::weights::Weight;
+use sp_std::result::Result;
+use xcm::v0::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
+	const MAX_WEIGHT: Weight;
 	/// Return the minimum amount of weight that an attempted execution of this message would definitely
 	/// consume.
 	///
@@ -71,11 +72,15 @@ pub trait WeightTrader: Sized {
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset {
+		MultiAsset::None
+	}
 }
 
 impl WeightTrader for () {
-	fn new() -> Self { () }
+	fn new() -> Self {
+		()
+	}
 	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
 		Err(Error::Unimplemented)
 	}
