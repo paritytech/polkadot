@@ -67,9 +67,9 @@ fn main() -> Result<()> {
 							None,
 							polkadot_service::RealOverseerGen,
 						).map_err(|e| e.to_string())?;
-						let mut overseer_handler = full_node
-							.overseer_handler
-							.expect("Overseer handler should be initialized for collators");
+						let mut overseer_handle = full_node
+							.overseer_handle
+							.expect("Overseer handle should be initialized for collators");
 
 						let genesis_head_hex =
 							format!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
@@ -87,11 +87,11 @@ fn main() -> Result<()> {
 							collator: collator.create_collation_function(full_node.task_manager.spawn_handle()),
 							para_id,
 						};
-						overseer_handler
+						overseer_handle
 							.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 							.await;
 
-						overseer_handler
+						overseer_handle
 							.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 							.await;
 

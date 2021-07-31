@@ -66,7 +66,7 @@ pub enum MultiLocation {
 	X8(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
 }
 
-/// Maximum number of junctions a multilocation can contain.
+/// Maximum number of junctions a `MultiLocation` can contain.
 pub const MAX_MULTILOCATION_LENGTH: usize = 8;
 
 impl From<Junction> for MultiLocation {

@@ -10,9 +10,7 @@ tokio = { version = "0.2", features = ["macros"] }
 log = "0.4.11"
 env_logger = "0.8.3"
 structopt = "0.3.0"
-jsonrpsee-ws-client = { version = "0.2.0", default-features = false, features = ["tokio02"] }
-jsonrpsee-types = { version = "0.2.0" }
-jsonrpsee = "=0.2.0-alpha.6"
+jsonrpsee-ws-client = { version = "0.3.0", default-features = false, features = ["tokio02"] }
 serde_json = "1.0"
 serde = "1.0.0"
 hex = "0.4.0"
@@ -26,7 +24,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }

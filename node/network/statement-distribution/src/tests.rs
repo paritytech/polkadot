@@ -18,6 +18,7 @@ use std::time::Duration;
 use std::sync::Arc;
 use std::iter::FromIterator as _;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use super::*;
 use sp_keyring::Sr25519Keyring;
 use sp_application_crypto::{AppKey, sr25519::Pair, Pair as TraitPair};
@@ -651,15 +652,14 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 	let test_fut = async move {
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -827,15 +827,14 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -1299,15 +1298,14 @@ fn share_prioritizes_backing_group() {
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -1555,15 +1553,14 @@ fn peer_cant_flood_with_large_statements() {
 		}).await;
 
 		// register our active heads.
-		handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
+		handle.send(FromOverseer::Signal(
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: hash_a,
 				number: 1,
 				status: LeafStatus::Fresh,
 				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}))).await;
+			})),
+		)).await;
 
 		assert_matches!(
 			handle.recv().await,
@@ -1703,15 +1700,4 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		no_show_slots: 0,
 		needed_approvals: 0,
 	}
-}
-
-pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		ValidatorId::ID,
-		Some(&Sr25519Keyring::Ferdie.to_seed()),
-		)
-		.expect("Insert key into keystore");
-	keystore
 }

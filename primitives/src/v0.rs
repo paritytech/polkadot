@@ -427,7 +427,7 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
-	/// The hash of the pov-block.
+	/// The hash of the `pov-block`.
 	pub pov_block_hash: H,
 	/// Commitments made as a result of validation.
 	pub commitments: CandidateCommitments<H>,
@@ -561,9 +561,9 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of components of this receipt:
-	/// The para ID, the relay parent, and the pov_hash.
+	/// The para ID, the relay parent, and the `pov_hash`.
 	pub signature: CollatorSignature,
-	/// The hash of the pov-block.
+	/// The hash of the `pov-block`.
 	pub pov_hash: H,
 }
 
@@ -582,12 +582,12 @@ pub struct CollationInfo {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
-	/// blake2-256 Hash of the pov-block
+	/// blake2-256 Hash of the `pov-block`
 	pub pov_block_hash: Hash,
 }
 
 impl CollationInfo {
-	/// Check integrity vs. a pov-block.
+	/// Check integrity vs. a `pov-block`.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
 			&self.relay_parent,

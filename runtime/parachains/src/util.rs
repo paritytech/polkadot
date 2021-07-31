@@ -31,7 +31,7 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 	relay_parent_number: T::BlockNumber,
 	relay_parent_storage_root: T::Hash,
 ) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
-	let config = <configuration::Module<T>>::config();
+	let config = <configuration::Pallet<T>>::config();
 
 	Some(PersistedValidationData {
 		parent_head: <paras::Pallet<T>>::para_head(&para_id)?,

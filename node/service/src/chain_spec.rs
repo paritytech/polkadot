@@ -524,7 +524,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		sudo: westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		},
-		parachains_configuration: westend::ParachainsConfigurationConfig {
+		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
@@ -733,7 +733,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		vesting: kusama::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		parachains_configuration: kusama::ParachainsConfigurationConfig {
+		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
@@ -977,7 +977,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			paras: vec![],
 		},
 		hrmp: Default::default(),
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
@@ -1166,7 +1166,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot GenesisConfig for testing
+/// Helper function to create polkadot `GenesisConfig` for testing
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(
@@ -1264,7 +1264,7 @@ pub fn polkadot_testnet_genesis(
 	}
 }
 
-/// Helper function to create kusama GenesisConfig for testing
+/// Helper function to create kusama `GenesisConfig` for testing
 #[cfg(feature = "kusama-native")]
 pub fn kusama_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1360,7 +1360,7 @@ pub fn kusama_testnet_genesis(
 		},
 		vesting: kusama::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		parachains_configuration: kusama::ParachainsConfigurationConfig {
+		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
@@ -1368,7 +1368,7 @@ pub fn kusama_testnet_genesis(
 	}
 }
 
-/// Helper function to create westend GenesisConfig for testing
+/// Helper function to create westend `GenesisConfig` for testing
 #[cfg(feature = "westend-native")]
 pub fn westend_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1449,14 +1449,14 @@ pub fn westend_testnet_genesis(
 		authority_discovery: westend::AuthorityDiscoveryConfig { keys: vec![] },
 		vesting: westend::VestingConfig { vesting: vec![] },
 		sudo: westend::SudoConfig { key: root_key },
-		parachains_configuration: westend::ParachainsConfigurationConfig {
+		configuration: westend::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
 	}
 }
 
-/// Helper function to create rococo GenesisConfig for testing
+/// Helper function to create rococo `GenesisConfig` for testing
 #[cfg(feature = "rococo-native")]
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
@@ -1517,7 +1517,7 @@ pub fn rococo_testnet_genesis(
 			keys: vec![],
 		},
 		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
-		parachains_configuration: rococo_runtime::ParachainsConfigurationConfig {
+		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
 		hrmp: Default::default(),
@@ -1795,6 +1795,42 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		ChainType::Local,
 		move || RococoGenesisExt {
 			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
+			// Use 1 minute session length.
+			session_length_in_blocks: Some(10),
+		},
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	))
+}
+
+/// Wococo is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
+/// Wococo local testnet config (multivalidator Alice + Bob)
+#[cfg(feature = "rococo-native")]
+pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
+		"Wococo Local Testnet",
+		"wococo_local_testnet",
+		ChainType::Local,
+		move || RococoGenesisExt {
+			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},

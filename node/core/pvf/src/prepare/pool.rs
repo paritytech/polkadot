@@ -60,8 +60,11 @@ pub enum ToPool {
 	/// Request the given worker to start working on the given code.
 	///
 	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
+	/// It's also possible that the worker dies before handling the message in which case [`FromPool::Rip`]
+	/// will be sent back.
 	///
-	/// This should not be sent again until the concluded message is received.
+	/// In either case, the worker is considered busy and no further `StartWork` messages should be
+	/// sent until either `Concluded` or `Rip` message is received.
 	StartWork {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
@@ -77,7 +80,7 @@ pub enum FromPool {
 	Spawned(Worker),
 
 	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The bool says whether the worker ripped.
+	/// artifact file has been written. The `bool` says whether the worker ripped.
 	Concluded(Worker, bool),
 
 	/// The given worker ceased to exist.
@@ -176,8 +179,9 @@ async fn purge_dead(
 		}
 	}
 	for w in to_remove {
-		let _ = spawned.remove(w);
-		reply(from_pool, FromPool::Rip(w))?;
+		if spawned.remove(w).is_some() {
+			reply(from_pool, FromPool::Rip(w))?;
+		}
 	}
 	Ok(())
 }
@@ -308,8 +312,15 @@ fn handle_mux(
 
 					Ok(())
 				}
+				Outcome::Unreachable => {
+					if spawned.remove(worker).is_some() {
+						reply(from_pool, FromPool::Rip(worker))?;
+					}
+
+					Ok(())
+				}
 				Outcome::DidntMakeIt => {
-					if let Some(_data) = spawned.remove(worker) {
+					if spawned.remove(worker).is_some() {
 						reply(from_pool, FromPool::Concluded(worker, true))?;
 					}
 
