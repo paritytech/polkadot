@@ -58,8 +58,8 @@ impl From<Error> for XcmError {
 ///
 /// /// Our relay chain's location.
 /// parameter_types! {
-///     RelayChain: MultiLocation = MultiLocation::X1(Junction::Parent);
-///     CheckingAccount: AccountId = Default::default();
+///     pub RelayChain: MultiLocation = MultiLocation::X1(Junction::Parent);
+///     pub CheckingAccount: AccountId = Default::default();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
