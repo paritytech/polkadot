@@ -19,12 +19,16 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
 	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit
+	SovereignSignedViaLocation, TakeWeightCredit, IsChildSystemParachain, AllowUnpaidExecutionFrom
 };
 use crate::mock;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
+
+// copied from kusama constants
+pub const UNITS: Balance = 1_000_000_000_000;
+pub const CENTS: Balance = UNITS / 30_000;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -57,7 +61,7 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub ExistentialDeposit: Balance = 1;
+	pub ExistentialDeposit: Balance = 1 * CENTS;
 	pub const MaxLocks: u32 = 50;
 	pub const MaxReserves: u32 = 50;
 }
@@ -78,19 +82,20 @@ impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {}
 
+// aims to closely emulate the Kusama XcmConfig
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::Null;
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = MultiLocation::Null;
-	pub UnitWeightCost: Weight = 1_000;
+	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
 pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>;
+	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, CheckAccount>;
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
@@ -100,11 +105,16 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000;
+	pub const BaseXcmWeight: Weight = 1_000_000_000;
 	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
 }
 
-pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	// Unused/Untested
+	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -169,13 +179,11 @@ pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 
-pub fn kusama_like_ext() -> sp_io::TestExternalities {
+pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
-	let parachain_acc: AccountId = ParaId::from(PARA_ID).into_account();
-
 	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![(ALICE, INITIAL_BALANCE), (parachain_acc, INITIAL_BALANCE)],
+		balances,
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
@@ -244,24 +252,27 @@ fn buy_execution<C>(debt: Weight) -> Order<C> {
 #[test]
 fn withdraw_and_deposit_works() {
 	use xcm::opaque::v0::prelude::*;
-	kusama_like_ext().execute_with(|| {
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount = 5_000_000;
+		let amount =  10 * ExistentialDeposit::get();
+		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(3_000),
+					buy_execution(weight),
 					Order::DepositAsset {
 						assets: vec![All],
 						dest: Parachain(other_para_id).into(),
 					},
 				],
 			},
-			2_000_000,
+			weight,
 		);
-		assert_eq!(r, Outcome::Complete(3_000));
+		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 	});
@@ -270,9 +281,12 @@ fn withdraw_and_deposit_works() {
 #[test]
 fn reserve_transfer_assets_works() {
 	use xcm::opaque::v0::prelude::*;
-	kusama_like_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
+		let amount =  10 * ExistentialDeposit::get();
+		// We just assume that the destination uses the same base weight for XCM
+		let dest_weight = 2 * BaseXcmWeight::get();
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
 			Parachain(PARA_ID).into(),
@@ -282,7 +296,6 @@ fn reserve_transfer_assets_works() {
 		));
 
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + amount);
 		assert_eq!(
 			mock::sent_xcm(),
@@ -310,16 +323,19 @@ fn reserve_transfer_assets_works() {
 #[test]
 fn query_holding_works() {
 	use xcm::opaque::v0::prelude::*;
-	kusama_like_ext().execute_with(|| {
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount = 5_000_000;
+		let amount = 10 * ExistentialDeposit::get();
 		let query_id = 1234;
+		let weight = 4 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(4_000),
+					buy_execution(weight),
 					Order::QueryHolding {
 						query_id,
 						dest: Parachain(PARA_ID).into(),
@@ -331,12 +347,11 @@ fn query_holding_works() {
 					},
 				],
 			},
-			2_000_000,
+			weight,
 		);
-		assert_eq!(r, Outcome::Complete(4_000));
+		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(
 			mock::sent_xcm(),
@@ -357,19 +372,22 @@ fn query_holding_works() {
 #[test]
 fn teleport_to_statemine_works() {
 	use xcm::opaque::v0::prelude::*;
-	kusama_like_ext().execute_with(|| {
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
-		let amount = 5_000_000;
+		let amount =  10 * ExistentialDeposit::get();
 		let teleport_effects = vec![
 			buy_execution(0),
 			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() },
 		];
+		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
-					buy_execution(3_000),
+					buy_execution(weight),
 					Order::InitiateTeleport {
 						assets: vec![All],
 						dest: Parachain(statemine_id).into(),
@@ -377,10 +395,9 @@ fn teleport_to_statemine_works() {
 					},
 				],
 			},
-			2_000_000,
+			weight,
 		);
-		assert_eq!(r, Outcome::Complete(3_000));
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(
 			mock::sent_xcm(),
