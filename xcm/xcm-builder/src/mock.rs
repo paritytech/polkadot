@@ -18,8 +18,8 @@ pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 pub use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 pub use parity_scale_codec::{Encode, Decode};
 pub use xcm::v0::{
-	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error as XcmError,
-	OriginKind, MultiLocation, Junction, opaque,
+	SendXcm, Junction::*, Junctions::*, MultiAsset, Xcm, Order, Result as XcmResult, Error as XcmError,
+	OriginKind, MultiLocation, Junction, Junctions, opaque,
 };
 pub use frame_support::{
 	ensure, parameter_types,
@@ -147,18 +147,18 @@ impl TransactAsset for TestAssetTransactor {
 
 
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
-	Ok(match l {
+	Ok(match l.junctions() {
 		// Siblings at 2000+id
-		X2(Parent, Parachain(id)) => 2000 + id as u64,
+		X1(Parachain(id)) if l.parent_count() == 1 => 2000 + *id as u64,
 		// Accounts are their number
-		X1(AccountIndex64 { index, .. }) => index,
+		X1(AccountIndex64 { index, .. }) if l.parent_count() == 0 => *index,
 		// Children at 1000+id
-		X1(Parachain(id)) => 1000 + id as u64,
+		X1(Parachain(id)) if l.parent_count() == 0 => 1000 + *id as u64,
 		// Self at 3000
-		Null => 3000,
+		Null if l.parent_count() == 0 => 3000,
 		// Parent at 3001
-		X1(Parent) => 3001,
-		l => return Err(l),
+		Null if l.parent_count() == 1 => 3001,
+		_ => return Err(l),
 	})
 }
 
@@ -166,13 +166,13 @@ pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin) {
+		match (kind, origin.junctions()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
-			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
-			(Native, X1(Parachain(id))) => Ok(TestOrigin::Parachain(id)),
-			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
-			(Native, X1(AccountIndex64 {index, ..})) => Ok(TestOrigin::Signed(index)),
-			(_, origin) => Err(origin),
+			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
+			(Native, X1(Parachain(id))) if origin.parent_count() == 0 => Ok(TestOrigin::Parachain(*id)),
+			(Native, Null) if origin.parent_count() == 1 => Ok(TestOrigin::Relay),
+			(Native, X1(AccountIndex64 {index, ..})) if origin.parent_count() == 0 => Ok(TestOrigin::Signed(*index)),
+			_ => Err(origin),
 		}
 	}
 }
@@ -248,7 +248,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: MultiLocation = X1(Parachain(42));
+	pub TestAncestry: MultiLocation = X1(Parachain(42)).into();
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
@@ -256,7 +256,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (MultiLocation, u128) = (Null, 1_000_000_000_000);
+	pub static WeightPrice: (MultiLocation, u128) = (Null.into(), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (

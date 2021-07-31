@@ -33,10 +33,16 @@ impl<
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();
 		let id = id.borrow();
-		if !prefix.iter().enumerate().all(|(index, item)| id.at(index) == Some(item)) {
+		if prefix.parent_count() != id.parent_count()
+			|| prefix
+				.junctions()
+				.iter()
+				.enumerate()
+				.any(|(index, junction)| id.junctions().at(index) != Some(junction))
+		{
 			return Err(())
 		}
-		match id.at(prefix.len()) {
+		match id.junctions().at(prefix.junctions().len()) {
 			Some(Junction::GeneralIndex { id }) => ConvertAssetId::convert_ref(id),
 			_ => Err(()),
 		}
@@ -44,7 +50,7 @@ impl<
 	fn reverse_ref(what: impl Borrow<AssetId>) -> result::Result<MultiLocation, ()> {
 		let mut location = Prefix::get();
 		let id = ConvertAssetId::reverse_ref(what)?;
-		location.push(Junction::GeneralIndex { id }).map_err(|_| ())?;
+		location.push_non_parent(Junction::GeneralIndex { id })?;
 		Ok(location)
 	}
 }

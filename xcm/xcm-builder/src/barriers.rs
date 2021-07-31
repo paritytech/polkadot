@@ -17,7 +17,7 @@
 //! Various implementations for `ShouldExecute`.
 
 use sp_std::{result::Result, marker::PhantomData};
-use xcm::v0::{Xcm, Order, MultiLocation, Junction};
+use xcm::v0::{Xcm, Order, MultiLocation, Junction, Junctions};
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 use polkadot_parachain::primitives::IsSystem;
@@ -86,7 +86,11 @@ impl<
 	ParaId: IsSystem + From<u32>,
 > Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
 	fn contains(l: &MultiLocation) -> bool {
-		matches!(l, MultiLocation::X1(Junction::Parachain(id)) if ParaId::from(*id).is_system())
+		matches!(
+			l.junctions(),
+			Junctions::X1(Junction::Parachain(id))
+				if ParaId::from(*id).is_system() && l.parent_count() == 0,
+		)
 	}
 }
 
