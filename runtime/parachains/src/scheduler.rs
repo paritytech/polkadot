@@ -216,9 +216,6 @@ pub mod pallet {
 	#[pallet::getter(fn scheduled)]
 	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>; // sorted ascending by CoreIndex.
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
-
 }
 
 impl<T: Config> Pallet<T> {
