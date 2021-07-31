@@ -1007,10 +1007,6 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
-impl pallet_xcm_benchmarks::Config for Runtime {
-	type XcmConfig = XcmConfig;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1088,7 +1084,6 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
-		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet} = 999,
 	}
 }
 
@@ -1457,6 +1452,52 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
+			use frame_support::traits::fungible::Inspect as FungibleInspect;
+			use frame_support::traits::fungibles::Inspect as FungiblesInspect;
+			use frame_support::traits::tokens::{DepositConsequence, WithdrawConsequence};
+			pub struct AsFungibles<B>(sp_std::marker::PhantomData<B>);
+			/// Trait for providing balance-inspection access to a set of named fungible assets.
+
+			impl<B: FungibleInspect<AccountId, Balance = Balance>> FungiblesInspect<AccountId> for AsFungibles<B> {
+				type AssetId = u32;
+				type Balance = Balance;
+
+				fn total_issuance(_: Self::AssetId) -> Self::Balance {
+					B::total_issuance()
+				}
+				fn minimum_balance(_: Self::AssetId) -> Self::Balance {
+					B::minimum_balance()
+				}
+				fn balance(_: Self::AssetId, who: &AccountId) -> Self::Balance {
+					B::balance(who)
+				}
+				fn reducible_balance(_: Self::AssetId, who: &AccountId, keep_alive: bool) -> Self::Balance {
+					B::reducible_balance(who, keep_alive)
+				}
+				fn can_deposit(
+					_: Self::AssetId,
+					who: &AccountId,
+					amount: Self::Balance,
+				) -> DepositConsequence {
+					B::can_deposit(who, amount)
+				}
+
+				fn can_withdraw(
+					_: Self::AssetId,
+					who: &AccountId,
+					amount: Self::Balance,
+				) -> WithdrawConsequence<Self::Balance> {
+					B::can_withdraw(who, amount)
+				}
+			}
+
+			// impl pallet_xcm_benchmarks::Config for Runtime {
+			// 	type XcmConfig = XcmConfig;
+			// 	type FungibleTransactAsset = Balances;
+			// 	type FungiblesTransactAsset = AsFungibles<Balances>;
+			// }
+			// type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
+
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
@@ -1498,7 +1539,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
+			// add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			let storage_info = AllPalletsWithSystem::storage_info();

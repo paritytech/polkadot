@@ -15,13 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg(feature = "runtime-benchmarks")]
-
 use crate::*;
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::{assert_ok, traits::fungible::Inspect, weights::Weight};
-use sp_std::convert::TryInto;
+use frame_support::{assert_ok, traits::{fungible::Inspect as FungibleInspect, fungibles::Inspect as FungiblesInspect}, weights::Weight};
+use sp_std::{vec, convert::TryInto, prelude::*};
 use xcm::{
 	opaque::v0::{ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
 	v0::{Error as XcmError, Order, Outcome, Xcm},
@@ -73,13 +71,22 @@ fn account_id_junction<T: Config>(index: u32) -> Junction {
 benchmarks! {
 	where_clause { where
 		T::XcmConfig: xcm_executor::Config<Call = OverArchingCallOf<T>>,
+		<T::FungiblesTransactAsset as FungiblesInspect<T::AccountId>>::AssetId: From<u32>,
 		<
 			<
-				<T as Config>::TransactAssetAdapter
+				<T as Config>::FungibleTransactAsset
 				as
-				frame_support::traits::fungible::Inspect<
-					<T as frame_system::Config>::AccountId>
-				>::Balance
+				FungibleInspect<<T as frame_system::Config>::AccountId>
+			>::Balance
+			as
+			TryInto<u128>
+		>::Error: sp_std::fmt::Debug,
+		<
+			<
+				<T as Config>::FungiblesTransactAsset
+				as
+				FungiblesInspect<<T as frame_system::Config>::AccountId>
+			>::Balance
 			as
 			TryInto<u128>
 		>::Error: sp_std::fmt::Debug,
@@ -97,54 +104,110 @@ benchmarks! {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
 
-	order_deposit_asset {
-		let a in 1..MAX_ASSETS;
+	order_deposit_asset_fungible {
+		let amount_balance = T::FungibleTransactAsset::minimum_balance() * 4u32.into();
+		let amount: u128 = amount_balance.try_into().unwrap();
 
-		let amount = T::TransactAssetAdapter::minimum_balance() * 4u32.into();
-		let amount128: u128 = amount.try_into().unwrap();
-
-		let assets = (0..a).map(|_|
-			MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: amount128 }
-		).collect::<Vec<_>>();
+		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: amount };
 
 		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
-			assets,
+			assets: vec![asset],
 			dest: MultiLocation::X1(account_id_junction::<T>(77)),
 		};
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding: Assets = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: amount128 * a as u128 }.into();
+		let holding: Assets = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }.into();
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	} verify {
 		assert_eq!(
-			T::TransactAssetAdapter::balance(&account::<T>(77)),
-			amount * a.into()
+			T::FungibleTransactAsset::balance(&account::<T>(77)),
+			amount_balance
 		)
 	}
-	order_deposit_reserved_asset {}: {} verify {}
-	order_exchange_asset {}: {} verify {}
-	order_initiate_reserve_withdraw {}: {} verify {}
-	order_initiate_teleport {}: {} verify {}
-	order_query_holding {}: {} verify {}
-	order_buy_execution {}: {} verify {}
+	order_deposit_asset_fungibles {
+		let a in 1..MAX_ASSETS;
+
+		let assets = (0..a).map(|_| {
+			let amount_balance = T::FungiblesTransactAsset::minimum_balance(a.into()) * 4u32.into();
+			let amount: u128 = amount_balance.try_into().unwrap();
+			MultiAsset::ConcreteFungible {
+				id: MultiLocation::X1(Junction::GeneralIndex { id: a as u128 }),
+				amount,
+			}
+		}).collect::<Vec<_>>();
+
+		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
+			assets: assets.clone(),
+			dest: MultiLocation::X1(account_id_junction::<T>(77)),
+		};
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let holding: Assets = assets.into();
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		for asset_id in 0..a {
+			assert_eq!(
+				T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(77)),
+				T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
+			)
+		}
+	}
+
+	order_deposit_reserved_asset_fungible {}: {} verify {}
+	order_deposit_reserved_asset_fungibles {}: {} verify {}
+
+	order_exchange_asset_fungible {}: {} verify {}
+	order_exchange_asset_fungibles {}: {} verify {}
+
+	order_initiate_reserve_withdraw_fungible {}: {} verify {}
+	order_initiate_reserve_withdraw_fungibles {}: {} verify {}
+
+	order_initiate_teleport_fungible {}: {} verify {}
+	order_initiate_teleport_fungibles {}: {} verify {}
+
+	order_query_holding_fungible {}: {} verify {}
+	order_query_holding_fungibles {}: {} verify {}
+
+	order_buy_execution_fungible {}: {} verify {}
+	order_buy_execution_fungibles {}: {} verify {}
 
 	// base XCM messages.
 	xcm_withdraw_asset {}: {} verify {}
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_query_response {}: {} verify {}
-	xcm_transfer_asset {
-		let a in 1..MAX_ASSETS;
+	xcm_transfer_asset_fungible {
+		let amount_balance = T::FungibleTransactAsset::minimum_balance() * 4u32.into();
+		let amount: u128 = amount_balance.try_into().unwrap();
 
-		let amount = T::TransactAssetAdapter::minimum_balance() * 4u32.into();
-		let amount128: u128 = amount.try_into().unwrap();
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount };
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+
+		let dest = (account_id_junction::<T>(2)).into();
+		let assets = vec![ asset ];
+		let xcm = Xcm::TransferAsset { assets, dest };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		assert_eq!(
+			T::FungibleTransactAsset::balance(&account::<T>(2)),
+			amount_balance,
+		)
+	}
+	xcm_transfer_asset_fungibles {
+		let a in 1..MAX_ASSETS;
+		// TODO: incorporate Gav's note on the fact that the type of asset in the holding will affect the worse
+		// case.
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
 
 		let assets = (0..a).map(|_| {
-			let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: amount128 };
-			// give some assets to 1 in the meantime as well.
-			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
-			asset
+			let amount_balance = T::FungiblesTransactAsset::minimum_balance(a.into()) * 4u32.into();
+			let amount: u128 = amount_balance.try_into().unwrap();
+			MultiAsset::ConcreteFungible {
+				id: MultiLocation::X1(Junction::GeneralIndex { id: a as u128 }),
+				amount,
+			}
 		}).collect::<Vec<_>>();
 
 		let dest = (account_id_junction::<T>(2)).into();
@@ -152,10 +215,12 @@ benchmarks! {
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {
-		assert_eq!(
-			T::TransactAssetAdapter::balance(&account::<T>(2)),
-			amount * a.into(),
-		)
+		for asset_id in 0..a {
+			assert_eq!(
+				T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(2)),
+				T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
+			)
+		}
 	}
 	xcm_transfer_reserved_asset {}: {} verify {}
 	xcm_transact {}: {} verify {}

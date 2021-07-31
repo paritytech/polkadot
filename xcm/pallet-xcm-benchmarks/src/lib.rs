@@ -17,7 +17,6 @@
 
 //! Pallet that serves no other purpose than benchmarking raw messages [`Xcm`].
 
-// Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
@@ -42,7 +41,8 @@ pub mod pallet {
 		/// Direct access to whoever is being the implementor `TransactAsset`'s adapter.
 		///
 		/// Usually should be an instance of balances or assets/uniques pallet.
-		type TransactAssetAdapter: frame_support::traits::fungible::Inspect<Self::AccountId>;
+		type FungibleTransactAsset: frame_support::traits::fungible::Inspect<Self::AccountId>;
+		type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
 	}
 
 	#[pallet::pallet]
