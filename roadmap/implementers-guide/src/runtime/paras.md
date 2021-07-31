@@ -202,7 +202,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
    corresponding `PastCodeMeta` and `PastCode` accordingly.
 1. Toggle the upgrade related signals
   1. Collect all `(para_id, expected_at)` from `UpcomingUpgrades` where `expected_at <= now` and prune them. For each para pruned set `UpgradeGoAheadSignal` to `GoAhead`.
-  1. Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now` and prune them. For each para prunned set `UpgradeRestrictionSignal` to `Present`.
+  1. Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now` and prune them. For each para pruned set `UpgradeRestrictionSignal` to `Present`.
 
 ## Routines
 

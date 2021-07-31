@@ -397,7 +397,7 @@ pub mod pallet {
 	/// an upgrade for this parachain.
 	///
 	/// This may be a because the parachain waits for the upgrade cooldown to expire. Another
-	/// potential use case is when we want to perform some maintanance (such as storage migration)
+	/// potential use case is when we want to perform some maintenance (such as storage migration)
 	/// we could restrict upgrades to make the process simpler.
 	///
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
