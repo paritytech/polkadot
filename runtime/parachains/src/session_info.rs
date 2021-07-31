@@ -64,9 +64,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn session_info)]
 	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
 }
 
 /// An abstraction for the authority discovery pallet
