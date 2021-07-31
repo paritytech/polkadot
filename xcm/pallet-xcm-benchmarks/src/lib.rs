@@ -26,7 +26,7 @@ pub use pallet::*;
 mod mock;
 
 mod benchmarking;
-// pub mod weights;
+pub mod weights;
 // pub use weights::*;
 
 #[frame_support::pallet]
