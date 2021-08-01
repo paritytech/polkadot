@@ -1456,42 +1456,6 @@ sp_api::impl_runtime_apis! {
 			use frame_support::traits::fungibles::Inspect as FungiblesInspect;
 			use frame_support::traits::tokens::{DepositConsequence, WithdrawConsequence};
 
-			pub struct AsFungibles<B>(sp_std::marker::PhantomData<B>);
-			/// Trait for providing balance-inspection access to a set of named fungible assets.
-
-			impl<B: FungibleInspect<AccountId, Balance = Balance>> FungiblesInspect<AccountId> for AsFungibles<B> {
-				type AssetId = u32;
-				type Balance = Balance;
-
-				fn total_issuance(_: Self::AssetId) -> Self::Balance {
-					B::total_issuance()
-				}
-				fn minimum_balance(_: Self::AssetId) -> Self::Balance {
-					B::minimum_balance()
-				}
-				fn balance(_: Self::AssetId, who: &AccountId) -> Self::Balance {
-					B::balance(who)
-				}
-				fn reducible_balance(_: Self::AssetId, who: &AccountId, keep_alive: bool) -> Self::Balance {
-					B::reducible_balance(who, keep_alive)
-				}
-				fn can_deposit(
-					_: Self::AssetId,
-					who: &AccountId,
-					amount: Self::Balance,
-				) -> DepositConsequence {
-					B::can_deposit(who, amount)
-				}
-
-				fn can_withdraw(
-					_: Self::AssetId,
-					who: &AccountId,
-					amount: Self::Balance,
-				) -> WithdrawConsequence<Self::Balance> {
-					B::can_withdraw(who, amount)
-				}
-			}
-
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type FungibleTransactAsset = Balances;

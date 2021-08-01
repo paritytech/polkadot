@@ -266,11 +266,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })?;
 			},
-			Order::InitiateReserveWithdraw { assets, reserve, effects} => {
+			Order::InitiateReserveWithdraw { assets, reserve, effects } => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &reserve);
 				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })?;
 			}
-			Order::InitiateTeleport { assets, dest, effects} => {
+			Order::InitiateTeleport { assets, dest, effects } => {
 				// We must do this first in order to resolve wildcards.
 				let assets = holding.saturating_take(assets);
 				for asset in assets.assets_iter() {

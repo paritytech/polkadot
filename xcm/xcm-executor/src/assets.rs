@@ -497,7 +497,7 @@ impl Assets {
 						MultiAsset::AbstractFungible { id, amount } => (AssetId::Abstract(id), amount),
 						_ => unreachable!(),
 					};
-					// remove the maxmimum possible up to id/amount from self, add the removed onto
+					// remove the maximum possible up to id/amount from self, add the removed onto
 					// result
 					let maybe_value = self.fungible.get(&id);
 					if let Some(&e) = maybe_value {
@@ -516,7 +516,7 @@ impl Assets {
 						MultiAsset::AbstractNonFungible { class, instance } => (AssetId::Abstract(class), instance),
 						_ => unreachable!(),
 					};
-					// remove the maxmimum possible up to id/amount from self, add the removed onto
+					// remove the maximum possible up to id/amount from self, add the removed onto
 					// result
 					if let Some(entry) = self.non_fungible.take(&(class, instance)) {
 						result.non_fungible.insert(entry);

@@ -1,27 +1,31 @@
-// This file is part of Substrate.
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::{assert_ok, traits::{fungible::Inspect as FungibleInspect, fungibles::Inspect as FungiblesInspect}, weights::Weight};
-use sp_std::{vec, convert::TryInto, prelude::*};
+use frame_support::{
+	assert_ok,
+	traits::{fungible::Inspect as FungibleInspect, fungibles::Inspect as FungiblesInspect},
+	weights::Weight,
+};
+use sp_runtime::traits::Zero;
+use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::{
-	opaque::v0::{ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
+	opaque::v0::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
 	v0::{Error as XcmError, Order, Outcome, Xcm},
 };
 use xcm_executor::{traits::TransactAsset, Assets};
@@ -38,6 +42,36 @@ pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
 const SEED: u32 = 0;
+
+/// The number of fungible assets in the holding.
+const HOLDING_FUNGIBLES: u32 = 99;
+const HOLDING_NON_FUNGIBLES: u32 = 99;
+
+fn create_holding(
+	fungibles_count: u32,
+	fungibles_amount: u128,
+	non_fungibles_count: u32,
+) -> Assets {
+	(0..fungibles_count)
+		.map(|i| {
+			MultiAsset::ConcreteFungible {
+				id: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
+				amount: fungibles_amount * i as u128,
+			}
+			.into()
+		})
+		.chain((0..non_fungibles_count).map(|i| {
+			let bytes = i.encode();
+			let mut instance = [0u8; 4];
+			instance.copy_from_slice(&bytes);
+			MultiAsset::ConcreteNonFungible {
+				class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
+				instance: AssetInstance::Array4(instance),
+			}
+		}))
+		.collect::<Vec<_>>()
+		.into()
+}
 
 /// wrapper to execute single order. Can be any hack, for now we just do a noop-xcm with a single
 /// order.
@@ -104,18 +138,25 @@ benchmarks! {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
 
-	order_deposit_asset_fungible {
+	order_deposit_asset_fungible_per_asset {
 		let amount_balance = T::FungibleTransactAsset::minimum_balance() * 4u32.into();
 		let amount: u128 = amount_balance.try_into().unwrap();
 
-		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: amount };
+		// This is the asset that we want to get from the holding and deposit, which should exist
+		// among the assets that `create_holding` is generating
+		let asset_multi_location = MultiLocation::Null;
+		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null , amount };
 
 		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
-			assets: vec![asset],
+			assets: vec![asset.clone()],
 			dest: MultiLocation::X1(account_id_junction::<T>(77)),
 		};
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding: Assets = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }.into();
+
+		// generate the holding with a bunch of stuff..
+		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		// .. and the specific asset that we want to take out.
+		holding.saturating_subsume(asset);
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	} verify {
@@ -124,36 +165,36 @@ benchmarks! {
 			amount_balance
 		)
 	}
-	order_deposit_asset_fungibles {
-		let a in 1..MAX_ASSETS;
+	order_deposit_asset_fungibles_per_asset {
+		// create one asset with our desired id.
+		let asset_id = HOLDING_FUNGIBLES / 2;
+		let amount_balance = T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into();
+		let amount: u128 = amount_balance.try_into().unwrap();
+		// assert!(!amount.is_zero(), "amount should never be zero");
+		// TODO: we should try and command here the asset to be created, but that's kinda non-trivial.
 
-		let assets = (0..a).map(|_| {
-			let amount_balance = T::FungiblesTransactAsset::minimum_balance(a.into()) * 4u32.into();
-			let amount: u128 = amount_balance.try_into().unwrap();
-			MultiAsset::ConcreteFungible {
-				id: MultiLocation::X1(Junction::GeneralIndex { id: a as u128 }),
-				amount,
-			}
-		}).collect::<Vec<_>>();
-
+		let asset = MultiAsset::ConcreteFungible {
+			id: MultiLocation::X1(Junction::GeneralIndex { id: 0u128 }),
+			amount,
+		};
 		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
-			assets: assets.clone(),
+			assets: vec![ asset ],
 			dest: MultiLocation::X1(account_id_junction::<T>(77)),
 		};
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding: Assets = assets.into();
+		let holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	} verify {
-		for asset_id in 0..a {
-			assert_eq!(
-				T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(77)),
-				T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
-			)
-		}
+		assert_eq!(
+			T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(77)),
+			T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
+		)
 	}
 
-	order_deposit_reserved_asset_fungible {}: {} verify {}
+	order_deposit_reserved_asset_fungible {
+
+	}: {} verify {}
 	order_deposit_reserved_asset_fungibles {}: {} verify {}
 
 	order_exchange_asset_fungible {}: {} verify {}
@@ -234,4 +275,34 @@ benchmarks! {
 	xcm_relayed_from {}: {} verify {}
 }
 
-impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(), crate::mock::Test);
+#[cfg(test)]
+mod benchmark_tests {
+	use super::*;
+
+	#[test]
+	fn order_deposit_asset_fungible_per_asset() {
+		crate::mock_fungible::new_test_ext().execute_with(|| {
+			test_benchmark_order_deposit_asset_fungible_per_asset::<crate::mock_fungible::Test>();
+		})
+	}
+
+	#[test]
+	fn order_deposit_asset_fungibles_per_asset() {
+		crate::mock_fungibles::new_test_ext().execute_with(|| {
+			test_benchmark_order_deposit_asset_fungibles_per_asset::<crate::mock_fungibles::Test>();
+		})
+	}
+
+	#[test]
+	fn xcm_transfer_asset_fungible() {
+		crate::mock_fungible::new_test_ext().execute_with(|| {
+			test_benchmark_xcm_transfer_asset_fungible::<crate::mock_fungible::Test>();
+		})
+	}
+	#[test]
+	fn xcm_transfer_asset_fungibles() {
+		crate::mock_fungibles::new_test_ext().execute_with(|| {
+			test_benchmark_xcm_transfer_asset_fungibles::<crate::mock_fungibles::Test>();
+		})
+	}
+}
