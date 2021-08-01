@@ -584,9 +584,9 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RocLocation: MultiLocation = MultiLocation::empty();
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const Ancestry: MultiLocation = MultiLocation::empty();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -627,16 +627,16 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
-use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
+use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, Junctions::{Null, X1}, Junction::Parachain};
 parameter_types! {
 	pub const RococoForTick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(100)));
+		(AllConcreteFungible { id: MultiLocation::empty() }, MultiLocation::with_parachain_interior(100));
 	pub const RococoForTrick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(110)));
+		(AllConcreteFungible { id: MultiLocation::empty() }, MultiLocation::with_parachain_interior(110));
 	pub const RococoForTrack: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(120)));
+		(AllConcreteFungible { id: MultiLocation::empty() }, MultiLocation::with_parachain_interior(120));
 	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1001)));
+		(AllConcreteFungible { id: MultiLocation::empty() }, MultiLocation::with_parachain_interior(1001));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -648,10 +648,10 @@ pub type TrustedTeleporters = (
 parameter_types! {
 	pub AllowUnpaidFrom: Vec<MultiLocation> =
 		vec![
-			X1(Parachain(100)),
-			X1(Parachain(110)),
-			X1(Parachain(120)),
-			X1(Parachain(1001))
+			MultiLocation::with_parachain_interior(100),
+			MultiLocation::with_parachain_interior(110),
+			MultiLocation::with_parachain_interior(120),
+			MultiLocation::with_parachain_interior(1001),
 		];
 }
 
@@ -698,10 +698,10 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
 			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
 		};
-		match origin {
+		match origin.junctions() {
 			// Root and collective are allowed to execute anything.
-			Null | X1(Plurality { .. }) => true,
-			X1(AccountId32 { .. }) => {
+			Null | X1(Plurality { .. }) if origin.parent_count() == 0 => true,
+			X1(AccountId32 { .. }) if origin.parent_count() == 0 => {
 				// An account ID trying to send a message. We ensure that it's sensible.
 				// This checks that it's of the form:
 				// WithdrawAsset {
@@ -717,16 +717,20 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 				// }
 				matches!(msg, WithdrawAsset { ref assets, ref effects }
 					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& matches!(assets[0], ConcreteFungible { ref id, .. } if id.is_empty())
 					&& effects.len() == 2
 					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+					&& matches!(effects[1], InitiateTeleport { ref assets, ref dest, ref effects }
 						if assets.len() == 1
+						&& matches!(dest.junctions(), X1(Parachain(..)))
+						&& dest.parent_count() == 0
 						&& matches!(assets[0], All)
 						&& effects.len() == 2
 						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+						&& matches!(effects[1], DepositAsset { ref assets, ref dest }
 							if assets.len() == 1
+							&& matches!(dest.junctions(), X1(AccountId32{..}))
+							&& dest.parent_count() == 0
 							&& matches!(assets[0], All)
 						)
 					)

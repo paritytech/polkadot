@@ -52,10 +52,7 @@ pub struct MultiLocation {
 
 impl Default for MultiLocation {
 	fn default() -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::Null,
-		}
+		Self::empty()
 	}
 }
 
@@ -115,6 +112,40 @@ impl MultiLocation {
 		})
 	}
 
+	/// Creates a new `MultiLocation` with 0 parents and a `Null` interior.
+	pub const fn empty() -> MultiLocation {
+		MultiLocation {
+			parents: 0,
+			interior: Junctions::Null,
+		}
+	}
+
+	/// Creates a new `MultiLocation` with the specified number of parents and a `Null` interior.
+	/// Returns an error if `parents` is greater than `MAX_MULTILOCATION_LENGTH`.
+	pub const fn with_parents(parents: u8) -> result::Result<MultiLocation, ()> {
+		if parents as usize > MAX_MULTILOCATION_LENGTH {
+			return Err(())
+		}
+		Ok(MultiLocation {
+			parents,
+			interior: Junctions::Null,
+		})
+	}
+
+	/// Creates a new `MultiLocation` with no parents and a single `Parachain` interior junction
+	/// specified by `para_id`.
+	pub const fn with_parachain_interior(para_id: u32) -> MultiLocation {
+		MultiLocation {
+			parents: 0,
+			interior: Junctions::X1(Junction::Parachain(para_id)),
+		}
+	}
+
+	/// Whether or not the `MultiLocation` has no parents and has a `Null` interior.
+	pub const fn is_empty(&self) -> bool {
+		self.parents == 0 && self.interior.len() == 0
+	}
+
 	/// Return a reference to the interior field.
 	pub fn junctions(&self) -> &Junctions {
 		&self.interior
@@ -126,12 +157,12 @@ impl MultiLocation {
 	}
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
-	pub fn parent_count(&self) -> usize {
+	pub const fn parent_count(&self) -> usize {
 		self.parents as usize
 	}
 
 	/// Returns the number of parents and junctions in `self`.
-	pub fn len(&self) -> usize {
+	pub const fn len(&self) -> usize {
 		self.parent_count() + self.interior.len()
 	}
 
@@ -159,7 +190,7 @@ impl MultiLocation {
 	}
 
 	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
-	/// (second item in tuple) or `None` if it was empty or that `self` only contains parents.
+	/// (second item in tuple) or `None` if it was empty or if `self` only contains parents.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
 		let (prefix, suffix) = junctions.split_last();
@@ -722,7 +753,7 @@ impl Junctions {
 	}
 
 	/// Returns the number of junctions in `self`.
-	pub fn len(&self) -> usize {
+	pub const fn len(&self) -> usize {
 		match &self {
 			Junctions::Null => 0,
 			Junctions::X1(..) => 1,
