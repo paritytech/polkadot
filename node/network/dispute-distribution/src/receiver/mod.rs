@@ -14,47 +14,43 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::{
+	collections::HashSet,
+	pin::Pin,
+	task::{Context, Poll},
+};
 
-use std::collections::HashSet;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-
-use futures::FutureExt;
-use futures::Stream;
-use futures::future::{BoxFuture, poll_fn};
-use futures::stream::FusedStream;
+use futures::{
+	channel::{mpsc, oneshot},
+	future::{poll_fn, BoxFuture},
+	stream::{FusedStream, FuturesUnordered, StreamExt},
+	FutureExt, Stream,
+};
 use lru::LruCache;
-use futures::{channel::mpsc, channel::oneshot, stream::StreamExt, stream::FuturesUnordered};
 
 use polkadot_node_network_protocol::{
-	PeerId,
-	UnifiedReputationChange as Rep,
 	authority_discovery::AuthorityDiscovery,
 	request_response::{
+		request::{OutgoingResponse, OutgoingResponseSender},
+		v1::{DisputeRequest, DisputeResponse},
 		IncomingRequest,
-		request::OutgoingResponse,
-		request::OutgoingResponseSender,
-		v1::DisputeRequest,
-		v1::DisputeResponse,
 	},
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{
-	runtime,
-	runtime::RuntimeInfo,
-};
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 use polkadot_subsystem::{
+	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
 	SubsystemSender,
-	messages::{
-		AllMessages, DisputeCoordinatorMessage, ImportStatementsResult,
-	},
 };
 
-use crate::metrics::{FAILED, SUCCEEDED};
-use crate::{LOG_TARGET, Metrics};
+use crate::{
+	metrics::{FAILED, SUCCEEDED},
+	Metrics, LOG_TARGET,
+};
 
 mod error;
-use self::error::{log_error, FatalResult, NonFatalResult, NonFatal, Fatal, Result};
+use self::error::{log_error, Fatal, FatalResult, NonFatal, NonFatalResult, Result};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded.");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
@@ -129,12 +125,13 @@ impl MuxedMessage {
 				return Poll::Ready(Ok(MuxedMessage::ConfirmedImport(v)))
 			}
 			Poll::Pending
-		}).await
+		})
+		.await
 	}
 }
 
 impl<Sender: SubsystemSender, AD> DisputesReceiver<Sender, AD>
-where 
+where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new receiver which can be `run`.
@@ -167,41 +164,32 @@ where
 	pub async fn run(mut self) {
 		loop {
 			match log_error(self.run_inner().await) {
-				Ok(()) => {}
+				Ok(()) => {},
 				Err(Fatal::RequestChannelFinished) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						"Incoming request stream exhausted - shutting down?"
 					);
 					return
-				}
-				Err(err) => {	
-					tracing::warn!(
-						target: LOG_TARGET,
-						?err,
-						"Dispute receiver died."
-					);
+				},
+				Err(err) => {
+					tracing::warn!(target: LOG_TARGET, ?err, "Dispute receiver died.");
 					return
-				}
+				},
 			}
 		}
 	}
 
 	/// Actual work happening here.
 	async fn run_inner(&mut self) -> Result<()> {
-
-		let msg = MuxedMessage::receive(
-			&mut self.pending_imports,
-			&mut self.receiver
-		)
-		.await?;
+		let msg = MuxedMessage::receive(&mut self.pending_imports, &mut self.receiver).await?;
 
 		let raw = match msg {
 			// We need to clean up futures, to make sure responses are sent:
 			MuxedMessage::ConfirmedImport(m_bad) => {
 				self.ban_bad_peer(m_bad)?;
 				return Ok(())
-			}
+			},
 			MuxedMessage::NewRequest(req) => req,
 		};
 
@@ -211,23 +199,20 @@ where
 
 		// Only accept messages from validators:
 		if self.authority_discovery.get_authority_id_by_peer_id(raw.peer).await.is_none() {
-			raw.pending_response.send(
-				sc_network::config::OutgoingResponse {
+			raw.pending_response
+				.send(sc_network::config::OutgoingResponse {
 					result: Err(()),
 					reputation_changes: vec![COST_NOT_A_VALIDATOR.into_base_rep()],
 					sent_feedback: None,
-				}
-			)
-			.map_err(|_| NonFatal::SendResponse(peer))?;				
+				})
+				.map_err(|_| NonFatal::SendResponse(peer))?;
 
 			return Err(NonFatal::NotAValidator(peer).into())
 		}
 
-		let incoming = IncomingRequest::<DisputeRequest>::try_from_raw(
-			raw,
-			vec![COST_INVALID_REQUEST]
-		)
-		.map_err(NonFatal::FromRawRequest)?;
+		let incoming =
+			IncomingRequest::<DisputeRequest>::try_from_raw(raw, vec![COST_INVALID_REQUEST])
+				.map_err(NonFatal::FromRawRequest)?;
 
 		// Immediately drop requests from peers that already have requests in flight or have
 		// been banned recently (flood protection):
@@ -252,54 +237,49 @@ where
 	}
 
 	/// Start importing votes for the given request.
-	async fn start_import(
-		&mut self,
-		incoming: IncomingRequest<DisputeRequest>,
-	) -> Result<()> {
+	async fn start_import(&mut self, incoming: IncomingRequest<DisputeRequest>) -> Result<()> {
+		let IncomingRequest { peer, payload, pending_response } = incoming;
 
-		let IncomingRequest {
-			peer, payload, pending_response,
-		} = incoming;
-
-		let info = self.runtime.get_session_info_by_index(
-			&mut self.sender,
-			payload.0.candidate_receipt.descriptor.relay_parent,
-			payload.0.session_index
-		)
-		.await?;
+		let info = self
+			.runtime
+			.get_session_info_by_index(
+				&mut self.sender,
+				payload.0.candidate_receipt.descriptor.relay_parent,
+				payload.0.session_index,
+			)
+			.await?;
 
 		let votes_result = payload.0.try_into_signed_votes(&info.session_info);
 
 		let (candidate_receipt, valid_vote, invalid_vote) = match votes_result {
-			Err(()) => { // Signature invalid:
-				pending_response.send_outgoing_response(
-					OutgoingResponse {
+			Err(()) => {
+				// Signature invalid:
+				pending_response
+					.send_outgoing_response(OutgoingResponse {
 						result: Err(()),
 						reputation_changes: vec![COST_INVALID_SIGNATURE],
 						sent_feedback: None,
-					}
-				)
-				.map_err(|_| NonFatal::SetPeerReputation(peer))?;
+					})
+					.map_err(|_| NonFatal::SetPeerReputation(peer))?;
 
 				return Err(From::from(NonFatal::InvalidSignature(peer)))
-			}
+			},
 			Ok(votes) => votes,
 		};
 
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();
 		let candidate_hash = candidate_receipt.hash();
-		self.sender.send_message(
-			AllMessages::DisputeCoordinator(
+		self.sender
+			.send_message(AllMessages::DisputeCoordinator(
 				DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session: valid_vote.0.session_index(),
 					statements: vec![valid_vote, invalid_vote],
 					pending_confirmation,
-				}
-			)
-		)
-		.await;
+				},
+			))
+			.await;
 
 		self.pending_imports.push(peer, confirmation_rx, pending_response);
 		Ok(())
@@ -310,16 +290,16 @@ where
 	/// In addition we report import metrics.
 	fn ban_bad_peer(
 		&mut self,
-		result: NonFatalResult<(PeerId, ImportStatementsResult)>
+		result: NonFatalResult<(PeerId, ImportStatementsResult)>,
 	) -> NonFatalResult<()> {
 		match result? {
-			(_, ImportStatementsResult::ValidImport) => { 
+			(_, ImportStatementsResult::ValidImport) => {
 				self.metrics.on_imported(SUCCEEDED);
-			}
+			},
 			(bad_peer, ImportStatementsResult::InvalidImport) => {
 				self.metrics.on_imported(FAILED);
 				self.banned_peers.put(bad_peer, ());
-			}
+			},
 		}
 		Ok(())
 	}
@@ -335,24 +315,22 @@ struct PendingImports {
 
 impl PendingImports {
 	pub fn new() -> Self {
-		Self {
-			futures: FuturesUnordered::new(),
-			peers: HashSet::new(),
-		}
+		Self { futures: FuturesUnordered::new(), peers: HashSet::new() }
 	}
 
 	pub fn push(
 		&mut self,
 		peer: PeerId,
 		handled: oneshot::Receiver<ImportStatementsResult>,
-		pending_response: OutgoingResponseSender<DisputeRequest>
+		pending_response: OutgoingResponseSender<DisputeRequest>,
 	) {
 		self.peers.insert(peer);
 		self.futures.push(
 			async move {
 				let r = respond_to_request(peer, handled, pending_response).await;
 				(peer, r)
-			}.boxed()
+			}
+			.boxed(),
 		)
 	}
 
@@ -369,23 +347,19 @@ impl PendingImports {
 
 impl Stream for PendingImports {
 	type Item = NonFatalResult<(PeerId, ImportStatementsResult)>;
-	fn poll_next(
-		mut self: Pin<&mut Self>,
-		ctx: &mut Context<'_>
-	) -> Poll<Option<Self::Item>> {
+	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		match Pin::new(&mut self.futures).poll_next(ctx) {
 			Poll::Pending => Poll::Pending,
 			Poll::Ready(None) => Poll::Ready(None),
 			Poll::Ready(Some((peer, result))) => {
 				self.peers.remove(&peer);
-				Poll::Ready(Some(result.map(|r| (peer,r))))
-			}
+				Poll::Ready(Some(result.map(|r| (peer, r))))
+			},
 		}
 	}
-
 }
 impl FusedStream for PendingImports {
-	fn is_terminated(&self) -> bool { 
+	fn is_terminated(&self) -> bool {
 		self.futures.is_terminated()
 	}
 }
@@ -398,27 +372,21 @@ impl FusedStream for PendingImports {
 async fn respond_to_request(
 	peer: PeerId,
 	handled: oneshot::Receiver<ImportStatementsResult>,
-	pending_response: OutgoingResponseSender<DisputeRequest>
+	pending_response: OutgoingResponseSender<DisputeRequest>,
 ) -> NonFatalResult<ImportStatementsResult> {
-
-	let result = handled
-		.await
-		.map_err(|_| NonFatal::ImportCanceled(peer))?
-	;
+	let result = handled.await.map_err(|_| NonFatal::ImportCanceled(peer))?;
 
 	let response = match result {
-		ImportStatementsResult::ValidImport =>
-			OutgoingResponse {
-				result: Ok(DisputeResponse::Confirmed),
-				reputation_changes: Vec::new(),
-				sent_feedback: None,
-			},
-		ImportStatementsResult::InvalidImport =>
-			OutgoingResponse {
-				result: Err(()),
-				reputation_changes: vec![COST_INVALID_CANDIDATE],
-				sent_feedback: None,
-			},
+		ImportStatementsResult::ValidImport => OutgoingResponse {
+			result: Ok(DisputeResponse::Confirmed),
+			reputation_changes: Vec::new(),
+			sent_feedback: None,
+		},
+		ImportStatementsResult::InvalidImport => OutgoingResponse {
+			result: Err(()),
+			reputation_changes: vec![COST_INVALID_CANDIDATE],
+			sent_feedback: None,
+		},
 	};
 
 	pending_response

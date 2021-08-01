@@ -31,18 +31,30 @@ use sc_network::{Multiaddr, PeerId};
 #[async_trait]
 pub trait AuthorityDiscovery: Send + Debug + 'static {
 	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
-	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>>;
+	async fn get_addresses_by_authority_id(
+		&mut self,
+		authority: AuthorityDiscoveryId,
+	) -> Option<Vec<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
-	async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId>;
+	async fn get_authority_id_by_peer_id(
+		&mut self,
+		peer_id: PeerId,
+	) -> Option<AuthorityDiscoveryId>;
 }
 
 #[async_trait]
 impl AuthorityDiscovery for AuthorityDiscoveryService {
-	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
+	async fn get_addresses_by_authority_id(
+		&mut self,
+		authority: AuthorityDiscoveryId,
+	) -> Option<Vec<Multiaddr>> {
 		AuthorityDiscoveryService::get_addresses_by_authority_id(self, authority).await
 	}
 
-	async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
+	async fn get_authority_id_by_peer_id(
+		&mut self,
+		peer_id: PeerId,
+	) -> Option<AuthorityDiscoveryId> {
 		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
 	}
 }

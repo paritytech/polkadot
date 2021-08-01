@@ -17,8 +17,8 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use thiserror::Error;
 use futures::channel::oneshot;
+use thiserror::Error;
 
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
@@ -67,7 +67,8 @@ pub enum NonFatal {
 pub(crate) async fn recv_runtime<V>(
 	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
 ) -> Result<V> {
-	let result = r.await
+	let result = r
+		.await
 		.map_err(Fatal::RuntimeRequestCanceled)?
 		.map_err(NonFatal::RuntimeRequest)?;
 	Ok(result)

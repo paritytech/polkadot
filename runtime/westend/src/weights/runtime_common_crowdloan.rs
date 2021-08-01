@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/westend/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -58,7 +57,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
-	fn refund(k: u32, ) -> Weight {
+	fn refund(k: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 28_000
 			.saturating_add((44_792_000 as Weight).saturating_mul(k as Weight))
@@ -87,7 +86,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn on_initialize(n: u32, ) -> Weight {
+	fn on_initialize(n: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 20_000
 			.saturating_add((108_965_000 as Weight).saturating_mul(n as Weight))
