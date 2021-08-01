@@ -1,19 +1,25 @@
-use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll}, weights::Weight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{All, AllowAll},
+	weights::Weight,
+};
+use polkadot_parachain::primitives::Id as ParaId;
+use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
-pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
-use polkadot_parachain::primitives::{Id as ParaId, AccountIdConversion};
-use polkadot_runtime_parachains::origin;
-use xcm::v0::{MultiLocation, NetworkId, Order};
-use xcm::opaque::v0::MultiAsset;
+pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
+use xcm::{
+	opaque::v0::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
+	v0::{MultiLocation, NetworkId, Order},
+};
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible,
-	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
+	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
-use xcm::opaque::v0::{Xcm, SendXcm, Result as XcmResult, Error as XcmError};
 
 use crate as pallet_xcm;
 
@@ -117,10 +123,8 @@ parameter_types! {
 	pub UnitWeightCost: Weight = 1_000;
 }
 
-pub type SovereignAccountOf = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<AnyNetwork, AccountId>,
-);
+pub type SovereignAccountOf =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<AnyNetwork, AccountId>);
 
 pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<Balances, IsConcrete<RelayLocation>, SovereignAccountOf, AccountId, ()>;
@@ -180,28 +184,15 @@ pub(crate) fn last_event() -> Event {
 
 pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::opaque::v0::prelude::*;
-	Order::BuyExecution {
-		fees: All,
-		weight: 0,
-		debt,
-		halt_on_error: false,
-		xcm: vec![],
-	}
+	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
-pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = frame_system::GenesisConfig::default()
-		.build_storage::<Test>()
-		.unwrap();
+pub(crate) fn new_test_ext_with_balances(
+	balances: Vec<(AccountId, Balance)>,
+) -> sp_io::TestExternalities {
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![
-			(ALICE, INITIAL_BALANCE),
-			(ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)
-		],
-	}
-	.assimilate_storage(&mut t)
-	.unwrap();
+	pallet_balances::GenesisConfig::<Test> { balances }.assimilate_storage(&mut t).unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
