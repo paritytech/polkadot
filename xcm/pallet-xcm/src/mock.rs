@@ -3,14 +3,14 @@ use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 use polkadot_parachain::primitives::{Id as ParaId, AccountIdConversion};
-use polkadot_runtime_parachains::{configuration, origin, shared, ump};
+use polkadot_runtime_parachains::origin;
 use xcm::v0::{MultiLocation, NetworkId};
 use xcm::opaque::v0::MultiAsset;
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
+	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible,
 	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation,
+	SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
 use xcm::opaque::v0::{Xcm, SendXcm, Result as XcmResult};
@@ -31,7 +31,6 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		ParasUmp: ump::{Pallet, Call, Storage, Event},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -98,10 +97,6 @@ impl pallet_balances::Config for Test {
 	type ReserveIdentifier = [u8; 8];
 }
 
-impl shared::Config for Test {}
-
-impl configuration::Config for Test {}
-
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::Null;
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
@@ -130,8 +125,8 @@ parameter_types! {
 	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
 }
 
-// TODO: should we change this to be more selective to test it?
-pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+// TODO: stricter than All for inner AllowTopLevelPaidExecutionFrom
+pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -160,16 +155,6 @@ impl pallet_xcm::Config for Test {
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-}
-
-parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
-}
-
-impl ump::Config for Test {
-	type Event = Event;
-	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Test>;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
 impl origin::Config for Test {}
