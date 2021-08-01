@@ -274,12 +274,29 @@ impl Assets {
 	}
 
 	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
-	pub fn checked_sub(mut self, asset: MultiAsset) -> Result<Assets, Self> {
-		// TODO: Optimize by doing this operation directly rather than converting into a MultiAssetFilter and
-		//   constructing the unused `_taken` return value.
-		match self.try_take(asset.into()) {
-			Ok(_taken) => Ok(self),
-			Err(_) => Err(self),
+	pub fn checked_sub(mut self, asset: MultiAsset) -> Result<Assets, Assets> {
+		match asset.fun {
+			Fungible(amount) => {
+				let remove = if let Some(balance) = self.fungible.get_mut(&asset.id) {
+					if *balance >= amount {
+						*balance -= amount;
+						*balance == 0
+					} else {
+						return Err(self)
+					}
+				} else {
+					return Err(self)
+				};
+				if remove {
+					self.fungible.remove(&asset.id);
+				}
+				Ok(self)
+			}
+			NonFungible(instance) => if self.non_fungible.remove(&(asset.id, instance)) {
+				Ok(self)
+			} else {
+				Err(self)
+			},
 		}
 	}
 
@@ -384,10 +401,31 @@ mod tests {
 		t2.subsume(ANF(2, 100));
 		t2.subsume(CF(300));
 		t2.subsume(CNF(500));
-		let r1 = t1.clone().subsume_assets(t2.clone());
+		let mut r1 = t1.clone();
+		r1.subsume_assets(t2.clone());
 		let mut r2 = t1.clone();
 		for a in t2.assets_iter() { r2.subsume(a) }
 		assert_eq!(r1, r2);
+	}
+
+	#[test]
+	fn checked_sub_works() {
+		let t = test_assets();
+		let t = t.checked_sub(AF(1, 50)).unwrap();
+		let t = t.checked_sub(AF(1, 51)).unwrap_err();
+		let t = t.checked_sub(AF(1, 50)).unwrap();
+		let t = t.checked_sub(AF(1, 1)).unwrap_err();
+		let t = t.checked_sub(CF(150)).unwrap();
+		let t = t.checked_sub(CF(151)).unwrap_err();
+		let t = t.checked_sub(CF(150)).unwrap();
+		let t = t.checked_sub(CF(1)).unwrap_err();
+		let t = t.checked_sub(ANF(2, 201)).unwrap_err();
+		let t = t.checked_sub(ANF(2, 200)).unwrap();
+		let t = t.checked_sub(ANF(2, 200)).unwrap_err();
+		let t = t.checked_sub(CNF(401)).unwrap_err();
+		let t = t.checked_sub(CNF(400)).unwrap();
+		let t = t.checked_sub(CNF(400)).unwrap_err();
+		assert_eq!(t, Assets::new());
 	}
 
 	#[test]
