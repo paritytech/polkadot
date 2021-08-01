@@ -29,7 +29,7 @@ use super::{MultiAsset, MultiAssetFilter, MultiLocation, Xcm};
 pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
-	Null,
+	Noop,
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
@@ -121,7 +121,7 @@ impl<Call> Order<Call> {
 	pub fn from<C>(order: Order<C>) -> Self {
 		use Order::*;
 		match order {
-			Null => Null,
+			Noop => Noop,
 			DepositAsset { assets, dest }
 				=> DepositAsset { assets, dest },
 			DepositReserveAsset { assets, dest, effects }

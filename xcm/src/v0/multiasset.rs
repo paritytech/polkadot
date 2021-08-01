@@ -317,15 +317,15 @@ pub enum MultiAssetFilter {
 	Wild(WildMultiAsset),
 }
 
-impl From<WildMultiAsset> for MultiAssetFilter {
-	fn from(x: WildMultiAsset) -> Self {
-		Self::Wild(x)
+impl<T: Into<WildMultiAsset>> From<T> for MultiAssetFilter {
+	fn from(x: T) -> Self {
+		Self::Wild(x.into())
 	}
 }
 
-impl<T: Into<MultiAsset>> From<T> for MultiAssetFilter {
-	fn from(x: T) -> Self {
-		Self::Definite(vec![x.into()].into())
+impl From<MultiAsset> for MultiAssetFilter {
+	fn from(x: MultiAsset) -> Self {
+		Self::Definite(vec![x].into())
 	}
 }
 

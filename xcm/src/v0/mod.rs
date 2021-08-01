@@ -38,7 +38,7 @@ pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
-	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
+	pub use super::junction::{Junction::*, NetworkId::{self, *}, BodyId, BodyPart};
 	pub use super::multiasset::{
 		MultiAssets, MultiAsset,
 		AssetId::{self, *},
@@ -52,6 +52,7 @@ pub mod prelude {
 	pub use super::order::Order::{self, *};
 	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
 	pub use super::{Xcm::{self, *}, OriginKind};
+	pub use super::opaque;
 }
 
 // TODO: #2841 #XCMENCODE Efficient encodings for MultiAssets, Vec<Order>, using initial byte values 128+ to encode

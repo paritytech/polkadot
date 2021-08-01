@@ -17,10 +17,7 @@
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 pub use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 pub use parity_scale_codec::{Encode, Decode};
-pub use xcm::v0::{
-	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error as XcmError,
-	OriginKind, MultiLocation, Junction, opaque,
-};
+pub use xcm::v0::prelude::*;
 pub use frame_support::{
 	ensure, parameter_types,
 	dispatch::{Dispatchable, Parameter, Weight, DispatchError, DispatchResultWithPostInfo, DispatchInfo},
@@ -139,8 +136,8 @@ impl TransactAsset for TestAssetTransactor {
 		ASSETS.with(|a| a.borrow_mut()
 			.get_mut(&who)
 			.ok_or(XcmError::NotWithdrawable)?
-			.try_take(what.clone())
-			.map_err(|()| XcmError::NotWithdrawable)
+			.try_take(what.clone().into())
+			.map_err(|_| XcmError::NotWithdrawable)
 		)
 	}
 }
@@ -178,14 +175,14 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 }
 
 thread_local! {
-	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
-	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
+	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
+	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
 }
-pub fn add_reserve(from: MultiLocation, asset: MultiAsset) {
+pub fn add_reserve(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_RESERVE.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
 #[allow(dead_code)]
-pub fn add_teleporter(from: MultiLocation, asset: MultiAsset) {
+pub fn add_teleporter(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
 pub struct TestIsReserve;
