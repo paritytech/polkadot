@@ -58,7 +58,7 @@ impl Default for MultiLocation {
 
 impl Encode for MultiLocation {
 	fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-		// 8 items max, but we cannot return an error, so we ap silently.
+		// 255 items max, but we cannot return an error, so we truncate silently.
 		let parents = self.parents.min(
 			MAX_MULTILOCATION_LENGTH.saturating_sub(self.interior.len()) as u8,
 		);
@@ -97,7 +97,7 @@ impl Decode for MultiLocation {
 }
 
 /// Maximum number of junctions a `MultiLocation` can contain.
-pub const MAX_MULTILOCATION_LENGTH: usize = 8;
+pub const MAX_MULTILOCATION_LENGTH: usize = 255;
 
 impl MultiLocation {
 	/// Creates a new `MultiLocation`, ensuring that the length of it does not exceed the maximum,
@@ -945,7 +945,7 @@ mod tests {
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: Any, index: 23 };
-		let mut m = MultiLocation { parents: 6, interior: X1(Parachain(42)) };
+		let mut m = MultiLocation { parents: 254, interior: X1(Parachain(42)) };
 		let suffix = MultiLocation::from(X2(PalletInstance(3), acc.clone()));
 		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
 	}
@@ -957,12 +957,12 @@ mod tests {
 		assert_eq!(m, MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) });
 
 		// cannot prepend to create overly long multilocation
-		let mut m = MultiLocation { parents: 6, interior: X1(Parachain(42)) };
+		let mut m = MultiLocation { parents: 253, interior: X1(Parachain(42)) };
 		let prefix = MultiLocation { parents: 2, interior: Null };
 		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 
 		let prefix = MultiLocation { parents: 1, interior: Null };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
-		assert_eq!(m, MultiLocation { parents: 7, interior: X1(Parachain(42)) });
+		assert_eq!(m, MultiLocation { parents: 254, interior: X1(Parachain(42)) });
 	}
 }
