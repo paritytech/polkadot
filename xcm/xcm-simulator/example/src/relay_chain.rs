@@ -16,7 +16,11 @@
 
 //! Relay chain runtime mock.
 
-use frame_support::{construct_runtime, parameter_types, traits::{All, AllowAll}, weights::Weight};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{All, AllowAll},
+	weights::Weight,
+};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
@@ -24,9 +28,10 @@ use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
 use xcm::v0::{MultiAsset, MultiLocation, NetworkId};
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible,
-	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
+	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
+	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation,
 };
 use xcm_executor::{Config, XcmExecutor};
@@ -94,10 +99,8 @@ parameter_types! {
 	pub UnitWeightCost: Weight = 1_000;
 }
 
-pub type SovereignAccountOf = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<KusamaNetwork, AccountId>,
-);
+pub type SovereignAccountOf =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
 pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>;

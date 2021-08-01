@@ -23,12 +23,15 @@ pub use frame_support::{traits::Get, weights::Weight};
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, marker::PhantomData};
 
-pub use polkadot_parachain::primitives::{
-	Id as ParaId, XcmpMessageHandler as XcmpMessageHandlerT,
-	DmpMessageHandler as DmpMessageHandlerT, XcmpMessageFormat,
-};
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
-pub use polkadot_runtime_parachains::{dmp, ump::{self, XcmSink, UmpSink, MessageId}};
+pub use polkadot_parachain::primitives::{
+	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
+	XcmpMessageHandler as XcmpMessageHandlerT,
+};
+pub use polkadot_runtime_parachains::{
+	dmp,
+	ump::{self, MessageId, UmpSink, XcmSink},
+};
 pub use xcm::{v0::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
@@ -54,7 +57,7 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 			let encoded = VersionedXcm::<()>::from(message).encode();
 			outbound.extend_from_slice(&encoded[..]);
 			outbound
-		}
+		},
 	}
 }
 
@@ -77,13 +80,12 @@ macro_rules! decl_test_relay_chain {
 				msg: &[u8],
 				max_weight: $crate::Weight,
 			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
-				use $crate::ump::UmpSink;
-				use $crate::TestExt;
+				use $crate::{ump::UmpSink, TestExt};
 
 				Self::execute_with(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-						origin, msg, max_weight,
-					)
+								origin, msg, max_weight,
+							)
 				})
 			}
 		}
@@ -105,24 +107,24 @@ macro_rules! decl_test_parachain {
 		$crate::__impl_ext!($name, $new_ext);
 
 		impl $crate::XcmpMessageHandlerT for $name {
-			fn handle_xcmp_messages<'a, I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>>(
+			fn handle_xcmp_messages<
+				'a,
+				I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>,
+			>(
 				iter: I,
 				max_weight: $crate::Weight,
 			) -> $crate::Weight {
-				use $crate::{XcmpMessageHandlerT, TestExt};
+				use $crate::{TestExt, XcmpMessageHandlerT};
 
 				$name::execute_with(|| {
-					<$xcmp_message_handler>::handle_xcmp_messages(
-						iter,
-						max_weight,
-					)
+					<$xcmp_message_handler>::handle_xcmp_messages(iter, max_weight)
 				})
 			}
 		}
 
 		impl $crate::DmpMessageHandlerT for $name {
 			fn handle_dmp_messages(
-				iter: impl Iterator<Item=($crate::RelayBlockNumber, Vec<u8>)>,
+				iter: impl Iterator<Item = ($crate::RelayBlockNumber, Vec<u8>)>,
 				max_weight: $crate::Weight,
 			) -> $crate::Weight {
 				use $crate::{DmpMessageHandlerT, TestExt};
@@ -237,4 +239,3 @@ macro_rules! decl_test_network {
 		}
 	};
 }
-

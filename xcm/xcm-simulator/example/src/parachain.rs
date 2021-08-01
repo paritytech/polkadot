@@ -16,29 +16,40 @@
 
 //! Parachain runtime mock.
 
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{All, AllowAll},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
-use sp_runtime::{testing::Header, traits::{IdentityLookup, Hash}, AccountId32};
+use sp_runtime::{
+	testing::Header,
+	traits::{Hash, IdentityLookup},
+	AccountId32,
+};
 use sp_std::{convert::TryFrom, prelude::*};
 
 use pallet_xcm::XcmPassthrough;
-use polkadot_parachain::primitives::{Sibling, Id as ParaId, XcmpMessageFormat, XcmpMessageHandler, DmpMessageHandler};
 use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
-use xcm::v0::{
-	Junction::{Parachain, Parent}, MultiAsset, MultiLocation::{self, X1},
-	NetworkId, Xcm, Outcome, Error as XcmError, ExecuteXcm
+use polkadot_parachain::primitives::{
+	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
-use xcm::VersionedXcm;
+use xcm::{
+	v0::{
+		Error as XcmError, ExecuteXcm,
+		Junction::{Parachain, Parent},
+		MultiAsset,
+		MultiLocation::{self, X1},
+		NetworkId, Outcome, Xcm,
+	},
+	VersionedXcm,
+};
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom,
-	CurrencyAdapter as XcmCurrencyAdapter, EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete,
-	LocationInverter, NativeAsset, ParentIsDefault,
-	SiblingParachainConvertsVia, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
+	EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete, LocationInverter,
+	NativeAsset, ParentIsDefault, SiblingParachainConvertsVia, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation,
 };
 use xcm_executor::{Config, XcmExecutor};
 
@@ -164,27 +175,6 @@ pub mod mock_msg_queue {
 	#[pallet::getter(fn parachain_id)]
 	pub(super) type ParachainId<T: Config> = StorageValue<_, ParaId, ValueQuery>;
 
-	#[pallet::genesis_config]
-	pub struct GenesisConfig {
-		pub parachain_id: ParaId,
-	}
-
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
-		fn default() -> Self {
-			Self {
-				parachain_id: 0.into()
-			}
-		}
-	}
-
-	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
-		fn build(&self) {
-			<ParachainId<T>>::put(&self.parachain_id);
-		}
-	}
-
 	impl<T: Config> Get<ParaId> for Pallet<T> {
 		fn get() -> ParaId {
 			Self::parachain_id()
@@ -197,7 +187,6 @@ pub mod mock_msg_queue {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		// XCMP
-
 		/// Some XCM was executed ok.
 		Success(Option<T::Hash>),
 		/// Some XCM failed.
@@ -208,7 +197,6 @@ pub mod mock_msg_queue {
 		BadFormat(Option<T::Hash>),
 
 		// DMP
-
 		/// Downward message is invalid XCM.
 		InvalidFormat(MessageId),
 		/// Downward message is unsupported version of XCM.
@@ -218,6 +206,10 @@ pub mod mock_msg_queue {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn set_para_id(para_id: ParaId) {
+			ParachainId::<T>::put(para_id);
+		}
+
 		fn handle_xcmp_message(
 			sender: ParaId,
 			_sent_at: RelayBlockNumber,
@@ -235,11 +227,8 @@ pub mod mock_msg_queue {
 						// we just report the weight used.
 						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
-				}
-				Err(()) => (
-					Err(XcmError::UnhandledXcmVersion),
-					Event::BadVersion(Some(hash)),
-				),
+				},
+				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
 			};
 			Self::deposit_event(event);
 			result
@@ -271,13 +260,13 @@ pub mod mock_msg_queue {
 
 	impl<T: Config> DmpMessageHandler for Pallet<T> {
 		fn handle_dmp_messages(
-			iter: impl Iterator<Item=(RelayBlockNumber, Vec<u8>)>,
+			iter: impl Iterator<Item = (RelayBlockNumber, Vec<u8>)>,
 			limit: Weight,
 		) -> Weight {
 			for (_i, (_sent_at, data)) in iter.enumerate() {
 				let id = sp_io::hashing::blake2_256(&data[..]);
-				let maybe_msg = VersionedXcm::<T::Call>::decode(&mut &data[..])
-					.map(Xcm::<T::Call>::try_from);
+				let maybe_msg =
+					VersionedXcm::<T::Call>::decode(&mut &data[..]).map(Xcm::<T::Call>::try_from);
 				match maybe_msg {
 					Err(_) => {
 						Self::deposit_event(Event::InvalidFormat(id));
@@ -288,7 +277,7 @@ pub mod mock_msg_queue {
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
-					}
+					},
 				}
 			}
 			limit
@@ -327,7 +316,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 
-		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>, Config},
+		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
 
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 	}
