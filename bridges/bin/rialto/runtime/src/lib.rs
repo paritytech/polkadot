@@ -40,16 +40,20 @@ pub mod rialto_poa;
 
 use crate::millau_messages::{ToMillauMessagePayload, WithMillauMessageBridge};
 
-use bridge_runtime_common::messages::{source::estimate_message_dispatch_and_delivery_fee, MessageBridge};
+use bridge_runtime_common::messages::{
+	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
+};
 use codec::Decode;
-use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
+use pallet_grandpa::{
+	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
-use sp_runtime::traits::{Block as BlockT, IdentityLookup, NumberFor, OpaqueKeys};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
+	traits::{Block as BlockT, IdentityLookup, NumberFor, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature, MultiSigner,
 };
@@ -146,10 +150,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
-	NativeVersion {
-		runtime_version: VERSION,
-		can_author_with: Default::default(),
-	}
+	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
 parameter_types! {
@@ -278,10 +279,15 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 	type Recipient = AccountId;
 	type Amount = Balance;
 
-	fn deposit_into(recipient: Self::Recipient, amount: Self::Amount) -> bp_currency_exchange::Result<()> {
+	fn deposit_into(
+		recipient: Self::Recipient,
+		amount: Self::Amount,
+	) -> bp_currency_exchange::Result<()> {
 		// let balances module make all checks for us (it won't allow depositing lower than existential
 		// deposit, balance overflow, ...)
-		let deposited = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(&recipient, amount);
+		let deposited = <pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
+			&recipient, amount,
+		);
 
 		// I'm dropping deposited here explicitly to illustrate the fact that it'll update `TotalIssuance`
 		// on drop
@@ -302,7 +308,7 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 				);
 
 				Ok(())
-			}
+			},
 			_ if deposited_amount == 0 => {
 				log::error!(
 					target: "runtime",
@@ -312,7 +318,7 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 				);
 
 				Err(bp_currency_exchange::Error::DepositFailed)
-			}
+			},
 			_ => {
 				log::error!(
 					target: "runtime",
@@ -324,7 +330,7 @@ impl bp_currency_exchange::DepositInto for DepositInto {
 
 				// we can't return DepositFailed error here, because storage changes were made
 				Err(bp_currency_exchange::Error::DepositPartiallyFailed)
-			}
+			},
 		}
 	}
 }
@@ -333,9 +339,12 @@ impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type KeyOwnerProofSystem = ();
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-	type KeyOwnerIdentification =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::IdentificationTuple;
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		GrandpaId,
+	)>>::IdentificationTuple;
 	type HandleEquivocation = ();
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
@@ -485,12 +494,13 @@ impl pallet_bridge_messages::Config<WithMillauMessagesInstance> for Runtime {
 
 	type TargetHeaderChain = crate::millau_messages::Millau;
 	type LaneMessageVerifier = crate::millau_messages::ToMillauMessageVerifier;
-	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-		Runtime,
-		pallet_balances::Pallet<Runtime>,
-		GetDeliveryConfirmationTransactionFee,
-		RootAccountForPayments,
-	>;
+	type MessageDeliveryAndDispatchPayment =
+		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+			Runtime,
+			pallet_balances::Pallet<Runtime>,
+			GetDeliveryConfirmationTransactionFee,
+			RootAccountForPayments,
+		>;
 	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = crate::millau_messages::Millau;
@@ -550,8 +560,13 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive =
-	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllPallets,
+>;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -805,7 +820,7 @@ impl_runtime_apis! {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig,
 		) -> Result<
-			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
+			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
@@ -1088,7 +1103,8 @@ mod tests {
 	use bridge_runtime_common::messages;
 
 	fn run_deposit_into_test(test: impl Fn(AccountId) -> Balance) {
-		let mut ext: sp_io::TestExternalities = SystemConfig::default().build_storage::<Runtime>().unwrap().into();
+		let mut ext: sp_io::TestExternalities =
+			SystemConfig::default().build_storage::<Runtime>().unwrap().into();
 		ext.execute_with(|| {
 			// initially issuance is zero
 			assert_eq!(
@@ -1100,7 +1116,10 @@ mod tests {
 			let account: AccountId = [1u8; 32].into();
 			let initial_amount = ExistentialDeposit::get();
 			let deposited =
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(&account, initial_amount);
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::deposit_creating(
+					&account,
+					initial_amount,
+				);
 			drop(deposited);
 			assert_eq!(
 				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::total_issuance(),
@@ -1140,15 +1159,18 @@ mod tests {
 			bp_rialto::max_extrinsic_size(),
 			bp_rialto::max_extrinsic_weight(),
 			max_incoming_message_proof_size,
-			messages::target::maximal_incoming_message_dispatch_weight(bp_rialto::max_extrinsic_weight()),
+			messages::target::maximal_incoming_message_dispatch_weight(
+				bp_rialto::max_extrinsic_weight(),
+			),
 		);
 
-		let max_incoming_inbound_lane_data_proof_size = bp_messages::InboundLaneData::<()>::encoded_size_hint(
-			bp_rialto::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
-			bp_millau::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
-			bp_millau::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
-		)
-		.unwrap_or(u32::MAX);
+		let max_incoming_inbound_lane_data_proof_size =
+			bp_messages::InboundLaneData::<()>::encoded_size_hint(
+				bp_rialto::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
+				bp_millau::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
+				bp_millau::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
+			)
+			.unwrap_or(u32::MAX);
 		pallet_bridge_messages::ensure_able_to_receive_confirmation::<Weights>(
 			bp_rialto::max_extrinsic_size(),
 			bp_rialto::max_extrinsic_weight(),
@@ -1162,7 +1184,9 @@ mod tests {
 	fn deposit_into_existing_account_works() {
 		run_deposit_into_test(|existing_account| {
 			let initial_amount =
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&existing_account);
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
+					&existing_account,
+				);
 			let additional_amount = 10_000;
 			<Runtime as pallet_bridge_currency_exchange::Config<KovanCurrencyExchange>>::DepositInto::deposit_into(
 				existing_account.clone(),
@@ -1170,7 +1194,9 @@ mod tests {
 			)
 			.unwrap();
 			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&existing_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
+					&existing_account
+				),
 				initial_amount + additional_amount,
 			);
 			additional_amount
@@ -1189,7 +1215,9 @@ mod tests {
 			)
 			.unwrap();
 			assert_eq!(
-				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(&new_account),
+				<pallet_balances::Pallet<Runtime> as Currency<AccountId>>::free_balance(
+					&new_account
+				),
 				initial_amount + additional_amount,
 			);
 			additional_amount
