@@ -181,7 +181,6 @@ impl TransactAsset for Tuple {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use xcm::v0::prelude::*;
 	use MultiLocation::Null;
 
 	pub struct UnimplementedTransactor;
