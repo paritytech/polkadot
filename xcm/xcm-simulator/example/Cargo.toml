@@ -18,20 +18,12 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-# cumulus
-cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-xcm = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-
 # polkadot
 xcm = { path = "../../" }
+xcm-simulator = { path = "../" }
 xcm-executor = { path = "../../xcm-executor" }
 xcm-builder = { path = "../../xcm-builder" }
 pallet-xcm = { path = "../../pallet-xcm" }
+polkadot-core-primitives = { path = "../../../core-primitives"}
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 polkadot-parachain = { path = "../../../parachain" }
-
-xcm-simulator = { path = "../" }

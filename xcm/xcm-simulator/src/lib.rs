@@ -28,7 +28,7 @@ pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, XcmpMessageFormat,
 };
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
-pub use polkadot_runtime_parachains::{dmp, ump::{XcmSink, UmpSink, MessageId}};
+pub use polkadot_runtime_parachains::{dmp, ump::{self, XcmSink, UmpSink, MessageId}};
 pub use xcm::{v0::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
@@ -112,7 +112,7 @@ macro_rules! decl_test_parachain {
 				use $crate::{XcmpMessageHandlerT, TestExt};
 
 				$name::execute_with(|| {
-					XcmpMessageHandler::handle_xcmp_messages(
+					<$xcmp_message_handler>::handle_xcmp_messages(
 						iter,
 						max_weight,
 					)
@@ -122,11 +122,13 @@ macro_rules! decl_test_parachain {
 
 		impl $crate::DmpMessageHandlerT for $name {
 			fn handle_dmp_messages(
-				iter: impl Iterator<Item=(RelayBlockNumber, Vec<u8>)>,
-				max_weight: Weight,
-			) -> Weight {
+				iter: impl Iterator<Item=($crate::RelayBlockNumber, Vec<u8>)>,
+				max_weight: $crate::Weight,
+			) -> $crate::Weight {
+				use $crate::{DmpMessageHandlerT, TestExt};
+
 				$name::execute_with(|| {
-					DmpMessageHandler::handle_dmp_messages(iter, max_weight)
+					<$dmp_message_handler>::handle_dmp_messages(iter, max_weight)
 				})
 			}
 		}
