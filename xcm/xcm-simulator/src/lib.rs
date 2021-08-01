@@ -208,7 +208,10 @@ macro_rules! decl_test_network {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
 							// TODO: update relay block number
 							let messages = vec![(T::get(), 1, &encoded[..])];
-							let _ = <$parachain>::handle_xcmp_messages(messages.into_iter(), $crate::Weight::max_value());
+							let _ = <$parachain>::handle_xcmp_messages(
+								messages.into_iter(),
+								$crate::Weight::max_value(),
+							);
 							Ok(())
 						},
 					)*
@@ -229,7 +232,9 @@ macro_rules! decl_test_network {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							// TODO: update relay block number
 							let messages = vec![(1, encoded)];
-							let _ = <$parachain>::handle_dmp_messages(messages.into_iter(), $crate::Weight::max_value());
+							let _ = <$parachain>::handle_dmp_messages(
+								messages.into_iter(), $crate::Weight::max_value(),
+							);
 							Ok(())
 						},
 					)*
