@@ -210,8 +210,8 @@ impl MultiLocation {
 		Ok(())
 	}
 
-	/// Mutates `self`, suffixing its non-parent junctions with `new`. Returns `Err` in case of overflow.
-	pub fn push_non_parent(&mut self, new: Junction) -> result::Result<(), ()> {
+	/// Mutates `self`, suffixing its interior junctions with `new`. Returns `Err` in case of overflow.
+	pub fn push_interior(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = Junctions::Null;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_with(new) {
@@ -220,8 +220,8 @@ impl MultiLocation {
 		}
 	}
 
-	/// Mutates `self`, prefixing its non-parent junctions with `new`. Returns `Err` in case of overflow.
-	pub fn push_front_non_parent(&mut self, new: Junction) -> result::Result<(), ()> {
+	/// Mutates `self`, prefixing its interior junctions with `new`. Returns `Err` in case of overflow.
+	pub fn push_front_interior(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = Junctions::Null;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_front_with(new) {
@@ -244,7 +244,7 @@ impl MultiLocation {
 
 	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
-	pub fn pushed_with_non_parent(self, new: Junction) -> result::Result<Self, Self> {
+	pub fn pushed_with_interior(self, new: Junction) -> result::Result<Self, Self> {
 		if self.len() >= MAX_MULTILOCATION_LENGTH {
 			return Err(self)
 		}
@@ -256,7 +256,7 @@ impl MultiLocation {
 
 	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
-	pub fn pushed_front_with_non_parent(self, new: Junction) -> result::Result<Self, Self> {
+	pub fn pushed_front_with_interior(self, new: Junction) -> result::Result<Self, Self> {
 		if self.len() >= MAX_MULTILOCATION_LENGTH {
 			return Err(self)
 		}
@@ -291,13 +291,13 @@ impl MultiLocation {
 		self.parents = self.parents.saturating_sub(1);
 	}
 
-	/// Removes the first non-parent element from `self`, returning it
+	/// Removes the first interior junction from `self`, returning it
 	/// (or `None` if it was empty or if `self` contains only parents).
-	pub fn take_first_non_parent(&mut self) -> Option<Junction> {
+	pub fn take_first_interior(&mut self) -> Option<Junction> {
 		self.interior.take_first()
 	}
 
-	/// Removes the last element from `junctions`, returning it (or `None` if it was empty or if
+	/// Removes the last element from `interior`, returning it (or `None` if it was empty or if
 	/// `self` only contains parents).
 	pub fn take_last(&mut self) -> Option<Junction> {
 		self.interior.take_last()
@@ -386,7 +386,7 @@ impl MultiLocation {
 
 		self.parents = final_parent_count;
 		for j in prefix.interior.into_iter_rev() {
-			self.push_front_non_parent(j).expect(
+			self.push_front_interior(j).expect(
 				"self junctions len + prefix parent count + prepend len is less than max length; qed"
 			);
 		}
