@@ -41,8 +41,9 @@ pub use pallet::*;
 pub struct HrmpOpenChannelRequest {
 	/// Indicates if this request was confirmed by the recipient.
 	pub confirmed: bool,
-	/// How many session boundaries ago this request was seen.
-	pub age: SessionIndex,
+	/// NOTE: this field is deprecated. Channel open requests became non-expiring and this value
+	/// became unused.
+	pub _age: SessionIndex,
 	/// The amount that the sender supplied at the time of creation of this request.
 	pub sender_deposit: Balance,
 	/// The maximum message size that could be put into the channel.
@@ -643,13 +644,13 @@ impl<T: Config> Pallet<T> {
 
 			idx -= 1;
 			let channel_id = open_req_channels[idx].clone();
-			let mut request = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id).expect(
+			let request = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id).expect(
 				"can't be `None` due to the invariant that the list contains the same items as the set; qed",
 			);
 
 			if request.confirmed {
-				if <paras::Pallet<T>>::is_valid_para(channel_id.sender)
-					&& <paras::Pallet<T>>::is_valid_para(channel_id.recipient)
+				if <paras::Pallet<T>>::is_valid_para(channel_id.sender) &&
+					<paras::Pallet<T>>::is_valid_para(channel_id.recipient)
 				{
 					<Self as Store>::HrmpChannels::insert(
 						&channel_id,
@@ -703,26 +704,6 @@ impl<T: Config> Pallet<T> {
 
 				let _ = open_req_channels.swap_remove(idx);
 				<Self as Store>::HrmpOpenChannelRequests::remove(&channel_id);
-			} else {
-				request.age += 1;
-				if request.age == config.hrmp_open_request_ttl {
-					// got stale
-					<Self as Store>::HrmpOpenChannelRequestCount::mutate(&channel_id.sender, |v| {
-						*v -= 1;
-					});
-
-					let _ = open_req_channels.swap_remove(idx);
-					if let Some(HrmpOpenChannelRequest { sender_deposit, .. }) =
-						<Self as Store>::HrmpOpenChannelRequests::take(&channel_id)
-					{
-						T::Currency::unreserve(
-							&channel_id.sender.into_account(),
-							sender_deposit.unique_saturated_into(),
-						);
-					}
-				} else {
-					<Self as Store>::HrmpOpenChannelRequests::insert(&channel_id, request);
-				}
 			}
 		}
 
@@ -1105,7 +1086,7 @@ impl<T: Config> Pallet<T> {
 			&channel_id,
 			HrmpOpenChannelRequest {
 				confirmed: false,
-				age: 0,
+				_age: 0,
 				sender_deposit: config.hrmp_sender_deposit,
 				max_capacity: proposed_max_capacity,
 				max_message_size: proposed_max_message_size,
@@ -1353,7 +1334,6 @@ mod tests {
 		hrmp_channel_max_total_size: u32,
 		hrmp_sender_deposit: Balance,
 		hrmp_recipient_deposit: Balance,
-		hrmp_open_request_ttl: u32,
 	}
 
 	impl Default for GenesisConfigBuilder {
@@ -1369,7 +1349,6 @@ mod tests {
 				hrmp_channel_max_total_size: 16,
 				hrmp_sender_deposit: 100,
 				hrmp_recipient_deposit: 100,
-				hrmp_open_request_ttl: 3,
 			}
 		}
 	}
@@ -1389,7 +1368,6 @@ mod tests {
 			config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
 			config.hrmp_sender_deposit = self.hrmp_sender_deposit;
 			config.hrmp_recipient_deposit = self.hrmp_recipient_deposit;
-			config.hrmp_open_request_ttl = self.hrmp_open_request_ttl;
 			genesis
 		}
 	}
@@ -1989,47 +1967,6 @@ mod tests {
 			assert_eq!(
 				<Test as Config>::Currency::free_balance(&para_b.into_account()),
 				110
-			);
-		});
-	}
-
-	#[test]
-	fn refund_deposit_on_request_expiry() {
-		let para_a = 32.into();
-		let para_b = 64.into();
-
-		let mut genesis = GenesisConfigBuilder::default();
-		genesis.hrmp_sender_deposit = 20;
-		genesis.hrmp_recipient_deposit = 15;
-		genesis.hrmp_open_request_ttl = 2;
-		new_test_ext(genesis.build()).execute_with(|| {
-			// Register two parachains funded with different amounts of funds, send an open channel
-			// request but do not accept it.
-			register_parachain_with_balance(para_a, 100);
-			register_parachain_with_balance(para_b, 110);
-			run_to_block(5, Some(vec![4, 5]));
-			Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
-			assert_eq!(
-				<Test as Config>::Currency::free_balance(&para_a.into_account()),
-				80
-			);
-			assert_eq!(
-				<Test as Config>::Currency::free_balance(&para_b.into_account()),
-				110
-			);
-
-			// Request age is 1 out of 2
-			run_to_block(10, Some(vec![10]));
-			assert_eq!(
-				<Test as Config>::Currency::free_balance(&para_a.into_account()),
-				80
-			);
-
-			// Request age is 2 out of 2. The request should expire.
-			run_to_block(20, Some(vec![20]));
-			assert_eq!(
-				<Test as Config>::Currency::free_balance(&para_a.into_account()),
-				100
 			);
 		});
 	}
