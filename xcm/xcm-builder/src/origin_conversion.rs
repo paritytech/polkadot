@@ -46,7 +46,7 @@ impl<
 	Origin: OriginTrait,
 > ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Superuser && origin.parent_count() == 1 {
+		if kind == OriginKind::Superuser && origin.parent_count() == 1 && origin.junctions().len() == 0 {
 			Ok(Origin::root())
 		} else {
 			Err(origin)
@@ -126,7 +126,7 @@ impl<
 	Origin,
 > ConvertOrigin<Origin> for RelayChainAsNative<RelayOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Native && origin.parent_count() == 1 {
+		if kind == OriginKind::Native && origin.parent_count() == 1 && origin.junctions().len() == 0 {
 			Ok(RelayOrigin::get())
 		} else {
 			Err(origin)
@@ -193,7 +193,7 @@ impl<
 		// We institute a root fallback so root can always represent the context. This
 		// guarantees that `successful_origin` will work.
 		if o.caller() == Origin::root().caller() {
-			Ok(MultiLocation::default())
+			Ok(MultiLocation::empty())
 		} else {
 			Err(o)
 		}
