@@ -104,12 +104,32 @@ impl Assets {
 	}
 
 	/// Mutate `self` to contain all given `assets`, saturating if necessary.
-	pub fn subsume_assets(&mut self, assets: Assets) {
-		// TODO: Could be done with a much faster btree entry merge and only sum the entries with the
-		//   same key.
-		for asset in assets.into_assets_iter() {
-			self.subsume(asset)
+	pub fn subsume_assets(&mut self, mut assets: Assets) {
+		let mut f_iter = assets.fungible.iter_mut();
+		let mut g_iter = self.fungible.iter_mut();
+		if let (Some(mut f), Some(mut g)) = (f_iter.next(), g_iter.next()) {
+			loop {
+				if f.0 == g.0 {
+					// keys are equal. in this case, we add `swlf`'s balance for the asset onto `assets`, balance, knowing
+					// that the `append` operation which follows will clobber `self`'s value and only use `assets`'s.
+					*f.1 += *g.1;
+				}
+				if f.0 <= g.0 {
+					f = match f_iter.next() {
+						Some(x) => x,
+						None => break,
+					};
+				}
+				if f.0 >= g.0 {
+					g = match g_iter.next() {
+						Some(x) => x,
+						None => break,
+					};
+				}
+			}
 		}
+		self.fungible.append(&mut assets.fungible);
+		self.non_fungible.append(&mut assets.non_fungible);
 	}
 
 	/// Mutate `self` to contain the given `asset`, saturating if necessary.
@@ -354,6 +374,20 @@ mod tests {
 		assets.subsume(CF(300));
 		assets.subsume(CNF(400));
 		assets
+	}
+
+	#[test]
+	fn subsume_assets_works() {
+		let t1 = test_assets();
+		let mut t2 = Assets::new();
+		t2.subsume(AF(1, 50));
+		t2.subsume(ANF(2, 100));
+		t2.subsume(CF(300));
+		t2.subsume(CNF(500));
+		let r1 = t1.clone().subsume_assets(t2.clone());
+		let mut r2 = t1.clone();
+		for a in t2.assets_iter() { r2.subsume(a) }
+		assert_eq!(r1, r2);
 	}
 
 	#[test]
