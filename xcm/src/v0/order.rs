@@ -19,7 +19,7 @@
 use alloc::vec::Vec;
 use derivative::Derivative;
 use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, WildMultiAsset, MultiAssetFilter, MultiLocation, Xcm};
+use super::{MultiAsset, MultiAssetFilter, MultiLocation, Xcm};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]

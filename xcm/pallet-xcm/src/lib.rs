@@ -89,6 +89,8 @@ pub mod pallet {
 		Filtered,
 		/// The message's weight could not be determined.
 		UnweighableMessage,
+		/// The assets to be sent are empty.
+		Empty,
 	}
 
 	#[pallet::hooks]
@@ -115,8 +117,8 @@ pub mod pallet {
 		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
 		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
 		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
-		///   `dest` side.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
+		///   `dest` side. May not be empty.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
@@ -141,6 +143,7 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
 			let assets = assets.into();
 			let mut message = Xcm::WithdrawAsset {
 				assets,
@@ -150,7 +153,7 @@ pub mod pallet {
 						dest,
 						effects: vec![
 							BuyExecution {
-								fees: All,
+								fees,
 								// Zero weight for additional XCM (since there are none to execute)
 								weight: 0,
 								debt: dest_weight,
@@ -200,13 +203,14 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
 			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
 				dest,
 				effects: vec![
 					BuyExecution {
-						fees: All,
+						fees,
 						// Zero weight for additional XCM (since there are none to execute)
 						weight: 0,
 						debt: dest_weight,

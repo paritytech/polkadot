@@ -54,8 +54,7 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation::{self, Null, X1}, NetworkId, BodyId, Xcm, Junction::Parachain};
-use xcm::v0::MultiAsset::{self, AllConcreteFungible};
+use xcm::v0::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter as XcmCurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser, LocationInverter,
@@ -1260,8 +1259,8 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const Kusama: MultiAssetFilter = Wild(AllOf(WildFungible, Concrete(KsmLocation::get())));
+	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) = (Kusama::get(), X1(Parachain(1000)));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<KusamaForStatemint>,
