@@ -13,11 +13,8 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
-
 xcm = { path = "../" }
 xcm-executor = { path = "../xcm-executor" }
+polkadot-core-primitives = { path = "../../core-primitives"}
 polkadot-parachain = { path = "../../parachain" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }

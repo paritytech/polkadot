@@ -23,17 +23,20 @@ pub use frame_support::{traits::Get, weights::Weight};
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, marker::PhantomData};
 
-pub use cumulus_pallet_dmp_queue;
-pub use cumulus_pallet_xcmp_queue;
-pub use cumulus_primitives_core;
-
-pub use polkadot_parachain::primitives::Id as ParaId;
-pub use polkadot_runtime_parachains::{dmp, ump};
+pub use polkadot_parachain::primitives::{
+	Id as ParaId, XcmpMessageHandler as XcmpMessageHandlerT,
+	DmpMessageHandler as DmpMessageHandlerT, XcmpMessageFormat,
+};
+pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
+pub use polkadot_runtime_parachains::{dmp, ump::{XcmSink, UmpSink, MessageId}};
 pub use xcm::{v0::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
-mod traits;
-pub use traits::{HandleDmpMessage, HandleUmpMessage, HandleXcmpMessage, TestExt};
+pub trait TestExt {
+	fn new_ext() -> sp_io::TestExternalities;
+	fn reset_ext();
+	fn execute_with<R>(execute: impl FnOnce() -> R) -> R;
+}
 
 pub enum MessageKind {
 	Ump,
@@ -45,7 +48,7 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	match message_kind {
 		MessageKind::Ump | MessageKind::Dmp => VersionedXcm::<()>::from(message).encode(),
 		MessageKind::Xcmp => {
-			let fmt = cumulus_pallet_xcmp_queue::XcmpMessageFormat::ConcatenatedVersionedXcm;
+			let fmt = XcmpMessageFormat::ConcatenatedVersionedXcm;
 			let mut outbound = fmt.encode();
 
 			let encoded = VersionedXcm::<()>::from(message).encode();
@@ -68,16 +71,20 @@ macro_rules! decl_test_relay_chain {
 
 		$crate::__impl_ext!($name, $new_ext);
 
-		impl $crate::HandleUmpMessage for $name {
-			fn handle_ump_message(from: $crate::ParaId, msg: &[u8], max_weight: $crate::Weight) {
+		impl $crate::UmpSink for $name {
+			fn process_upward_message(
+				origin: $crate::ParaId,
+				msg: &[u8],
+				max_weight: $crate::Weight,
+			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
 				use $crate::ump::UmpSink;
 				use $crate::TestExt;
 
 				Self::execute_with(|| {
-					let _ = $crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-						from, msg, max_weight,
-					);
-				});
+					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
+						origin, msg, max_weight,
+					)
+				})
 			}
 		}
 	};
@@ -88,6 +95,8 @@ macro_rules! decl_test_parachain {
 	(
 		pub struct $name:ident {
 			Runtime = $runtime:path,
+			XcmpMessageHandler = $xcmp_message_handler:path,
+			DmpMessageHandler = $dmp_message_handler:path,
 			new_ext = $new_ext:expr,
 		}
 	) => {
@@ -95,31 +104,30 @@ macro_rules! decl_test_parachain {
 
 		$crate::__impl_ext!($name, $new_ext);
 
-		impl $crate::HandleXcmpMessage for $name {
-			fn handle_xcmp_message(from: $crate::ParaId, at_relay_block: u32, msg: &[u8], max_weight: $crate::Weight) {
-				use $crate::cumulus_primitives_core::XcmpMessageHandler;
-				use $crate::TestExt;
+		impl $crate::XcmpMessageHandlerT for $name {
+			fn handle_xcmp_messages<'a, I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>>(
+				iter: I,
+				max_weight: $crate::Weight,
+			) -> $crate::Weight {
+				use $crate::{XcmpMessageHandlerT, TestExt};
 
 				$name::execute_with(|| {
-					$crate::cumulus_pallet_xcmp_queue::Pallet::<$runtime>::handle_xcmp_messages(
-						vec![(from, at_relay_block, msg)].into_iter(),
+					XcmpMessageHandler::handle_xcmp_messages(
+						iter,
 						max_weight,
-					);
-				});
+					)
+				})
 			}
 		}
 
-		impl $crate::HandleDmpMessage for $name {
-			fn handle_dmp_message(at_relay_block: u32, msg: Vec<u8>, max_weight: $crate::Weight) {
-				use $crate::cumulus_primitives_core::DmpMessageHandler;
-				use $crate::TestExt;
-
+		impl $crate::DmpMessageHandlerT for $name {
+			fn handle_dmp_messages(
+				iter: impl Iterator<Item=(RelayBlockNumber, Vec<u8>)>,
+				max_weight: Weight,
+			) -> Weight {
 				$name::execute_with(|| {
-					$crate::cumulus_pallet_dmp_queue::Pallet::<$runtime>::handle_dmp_messages(
-						vec![(at_relay_block, msg)].into_iter(),
-						max_weight,
-					);
-				});
+					DmpMessageHandler::handle_dmp_messages(iter, max_weight)
+				})
 			}
 		}
 	};
@@ -180,20 +188,23 @@ macro_rules! decl_test_network {
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
-				use $crate::{HandleUmpMessage, HandleXcmpMessage};
+				use $crate::{UmpSink, XcmpMessageHandlerT};
 
 				match destination {
 					$crate::X1($crate::Parent) => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
-						<$relay_chain>::handle_ump_message(T::get(), &encoded[..], $crate::Weight::max_value());
-						// TODO: update max weight
+						let _ = <$relay_chain>::process_upward_message(
+							T::get(), &encoded[..],
+							$crate::Weight::max_value(),
+						);
 						Ok(())
 					},
 					$(
 						$crate::X2($crate::Parent, $crate::Parachain(id)) if id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
-							// TODO: update max weight; update `at_relay_block`
-							<$parachain>::handle_xcmp_message(T::get(), 1, &encoded[..], $crate::Weight::max_value());
+							// TODO: update relay block number
+							let messages = vec![(T::get(), 1, &encoded[..])];
+							let _ = <$parachain>::handle_xcmp_messages(messages.into_iter(), $crate::Weight::max_value());
 							Ok(())
 						},
 					)*
@@ -202,18 +213,19 @@ macro_rules! decl_test_network {
 			}
 		}
 
-		/// XCM router, only sends DMP messages.
+		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
-				use $crate::HandleDmpMessage;
+				use $crate::DmpMessageHandlerT;
 
 				match destination {
 					$(
 						$crate::X1($crate::Parachain(id)) if id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
-							// TODO: update max weight; update `at_relay_block`
-							<$parachain>::handle_dmp_message(1, encoded, $crate::Weight::max_value());
+							// TODO: update relay block number
+							let messages = vec![(1, encoded)];
+							let _ = <$parachain>::handle_dmp_messages(messages.into_iter(), $crate::Weight::max_value());
 							Ok(())
 						},
 					)*

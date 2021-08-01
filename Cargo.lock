@@ -6899,6 +6899,7 @@ name = "polkadot-parachain"
 version = "0.9.8"
 dependencies = [
  "derive_more",
+ "frame-support",
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-core-primitives 0.9.8",
@@ -12739,12 +12740,10 @@ dependencies = [
 name = "xcm-simulator"
 version = "0.9.8"
 dependencies = [
- "cumulus-pallet-dmp-queue",
- "cumulus-pallet-xcmp-queue",
- "cumulus-primitives-core",
  "frame-support",
  "parity-scale-codec",
  "paste",
+ "polkadot-core-primitives 0.9.8",
  "polkadot-parachain 0.9.8",
  "polkadot-runtime-parachains 0.9.8",
  "sp-io",
