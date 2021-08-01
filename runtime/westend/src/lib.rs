@@ -53,7 +53,7 @@ use runtime_parachains::scheduler as parachains_scheduler;
 use runtime_parachains::reward_points as parachains_reward_points;
 use runtime_parachains::runtime_api_impl::v1 as parachains_runtime_api_impl;
 
-use xcm::v0::{MultiLocation::{self, Null, X1}, NetworkId, Xcm, Junction::Parachain};
+use xcm::v0::{MultiLocation, Junctions::{Null, X1}, NetworkId, Xcm, Junction::Parachain};
 use xcm::v0::MultiAsset::{self, AllConcreteFungible};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
@@ -863,8 +863,8 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = MultiLocation::Null;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const WndLocation: MultiLocation = MultiLocation::empty();
+	pub const Ancestry: MultiLocation = MultiLocation::empty();
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -908,7 +908,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const WestendForWestmint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+		(AllConcreteFungible { id: MultiLocation::empty() }, MultiLocation::with_parachain_interior(1000));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<WestendForWestmint>,
@@ -953,10 +953,10 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
 			MultiAsset::{All, ConcreteFungible}, Junction::AccountId32,
 		};
-		match origin {
+		match origin.junctions() {
 			// Root is allowed to execute anything.
-			Null => true,
-			X1(AccountId32 { .. }) => {
+			Null if origin.parent_count() == 0 => true,
+			X1(AccountId32 { .. }) if origin.parent_count() == 0 => {
 				// An account ID trying to send a message. We ensure that it's sensible.
 				// This checks that it's of the form:
 				// WithdrawAsset {
@@ -972,17 +972,21 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 				// }
 				matches!(msg, WithdrawAsset { ref assets, ref effects }
 					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
+					&& matches!(assets[0], ConcreteFungible { ref id, .. } if id.is_empty())
 					&& effects.len() == 2
 					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
+					&& matches!(effects[1], InitiateTeleport { ref assets, ref dest, ref effects }
 						if assets.len() == 1
 						&& matches!(assets[0], All)
+						&& dest.parent_count() == 0
+						&& matches!(dest.junctions(), X1(Parachain(..)))
 						&& effects.len() == 2
 						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
+						&& matches!(effects[1], DepositAsset { ref assets, ref dest }
 							if assets.len() == 1
 							&& matches!(assets[0], All)
+							&& dest.parent_count() == 0
+							&& matches!(dest.junctions(), X1(AccountId32{..}))
 						)
 					)
 				)
