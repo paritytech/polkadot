@@ -67,7 +67,7 @@ struct TestNetwork {
 	_req_configs: Vec<RequestResponseConfig>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TestAuthorityDiscovery;
 
 // The test's view of the network. This receives updates from the subsystem in the form
@@ -690,6 +690,12 @@ fn peer_view_updates_sent_via_overseer() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::StatementFetchingReceiver(_)
 			)
@@ -740,6 +746,12 @@ fn peer_messages_sent_via_overseer() {
 			ObservedRole::Full,
 		).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -812,6 +824,12 @@ fn peer_disconnect_from_just_one_peerset() {
 		network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 		network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -894,6 +912,12 @@ fn relays_collation_protocol_messages() {
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -992,6 +1016,12 @@ fn different_views_on_different_peer_sets() {
 		network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 		network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -1155,6 +1185,12 @@ fn send_messages_to_peers() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
+		);
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::StatementFetchingReceiver(_)
 			)
@@ -1260,6 +1296,7 @@ fn spread_event_to_subsystems_is_up_to_date() {
 	let mut cnt = 0_usize;
 	for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
 		match msg {
+			AllMessages::Empty => unreachable!("Nobody cares about the dummy"),
 			AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
 			AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
@@ -1278,7 +1315,8 @@ fn spread_event_to_subsystems_is_up_to_date() {
 			AllMessages::ApprovalDistribution(_) => { cnt += 1; }
 			AllMessages::GossipSupport(_) => unreachable!("Not interested in network events"),
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
-			AllMessages::DisputeParticipation(_) => unreachable!("Not interetsed in network events"),
+			AllMessages::DisputeParticipation(_) => unreachable!("Not interested in network events"),
+			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 			// notified, `unreachable!()` for those that should not.
@@ -1298,32 +1336,29 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 
 		// to show that we're still connected on the collation protocol, send a view update.
 
-		let hashes = (0..MAX_VIEW_HEADS * 3).map(|i| Hash::repeat_byte(i as u8));
+		let hashes = (0..MAX_VIEW_HEADS + 1).map(|i| Hash::repeat_byte(i as u8));
 
-		virtual_overseer.send(
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-				// These are in reverse order, so the subsystem must sort internally to
-				// get the correct view.
-				ActiveLeavesUpdate {
-					activated: hashes.enumerate().map(|(i, h)| ActivatedLeaf {
-						hash: h,
+		for (i, hash) in hashes.enumerate().rev() {
+			// These are in reverse order, so the subsystem must sort internally to
+			// get the correct view.
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash,
 						number: i as _,
 						status: LeafStatus::Fresh,
 						span: Arc::new(jaeger::Span::Disabled),
-					}).rev().collect(),
-					deactivated: Default::default(),
-				}
-			))
-		).await;
+					}),
+				))
+			).await;
+		}
 
-		let view_heads = (MAX_VIEW_HEADS * 2 .. MAX_VIEW_HEADS * 3).rev()
-			.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled)) );
-
-		let our_view = OurView::new(
-			view_heads,
-			0,
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::DisputeDistribution(
+				DisputeDistributionMessage::DisputeSendingReceiver(_)
+			)
 		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -1331,15 +1366,26 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 			)
 		);
 
-		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::OurViewChange(our_view.clone()),
-			&mut virtual_overseer,
-		).await;
+		let our_views = (1..=MAX_VIEW_HEADS).rev()
+			.map(|start| OurView::new(
+				(start..=MAX_VIEW_HEADS)
+					.rev()
+					.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled))),
+				0,
+			));
 
-		assert_sends_collation_event_to_all(
-			NetworkBridgeEvent::OurViewChange(our_view),
-			&mut virtual_overseer,
-		).await;
+		for our_view in our_views {
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view.clone()),
+				&mut virtual_overseer,
+			).await;
+
+			assert_sends_collation_event_to_all(
+				NetworkBridgeEvent::OurViewChange(our_view),
+				&mut virtual_overseer,
+			).await;
+		}
+
 		virtual_overseer
 	});
 }

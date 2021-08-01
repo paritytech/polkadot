@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The SlotRange struct which succinctly handles the 36 values that
+//! The `SlotRange` struct which succinctly handles the 36 values that
 //! represent all sub ranges between 0 and 7 inclusive.
 
 slot_range_helper::generate_slot_range!(Zero(0), One(1), Two(2), Three(3), Four(4), Five(5), Six(6), Seven(7));

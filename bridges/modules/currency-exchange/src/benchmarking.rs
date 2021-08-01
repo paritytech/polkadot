@@ -40,10 +40,10 @@ pub struct ProofParams<Recipient> {
 	/// When true, recipient must exists before import.
 	pub recipient_exists: bool,
 	/// When 0, transaction should have minimal possible size. When this value has non-zero value n,
-	/// transaction size should be (if possible) near to MIN_SIZE + n * SIZE_FACTOR.
+	/// transaction size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
 	pub transaction_size_factor: u32,
 	/// When 0, proof should have minimal possible size. When this value has non-zero value n,
-	/// proof size should be (if possible) near to MIN_SIZE + n * SIZE_FACTOR.
+	/// proof size should be (if possible) near to `MIN_SIZE + n * SIZE_FACTOR`.
 	pub proof_size_factor: u32,
 }
 

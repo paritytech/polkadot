@@ -32,8 +32,8 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, messages::AllMessages, ActivatedLeaf,
-	LeafStatus,
+	ActiveLeavesUpdate, errors::RuntimeApiError, jaeger, ActivatedLeaf,
+	LeafStatus, messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use sp_keyring::Sr25519Keyring;
@@ -255,15 +255,12 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![ActivatedLeaf {
-					hash: new_leaf,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}].into(),
-				deactivated: vec![].into(),
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: new_leaf,
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		let header = Header {
@@ -285,7 +282,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 			}
 		);
 
-		// runtime api call fails
+		// runtime API call fails
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -806,15 +803,12 @@ fn we_dont_miss_anything_if_import_notifications_are_missed() {
 
 		overseer_signal(
 			&mut virtual_overseer,
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: vec![ActivatedLeaf {
-					hash: new_leaf,
-					number: 4,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}].into(),
-				deactivated: vec![].into(),
-			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: new_leaf,
+				number: 4,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
 		).await;
 
 		assert_matches!(
@@ -1139,15 +1133,12 @@ async fn import_leaf(
 
 	overseer_signal(
 		virtual_overseer,
-		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: vec![ActivatedLeaf {
-				hash: new_leaf,
-				number: 1,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			}].into(),
-			deactivated: vec![].into(),
-		}),
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: new_leaf,
+			number: 1,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		})),
 	).await;
 
 	assert_matches!(

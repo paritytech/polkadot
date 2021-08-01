@@ -287,15 +287,15 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
-		/// Current code has been updated for a Para. \[para_id\]
+		/// Current code has been updated for a Para. `para_id`
 		CurrentCodeUpdated(ParaId),
-		/// Current head has been updated for a Para. \[para_id\]
+		/// Current head has been updated for a Para. `para_id`
 		CurrentHeadUpdated(ParaId),
-		/// A code upgrade has been scheduled for a Para. \[para_id\]
+		/// A code upgrade has been scheduled for a Para. `para_id`
 		CodeUpgradeScheduled(ParaId),
-		/// A new head has been noted for a Para. \[para_id\]
+		/// A new head has been noted for a Para. `para_id`
 		NewHeadNoted(ParaId),
-		/// A para has been queued to execute pending actions. \[para_id\]
+		/// A para has been queued to execute pending actions. `para_id`
 		ActionQueued(ParaId, SessionIndex),
 	}
 
@@ -313,7 +313,7 @@ pub mod pallet {
 		CannotDowngrade,
 	}
 
-	/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
+	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
 	#[pallet::getter(fn parachains)]
 	pub(super) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
@@ -1016,18 +1016,18 @@ mod tests {
 	use primitives::v1::BlockNumber;
 	use frame_support::assert_ok;
 
-	use crate::mock::{new_test_ext, Paras, Shared, System, MockGenesisConfig};
+	use crate::mock::{new_test_ext, Paras, ParasShared, System, MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
-			Shared::initializer_finalize();
+			ParasShared::initializer_finalize();
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
-				session_change_notification.session_index = Shared::session_index() + 1;
-				Shared::initializer_on_new_session(
+				session_change_notification.session_index = ParasShared::session_index() + 1;
+				ParasShared::initializer_on_new_session(
 					session_change_notification.session_index,
 					session_change_notification.random_seed,
 					&session_change_notification.new_config,
@@ -1040,7 +1040,7 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			Shared::initializer_initialize(b + 1);
+			ParasShared::initializer_initialize(b + 1);
 			Paras::initializer_initialize(b + 1);
 		}
 	}
@@ -1443,7 +1443,7 @@ mod tests {
 
 			run_to_block(expected_at + 1 + 4, None);
 
-			// the candidate is in the context of the first descendent of `expected_at`, and triggers
+			// the candidate is in the context of the first descendant of `expected_at`, and triggers
 			// the upgrade.
 			{
 				Paras::note_new_head(para_id, Default::default(), expected_at + 4);

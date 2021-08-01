@@ -70,7 +70,7 @@ const CONFIG: Config = Config {
 	},
 };
 
-/// Runs the prevaldation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
+/// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
 pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
 	let blob = RuntimeBlob::new(code)?;
 	// It's assumed this function will take care of any prevalidation logic
@@ -228,6 +228,10 @@ impl sp_externalities::Externalities for ValidationExternalities {
 
 	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
 		panic!("set_offchain_storage: unsupported feature for parachain validation")
+	}
+
+	fn get_read_and_written_keys(&self) -> Vec<(Vec<u8>, u32, u32, bool)> {
+		panic!("get_read_and_written_keys: unsupported feature for parachain validation")
 	}
 }
 

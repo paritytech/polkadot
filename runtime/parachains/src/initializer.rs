@@ -25,6 +25,7 @@ use frame_support::traits::{Randomness, OneSessionHandler};
 use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
+	disputes::DisputesHandler,
 	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
 };
 
@@ -35,7 +36,7 @@ pub use pallet::*;
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
-	/// The qeueud validators for the following session.
+	/// The queued validators for the following session.
 	pub queued: Vec<ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,
@@ -99,10 +100,10 @@ pub mod pallet {
 
 	/// Whether the parachains modules have been initialized within this block.
 	///
-	/// Semantically a bool, but this guarantees it should never hit the trie,
+	/// Semantically a `bool`, but this guarantees it should never hit the trie,
 	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
 	///
-	/// As a bool, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
 	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
 	/// the semantics of this variable.
 	#[pallet::storage]
@@ -127,19 +128,20 @@ pub mod pallet {
 			// - Scheduler
 			// - Inclusion
 			// - SessionInfo
-			// - Validity
+			// - Disputes
 			// - DMP
 			// - UMP
 			// - HRMP
-			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
-				shared::Module::<T>::initializer_initialize(now) +
+			let total_weight = configuration::Pallet::<T>::initializer_initialize(now) +
+				shared::Pallet::<T>::initializer_initialize(now) +
 				paras::Pallet::<T>::initializer_initialize(now) +
-				scheduler::Module::<T>::initializer_initialize(now) +
-				inclusion::Module::<T>::initializer_initialize(now) +
-				session_info::Module::<T>::initializer_initialize(now) +
-				dmp::Module::<T>::initializer_initialize(now) +
-				ump::Module::<T>::initializer_initialize(now) +
-				hrmp::Module::<T>::initializer_initialize(now);
+				scheduler::Pallet::<T>::initializer_initialize(now) +
+				inclusion::Pallet::<T>::initializer_initialize(now) +
+				session_info::Pallet::<T>::initializer_initialize(now) +
+				T::DisputesHandler::initializer_initialize(now) +
+				dmp::Pallet::<T>::initializer_initialize(now) +
+				ump::Pallet::<T>::initializer_initialize(now) +
+				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
 
@@ -148,15 +150,16 @@ pub mod pallet {
 
 		fn on_finalize(_: T::BlockNumber) {
 			// reverse initialization order.
-			hrmp::Module::<T>::initializer_finalize();
-			ump::Module::<T>::initializer_finalize();
-			dmp::Module::<T>::initializer_finalize();
-			session_info::Module::<T>::initializer_finalize();
-			inclusion::Module::<T>::initializer_finalize();
-			scheduler::Module::<T>::initializer_finalize();
+			hrmp::Pallet::<T>::initializer_finalize();
+			ump::Pallet::<T>::initializer_finalize();
+			dmp::Pallet::<T>::initializer_finalize();
+			T::DisputesHandler::initializer_finalize();
+			session_info::Pallet::<T>::initializer_finalize();
+			inclusion::Pallet::<T>::initializer_finalize();
+			scheduler::Pallet::<T>::initializer_finalize();
 			paras::Pallet::<T>::initializer_finalize();
-			shared::Module::<T>::initializer_finalize();
-			configuration::Module::<T>::initializer_finalize();
+			shared::Pallet::<T>::initializer_finalize();
+			configuration::Pallet::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
 			// next block will observe the next session.
@@ -196,7 +199,7 @@ impl<T: Config> Pallet<T> {
 		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
-		let prev_config = <configuration::Module<T>>::config();
+		let prev_config = <configuration::Pallet<T>>::config();
 
 		let random_seed = {
 			let mut buf = [0u8; 32];
@@ -210,11 +213,11 @@ impl<T: Config> Pallet<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&session_index);
+		configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 
-		let new_config = <configuration::Module<T>>::config();
+		let new_config = <configuration::Pallet<T>>::config();
 
-		let validators = shared::Module::<T>::initializer_on_new_session(
+		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
 			random_seed.clone(),
 			&new_config,
@@ -231,12 +234,13 @@ impl<T: Config> Pallet<T> {
 		};
 
 		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
-		scheduler::Module::<T>::initializer_on_new_session(&notification);
-		inclusion::Module::<T>::initializer_on_new_session(&notification);
-		session_info::Module::<T>::initializer_on_new_session(&notification);
-		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		scheduler::Pallet::<T>::initializer_on_new_session(&notification);
+		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
+		session_info::Pallet::<T>::initializer_on_new_session(&notification);
+		T::DisputesHandler::initializer_on_new_session(&notification);
+		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
@@ -267,6 +271,20 @@ impl<T: Config> Pallet<T> {
 			}));
 		}
 
+	}
+
+	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// implemented in mock.
+	#[cfg(test)]
+	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
+		changed: bool,
+		session_index: SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	)
+		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	{
+		Self::on_new_session(changed, session_index, validators, queued)
 	}
 }
 

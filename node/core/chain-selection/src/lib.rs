@@ -18,8 +18,8 @@
 
 use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_node_primitives::BlockWeight;
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
+use polkadot_node_subsystem::{
+	overseer, SubsystemContext, SubsystemError, SpawnedSubsystem,
 	OverseerSignal, FromOverseer,
 	messages::{ChainSelectionMessage, ChainApiMessage},
 	errors::ChainApiError,
@@ -28,6 +28,7 @@ use polkadot_subsystem::{
 use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 use futures::channel::oneshot;
+use futures::future::Either;
 use futures::prelude::*;
 
 use std::time::{UNIX_EPOCH, Duration,SystemTime};
@@ -244,7 +245,7 @@ impl Clock for SystemClock {
 
 /// The interval, in seconds to check for stagnant blocks.
 #[derive(Debug, Clone)]
-pub struct StagnantCheckInterval(Duration);
+pub struct StagnantCheckInterval(Option<Duration>);
 
 impl Default for StagnantCheckInterval {
 	fn default() -> Self {
@@ -255,28 +256,37 @@ impl Default for StagnantCheckInterval {
 		// between 2 validators is D + 5s.
 		const DEFAULT_STAGNANT_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
-		StagnantCheckInterval(DEFAULT_STAGNANT_CHECK_INTERVAL)
+		StagnantCheckInterval(Some(DEFAULT_STAGNANT_CHECK_INTERVAL))
 	}
 }
 
 impl StagnantCheckInterval {
 	/// Create a new stagnant-check interval wrapping the given duration.
 	pub fn new(interval: Duration) -> Self {
-		StagnantCheckInterval(interval)
+		StagnantCheckInterval(Some(interval))
+	}
+
+	/// Create a `StagnantCheckInterval` which never triggers.
+	pub fn never() -> Self {
+		StagnantCheckInterval(None)
 	}
 
 	fn timeout_stream(&self) -> impl Stream<Item = ()> {
-		let interval = self.0;
-		let mut delay = futures_timer::Delay::new(interval);
+		match self.0 {
+			Some(interval) => Either::Left({
+				let mut delay = futures_timer::Delay::new(interval);
 
-		futures::stream::poll_fn(move |cx| {
-			let poll = delay.poll_unpin(cx);
-			if poll.is_ready() {
-				delay.reset(interval)
-			}
+				futures::stream::poll_fn(move |cx| {
+					let poll = delay.poll_unpin(cx);
+					if poll.is_ready() {
+						delay.reset(interval)
+					}
 
-			poll.map(Some)
-		})
+					poll.map(Some)
+				})
+			}),
+			None => Either::Right(futures::stream::pending()),
+		}
 	}
 }
 
@@ -306,8 +316,10 @@ impl ChainSelectionSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for ChainSelectionSubsystem
-	where Context: SubsystemContext<Message = ChainSelectionMessage>
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
+where
+	Context: SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = crate::db_backend::v1::DbBackend::new(
@@ -337,6 +349,7 @@ async fn run<Context, B>(
 )
 	where
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 		B: Backend,
 {
 	loop {
@@ -376,6 +389,7 @@ async fn run_iteration<Context, B>(
 	-> Result<(), Error>
 	where
 		Context: SubsystemContext<Message = ChainSelectionMessage>,
+		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 		B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
@@ -439,11 +453,11 @@ async fn fetch_finalized(
 	let (number_tx, number_rx) = oneshot::channel();
 	let (hash_tx, hash_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx).into()).await;
+	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
 	let number = number_rx.await??;
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx).into()).await;
+	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
 	match hash_rx.await?? {
 		None => {
@@ -464,7 +478,7 @@ async fn fetch_header(
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
 	let (h_tx, h_rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx).into()).await;
+	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx)).await;
 
 	h_rx.await?.map_err(Into::into)
 }
@@ -474,7 +488,7 @@ async fn fetch_block_weight(
 	hash: Hash,
 ) -> Result<Option<BlockWeight>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx).into()).await;
+	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
 	rx.await?.map_err(Into::into)
 }
@@ -530,7 +544,7 @@ async fn handle_active_leaf(
 				);
 
 				// If we don't know the weight, we can't import the block.
-				// And none of its descendents either.
+				// And none of its descendants either.
 				break;
 			}
 			Some(w) => w,

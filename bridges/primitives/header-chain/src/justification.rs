@@ -16,7 +16,7 @@
 
 //! Pallet for checking GRANDPA Finality Proofs.
 //!
-//! Adapted copy of substrate/client/finality-grandpa/src/justification.rs. If origin
+//! Adapted copy of `substrate/client/finality-grandpa/src/justification.rs`. If origin
 //! will ever be moved to the sp_finality_grandpa, we should reuse that implementation.
 
 use codec::{Decode, Encode};
@@ -57,7 +57,7 @@ pub enum Error {
 	InvalidJustificationTarget,
 	/// The authority has provided an invalid signature.
 	InvalidAuthoritySignature,
-	/// The justification contains precommit for header that is not a descendant of the commit header.
+	/// The justification contains pre-commit for header that is not a descendant of the commit header.
 	PrecommitIsNotCommitDescendant,
 	/// The cumulative weight of all votes in the justification is not enough to justify commit
 	/// header finalization.
@@ -119,7 +119,7 @@ where
 		if signed.precommit.target_number < justification.commit.target_number {
 			return Err(Error::PrecommitIsNotCommitDescendant);
 		}
-		// all precommits must be for target block descendents
+		// all precommits must be for target block descendants
 		chain = chain.ensure_descendant(&justification.commit.target_hash, &signed.precommit.target_hash)?;
 		// since we know now that the precommit target is the descendant of the justification target,
 		// we may increase 'weight' of the justification target
@@ -154,7 +154,7 @@ where
 	}
 
 	// check that the cumulative weight of validators voted for the justification target (or one
-	// of its descendents) is larger than required threshold.
+	// of its descendants) is larger than required threshold.
 	let threshold = authorities_set.threshold().0.into();
 	if cumulative_weight >= threshold {
 		Ok(())

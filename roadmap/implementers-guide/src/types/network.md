@@ -81,7 +81,7 @@ enum PoVDistributionV1Message {
 	/// specific relay-parent hash.
 	Awaiting(Hash, Vec<Hash>),
 	/// Notification of an awaited PoV, in a given relay-parent context.
-	/// (relay_parent, pov_hash, pov)
+	/// (`relay_parent`, `pov_hash`, `pov`)
 	SendPoV(Hash, Hash, PoV),
 }
 ```

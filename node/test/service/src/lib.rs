@@ -22,7 +22,7 @@ pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
+use polkadot_overseer::Handle;
 use polkadot_primitives::v1::{
 	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair,
 };
@@ -185,10 +185,10 @@ pub fn node_config(
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
+		rpc_max_payload: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
-		rpc_max_payload: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
 		telemetry_external_transport: None,
@@ -223,17 +223,17 @@ pub fn run_validator_node(
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
+	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path).expect("could not create Polkadot test service");
 
-	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
+	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode {
 		task_manager,
 		client,
-		overseer_handler,
+		overseer_handle,
 		addr,
 		rpc_handlers,
 	}
@@ -265,19 +265,19 @@ pub fn run_collator_node(
 		client,
 		network,
 		rpc_handlers,
-		overseer_handler,
+		overseer_handle,
 		..
 	} = new_full(config, IsCollator::Yes(collator_pair), None)
 		.expect("could not create Polkadot test service");
 
-	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
+	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode {
 		task_manager,
 		client,
-		overseer_handler,
+		overseer_handle,
 		addr,
 		rpc_handlers,
 	}
@@ -285,15 +285,15 @@ pub fn run_collator_node(
 
 /// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode {
-	/// TaskManager's instance.
+	/// `TaskManager`'s instance.
 	pub task_manager: TaskManager,
 	/// Client's instance.
 	pub client: Arc<Client>,
-	/// The overseer handler.
-	pub overseer_handler: OverseerHandler,
+	/// A handle to Overseer.
+	pub overseer_handle: Handle,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
-	/// RPCHandlers to make RPC queries.
+	/// `RPCHandlers` to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
 }
 
@@ -347,11 +347,11 @@ impl PolkadotTestNode {
 			para_id,
 		};
 
-		self.overseer_handler
+		self.overseer_handle
 			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 			.await;
 
-		self.overseer_handler
+		self.overseer_handle
 			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
 			.await;
 	}
