@@ -147,7 +147,7 @@ impl TransactAsset for TestAssetTransactor {
 
 
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
-	Ok(match l.junctions() {
+	Ok(match l.interior() {
 		// Siblings at 2000+id
 		X1(Parachain(id)) if l.parent_count() == 1 => 2000 + *id as u64,
 		// Accounts are their number
@@ -166,7 +166,7 @@ pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
 			(Native, X1(Parachain(id))) if origin.parent_count() == 0 => Ok(TestOrigin::Parachain(*id)),

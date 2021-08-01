@@ -131,7 +131,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct BumpParaId;
 /// impl ConvertOrigin<u32> for BumpParaId {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.junctions() {
+/// 		match origin.interior() {
 /// 			Junctions::X1(Junction::Parachain(id)) if origin.parent_count() == 0 => {
 /// 				Err(Junctions::X1(Junction::Parachain(id + 1)).into())
 /// 			}
@@ -143,7 +143,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct AcceptPara7;
 /// impl ConvertOrigin<u32> for AcceptPara7 {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.junctions() {
+/// 		match origin.interior() {
 /// 			Junctions::X1(Junction::Parachain(id)) if id == &7 && origin.parent_count() == 0 => {
 /// 				Ok(7)
 /// 			}

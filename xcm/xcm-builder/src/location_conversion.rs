@@ -43,7 +43,7 @@ impl<
 	AccountId: Default + Eq + Clone,
 > Convert<MultiLocation, AccountId> for ParentIsDefault<AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if location.borrow().parent_count() == 1 && location.borrow().junctions().len() == 0 {
+		if location.borrow().parent_count() == 1 && location.borrow().interior().len() == 0 {
 			Ok(AccountId::default())
 		} else {
 			Err(())
@@ -66,7 +66,7 @@ impl<
 > Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		let location = location.borrow();
-		match location.junctions() {
+		match location.interior() {
 			Junctions::X1(Junction::Parachain(id)) if location.parent_count() == 0 => {
 				Ok(ParaId::from(*id).into_account())
 			},
@@ -90,7 +90,7 @@ impl<
 > Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		let location = location.borrow();
-		match location.junctions() {
+		match location.interior() {
 			Junctions::X1(Junction::Parachain(id)) if location.parent_count() == 1 => {
 				Ok(ParaId::from(*id).into_account())
 			},
@@ -118,7 +118,7 @@ impl<
 	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
 > Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId> {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let id = match location.junctions() {
+		let id = match location.interior() {
 			Junctions::X1(Junction::AccountId32 { id, network: NetworkId::Any })
 			if location.parent_count() == 0
 				=> *id,
@@ -141,7 +141,7 @@ impl<
 	AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone,
 > Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId> {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let key = match location.junctions() {
+		let key = match location.interior() {
 			Junctions::X1(Junction::AccountKey20 { key, network: NetworkId::Any })
 			if location.parent_count() == 0
 				=> *key,
@@ -202,7 +202,7 @@ impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry>
 			)
 			.expect("ancestry is well-formed and has less than 8 non-parent junctions; qed");
 		}
-		let parents = location.junctions().len() as u8;
+		let parents = location.interior().len() as u8;
 		MultiLocation::new(parents, junctions)
 			.expect("parents + junctions len must equal location len; qed")
 	}

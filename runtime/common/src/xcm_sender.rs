@@ -29,7 +29,7 @@ pub struct ChildParachainRouter<T>(PhantomData<T>);
 
 impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T> {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
-		match dest.junctions() {
+		match dest.interior() {
 			Junctions::X1(Junction::Parachain(id)) if dest.parent_count() == 0 => {
 				// Downward message passing.
 				let config = <configuration::Pallet<T>>::config();

@@ -199,7 +199,7 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.junctions(), Junctions::X2(j1, j2))
+///         if matches!(destination.interior(), Junctions::X2(j1, j2))
 ///             && destination.parent_count() == 0
 ///         {
 ///             Ok(())
@@ -213,7 +213,7 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.junctions(), Junctions::Null)
+///         if matches!(destination.interior(), Junctions::Null)
 ///             && destination.parent_count() == 1
 ///         {
 ///             Ok(())

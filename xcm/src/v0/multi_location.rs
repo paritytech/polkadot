@@ -157,12 +157,12 @@ impl MultiLocation {
 	}
 
 	/// Return a reference to the interior field.
-	pub fn junctions(&self) -> &Junctions {
+	pub fn interior(&self) -> &Junctions {
 		&self.interior
 	}
 
 	/// Return a mutable reference to the interior field.
-	pub fn junctions_mut(&mut self) -> &mut Junctions {
+	pub fn interior_mut(&mut self) -> &mut Junctions {
 		&mut self.interior
 	}
 
@@ -176,9 +176,9 @@ impl MultiLocation {
 		self.parent_count() as usize + self.interior.len()
 	}
 
-	/// Returns first junction that is not a parent, or `None` if the location is empty or
-	/// contains only parents.
-	pub fn first_non_parent(&self) -> Option<&Junction> {
+	/// Returns the first interior junction, or `None` if the location is empty or contains only
+	/// parents.
+	pub fn first_interior(&self) -> Option<&Junction> {
 		self.interior.first()
 	}
 
@@ -187,9 +187,9 @@ impl MultiLocation {
 		self.interior.last()
 	}
 
-	/// Splits off the first non-parent junction, returning the remaining suffix (first item in tuple)
+	/// Splits off the first interior junction, returning the remaining suffix (first item in tuple)
 	/// and the first element (second item in tuple) or `None` if it was empty.
-	pub fn split_first_non_parent(self) -> (MultiLocation, Option<Junction>) {
+	pub fn split_first_interior(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
 		let (suffix, first) = junctions.split_first();
 		let multilocation = MultiLocation {

@@ -46,7 +46,7 @@ impl<
 	Origin: OriginTrait,
 > ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Superuser && origin.parent_count() == 1 && origin.junctions().len() == 0 {
+		if kind == OriginKind::Superuser && origin.parent_count() == 1 && origin.interior().len() == 0 {
 			Ok(Origin::root())
 		} else {
 			Err(origin)
@@ -60,7 +60,7 @@ impl<
 	Origin: OriginTrait,
 > ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Superuser, Junctions::X1(Junction::Parachain(id)))
 			if ParaId::from(*id).is_system() && origin.parent_count() == 0 =>
 				Ok(Origin::root()),
@@ -75,7 +75,7 @@ impl<
 	Origin: OriginTrait
 > ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Superuser, Junctions::X1(Junction::Parachain(id)))
 			if ParaId::from(*id).is_system() && origin.parent_count() == 1 =>
 				Ok(Origin::root()),
@@ -92,7 +92,7 @@ impl<
 	Origin: From<ParachainOrigin>,
 > ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Native, Junctions::X1(Junction::Parachain(id)))
 			=> Ok(Origin::from(ParachainOrigin::from(*id))),
 			_ => Err(origin),
@@ -108,7 +108,7 @@ impl<
 	Origin: From<ParachainOrigin>,
 > ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Native, Junctions::X1(Junction::Parachain(id)))
 			if origin.parent_count() == 1 =>
 				Ok(Origin::from(ParachainOrigin::from(*id))),
@@ -126,7 +126,7 @@ impl<
 	Origin,
 > ConvertOrigin<Origin> for RelayChainAsNative<RelayOrigin, Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Native && origin.parent_count() == 1 && origin.junctions().len() == 0 {
+		if kind == OriginKind::Native && origin.parent_count() == 1 && origin.interior().len() == 0 {
 			Ok(RelayOrigin::get())
 		} else {
 			Err(origin)
@@ -144,7 +144,7 @@ impl<
 	Origin::AccountId: From<[u8; 32]>,
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Native, Junctions::X1(Junction::AccountId32 { id, network }))
 			if (matches!(network, NetworkId::Any) || network == &Network::get())
 				&& origin.parent_count() == 0
@@ -164,7 +164,7 @@ impl<
 	Origin::AccountId: From<[u8; 20]>,
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin.junctions()) {
+		match (kind, origin.interior()) {
 			(OriginKind::Native, Junctions::X1(Junction::AccountKey20 { key, network }))
 				if (matches!(network, NetworkId::Any) || network == &Network::get())
 					&& origin.parent_count() == 0 =>

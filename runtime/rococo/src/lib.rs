@@ -698,7 +698,7 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
 			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
 		};
-		match origin.junctions() {
+		match origin.interior() {
 			// Root and collective are allowed to execute anything.
 			Null | X1(Plurality { .. }) if origin.parent_count() == 0 => true,
 			X1(AccountId32 { .. }) if origin.parent_count() == 0 => {
@@ -722,14 +722,14 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 					&& matches!(effects[0], BuyExecution { .. })
 					&& matches!(effects[1], InitiateTeleport { ref assets, ref dest, ref effects }
 						if assets.len() == 1
-						&& matches!(dest.junctions(), X1(Parachain(..)))
+						&& matches!(dest.interior(), X1(Parachain(..)))
 						&& dest.parent_count() == 0
 						&& matches!(assets[0], All)
 						&& effects.len() == 2
 						&& matches!(effects[0], BuyExecution { .. })
 						&& matches!(effects[1], DepositAsset { ref assets, ref dest }
 							if assets.len() == 1
-							&& matches!(dest.junctions(), X1(AccountId32{..}))
+							&& matches!(dest.interior(), X1(AccountId32{..}))
 							&& dest.parent_count() == 0
 							&& matches!(assets[0], All)
 						)

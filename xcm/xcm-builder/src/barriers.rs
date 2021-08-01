@@ -87,7 +87,7 @@ impl<
 > Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
 	fn contains(l: &MultiLocation) -> bool {
 		matches!(
-			l.junctions(),
+			l.interior(),
 			Junctions::X1(Junction::Parachain(id))
 				if ParaId::from(*id).is_system() && l.parent_count() == 0,
 		)

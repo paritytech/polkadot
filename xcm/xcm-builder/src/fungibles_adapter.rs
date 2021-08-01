@@ -35,14 +35,14 @@ impl<
 		let id = id.borrow();
 		if prefix.parent_count() != id.parent_count()
 			|| prefix
-				.junctions()
+				.interior()
 				.iter()
 				.enumerate()
-				.any(|(index, junction)| id.junctions().at(index) != Some(junction))
+				.any(|(index, junction)| id.interior().at(index) != Some(junction))
 		{
 			return Err(())
 		}
-		match id.junctions().at(prefix.junctions().len()) {
+		match id.interior().at(prefix.interior().len()) {
 			Some(Junction::GeneralIndex { id }) => ConvertAssetId::convert_ref(id),
 			_ => Err(()),
 		}
