@@ -314,7 +314,7 @@ mod tests {
 			// but deposit did not execute
 			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
 			assert_eq!(relay_chain::Balances::free_balance(para_account_b), 0);
-			// TODO: verify no message was sent, but mock XCM router is not mock...
+			assert_eq!(relay_chain::sent_xcm(), vec![]);
 		});
 
 		// Now send a message which fully succeeds on the relay chain
@@ -349,7 +349,7 @@ mod tests {
 			// and deposit did execute
 			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
 			assert_eq!(relay_chain::Balances::free_balance(para_account_b), 10);
-			// TODO: check the sent message is a QueryResponse to the Parachain(1)
+			assert_eq!(relay_chain::sent_xcm(), vec![]);
 		});
 	}
 }
