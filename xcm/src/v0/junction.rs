@@ -100,40 +100,48 @@ pub enum Junction {
 	/// the context.
 	///
 	/// Generally used when the context is a Substrate-based chain.
+	#[codec(index = 2)]
 	AccountId32 { network: NetworkId, id: [u8; 32] },
 	/// An 8-byte index for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
 	/// May be used when the context is a Frame-based chain and includes e.g. an indices pallet.
+	#[codec(index = 3)]
 	AccountIndex64 { network: NetworkId, #[codec(compact)] index: u64 },
 	/// A 20-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
 	/// May be used when the context is an Ethereum or Bitcoin chain or smart-contract.
+	#[codec(index = 4)]
 	AccountKey20 { network: NetworkId, key: [u8; 20] },
 	/// An instanced, indexed pallet that forms a constituent part of the context.
 	///
 	/// Generally used when the context is a Frame-based chain.
+	#[codec(index = 5)]
 	PalletInstance(u8),
 	/// A non-descript index within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
+	#[codec(index = 6)]
 	GeneralIndex { #[codec(compact)] id: u128 },
 	/// A nondescript datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
+	#[codec(index = 7)]
 	GeneralKey(Vec<u8>),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving ancestry.
+	#[codec(index = 8)]
 	OnlyChild,
 	/// A pluralistic body existing within consensus.
 	///
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
+	#[codec(index = 9)]
 	Plurality { id: BodyId, part: BodyPart },
 }

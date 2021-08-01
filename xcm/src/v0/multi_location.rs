@@ -88,8 +88,18 @@ impl Decode for MultiLocation {
 				}
 				parents = parents.saturating_add(1);
 			} else {
-				interior = interior.pushed_with(Junction::decode(&mut &[b][..])?)
-					.map_err(|_| parity_scale_codec::Error::from("Interior too long"))?;
+				let mut bytes = [b].to_vec();
+				loop {
+					if let Ok(junction) = Junction::decode(&mut &bytes[..]) {
+						interior = interior.pushed_with(junction)
+							.map_err(|_| parity_scale_codec::Error::from("Interior too long"))?;
+						break;
+					} else {
+						// a single byte may not be enough to decode a `Junction`, so keep reading
+						// the next byte until a `Junction` can successfully be decoded
+						bytes.push(input.read_byte()?);
+					}
+				}
 			}
 		}
 		Ok(MultiLocation { parents, interior })
@@ -922,8 +932,18 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 
 #[cfg(test)]
 mod tests {
+	use parity_scale_codec::{Decode, Encode};
 	use super::{Junctions::*, MultiLocation};
 	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+
+	#[test]
+	fn encode_and_decode_works() {
+		let m = MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) };
+		let encoded = m.encode();
+		assert_eq!(encoded, [3, 0, 1, 168, 3, 0, 92].to_vec());
+		let decoded = MultiLocation::decode(&mut &encoded[..]);
+		assert_eq!(decoded, Ok(m));
+	}
 
 	#[test]
 	fn match_and_split_works() {
