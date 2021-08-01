@@ -21,6 +21,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
+mod integration_mock;
+#[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
 mod mock;
