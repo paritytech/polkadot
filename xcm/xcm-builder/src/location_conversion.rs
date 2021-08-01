@@ -43,7 +43,7 @@ impl<
 	AccountId: Default + Eq + Clone,
 > Convert<MultiLocation, AccountId> for ParentIsDefault<AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if location.borrow().parent_count() == 1 {
+		if location.borrow().parent_count() == 1 && location.borrow().junctions().len() == 0 {
 			Ok(AccountId::default())
 		} else {
 			Err(())
@@ -52,7 +52,7 @@ impl<
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(MultiLocation::new(1, Junctions::Null).expect("well-formed MultiLocation; qed"))
+			Ok(MultiLocation::with_parents(1).expect("well-formed MultiLocation; qed"))
 		} else {
 			Err(())
 		}
