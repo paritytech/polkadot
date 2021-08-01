@@ -157,13 +157,13 @@ impl MultiLocation {
 	}
 
 	/// Returns the number of `Parent` junctions at the beginning of `self`.
-	pub const fn parent_count(&self) -> usize {
-		self.parents as usize
+	pub const fn parent_count(&self) -> u8 {
+		self.parents
 	}
 
 	/// Returns the number of parents and junctions in `self`.
 	pub const fn len(&self) -> usize {
-		self.parent_count() + self.interior.len()
+		self.parent_count() as usize + self.interior.len()
 	}
 
 	/// Returns first junction that is not a parent, or `None` if the location is empty or
@@ -369,7 +369,7 @@ impl MultiLocation {
 	pub fn prepend_with(&mut self, mut prefix: MultiLocation) -> Result<(), MultiLocation> {
 		let self_parents = self.parent_count();
 		let prepend_len = (self_parents as isize - prefix.interior.len() as isize).abs() as usize;
-		if self.interior.len() + prefix.parent_count() + prepend_len > MAX_MULTILOCATION_LENGTH {
+		if self.interior.len() + prefix.parent_count() as usize + prepend_len > MAX_MULTILOCATION_LENGTH {
 			return Err(prefix)
 		}
 
