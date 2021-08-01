@@ -62,6 +62,7 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 }
 
 #[macro_export]
+#[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
 	(
 		pub struct $name:ident {
@@ -84,8 +85,8 @@ macro_rules! decl_test_relay_chain {
 
 				Self::execute_with(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-										origin, msg, max_weight,
-									)
+						origin, msg, max_weight,
+					)
 				})
 			}
 		}
