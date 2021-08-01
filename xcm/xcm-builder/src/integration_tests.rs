@@ -18,25 +18,17 @@ use frame_support::{
 	assert_ok,
 	weights::Weight,
 };
-use sp_core::H256;
+
 use sp_runtime::traits::AccountIdConversion;
-use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+
 
 use polkadot_parachain::primitives::Id as ParaId;
-use polkadot_runtime_parachains::{configuration, origin, shared};
+
 use xcm::opaque::v0::prelude::*;
-use xcm::opaque::v0::{MultiAsset, Response};
-use xcm::v0::{Junction, MultiLocation::{self, *}, NetworkId, Order};
+use xcm::opaque::v0::{Response};
+use xcm::v0::{Junction, MultiLocation::*, Order};
 use xcm_executor::XcmExecutor;
 
-use crate as xcm_builder;
-use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, IsChildSystemParachain, AllowUnpaidExecutionFrom
-};
 use crate::mock;
 
 use crate::integration_mock::{AccountId, Balances, BaseXcmWeight, ExistentialDeposit, kusama_like_with_balances, Origin, XcmConfig, XcmPallet};
