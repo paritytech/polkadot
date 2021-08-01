@@ -817,6 +817,32 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
+		fn benchmark_metadata(extra: bool) -> (
+			Vec<frame_benchmarking::BenchmarkList>,
+			Vec<frame_support::traits::StorageInfo>,
+		) {
+			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_support::traits::StorageInfoTrait;
+
+			list_benchmark!(
+				list,
+				extra,
+				pallet_bridge_currency_exchange,
+				BridgeCurrencyExchangeBench::<Runtime, KovanCurrencyExchange>
+			);
+			list_benchmark!(
+				list,
+				extra,
+				pallet_bridge_messages,
+				MessagesBench::<Runtime, WithMillauMessagesInstance>
+			);
+			list_benchmark!(list, extra, pallet_bridge_grandpa, BridgeMillauGrandpa);
+
+			let storage_info = AllPalletsWithSystem::storage_info();
+
+			return (list, storage_info)
+		}
+
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig,
 		) -> Result<
@@ -1066,8 +1092,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_bridge_grandpa, BridgeMillauGrandpa);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			let storage_info = AllPalletsWithSystem::storage_info();
-			Ok((batches, storage_info))
+			Ok(batches)
 		}
 	}
 }
