@@ -13,7 +13,7 @@ use xcm_builder::{
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
-use xcm::opaque::v0::{Xcm, SendXcm, Result as XcmResult};
+use xcm::opaque::v0::{Xcm, SendXcm, Result as XcmResult, Error as XcmError};
 
 use crate as pallet_xcm;
 
@@ -41,11 +41,24 @@ thread_local! {
 pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
+/// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
+	}
+}
+/// Sender that returns error if X3 junction and stops routing
+pub struct TestSendXcmErr;
+impl SendXcm for TestSendXcmErr {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+		if let MultiLocation::X3(..) = dest {
+			Err(XcmError::Undefined)
+		} else {
+			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+			Ok(())
+		}
 	}
 }
 
@@ -146,7 +159,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwo
 impl pallet_xcm::Config for Test {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = TestSendXcm;
+	type XcmRouter = (TestSendXcmErr, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
