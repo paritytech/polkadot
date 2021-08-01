@@ -39,6 +39,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
+	// TODO: https://github.com/paritytech/polkadot/issues/3547 introduce `, max_assets: u32`
 	DepositAsset { assets: MultiAssetFilter, dest: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
@@ -53,6 +54,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
+	// TODO: https://github.com/paritytech/polkadot/issues/3547 introduce `, max_assets: u32`
 	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
@@ -107,7 +109,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 7)]
-	BuyExecution { fees: WildMultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
+	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
 }
 
 pub mod opaque {
