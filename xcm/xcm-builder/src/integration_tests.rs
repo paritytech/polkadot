@@ -86,7 +86,6 @@ impl configuration::Config for Runtime {}
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::Null;
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = MultiLocation::Null;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
