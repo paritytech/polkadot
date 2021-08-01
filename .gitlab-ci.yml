@@ -101,6 +101,14 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
+cargo-fmt:
+  stage:                           test
+  <<:                              *kubernetes-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
 test-deterministic-wasm:
   stage:                           test
   <<:                              *rules-test
@@ -400,12 +408,4 @@ trigger-simnet:
   script:
     # API trigger for a Simnet job, argument value is set in the project variables
     - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
-  allow_failure:                   true
-
-cargo-fmt:
-  stage:                           test
-  <<:                              *docker-env
-  <<:                              *test-refs
-  script:
-    - cargo +nightly fmt --all -- --check
   allow_failure:                   true
