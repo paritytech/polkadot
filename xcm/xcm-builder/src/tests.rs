@@ -39,7 +39,7 @@ fn basic_setup_works() {
 
 #[test]
 fn weigher_should_work() {
-	let mut message = opaque::Xcm::ReserveAssetDeposit {
+	let mut message = opaque::Xcm::ReserveAssetDeposited {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
@@ -124,7 +124,7 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposit {
+	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 20, halt_on_error: true, xcm: vec![] },
@@ -141,7 +141,7 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let mut paying_message = opaque::Xcm::ReserveAssetDeposit {
+	let mut paying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }],
 		effects: vec![
 			Order::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
@@ -175,7 +175,7 @@ fn paying_reserve_deposit_should_work() {
 	WeightPrice::set((X1(Parent), 1_000_000_000_000));
 
 	let origin = X1(Parent);
-	let message = Xcm::<TestCall>::ReserveAssetDeposit {
+	let message = Xcm::<TestCall>::ReserveAssetDeposited {
 		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 		effects: vec![
 			Order::<TestCall>::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
@@ -233,7 +233,7 @@ fn reserve_transfer_should_work() {
 	assert_eq!(assets(1002), vec![ ConcreteFungible { id: Null, amount: 100 } ]);
 	assert_eq!(sent_xcm(), vec![(
 		X1(Parachain(2)),
-		Xcm::ReserveAssetDeposit {
+		Xcm::ReserveAssetDeposited {
 			assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],
 			effects: vec![ Order::DepositAsset { assets: vec![ All ], dest: three } ],
 		})

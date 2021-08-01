@@ -23,7 +23,6 @@ use parity_scale_codec::{self, Encode, Decode};
 use crate::{DoubleEncoded, VersionedXcm};
 
 mod junction;
-mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
@@ -41,7 +40,8 @@ pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
 pub mod prelude {
 	pub use super::junction::{Junction::*, NetworkId, BodyId, BodyPart};
 	pub use super::multiasset::{
-		AssetId, MultiAssets, MultiAsset,
+		MultiAssets, MultiAsset,
+		AssetId::{self, *},
 		AssetInstance::{self, *},
 		MultiAssetFilter::{self, *},
 		Fungibility::{self, *},
@@ -104,7 +104,7 @@ pub enum Xcm<Call> {
 	/// orders (`effects`).
 	///
 	/// - `assets`: The asset(s) to be withdrawn into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `effects`: The order(s) to execute on the holding register.
 	///
 	/// Kind: *Instruction*.
 	///
@@ -118,7 +118,7 @@ pub enum Xcm<Call> {
 	/// been placed into `holding`.
 	///
 	/// - `assets`: The asset(s) that are minted into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `effects`: The order(s) to execute on the holding register.
 	///
 	/// Safety: `origin` must be trusted to have received and be storing `assets` such that they may later be
 	/// withdrawn should this system send a corresponding message.
@@ -127,7 +127,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	ReserveAssetDeposit { assets: MultiAssets, effects: Vec<Order<Call>> },
+	ReserveAssetDeposited { assets: MultiAssets, effects: Vec<Order<Call>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -136,7 +136,7 @@ pub enum Xcm<Call> {
 	/// been placed into `holding`.
 	///
 	/// - `assets`: The asset(s) that are minted into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `effects`: The order(s) to execute on the holding register.
 	///
 	/// Safety: `origin` must be trusted to have irrevocably destroyed the `assets` prior as a consequence of
 	/// sending this message.
@@ -147,7 +147,7 @@ pub enum Xcm<Call> {
 	#[codec(index = 2)]
 	TeleportAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
 
-	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
+	/// Indication of the contents of the holding register corresponding to the `QueryHolding` order of `query_id`.
 	///
 	/// - `query_id`: The identifier of the query that resulted in this message being sent.
 	/// - `assets`: The message content.
@@ -177,11 +177,11 @@ pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
 	/// ownership of `dest` within this consensus system.
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to be withdrawn.
 	/// - `dest`: The new owner for the assets.
-	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
+	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposited` which is sent onwards to
 	///   `dest`.
 	///
 	/// Safety: No concerns.
@@ -294,8 +294,8 @@ impl<Call> Xcm<Call> {
 		match xcm {
 			WithdrawAsset { assets, effects }
 			=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			ReserveAssetDeposit { assets, effects }
-			=> ReserveAssetDeposit { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReserveAssetDeposited { assets, effects }
+			=> ReserveAssetDeposited { assets, effects: effects.into_iter().map(Order::into).collect() },
 			TeleportAsset { assets, effects }
 			=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			QueryResponse { query_id: u64, response }

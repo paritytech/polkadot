@@ -17,7 +17,7 @@
 //! Various implementations of `FilterAssetLocation`.
 
 use sp_std::marker::PhantomData;
-use xcm::v0::{MultiAsset, MultiLocation, AssetId::Concrete};
+use xcm::v0::{MultiAsset, MultiAssetFilter, MultiLocation, AssetId::Concrete};
 use frame_support::traits::Get;
 use xcm_executor::traits::FilterAssetLocation;
 
@@ -31,7 +31,7 @@ impl FilterAssetLocation for NativeAsset {
 
 /// Accepts an asset if it is contained in the given `T`'s `Get` implementation.
 pub struct Case<T>(PhantomData<T>);
-impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
+impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		let (a, o) = T::get();
 		a.contains(asset) && &o == origin

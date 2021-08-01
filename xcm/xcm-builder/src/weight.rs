@@ -31,7 +31,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 			}
 			Xcm::RelayedFrom { ref mut message, .. } => T::get().saturating_add(Self::shallow(message.as_mut())?),
 			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
+			| Xcm::ReserveAssetDeposited { effects, .. }
 			| Xcm::TeleportAsset { effects, .. }
 			=> {
 				let inner: Weight = effects.iter_mut()
@@ -55,7 +55,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 		Ok(match message {
 			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
 			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
+			| Xcm::ReserveAssetDeposited { effects, .. }
 			| Xcm::TeleportAsset { effects, .. }
 			=> {
 				let mut extra = 0;

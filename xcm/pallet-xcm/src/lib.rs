@@ -123,7 +123,7 @@ pub mod pallet {
 			let mut message = Xcm::WithdrawAsset {
 				assets: assets.clone(),
 				effects: sp_std::vec![ InitiateTeleport {
-					assets: sp_std::vec![ All ],
+					assets: Wild(All),
 					dest: dest.clone(),
 					effects: sp_std::vec![],
 				} ]
@@ -134,18 +134,19 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			assets: MultiAssets,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, assets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let assets = assets.into();
 			let mut message = Xcm::WithdrawAsset {
 				assets,
 				effects: vec![
 					InitiateTeleport {
-						assets: vec![ All ],
+						assets: Wild(All),
 						dest,
 						effects: vec![
 							BuyExecution {
@@ -156,7 +157,7 @@ pub mod pallet {
 								halt_on_error: false,
 								xcm: vec![],
 							},
-							DepositAsset { assets: vec![ All ], dest: beneficiary },
+							DepositAsset { assets: Wild(All), dest: beneficiary },
 						],
 					},
 				],
@@ -179,7 +180,7 @@ pub mod pallet {
 		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
 		///   `dest` side.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `ReserveAssetDeposit { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
 			let mut message = Xcm::TransferReserveAsset {
 				assets: assets.clone(),
@@ -192,13 +193,14 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			assets: MultiAssets,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, assets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
 				dest,
@@ -211,7 +213,7 @@ pub mod pallet {
 						halt_on_error: false,
 						xcm: vec![],
 					},
-					DepositAsset { assets: vec![ All ], dest: beneficiary },
+					DepositAsset { assets: Wild(All), dest: beneficiary },
 				],
 			};
 			let weight = T::Weigher::weight(&mut message)

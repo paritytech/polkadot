@@ -23,13 +23,10 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use core::convert::{TryFrom, TryInto};
+use core::cmp::Ordering;
 use alloc::{vec, vec::Vec};
 use parity_scale_codec::{self as codec, Encode, Decode};
-use super::{
-	MultiLocation, multi_asset::MultiAsset as OldMultiAsset,
-};
-use core::cmp::Ordering;
+use super::MultiLocation;
 
 /// A general identifier for an instance of a non-fungible asset class.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -58,7 +55,7 @@ pub enum AssetInstance {
 }
 
 /// Classification of an asset being concrete or abstract.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract(Vec<u8>),
@@ -98,7 +95,7 @@ impl AssetId {
 }
 
 /// Classification of whether an asset is fungible or not, along with an mandatory amount or instance.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum Fungibility {
 	Fungible(u128),
 	NonFungible(AssetInstance),
@@ -127,7 +124,7 @@ impl From<AssetInstance> for Fungibility {
 
 
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,
@@ -152,45 +149,6 @@ impl Ord for MultiAsset {
 impl<A: Into<AssetId>, B: Into<Fungibility>> From<(A, B)> for MultiAsset {
 	fn from((id, fun): (A, B)) -> MultiAsset {
 		MultiAsset { fun: fun.into(), id: id.into() }
-	}
-}
-
-impl From<MultiAsset> for OldMultiAsset {
-	fn from(a: MultiAsset) -> Self {
-		use {AssetId::*, Fungibility::*, OldMultiAsset::*};
-		match (a.fun, a.id) {
-			(Fungible(amount), Concrete(id)) => ConcreteFungible { id, amount },
-			(Fungible(amount), Abstract(id)) => AbstractFungible { id, amount },
-			(NonFungible(instance), Concrete(class)) => ConcreteNonFungible { class, instance },
-			(NonFungible(instance), Abstract(class)) => AbstractNonFungible { class, instance },
-		}
-	}
-}
-
-impl TryFrom<OldMultiAsset> for MultiAsset {
-	type Error = ();
-	fn try_from(a: OldMultiAsset) -> Result<Self, ()> {
-		use {AssetId::*, Fungibility::*, OldMultiAsset::*};
-		let (fun, id) = match a {
-			ConcreteFungible { id, amount } if amount > 0 => (Fungible(amount), Concrete(id)),
-			AbstractFungible { id, amount } if amount > 0 => (Fungible(amount), Abstract(id)),
-			ConcreteNonFungible { class, instance } => (NonFungible(instance), Concrete(class)),
-			AbstractNonFungible { class, instance } => (NonFungible(instance), Abstract(class)),
-			_ => return Err(()),
-		};
-		Ok(MultiAsset { fun, id })
-	}
-}
-
-impl Encode for MultiAsset {
-	fn encode(&self) -> Vec<u8> {
-		OldMultiAsset::from(self.clone()).encode()
-	}
-}
-
-impl Decode for MultiAsset {
-	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		OldMultiAsset::decode(input)?.try_into().map_err(|_| "Unsupported wildcard".into())
 	}
 }
 
@@ -238,7 +196,7 @@ impl Decode for MultiAssets {
 			if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
 				Ok(b)
 			} else {
-				Err("Unsupported wildcard".into())
+				Err("Out of order".into())
 			}
 		})?;
 		Ok(Self(r))
@@ -248,19 +206,6 @@ impl Decode for MultiAssets {
 impl From<Vec<MultiAsset>> for MultiAssets {
 	fn from(x: Vec<MultiAsset>) -> Self {
 		Self(x)
-	}
-}
-
-impl From<MultiAssets> for Vec<OldMultiAsset> {
-	fn from(a: MultiAssets) -> Self {
-		a.0.into_iter().map(OldMultiAsset::from).collect()
-	}
-}
-
-impl TryFrom<Vec<OldMultiAsset>> for MultiAssets {
-	type Error = ();
-	fn try_from(a: Vec<OldMultiAsset>) -> Result<Self, ()> {
-		a.into_iter().map(MultiAsset::try_from).collect::<Result<_, _>>().map(Self)
 	}
 }
 
@@ -315,57 +260,21 @@ impl MultiAssets {
 
 
 /// Classification of whether an asset is fungible or not, along with an optional amount or instance.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildFungibility {
 	Fungible,
 	NonFungible,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildMultiAsset {
+	/// All assets in the holding register, up to usize individual assets (different instances of non-fungibles could
+	/// as separate assets).
 	All,
 	// TODO: AllOf { fun: WildFungibility, id: AssetId }
+	/// All assets in the holding register of a given fungibility and ID. If operating on non-fungibles, then a limit
+	/// is provided for the maximum amount of matching instances.
 	AllOf(WildFungibility, AssetId),
-}
-
-impl Encode for WildMultiAsset {
-	fn encode(&self) -> Vec<u8> {
-		OldMultiAsset::from(self.clone()).encode()
-	}
-}
-
-impl Decode for WildMultiAsset {
-	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		OldMultiAsset::decode(input)?.try_into().map_err(|()| "Invalid wildcard item".into())
-	}
-}
-
-impl From<WildMultiAsset> for OldMultiAsset {
-	fn from(a: WildMultiAsset) -> Self {
-		use {AssetId::*, WildFungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
-		match a {
-			WildMultiAsset::All => All,
-			AllOf(Fungible, Concrete(id)) => AllConcreteFungible { id },
-			AllOf(Fungible, Abstract(id)) => AllAbstractFungible { id },
-			AllOf(NonFungible, Concrete(class)) => AllConcreteNonFungible { class },
-			AllOf(NonFungible, Abstract(class)) => AllAbstractNonFungible { class },
-		}
-	}
-}
-
-impl TryFrom<OldMultiAsset> for WildMultiAsset {
-	type Error = ();
-	fn try_from(a: OldMultiAsset) -> Result<Self, ()> {
-		use {AssetId::*, WildFungibility::*, OldMultiAsset::*, WildMultiAsset::AllOf};
-		Ok(match a {
-			All => WildMultiAsset::All,
-			AllConcreteFungible { id } => AllOf(Fungible, Concrete(id)),
-			AllAbstractFungible { id } => AllOf(Fungible, Abstract(id)),
-			AllConcreteNonFungible { class } => AllOf(NonFungible, Concrete(class)),
-			AllAbstractNonFungible { class } => AllOf(NonFungible, Abstract(class)),
-			_ => return Err(()),
-		})
-	}
 }
 
 impl WildMultiAsset {
@@ -391,15 +300,20 @@ impl WildMultiAsset {
 	}
 }
 
+impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset {
+	fn from((id, fun): (A, B)) -> WildMultiAsset {
+		WildMultiAsset::AllOf(fun.into(), id.into())
+	}
+}
 
 
 
 
 /// `MultiAsset` collection, either `MultiAssets` or a single wildcard. Note: vectors of wildcards
 /// whose encoding is supported in XCM v0 are unsupported in this implementation and will result in a decode error.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum MultiAssetFilter {
-	Assets(MultiAssets),
+	Definite(MultiAssets),
 	Wild(WildMultiAsset),
 }
 
@@ -411,50 +325,13 @@ impl From<WildMultiAsset> for MultiAssetFilter {
 
 impl From<MultiAsset> for MultiAssetFilter {
 	fn from(x: MultiAsset) -> Self {
-		Self::Assets(vec![x].into())
+		Self::Definite(vec![x].into())
 	}
 }
 
 impl From<MultiAssets> for MultiAssetFilter {
 	fn from(x: MultiAssets) -> Self {
-		Self::Assets(x)
-	}
-}
-
-impl From<MultiAssetFilter> for Vec<OldMultiAsset> {
-	fn from(a: MultiAssetFilter) -> Self {
-		use MultiAssetFilter::*;
-		match a {
-			Assets(assets) => assets.0.into_iter().map(OldMultiAsset::from).collect(),
-			Wild(wild) => vec![wild.into()],
-		}
-	}
-}
-
-impl TryFrom<Vec<OldMultiAsset>> for MultiAssetFilter {
-	type Error = ();
-	fn try_from(mut old_assets: Vec<OldMultiAsset>) -> Result<Self, ()> {
-		use MultiAssetFilter::*;
-		if old_assets.is_empty() {
-			return Ok(Assets(MultiAssets::new()))
-		}
-		if old_assets.len() == 1 && old_assets[0].is_wildcard() {
-			return old_assets.pop().ok_or(()).and_then(|i| Ok(Wild(i.try_into()?)))
-		}
-
-		MultiAssets::try_from(old_assets).map(Self::Assets)
-	}
-}
-
-impl Encode for MultiAssetFilter {
-	fn encode(&self) -> Vec<u8> {
-		Vec::<OldMultiAsset>::from(self.clone()).encode()
-	}
-}
-
-impl Decode for MultiAssetFilter {
-	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		Vec::<OldMultiAsset>::decode(input)?.try_into().map_err(|()| "Invalid items".into())
+		Self::Definite(x)
 	}
 }
 
@@ -471,7 +348,7 @@ impl MultiAssetFilter {
 
 	/// Returns `true` if this definitely represents no asset.
 	pub fn is_none(&self) -> bool {
-		matches!(self, MultiAssetFilter::Assets(a) if a.is_none())
+		matches!(self, MultiAssetFilter::Definite(a) if a.is_none())
 	}
 
 	/// Returns true if `self` is a super-set of the given `inner`.
@@ -480,7 +357,7 @@ impl MultiAssetFilter {
 	/// For more details, see the implementation and tests.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		match self {
-			MultiAssetFilter::Assets(ref assets) => assets.contains(inner),
+			MultiAssetFilter::Definite(ref assets) => assets.contains(inner),
 			MultiAssetFilter::Wild(ref wild) => wild.contains(inner),
 		}
 	}
@@ -488,7 +365,7 @@ impl MultiAssetFilter {
 	/// Prepend a `MultiLocation` to any concrete asset components, giving it a new root location.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		match self {
-			MultiAssetFilter::Assets(ref mut assets) => assets.reanchor(prepend),
+			MultiAssetFilter::Definite(ref mut assets) => assets.reanchor(prepend),
 			MultiAssetFilter::Wild(ref mut wild) => wild.reanchor(prepend),
 		}
 	}

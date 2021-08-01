@@ -62,7 +62,7 @@ pub enum Error {
 	/// Used by:
 	/// - `Transact`
 	TooMuchWeightRequired,
-	/// The fees specified by the XCM message were not found in the holding account.
+	/// The fees specified by the XCM message were not found in the holding register.
 	///
 	/// Used by:
 	/// - `BuyExecution`

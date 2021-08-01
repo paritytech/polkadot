@@ -201,7 +201,7 @@ impl Assets {
 					}
 				});
 			}
-			MultiAssetFilter::Assets(assets) => {
+			MultiAssetFilter::Definite(assets) => {
 				if !saturate {
 					self.ensure_contains(&assets)?;
 				}
@@ -263,15 +263,6 @@ impl Assets {
 		}
 	}
 
-	/// Consumes `self` and returns its original value excluding `mask` iff it contains at least `mask`, as well as
-	/// the assets excluded.
-	pub fn less(mut self, mask: MultiAssetFilter) -> Result<(Assets, Assets), Self> {
-		match self.try_take(mask) {
-			Ok(taken) => Ok((self, taken)),
-			Err(_) => Err(self),
-		}
-	}
-
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
 	///
 	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
@@ -312,7 +303,7 @@ impl Assets {
 					}
 				});
 			}
-			MultiAssetFilter::Assets(assets) => {
+			MultiAssetFilter::Definite(assets) => {
 				for asset in assets.inner().iter() {
 					match asset {
 						MultiAsset { fun: Fungible(ref amount), ref id } => {

@@ -53,11 +53,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		match message {
 			Xcm::TeleportAsset { effects, .. }
 			| Xcm::WithdrawAsset { effects, ..}
-			| Xcm::ReserveAssetDeposit { effects, ..}
+			| Xcm::ReserveAssetDeposited { effects, ..}
 			if matches!(
-					effects.first(),
-					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
-				)
+				effects.first(),
+				Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
+			)
 			=> Ok(()),
 			_ => Err(()),
 		}

@@ -85,7 +85,7 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn teleport_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn beam_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
 			Err(XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;

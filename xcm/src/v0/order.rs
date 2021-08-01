@@ -44,11 +44,11 @@ pub enum Order<Call> {
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The new owner for the assets.
-	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
+	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposited` which is sent onwards to
 	///   `dest`.
 	///
 	/// Errors:
@@ -93,7 +93,7 @@ pub enum Order<Call> {
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `dest`: A valid destination for the returned XCM message. This may be limited to the current origin.
 	/// - `assets`: A filter for the assets that should be reported back. The assets reported back will be, asset-
-	///   wise, *the lesser of this value and the holding account*. No wildcards will be used when reporting assets
+	///   wise, *the lesser of this value and the holding register*. No wildcards will be used when reporting assets
 	///   back.
 	///
 	/// Errors:
@@ -101,7 +101,7 @@ pub enum Order<Call> {
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: MultiAssetFilter },
 
 	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
-	/// up to `fees` from the holding account.
+	/// up to `fees` from the holding register.
 	///
 	/// - `fees`: The asset(s) to remove from holding to pay for fees.
 	///
