@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![feature(or_patterns)] // revert before PRing
 
 use sp_std::{prelude::*, marker::PhantomData};
 use frame_support::{

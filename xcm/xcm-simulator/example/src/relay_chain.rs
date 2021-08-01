@@ -127,10 +127,9 @@ pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+pub(crate) fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
-/// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
@@ -142,7 +141,7 @@ impl SendXcm for TestSendXcm {
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = (TestSendXcm, XcmRouter);
+	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -159,7 +158,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
+	type XcmRouter = (XcmRouter, TestSendXcm);
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;

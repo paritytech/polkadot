@@ -19,7 +19,6 @@ mod relay_chain;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::{traits::AccountIdConversion, AccountId32};
-use xcm::opaque::v0::prelude::*;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
 
 pub const ALICE: AccountId32 = AccountId32::new([0u8; 32]);
@@ -105,6 +104,7 @@ mod tests {
 	use codec::Encode;
 	use frame_support::{assert_ok, weights::Weight};
 	use xcm::v0::{
+		prelude::OnlyChild,
 		Junction::{self, Parachain, Parent},
 		MultiAsset::*,
 		MultiLocation::*,
@@ -112,6 +112,12 @@ mod tests {
 		Xcm::*,
 	};
 	use xcm_simulator::TestExt;
+
+	// Helper function for forming buy execution message
+	fn buy_execution<C>(debt: Weight) -> Order<C> {
+		use xcm::opaque::v0::prelude::*;
+		Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	}
 
 	#[test]
 	fn dmp() {
@@ -221,20 +227,6 @@ mod tests {
 				INITIAL_BALANCE + 123
 			);
 		});
-	}
-
-	// Helper function for forming buy execution message
-	fn buy_execution<C>(debt: Weight) -> Order<C> {
-		use xcm::opaque::v0::prelude::*;
-		Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
-	}
-
-	fn last_relay_chain_event() -> relay_chain::Event {
-		relay_chain::System::events().pop().expect("Event expected").event
-	}
-
-	fn last_parachain_event() -> parachain::Event {
-		parachain::System::events().pop().expect("Event expected").event
 	}
 
 	/// Scenario:
