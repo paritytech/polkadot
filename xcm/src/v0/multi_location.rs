@@ -181,24 +181,24 @@ impl MultiLocation {
 	/// and the first element (second item in tuple) or `None` if it was empty.
 	pub fn split_first_non_parent(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
-		let (prefix, suffix) = junctions.split_first();
+		let (suffix, first) = junctions.split_first();
 		let multilocation = MultiLocation {
 			parents,
-			interior: prefix,
+			interior: suffix,
 		};
-		(multilocation, suffix)
+		(multilocation, first)
 	}
 
 	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
 	/// (second item in tuple) or `None` if it was empty or if `self` only contains parents.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
-		let (prefix, suffix) = junctions.split_last();
+		let (prefix, last) = junctions.split_last();
 		let multilocation = MultiLocation {
 			parents,
 			interior: prefix,
 		};
-		(multilocation, suffix)
+		(multilocation, last)
 	}
 
 	/// Bumps the parent count up by 1. Returns `Err` in case of overflow.
