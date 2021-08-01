@@ -87,7 +87,7 @@ pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 
-use xcm::v0::{Xcm, MultiLocation, NetworkId, BodyId};
+use xcm::v0::{MultiLocation, NetworkId, BodyId};
 use xcm_executor::XcmExecutor;
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
