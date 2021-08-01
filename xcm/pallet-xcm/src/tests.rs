@@ -127,7 +127,7 @@ fn reserve_transfer_assets_works() {
 }
 
 #[test]
-fn execute_works() {
+fn execute_withdraw_to_teleport_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
@@ -135,14 +135,27 @@ fn execute_works() {
 		let weight = 3 * BaseXcmWeight::get();
 		let dest: MultiLocation =
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+		let teleport_effects = vec![
+			buy_execution(0),
+			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() },
+		];
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: MultiLocation::Null, amount }],
-				effects: vec![buy_execution(weight), DepositAsset { assets: vec![All], dest },]
+				effects: vec![
+					buy_execution(weight),
+					Order::InitiateTeleport {
+						assets: vec![All],
+						dest,
+						effects: teleport_effects.clone(),
+					},
+				],
 			}),
 			weight
 		));
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - amount);
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
