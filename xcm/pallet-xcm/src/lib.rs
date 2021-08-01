@@ -250,9 +250,10 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(interior: MultiLocation, dest: MultiLocation, message: Xcm<()>) -> Result<(), XcmError> {
-			let message = match interior.junctions() {
-				Junctions::Null => message,
-				_ => Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) },
+			let message = if interior.is_empty() {
+				message
+			} else {
+				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 			T::XcmRouter::send_xcm(dest, message)
