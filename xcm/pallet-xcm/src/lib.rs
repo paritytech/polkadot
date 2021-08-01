@@ -324,7 +324,7 @@ impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> fo
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::default()))
+		O::from(Origin::Xcm(MultiLocation::empty()))
 	}
 }
 
