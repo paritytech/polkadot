@@ -63,7 +63,7 @@ fn teleport_assets_works() {
             weight,
         ));
         assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - amount);
-        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(2000))));
+        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight))));
     });
 }
 
@@ -96,7 +96,7 @@ fn reserve_transfer_assets_works() {
 				]
 			})]
 		);
-        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(1000))));
+        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight))));
 	});
 }
 
@@ -112,7 +112,7 @@ fn execute_works() {
                 buy_execution(weight),
                 DepositAsset { assets: vec![ All ], dest },
             ]
-        }), 2_000_000));
-        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(3000))));
+        }), weight));
+        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight))));
     });
 }
